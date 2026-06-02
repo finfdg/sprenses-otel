@@ -8,7 +8,18 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import { ReceiptText } from 'lucide-svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import StatCard from '$lib/components/StatCard.svelte';
+	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
+	import { ReceiptText, Landmark, FileText, Clock, CalendarX } from 'lucide-svelte';
+
+	const STATUS_LABELS: Record<string, string> = { pending: 'Bekliyor', paid: 'Ödendi', cancelled: 'İptal' };
+	const STATUS_BADGE: Record<string, BadgeType> = { pending: 'warning', paid: 'success', cancelled: 'neutral' };
+	function statusSelectClass(s: string): string {
+		if (s === 'pending') return 'bg-amber-50 text-amber-700 border-amber-300';
+		if (s === 'paid') return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+		return 'bg-gray-100 text-gray-600 border-gray-300';
+	}
 
 	// Generic onay state
 	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({
@@ -276,26 +287,26 @@
 </svelte:head>
 
 <!-- Özet Kartları -->
+<div class="mb-4">
+	<PageHeader title="Verilen Çekler" description="Verilen çekleri vade, durum ve banka/cari eşleşmesine göre takip edin" />
+</div>
+
 {#if summary}
-	<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-		<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm">
-			<div class="text-xs text-amber-600 uppercase font-medium">Bekleyen</div>
-			<div class="text-2xl font-bold text-amber-700 mt-1">
-				{summary.pending_count} çek
-			</div>
-			<div class="text-sm text-amber-600 mt-0.5">
-				{#if summary.pending_amount_eur != null}
-					€{formatCurrency(summary.pending_amount_eur)}
-				{:else}
-					₺{formatCurrency(summary.pending_amount)}
-				{/if}
-			</div>
-		</div>
-		<div class="bg-rose-50 border border-rose-200 rounded-xl p-4 shadow-sm">
-			<div class="text-xs text-rose-600 uppercase font-medium">Vadesi Geçen</div>
-			<div class="text-2xl font-bold text-rose-700 mt-1">{summary.overdue_count} çek</div>
-			<div class="text-sm text-rose-600 mt-0.5">₺{formatCurrency(summary.overdue_amount)}</div>
-		</div>
+	<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
+		<StatCard
+			label="Bekleyen"
+			value={`${summary.pending_count} çek`}
+			accent="amber"
+			icon={Clock}
+			hint={summary.pending_amount_eur != null ? `€${formatCurrency(summary.pending_amount_eur)}` : `₺${formatCurrency(summary.pending_amount)}`}
+		/>
+		<StatCard
+			label="Vadesi Geçen"
+			value={`${summary.overdue_count} çek`}
+			accent="red"
+			icon={CalendarX}
+			hint={`₺${formatCurrency(summary.overdue_amount)}`}
+		/>
 	</div>
 {/if}
 
@@ -450,39 +461,10 @@
 											€{formatCurrency(toEUR(check))}
 										</td>
 										<td class="px-3 py-2 text-center">
-										{#if canUse}
-											<button
-												onclick={() => {
-													const next: Record<string, string> = { pending: 'paid', paid: 'cancelled', cancelled: 'pending' };
-													updateStatus(check.id, next[check.status] || 'pending');
-												}}
-												class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer transition-colors
-													{check.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100' : check.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}"
-												title="Tıklayarak durumu değiştir"
-											>
-												<span class="w-1.5 h-1.5 rounded-full {check.status === 'pending' ? 'bg-amber-400' : check.status === 'paid' ? 'bg-emerald-400' : 'bg-gray-400'}"></span>
-												{check.status === 'pending' ? 'Bekliyor' : check.status === 'paid' ? 'Ödendi' : 'İptal'}
-											</button>
-										{:else}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium
-												{check.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' : check.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}">
-												<span class="w-1.5 h-1.5 rounded-full {check.status === 'pending' ? 'bg-amber-400' : check.status === 'paid' ? 'bg-emerald-400' : 'bg-gray-400'}"></span>
-												{check.status === 'pending' ? 'Bekliyor' : check.status === 'paid' ? 'Ödendi' : 'İptal'}
-											</span>
-										{/if}
+										{@render statusControl(check)}
 									</td>
 									<td class="px-3 py-2 text-center">
-										{#if check.bank_transaction_id}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200" title="Banka hareketi ile eşleşti">
-												🏦 #{check.match_number || 'Banka'}
-											</span>
-										{:else if check.match_number}
-											<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 text-teal-600 border border-teal-200" title="Cari ile eşleşti">
-												📄 #{check.match_number}
-											</span>
-										{:else}
-											<span class="text-gray-300 text-[10px]">-</span>
-										{/if}
+										{@render matchBadge(check)}
 									</td>
 									</tr>
 								{/each}
@@ -537,35 +519,8 @@
 										{/if}
 									</span>
 
-									{#if canUse}
-										<button
-											onclick={() => {
-												const next: Record<string, string> = { pending: 'paid', paid: 'cancelled', cancelled: 'pending' };
-												updateStatus(check.id, next[check.status] || 'pending');
-											}}
-											class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer transition-colors active:scale-95
-												{check.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' : check.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}"
-										>
-											<span class="w-1.5 h-1.5 rounded-full {check.status === 'pending' ? 'bg-amber-400' : check.status === 'paid' ? 'bg-emerald-400' : 'bg-gray-400'}"></span>
-											{check.status === 'pending' ? 'Bekliyor' : check.status === 'paid' ? 'Ödendi' : 'İptal'}
-										</button>
-									{:else}
-										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium
-											{check.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-200' : check.status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}">
-											<span class="w-1.5 h-1.5 rounded-full {check.status === 'pending' ? 'bg-amber-400' : check.status === 'paid' ? 'bg-emerald-400' : 'bg-gray-400'}"></span>
-											{check.status === 'pending' ? 'Bekliyor' : check.status === 'paid' ? 'Ödendi' : 'İptal'}
-										</span>
-									{/if}
-
-									{#if check.bank_transaction_id}
-										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200">
-											🏦 #{check.match_number || 'Banka'}
-										</span>
-									{:else if check.match_number}
-										<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 text-teal-600 border border-teal-200">
-											📄 #{check.match_number}
-										</span>
-									{/if}
+									{@render statusControl(check)}
+									{@render matchBadge(check)}
 								</div>
 							</div>
 						{/each}
@@ -594,3 +549,36 @@
 	cancelText="Vazgeç"
 	onConfirm={confirmState.onConfirm}
 />
+
+<!-- Çek durumu — açık seçim (eski "gizli 3-döngülü toggle" yerine güvenli) -->
+{#snippet statusControl(check: Check)}
+	{#if canUse}
+		<select
+			value={check.status}
+			onchange={(e) => updateStatus(check.id, e.currentTarget.value)}
+			aria-label="Çek durumu"
+			class="text-xs font-medium px-2 py-1 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 {statusSelectClass(check.status)}"
+		>
+			<option value="pending">Bekliyor</option>
+			<option value="paid">Ödendi</option>
+			<option value="cancelled">İptal</option>
+		</select>
+	{:else}
+		<StatusBadge type={STATUS_BADGE[check.status] ?? 'neutral'}>{STATUS_LABELS[check.status] ?? check.status}</StatusBadge>
+	{/if}
+{/snippet}
+
+<!-- Eşleşme rozeti (emoji yerine Lucide) -->
+{#snippet matchBadge(check: Check)}
+	{#if check.bank_transaction_id}
+		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200" title="Banka hareketi ile eşleşti">
+			<Landmark size={12} /> #{check.match_number || 'Banka'}
+		</span>
+	{:else if check.match_number}
+		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200" title="Cari ile eşleşti">
+			<FileText size={12} /> #{check.match_number}
+		</span>
+	{:else}
+		<span class="text-gray-400 text-xs">—</span>
+	{/if}
+{/snippet}
