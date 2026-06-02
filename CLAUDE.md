@@ -66,7 +66,10 @@
   - İzin verilen header'lar: `Content-Type, Authorization, X-Internal-Secret`
 - **SECRET_KEY:** En az 32 karakter, kriptografik rastgele değer olmalıdır — `config.py`'de uzunluk kontrolü yapılır
 - **Rate Limiting:** Login endpoint'inde IP bazlı rate limiting aktif (5 deneme/dakika)
-- **Güvenlik Header'ları:** `SecurityHeadersMiddleware` ile X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy eklenir
+- **Güvenlik Header'ları:** `SecurityHeadersMiddleware` ile X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, **HSTS** ve **Content-Security-Policy** eklenir
+  - **CSP (global):** `object-src 'none'; base-uri 'none'; frame-ancestors 'none'` — `default-src`/`script-src` **bilerek belirtilmez** ki FastAPI `/docs` (Swagger, CDN script) çalışsın; backend yalnızca JSON+dosya döndüğünden bu kısıtlar yeterli
+  - **Dosya sunumu CSP:** `files.py` SVG/HTML için `Content-Disposition: attachment` + sıkı per-response CSP (`default-src 'none'; sandbox`) uygular → stored-XSS engellenir (mevcut SVG'ler `<img>` ile gösterilmeye devam eder ama doğrudan gezinmede script çalışmaz)
+- **Logo/Dosya Yükleme — SVG yasak:** Logo yüklemesinde **SVG kabul edilmez** (stored-XSS riski; eski blacklist `onerror=`/`xlink:href` gibi vektörleri kaçırıyordu). Logolar raster (PNG/JPG/WEBP) olmalı ve **magic-byte** ile doğrulanır
 - **Global Exception Handler:** Beklenmeyen hatalar loglanır, kullanıcıya generic mesaj döner
 - **Audit Logging:** Tüm CRUD işlemleri ve giriş/çıkış olayları `audit_logs` tablosuna kaydedilir
 
@@ -249,7 +252,7 @@ TEMPLATE:
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations
-│   ├── tests/                   # pytest testleri (700+ test, %55 satır kapsamı)
+│   ├── tests/                   # pytest testleri (900+ test, ~%60 satır kapsamı)
 │   │   ├── conftest.py          # Test fixture'ları (SAVEPOINT rollback)
 │   │   ├── test_health.py
 │   │   ├── test_auth.py
@@ -259,9 +262,12 @@ TEMPLATE:
 │   │   ├── test_scheduled_base.py   # Muhasebe + İK (8 modül)
 │   │   ├── test_credits.py, test_checks.py, test_budget.py, test_onay.py
 │   │   ├── test_advances.py, test_quality_module.py
+│   │   ├── test_approval_system.py  # Sistem onay akışı motoru (workflow/talep/executor)
+│   │   ├── test_security.py         # CSP başlığı + logo/SVG XSS sertleştirme
 │   │   ├── test_notifications.py    # Bildirim testleri
 │   │   ├── test_permissions.py      # İzin kontrolleri
-│   │   └── test_ws_push_audit.py
+│   │   ├── test_ws_push_audit.py
+│   │   └── ci/                      # CI/test DB bootstrap (01_schema.sql, 02_seed.sql, seed_admin.py)
 │   ├── venv/                    # Python sanal ortam
 │   ├── requirements.txt
 │   ├── pytest.ini
@@ -332,6 +338,12 @@ TEMPLATE:
   ```
   Bu script `npm run build` + `systemctl restart` zincirini çalıştırır. Tek başına `restart` yetmez.
 - **Tarayıcı önbelleği:** Deploy sonrası kullanıcının hard-refresh yapması gerekebilir (Cmd/Ctrl+Shift+R · iPad Safari: yenile ikonuna uzun bas → "Sürüm Yenile").
+
+### Sürüm Kontrolü ve CI
+
+- **Git:** Proje `master` branch'inde versiyon kontrolü altındadır. `.gitignore` hassas/üretilen her şeyi hariç tutar (`.env`, `venv`, `node_modules`, `build`, `.svelte-kit`, loglar, `uploads/`, `.claude/settings.local.json`). `.env` **asla** commit edilmez — şablon: `backend/.env.example`.
+- **CI:** `.github/workflows/ci.yml` her push/PR'da backend (pytest) + frontend (vitest) çalıştırır. Postgres service container + `tests/ci/` bootstrap ile sıfırdan test DB kurulur.
+- **Test DB bootstrap (`backend/tests/ci/`):** `01_schema.sql` (prod şema dump'ı) + `02_seed.sql` (RBAC referans verisi) + `seed_admin.py` (admin kullanıcısı). Yerelde: `scripts/setup-test-db.sh`. Detay ve migration-zinciri notu: `backend/tests/ci/README.md`.
 
 ## API Endpoints
 
