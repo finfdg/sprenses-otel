@@ -59,7 +59,7 @@
 				</button>
 				<button
 					onclick={handleConfirm}
-					class="flex-1 py-2.5 text-sm text-white rounded-lg transition-colors cursor-pointer font-medium {danger ? 'bg-red-500 hover:bg-red-600' : 'bg-teal-600 hover:bg-teal-700'}"
+					class="flex-1 py-2.5 text-sm text-white rounded-lg transition-colors cursor-pointer font-medium {danger ? 'bg-red-600 hover:bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}"
 				>
 					{confirmText}
 				</button>

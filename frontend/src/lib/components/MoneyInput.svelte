@@ -34,6 +34,9 @@
 		/** Ek tailwind sınıfları — varsayılan stilin üzerine eklenir */
 		class?: string;
 		onchange?: (v: number | null) => void;
+		/** Form erişilebilirliği: hata durumunu ekran okuyucuya bildirir */
+		ariaInvalid?: boolean;
+		ariaDescribedby?: string;
 	}
 
 	let {
@@ -50,6 +53,8 @@
 		allowNegative = false,
 		class: klass = '',
 		onchange,
+		ariaInvalid = false,
+		ariaDescribedby = undefined,
 	}: Props = $props();
 
 	const CURRENCY_LABELS: Record<string, string> = {
@@ -233,6 +238,8 @@
 		type="text"
 		inputmode="decimal"
 		autocomplete="off"
+		aria-invalid={ariaInvalid || undefined}
+		aria-describedby={ariaDescribedby}
 		oninput={handleInput}
 		onmousedown={handleMouseDown}
 		onfocus={handleFocus}
