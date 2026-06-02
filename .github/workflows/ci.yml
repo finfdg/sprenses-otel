@@ -1,0 +1,85 @@
+name: CI
+
+# Her push ve pull request'te backend (pytest) + frontend (vitest) testlerini çalıştırır.
+# Test DB'si, çalışan şemadan alınmış dump (tests/ci/01_schema.sql) + referans veri
+# (02_seed.sql) + admin seed (seed_admin.py) ile kurulur — production şemasıyla birebir.
+# Not: Şema migration zinciri yerine dump'tan kurulur çünkü migration'lar şu an sıfırdan
+# temiz uygulanmıyor (bkz. tests/ci/README.md). Şema değişince dump yenilenmeli.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: sprenses
+          POSTGRES_PASSWORD: sprenses_ci
+          POSTGRES_DB: sprenses_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sprenses"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://sprenses:sprenses_ci@localhost:5432/sprenses_test
+      SECRET_KEY: ci-secret-key-for-tests-minimum-32-characters-long
+      INTERNAL_SECRET: ci-internal-secret-for-tests-minimum-32-characters
+      CORS_ORIGINS: http://testserver
+      PGPASSWORD: sprenses_ci
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Python bağımlılıklarını yükle
+        run: pip install -r requirements.txt
+
+      - name: Test veritabanını kur (şema + referans veri + admin)
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/ci/01_schema.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/ci/02_seed.sql
+          PYTHONPATH=. python tests/ci/seed_admin.py
+
+      - name: pytest
+        run: python -m pytest tests/ -q
+
+  frontend:
+    name: Frontend (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Node bağımlılıklarını yükle
+        run: npm ci
+
+      - name: vitest
+        run: npx vitest run
