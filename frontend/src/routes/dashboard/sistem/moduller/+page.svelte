@@ -4,6 +4,7 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { validateRequired, validateModuleCode } from '$lib/utils/validation';
 	import { showToast } from '$lib/stores/toast.svelte';
 
@@ -151,13 +152,17 @@
 <svelte:head><title>Sprenses - Modüller</title></svelte:head>
 
 <div class="max-w-4xl mx-auto">
-	{#if canUse}
-		<div class="flex justify-end mb-6">
-			<button onclick={openCreate} class="px-4 py-2.5 sm:py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors cursor-pointer whitespace-nowrap">
-				+ Yeni Modül
-			</button>
-		</div>
-	{/if}
+	<div class="mb-6">
+		<PageHeader title="Modüller" description="Sistem modülleri ve menü hiyerarşisi">
+			{#snippet actions()}
+				{#if canUse}
+					<button onclick={openCreate} class="px-4 py-2.5 sm:py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors cursor-pointer whitespace-nowrap">
+						+ Yeni Modül
+					</button>
+				{/if}
+			{/snippet}
+		</PageHeader>
+	</div>
 
 	{#if loading}
 		<p class="text-gray-500">Yükleniyor...</p>
