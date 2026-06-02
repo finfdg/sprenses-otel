@@ -269,7 +269,7 @@ TEMPLATE:
 │   │   ├── test_notifications.py    # Bildirim testleri
 │   │   ├── test_permissions.py      # İzin kontrolleri
 │   │   ├── test_ws_push_audit.py
-│   │   └── ci/                      # CI/test DB bootstrap (01_schema.sql, 02_seed.sql, seed_admin.py)
+│   │   └── ci/                      # CI/test DB bootstrap (alembic upgrade head + reset_data.sql + 02_seed.sql + seed_admin.py)
 │   ├── venv/                    # Python sanal ortam
 │   ├── requirements.txt
 │   ├── pytest.ini
@@ -345,7 +345,7 @@ TEMPLATE:
 
 - **Git:** Proje `master` branch'inde versiyon kontrolü altındadır. `.gitignore` hassas/üretilen her şeyi hariç tutar (`.env`, `venv`, `node_modules`, `build`, `.svelte-kit`, loglar, `uploads/`, `.claude/settings.local.json`). `.env` **asla** commit edilmez — şablon: `backend/.env.example`.
 - **CI:** `.github/workflows/ci.yml` her push/PR'da backend (pytest) + frontend (vitest) çalıştırır. Postgres service container + `tests/ci/` bootstrap ile sıfırdan test DB kurulur.
-- **Test DB bootstrap (`backend/tests/ci/`):** `01_schema.sql` (prod şema dump'ı) + `02_seed.sql` (RBAC referans verisi) + `seed_admin.py` (admin kullanıcısı). Yerelde: `scripts/setup-test-db.sh`. Detay ve migration-zinciri notu: `backend/tests/ci/README.md`.
+- **Test DB bootstrap (`backend/tests/ci/`):** Şema doğrudan migration zincirinden kurulur — `alembic upgrade head` (zincir prod ile birebir) → `reset_data.sql` (migration'ın eklediği veriyi temizle) → `02_seed.sql` (RBAC referans verisi) → `seed_admin.py` (admin kullanıcısı). Ayrı şema dump'ı (`01_schema.sql`) artık yok. Yerelde: `scripts/setup-test-db.sh`. Detay ve migration-zinciri doğrulaması: `backend/tests/ci/README.md`.
 
 ## API Endpoints
 

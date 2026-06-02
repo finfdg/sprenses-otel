@@ -28,6 +28,9 @@ def upgrade() -> None:
         sa.Column('total_amount', sa.Numeric(15, 2), nullable=False, server_default='0'),
         sa.Column('remaining_amount', sa.Numeric(15, 2), nullable=False, server_default='0'),
         sa.Column('interest_rate', sa.Numeric(6, 4), nullable=True),
+        # KMH için bağlı banka hesabı — bu hesabın bakiyesi negatife düştüğünde KMH kullanımı sayılır
+        sa.Column('linked_account_id', sa.Integer(),
+                   sa.ForeignKey('bank_accounts.id', ondelete='SET NULL'), nullable=True),
         sa.Column('start_date', sa.Date(), nullable=True),
         sa.Column('end_date', sa.Date(), nullable=True),
         sa.Column('status', sa.String(20), nullable=False, server_default='active'),
@@ -39,6 +42,7 @@ def upgrade() -> None:
     )
     op.create_index('ix_credit_products_type', 'credit_products', ['type'])
     op.create_index('ix_credit_products_status', 'credit_products', ['status'])
+    op.create_index('ix_credit_products_linked_account', 'credit_products', ['linked_account_id'])
 
     # credit_payments tablosu
     op.create_table(
@@ -51,7 +55,8 @@ def upgrade() -> None:
         sa.Column('amount', sa.Numeric(15, 2), nullable=False),
         sa.Column('principal', sa.Numeric(15, 2), nullable=True),
         sa.Column('interest', sa.Numeric(15, 2), nullable=True),
-        sa.Column('tax', sa.Numeric(15, 2), nullable=True),
+        sa.Column('bsmv', sa.Numeric(15, 2), nullable=True),
+        sa.Column('commission', sa.Numeric(15, 2), nullable=True),
         sa.Column('is_paid', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('paid_date', sa.Date(), nullable=True),
         sa.Column('bank_transaction_id', sa.Integer(),

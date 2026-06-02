@@ -1,12 +1,12 @@
 name: CI
 
 # Her push ve pull request'te backend (pytest) + frontend (vitest) testlerini çalıştırır.
-# Test DB'si, çalışan şemadan alınmış dump (tests/ci/01_schema.sql) + referans veri
-# (02_seed.sql) + admin seed (seed_admin.py) ile kurulur — production şemasıyla birebir.
-# Not: `alembic upgrade head` artık sıfırdan temiz uygulanıyor (checks/check_uploads FK
-# sıra hatası düzeltildi). Şema yine de dump'tan kurulur çünkü migration zinciri ile model
-# arasında bu görevle alakasız birkaç küçük içerik farkı sürüyor; dump prod ile birebir
-# olduğu için otoriter kaynak (bkz. tests/ci/README.md). Şema değişince dump yenilenmeli.
+# Test DB'si SIFIRDAN `alembic upgrade head` ile kurulur — migration zinciri artık prod
+# şemasıyla birebir (cols/idx/con/defaults). Migration'ların eklediği örnek/seed veri
+# reset_data.sql ile temizlenir; ardından referans RBAC verisi (02_seed.sql) + admin
+# kullanıcısı (seed_admin.py) yüklenir.
+# Not: Migration zinciri ile prod arasındaki eski içerik farkları giderildiğinden artık
+# ayrı bir şema dump'ına (01_schema.sql) gerek yoktur (bkz. tests/ci/README.md).
 
 on:
   push:
@@ -56,9 +56,10 @@ jobs:
       - name: Python bağımlılıklarını yükle
         run: pip install -r requirements.txt
 
-      - name: Test veritabanını kur (şema + referans veri + admin)
+      - name: Test veritabanını kur (alembic şema + referans veri + admin)
         run: |
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/ci/01_schema.sql
+          alembic upgrade head
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/ci/reset_data.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/ci/02_seed.sql
           PYTHONPATH=. python tests/ci/seed_admin.py
 

@@ -1,6 +1,7 @@
 """CI/test veritabanı için admin kullanıcısı seed script'i.
 
-Şema (01_schema.sql) ve referans veri (02_seed.sql) yüklendikten sonra çalıştırılır.
+Şema (alembic upgrade head + reset_data.sql) ve referans veri (02_seed.sql)
+yüklendikten sonra çalıştırılır.
 Migration'lar admin KULLANICISINI oluşturmaz (prod'da manuel kayıtlıdır), bu yüzden
 test/CI ortamında admin'i deterministik biçimde burada üretiyoruz.
 

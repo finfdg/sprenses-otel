@@ -35,19 +35,23 @@ export PGPASSWORD="$(echo "$TEST_DATABASE_URL" | sed -E 's|.*://[^:]+:([^@]+)@.*
 
 echo "==> Hedef test DB: $(echo "$TEST_DATABASE_URL" | sed -E 's|:[^:@]+@|:****@|')"
 
-echo "==> 1/4 Şema sıfırlanıyor (public şema yeniden oluşturuluyor)..."
+echo "==> 1/5 Şema sıfırlanıyor (public şema yeniden oluşturuluyor)..."
 psql "$TEST_DATABASE_URL" -q -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 
-echo "==> 2/4 Şema yükleniyor (01_schema.sql)..."
-psql "$TEST_DATABASE_URL" -q -v ON_ERROR_STOP=1 -f "$CI_DIR/01_schema.sql"
-
-echo "==> 3/4 Referans veri yükleniyor (02_seed.sql)..."
-psql "$TEST_DATABASE_URL" -q -v ON_ERROR_STOP=1 -f "$CI_DIR/02_seed.sql"
-
-echo "==> 4/4 Admin kullanıcısı seed ediliyor..."
 cd "$BACKEND_DIR"
 # shellcheck disable=SC1091
 source venv/bin/activate 2>/dev/null || true
+
+echo "==> 2/5 Şema kuruluyor (alembic upgrade head)..."
+DATABASE_URL="$TEST_DATABASE_URL" alembic upgrade head
+
+echo "==> 3/5 Migration seed verisi temizleniyor (reset_data.sql)..."
+psql "$TEST_DATABASE_URL" -q -v ON_ERROR_STOP=1 -f "$CI_DIR/reset_data.sql"
+
+echo "==> 4/5 Referans veri yükleniyor (02_seed.sql)..."
+psql "$TEST_DATABASE_URL" -q -v ON_ERROR_STOP=1 -f "$CI_DIR/02_seed.sql"
+
+echo "==> 5/5 Admin kullanıcısı seed ediliyor..."
 DATABASE_URL="$TEST_DATABASE_URL" PYTHONPATH=. python tests/ci/seed_admin.py
 
 echo "==> Tamam. Testleri çalıştırmak için:"

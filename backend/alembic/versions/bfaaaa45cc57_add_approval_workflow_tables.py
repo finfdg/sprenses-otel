@@ -16,6 +16,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # NOT: `name` üzerinde DB seviyesinde UNIQUE kısıtı bilerek oluşturulmaz.
+    # Prod şemasında bu kısıt yoktur; isim tekrarı uygulama seviyesinde
+    # (routers/approval/workflows.py içindeki ön kontrol + IntegrityError yedeği)
+    # engellenir. Model'de `name`'in unique=True niyeti korunur, ancak from-scratch
+    # zincirin prod ile birebir kalması için kısıt burada üretilmez.
     op.create_table('approval_workflows',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=200), nullable=False),
@@ -27,8 +32,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
         sa.ForeignKeyConstraint(['created_by'], ['users.id'], ondelete='SET NULL'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('name')
+        sa.PrimaryKeyConstraint('id')
     )
     op.create_index('ix_aw_entity_type', 'approval_workflows', ['entity_type'], unique=False)
     op.create_index('ix_aw_active', 'approval_workflows', ['is_active'], unique=False)
