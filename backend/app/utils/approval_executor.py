@@ -459,9 +459,10 @@ def _handle_finance_departmanlar(db, action_type, entity_id, payload, actor_id):
     if action_type == "create":
         dept = Department(
             name=payload.get("name", ""),
-            description=payload.get("description"),
+            code=payload.get("code", ""),
             manager_id=payload.get("manager_id"),
             is_active=payload.get("is_active", True),
+            sort_order=payload.get("sort_order", 0),
         )
         db.add(dept)
 
