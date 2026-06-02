@@ -9,7 +9,7 @@ Tüm frontend sayfalar bu dokümandaki şablona ve bileşen API'lerine uyar. Yen
 **Zorunlu primitive'ler (inline kopya yazma):**
 | Bileşen | Ne için | Kural |
 |---|---|---|
-| `Button.svelte` | Tüm butonlar | Primary rengin **tek kaynağı**. `variant` (primary/secondary/danger/ghost), `size`, `loading`. Elle `bg-teal-* ... rounded-lg` buton yazma. AA-uyumlu (teal-700). |
+| `Button.svelte` | Tüm butonlar | Primary rengin **tek kaynağı**. `variant` (primary/secondary/danger/ghost), `size`, `loading`, `fullWidth`. Elle `bg-teal-* ... rounded-lg` buton yazma. AA-uyumlu (teal-700). `class` prop'u **yalnızca layout** (ör. `w-full sm:w-auto`, `mt-2`) içindir — renk/stil variant'tan gelir, sona eklenir, ezmez. |
 | `PageHeader.svelte` | Sayfa başlığı | `<h1>` + açıklama + `{#snippet actions()}`. Her sayfada başlık zorunlu. |
 | `StatCard.svelte` | Özet kartları | `label`/`value` + opsiyonel `icon`/`accent`/`hint`. Inline stat kartı yazma. |
 | `StatusBadge.svelte` | Durum rozetleri | `type` (success/warning/error/info/neutral). Semantik renk sabit; inline `rounded-full` rozet yazma. |
