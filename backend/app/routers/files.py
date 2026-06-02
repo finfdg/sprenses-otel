@@ -123,11 +123,23 @@ def serve_file(file_path: str, request: Request):
     media_type = _EXT_MIME.get(ext, "application/octet-stream")
 
     # Cache header — UUID dosya adları sayesinde agresif cache güvenli
+    response_headers = {
+        "Cache-Control": "private, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
+    }
+
+    # SVG (ve diğer "aktif" içerik) doğrudan gezinmede (top-level document) script
+    # çalıştırabilir → stored XSS riski. İki katmanlı savunma:
+    #  1) Content-Disposition: attachment → tarayıcı inline render etmek yerine indirir
+    #     (<img src> ile gösterim ETKİLENMEZ; SVG'ler logolarda görünmeye devam eder).
+    #  2) Sıkı CSP → render edilse bile script/dış kaynak yüklenemez.
+    # Global middleware CSP'si mevcut header'ı ezmez; burada set edilen daha sıkıdır.
+    if ext == ".svg" or media_type in ("image/svg+xml", "text/html"):
+        response_headers["Content-Disposition"] = f'attachment; filename="{resolved.name}"'
+        response_headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+
     return FileResponse(
         path=str(resolved),
         media_type=media_type,
-        headers={
-            "Cache-Control": "private, max-age=86400",
-            "X-Content-Type-Options": "nosniff",
-        },
+        headers=response_headers,
     )

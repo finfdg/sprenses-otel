@@ -37,7 +37,8 @@ router = APIRouter()
 _LOGOS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "uploads" / "logos"
 _LOGOS_DIR.mkdir(parents=True, exist_ok=True)
 
-_ALLOWED_LOGO_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+# SVG kasıtlı olarak hariç — XSS riski (stored-XSS). Logolar raster formatta olmalı.
+_ALLOWED_LOGO_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 _MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
 
 
@@ -458,7 +459,7 @@ async def upload_template_logo(
     if ext not in _ALLOWED_LOGO_EXTS:
         raise HTTPException(
             status_code=400,
-            detail="Desteklenmeyen dosya formatı. PNG, JPG, SVG veya WEBP yükleyin.",
+            detail="Desteklenmeyen dosya formatı. PNG, JPG veya WEBP yükleyin.",
         )
 
     # Dosya boyutu kontrolü
@@ -466,21 +467,15 @@ async def upload_template_logo(
     if len(content) > _MAX_LOGO_SIZE:
         raise HTTPException(status_code=400, detail="Logo dosyası 2 MB'dan küçük olmalıdır")
 
-    # Magic bytes ile gerçek dosya tipi doğrulama (SVG XSS engeli)
+    # Magic bytes ile gerçek dosya tipi doğrulama — uzantı sahteciliğini engeller
     _MAGIC = {
         ".png": b"\x89PNG",
         ".jpg": b"\xff\xd8\xff",
         ".jpeg": b"\xff\xd8\xff",
         ".webp": b"RIFF",
     }
-    if ext == ".svg":
-        # SVG dosyasında <script> tagı varsa reddet
-        text = content.decode("utf-8", errors="ignore").lower()
-        if "<script" in text or "javascript:" in text or "on" + "load=" in text:
-            raise HTTPException(status_code=400, detail="SVG dosyasında zararlı içerik tespit edildi")
-    elif ext in _MAGIC:
-        if not content[:4].startswith(_MAGIC[ext]):
-            raise HTTPException(status_code=400, detail="Dosya içeriği uzantısıyla uyuşmuyor")
+    if ext in _MAGIC and not content[:4].startswith(_MAGIC[ext]):
+        raise HTTPException(status_code=400, detail="Dosya içeriği uzantısıyla uyuşmuyor")
 
     # Eski logoyu sil
     if template.logo_filename:

@@ -82,6 +82,14 @@ _SECURITY_HEADERS = [
     (b"referrer-policy", b"strict-origin-when-cross-origin"),
     (b"permissions-policy", b"camera=(self), microphone=(self), geolocation=()"),
     (b"strict-transport-security", b"max-age=31536000; includeSubDomains"),
+    # Backend yalnızca JSON API + dosya yanıtı döner (SvelteKit HTML'i ayrı sunulur).
+    # default-src/script-src belirtilmez → FastAPI /docs (Swagger, CDN script) çalışmaya
+    # devam eder. Eklenen kısıtlar her zaman güvenli ve anlamlıdır: eklenti/object yok,
+    # <base> ile URL kaçırma yok, çerçeveleme yok (X-Frame-Options'ı CSP ile pekiştirir).
+    # Dosya sunumu (files.py) kendi DAHA SIKI CSP'sini (default-src 'none'; sandbox) set
+    # eder → SVG vb. doğrudan gezinmede script çalıştıramaz (middleware mevcut header'ı ezmez).
+    (b"content-security-policy",
+     b"object-src 'none'; base-uri 'none'; frame-ancestors 'none'"),
 ]
 
 
