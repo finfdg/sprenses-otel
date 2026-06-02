@@ -545,3 +545,38 @@ def test_export_pdf_respects_type_filter(client, auth_headers):
 
 def test_export_pdf_requires_permission(client, no_perm_user_headers):
     assert client.get(f"{PREFIX}/export/pdf", headers=no_perm_user_headers).status_code == 403
+
+
+def test_pdf_font_renders_turkish_lira_glyph():
+    """REGRESYON: PDF fontu Türk Lirası sembolünü (₺, U+20BA) içermeli.
+
+    Bitstream Vera ₺'yi içermez → tutarlar kutu (□) olarak görünürdü.
+    Seçilen font (DejaVuSans) ₺ glyph'ini içermeli ki TL tutarları düzgün
+    render edilsin. Bu test fontun ₺ + diğer para birimi sembollerini
+    (€ £ $) çizebildiğini doğrular."""
+    from reportlab.pdfbase import pdfmetrics
+
+    from app.utils.pdf_fonts import register_turkish_fonts
+
+    base_font, bold_font = register_turkish_fonts()
+    # DejaVuSans birincil tercih — sistemde kurulu olmalı
+    assert base_font == "DejaVuSans", f"Beklenen DejaVuSans, gelen {base_font}"
+
+    face = pdfmetrics.getFont(base_font).face
+    for cp, name in [(0x20BA, "₺"), (0x20AC, "€"), (0xA3, "£"), (0x24, "$")]:
+        assert cp in face.charToGlyph and face.charToGlyph[cp] != 0, \
+            f"{name} (U+{cp:04X}) fontta yok — kutu olarak render edilir"
+
+
+def test_export_pdf_with_eur_credit(client, auth_headers):
+    """EUR kredisi içeren rapor sorunsuz üretilir (EUR renklendirme yolu).
+
+    EUR satırları mavi arka planla vurgulanır — bu kod yolunun (eur_rows)
+    geçerli PDF ürettiğini doğrular."""
+    _create_product(client, auth_headers, name="EUR Kredi", currency="EUR",
+                    start_date="2026-04-01", end_date="2027-04-01")
+    _create_product(client, auth_headers, name="TL Kredi", currency="TRY")
+    res = client.get(f"{PREFIX}/export/pdf", headers=auth_headers)
+    assert res.status_code == 200, res.text
+    assert res.content[:4] == b"%PDF"
+    assert len(res.content) > 800

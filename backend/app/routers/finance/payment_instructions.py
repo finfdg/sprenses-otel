@@ -417,15 +417,10 @@ def export_pdf(
     _: User = Depends(require_permission("finance.cariler", "view")),
 ):
     """Ödeme talimat listesini PDF olarak indir."""
-    import os
-
-    import reportlab
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import (
         Paragraph,
         SimpleDocTemplate,
@@ -434,16 +429,12 @@ def export_pdf(
         TableStyle,
     )
 
+    from app.utils.pdf_fonts import register_turkish_fonts
+
     pl = _get_list_or_404(db, list_id)
 
-    # Türkçe karakter destekli font
-    font_dir = os.path.join(os.path.dirname(reportlab.__file__), "fonts")
-    try:
-        pdfmetrics.registerFont(TTFont("Vera", os.path.join(font_dir, "Vera.ttf")))
-        pdfmetrics.registerFont(TTFont("VeraBd", os.path.join(font_dir, "VeraBd.ttf")))
-        base_font, bold_font = "Vera", "VeraBd"
-    except Exception:
-        base_font, bold_font = "Helvetica", "Helvetica-Bold"
+    # Türkçe + para birimi sembolü (₺) destekli font — DejaVuSans
+    base_font, bold_font = register_turkish_fonts()
 
     output = io.BytesIO()
     doc = SimpleDocTemplate(

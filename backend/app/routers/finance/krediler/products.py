@@ -113,16 +113,14 @@ def export_credits_pdf(
     görülen krediyle eşleşir. Sayfalama yoktur; tüm eşleşen krediler raporlanır.
     """
     import io
-    import os
 
-    import reportlab
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    from app.utils.pdf_fonts import register_turkish_fonts
 
     # Liste ile aynı filtreler (sayfalama yok)
     query = db.query(CreditProduct)
@@ -140,14 +138,8 @@ def export_credits_pdf(
         CreditProduct.type, CreditProduct.bank_name, CreditProduct.name
     ).all()
 
-    # Türkçe karakter destekli font
-    font_dir = os.path.join(os.path.dirname(reportlab.__file__), "fonts")
-    try:
-        pdfmetrics.registerFont(TTFont("Vera", os.path.join(font_dir, "Vera.ttf")))
-        pdfmetrics.registerFont(TTFont("VeraBd", os.path.join(font_dir, "VeraBd.ttf")))
-        base_font, bold_font = "Vera", "VeraBd"
-    except Exception:
-        base_font, bold_font = "Helvetica", "Helvetica-Bold"
+    # Türkçe + para birimi sembolü (₺ € £ $) destekli font — DejaVuSans
+    base_font, bold_font = register_turkish_fonts()
 
     status_labels = {"active": "Aktif", "closed": "Kapalı"}
 
@@ -163,17 +155,20 @@ def export_credits_pdf(
         topMargin=14 * mm, bottomMargin=14 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
     )
     title_style = ParagraphStyle("t", fontName=bold_font, fontSize=14, spaceAfter=4)
-    sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=10)
+    sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=4)
+    legend_style = ParagraphStyle("lg", fontName=base_font, fontSize=8, textColor=colors.grey, spaceAfter=10)
 
     today = date_cls.today()
     elems = [
         Paragraph("Kredi Raporu", title_style),
         Paragraph(f"{len(products)} kredi &nbsp;·&nbsp; Rapor tarihi: {today.strftime('%d.%m.%Y')}", sub_style),
-        Spacer(1, 4),
     ]
 
     data = [["Banka", "Kredi Adı", "Tip", "Tutar", "Faiz", "Kom.", "Açılış", "Vade", "Kalan", "Durum"]]
-    for p in products:
+    eur_rows = []  # EUR kredilerinin tablo satır indeksleri (renklendirme için)
+    for i, p in enumerate(products):
+        if (p.currency or "TRY") == "EUR":
+            eur_rows.append(i + 1)  # +1: başlık satırı
         data.append([
             p.bank_name or "—",
             p.name,
@@ -187,9 +182,17 @@ def export_credits_pdf(
             status_labels.get(p.status, p.status or "—"),
         ])
 
+    # EUR kredileri varsa açıklama (legend) ekle
+    if eur_rows:
+        elems.append(Paragraph(
+            '<font color="#2563EB">■</font>&nbsp; Mavi ile işaretli satırlar EUR kredileridir',
+            legend_style,
+        ))
+    elems.append(Spacer(1, 4))
+
     col_widths = [28 * mm, 50 * mm, 22 * mm, 32 * mm, 15 * mm, 15 * mm, 24 * mm, 24 * mm, 32 * mm, 18 * mm]
     table = Table(data, colWidths=col_widths, repeatRows=1)
-    table.setStyle(TableStyle([
+    style_cmds = [
         ("FONTNAME", (0, 0), (-1, 0), bold_font),
         ("FONTNAME", (0, 1), (-1, -1), base_font),
         ("FONTSIZE", (0, 0), (-1, -1), 7.5),
@@ -206,7 +209,14 @@ def export_credits_pdf(
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-    ]))
+    ]
+    # EUR satırlarını mavi ile vurgula (zebra'nın üzerine yazılır) + sol kenar aksanı
+    eur_bg = colors.HexColor("#DBEAFE")
+    eur_accent = colors.HexColor("#2563EB")
+    for r in eur_rows:
+        style_cmds.append(("BACKGROUND", (0, r), (-1, r), eur_bg))
+        style_cmds.append(("LINEBEFORE", (0, r), (0, r), 2, eur_accent))
+    table.setStyle(TableStyle(style_cmds))
     elems.append(table)
 
     # Para birimi bazında toplam (karışık para birimlerini toplamaz)
@@ -218,10 +228,16 @@ def export_credits_pdf(
         t["remaining"] += float(p.remaining_amount or 0)
     if totals:
         elems.append(Spacer(1, 8))
-        lines = "<br/>".join(
-            f"{c}: Toplam {_fmt_money_tr(v['total'], c)} &nbsp;·&nbsp; Kalan {_fmt_money_tr(v['remaining'], c)}"
-            for c, v in totals.items()
-        )
+
+        def _tot_line(c, v):
+            txt = (
+                f"{c}: Toplam {_fmt_money_tr(v['total'], c)} "
+                f"&nbsp;·&nbsp; Kalan {_fmt_money_tr(v['remaining'], c)}"
+            )
+            # EUR toplamını mavi ile vurgula (tabloyla tutarlı)
+            return f'<font color="#1D4ED8">{txt}</font>' if c == "EUR" else txt
+
+        lines = "<br/>".join(_tot_line(c, v) for c, v in totals.items())
         elems.append(Paragraph(lines, ParagraphStyle("tot", fontName=bold_font, fontSize=9, leading=14)))
 
     doc.build(elems)

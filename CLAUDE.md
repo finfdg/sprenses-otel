@@ -479,7 +479,7 @@ TEMPLATE:
 - `GET /api/finance/krediler/summary/by-type` — Tip bazlı kredi özeti
 - `GET /api/finance/krediler/upcoming-payments` — Yaklaşan ödemeler
 - `GET /api/finance/krediler/{id}/kmh-status` — KMH için anlık adat/faiz/projeksiyon (sadece type='kmh')
-- `GET /api/finance/krediler/export/pdf` — Kredi PDF raporu (açılış + vade tarihleri dahil; tip/durum/arama filtreli; landscape A4, para-birimi-bazında toplam)
+- `GET /api/finance/krediler/export/pdf` — Kredi PDF raporu (açılış + vade tarihleri dahil; tip/durum/arama filtreli; landscape A4, para-birimi-bazında toplam; EUR kredileri mavi vurgulu; ₺ sembolü DejaVuSans ile düzgün render)
 - Detaylı bilgi: `docs/modules/krediler.md`
 
 ### Finans — Avanslar

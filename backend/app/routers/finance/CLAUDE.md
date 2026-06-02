@@ -5,6 +5,36 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## PDF Türk Lirası Sembolü (₺) "Kutu" Sorunu + Ortak Font Helper (2026-06-02 düzeltildi)
+
+**Sorun:** Kredi PDF raporunda (ve Ödeme Talimatı PDF'inde) TL tutarları `₺` yerine
+kutu (□) olarak görünüyordu. Kök neden: reportlab'ın varsayılan **Bitstream Vera**
+fontu Türk Lirası sembolünü (₺, U+20BA — Unicode'a 2012'de eklendi) içermez. `€ £ $`
+Vera'da olduğu için sadece TL etkileniyordu.
+
+**Çözüm — `app/utils/pdf_fonts.py` (yeni ortak helper):**
+- `register_turkish_fonts()` → `(base_font, bold_font)` döner.
+- Tercih sırası: **DejaVuSans** (sistemde kurulu, `/usr/share/fonts/dejavu-sans-fonts/`,
+  ₺ dahil tüm sembolleri içerir) → Vera (₺ yok) → Helvetica.
+- DejaVu, Vera'nın çatalıdır ve **Latin metrikleri aynıdır** → tablo düzeni değişmez.
+- Sonuç süreç boyunca önbelleğe alınır (TTF her PDF isteğinde yeniden okunmaz).
+- Kullanan endpoint'ler: `krediler/products.py:export_credits_pdf`,
+  `payment_instructions.py:export_pdf`. (Banka talimatları `₺` yerine "TL" metni
+  kullandığından etkilenmiyordu — `pdf_bank_instruction.py` değişmedi.)
+
+**Kredi PDF — EUR renklendirme (aynı commit):** EUR kredileri raporda mavi arka plan
+(`#DBEAFE`) + sol kenar aksanı (`#2563EB`) ile vurgulanır; başlıkta "■ Mavi ile
+işaretli satırlar EUR kredileridir" açıklaması; para-birimi-bazında toplamda EUR satırı
+mavi (`#1D4ED8`). `eur_rows` indeksleri ROWBACKGROUNDS zebra'sının üzerine yazılır
+(sonraki TableStyle komutu öncekini ezer).
+
+**Regresyon testi:** `test_credits.py::test_pdf_font_renders_turkish_lira_glyph` —
+seçilen fontun `face.charToGlyph` haritasında ₺/€/£/$ glyph'lerinin bulunduğunu
+doğrular (kutu regresyonunu yakalar). `test_export_pdf_with_eur_credit` EUR
+renklendirme kod yolunu egzersiz eder.
+
+---
+
 ## BCH Ödeme Planı finance_events Eksikliği (2026-06-01 düzeltildi)
 
 **Sorun:** `_helpers.py:_regenerate_bch_payments` BCH/recalc taksitlerini oluşturuyor ama
