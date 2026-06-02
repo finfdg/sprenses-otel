@@ -113,6 +113,7 @@ def export_credits_pdf(
     görülen krediyle eşleşir. Sayfalama yoktur; tüm eşleşen krediler raporlanır.
     """
     import io
+    from xml.sax.saxutils import escape
 
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
@@ -157,6 +158,12 @@ def export_credits_pdf(
     title_style = ParagraphStyle("t", fontName=bold_font, fontSize=14, spaceAfter=4)
     sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=4)
     legend_style = ParagraphStyle("lg", fontName=base_font, fontSize=8, textColor=colors.grey, spaceAfter=10)
+    # Metin hücreleri Paragraph ile sarılır → uzun adlar kolon içinde alt satıra
+    # kayar (düz string hücreler kaymaz, taşıp komşu kolonun üstüne biner)
+    cell_style = ParagraphStyle("cell", fontName=base_font, fontSize=7.5, leading=9)
+
+    def _wrap(text):
+        return Paragraph(escape(str(text)), cell_style)
 
     today = date_cls.today()
     elems = [
@@ -170,9 +177,9 @@ def export_credits_pdf(
         if (p.currency or "TRY") == "EUR":
             eur_rows.append(i + 1)  # +1: başlık satırı
         data.append([
-            p.bank_name or "—",
-            p.name,
-            CREDIT_TYPE_LABELS.get(p.type, p.type),
+            _wrap(p.bank_name or "—"),
+            _wrap(p.name),
+            _wrap(CREDIT_TYPE_LABELS.get(p.type, p.type)),
             _fmt_money_tr(p.total_amount, p.currency),
             fmt_pct(p.interest_rate),
             fmt_pct(p.commission_rate),
@@ -190,7 +197,8 @@ def export_credits_pdf(
         ))
     elems.append(Spacer(1, 4))
 
-    col_widths = [28 * mm, 50 * mm, 22 * mm, 32 * mm, 15 * mm, 15 * mm, 24 * mm, 24 * mm, 32 * mm, 18 * mm]
+    # Landscape A4 kullanılabilir genişlik ≈ 273mm; toplam 260mm (güvenli)
+    col_widths = [26 * mm, 54 * mm, 26 * mm, 31 * mm, 15 * mm, 15 * mm, 23 * mm, 23 * mm, 31 * mm, 16 * mm]
     table = Table(data, colWidths=col_widths, repeatRows=1)
     style_cmds = [
         ("FONTNAME", (0, 0), (-1, 0), bold_font),
