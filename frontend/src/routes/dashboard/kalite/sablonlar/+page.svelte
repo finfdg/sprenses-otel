@@ -9,7 +9,8 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import TemplateBuilder from '$lib/components/quality/TemplateBuilder.svelte';
-	import { ClipboardList } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
+	import { ClipboardList, Plus, Pencil, Trash2 } from 'lucide-svelte';
 
 	interface TemplateItem {
 		id: number;
@@ -314,12 +315,7 @@
 		<PageHeader title="Kalite Şablonları" description="Denetim ve kontrol formu şablonları">
 			{#snippet actions()}
 				{#if canUse}
-					<button
-						onclick={openCreate}
-						class="w-full sm:w-auto px-4 py-2.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors cursor-pointer"
-					>
-						+ Yeni Şablon
-					</button>
+					<Button onclick={openCreate}><Plus size={16} /> Yeni Şablon</Button>
 				{/if}
 			{/snippet}
 		</PageHeader>
@@ -361,18 +357,8 @@
 
 						{#if canUse}
 							<div class="flex gap-2 shrink-0">
-								<button
-									onclick={() => openEdit(t)}
-									class="flex-1 sm:flex-none text-xs px-3 py-2 sm:py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
-								>
-									Düzenle
-								</button>
-								<button
-									onclick={() => confirmDelete(t)}
-									class="flex-1 sm:flex-none text-xs px-3 py-2 sm:py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
-								>
-									Sil
-								</button>
+								<Button variant="secondary" size="sm" onclick={() => openEdit(t)}><Pencil size={14} /> Düzenle</Button>
+								<Button variant="danger" size="sm" onclick={() => confirmDelete(t)}><Trash2 size={14} /> Sil</Button>
 							</div>
 						{/if}
 					</div>
@@ -568,19 +554,8 @@
 
 		<!-- Kaydet butonu -->
 		<div class="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 border-t border-gray-100">
-			<button
-				onclick={() => showModal = false}
-				class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-			>
-				İptal
-			</button>
-			<button
-				onclick={handleSave}
-				disabled={saving}
-				class="w-full sm:w-auto px-6 py-2.5 sm:py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors cursor-pointer"
-			>
-				{saving ? 'Kaydediliyor...' : editingId ? 'Güncelle' : 'Oluştur'}
-			</button>
+			<Button variant="secondary" onclick={() => showModal = false}>İptal</Button>
+			<Button onclick={handleSave} loading={saving}>{editingId ? 'Güncelle' : 'Oluştur'}</Button>
 		</div>
 	</div>
 </Modal>
