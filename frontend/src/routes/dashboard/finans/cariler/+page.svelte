@@ -837,7 +837,7 @@
 			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-5 flex-1 min-w-[140px]">
 				<p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Cari Borçları</p>
 				<p class="text-base sm:text-xl font-bold text-amber-600 mt-1 sm:mt-2">{formatCurrency(Math.abs(summary.negative_total))}</p>
-				<p class="text-[10px] text-gray-400 mt-0.5">{summary.negative_count} cari</p>
+				<p class="text-[10px] text-gray-500 mt-0.5">{summary.negative_count} cari</p>
 			</div>
 			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-5 flex-1 min-w-[140px]">
 				<p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Cari Sayısı</p>
@@ -928,16 +928,16 @@
 									<p class="text-sm font-medium text-gray-900 truncate">{upload.file_name}</p>
 									<div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
 										<span>{upload.total_vendors} cari</span>
-										<span class="text-gray-300">|</span>
+										<span class="text-gray-500">|</span>
 										<span class="text-emerald-600">{upload.new_transactions} yeni</span>
 										{#if upload.skipped_transactions > 0}
-											<span class="text-gray-300">|</span>
+											<span class="text-gray-500">|</span>
 											<span class="text-amber-600">{upload.skipped_transactions} mükerrer</span>
 										{/if}
-										<span class="text-gray-300">|</span>
+										<span class="text-gray-500">|</span>
 										<span>{formatDateTime(upload.uploaded_at)}</span>
 										{#if upload.uploader_name}
-											<span class="text-gray-300">|</span>
+											<span class="text-gray-500">|</span>
 											<span>{upload.uploader_name}</span>
 										{/if}
 									</div>
@@ -945,7 +945,7 @@
 								{#if canUse}
 									<button
 										onclick={() => deleteUpload(upload.id)}
-										class="ml-3 p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
+										class="ml-3 p-2 text-gray-500 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
 										title="Sil"
 									>
 										<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -967,7 +967,7 @@
 			<!-- Arama + Filtre -->
 			<div class="flex items-center gap-3 flex-wrap">
 				<div class="relative flex-1 max-w-md">
-					<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+					<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
 					</svg>
 					<input
@@ -1034,7 +1034,7 @@
 
 					<!-- Mobil Sıralama Bar -->
 					<div class="flex lg:hidden items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 overflow-x-auto">
-						<span class="text-[10px] font-medium text-gray-400 uppercase shrink-0">Sırala:</span>
+						<span class="text-[10px] font-medium text-gray-500 uppercase shrink-0">Sırala:</span>
 						{#each [{ key: 'hesap_adi', label: 'Ad' }, { key: 'total_borc', label: 'Borç' }, { key: 'total_alacak', label: 'Alacak' }, { key: 'bakiye', label: 'Bakiye' }] as col}
 							<button
 								onclick={() => toggleSort(col.key)}
@@ -1085,7 +1085,7 @@
 										</button>
 										<button
 											onclick={(e) => { e.stopPropagation(); cancelEditPaymentDays(); }}
-											class="p-0.5 text-gray-400 hover:text-red-500"
+											class="p-0.5 text-gray-500 hover:text-red-600"
 											title="İptal"
 										>
 											<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1104,7 +1104,7 @@
 										title={canUse ? 'Tıklayarak değiştir' : ''}
 									>
 										{vendor.payment_days}
-										<span class="text-[10px] {vendor.payment_days !== 90 ? 'opacity-70' : 'text-gray-400'}">gün</span>
+										<span class="text-[10px] {vendor.payment_days !== 90 ? 'opacity-70' : 'text-gray-500'}">gün</span>
 									</button>
 								{/if}
 							</div>
@@ -1137,7 +1137,7 @@
 								{#if canUse}
 									<button
 										onclick={(e) => { e.stopPropagation(); openAddToList(vendor); }}
-										class="shrink-0 p-1 rounded-md text-gray-300 hover:text-teal-600 hover:bg-teal-50 opacity-0 group-hover/row:opacity-100 transition-opacity"
+										class="shrink-0 p-1 rounded-md text-gray-500 hover:text-teal-600 hover:bg-teal-50 opacity-0 group-hover/row:opacity-100 transition-opacity"
 										title="Ödeme talimatına ekle"
 										aria-label="Ödeme talimatına ekle"
 									>
@@ -1158,8 +1158,8 @@
 									<div class="min-w-0 flex-1">
 										<p class="text-sm font-medium text-gray-900 truncate">{vendor.hesap_adi}</p>
 										<div class="flex items-center gap-2 mt-0.5 flex-wrap">
-											<span class="text-[10px] text-gray-400 font-mono">{vendor.hesap_kodu}</span>
-											<span class="text-[10px] text-gray-400">·</span>
+											<span class="text-[10px] text-gray-500 font-mono">{vendor.hesap_kodu}</span>
+											<span class="text-[10px] text-gray-500">·</span>
 											<span class="text-[10px] px-1.5 py-0.5 rounded {vendor.payment_days !== 90
 											? vendor.payment_days < 90
 												? 'bg-blue-100 text-blue-700 font-semibold'
@@ -1242,10 +1242,10 @@
 																<td class="px-3 py-2 text-gray-600">{tx.evrak_no || '-'}</td>
 																<td class="px-3 py-2 text-gray-600">{tx.transaction_type || '-'}</td>
 																<td class="px-3 py-2 text-gray-600 max-w-[200px] truncate">{tx.description || '-'}</td>
-																<td class="px-3 py-2 text-right {tx.borc > 0 ? 'text-rose-600' : 'text-gray-400'}">
+																<td class="px-3 py-2 text-right {tx.borc > 0 ? 'text-rose-600' : 'text-gray-500'}">
 																	{tx.borc > 0 ? formatCurrency(tx.borc) : '-'}
 																</td>
-																<td class="px-3 py-2 text-right {tx.alacak > 0 ? 'text-emerald-600' : 'text-gray-400'}">
+																<td class="px-3 py-2 text-right {tx.alacak > 0 ? 'text-emerald-600' : 'text-gray-500'}">
 																	{tx.alacak > 0 ? formatCurrency(tx.alacak) : '-'}
 																</td>
 																<td class="px-3 py-2 text-right font-medium {(tx.bakiye ?? 0) < 0 ? 'text-rose-600' : 'text-gray-700'}">
@@ -1283,7 +1283,7 @@
 																			{#if canUse}
 																				<button
 																					onclick={(e) => { e.stopPropagation(); unmatchTransaction(tx.id, tx.payment_method || ''); }}
-																					class="p-0.5 text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
+																					class="p-0.5 text-gray-500 hover:text-red-600 transition-colors cursor-pointer"
 																					title="Eşleştirmeyi kaldır"
 																				>
 																					<svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1320,7 +1320,7 @@
 																			{/if}
 																		</div>
 																	{:else}
-																		<span class="text-gray-300">-</span>
+																		<span class="text-gray-500">-</span>
 																	{/if}
 																</td>
 																<td class="px-3 py-2 text-center">
@@ -1330,8 +1330,8 @@
 																			{tx.department_name}
 																		</span>
 																	{:else if tx.dept_status === 'pending'}
-																		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-50 text-yellow-700 border border-yellow-200" title="Onay bekliyor">
-																			<span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span>
+																		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Onay bekliyor">
+																			<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
 																			{tx.department_name}
 																		</span>
 																	{:else if tx.dept_status === 'rejected'}
@@ -1340,7 +1340,7 @@
 																				✕ {tx.department_name}
 																			</span>
 																			{#if canUse}
-																				<button onclick={() => removeDeptAssignment(tx.id)} class="p-0.5 text-gray-300 hover:text-red-500 cursor-pointer" title="Atamayı kaldır">
+																				<button onclick={() => removeDeptAssignment(tx.id)} class="p-0.5 text-gray-500 hover:text-red-600 cursor-pointer" title="Atamayı kaldır">
 																					<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
 																				</button>
 																			{/if}
@@ -1355,7 +1355,7 @@
 																			Ata
 																		</button>
 																	{:else}
-																		<span class="text-gray-300">-</span>
+																		<span class="text-gray-500">-</span>
 																	{/if}
 																</td>
 																<td class="px-3 py-2 text-right">
@@ -1364,7 +1364,7 @@
 																			{formatDate(tx.payment_due_date)}
 																		</span>
 																	{:else}
-																		<span class="text-gray-400">-</span>
+																		<span class="text-gray-500">-</span>
 																	{/if}
 																</td>
 															</tr>
@@ -1384,7 +1384,7 @@
 															<div class="flex items-center gap-2 min-w-0">
 																<span class="text-xs font-medium text-gray-600">{formatDate(tx.date)}</span>
 																{#if tx.transaction_type}
-																	<span class="text-[10px] text-gray-400 truncate">{tx.transaction_type}</span>
+																	<span class="text-[10px] text-gray-500 truncate">{tx.transaction_type}</span>
 																{/if}
 															</div>
 															<span class="text-xs font-bold shrink-0 {(tx.bakiye ?? 0) < 0 ? 'text-rose-600' : 'text-gray-700'}">
@@ -1395,7 +1395,7 @@
 														<!-- Evrak no + Açıklama -->
 														<div class="mb-2">
 															{#if tx.evrak_no}
-																<span class="text-[10px] font-mono text-gray-400">{tx.evrak_no}</span>
+																<span class="text-[10px] font-mono text-gray-500">{tx.evrak_no}</span>
 															{/if}
 															{#if tx.description}
 																<p class="text-xs text-gray-600 leading-tight {tx.evrak_no ? 'mt-0.5' : ''}">{tx.description}</p>
@@ -1451,7 +1451,7 @@
 																{#if canUse}
 																	<button
 																		onclick={(e) => { e.stopPropagation(); unmatchTransaction(tx.id, tx.payment_method || ''); }}
-																		class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-500 border border-red-200 active:scale-95 cursor-pointer"
+																		class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-200 active:scale-95 cursor-pointer"
 																	>
 																		<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
 																		Kaldır
@@ -1481,7 +1481,7 @@
 																	</button>
 																{/if}
 															{:else}
-																<span class="text-[10px] text-gray-300">—</span>
+																<span class="text-[10px] text-gray-500">—</span>
 															{/if}
 														</div>
 
@@ -1494,8 +1494,8 @@
 															</div>
 														{:else if tx.dept_status === 'pending'}
 															<div class="mt-2 pt-2 border-t border-gray-100">
-																<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
-																	<span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span>
+																<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+																	<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
 																	{tx.department_name} — Onay bekliyor
 																</span>
 															</div>
@@ -1579,7 +1579,7 @@
 						</div>
 						<div class="text-right">
 							<p class="text-sm text-gray-500">{monthlySchedule.length} ay · {schedule.length} hafta</p>
-							<p class="text-sm text-gray-400 mt-1">{schedule.reduce((s, g) => s + g.items.length, 0)} fatura</p>
+							<p class="text-sm text-gray-500 mt-1">{schedule.reduce((s, g) => s + g.items.length, 0)} fatura</p>
 						</div>
 					</div>
 				</div>
@@ -1611,7 +1611,7 @@
 											<p class="text-[10px] text-blue-500">{formatEur(month.total_amount)}</p>
 										{/if}
 									</div>
-									<svg class="w-4 h-4 text-gray-400 transition-transform {expandedMonths[month.key] ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<svg class="w-4 h-4 text-gray-500 transition-transform {expandedMonths[month.key] ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 										<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
 									</svg>
 								</div>
@@ -1641,9 +1641,9 @@
 												<div class="flex items-center gap-4">
 													<p class="text-xs font-bold text-gray-900">{formatCurrency(week.total_amount)}</p>
 													{#if eurRate > 0}
-														<p class="text-[9px] text-blue-500">{formatEur(week.total_amount)}</p>
+														<p class="text-[10px] text-blue-500">{formatEur(week.total_amount)}</p>
 													{/if}
-													<svg class="w-3.5 h-3.5 text-gray-400 transition-transform {expandedWeeks[week.friday_date] ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+													<svg class="w-3.5 h-3.5 text-gray-500 transition-transform {expandedWeeks[week.friday_date] ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 														<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
 													</svg>
 												</div>
@@ -1667,7 +1667,7 @@
 																<tr class="hover:bg-gray-50">
 																	<td class="px-4 py-2.5">
 																		<p class="font-medium text-gray-900">{item.hesap_adi}</p>
-																		<p class="text-[10px] text-gray-400 font-mono">{item.hesap_kodu}</p>
+																		<p class="text-[10px] text-gray-500 font-mono">{item.hesap_kodu}</p>
 																	</td>
 																	<td class="px-3 py-2.5 text-gray-600">{item.evrak_no || '-'}</td>
 																	<td class="px-3 py-2.5 text-gray-600">{item.transaction_type || '-'}</td>
@@ -1682,7 +1682,7 @@
 																<td class="px-3 py-2.5 text-right">
 																	<p class="font-bold text-gray-900">{formatCurrency(week.total_amount)}</p>
 																	{#if eurRate > 0}
-																		<p class="text-[9px] text-blue-500">{formatEur(week.total_amount)}</p>
+																		<p class="text-[10px] text-blue-500">{formatEur(week.total_amount)}</p>
 																	{/if}
 																</td>
 															</tr>
@@ -1750,15 +1750,15 @@
 								<div class="flex items-center gap-2">
 									<span class="text-xs font-mono font-bold text-gray-900">{check.check_no}</span>
 									{#if amountMatch}
-										<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-700">Tutar eşleşiyor</span>
+										<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700">Tutar eşleşiyor</span>
 									{/if}
 									{#if check.score >= 50}
-										<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">Önerilen</span>
+										<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">Önerilen</span>
 									{/if}
 								</div>
 								<p class="text-xs text-gray-600 mt-0.5 truncate">{check.vendor_name}</p>
 								{#if check.description}
-									<p class="text-[10px] text-gray-400 truncate">{check.description}</p>
+									<p class="text-[10px] text-gray-500 truncate">{check.description}</p>
 								{/if}
 							</div>
 							<div class="text-right ml-3 shrink-0">
@@ -1845,8 +1845,8 @@
 											<td class="px-2 py-2 text-gray-700 whitespace-nowrap">{formatDate(c.date)}</td>
 											<td class="px-2 py-2 text-gray-700 whitespace-nowrap">{c.evrak_no || '—'}</td>
 											<td class="px-2 py-2 text-gray-600 max-w-[140px] truncate" title={c.transaction_type || ''}>{c.transaction_type || '—'}</td>
-											<td class="px-2 py-2 text-right whitespace-nowrap {c.borc > 0 ? 'text-emerald-700' : 'text-gray-400'}">{c.borc > 0 ? formatCurrency(c.borc) : '—'}</td>
-											<td class="px-2 py-2 text-right whitespace-nowrap {c.alacak > 0 ? 'text-red-700' : 'text-gray-400'}">{c.alacak > 0 ? formatCurrency(c.alacak) : '—'}</td>
+											<td class="px-2 py-2 text-right whitespace-nowrap {c.borc > 0 ? 'text-emerald-700' : 'text-gray-500'}">{c.borc > 0 ? formatCurrency(c.borc) : '—'}</td>
+											<td class="px-2 py-2 text-right whitespace-nowrap {c.alacak > 0 ? 'text-red-700' : 'text-gray-500'}">{c.alacak > 0 ? formatCurrency(c.alacak) : '—'}</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -1944,7 +1944,7 @@
 			<button
 				onclick={assignDepartment}
 				disabled={!selectedDeptId || deptAssigning}
-				class="px-4 py-2.5 rounded-lg font-medium text-sm bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+				class="px-4 py-2.5 rounded-lg font-medium text-sm bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
 			>
 				{#if deptAssigning}
 					<span class="inline-flex items-center gap-2">
@@ -1975,13 +1975,13 @@
 		<div class="space-y-4 text-sm">
 			<div class="bg-gray-50 rounded-lg p-3">
 				<div class="font-medium text-gray-800">{addToListModal.vendor.hesap_adi}</div>
-				<div class="text-xs text-gray-400 mt-0.5">{addToListModal.vendor.hesap_kodu}</div>
+				<div class="text-xs text-gray-500 mt-0.5">{addToListModal.vendor.hesap_kodu}</div>
 				<div class="text-xs mt-1.5">
 					Ödenecek tutar:
 					<span class="font-bold {addToListModal.vendor.bakiye < 0 ? 'text-rose-600' : 'text-gray-500'}">
 						{formatCurrency(addToListModal.vendor.bakiye < 0 ? -addToListModal.vendor.bakiye : 0)}
 					</span>
-					<span class="text-gray-400">(bakiyeden — listede düzenlenebilir)</span>
+					<span class="text-gray-500">(bakiyeden — listede düzenlenebilir)</span>
 				</div>
 			</div>
 
@@ -1994,13 +1994,13 @@
 						{/each}
 					</select>
 				</div>
-				<div class="text-center text-xs text-gray-400">— veya —</div>
+				<div class="text-center text-xs text-gray-500">— veya —</div>
 			{/if}
 
 			<div>
 				<label for="pi-new-name" class="text-xs text-gray-500 mb-1 block">Yeni Liste Oluştur</label>
 				<input id="pi-new-name" bind:value={piNewListName} placeholder="ör: Haftalık Ödeme 26.05" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" />
-				<p class="text-[11px] text-gray-400 mt-1">Ad girerseniz yeni liste oluşturulur, aksi halde seçili listeye eklenir.</p>
+				<p class="text-[11px] text-gray-500 mt-1">Ad girerseniz yeni liste oluşturulur, aksi halde seçili listeye eklenir.</p>
 			</div>
 
 			<div class="flex items-center justify-end gap-2 pt-1">

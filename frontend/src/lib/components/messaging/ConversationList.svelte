@@ -115,16 +115,16 @@
 	<div class="px-3 py-2 border-b border-gray-100">
 		<div class="relative">
 			<input type="text" bind:value={searchQuery} placeholder="Konuşma ara..." class="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 focus:bg-white transition-all" />
-			<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+			<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
 		</div>
 	</div>
 
 	<div class="flex-1 overflow-y-auto">
 		{#if loading}
-			<p class="text-gray-400 text-sm text-center py-8">Yükleniyor...</p>
+			<p class="text-gray-500 text-sm text-center py-8">Yükleniyor...</p>
 		{:else if filteredConversations.length === 0}
 			<div class="text-center py-8">
-				<p class="text-gray-400 text-sm">{searchQuery ? 'Sonuç bulunamadı' : 'Henüz konuşma yok'}</p>
+				<p class="text-gray-500 text-sm">{searchQuery ? 'Sonuç bulunamadı' : 'Henüz konuşma yok'}</p>
 				{#if !searchQuery}<button onclick={onNewChat} class="text-teal-600 text-sm mt-2 hover:underline cursor-pointer">Yeni mesaj başlat</button>{/if}
 			</div>
 		{:else}
@@ -179,13 +179,13 @@
 									<span class="text-sm font-semibold text-gray-900 truncate">{getConvDisplayName(conv)}</span>
 									<span class="flex items-center gap-1 shrink-0 ml-2">
 										{#if conv.is_muted}
-											<svg class="w-3.5 h-3.5 text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-4.72a.75.75 0 011.28.531V19.94a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg>
+											<svg class="w-3.5 h-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-4.72a.75.75 0 011.28.531V19.94a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg>
 										{/if}
-										{#if conv.last_message}<span class="text-xs text-gray-300">{formatTime(conv.last_message.created_at)}</span>{/if}
+										{#if conv.last_message}<span class="text-xs text-gray-500">{formatTime(conv.last_message.created_at)}</span>{/if}
 									</span>
 								</div>
 								<div class="flex items-center justify-between gap-2 mt-0.5">
-									<p class="text-xs text-gray-400 truncate min-w-0 flex-1">
+									<p class="text-xs text-gray-500 truncate min-w-0 flex-1">
 										{#if conv.last_message}
 											{#if conv.last_message.is_deleted}<span class="italic">Bu mesaj silindi</span>
 											{:else if conv.last_message.message_type === 'system'}<span class="italic">{conv.last_message.content}</span>
@@ -205,7 +205,7 @@
 					<div class="hidden md:group-hover/conv:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2 z-10">
 						<button
 							onclick={(e) => handleMuteClick(e, conv)}
-							class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-400 hover:bg-gray-500 hover:text-white transition-all cursor-pointer"
+							class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-500 hover:text-white transition-all cursor-pointer"
 							title={conv.is_muted ? 'Sesi aç' : 'Sessize al'}
 						>
 							{#if conv.is_muted}

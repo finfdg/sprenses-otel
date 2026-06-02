@@ -272,7 +272,7 @@
 	onclick={(e) => e.stopPropagation()}
 	onkeydown={(e) => { if (e.key === 'Escape') onClose(); }}
 >
-	<div class="text-[10px] font-semibold text-gray-400 uppercase mb-1.5 px-1">Etiket Seç</div>
+	<div class="text-[10px] font-semibold text-gray-500 uppercase mb-1.5 px-1">Etiket Seç</div>
 	<div class="space-y-0.5 max-h-52 overflow-y-auto">
 		{#each categories as cat}
 			{@const c = colorMap[cat.color] ?? colorMap.gray}
@@ -294,7 +294,7 @@
 	<!-- Ödeme Yöntemi seçimi — belirli kategorilerde göster -->
 	{#if needsPaymentMethod()}
 		<div class="mt-2 border-t border-gray-100 pt-2">
-			<div class="text-[10px] font-semibold text-gray-400 uppercase mb-1.5 px-1">Ödeme Yöntemi</div>
+			<div class="text-[10px] font-semibold text-gray-500 uppercase mb-1.5 px-1">Ödeme Yöntemi</div>
 			<div class="flex items-center gap-1.5">
 				{#each SELECTABLE_PAYMENT_METHODS as pm}
 					<button
@@ -311,7 +311,7 @@
 	<!-- Cari seçimi — sadece "Cari" kategorisi seçiliyken göster -->
 	{#if isCariSelected()}
 		<div class="mt-2 border-t border-gray-100 pt-2">
-			<div class="text-[10px] font-semibold text-gray-400 uppercase mb-1 px-1">Cari Seç</div>
+			<div class="text-[10px] font-semibold text-gray-500 uppercase mb-1 px-1">Cari Seç</div>
 			<div class="relative">
 				<input
 					type="text"
@@ -322,7 +322,7 @@
 				/>
 				{#if vendorSearching}
 					<div class="absolute right-2 top-1/2 -translate-y-1/2">
-						<svg class="animate-spin h-3 w-3 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<svg class="animate-spin h-3 w-3 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
 						</svg>
@@ -354,7 +354,7 @@
 							class="w-full text-left px-2 py-1.5 hover:bg-gray-50 cursor-pointer transition-colors text-xs"
 						>
 							<span class="font-medium text-gray-700">{vendor.hesap_adi}</span>
-							<span class="text-[9px] text-gray-400 ml-1">({vendor.hesap_kodu})</span>
+							<span class="text-[10px] text-gray-500 ml-1">({vendor.hesap_kodu})</span>
 						</button>
 					{/each}
 				</div>
@@ -365,11 +365,11 @@
 	<!-- Kredi Kartı Borç Ödeme — ekstre seçimi -->
 	{#if isCCPaymentSelected()}
 		<div class="mt-2 border-t border-gray-100 pt-2">
-			<div class="text-[10px] font-semibold text-gray-400 uppercase mb-1.5 px-1">Ekstre Seç</div>
+			<div class="text-[10px] font-semibold text-gray-500 uppercase mb-1.5 px-1">Ekstre Seç</div>
 			{#if ccLoading}
-				<div class="text-[10px] text-gray-400 text-center py-2">Yükleniyor...</div>
+				<div class="text-[10px] text-gray-500 text-center py-2">Yükleniyor...</div>
 			{:else if ccStatements.length === 0}
-				<div class="text-[10px] text-gray-400 text-center py-2">Ödenmemiş ekstre yok</div>
+				<div class="text-[10px] text-gray-500 text-center py-2">Ödenmemiş ekstre yok</div>
 			{:else}
 				<div class="space-y-1 max-h-40 overflow-y-auto">
 					{#each ccStatements as stmt}
@@ -379,7 +379,7 @@
 						>
 							<div class="text-[10px] font-medium text-gray-700">{stmt.card_name}</div>
 							<div class="flex items-center justify-between mt-0.5">
-								<span class="text-[9px] text-gray-400">{stmt.kesim_tarihi}</span>
+								<span class="text-[10px] text-gray-500">{stmt.kesim_tarihi}</span>
 								<span class="text-[10px] font-semibold text-rose-600">₺{stmt.remaining.toLocaleString('tr-TR', {minimumFractionDigits: 2})}</span>
 							</div>
 						</button>
@@ -400,11 +400,11 @@
 	<!-- Kredi Geri Ödeme — taksit seçimi -->
 	{#if isCreditPaymentSelected()}
 		<div class="mt-2 border-t border-gray-100 pt-2">
-			<div class="text-[10px] font-semibold text-gray-400 uppercase mb-1.5 px-1">Taksit Seç</div>
+			<div class="text-[10px] font-semibold text-gray-500 uppercase mb-1.5 px-1">Taksit Seç</div>
 			{#if creditLoading}
-				<div class="text-[10px] text-gray-400 text-center py-2">Yükleniyor...</div>
+				<div class="text-[10px] text-gray-500 text-center py-2">Yükleniyor...</div>
 			{:else if creditPayments.length === 0}
-				<div class="text-[10px] text-gray-400 text-center py-2">Ödenmemiş taksit yok</div>
+				<div class="text-[10px] text-gray-500 text-center py-2">Ödenmemiş taksit yok</div>
 			{:else}
 				<div class="space-y-1 max-h-48 overflow-y-auto">
 					{#each creditPayments as cp}
@@ -414,7 +414,7 @@
 						>
 							<div class="text-[10px] font-medium text-gray-700 truncate">{cp.product_name}</div>
 							<div class="flex items-center justify-between mt-0.5">
-								<span class="text-[9px] text-gray-400">{cp.due_date} • #{cp.installment_no}</span>
+								<span class="text-[10px] text-gray-500">{cp.due_date} • #{cp.installment_no}</span>
 								<span class="text-[10px] font-semibold {cp.currency === 'EUR' ? 'text-blue-600' : 'text-rose-600'}">
 									{cp.currency === 'EUR' ? '€' : '₺'}{cp.amount.toLocaleString('tr-TR', {minimumFractionDigits: 2})}
 								</span>
@@ -440,7 +440,7 @@
 			<button
 				onclick={confirmAssignWithPayment}
 				disabled={needsPaymentMethod() && !selectedPaymentMethod}
-				class="w-full text-[11px] font-medium px-2 py-1.5 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+				class="w-full text-[11px] font-medium px-2 py-1.5 rounded-lg bg-teal-700 text-white hover:bg-teal-800 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 			>
 				Kaydet
 			</button>

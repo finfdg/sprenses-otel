@@ -368,9 +368,9 @@
 					<span class="text-gray-500"> — {selectedAccount.currency} ({formatIban(selectedAccount.iban)})</span>
 				</span>
 			{:else}
-				<span class="text-gray-400">{placeholder}</span>
+				<span class="text-gray-500">{placeholder}</span>
 			{/if}
-			<ChevronDown size={16} class="text-gray-400 shrink-0 ml-2 transition-transform {openDropdown === id ? 'rotate-180' : ''}" />
+			<ChevronDown size={16} class="text-gray-500 shrink-0 ml-2 transition-transform {openDropdown === id ? 'rotate-180' : ''}" />
 		</button>
 
 		{#if openDropdown === id}
@@ -379,7 +379,7 @@
 					<button
 						type="button"
 						onclick={() => selectAccount(id, 0, onSelect)}
-						class="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 border-b border-gray-100"
+						class="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 border-b border-gray-100"
 					>
 						Seçimi kaldır
 					</button>
@@ -393,8 +393,8 @@
 						>
 							<span class="text-sm font-semibold text-gray-700">{group.bank_name}</span>
 							<div class="flex items-center gap-2">
-								<span class="text-xs text-gray-400">{group.accounts.length} hesap</span>
-								<ChevronDown size={14} class="text-gray-400 transition-transform {expandedBanks[group.bank_name] ? 'rotate-180' : ''}" />
+								<span class="text-xs text-gray-500">{group.accounts.length} hesap</span>
+								<ChevronDown size={14} class="text-gray-500 transition-transform {expandedBanks[group.bank_name] ? 'rotate-180' : ''}" />
 							</div>
 						</button>
 						{#if expandedBanks[group.bank_name]}
@@ -408,7 +408,7 @@
 									<span class="font-medium">{acc.currency}</span>
 									<span class="text-gray-500"> — {formatIban(acc.iban)}</span>
 									{#if acc.branch_name}
-										<span class="block text-xs text-gray-400 mt-0.5">{acc.branch_name} Şubesi{acc.account_no ? ` — ${acc.account_no}` : ''}</span>
+										<span class="block text-xs text-gray-500 mt-0.5">{acc.branch_name} Şubesi{acc.account_no ? ` — ${acc.account_no}` : ''}</span>
 									{/if}
 								</button>
 							{/each}
@@ -474,7 +474,7 @@
 
 				<!-- Kaynak Hesap -->
 				<div>
-					<span class="block text-sm font-medium text-gray-700 mb-1">Kaynak Hesap <span class="text-red-500">*</span></span>
+					<span class="block text-sm font-medium text-gray-700 mb-1">Kaynak Hesap <span class="text-red-600">*</span></span>
 					{@render accountDropdown(
 						'transfer-src',
 						bankGroups,
@@ -484,7 +484,7 @@
 						(id) => { transferForm.source_account_id = id; }
 					)}
 					{#if sourceAccount}
-						<p class="mt-1 text-xs text-gray-400">
+						<p class="mt-1 text-xs text-gray-500">
 							{sourceAccount.branch_name ? `${sourceAccount.branch_name} Şubesi` : ''}
 							{sourceAccount.account_no ? ` — Hesap No: ${sourceAccount.account_no}` : ''}
 						</p>
@@ -494,9 +494,9 @@
 				<!-- Hedef Hesap -->
 				<div>
 					<span class="block text-sm font-medium text-gray-700 mb-1">
-						Hedef Hesap <span class="text-red-500">*</span>
+						Hedef Hesap <span class="text-red-600">*</span>
 						{#if sourceAccount}
-							<span class="text-xs font-normal text-gray-400">
+							<span class="text-xs font-normal text-gray-500">
 								(yalnızca {CURRENCY_LABELS[sourceAccount.currency] || sourceAccount.currency} hesaplar)
 							</span>
 						{/if}
@@ -514,7 +514,7 @@
 							Bu para biriminde ({CURRENCY_LABELS[sourceAccount.currency] || sourceAccount.currency}) başka hesap yok. Farklı para birimine transfer için "Döviz Bozma Talimatı" sekmesini kullanın.
 						</p>
 					{:else if destAccount}
-						<p class="mt-1 text-xs text-gray-400">
+						<p class="mt-1 text-xs text-gray-500">
 							{destAccount.branch_name ? `${destAccount.branch_name} Şubesi` : ''}
 							{destAccount.account_no ? ` — Hesap No: ${destAccount.account_no}` : ''}
 						</p>
@@ -524,7 +524,7 @@
 				<!-- Tutar + Tarih -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 					<div>
-						<label for="transfer-amount" class="block text-sm font-medium text-gray-700 mb-1">Tutar <span class="text-red-500">*</span></label>
+						<label for="transfer-amount" class="block text-sm font-medium text-gray-700 mb-1">Tutar <span class="text-red-600">*</span></label>
 						<MoneyInput
 							id="transfer-amount"
 							bind:value={transferForm.amount}
@@ -546,7 +546,7 @@
 
 				<!-- Açıklama -->
 				<div>
-					<label for="transfer-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-gray-400 font-normal">(opsiyonel)</span></label>
+					<label for="transfer-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-gray-500 font-normal">(opsiyonel)</span></label>
 					<input
 						id="transfer-desc"
 						type="text"
@@ -580,7 +580,7 @@
 							</label>
 						{/each}
 					</div>
-					<p class="mt-1 text-xs text-gray-400">Sağ imza: İsmail ÖZDEN — Yön.Kur.Baş.</p>
+					<p class="mt-1 text-xs text-gray-500">Sağ imza: İsmail ÖZDEN — Yön.Kur.Baş.</p>
 				</div>
 
 				<!-- Oluştur Butonu -->
@@ -608,7 +608,7 @@
 
 				<!-- Kaynak Hesap -->
 				<div>
-					<span class="block text-sm font-medium text-gray-700 mb-1">Kaynak Hesap <span class="text-red-500">*</span></span>
+					<span class="block text-sm font-medium text-gray-700 mb-1">Kaynak Hesap <span class="text-red-600">*</span></span>
 					{@render accountDropdown(
 						'exch-src',
 						bankGroups,
@@ -618,7 +618,7 @@
 						(id) => { exchangeForm.source_account_id = id; exchangeForm.target_currency = ''; exchangeForm.target_account_id = 0; }
 					)}
 					{#if exchSourceAccount}
-						<p class="mt-1 text-xs text-gray-400">
+						<p class="mt-1 text-xs text-gray-500">
 							{exchSourceAccount.branch_name ? `${exchSourceAccount.branch_name} Şubesi` : ''}
 							{exchSourceAccount.account_no ? ` — Hesap No: ${exchSourceAccount.account_no}` : ''}
 						</p>
@@ -627,7 +627,7 @@
 
 				<!-- Hedef Para Birimi -->
 				<div>
-					<label for="exch-target-cur" class="block text-sm font-medium text-gray-700 mb-1">Hedef Para Birimi <span class="text-red-500">*</span></label>
+					<label for="exch-target-cur" class="block text-sm font-medium text-gray-700 mb-1">Hedef Para Birimi <span class="text-red-600">*</span></label>
 					<select
 						id="exch-target-cur"
 						bind:value={exchangeForm.target_currency}
@@ -643,7 +643,7 @@
 				<!-- Tutar + Tarih -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 					<div>
-						<label for="exch-amount" class="block text-sm font-medium text-gray-700 mb-1">Tutar <span class="text-red-500">*</span></label>
+						<label for="exch-amount" class="block text-sm font-medium text-gray-700 mb-1">Tutar <span class="text-red-600">*</span></label>
 						<MoneyInput
 							id="exch-amount"
 							bind:value={exchangeForm.amount}
@@ -666,7 +666,7 @@
 				<!-- Hedef Hesap (opsiyonel) -->
 				{#if exchangeForm.target_currency && targetAccounts.length > 0}
 					<div>
-						<span class="block text-sm font-medium text-gray-700 mb-1">Hedef Hesap <span class="text-gray-400 font-normal">(aktarılacak hesap)</span></span>
+						<span class="block text-sm font-medium text-gray-700 mb-1">Hedef Hesap <span class="text-gray-500 font-normal">(aktarılacak hesap)</span></span>
 						{@render accountDropdown(
 							'exch-target',
 							groupByBank(targetAccounts),
@@ -680,7 +680,7 @@
 
 				<!-- Açıklama -->
 				<div>
-					<label for="exch-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-gray-400 font-normal">(opsiyonel)</span></label>
+					<label for="exch-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-gray-500 font-normal">(opsiyonel)</span></label>
 					<input
 						id="exch-desc"
 						type="text"
@@ -713,7 +713,7 @@
 							</label>
 						{/each}
 					</div>
-					<p class="mt-1 text-xs text-gray-400">Sağ imza: İsmail ÖZDEN — Yön.Kur.Baş.</p>
+					<p class="mt-1 text-xs text-gray-500">Sağ imza: İsmail ÖZDEN — Yön.Kur.Baş.</p>
 				</div>
 
 				<!-- Oluştur Butonu -->

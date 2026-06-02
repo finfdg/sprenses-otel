@@ -146,7 +146,7 @@
 		{#if canGoBack()}
 			<button
 				onclick={goBack}
-				class="flex items-center justify-center touch-target w-11 h-11 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+				class="flex items-center justify-center touch-target w-11 h-11 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
 				title="Geri"
 				aria-label="Önceki sayfa"
 			>
@@ -177,7 +177,7 @@
 					{/if}
 					<span class="relative inline-flex rounded-full h-2.5 w-2.5 {onlineCount > 0 ? 'bg-green-500' : 'bg-gray-300'}"></span>
 				</span>
-				<span class="text-xs font-medium {onlineCount > 0 ? 'text-green-600' : 'text-gray-400'}">{onlineCount}</span>
+				<span class="text-xs font-medium {onlineCount > 0 ? 'text-green-600' : 'text-gray-500'}">{onlineCount}</span>
 			</button>
 
 			{#if onlinePopoverOpen}
@@ -186,7 +186,7 @@
 						<p class="text-xs font-medium text-gray-500">Online Kullanıcılar ({onlineCount})</p>
 					</div>
 					{#if onlineUsersList.length === 0}
-						<div class="px-3 py-3 text-xs text-gray-400 text-center">Şu anda kimse online değil</div>
+						<div class="px-3 py-3 text-xs text-gray-500 text-center">Şu anda kimse online değil</div>
 					{:else}
 						<div class="max-h-48 overflow-y-auto">
 							{#each onlineUsersList as ou}
@@ -213,7 +213,7 @@
 				</span>
 			</div>
 			<span class="text-sm text-gray-700 font-medium hidden sm:inline">{authState.user?.first_name} {authState.user?.last_name}</span>
-			<svg class="w-3.5 h-3.5 text-gray-400 transition-transform {userMenuOpen ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+			<svg class="w-3.5 h-3.5 text-gray-500 transition-transform {userMenuOpen ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 				<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
 			</svg>
 		</button>
@@ -223,7 +223,7 @@
 				<!-- User info -->
 				<div class="px-4 py-3 border-b border-gray-100">
 					<p class="text-sm font-medium text-gray-900">{authState.user?.first_name} {authState.user?.last_name}</p>
-					<p class="text-xs text-gray-400 mt-0.5">@{authState.user?.username}</p>
+					<p class="text-xs text-gray-500 mt-0.5">@{authState.user?.username}</p>
 					<p class="text-xs text-teal-600 mt-1">{authState.user?.role?.name || '-'}</p>
 				</div>
 
@@ -232,7 +232,7 @@
 					class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer"
 					onclick={() => { userMenuOpen = false; }}
 				>
-					<svg class="w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+					<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 						<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
 					</svg>
 					Profil
@@ -244,7 +244,7 @@
 					onclick={(e) => { e.stopPropagation(); toggleSound(!notificationSettings.soundEnabled); }}
 				>
 					<span class="flex items-center gap-2.5">
-						<svg class="w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+						<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
 						</svg>
 						Bildirim Sesi
@@ -261,7 +261,7 @@
 						onclick={(e) => { e.stopPropagation(); handlePushToggle(); }}
 					>
 						<span class="flex items-center gap-2.5">
-							<svg class="w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+							<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
 							</svg>
 							Anlık Bildirimler
@@ -277,7 +277,7 @@
 
 				<!-- Logout -->
 				<button
-					class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+					class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
 					onclick={handleLogout}
 				>
 					<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">

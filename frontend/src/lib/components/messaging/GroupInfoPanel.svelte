@@ -112,11 +112,11 @@
 		<div class="w-72 md:w-80 bg-white border-l border-gray-200 flex flex-col shadow-xl" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
 			<div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
 				<h3 class="text-sm font-bold text-gray-900">Grup Bilgisi</h3>
-				<button onclick={() => show = false} class="text-gray-400 hover:text-gray-600 cursor-pointer">✕</button>
+				<button onclick={() => show = false} class="text-gray-500 hover:text-gray-600 cursor-pointer">✕</button>
 			</div>
 
 			<div class="px-4 py-3 border-b border-gray-100">
-				<p class="text-xs text-gray-400 mb-1">Grup Adı</p>
+				<p class="text-xs text-gray-500 mb-1">Grup Adı</p>
 				{#if editingName}
 					<div class="flex items-center gap-2">
 						<input
@@ -126,7 +126,7 @@
 							class="flex-1 text-sm px-2 py-1 bg-gray-100 rounded-lg text-gray-900 outline-none focus:ring-2 focus:ring-teal-100"
 						/>
 						<button onclick={saveGroupName} class="text-xs text-teal-600 hover:text-teal-700 cursor-pointer font-medium">Kaydet</button>
-						<button onclick={() => editingName = false} class="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">İptal</button>
+						<button onclick={() => editingName = false} class="text-xs text-gray-500 hover:text-gray-600 cursor-pointer">İptal</button>
 					</div>
 				{:else}
 					<div class="flex items-center gap-2">
@@ -140,7 +140,7 @@
 
 			<div class="px-4 py-3 border-b border-gray-100 flex-1 overflow-hidden flex flex-col">
 				<div class="flex items-center justify-between mb-2">
-					<p class="text-xs text-gray-400">Üyeler ({members.length})</p>
+					<p class="text-xs text-gray-500">Üyeler ({members.length})</p>
 					{#if isCurrentUserAdmin()}
 						<button onclick={onAddMember} class="text-xs text-teal-600 hover:underline cursor-pointer">Üye Ekle</button>
 					{/if}
@@ -154,21 +154,21 @@
 							<div class="flex-1 min-w-0">
 								<p class="text-sm text-gray-900 truncate">
 									{member.first_name} {member.last_name}
-									{#if member.id === currentUserId}<span class="text-gray-400"> (Sen)</span>{/if}
+									{#if member.id === currentUserId}<span class="text-gray-500"> (Sen)</span>{/if}
 								</p>
 								{#if member.is_admin}<span class="text-[10px] text-amber-600 font-medium">Yönetici</span>{/if}
 							</div>
 							{#if isCurrentUserAdmin()}
 								<div class="flex items-center gap-1 shrink-0">
 									{#if member.is_admin}
-										<button onclick={() => toggleAdmin(member.id, false)} class="text-[10px] text-gray-400 hover:text-gray-600 cursor-pointer">
+										<button onclick={() => toggleAdmin(member.id, false)} class="text-[10px] text-gray-500 hover:text-gray-600 cursor-pointer">
 											{member.id === currentUserId ? 'Yetkimi Bırak' : 'Kaldır'}
 										</button>
 									{:else}
 										<button onclick={() => toggleAdmin(member.id, true)} class="text-[10px] text-teal-600 hover:text-teal-700 cursor-pointer">Yönetici</button>
 									{/if}
 									{#if member.id !== currentUserId}
-										<button onclick={() => removeGroupMember(member.id)} class="text-[10px] text-red-500 hover:text-red-600 cursor-pointer ml-1">Çıkar</button>
+										<button onclick={() => removeGroupMember(member.id)} class="text-[10px] text-red-600 hover:text-red-600 cursor-pointer ml-1">Çıkar</button>
 									{/if}
 								</div>
 							{/if}

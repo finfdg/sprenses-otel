@@ -246,11 +246,11 @@
 				onclick={() => toggleYear(yg.year)}
 				class="w-full flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3.5 sm:py-4 transition-colors cursor-pointer {isCurrentYearGroup ? 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700' : 'bg-gray-100 hover:bg-gray-200'}"
 			>
-				<svg class="w-5 h-5 shrink-0 transition-transform duration-200 {expandedYears[yg.year] ? 'rotate-90' : ''} {isCurrentYearGroup ? 'text-indigo-200' : 'text-gray-400'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+				<svg class="w-5 h-5 shrink-0 transition-transform duration-200 {expandedYears[yg.year] ? 'rotate-90' : ''} {isCurrentYearGroup ? 'text-indigo-200' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 				</svg>
 				<span class="text-base sm:text-lg font-bold {isCurrentYearGroup ? 'text-white' : 'text-gray-800'}">{yg.year}</span>
-				<span class="text-xs font-medium {isCurrentYearGroup ? 'text-indigo-200' : 'text-gray-400'}">{yg.months.length} ay</span>
+				<span class="text-xs font-medium {isCurrentYearGroup ? 'text-indigo-200' : 'text-gray-500'}">{yg.months.length} ay</span>
 				<div class="ml-auto flex items-center">
 					{#if yEur}
 						<span class="w-[85px] sm:w-[120px] text-right inline-block text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg {isCurrentYearGroup ? 'text-rose-100 bg-rose-500/30' : 'text-rose-600 bg-rose-50'}">
@@ -259,7 +259,7 @@
 						<span class="w-[85px] sm:w-[120px] text-right inline-block text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg ml-1 {isCurrentYearGroup ? 'text-emerald-100 bg-emerald-500/30' : 'text-emerald-600 bg-emerald-50'}">
 							+€{fmtEur(yEur.income)}
 						</span>
-						<span class="w-[75px] sm:w-[110px] text-right inline-block text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg ml-1 {isCurrentYearGroup ? 'text-yellow-100 bg-yellow-500/30' : yEur.balance >= 0 ? 'text-yellow-700 bg-yellow-50 border border-yellow-200' : 'text-red-600 bg-red-50 border border-red-200'}">
+						<span class="w-[75px] sm:w-[110px] text-right inline-block text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg ml-1 {isCurrentYearGroup ? 'text-amber-100 bg-amber-500/30' : yEur.balance >= 0 ? 'text-amber-700 bg-amber-50 border border-amber-200' : 'text-red-600 bg-red-50 border border-red-200'}">
 							€{fmtEur(yEur.balance)}
 						</span>
 					{/if}
@@ -277,7 +277,7 @@
 								onclick={() => toggleMonth(month.key)}
 								class="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-3.5 transition-colors cursor-pointer {isCurrentMonth ? 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800' : 'hover:bg-gray-50/50 active:bg-gray-100/50'}"
 							>
-				<svg class="w-4 h-4 shrink-0 transition-transform duration-200 {expandedMonths[month.key] ? 'rotate-90' : ''} {isCurrentMonth ? 'text-blue-200' : 'text-gray-400'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+				<svg class="w-4 h-4 shrink-0 transition-transform duration-200 {expandedMonths[month.key] ? 'rotate-90' : ''} {isCurrentMonth ? 'text-blue-200' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 				</svg>
 				<span class="text-sm sm:text-base font-bold {isCurrentMonth ? 'text-white' : 'text-gray-800'}">{month.label}</span>
@@ -289,7 +289,7 @@
 						<span class="w-[85px] sm:w-[110px] text-right inline-block text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg ml-1 {isCurrentMonth ? 'text-emerald-100 bg-emerald-500/30' : 'text-emerald-600 bg-emerald-50'}">
 							+€{fmtEur(mEur.income)}
 						</span>
-						<span class="w-[75px] sm:w-[100px] text-right inline-block text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg ml-1 {isCurrentMonth ? 'text-yellow-100 bg-yellow-500/30' : mEur.balance >= 0 ? 'text-yellow-700 bg-yellow-50 border border-yellow-200' : 'text-red-600 bg-red-50 border border-red-200'}">
+						<span class="w-[75px] sm:w-[100px] text-right inline-block text-[10px] sm:text-xs font-semibold px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg ml-1 {isCurrentMonth ? 'text-amber-100 bg-amber-500/30' : mEur.balance >= 0 ? 'text-amber-700 bg-amber-50 border border-amber-200' : 'text-red-600 bg-red-50 border border-red-200'}">
 							€{fmtEur(mEur.balance)}
 						</span>
 					{:else}
@@ -341,7 +341,7 @@
 								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181" />
 							</svg>
 							{#if !isExpenseNarrow}<span class="truncate">Giderler</span>{/if}
-							<svg class="w-2.5 h-2.5 shrink-0 text-gray-300 transition-transform {focusMode === 'expense' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+							<svg class="w-2.5 h-2.5 shrink-0 text-gray-500 transition-transform {focusMode === 'expense' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
 							</svg>
 						</h3>
@@ -355,7 +355,7 @@
 								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
 							</svg>
 							{#if !isIncomeNarrow}<span class="truncate">Gelirler</span>{/if}
-							<svg class="w-2.5 h-2.5 shrink-0 text-gray-300 transition-transform {focusMode === 'income' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+							<svg class="w-2.5 h-2.5 shrink-0 text-gray-500 transition-transform {focusMode === 'income' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 								<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 							</svg>
 						</h3>
@@ -371,7 +371,7 @@
 						onclick={() => toggleDay(day.date)}
 						class="w-full flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2 border-t transition-colors cursor-pointer {isToday ? 'bg-blue-100 border-blue-300 hover:bg-blue-200/80 active:bg-blue-200' : 'bg-gray-50 border-gray-200 hover:bg-gray-100/80 active:bg-gray-100'}"
 					>
-						<svg class="w-3 h-3 shrink-0 transition-transform duration-200 {expandedDays[day.date] ? 'rotate-90' : ''} {isToday ? 'text-blue-500' : 'text-gray-400'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+						<svg class="w-3 h-3 shrink-0 transition-transform duration-200 {expandedDays[day.date] ? 'rotate-90' : ''} {isToday ? 'text-blue-500' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 						</svg>
 						<span class="text-[11px] sm:text-xs font-semibold truncate {isToday ? 'text-blue-700' : 'text-gray-600'}">{day.label}</span>
@@ -382,7 +382,7 @@
 							<span class="w-[75px] sm:w-[100px] text-right inline-block text-[10px] sm:text-xs font-semibold text-emerald-500 ml-1">
 								{#if dEur}{#if dEur.income > 0}+€{fmtEur(dEur.income)}{/if}{:else if day.total_income > 0}+{formatCompact(day.total_income)}{/if}
 							</span>
-							<span class="w-[65px] sm:w-[90px] text-right inline-block text-[9px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded ml-1 {dEur && dEur.balance < 0 ? 'text-red-600 bg-red-50 border border-red-200' : 'text-yellow-700 bg-yellow-50 border border-yellow-200'}">
+							<span class="w-[65px] sm:w-[90px] text-right inline-block text-[10px] sm:text-[10px] font-medium px-1.5 py-0.5 rounded ml-1 {dEur && dEur.balance < 0 ? 'text-red-600 bg-red-50 border border-red-200' : 'text-amber-700 bg-amber-50 border border-amber-200'}">
 								{#if dEur}€{fmtEur(dEur.balance)}{/if}
 							</span>
 						</div>
@@ -398,7 +398,7 @@
 						>
 							{#if !isDayVisible}
 								<div
-									class="border-t border-gray-100 bg-gray-50/40 flex items-center justify-center text-[10px] text-gray-400"
+									class="border-t border-gray-100 bg-gray-50/40 flex items-center justify-center text-[10px] text-gray-500"
 									style="min-height: {Math.min(Math.max(dayItemCount * 32, 40), 400)}px"
 								>
 									{dayItemCount} kayıt yükleniyor…

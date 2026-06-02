@@ -429,7 +429,7 @@
 		<Filter size={14} />
 		Filtre
 		{#if filterStartDate || filterEndDate || filterSearch}
-			<span class="bg-cyan-600 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center">✓</span>
+			<span class="bg-teal-700 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center">✓</span>
 		{/if}
 	</button>
 
@@ -448,11 +448,11 @@
 	{#if filterStartDate || filterEndDate || filterSearch}
 		<button
 			onclick={clearDateFilter}
-			class="text-xs text-red-500 hover:text-red-700 cursor-pointer"
+			class="text-xs text-red-600 hover:text-red-700 cursor-pointer"
 		>Temizle</button>
 	{/if}
 
-	<span class="text-xs text-gray-400 ml-auto">
+	<span class="text-xs text-gray-500 ml-auto">
 		{items.length.toLocaleString('tr-TR')} kayıt
 		{#if isTruncated}
 			<span class="text-amber-600 font-medium">/ {cashFlowCache.totalCount.toLocaleString('tr-TR')} toplam</span>
@@ -493,7 +493,7 @@
 		</div>
 		<button
 			onclick={applyDateFilter}
-			class="px-4 py-1.5 bg-cyan-600 text-white text-sm font-medium rounded-lg hover:bg-cyan-700 transition-colors cursor-pointer"
+			class="px-4 py-1.5 bg-teal-700 text-white text-sm font-medium rounded-lg hover:bg-teal-800 transition-colors cursor-pointer"
 		>Uygula</button>
 	</div>
 {/if}

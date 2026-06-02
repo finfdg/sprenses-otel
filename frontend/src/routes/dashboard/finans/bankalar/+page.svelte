@@ -487,7 +487,7 @@
 				</span>
 			{/if}
 			{#if latestRates?.date}
-				<span class="text-[10px] text-gray-400 hidden sm:inline">
+				<span class="text-[10px] text-gray-500 hidden sm:inline">
 					Kur: {new Date(latestRates.date + 'T00:00:00').toLocaleDateString('tr-TR')}
 				</span>
 			{/if}
@@ -562,12 +562,12 @@
 						{/if}
 
 						<!-- İşlem sayısı -->
-						<span class="text-xs mr-2 hidden sm:inline {isOpen ? 'text-teal-200' : 'text-gray-400'}">
+						<span class="text-xs mr-2 hidden sm:inline {isOpen ? 'text-teal-200' : 'text-gray-500'}">
 							{group.totalTxCount} işlem
 						</span>
 
 						<!-- Chevron -->
-						<ChevronRight size={16} class="flex-shrink-0 transition-transform duration-200 {isOpen ? 'rotate-90 text-white' : 'text-gray-400'}" />
+						<ChevronRight size={16} class="flex-shrink-0 transition-transform duration-200 {isOpen ? 'rotate-90 text-white' : 'text-gray-500'}" />
 					</button>
 
 					<!-- ─── Hesap Listesi (banka açıkken) ──────── -->
@@ -599,7 +599,7 @@
 										<div class="flex-1"></div>
 
 										<!-- İşlem sayısı -->
-										<span class="text-[11px] text-gray-400 hidden sm:inline">{acc.transaction_count} işlem</span>
+										<span class="text-[11px] text-gray-500 hidden sm:inline">{acc.transaction_count} işlem</span>
 
 										<!-- Bakiye -->
 										<div class="text-right">
@@ -614,7 +614,7 @@
 												</div>
 											{/if}
 										{:else}
-											<span class="text-xs text-gray-300">—</span>
+											<span class="text-xs text-gray-500">—</span>
 										{/if}
 									</div>
 
@@ -627,7 +627,7 @@
 													tabindex="0"
 													onclick={(e) => { e.stopPropagation(); openAccountForm(acc); }}
 													onkeydown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); openAccountForm(acc); } }}
-													class="p-1 text-gray-300 hover:text-blue-600 cursor-pointer"
+													class="p-1 text-gray-500 hover:text-blue-600 cursor-pointer"
 													title="Düzenle"
 												>
 													<Pencil size={14} />
@@ -638,7 +638,7 @@
 													tabindex="0"
 													onclick={(e) => { e.stopPropagation(); askDelete(acc); }}
 													onkeydown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); askDelete(acc); } }}
-													class="p-1 text-gray-300 hover:text-rose-600 cursor-pointer"
+													class="p-1 text-gray-500 hover:text-rose-600 cursor-pointer"
 													title="Sil"
 												>
 													<Trash2 size={14} />
@@ -647,7 +647,7 @@
 										{/if}
 
 										<!-- Chevron -->
-										<ChevronRight size={14} class="flex-shrink-0 transition-transform duration-200 {isAccOpen ? 'rotate-90 text-teal-600' : 'text-gray-300'}" />
+										<ChevronRight size={14} class="flex-shrink-0 transition-transform duration-200 {isAccOpen ? 'rotate-90 text-teal-600' : 'text-gray-500'}" />
 									</button>
 
 									<!-- ─── İşlem/Ekstre paneli (hesap açıkken) ─── -->
@@ -676,7 +676,7 @@
 														<div class="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
 													</div>
 												{:else if transactions.length === 0}
-													<div class="text-center py-8 text-gray-400">
+													<div class="text-center py-8 text-gray-500">
 														<p class="text-sm">Henüz işlem yok. Yukarıdan ekstre yükleyerek başlayın.</p>
 													</div>
 												{:else}
@@ -684,7 +684,7 @@
 													<div class="hidden md:block overflow-x-auto">
 														<table class="w-full text-sm">
 															<thead>
-																<tr class="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+																<tr class="text-left text-xs text-gray-500 uppercase tracking-wider border-b border-gray-100">
 																	<th class="px-4 py-2.5 font-medium">Tarih</th>
 																	<th class="px-4 py-2.5 font-medium">Fiş No</th>
 																	<th class="px-4 py-2.5 font-medium">Açıklama</th>
@@ -717,7 +717,7 @@
 																<div class="flex items-start justify-between gap-2">
 																	<div class="min-w-0 flex-1">
 																		<p class="text-sm text-gray-800 truncate">{tx.description}</p>
-																		<p class="text-[11px] text-gray-400 mt-0.5">{formatDate(tx.date)} {tx.receipt_no ? `• ${tx.receipt_no}` : ''}</p>
+																		<p class="text-[11px] text-gray-500 mt-0.5">{formatDate(tx.date)} {tx.receipt_no ? `• ${tx.receipt_no}` : ''}</p>
 																	</div>
 																	<span class="text-sm font-bold whitespace-nowrap {tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">
 																		{tx.type === 'income' ? '+' : ''}{formatCurrency(tx.amount, acc.currency)}
@@ -730,7 +730,7 @@
 													<!-- Pagination -->
 													{#if txPages > 1}
 														<div class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-															<span class="text-xs text-gray-400">Toplam {txTotal} işlem</span>
+															<span class="text-xs text-gray-500">Toplam {txTotal} işlem</span>
 															<div class="flex items-center gap-2">
 																<button
 																	onclick={() => changeTxPage(-1)}
@@ -754,7 +754,7 @@
 											{:else}
 												<!-- Ekstre Geçmişi -->
 												{#if statements.length === 0}
-													<div class="text-center py-8 text-gray-400">
+													<div class="text-center py-8 text-gray-500">
 														<p class="text-sm">Henüz ekstre yüklenmemiş.</p>
 													</div>
 												{:else}
@@ -771,7 +771,7 @@
 																		<span class="text-sm text-gray-800">{stmt.file_name}</span>
 																	</div>
 																	{#if stmt.period_start && stmt.period_end}
-																		<p class="text-[11px] text-gray-400 mt-0.5 ml-6">
+																		<p class="text-[11px] text-gray-500 mt-0.5 ml-6">
 																			{formatDate(stmt.period_start)} — {formatDate(stmt.period_end)}
 																		</p>
 																	{/if}
@@ -783,7 +783,7 @@
 																			<span class="text-amber-500">{stmt.skipped_transactions} mükerrer</span>
 																		{/if}
 																	</div>
-																	<p class="text-[10px] text-gray-300 mt-0.5">
+																	<p class="text-[10px] text-gray-500 mt-0.5">
 																		{new Date(stmt.uploaded_at).toLocaleDateString('tr-TR')}
 																	</p>
 																</div>
@@ -814,13 +814,13 @@
 				</div>
 				<p class="text-sm font-medium text-gray-800">{uploadResult.file_name}</p>
 				{#if uploadResult.account_iban}
-					<p class="text-[11px] text-gray-400 mt-0.5">{uploadResult.account_iban} ({uploadResult.account_currency})</p>
+					<p class="text-[11px] text-gray-500 mt-0.5">{uploadResult.account_iban} ({uploadResult.account_currency})</p>
 				{/if}
 			</div>
 			<div class="grid grid-cols-3 gap-2 text-center">
 				<div class="bg-gray-50 rounded-xl p-2.5">
 					<div class="text-lg font-bold text-gray-700">{uploadResult.total_transactions}</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">Toplam</div>
+					<div class="text-[10px] text-gray-500 mt-0.5">Toplam</div>
 				</div>
 				<div class="bg-emerald-50 rounded-xl p-2.5">
 					<div class="text-lg font-bold text-emerald-600">{uploadResult.new_transactions}</div>
@@ -855,7 +855,7 @@
 					<img src={BANK_LOGOS[formBankSelect]} alt={formBankSelect} class="w-9 h-9 rounded-lg object-contain flex-shrink-0" />
 				{:else if formBankSelect === '__other__'}
 					<div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-						<Plus size={20} class="text-gray-400" />
+						<Plus size={20} class="text-gray-500" />
 					</div>
 				{/if}
 				<select
@@ -907,7 +907,7 @@
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
-				<label for="ba-branch" class="block text-sm font-medium text-gray-700 mb-1">Şube <span class="text-gray-400">(opsiyonel)</span></label>
+				<label for="ba-branch" class="block text-sm font-medium text-gray-700 mb-1">Şube <span class="text-gray-500">(opsiyonel)</span></label>
 				<input
 					id="ba-branch"
 					type="text"
@@ -916,7 +916,7 @@
 				/>
 			</div>
 			<div>
-				<label for="ba-accno" class="block text-sm font-medium text-gray-700 mb-1">Hesap No <span class="text-gray-400">(opsiyonel)</span></label>
+				<label for="ba-accno" class="block text-sm font-medium text-gray-700 mb-1">Hesap No <span class="text-gray-500">(opsiyonel)</span></label>
 				<input
 					id="ba-accno"
 					type="text"
@@ -928,7 +928,7 @@
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
-				<label for="ba-holder" class="block text-sm font-medium text-gray-700 mb-1">Hesap Sahibi <span class="text-gray-400">(opsiyonel)</span></label>
+				<label for="ba-holder" class="block text-sm font-medium text-gray-700 mb-1">Hesap Sahibi <span class="text-gray-500">(opsiyonel)</span></label>
 				<input
 					id="ba-holder"
 					type="text"
@@ -937,7 +937,7 @@
 				/>
 			</div>
 			<div>
-				<label for="ba-blocked" class="block text-sm font-medium text-gray-700 mb-1">Bloke Tutarı <span class="text-gray-400">(opsiyonel)</span></label>
+				<label for="ba-blocked" class="block text-sm font-medium text-gray-700 mb-1">Bloke Tutarı <span class="text-gray-500">(opsiyonel)</span></label>
 				<MoneyInput
 					id="ba-blocked"
 					bind:value={formBlockedAmount}

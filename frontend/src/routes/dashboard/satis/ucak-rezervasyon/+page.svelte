@@ -63,7 +63,7 @@
 			<Plane class="w-7 h-7 text-teal-600" />
 			<div>
 				<h1 class="text-2xl font-bold text-gray-800">Uçak Rezervasyon</h1>
-				<p class="text-xs text-gray-400 mt-0.5">
+				<p class="text-xs text-gray-500 mt-0.5">
 					Aviasales arama motoru — gerçek zamanlı uçuş ve fiyat bilgisi
 				</p>
 			</div>
@@ -89,7 +89,7 @@
 		</div>
 
 		<!-- Alt bilgi -->
-		<div class="text-[10px] text-gray-400 text-center pt-2">
+		<div class="text-[10px] text-gray-500 text-center pt-2">
 			Veri kaynağı: Travelpayouts / Aviasales · Affiliate ID: 722928
 		</div>
 	</div>

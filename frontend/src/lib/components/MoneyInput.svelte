@@ -246,13 +246,13 @@
 		onblur={handleBlur}
 		class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white outline-none
 			focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20
-			disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
+			disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed
 			text-right tabular-nums
 			{currencyLabel ? 'pr-10' : ''}
 			{klass}"
 	/>
 	{#if currencyLabel}
-		<span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none select-none">
+		<span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 pointer-events-none select-none">
 			{currencyLabel}
 		</span>
 	{/if}

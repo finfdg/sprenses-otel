@@ -431,7 +431,7 @@
 				</button>
 			{/each}
 			{#if getFilteredEmojis().length === 0}
-				<div class="col-span-8 text-center text-gray-400 text-sm py-4">
+				<div class="col-span-8 text-center text-gray-500 text-sm py-4">
 					Emoji bulunamadı
 				</div>
 			{/if}

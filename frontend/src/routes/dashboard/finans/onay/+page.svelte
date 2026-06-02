@@ -219,7 +219,7 @@
 					<!-- Third Row: Evrak No + Description -->
 					<div class="flex flex-wrap items-center gap-3 mb-2 text-sm">
 						{#if invoice.evrak_no}
-							<span class="font-mono text-gray-400 text-xs bg-gray-50 px-2 py-0.5 rounded">{invoice.evrak_no}</span>
+							<span class="font-mono text-gray-500 text-xs bg-gray-50 px-2 py-0.5 rounded">{invoice.evrak_no}</span>
 						{/if}
 						{#if invoice.description}
 							<p class="text-gray-600 truncate max-w-md">{invoice.description}</p>
@@ -232,7 +232,7 @@
 							<span>Gönderen: <span class="font-medium text-gray-700">{invoice.dept_assigned_by_name}</span></span>
 						{/if}
 						{#if invoice.dept_assigned_at}
-							<span class="text-gray-300">·</span>
+							<span class="text-gray-500">·</span>
 							<span>{formatRelativeDate(invoice.dept_assigned_at)}</span>
 						{/if}
 					</div>
@@ -330,7 +330,7 @@
 					placeholder="Red gerekçesini yazın..."
 				></textarea>
 				{#if rejectionNote !== '' && !rejectionNote.trim()}
-					<p class="text-xs text-red-500 mt-1">Red gerekçesi boş bırakılamaz</p>
+					<p class="text-xs text-red-600 mt-1">Red gerekçesi boş bırakılamaz</p>
 				{/if}
 			</div>
 			<div class="flex items-center justify-end gap-3 pt-2">

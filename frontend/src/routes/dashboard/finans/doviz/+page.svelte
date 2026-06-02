@@ -266,16 +266,16 @@
 					</div>
 					<div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
 						<div>
-							<span class="text-gray-400">Döviz Alış</span>
+							<span class="text-gray-500">Döviz Alış</span>
 							<div class="font-medium text-gray-700">{formatRate(rate.forex_buying)}</div>
 						</div>
 						<div>
-							<span class="text-gray-400">Döviz Satış</span>
+							<span class="text-gray-500">Döviz Satış</span>
 							<div class="font-medium text-gray-700">{formatRate(rate.forex_selling)}</div>
 						</div>
 						</div>
 				{:else}
-					<div class="text-gray-300 text-sm">Veri yok</div>
+					<div class="text-gray-500 text-sm">Veri yok</div>
 				{/if}
 			</div>
 		{/each}
@@ -290,14 +290,14 @@
 				<div class="text-2xl font-bold text-gray-900 mb-2">
 					{latest.eur_usd_parity.toFixed(4)}
 				</div>
-				<div class="text-xs text-gray-400">
+				<div class="text-xs text-gray-500">
 					Parite (Satış bazlı)
 				</div>
 			{:else}
-				<div class="text-gray-300 text-sm">Veri yok</div>
+				<div class="text-gray-500 text-sm">Veri yok</div>
 			{/if}
 			{#if latest?.date}
-				<div class="mt-3 text-[11px] text-gray-400">
+				<div class="mt-3 text-[11px] text-gray-500">
 					Son güncelleme: {formatDate(latest.date)}
 				</div>
 			{/if}
@@ -341,7 +341,7 @@
 				<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
 			</div>
 		{:else if activeChartPoints.length < 2}
-			<div class="flex items-center justify-center py-16 text-gray-400 text-sm">
+			<div class="flex items-center justify-center py-16 text-gray-500 text-sm">
 				Grafik için yeterli veri yok
 			</div>
 		{:else}
@@ -412,7 +412,7 @@
 			</svg>
 
 			<!-- Legend -->
-			<div class="flex items-center justify-center gap-6 mt-2 text-xs text-gray-400">
+			<div class="flex items-center justify-center gap-6 mt-2 text-xs text-gray-500">
 				{#if chartCurrency === 'parity'}
 					<span class="flex items-center gap-1.5">
 						<span class="w-4 h-0.5 bg-amber-500 rounded"></span> EUR/USD Parite
@@ -453,7 +453,7 @@
 				<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
 			</div>
 		{:else if historyItems.length === 0}
-			<div class="text-center py-12 text-gray-400 text-sm">Veri bulunamadı</div>
+			<div class="text-center py-12 text-gray-500 text-sm">Veri bulunamadı</div>
 		{:else}
 			<!-- Desktop tablo -->
 			<div class="hidden md:block overflow-x-auto">
@@ -503,19 +503,19 @@
 						</div>
 						<div class="grid grid-cols-2 gap-2 text-xs">
 							<div>
-								<span class="text-gray-400">Döviz Alış</span>
+								<span class="text-gray-500">Döviz Alış</span>
 								<div class="font-medium text-gray-600">{formatRate(item.forex_buying)}</div>
 							</div>
 							<div>
-								<span class="text-gray-400">Döviz Satış</span>
+								<span class="text-gray-500">Döviz Satış</span>
 								<div class="font-medium text-gray-800">{formatRate(item.forex_selling)}</div>
 							</div>
 							<div>
-								<span class="text-gray-400">Efektif Alış</span>
+								<span class="text-gray-500">Efektif Alış</span>
 								<div class="text-gray-500">{formatRate(item.banknote_buying)}</div>
 							</div>
 							<div>
-								<span class="text-gray-400">Efektif Satış</span>
+								<span class="text-gray-500">Efektif Satış</span>
 								<div class="text-gray-500">{formatRate(item.banknote_selling)}</div>
 							</div>
 						</div>
@@ -534,7 +534,7 @@
 							onclick={() => historyPage = Math.max(1, historyPage - 1)}
 							disabled={historyPage <= 1}
 							class="px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer
-								{historyPage <= 1 ? 'border-gray-100 text-gray-300 cursor-not-allowed' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}"
+								{historyPage <= 1 ? 'border-gray-100 text-gray-500 cursor-not-allowed' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}"
 						>
 							← Önceki
 						</button>
@@ -542,7 +542,7 @@
 							onclick={() => historyPage = Math.min(historyPages, historyPage + 1)}
 							disabled={historyPage >= historyPages}
 							class="px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer
-								{historyPage >= historyPages ? 'border-gray-100 text-gray-300 cursor-not-allowed' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}"
+								{historyPage >= historyPages ? 'border-gray-100 text-gray-500 cursor-not-allowed' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}"
 						>
 							Sonraki →
 						</button>

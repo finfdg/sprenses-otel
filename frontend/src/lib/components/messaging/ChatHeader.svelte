@@ -33,7 +33,7 @@
 
 <div class="h-14 bg-white border-b border-gray-200 px-3 md:px-4 flex items-center gap-3 shrink-0">
 	<!-- Geri butonu (mobil) — diğer konuşmalarda okunmamış varsa badge göster -->
-	<button onclick={onBack} class="relative flex md:hidden items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shrink-0" title="Geri">
+	<button onclick={onBack} class="relative flex md:hidden items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer shrink-0" title="Geri">
 		<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
 		{#if otherUnreadCount > 0}
 			<span class="absolute -top-1.5 -left-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow-sm">
@@ -58,17 +58,17 @@
 	<div class="min-w-0 flex-1">
 		{#if convType === 'group'}
 			<p class="text-sm font-semibold text-gray-900 truncate">{convName || 'Grup'}</p>
-			<p class="text-xs text-gray-400 truncate">{members?.length || 0} üye</p>
+			<p class="text-xs text-gray-500 truncate">{members?.length || 0} üye</p>
 		{:else}
 			<p class="text-sm font-semibold text-gray-900 truncate">{selectedUser?.first_name} {selectedUser?.last_name}</p>
-			<p class="text-xs {isOnline ? 'text-green-500' : 'text-gray-400'} truncate">
+			<p class="text-xs {isOnline ? 'text-green-500' : 'text-gray-500'} truncate">
 				{#if isOnline}Çevrimiçi{:else}@{selectedUser?.username}{/if}
 			</p>
 		{/if}
 	</div>
 
 	{#if onToggleMute}
-		<button onclick={onToggleMute} class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer {isMuted ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'}" title={isMuted ? 'Sesi aç' : 'Sessize al'}>
+		<button onclick={onToggleMute} class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer {isMuted ? 'text-red-400 hover:text-red-600' : 'text-gray-500 hover:text-gray-600'}" title={isMuted ? 'Sesi aç' : 'Sessize al'}>
 			{#if isMuted}
 				<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75L19.5 12m0 0l2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6l4.72-4.72a.75.75 0 011.28.531V19.94a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg>
 			{:else}
@@ -76,12 +76,12 @@
 			{/if}
 		</button>
 	{/if}
-	<button onclick={onSearchToggle} class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer text-gray-400 hover:text-gray-600" title="Mesaj Ara">
+	<button onclick={onSearchToggle} class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer text-gray-500 hover:text-gray-600" title="Mesaj Ara">
 		<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
 	</button>
 
 	{#if convType === 'group'}
-		<button onclick={() => showGroupInfoPanel = !showGroupInfoPanel} class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer text-gray-400 hover:text-gray-600" title="Grup Bilgisi">
+		<button onclick={() => showGroupInfoPanel = !showGroupInfoPanel} class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors cursor-pointer text-gray-500 hover:text-gray-600" title="Grup Bilgisi">
 			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
 		</button>
 	{/if}

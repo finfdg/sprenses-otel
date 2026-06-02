@@ -84,12 +84,12 @@
 			{#if item.payment_method && item.payment_method !== 'diger' && !(item.source === 'vendor_payment' && item.payment_method === 'cari') && !(item.source === 'check' && item.payment_method === 'cek')}
 				{@const pm = getPaymentMethod(item.payment_method)}
 				{#if pm}
-					<span class="text-[7px] font-medium {pm.bg} {pm.text} px-1 py-0.5 rounded truncate max-w-[45px]">{pm.label}</span>
+					<span class="text-[10px] font-medium {pm.bg} {pm.text} px-1 py-0.5 rounded truncate max-w-[45px]">{pm.label}</span>
 				{/if}
 			{/if}
 			{#if item.category_name && item.category_color}
 				{@const c = colorMap[item.category_color] ?? colorMap.gray}
-				<span class="text-[7px] font-semibold {c.bg} {c.text} {c.border} border px-1 py-0.5 rounded truncate max-w-[60px]">{item.category_name}</span>
+				<span class="text-[10px] font-semibold {c.bg} {c.text} {c.border} border px-1 py-0.5 rounded truncate max-w-[60px]">{item.category_name}</span>
 			{:else}
 				<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
 			{/if}
@@ -126,7 +126,7 @@
 		<div class="text-xs font-bold {amountColor} mt-0.5">{formatCompact(item.amount, item.currency)}</div>
 		{#if item.category_name && item.category_color}
 			{@const c = colorMap[item.category_color] ?? colorMap.gray}
-			<span class="inline-block text-[8px] font-semibold {c.bg} {c.text} {c.border} border px-1 py-0.5 rounded mt-0.5">{item.category_name}</span>
+			<span class="inline-block text-[10px] font-semibold {c.bg} {c.text} {c.border} border px-1 py-0.5 rounded mt-0.5">{item.category_name}</span>
 		{:else}
 			<span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse mt-1"></span>
 		{/if}
@@ -174,18 +174,18 @@
 								<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Bekliyor</span>
 							{/if}
 							{#if item.vendor_code}
-								<span class="text-[10px] text-gray-400 font-mono">{item.vendor_code}</span>
+								<span class="text-[10px] text-gray-500 font-mono">{item.vendor_code}</span>
 							{/if}
 						{:else if item.source === 'vendor_payment'}
 							<span class="text-[10px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200">Cari Ödeme</span>
 							<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Bekliyor</span>
 							{#if item.vendor_code}
-								<span class="text-[10px] text-gray-400 font-mono">{item.vendor_code}</span>
+								<span class="text-[10px] text-gray-500 font-mono">{item.vendor_code}</span>
 							{/if}
 							{#if item.invoice_count && item.invoice_count > 1}
 								<span class="text-[10px] font-medium text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded">{item.invoice_count} fatura</span>
 							{:else if item.tag_note}
-								<span class="text-[10px] text-gray-400">{item.tag_note}</span>
+								<span class="text-[10px] text-gray-500">{item.tag_note}</span>
 							{/if}
 						{:else if item.source === 'cc_payment'}
 							<span class="text-[10px] font-bold text-pink-600 bg-pink-100 px-1.5 py-0.5 rounded border border-pink-200">KK Borç Ödeme</span>
@@ -194,7 +194,7 @@
 							<span class="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200">Kredi Taksit</span>
 							<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Bekliyor</span>
 						{:else}
-							<span class="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{item.bank_name}</span>
+							<span class="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{item.bank_name}</span>
 						{/if}
 						{#if item.currency !== 'TRY'}
 							<span class="text-[10px] font-medium text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">{item.currency}</span>
@@ -206,7 +206,7 @@
 							{/if}
 						{/if}
 						{#if item.receipt_no}
-							<span class="text-[10px] text-gray-400">#{item.receipt_no}</span>
+							<span class="text-[10px] text-gray-500">#{item.receipt_no}</span>
 						{/if}
 						<!-- Etiket badge -->
 						{#if item.category_name && item.category_color}
@@ -215,7 +215,7 @@
 								<span class="w-1.5 h-1.5 rounded-full {c.bg} {c.border} border shrink-0"></span>
 								{item.category_name}
 								{#if item.match_number}
-									<span class="text-[9px] font-bold opacity-60">#{item.match_number}</span>
+									<span class="text-[10px] font-bold opacity-60">#{item.match_number}</span>
 								{/if}
 								{#if item.vendor_name}
 									<span class="text-[10px] opacity-70">· {item.vendor_name}</span>

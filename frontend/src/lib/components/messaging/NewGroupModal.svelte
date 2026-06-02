@@ -119,7 +119,7 @@
 						</div>
 						<div class="text-left min-w-0">
 							<p class="text-sm text-gray-900 truncate">{cu.first_name} {cu.last_name}</p>
-							<p class="text-xs text-gray-400 truncate">@{cu.username}</p>
+							<p class="text-xs text-gray-500 truncate">@{cu.username}</p>
 						</div>
 					</button>
 				{/each}

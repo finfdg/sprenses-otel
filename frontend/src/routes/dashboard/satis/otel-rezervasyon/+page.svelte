@@ -854,7 +854,7 @@
 		if (pct >= 30) return 'bg-teal-200 text-teal-900';
 		if (pct >= 15) return 'bg-teal-100 text-teal-800';
 		if (pct > 0) return 'bg-gray-100 text-gray-600';
-		return 'bg-gray-50 text-gray-400';
+		return 'bg-gray-50 text-gray-500';
 	}
 
 	function formatDayShort(iso: string): string {
@@ -997,15 +997,15 @@
 
 		<!-- ── İçerik ── -->
 		{#if loading && !summary}
-			<div class="py-16 text-center text-gray-400">
+			<div class="py-16 text-center text-gray-500">
 				<Loader2 size={28} class="mx-auto animate-spin text-teal-500" />
 				<p class="mt-3 text-sm">Veriler yükleniyor...</p>
 			</div>
 		{:else if summary && summary.kpi.total_rez === 0}
 			<div class="py-16 text-center">
-				<Upload size={32} class="mx-auto text-gray-300" />
+				<Upload size={32} class="mx-auto text-gray-500" />
 				<p class="mt-3 text-sm text-gray-500">Henüz veri yüklenmedi.</p>
-				<p class="text-xs text-gray-400 mt-1">XLS dosyasını sürükleyerek başlayın.</p>
+				<p class="text-xs text-gray-500 mt-1">XLS dosyasını sürükleyerek başlayın.</p>
 			</div>
 		{:else if summary}
 			<!-- KPI Kartları -->
@@ -1018,7 +1018,7 @@
 						<FileSpreadsheet size={14} class="text-teal-500" />
 					</div>
 					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatInt(summary.kpi.total_rez)}</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">
+					<div class="text-[10px] text-gray-500 mt-0.5">
 						Definite: {summary.kpi.definite_count} · Option: {summary.kpi.option_count}
 					</div>
 					{#if prev}
@@ -1037,7 +1037,7 @@
 						<Coins size={14} class="text-teal-500" />
 					</div>
 					<div class="text-lg sm:text-2xl font-bold text-teal-600">{formatEurCompact(summary.kpi.total_eur)}</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">{formatEur(summary.kpi.total_eur)}</div>
+					<div class="text-[10px] text-gray-500 mt-0.5">{formatEur(summary.kpi.total_eur)}</div>
 					{#if prev}
 						{@const pct = yoyPct(summary.kpi.total_eur, prev.kpi.total_eur)}
 						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
@@ -1054,7 +1054,7 @@
 						<TrendingUp size={14} class="text-teal-500" />
 					</div>
 					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatEur(summary.kpi.adr)}</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">Oda-gece başı ciro</div>
+					<div class="text-[10px] text-gray-500 mt-0.5">Oda-gece başı ciro</div>
 					{#if prev}
 						{@const pct = yoyPct(summary.kpi.adr, prev.kpi.adr)}
 						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
@@ -1071,7 +1071,7 @@
 						<Calendar size={14} class="text-teal-500" />
 					</div>
 					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatInt(summary.kpi.total_room_nights)}</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">Ort. {summary.kpi.avg_los.toFixed(1)} gece</div>
+					<div class="text-[10px] text-gray-500 mt-0.5">Ort. {summary.kpi.avg_los.toFixed(1)} gece</div>
 					{#if prev}
 						{@const pct = yoyPct(summary.kpi.total_room_nights, prev.kpi.total_room_nights)}
 						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
@@ -1088,7 +1088,7 @@
 						<PieChart size={14} class="text-teal-500" />
 					</div>
 					<div class="text-lg sm:text-2xl font-bold text-teal-600">%{summary.kpi.occupancy_pct.toFixed(1)}</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">
+					<div class="text-[10px] text-gray-500 mt-0.5">
 						{summary.kpi.total_capacity} oda × {summary.kpi.date_range_days} gün
 					</div>
 					{#if prev}
@@ -1107,7 +1107,7 @@
 						<Users size={14} class="text-teal-500" />
 					</div>
 					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatInt(summary.kpi.total_pax)}</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">
+					<div class="text-[10px] text-gray-500 mt-0.5">
 						Yet {summary.kpi.total_adult} · Çoc {summary.kpi.total_child_paid + summary.kpi.total_child_free}
 					</div>
 					{#if prev}
@@ -1126,7 +1126,7 @@
 						<Calendar size={14} class="text-teal-500" />
 					</div>
 					<div class="text-lg sm:text-2xl font-bold text-gray-900">{summary.lead_time.avg.toFixed(0)} gün</div>
-					<div class="text-[10px] text-gray-400 mt-0.5">Medyan {summary.lead_time.median} gün</div>
+					<div class="text-[10px] text-gray-500 mt-0.5">Medyan {summary.lead_time.median} gün</div>
 					{#if prev}
 						{@const d = summary.lead_time.avg - prev.lead_time.avg}
 						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(d)}">
@@ -1143,7 +1143,7 @@
 				<div class="flex items-center gap-2 mb-1">
 					<Calendar size={18} class="text-teal-500" />
 					<h2 class="font-semibold text-gray-900">Aylık Doluluk Dağılımı</h2>
-					<span class="text-xs text-gray-400 ml-auto">Stay-night bazlı</span>
+					<span class="text-xs text-gray-500 ml-auto">Stay-night bazlı</span>
 				</div>
 				<p class="text-xs text-gray-500 mb-4">
 					Bar genişliği doluluk yüzdesini gösterir (100% = tam kapasite). Dolu kısım teal, boş kısım gri.
@@ -1155,7 +1155,7 @@
 					{/if}
 				</p>
 				{#if displayedMonthly.length === 0}
-					<p class="text-sm text-gray-400 text-center py-6">Veri yok</p>
+					<p class="text-sm text-gray-500 text-center py-6">Veri yok</p>
 				{:else}
 					{@const prevMonthMap = compareMode && previousYearSummary
 						? new Map(previousYearSummary.monthly.map((pm) => [pm.month.split('-')[1], pm]))
@@ -1175,7 +1175,7 @@
 								>
 									<div class="w-20 sm:w-24 shrink-0 text-gray-600 font-medium flex items-center gap-1">
 										<span>{monthLabel(m.month)}</span>
-										<svg class="w-3 h-3 text-gray-400 transition-transform {expandedMonth === m.month ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+										<svg class="w-3 h-3 text-gray-500 transition-transform {expandedMonth === m.month ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
 										</svg>
 									</div>
@@ -1203,7 +1203,7 @@
 														</span>
 													{/if}
 													<span class="text-teal-700 font-bold">%{m.occupancy_pct.toFixed(0)}</span>
-													<span class="hidden sm:inline text-gray-300">·</span>
+													<span class="hidden sm:inline text-gray-500">·</span>
 													{#if prevM}
 														{@const ePct = yoyPct(m.eur, prevM.eur)}
 														<span class="hidden sm:inline-flex text-[10px] font-semibold px-1 rounded {changeColorClass(ePct)}" title="Ciro değişimi ({previousYearLabel} aynı ay: {formatEurCompact(prevM.eur)})">
@@ -1309,7 +1309,7 @@
 														<!-- Sol etiket: gün + hafta günü -->
 														<div class="w-16 sm:w-20 shrink-0 flex items-center gap-1.5 pt-0.5">
 															<span class="font-mono font-semibold text-gray-700">{String(dateNum).padStart(2, '0')}</span>
-															<span class="text-[10px] {isWeekend ? 'text-rose-500 font-semibold' : 'text-gray-400'}">
+															<span class="text-[10px] {isWeekend ? 'text-rose-500 font-semibold' : 'text-gray-500'}">
 																{WEEKDAY_LABELS[day.weekday]}
 															</span>
 														</div>
@@ -1336,7 +1336,7 @@
 																			</span>
 																		{/if}
 																		<span class="{day.occupancy_pct >= 100 ? 'text-rose-600' : 'text-teal-700'} font-bold">%{day.occupancy_pct.toFixed(0)}</span>
-																		<span class="hidden md:inline text-gray-300">·</span>
+																		<span class="hidden md:inline text-gray-500">·</span>
 																		<span class="hidden md:inline">{formatEurCompact(day.eur)}</span>
 																	</span>
 																</div>
@@ -1365,7 +1365,7 @@
 															</span>
 															{#if prevDay && prevDay.pax > 0}
 																{@const pct = yoyPct(day.pax, prevDay.pax)}
-																<span class="text-[9px] font-semibold px-1 rounded {changeColorClass(pct)}" title="Kişi sayısı değişimi ({prevDay.date}: {formatInt(prevDay.pax)})">
+																<span class="text-[10px] font-semibold px-1 rounded {changeColorClass(pct)}" title="Kişi sayısı değişimi ({prevDay.date}: {formatInt(prevDay.pax)})">
 																	{changeArrow(pct)}{pct >= 0 ? '+' : ''}{pct.toFixed(0)}%
 																</span>
 															{/if}
@@ -1446,7 +1446,7 @@
 						<div class="flex items-center gap-2 mb-1">
 							<Coins size={18} class="text-emerald-500" />
 							<h2 class="font-semibold text-gray-900">Aylık ADR Trendi</h2>
-							<span class="text-xs text-gray-400 ml-auto">Oda-gece başı ciro</span>
+							<span class="text-xs text-gray-500 ml-auto">Oda-gece başı ciro</span>
 						</div>
 						<p class="text-xs text-gray-500 mb-4">
 							Bar genişliği o ayın ortalama oda fiyatını gösterir.
@@ -1517,7 +1517,7 @@
 						<div class="flex items-center gap-2 mb-1">
 							<Users size={18} class="text-indigo-500" />
 							<h2 class="font-semibold text-gray-900">Aylık Konaklama</h2>
-							<span class="text-xs text-gray-400 ml-auto">Kişi-gece</span>
+							<span class="text-xs text-gray-500 ml-auto">Kişi-gece</span>
 						</div>
 						<p class="text-xs text-gray-500 mb-4">
 							Her ay konaklayan toplam kişi sayısı (yetişkin + çocuk × gece).
@@ -1589,10 +1589,10 @@
 					<div class="flex items-center gap-2 mb-4">
 						<Globe2 size={18} class="text-teal-500" />
 						<h2 class="font-semibold text-gray-900">Pazar Dağılımı</h2>
-						<span class="text-xs text-gray-400 ml-auto">Top 8</span>
+						<span class="text-xs text-gray-500 ml-auto">Top 8</span>
 					</div>
 					{#if summary.by_nation.length === 0}
-						<p class="text-sm text-gray-400 text-center py-6">Veri yok</p>
+						<p class="text-sm text-gray-500 text-center py-6">Veri yok</p>
 					{:else}
 						<div class="space-y-2.5">
 							{#each summary.by_nation.slice(0, 8) as n}
@@ -1615,7 +1615,7 @@
 					<div class="flex items-center gap-2 mb-4 flex-wrap">
 						<Building2 size={18} class="text-teal-500 shrink-0" />
 						<h2 class="font-semibold text-gray-900">Acente Dağılımı</h2>
-						<span class="text-xs text-gray-400">
+						<span class="text-xs text-gray-500">
 							{agencyViewMode === 'grouped'
 								? `${groupedAgencies().length} satır (${summary.by_agency.length} acente)`
 								: `Tümü (${summary.by_agency.length})`}
@@ -1651,7 +1651,7 @@
 					</div>
 
 					{#if summary.by_agency.length === 0}
-						<p class="text-sm text-gray-400 text-center py-6">Veri yok</p>
+						<p class="text-sm text-gray-500 text-center py-6">Veri yok</p>
 
 					{:else if agencyViewMode === 'individual'}
 						<!-- ── Bireysel görünüm (mevcut) ── -->
@@ -1676,8 +1676,8 @@
 					{:else}
 						<!-- ── Gruplu görünüm ── -->
 						{#if canUse}
-							<p class="text-[11px] text-gray-400 mb-2 flex items-center gap-1">
-								<GripVertical size={11} class="text-gray-300" />
+							<p class="text-[11px] text-gray-500 mb-2 flex items-center gap-1">
+								<GripVertical size={11} class="text-gray-500" />
 								Acenteyi sürükleyip grup başlığına bırakarak ekleyin · gruptan çıkarmak için aşağıdaki alana bırakın
 							</p>
 						{/if}
@@ -1721,7 +1721,7 @@
 														ondragend={canUse ? onAgencyDragEnd : undefined}
 													>
 														{#if canUse}
-															<GripVertical size={12} class="text-gray-300 hover:text-gray-500 cursor-grab shrink-0" />
+															<GripVertical size={12} class="text-gray-500 hover:text-gray-500 cursor-grab shrink-0" />
 														{:else}
 															<span class="w-3 shrink-0"></span>
 														{/if}
@@ -1746,7 +1746,7 @@
 										ondragend={canUse ? onAgencyDragEnd : undefined}
 									>
 										{#if canUse}
-											<GripVertical size={12} class="text-gray-300 hover:text-gray-500 cursor-grab shrink-0" />
+											<GripVertical size={12} class="text-gray-500 hover:text-gray-500 cursor-grab shrink-0" />
 										{:else}
 											<span class="w-3 shrink-0"></span>
 										{/if}
@@ -1794,7 +1794,7 @@
 						<h2 class="font-semibold text-gray-900">Oda Tipi Dağılımı</h2>
 					</div>
 					{#if summary.by_room_type.length === 0}
-						<p class="text-sm text-gray-400 text-center py-6">Veri yok</p>
+						<p class="text-sm text-gray-500 text-center py-6">Veri yok</p>
 					{:else}
 						<div class="space-y-2.5">
 							{#each summary.by_room_type as t}
@@ -1802,7 +1802,7 @@
 									<div class="w-24 sm:w-32 shrink-0 text-xs font-medium text-gray-700 truncate" title={t.name}>
 										{t.name}
 										{#if t.total_rooms > 0}
-											<span class="block text-[10px] text-gray-400">{t.total_rooms} oda</span>
+											<span class="block text-[10px] text-gray-500">{t.total_rooms} oda</span>
 										{/if}
 									</div>
 									<div class="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
@@ -1829,7 +1829,7 @@
 						<h2 class="font-semibold text-gray-900">Pansiyon</h2>
 					</div>
 					{#if summary.by_board.length === 0}
-						<p class="text-sm text-gray-400 text-center py-6">Veri yok</p>
+						<p class="text-sm text-gray-500 text-center py-6">Veri yok</p>
 					{:else}
 						<div class="space-y-3">
 							{#each summary.by_board as b}
@@ -1855,10 +1855,10 @@
 					<div class="flex items-center gap-2 mb-4">
 						<TrendingUp size={18} class="text-teal-500" />
 						<h2 class="font-semibold text-gray-900">Pickup Temposu</h2>
-						<span class="text-xs text-gray-400 ml-auto">Aylık rezervasyon alımı</span>
+						<span class="text-xs text-gray-500 ml-auto">Aylık rezervasyon alımı</span>
 					</div>
 					{#if summary.pickup.length === 0}
-						<p class="text-sm text-gray-400 text-center py-6">Veri yok</p>
+						<p class="text-sm text-gray-500 text-center py-6">Veri yok</p>
 					{:else}
 						{@const prevPickupMap = compareMode && previousYearSummary
 							? new Map(previousYearSummary.pickup.map((pp) => [pp.month.split('-')[1], pp]))
@@ -1904,7 +1904,7 @@
 							<!-- Ay etiketleri: bar alanının dışında, ayrı satır -->
 							<div class="flex gap-1 mt-2 border-t border-gray-100 pt-2">
 								{#each summary.pickup as p}
-									<div class="flex-1 text-[9px] sm:text-[10px] text-gray-500 truncate text-center">
+									<div class="flex-1 text-[10px] sm:text-[10px] text-gray-500 truncate text-center">
 										{monthLabel(p.month).slice(0, 6)}
 									</div>
 								{/each}
@@ -1932,10 +1932,10 @@
 					<div class="flex items-center gap-2 mb-4">
 						<Calendar size={18} class="text-teal-500" />
 						<h2 class="font-semibold text-gray-900">Konaklama Uzunluğu</h2>
-						<span class="text-xs text-gray-400 ml-auto">Gece dağılımı</span>
+						<span class="text-xs text-gray-500 ml-auto">Gece dağılımı</span>
 					</div>
 					{#if summary.los_buckets.length === 0}
-						<p class="text-sm text-gray-400 text-center py-6">Veri yok</p>
+						<p class="text-sm text-gray-500 text-center py-6">Veri yok</p>
 					{:else}
 						{@const maxLos = Math.max(...summary.los_buckets.map(b => b.count))}
 						<div class="space-y-1.5">
@@ -2093,7 +2093,7 @@
 							</td>
 							<td class="py-1.5 px-2 text-gray-700 whitespace-nowrap">
 								{formatRangeDate(c.checkin_date)} → {formatRangeDate(c.checkout_date)}
-								<span class="text-gray-400 ml-1">({c.nights}n)</span>
+								<span class="text-gray-500 ml-1">({c.nights}n)</span>
 							</td>
 							<td class="py-1.5 px-2 text-right tabular-nums">{c.rooms}</td>
 							<td class="py-1.5 px-2 text-right tabular-nums text-rose-700">{formatEur(c.eur_total)}</td>
@@ -2139,7 +2139,7 @@
 <!-- ── Yüklemeler Geçmişi Modal ── -->
 <Modal bind:show={showUploadsModal} title="Yükleme Geçmişi" maxWidth="max-w-3xl">
 	{#if uploads.length === 0}
-		<p class="text-sm text-gray-400 text-center py-6">Henüz yükleme yok.</p>
+		<p class="text-sm text-gray-500 text-center py-6">Henüz yükleme yok.</p>
 	{:else}
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm">
@@ -2171,7 +2171,7 @@
 								<td class="py-2 px-2 text-right">
 									<button
 										onclick={() => askDelete(u)}
-										class="p-1.5 rounded text-red-500 hover:bg-red-50"
+										class="p-1.5 rounded text-red-600 hover:bg-red-50"
 										title="Sil"
 									>
 										<Trash2 size={14} />
@@ -2218,24 +2218,24 @@
 								<span class="bg-teal-50 text-teal-700 text-xs px-2 py-0.5 rounded-full border border-teal-200">{m}</span>
 							{/each}
 							{#if g.members.length === 0}
-								<span class="text-xs text-gray-400 italic">Üye yok</span>
+								<span class="text-xs text-gray-500 italic">Üye yok</span>
 							{/if}
 						</div>
 					</div>
 					<div class="flex gap-1 shrink-0">
 						<button onclick={() => openEditGroup(g)}
-							class="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer" title="Düzenle">
+							class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer" title="Düzenle">
 							<Settings2 size={15} />
 						</button>
 						<button onclick={() => gmDelete(g)}
-							class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer" title="Sil">
+							class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer" title="Sil">
 							<Trash2 size={15} />
 						</button>
 					</div>
 				</div>
 			{/each}
 			{#if agencyGroups.length === 0}
-				<p class="text-sm text-gray-400 text-center py-6">Henüz grup tanımlanmamış</p>
+				<p class="text-sm text-gray-500 text-center py-6">Henüz grup tanımlanmamış</p>
 			{/if}
 		</div>
 
@@ -2254,7 +2254,7 @@
 		<div class="space-y-4">
 			<div>
 				<label for="gm-name" class="block text-sm font-medium text-gray-700 mb-1">
-					Grup Adı <span class="text-red-500">*</span>
+					Grup Adı <span class="text-red-600">*</span>
 				</label>
 				<input
 					id="gm-name"
@@ -2277,7 +2277,7 @@
 						</span>
 					{/each}
 					{#if gmMembers.length === 0}
-						<span class="text-xs text-gray-400 self-center">Henüz üye eklenmedi</span>
+						<span class="text-xs text-gray-500 self-center">Henüz üye eklenmedi</span>
 					{/if}
 				</div>
 				<div class="relative">
@@ -2298,7 +2298,7 @@
 						</div>
 					{/if}
 				</div>
-				<p class="text-xs text-gray-400 mt-1.5">
+				<p class="text-xs text-gray-500 mt-1.5">
 					Yalnızca mevcut rezervasyon verilerinde görünen ve başka gruba atanmamış acenteler önerilir.
 				</p>
 			</div>

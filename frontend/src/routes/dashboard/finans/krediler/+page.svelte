@@ -383,7 +383,7 @@
 		if (stmt.is_paid) return { label: 'Ödendi', bg: 'bg-green-100', text: 'text-green-700' };
 		const today = new Date().toISOString().split('T')[0];
 		if (stmt.son_odeme_tarihi < today) return { label: 'Gecikmiş', bg: 'bg-red-100', text: 'text-red-700' };
-		return { label: 'Bekliyor', bg: 'bg-yellow-100', text: 'text-yellow-700' };
+		return { label: 'Bekliyor', bg: 'bg-amber-100', text: 'text-amber-700' };
 	}
 
 	// ─── Existing functions ─────────────────────────────────
@@ -739,7 +739,7 @@
 			<div class="flex items-center justify-between mb-2 sm:mb-3 gap-2">
 				<h3 class="text-xs sm:text-sm font-bold text-gray-700">Banka Bazlı Kredi Dağılımı (EUR)</h3>
 				{#if eurRate}
-					<span class="text-[10px] text-gray-400">1 € = {eurRate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺</span>
+					<span class="text-[10px] text-gray-500">1 € = {eurRate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺</span>
 				{/if}
 			</div>
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -749,7 +749,7 @@
 						<div class="flex items-center justify-between mb-3 gap-2">
 							<div class="min-w-0 flex-1">
 								<h4 class="text-sm font-semibold text-gray-800 truncate" title={group.bank}>{group.bank}</h4>
-								<span class="text-[10px] text-gray-400">
+								<span class="text-[10px] text-gray-500">
 									{group.items.length} kredi
 									{#if group.hasMissingRate}· <span class="text-amber-500">bazı kurlar eksik</span>{/if}
 								</span>
@@ -780,7 +780,7 @@
 								</svg>
 								<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
 									<div class="text-center">
-										<div class="text-[9px] text-gray-400 leading-tight">Toplam</div>
+										<div class="text-[10px] text-gray-500 leading-tight">Toplam</div>
 										<div class="text-[11px] sm:text-xs font-bold text-gray-800 leading-tight mt-0.5">{fmtCompact(group.totalEur, 'EUR')}</div>
 									</div>
 								</div>
@@ -843,7 +843,7 @@
 				onError={handleCCDropError}
 			/>
 			{#if ccUploadError}
-				<p class="text-xs text-red-500 mt-2">{ccUploadError}</p>
+				<p class="text-xs text-red-600 mt-2">{ccUploadError}</p>
 			{/if}
 			{#if ccUploadSuccess}
 				<p class="text-xs text-teal-600 mt-2">✅ {ccUploadSuccess}</p>
@@ -870,9 +870,9 @@
 								<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
 							</svg>
 							<span class="font-semibold text-xs sm:text-sm text-gray-700 w-16 sm:w-20 shrink-0">{grp.label}</span>
-							<span class="text-[10px] sm:text-xs text-gray-400 shrink-0">{grp.paidCount}/{grp.count}</span>
+							<span class="text-[10px] sm:text-xs text-gray-500 shrink-0">{grp.paidCount}/{grp.count}</span>
 							{#if grp.hasOverdue}
-								<span class="text-[9px] font-medium bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full shrink-0">Gecikmiş</span>
+								<span class="text-[10px] font-medium bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full shrink-0">Gecikmiş</span>
 							{/if}
 							<!-- Ödenen / Kalan toplam (para birimi bazında) -->
 							<span class="ml-auto text-right whitespace-nowrap leading-tight">
@@ -892,11 +892,11 @@
 									<div class="flex items-center justify-between gap-2 px-3 py-1.5 text-xs sm:text-sm {u.is_paid ? 'bg-emerald-50/40' : ''}">
 										<span class="text-gray-700 truncate min-w-0 flex items-center gap-1.5">
 											<span class="truncate">{u.product_name}</span>
-											<span class="text-[10px] text-gray-400 shrink-0">#{u.installment_no || ''}</span>
+											<span class="text-[10px] text-gray-500 shrink-0">#{u.installment_no || ''}</span>
 											{#if u.is_paid}
-												<span class="text-[9px] font-medium bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full shrink-0">Ödendi</span>
+												<span class="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full shrink-0">Ödendi</span>
 											{:else if overdue}
-												<span class="text-[9px] font-medium bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full shrink-0">Gecikmiş</span>
+												<span class="text-[10px] font-medium bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full shrink-0">Gecikmiş</span>
 											{/if}
 										</span>
 										<span class="whitespace-nowrap shrink-0 text-right flex items-center gap-2">
@@ -941,26 +941,26 @@
 						onclick={() => toggleExpand(p.id, p.type)}
 						class="w-full flex items-center gap-1.5 sm:gap-3 px-2.5 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 cursor-pointer text-left"
 					>
-						<svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-gray-400 transition-transform {expandedId === p.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-gray-500 transition-transform {expandedId === p.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 						</svg>
 						<span class="text-[10px] sm:text-xs font-medium {c.bg} {c.text} {c.border} border px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">{p.type_label}</span>
 						{#if p.status === 'closed'}
-							<span class="text-[9px] sm:text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full shrink-0">Kapalı</span>
+							<span class="text-[10px] sm:text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full shrink-0">Kapalı</span>
 						{/if}
-						<span class="font-medium text-xs sm:text-sm {p.status === 'closed' ? 'text-gray-400 line-through' : 'text-gray-800'} flex-1 truncate min-w-0">{p.name}</span>
-						<span class="text-xs text-gray-400 hidden sm:inline">{p.bank_name || p.company || ''}</span>
+						<span class="font-medium text-xs sm:text-sm {p.status === 'closed' ? 'text-gray-500 line-through' : 'text-gray-800'} flex-1 truncate min-w-0">{p.name}</span>
+						<span class="text-xs text-gray-500 hidden sm:inline">{p.bank_name || p.company || ''}</span>
 						{#if p.interest_rate != null}
 							<span class="text-xs text-gray-500 hidden sm:inline">%{p.interest_rate}</span>
 						{/if}
 						{#if p.commission_rate}
-							<span class="text-[10px] text-gray-400 hidden sm:inline">Kom:%{p.commission_rate}</span>
+							<span class="text-[10px] text-gray-500 hidden sm:inline">Kom:%{p.commission_rate}</span>
 						{/if}
 						<span class="font-bold text-xs sm:text-sm text-gray-800 whitespace-nowrap shrink-0">{fmt(p.remaining_amount, p.currency)}</span>
 						{#if p.next_payment_date}
 							<span class="text-[10px] text-amber-600 hidden sm:inline">{fmtDate(p.next_payment_date)}</span>
 						{/if}
-						<span class="text-[10px] sm:text-xs {p.status === 'active' ? 'text-green-600' : 'text-gray-400'} shrink-0">{p.paid_count}/{p.payment_count}</span>
+						<span class="text-[10px] sm:text-xs {p.status === 'active' ? 'text-green-600' : 'text-gray-500'} shrink-0">{p.paid_count}/{p.payment_count}</span>
 					</button>
 
 					<!-- Genişletilmiş detay -->
@@ -987,7 +987,7 @@
 							<!-- KMH özel görünüm -->
 							{#if p.type === 'kmh'}
 								{#if !kmhStatus}
-									<p class="text-sm text-gray-400 py-4 text-center">KMH durumu yükleniyor…</p>
+									<p class="text-sm text-gray-500 py-4 text-center">KMH durumu yükleniyor…</p>
 								{:else if kmhStatus.error}
 									<div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
 										{kmhStatus.error}
@@ -1000,24 +1000,24 @@
 									<!-- 4 stat kart (mevcut ay + tüm aylar toplamı) -->
 									<div class="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mb-4">
 										<div class="bg-white border border-gray-200 rounded-xl p-3">
-											<div class="text-[10px] text-gray-400 uppercase tracking-wider">Açık Borç</div>
+											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Açık Borç</div>
 											<div class="text-lg sm:text-xl font-bold {kmhStatus.current_debt > 0 ? 'text-red-600' : 'text-gray-700'} mt-0.5">{fmt(kmhStatus.current_debt)}</div>
-											<div class="text-[10px] text-gray-400 mt-0.5">Kullan. limit: {fmt(kmhStatus.available_limit)}</div>
+											<div class="text-[10px] text-gray-500 mt-0.5">Kullan. limit: {fmt(kmhStatus.available_limit)}</div>
 										</div>
 										<div class="bg-white border border-gray-200 rounded-xl p-3">
-											<div class="text-[10px] text-gray-400 uppercase tracking-wider">Bu Ay Adat</div>
+											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Bu Ay Adat</div>
 											<div class="text-lg sm:text-xl font-bold text-gray-700 mt-0.5">{cur ? fmt(cur.past_adat) : '0'}</div>
-											<div class="text-[10px] text-gray-400 mt-0.5">{cur?.period_start ?? ''} → bugün</div>
+											<div class="text-[10px] text-gray-500 mt-0.5">{cur?.period_start ?? ''} → bugün</div>
 										</div>
 										<div class="bg-white border border-gray-200 rounded-xl p-3">
-											<div class="text-[10px] text-gray-400 uppercase tracking-wider">Bu Ay Birikmiş</div>
+											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Bu Ay Birikmiş</div>
 											<div class="text-lg sm:text-xl font-bold text-amber-600 mt-0.5">{cur ? fmt(cur.accrued_total) : '0'}</div>
-											<div class="text-[10px] text-gray-400 mt-0.5">Faiz {cur ? fmt(cur.accrued_interest) : '0'} + BSMV+Kom.</div>
+											<div class="text-[10px] text-gray-500 mt-0.5">Faiz {cur ? fmt(cur.accrued_interest) : '0'} + BSMV+Kom.</div>
 										</div>
 										<div class="bg-white border border-gray-200 rounded-xl p-3 border-l-4 border-l-teal-500">
-											<div class="text-[10px] text-gray-400 uppercase tracking-wider">Tahmini Ay Sonu</div>
+											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Tahmini Ay Sonu</div>
 											<div class="text-lg sm:text-xl font-bold text-teal-700 mt-0.5">{cur ? fmt(cur.projected_total_due) : '0'}</div>
-											<div class="text-[10px] text-gray-400 mt-0.5">Tüm aylar: {fmt(kmhStatus.total_projected)} ₺</div>
+											<div class="text-[10px] text-gray-500 mt-0.5">Tüm aylar: {fmt(kmhStatus.total_projected)} ₺</div>
 										</div>
 									</div>
 
@@ -1034,11 +1034,11 @@
 										<div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
 											<div class="px-3 py-2 border-b border-gray-100 bg-gray-50">
 												<span class="text-xs font-semibold text-gray-700">Aylık Tahakkuklar ({kmhStatus.periods.length} ay)</span>
-												<span class="text-[10px] text-gray-400 ml-2">Toplam birikmiş: <span class="font-semibold text-amber-600">{fmt(kmhStatus.total_accrued)} ₺</span> · Toplam tahmini: <span class="font-semibold text-teal-700">{fmt(kmhStatus.total_projected)} ₺</span></span>
+												<span class="text-[10px] text-gray-500 ml-2">Toplam birikmiş: <span class="font-semibold text-amber-600">{fmt(kmhStatus.total_accrued)} ₺</span> · Toplam tahmini: <span class="font-semibold text-teal-700">{fmt(kmhStatus.total_projected)} ₺</span></span>
 											</div>
 											<div class="overflow-x-auto">
 												<table class="w-full text-xs">
-													<thead class="bg-gray-50 text-[10px] text-gray-400 uppercase tracking-wider">
+													<thead class="bg-gray-50 text-[10px] text-gray-500 uppercase tracking-wider">
 														<tr>
 															<th class="text-left px-3 py-1.5">Ay</th>
 															<th class="text-right px-3 py-1.5">Devir Bakiye</th>
@@ -1055,7 +1055,7 @@
 															<tr class="border-t border-gray-100 {pp.is_current ? 'bg-teal-50/40 font-medium' : ''}">
 																<td class="px-3 py-1.5 text-gray-700 whitespace-nowrap">
 																	{pp.month_label}
-																	{#if pp.is_current}<span class="text-[9px] text-teal-700 ml-1">[bu ay]</span>{/if}
+																	{#if pp.is_current}<span class="text-[10px] text-teal-700 ml-1">[bu ay]</span>{/if}
 																</td>
 																<td class="px-3 py-1.5 text-right {pp.carry_balance < 0 ? 'text-red-600' : 'text-gray-500'} whitespace-nowrap">{fmt(pp.carry_balance)}</td>
 																<td class="px-3 py-1.5 text-right text-gray-700 whitespace-nowrap">{fmt(pp.past_adat)}</td>
@@ -1079,7 +1079,7 @@
 										</div>
 										<div class="overflow-x-auto">
 											<table class="w-full text-xs">
-												<thead class="bg-gray-50 text-[10px] text-gray-400 uppercase tracking-wider">
+												<thead class="bg-gray-50 text-[10px] text-gray-500 uppercase tracking-wider">
 													<tr>
 														<th class="text-left px-3 py-1.5">Tarih</th>
 														<th class="text-left px-3 py-1.5">Açıklama</th>
@@ -1093,19 +1093,19 @@
 														<tr class="border-t border-gray-100 bg-amber-50/40">
 															<td class="px-3 py-1.5 text-gray-600 whitespace-nowrap">{fmtDate(cur.carry_date)}</td>
 															<td class="px-3 py-1.5 text-gray-500 italic truncate max-w-md" title={cur.carry_description}>↶ Devir bakiye (period öncesi son işlem) — {cur.carry_description}</td>
-															<td class="px-3 py-1.5 text-right text-gray-400">—</td>
+															<td class="px-3 py-1.5 text-right text-gray-500">—</td>
 															<td class="px-3 py-1.5 text-right {cur.carry_balance < 0 ? 'text-red-600 font-semibold' : 'text-gray-600'} whitespace-nowrap">{fmt(cur.carry_balance)}</td>
 															<td class="px-3 py-1.5 text-center">
 																{#if cur.carry_balance < 0}
-																	<span class="inline-block text-[9px] font-medium bg-red-50 text-red-700 px-1.5 py-0.5 rounded">KMH Kullanım</span>
+																	<span class="inline-block text-[10px] font-medium bg-red-50 text-red-700 px-1.5 py-0.5 rounded">KMH Kullanım</span>
 																{:else}
-																	<span class="inline-block text-[9px] font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Devir</span>
+																	<span class="inline-block text-[10px] font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Devir</span>
 																{/if}
 															</td>
 														</tr>
 													{/if}
 													{#if (!cur.movements || cur.movements.length === 0) && !cur.carry_date}
-														<tr><td colspan="5" class="text-center text-xs text-gray-400 py-4">Bu period'da hareket yok.</td></tr>
+														<tr><td colspan="5" class="text-center text-xs text-gray-500 py-4">Bu period'da hareket yok.</td></tr>
 													{/if}
 													{#each (cur.movements || []) as mv (mv.id)}
 															<tr class="border-t border-gray-100">
@@ -1115,11 +1115,11 @@
 																<td class="px-3 py-1.5 text-right {mv.balance_after !== null && mv.balance_after < 0 ? 'text-red-600 font-semibold' : 'text-gray-600'} whitespace-nowrap">{mv.balance_after !== null ? fmt(mv.balance_after) : '—'}</td>
 																<td class="px-3 py-1.5 text-center">
 																	{#if mv.kmh_state === 'negatif'}
-																		<span class="inline-block text-[9px] font-medium bg-red-50 text-red-700 px-1.5 py-0.5 rounded">KMH Kullanım</span>
+																		<span class="inline-block text-[10px] font-medium bg-red-50 text-red-700 px-1.5 py-0.5 rounded">KMH Kullanım</span>
 																	{:else if mv.kmh_state === 'pozitif'}
-																		<span class="inline-block text-[9px] font-medium bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">Pozitif</span>
+																		<span class="inline-block text-[10px] font-medium bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">Pozitif</span>
 																	{:else}
-																		<span class="text-[9px] text-gray-400">—</span>
+																		<span class="text-[10px] text-gray-500">—</span>
 																	{/if}
 																</td>
 															</tr>
@@ -1140,7 +1140,7 @@
 							{#if p.type === 'kredi_karti'}
 								<!-- Ekstre Listesi -->
 								{#if ccStatements.length === 0}
-									<p class="text-sm text-gray-400 py-4 text-center">Henüz yüklenmiş ekstre yok</p>
+									<p class="text-sm text-gray-500 py-4 text-center">Henüz yüklenmiş ekstre yok</p>
 								{:else}
 									<div class="space-y-2">
 										{#each ccStatements as stmt (stmt.id)}
@@ -1155,21 +1155,21 @@
 													aria-expanded={ccExpandedStmtId === stmt.id}
 													class="w-full flex items-center gap-2 sm:gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer text-left text-sm flex-wrap sm:flex-nowrap"
 												>
-													<svg class="w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform {ccExpandedStmtId === stmt.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+													<svg class="w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform {ccExpandedStmtId === stmt.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 														<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 													</svg>
 													<span class="text-gray-600">
 														<span class="font-medium">{fmtDate(stmt.kesim_tarihi)}</span>
-														<span class="text-xs text-gray-400 ml-1 hidden sm:inline">kesim</span>
+														<span class="text-xs text-gray-500 ml-1 hidden sm:inline">kesim</span>
 													</span>
 													<span class="text-gray-600 hidden sm:inline">
-														<span class="text-xs text-gray-400">son ödeme:</span>
+														<span class="text-xs text-gray-500">son ödeme:</span>
 														<span class="font-medium ml-1">{fmtDate(stmt.son_odeme_tarihi)}</span>
 													</span>
 													<span class="flex-1"></span>
-													<span class="text-xs text-gray-400 hidden sm:inline">{stmt.transaction_count} işlem</span>
+													<span class="text-xs text-gray-500 hidden sm:inline">{stmt.transaction_count} işlem</span>
 													<span class="font-bold text-gray-800 whitespace-nowrap">{fmt(stmt.toplam_borc)}</span>
-													<span class="text-[10px] text-gray-400 hidden sm:inline">asgari: {fmt(stmt.asgari_odeme)}</span>
+													<span class="text-[10px] text-gray-500 hidden sm:inline">asgari: {fmt(stmt.asgari_odeme)}</span>
 													<span class="text-[10px] font-medium {stmtStatus.bg} {stmtStatus.text} px-2 py-0.5 rounded-full">{stmtStatus.label}</span>
 													{#if canUse}
 														<button
@@ -1190,19 +1190,19 @@
 														<!-- Özet bilgiler -->
 														<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
 															<div class="bg-white rounded-lg p-2.5 border border-gray-100">
-																<div class="text-[10px] text-gray-400">Önceki Bakiye</div>
+																<div class="text-[10px] text-gray-500">Önceki Bakiye</div>
 																<div class="text-sm font-semibold text-gray-700">{fmt(ccExpandedStmt.onceki_bakiye)}</div>
 															</div>
 															<div class="bg-white rounded-lg p-2.5 border border-gray-100">
-																<div class="text-[10px] text-gray-400">Dönem Harcama</div>
+																<div class="text-[10px] text-gray-500">Dönem Harcama</div>
 																<div class="text-sm font-semibold text-red-600">{fmt(ccExpandedStmt.donem_harcama)}</div>
 															</div>
 															<div class="bg-white rounded-lg p-2.5 border border-gray-100">
-																<div class="text-[10px] text-gray-400">Faiz / Ücret</div>
+																<div class="text-[10px] text-gray-500">Faiz / Ücret</div>
 																<div class="text-sm font-semibold text-orange-600">{fmt(ccExpandedStmt.faiz_ucret)}</div>
 															</div>
 															<div class="bg-white rounded-lg p-2.5 border border-gray-100">
-																<div class="text-[10px] text-gray-400">Dönem Ödeme</div>
+																<div class="text-[10px] text-gray-500">Dönem Ödeme</div>
 																<div class="text-sm font-semibold text-green-600">{fmt(ccExpandedStmt.donem_odeme)}</div>
 															</div>
 														</div>
@@ -1225,8 +1225,8 @@
 																			<tr class="border-b border-gray-100 hover:bg-white/60">
 																				<td class="py-1.5 px-2 text-gray-500 whitespace-nowrap">{tx.islem_tarihi ? fmtDate(tx.islem_tarihi) : '-'}</td>
 																				<td class="py-1.5 px-2 text-gray-700 max-w-[200px] truncate" title={tx.aciklama}>{tx.aciklama}</td>
-																				<td class="py-1.5 px-2 text-gray-400 text-xs hidden sm:table-cell">{tx.kategori || '-'}</td>
-																				<td class="py-1.5 px-2 text-gray-400 text-xs hidden md:table-cell max-w-[150px] truncate" title={tx.taksit_bilgi || ''}>{tx.taksit_bilgi || '-'}</td>
+																				<td class="py-1.5 px-2 text-gray-500 text-xs hidden sm:table-cell">{tx.kategori || '-'}</td>
+																				<td class="py-1.5 px-2 text-gray-500 text-xs hidden md:table-cell max-w-[150px] truncate" title={tx.taksit_bilgi || ''}>{tx.taksit_bilgi || '-'}</td>
 																				<td class="py-1.5 px-2 text-right font-medium whitespace-nowrap {tx.is_credit ? 'text-green-600' : 'text-red-600'}">
 																					{tx.is_credit ? '+' : '-'}{fmt(tx.tutar)}
 																				</td>
@@ -1236,7 +1236,7 @@
 																</table>
 															</div>
 														{:else}
-															<p class="text-sm text-gray-400 text-center py-3">İşlem bulunamadı</p>
+															<p class="text-sm text-gray-500 text-center py-3">İşlem bulunamadı</p>
 														{/if}
 													</div>
 												{/if}
@@ -1248,7 +1248,7 @@
 							{:else}
 								<!-- Diğer ürün tipleri: Ödeme planı (ay ay akordiyon) -->
 								{#if expandedPayments.length === 0}
-									<p class="text-sm text-gray-400 py-4 text-center">Ödeme planı yok</p>
+									<p class="text-sm text-gray-500 py-4 text-center">Ödeme planı yok</p>
 								{:else}
 									{#if p.status === 'closed'}
 										<div class="mb-2 text-[11px] sm:text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg px-3 py-1.5">
@@ -1268,15 +1268,15 @@
 													class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 cursor-pointer"
 													aria-expanded={open}
 												>
-													<svg class="w-3.5 h-3.5 shrink-0 text-gray-400 transition-transform {open ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+													<svg class="w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform {open ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
 														<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
 													</svg>
 													<span class="font-semibold text-xs sm:text-sm text-gray-700 w-20 sm:w-24 shrink-0">{grp.label}</span>
-													<span class="text-[10px] sm:text-xs text-gray-400 shrink-0">{grp.paidCount}/{grp.count}</span>
+													<span class="text-[10px] sm:text-xs text-gray-500 shrink-0">{grp.paidCount}/{grp.count}</span>
 													{#if grp.hasOverdue}
-														<span class="text-[9px] font-medium bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full shrink-0">Gecikmiş</span>
+														<span class="text-[10px] font-medium bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full shrink-0">Gecikmiş</span>
 													{:else if grp.unpaidTotal === 0}
-														<span class="text-[9px] font-medium bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full shrink-0">Tamam</span>
+														<span class="text-[10px] font-medium bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full shrink-0">Tamam</span>
 													{/if}
 													<span class="ml-auto text-xs sm:text-sm font-bold text-gray-800 whitespace-nowrap">{fmt(grp.total, p.currency)}</span>
 												</button>
@@ -1301,7 +1301,7 @@
 																{#each grp.pays as pay (pay.id)}
 																	{@const overdue = !pay.is_paid && pay.due_date < today}
 																	<tr class="border-b border-gray-100 {overdue ? 'bg-red-50' : pay.is_paid ? 'bg-green-50/40' : ''}">
-																		<td class="py-1.5 px-2 text-gray-400">{pay.installment_no || '-'}</td>
+																		<td class="py-1.5 px-2 text-gray-500">{pay.installment_no || '-'}</td>
 																		<td class="py-1.5 px-2 {overdue ? 'text-red-600 font-medium' : ''}">{fmtDate(pay.due_date)}</td>
 																		<td class="py-1.5 px-2 text-right font-medium">{fmt(pay.amount, p.currency)}</td>
 																		<td class="py-1.5 px-2 text-right text-gray-500 hidden sm:table-cell">{fmt(pay.principal, p.currency)}</td>
@@ -1316,7 +1316,7 @@
 																			{:else if overdue}
 																				<span class="text-[10px] font-medium bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Gecikmiş</span>
 																			{:else}
-																				<span class="text-[10px] font-medium bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Bekliyor</span>
+																				<span class="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Bekliyor</span>
 																			{/if}
 																		</td>
 																		{#if canUse}
@@ -1504,7 +1504,7 @@
 			</button>
 			<button
 				onclick={confirmClose}
-				class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+				class="px-4 py-2 text-sm bg-teal-700 text-white rounded-lg hover:bg-teal-800 font-medium"
 			>
 				Krediyi Kapat
 			</button>

@@ -286,7 +286,7 @@
 	</div>
 
 	{#if loading}
-		<div class="py-12 text-center text-gray-400"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
+		<div class="py-12 text-center text-gray-500"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
 	{:else if !activeList}
 		<EmptyState
 			icon={FileText}
@@ -300,11 +300,11 @@
 			<div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/60 flex-wrap">
 				<div>
 					<div class="font-semibold text-gray-800">{activeList.name}</div>
-					<div class="text-xs text-gray-400">{activeList.items.length} cari · {fmtDate(activeList.created_at)}</div>
+					<div class="text-xs text-gray-500">{activeList.items.length} cari · {fmtDate(activeList.created_at)}</div>
 				</div>
 				<div class="flex items-center gap-3 flex-wrap">
 					<div class="text-right">
-						<div class="text-[10px] text-gray-400 uppercase">Toplam</div>
+						<div class="text-[10px] text-gray-500 uppercase">Toplam</div>
 						<div class="text-lg font-bold text-rose-600 tabular-nums">₺{fmt(activeTotal)}</div>
 					</div>
 					<button onclick={() => download('excel')} disabled={busy || activeList.items.length === 0}
@@ -322,7 +322,7 @@
 			{#if canUse}
 				<div class="px-4 py-3 border-b border-gray-100 relative">
 					<div class="relative">
-						<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+						<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
 						<input
 							bind:value={searchTerm}
 							oninput={onSearchInput}
@@ -330,7 +330,7 @@
 							class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
 						/>
 						{#if searchTerm}
-							<button onclick={() => { searchTerm = ''; searchResults = []; }} class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+							<button onclick={() => { searchTerm = ''; searchResults = []; }} class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600">
 								<X size={16} />
 							</button>
 						{/if}
@@ -344,23 +344,23 @@
 								>
 									<span class="min-w-0">
 										<span class="font-medium text-gray-800 truncate block">{v.hesap_adi}</span>
-										<span class="text-xs text-gray-400">{v.hesap_kodu}</span>
+										<span class="text-xs text-gray-500">{v.hesap_kodu}</span>
 									</span>
-									<span class="text-xs font-semibold tabular-nums shrink-0 {v.bakiye < 0 ? 'text-rose-600' : 'text-gray-400'}">
+									<span class="text-xs font-semibold tabular-nums shrink-0 {v.bakiye < 0 ? 'text-rose-600' : 'text-gray-500'}">
 										{v.bakiye < 0 ? '₺' + fmt(Math.abs(v.bakiye)) : '₺0,00'}
 									</span>
 								</button>
 							{/each}
 						</div>
 					{:else if searching}
-						<div class="text-xs text-gray-400 mt-1 pl-1">Aranıyor…</div>
+						<div class="text-xs text-gray-500 mt-1 pl-1">Aranıyor…</div>
 					{/if}
 				</div>
 			{/if}
 
 			<!-- Kalemler -->
 			{#if activeList.items.length === 0}
-				<p class="text-sm text-gray-400 text-center py-8">Henüz cari eklenmedi. Yukarıdan arayıp ekleyin.</p>
+				<p class="text-sm text-gray-500 text-center py-8">Henüz cari eklenmedi. Yukarıdan arayıp ekleyin.</p>
 			{:else}
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm">
@@ -376,7 +376,7 @@
 						<tbody>
 							{#each activeList.items as item, i (item.id)}
 								<tr class="border-b border-gray-50 hover:bg-gray-50/50">
-									<td class="py-1.5 px-3 text-gray-400">{i + 1}</td>
+									<td class="py-1.5 px-3 text-gray-500">{i + 1}</td>
 									<td class="py-1.5 px-3 text-gray-500 hidden sm:table-cell tabular-nums">{item.hesap_kodu ?? '-'}</td>
 									<td class="py-1.5 px-3 text-gray-800 truncate max-w-[220px]" title={item.hesap_adi}>{item.hesap_adi}</td>
 									<td class="py-1.5 px-3">

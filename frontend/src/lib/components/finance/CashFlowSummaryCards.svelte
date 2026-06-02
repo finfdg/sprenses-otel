@@ -190,7 +190,7 @@
 			{/if}
 
 			<!-- Alt bilgi -->
-			<div class="mt-0.5 text-[9px] sm:text-[10px] text-gray-500 truncate leading-tight">
+			<div class="mt-0.5 text-[10px] sm:text-[10px] text-gray-500 truncate leading-tight">
 				{#if card.loading}
 					<span>&nbsp;</span>
 				{:else}
@@ -200,7 +200,7 @@
 
 			<!-- Detay -->
 			{#if card.detail && !card.loading}
-				<div class="mt-0.5 text-[8px] sm:text-[9px] text-gray-400 truncate leading-tight">
+				<div class="mt-0.5 text-[10px] sm:text-[10px] text-gray-500 truncate leading-tight">
 					{card.detail}
 				</div>
 			{/if}

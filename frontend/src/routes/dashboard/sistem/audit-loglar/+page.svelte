@@ -187,7 +187,7 @@
 									{#if log.user_full_name}
 										<span class="font-medium text-gray-800">{log.user_full_name}</span>
 									{:else}
-										<span class="text-gray-400">Sistem</span>
+										<span class="text-gray-500">Sistem</span>
 									{/if}
 								</td>
 								<td class="px-4 py-3">
@@ -198,11 +198,11 @@
 								<td class="px-4 py-3 text-gray-600">
 									<span class="text-xs">{log.entity_type}</span>
 									{#if log.entity_id}
-										<span class="text-gray-400 text-xs ml-1">#{log.entity_id}</span>
+										<span class="text-gray-500 text-xs ml-1">#{log.entity_id}</span>
 									{/if}
 								</td>
 								<td class="px-4 py-3 text-gray-500 text-xs max-w-[300px] truncate">{log.details || '-'}</td>
-								<td class="px-4 py-3 text-gray-400 text-xs font-mono">{log.ip_address || '-'}</td>
+								<td class="px-4 py-3 text-gray-500 text-xs font-mono">{log.ip_address || '-'}</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -220,11 +220,11 @@
 							<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border {ACTION_COLORS[log.action] || 'bg-gray-50 text-gray-600 border-gray-200'}">
 								{ACTION_LABELS[log.action] || log.action}
 							</span>
-							<span class="text-[10px] text-gray-400">{formatRelative(log.created_at)}</span>
+							<span class="text-[10px] text-gray-500">{formatRelative(log.created_at)}</span>
 						</div>
 						<div class="flex items-center gap-2">
 							<span class="text-xs font-medium text-gray-800">{log.user_full_name || 'Sistem'}</span>
-							<span class="text-[10px] text-gray-400">{log.entity_type}{log.entity_id ? ` #${log.entity_id}` : ''}</span>
+							<span class="text-[10px] text-gray-500">{log.entity_type}{log.entity_id ? ` #${log.entity_id}` : ''}</span>
 						</div>
 						{#if log.details}
 							<p class="text-[11px] text-gray-500 mt-1 truncate">{log.details}</p>
@@ -275,38 +275,38 @@
 		>
 			<div class="p-5 border-b border-gray-100 flex items-center justify-between">
 				<h3 class="text-lg font-bold text-gray-800">Log Detayı</h3>
-				<button onclick={() => selectedLog = null} class="p-1 text-gray-400 hover:text-gray-600 cursor-pointer" aria-label="Detayı kapat">
+				<button onclick={() => selectedLog = null} class="p-1 text-gray-500 hover:text-gray-600 cursor-pointer" aria-label="Detayı kapat">
 					<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
 				</button>
 			</div>
 			<div class="p-5 space-y-3">
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<span class="text-xs text-gray-400 block">Tarih</span>
+						<span class="text-xs text-gray-500 block">Tarih</span>
 						<span class="text-sm font-medium text-gray-800">{formatDate(selectedLog.created_at)}</span>
 					</div>
 					<div>
-						<span class="text-xs text-gray-400 block">Kullanıcı</span>
+						<span class="text-xs text-gray-500 block">Kullanıcı</span>
 						<span class="text-sm font-medium text-gray-800">{selectedLog.user_full_name || 'Sistem'}</span>
 					</div>
 					<div>
-						<span class="text-xs text-gray-400 block">Eylem</span>
+						<span class="text-xs text-gray-500 block">Eylem</span>
 						<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border {ACTION_COLORS[selectedLog.action] || 'bg-gray-50 text-gray-600 border-gray-200'}">
 							{ACTION_LABELS[selectedLog.action] || selectedLog.action}
 						</span>
 					</div>
 					<div>
-						<span class="text-xs text-gray-400 block">Varlık</span>
+						<span class="text-xs text-gray-500 block">Varlık</span>
 						<span class="text-sm text-gray-800">{selectedLog.entity_type}{selectedLog.entity_id ? ` #${selectedLog.entity_id}` : ''}</span>
 					</div>
 					<div>
-						<span class="text-xs text-gray-400 block">IP Adresi</span>
+						<span class="text-xs text-gray-500 block">IP Adresi</span>
 						<span class="text-sm font-mono text-gray-600">{selectedLog.ip_address || '-'}</span>
 					</div>
 				</div>
 				{#if selectedLog.details}
 					<div>
-						<span class="text-xs text-gray-400 block mb-1">Detay</span>
+						<span class="text-xs text-gray-500 block mb-1">Detay</span>
 						<div class="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap break-words font-mono text-xs">{selectedLog.details}</div>
 					</div>
 				{/if}

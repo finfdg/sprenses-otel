@@ -271,7 +271,7 @@
 	<!-- Filtreler -->
 	<div class="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
 		<div class="relative w-full sm:w-72">
-			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" aria-hidden="true" />
 			<input
 				type="search"
 				placeholder="Acente/Operatör ara…"
@@ -280,7 +280,7 @@
 				class="w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
 			/>
 			{#if searchInput}
-				<button onclick={() => searchInput = ''} aria-label="Aramayı temizle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+				<button onclick={() => searchInput = ''} aria-label="Aramayı temizle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer">
 					<X size={16} />
 				</button>
 			{/if}
@@ -341,7 +341,7 @@
 									{#if adv.received_amount != null}
 										<span class="font-semibold text-emerald-700">{fmt(adv.received_amount, adv.currency)}</span>
 									{:else}
-										<span class="text-gray-400">—</span>
+										<span class="text-gray-500">—</span>
 									{/if}
 								</td>
 								{#if canUse}

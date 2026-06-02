@@ -356,7 +356,7 @@
 		<!-- Açıklama Alanı -->
 		<div class="mt-4 sm:mt-6 bg-white border border-gray-200 rounded-xl p-3 sm:p-4">
 			<label for="qfd-notes" class="block text-sm font-semibold text-gray-700 mb-2">Açıklama</label>
-			<p class="text-xs text-gray-400 mb-2">Sorularda olmayan veya o gün için gelişen özel olayları buraya yazınız.</p>
+			<p class="text-xs text-gray-500 mb-2">Sorularda olmayan veya o gün için gelişen özel olayları buraya yazınız.</p>
 			{#if isReadonly}
 				<p class="text-sm text-gray-900">{notes || '—'}</p>
 			{:else}

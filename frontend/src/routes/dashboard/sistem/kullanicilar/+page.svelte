@@ -300,7 +300,7 @@
 			<div class="relative">
 				<input id="u-password" type={showPwd ? 'text' : 'password'} bind:value={formPassword} aria-invalid={!!fieldErrors.password} aria-describedby={fieldErrors.password ? 'u-password-error' : undefined}
 					class="w-full px-3 py-2.5 pr-10 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.password ? 'border-red-400' : 'border-gray-300'}" />
-				<button type="button" onclick={() => showPwd = !showPwd} aria-label={showPwd ? 'Şifreyi gizle' : 'Şifreyi göster'} class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+				<button type="button" onclick={() => showPwd = !showPwd} aria-label={showPwd ? 'Şifreyi gizle' : 'Şifreyi göster'} class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer">
 					{#if showPwd}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
 				</button>
 			</div>
@@ -334,7 +334,7 @@
 			<div class="relative">
 				<input id="u-reset-pwd" type={showResetPwd ? 'text' : 'password'} bind:value={resetPassword} placeholder="En az 6 karakter"
 					class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-				<button type="button" onclick={() => showResetPwd = !showResetPwd} aria-label={showResetPwd ? 'Şifreyi gizle' : 'Şifreyi göster'} class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+				<button type="button" onclick={() => showResetPwd = !showResetPwd} aria-label={showResetPwd ? 'Şifreyi gizle' : 'Şifreyi göster'} class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer">
 					{#if showResetPwd}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
 				</button>
 			</div>

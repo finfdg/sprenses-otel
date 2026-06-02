@@ -21,7 +21,7 @@
 
 <div class="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm">
 	{#if IconComponent}
-		<div class="flex justify-center mb-3 text-gray-300">
+		<div class="flex justify-center mb-3 text-gray-500">
 			<IconComponent size={48} />
 		</div>
 	{/if}

@@ -347,7 +347,7 @@
 							{#if t.description}
 								<p class="text-sm text-gray-500 mt-1">{t.description}</p>
 							{/if}
-							<div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
+							<div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
 								<span>{t.section_count} bölüm</span>
 								<span>{t.field_count} alan</span>
 								<span>{new Date(t.created_at).toLocaleDateString('tr-TR')}</span>
@@ -392,7 +392,7 @@
 					{#each Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1) as p, idx}
 						{@const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(pp => pp === 1 || pp === totalPages || Math.abs(pp - currentPage) <= 1)}
 						{#if idx > 0 && p - pages[idx - 1] > 1}
-							<span class="px-1 text-xs text-gray-400">...</span>
+							<span class="px-1 text-xs text-gray-500">...</span>
 						{/if}
 						<button
 							onclick={() => goToPage(p)}
@@ -477,7 +477,7 @@
 				placeholder="PDF raporunun her sayfasında görünecek altbilgi metni..."
 				class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 			/>
-			<p class="text-xs text-gray-400 mt-0.5">Bu metin PDF çıktısının her sayfasının alt kısmında görünür</p>
+			<p class="text-xs text-gray-500 mt-0.5">Bu metin PDF çıktısının her sayfasının alt kısmında görünür</p>
 		</div>
 
 		<!-- Eşik Değerleri -->
@@ -493,7 +493,7 @@
 					bind:value={formIncreaseThreshold}
 					class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 				/>
-				<p class="text-xs text-gray-400 mt-0.5">Bu yüzdeyi aşan artışlar kırmızı uyarı olarak gösterilir</p>
+				<p class="text-xs text-gray-500 mt-0.5">Bu yüzdeyi aşan artışlar kırmızı uyarı olarak gösterilir</p>
 			</div>
 			<div>
 				<label for="qt-dec" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Azalış Uyarı Eşiği (%)</label>
@@ -506,7 +506,7 @@
 					bind:value={formDecreaseThreshold}
 					class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 				/>
-				<p class="text-xs text-gray-400 mt-0.5">Bu yüzdeyi aşan azalışlar yeşil uyarı olarak gösterilir</p>
+				<p class="text-xs text-gray-500 mt-0.5">Bu yüzdeyi aşan azalışlar yeşil uyarı olarak gösterilir</p>
 			</div>
 		</div>
 
@@ -520,7 +520,7 @@
 						<button
 							onclick={handleLogoDelete}
 							disabled={uploadingLogo}
-							class="text-xs text-red-500 hover:text-red-700 transition-colors cursor-pointer disabled:opacity-50"
+							class="text-xs text-red-600 hover:text-red-700 transition-colors cursor-pointer disabled:opacity-50"
 							title="Logoyu sil"
 						>
 							✕
@@ -547,10 +547,10 @@
 						/>
 					</label>
 				{:else}
-					<p class="text-xs text-gray-400">Logo yüklemek için önce şablonu oluşturun</p>
+					<p class="text-xs text-gray-500">Logo yüklemek için önce şablonu oluşturun</p>
 				{/if}
 			</div>
-			<p class="text-xs text-gray-400 mt-0.5">PDF çıktısının her sayfasının sol üst köşesinde görünür (maks. 2 MB, PNG/JPG/SVG/WEBP)</p>
+			<p class="text-xs text-gray-500 mt-0.5">PDF çıktısının her sayfasının sol üst köşesinde görünür (maks. 2 MB, PNG/JPG/SVG/WEBP)</p>
 		</div>
 
 		<!-- Bölüm ve alan oluşturucu -->

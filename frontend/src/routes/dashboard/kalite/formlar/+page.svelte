@@ -329,7 +329,7 @@
 							{statusLabels[f.status] || f.status}
 						</span>
 					</div>
-					<div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-400">
+					<div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
 						{#if f.filled_by_name}
 							<span>Dolduran: <span class="text-gray-600">{f.filled_by_name}</span></span>
 						{/if}
@@ -363,7 +363,7 @@
 					{#each Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1) as p, idx}
 						{@const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(pp => pp === 1 || pp === totalPages || Math.abs(pp - currentPage) <= 1)}
 						{#if idx > 0 && p - pages[idx - 1] > 1}
-							<span class="px-1 text-xs text-gray-400">...</span>
+							<span class="px-1 text-xs text-gray-500">...</span>
 						{/if}
 						<button
 							onclick={() => goToPage(p)}

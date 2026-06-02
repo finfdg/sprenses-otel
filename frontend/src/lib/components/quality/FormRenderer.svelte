@@ -246,7 +246,7 @@
 										<span class="text-red-400">*</span>
 									{/if}
 									{#if field.unit}
-										<span class="text-gray-400 text-xs">({field.unit})</span>
+										<span class="text-gray-500 text-xs">({field.unit})</span>
 									{/if}
 									{#if field.is_month_end_only}
 										<span class="text-purple-500 text-xs">(Ay Sonu)</span>
@@ -294,7 +294,7 @@
 											{#if field.is_meter}
 												<div class="flex flex-wrap items-center gap-3 text-xs">
 													{#if meterPrevReading !== null}
-														<span class="text-gray-400">
+														<span class="text-gray-500">
 															Önceki sayaç: <span class="font-medium text-gray-500">{meterPrevReading}</span>
 														</span>
 													{/if}
@@ -304,7 +304,7 @@
 															{#if field.unit}<span class="text-cyan-500">{field.unit}</span>{/if}
 														</span>
 													{:else if currentVal && meterPrevReading === null}
-														<span class="text-gray-400 italic">Önceki gün verisi yok</span>
+														<span class="text-gray-500 italic">Önceki gün verisi yok</span>
 													{/if}
 												</div>
 											{/if}
@@ -314,7 +314,7 @@
 												<div class="flex flex-wrap items-center gap-2 text-xs">
 													<span class="text-gray-500">
 														Kişi başı: <span class="font-medium text-gray-700">{perCapita.toFixed(2)}</span>
-														{#if field.unit}<span class="text-gray-400">{field.unit}</span>{/if}
+														{#if field.unit}<span class="text-gray-500">{field.unit}</span>{/if}
 													</span>
 													<ThresholdIndicator
 														currentPerCapita={perCapita}
@@ -328,7 +328,7 @@
 
 									{:else if field.field_type === 'yes_no'}
 										{#if readonly}
-											<span class="text-sm {(currentVal === 'Evet' || currentVal === 'Uygun') ? 'text-green-600' : (currentVal === 'Hayır' || currentVal === 'Uygun Değil') ? 'text-red-600' : 'text-gray-400'}">
+											<span class="text-sm {(currentVal === 'Evet' || currentVal === 'Uygun') ? 'text-green-600' : (currentVal === 'Hayır' || currentVal === 'Uygun Değil') ? 'text-red-600' : 'text-gray-500'}">
 												{currentVal === 'Evet' ? 'Uygun' : currentVal === 'Hayır' ? 'Uygun Değil' : currentVal || '—'}
 											</span>
 										{:else}

@@ -178,12 +178,12 @@
 										{log.level}
 									</span>
 									{#if log.method && log.path}
-										<span class="text-[10px] font-mono text-gray-400">{log.method} {log.path}</span>
+										<span class="text-[10px] font-mono text-gray-500">{log.method} {log.path}</span>
 									{/if}
-									<span class="text-[10px] text-gray-400 ml-auto shrink-0" title={formatDate(log.created_at)}>{formatRelative(log.created_at)}</span>
+									<span class="text-[10px] text-gray-500 ml-auto shrink-0" title={formatDate(log.created_at)}>{formatRelative(log.created_at)}</span>
 								</div>
 								<p class="text-sm text-gray-800 font-medium truncate">{log.message}</p>
-								<p class="text-xs text-gray-400 mt-0.5">{log.source}</p>
+								<p class="text-xs text-gray-500 mt-0.5">{log.source}</p>
 							</div>
 						</div>
 					</button>
@@ -244,7 +244,7 @@
 							class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
 						>Sil</button>
 					{/if}
-					<button onclick={() => selectedLog = null} class="p-1 text-gray-400 hover:text-gray-600 cursor-pointer" aria-label="Detayı kapat">
+					<button onclick={() => selectedLog = null} class="p-1 text-gray-500 hover:text-gray-600 cursor-pointer" aria-label="Detayı kapat">
 						<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
 					</button>
 				</div>
@@ -252,35 +252,35 @@
 			<div class="p-5 space-y-4">
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<span class="text-xs text-gray-400 block">Tarih</span>
+						<span class="text-xs text-gray-500 block">Tarih</span>
 						<span class="text-sm font-medium text-gray-800">{formatDate(selectedLog.created_at)}</span>
 					</div>
 					<div>
-						<span class="text-xs text-gray-400 block">Kaynak</span>
+						<span class="text-xs text-gray-500 block">Kaynak</span>
 						<span class="text-sm font-mono text-gray-700">{selectedLog.source}</span>
 					</div>
 					{#if selectedLog.method && selectedLog.path}
 						<div class="col-span-2">
-							<span class="text-xs text-gray-400 block">İstek</span>
+							<span class="text-xs text-gray-500 block">İstek</span>
 							<span class="text-sm font-mono text-gray-700">{selectedLog.method} {selectedLog.path}</span>
 						</div>
 					{/if}
 					{#if selectedLog.ip_address}
 						<div>
-							<span class="text-xs text-gray-400 block">IP Adresi</span>
+							<span class="text-xs text-gray-500 block">IP Adresi</span>
 							<span class="text-sm font-mono text-gray-600">{selectedLog.ip_address}</span>
 						</div>
 					{/if}
 				</div>
 
 				<div>
-					<span class="text-xs text-gray-400 block mb-1">Hata Mesajı</span>
+					<span class="text-xs text-gray-500 block mb-1">Hata Mesajı</span>
 					<div class="bg-red-50 rounded-lg p-3 text-sm text-red-800 font-mono break-words">{selectedLog.message}</div>
 				</div>
 
 				{#if selectedLog.traceback}
 					<div>
-						<span class="text-xs text-gray-400 block mb-1">Traceback</span>
+						<span class="text-xs text-gray-500 block mb-1">Traceback</span>
 						<pre class="bg-gray-900 text-green-400 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">{selectedLog.traceback}</pre>
 					</div>
 				{/if}

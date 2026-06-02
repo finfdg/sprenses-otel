@@ -113,9 +113,9 @@
 
 			<div class="max-h-64 overflow-y-auto">
 				{#if loading}
-					<p class="text-gray-400 text-sm text-center py-6">Yükleniyor...</p>
+					<p class="text-gray-500 text-sm text-center py-6">Yükleniyor...</p>
 				{:else if availableUsers.length === 0}
-					<p class="text-gray-400 text-sm text-center py-6">Eklenecek kullanıcı bulunamadı</p>
+					<p class="text-gray-500 text-sm text-center py-6">Eklenecek kullanıcı bulunamadı</p>
 				{:else}
 					{#each availableUsers as u}
 						<button
@@ -134,7 +134,7 @@
 							</div>
 							<div class="text-left min-w-0">
 								<p class="text-sm text-gray-900 truncate">{u.first_name} {u.last_name}</p>
-								<p class="text-xs text-gray-400 truncate">@{u.username}{u.role_name ? ` · ${u.role_name}` : ''}</p>
+								<p class="text-xs text-gray-500 truncate">@{u.username}{u.role_name ? ` · ${u.role_name}` : ''}</p>
 							</div>
 						</button>
 					{/each}

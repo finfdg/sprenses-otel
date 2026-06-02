@@ -74,7 +74,7 @@
 
 			<div class="max-h-64 overflow-y-auto">
 				{#if chatUsers.length === 0}
-					<p class="text-gray-400 text-sm text-center py-6">Kullanıcı bulunamadı</p>
+					<p class="text-gray-500 text-sm text-center py-6">Kullanıcı bulunamadı</p>
 				{:else}
 					{#each chatUsers as cu}
 						<button onclick={() => { show = false; onStartChat(cu); }} class="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-50">
@@ -83,7 +83,7 @@
 							</div>
 							<div class="text-left min-w-0">
 								<p class="text-sm font-semibold text-gray-900 truncate">{cu.first_name} {cu.last_name}</p>
-								<p class="text-xs text-gray-400 truncate">@{cu.username}{cu.role_name ? ` · ${cu.role_name}` : ''}</p>
+								<p class="text-xs text-gray-500 truncate">@{cu.username}{cu.role_name ? ` · ${cu.role_name}` : ''}</p>
 							</div>
 						</button>
 					{/each}

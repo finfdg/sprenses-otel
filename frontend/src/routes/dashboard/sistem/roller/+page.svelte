@@ -192,9 +192,9 @@
 	{/if}
 
 	{#if loading}
-		<p class="text-gray-400">Yükleniyor...</p>
+		<p class="text-gray-500">Yükleniyor...</p>
 	{:else if roles.length === 0}
-		<div class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-400 shadow-sm">
+		<div class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-500 shadow-sm">
 			Henüz rol yok.
 		</div>
 	{:else}
@@ -204,14 +204,14 @@
 					<div class="min-w-0">
 						<span class="font-semibold text-gray-900">{r.name}</span>
 						{#if r.description}
-							<span class="text-gray-400 ml-2 text-sm">{r.description}</span>
+							<span class="text-gray-500 ml-2 text-sm">{r.description}</span>
 						{/if}
-						<div class="text-xs text-gray-400 mt-1">{r.permissions.filter(p => p.can_view).length} modül erişimi</div>
+						<div class="text-xs text-gray-500 mt-1">{r.permissions.filter(p => p.can_view).length} modül erişimi</div>
 					</div>
 					{#if canUse}
 					<div class="flex items-center gap-2 shrink-0">
 						<button onclick={() => openEdit(r)} class="px-3 py-2 sm:py-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">Düzenle</button>
-						<button onclick={() => askDelete(r)} class="px-3 py-2 sm:py-1.5 text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
+						<button onclick={() => askDelete(r)} class="px-3 py-2 sm:py-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
 					</div>
 				{/if}
 				</div>
@@ -231,7 +231,7 @@
 			<label for="r-name" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Rol Adı</label>
 			<input id="r-name" bind:value={formName} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 			{#if fieldErrors.name}
-				<p class="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
+				<p class="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
 			{/if}
 		</div>
 		<div>
@@ -267,7 +267,7 @@
 							{#each group.children as child}
 								<tr class="border-t border-gray-50 bg-gray-50/50">
 									<td class="px-3 md:px-4 py-2 text-gray-600 pl-6 md:pl-9 text-sm">
-										<span class="text-gray-300 mr-1.5">└</span>{child.name}
+										<span class="text-gray-500 mr-1.5">└</span>{child.name}
 									</td>
 									<td class="text-center px-3 md:px-4 py-2">
 										<input type="checkbox" checked={formPerms[child.id].view} onchange={(e) => toggleView(child.id, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
@@ -281,7 +281,7 @@
 					</tbody>
 				</table>
 			</div>
-			<p class="text-xs text-gray-400 mt-2">Kullanma izni: ekleme, düzenleme ve silme işlemlerini kapsar.</p>
+			<p class="text-xs text-gray-500 mt-2">Kullanma izni: ekleme, düzenleme ve silme işlemlerini kapsar.</p>
 		</div>
 	</div>
 

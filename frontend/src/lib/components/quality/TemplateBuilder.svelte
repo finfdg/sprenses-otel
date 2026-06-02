@@ -138,7 +138,7 @@
 		</div>
 
 		{#if sections.length === 0}
-			<p class="text-sm text-gray-400 text-center py-8">Henüz bölüm eklenmedi. "Bölüm Ekle" ile başlayın.</p>
+			<p class="text-sm text-gray-500 text-center py-8">Henüz bölüm eklenmedi. "Bölüm Ekle" ile başlayın.</p>
 		{/if}
 
 		<div class="space-y-4">
@@ -147,8 +147,8 @@
 					<!-- Bölüm başlığı -->
 					<div class="bg-gray-50 px-3 sm:px-4 py-2.5 flex items-center gap-2">
 						<div class="flex gap-1 shrink-0">
-							<button type="button" onclick={() => moveSection(sIdx, -1)} class="text-gray-400 hover:text-gray-600 text-xs cursor-pointer p-1" title="Yukarı">▲</button>
-							<button type="button" onclick={() => moveSection(sIdx, 1)} class="text-gray-400 hover:text-gray-600 text-xs cursor-pointer p-1" title="Aşağı">▼</button>
+							<button type="button" onclick={() => moveSection(sIdx, -1)} class="text-gray-500 hover:text-gray-600 text-xs cursor-pointer p-1" title="Yukarı">▲</button>
+							<button type="button" onclick={() => moveSection(sIdx, 1)} class="text-gray-500 hover:text-gray-600 text-xs cursor-pointer p-1" title="Aşağı">▼</button>
 						</div>
 						<input
 							type="text"
@@ -166,7 +166,7 @@
 						<button
 							type="button"
 							onclick={() => removeSection(sIdx)}
-							class="text-xs px-2 py-1.5 text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
+							class="text-xs px-2 py-1.5 text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer shrink-0"
 							title="Bölümü sil"
 						>
 							✕
@@ -182,7 +182,7 @@
 									<div class="flex flex-col gap-2 sm:grid sm:grid-cols-12 sm:items-start">
 										<!-- Etiket -->
 										<div class="sm:col-span-4">
-											<span class="block text-xs text-gray-400 mb-1 sm:hidden">Etiket</span>
+											<span class="block text-xs text-gray-500 mb-1 sm:hidden">Etiket</span>
 											<input
 												type="text"
 												value={field.label}
@@ -195,7 +195,7 @@
 										<!-- Tip + Birim — mobilde yan yana -->
 										<div class="flex gap-2 sm:contents">
 											<div class="flex-1 sm:col-span-2">
-												<span class="block text-xs text-gray-400 mb-1 sm:hidden">Tip</span>
+												<span class="block text-xs text-gray-500 mb-1 sm:hidden">Tip</span>
 												<select
 													value={field.field_type}
 													onchange={(e) => updateField(sIdx, fIdx, 'field_type', e.currentTarget.value)}
@@ -209,7 +209,7 @@
 
 											<div class="flex-1 sm:col-span-2">
 												{#if field.field_type === 'number'}
-													<span class="block text-xs text-gray-400 mb-1 sm:hidden">Birim</span>
+													<span class="block text-xs text-gray-500 mb-1 sm:hidden">Birim</span>
 													<input
 														type="text"
 														value={field.unit}
@@ -269,14 +269,14 @@
 												placeholder='Seçenekler: ["Seçenek A","Seçenek B","Seçenek C"]'
 												class="w-full px-2 py-2 sm:py-1.5 bg-gray-50 border border-gray-200 rounded text-xs outline-none focus:border-teal-400"
 											/>
-											<p class="text-xs text-gray-400 mt-0.5">JSON formatında: ["A","B","C"]</p>
+											<p class="text-xs text-gray-500 mt-0.5">JSON formatında: ["A","B","C"]</p>
 										</div>
 									{/if}
 								</div>
 							{/each}
 						</div>
 					{:else}
-						<p class="text-sm text-gray-400 text-center py-4">Bu bölümde henüz alan yok.</p>
+						<p class="text-sm text-gray-500 text-center py-4">Bu bölümde henüz alan yok.</p>
 					{/if}
 				</div>
 			{/each}
@@ -299,7 +299,7 @@
 			</div>
 			<div class="p-3 space-y-2">
 				{#if fillers.length === 0}
-					<p class="text-xs text-gray-400 text-center py-2">Atama yok — herkes doldurabilir</p>
+					<p class="text-xs text-gray-500 text-center py-2">Atama yok — herkes doldurabilir</p>
 				{/if}
 				{#each assignees as a, idx}
 					{#if a.assignment_type === 'filler'}
@@ -346,7 +346,7 @@
 			</div>
 			<div class="p-3 space-y-2">
 				{#if approvers.length === 0}
-					<p class="text-xs text-gray-400 text-center py-2">Atama yok — herkes onaylayabilir</p>
+					<p class="text-xs text-gray-500 text-center py-2">Atama yok — herkes onaylayabilir</p>
 				{/if}
 				{#each assignees as a, idx}
 					{#if a.assignment_type === 'approver'}

@@ -152,7 +152,7 @@
 				<div>
 					<h1 class="text-2xl font-bold text-gray-800">Sunucu</h1>
 					{#if info}
-						<p class="text-xs text-gray-400 mt-0.5">
+						<p class="text-xs text-gray-500 mt-0.5">
 							Son güncelleme: {new Date(info.fetched_at).toLocaleTimeString('tr-TR')} · 30 sn'de bir otomatik yenilenir
 						</p>
 					{/if}
@@ -169,7 +169,7 @@
 		</div>
 
 		{#if loading}
-			<div class="text-center py-20 text-gray-400">Yükleniyor…</div>
+			<div class="text-center py-20 text-gray-500">Yükleniyor…</div>
 		{:else if error && !info}
 			<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">
 				{error}
@@ -178,7 +178,7 @@
 			<!-- ─── Stat Cards ──────────────────────────────────────── -->
 			<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
 				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-400 text-xs uppercase tracking-wider mb-1">
+					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
 						<Cpu class="w-4 h-4" />
 						CPU
 					</div>
@@ -189,7 +189,7 @@
 				</div>
 
 				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-400 text-xs uppercase tracking-wider mb-1">
+					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
 						<MemoryStick class="w-4 h-4" />
 						RAM
 					</div>
@@ -203,7 +203,7 @@
 				</div>
 
 				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-400 text-xs uppercase tracking-wider mb-1">
+					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
 						<HardDrive class="w-4 h-4" />
 						Disk
 					</div>
@@ -214,7 +214,7 @@
 				</div>
 
 				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-400 text-xs uppercase tracking-wider mb-1">
+					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
 						<Clock class="w-4 h-4" />
 						Uptime
 					</div>
@@ -227,7 +227,7 @@
 			<div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
 				<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
 					<h2 class="font-semibold text-gray-800">Servisler</h2>
-					<span class="text-xs text-gray-400">{info.services.filter((s) => s.active).length}/{info.services.length} aktif</span>
+					<span class="text-xs text-gray-500">{info.services.filter((s) => s.active).length}/{info.services.length} aktif</span>
 				</div>
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm">
@@ -245,7 +245,7 @@
 								<tr class="border-t border-gray-100 hover:bg-gray-50">
 									<td class="px-5 py-3">
 										<div class="font-medium text-gray-800">{SERVICE_LABELS[svc.name] || svc.name}</div>
-										<div class="text-xs text-gray-400 font-mono">{svc.name}</div>
+										<div class="text-xs text-gray-500 font-mono">{svc.name}</div>
 									</td>
 									<td class="px-5 py-3">
 										{#if svc.active}
@@ -264,7 +264,7 @@
 										<div class="inline-flex items-center gap-1">
 											<button
 												onclick={() => openLog(svc.name)}
-												class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg cursor-pointer"
+												class="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg cursor-pointer"
 												title="Logları görüntüle"
 												aria-label="{svc.name} loglarını görüntüle"
 											>
@@ -295,17 +295,17 @@
 				<h2 class="font-semibold text-gray-800 mb-4">Depolama Dağılımı</h2>
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 					<div>
-						<div class="text-xs text-gray-400 uppercase tracking-wider">PostgreSQL DB</div>
+						<div class="text-xs text-gray-500 uppercase tracking-wider">PostgreSQL DB</div>
 						<div class="text-2xl font-bold text-gray-800 mt-1">
 							{info.storage.db_size_mb !== null ? fmtMb(info.storage.db_size_mb) : '—'}
 						</div>
 					</div>
 					<div>
-						<div class="text-xs text-gray-400 uppercase tracking-wider">Uploads (müşteri dosyaları)</div>
+						<div class="text-xs text-gray-500 uppercase tracking-wider">Uploads (müşteri dosyaları)</div>
 						<div class="text-2xl font-bold text-gray-800 mt-1">{fmtMb(info.storage.uploads_mb)}</div>
 					</div>
 					<div>
-						<div class="text-xs text-gray-400 uppercase tracking-wider">Loglar</div>
+						<div class="text-xs text-gray-500 uppercase tracking-wider">Loglar</div>
 						<div class="text-2xl font-bold text-gray-800 mt-1">{fmtMb(info.storage.logs_mb)}</div>
 					</div>
 				</div>
@@ -332,7 +332,7 @@
 	onclose={() => (logModal = { show: false, service: '', content: '', loading: false })}
 >
 	{#if logModal.loading}
-		<div class="text-center py-10 text-gray-400">Log alınıyor…</div>
+		<div class="text-center py-10 text-gray-500">Log alınıyor…</div>
 	{:else}
 		<pre class="bg-gray-900 text-gray-100 text-xs font-mono p-4 rounded-lg overflow-auto max-h-[60vh] whitespace-pre-wrap">{logModal.content}</pre>
 	{/if}

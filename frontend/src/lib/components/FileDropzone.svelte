@@ -114,7 +114,7 @@
 		</div>
 		<p class="text-sm font-medium text-gray-700">{label}</p>
 		{#if hint}
-			<p class="text-xs text-gray-400">{hint}</p>
+			<p class="text-xs text-gray-500">{hint}</p>
 		{/if}
 		<button
 			type="button"

@@ -158,11 +158,11 @@
 			{/if}
 			<div class="flex-1 min-w-0">
 				<p class="text-sm font-medium text-gray-900 truncate">{pendingFile.name}</p>
-				<p class="text-xs text-gray-400">{formatFileSize(pendingFile.size)}</p>
+				<p class="text-xs text-gray-500">{formatFileSize(pendingFile.size)}</p>
 				<input type="text" bind:value={fileCaption} onkeydown={handleKeyDown} placeholder="Açıklama ekle..." class="mt-1 w-full px-2 py-1 bg-gray-100 rounded text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-1 focus:ring-teal-100" />
 			</div>
 			<div class="flex items-center gap-1 shrink-0">
-				<button onclick={clearPendingFile} class="w-8 h-8 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer" title="İptal">✕</button>
+				<button onclick={clearPendingFile} class="w-8 h-8 rounded-full text-gray-500 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer" title="İptal">✕</button>
 				<button onclick={handleSendFile} disabled={uploadingFile} class="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-40 shrink-0" title="Gönder">
 					{#if uploadingFile}<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
 					{:else}<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>{/if}
@@ -177,7 +177,7 @@
 	<div class="bg-white border-t border-gray-200 shrink-0">
 		<div class="px-3 py-1.5 bg-teal-50 border-b border-teal-100 flex items-center justify-between">
 			<span class="text-xs text-teal-700 font-medium">✏️ Mesaj düzenleniyor</span>
-			<button onclick={onCancelEdit} class="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5">✕</button>
+			<button onclick={onCancelEdit} class="text-gray-500 hover:text-gray-600 cursor-pointer p-0.5">✕</button>
 		</div>
 		<div class="p-2 md:p-3 flex items-center gap-2">
 			<input bind:this={editInputEl} type="text" bind:value={editContent} onkeydown={handleKeyDown} placeholder="Mesajı düzenle..." class="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 focus:bg-white transition-all" />
@@ -186,19 +186,19 @@
 	</div>
 {:else if !pendingFile}
 	{#if otherUserTyping}
-		<div class="bg-white border-t border-gray-100 px-4 py-1 shrink-0"><span class="text-xs text-gray-400 italic">{typingUserName || 'Birisi'} yazıyor...</span></div>
+		<div class="bg-white border-t border-gray-100 px-4 py-1 shrink-0"><span class="text-xs text-gray-500 italic">{typingUserName || 'Birisi'} yazıyor...</span></div>
 	{/if}
 	<div class="bg-white border-t border-gray-200 px-2 pt-2 pb-5 md:px-3 md:py-2 flex items-end gap-1.5 shrink-0 relative">
 		<!-- Ek menüsü butonu -->
 		<div class="relative shrink-0">
-			<button onclick={() => { showAttachMenu = !showAttachMenu; showEmojiPicker = false; }} class="w-9 h-9 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-all cursor-pointer {showAttachMenu ? 'bg-gray-100 text-gray-600 rotate-45' : ''}" title="Ekle">
+			<button onclick={() => { showAttachMenu = !showAttachMenu; showEmojiPicker = false; }} class="w-9 h-9 rounded-full text-gray-500 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-all cursor-pointer {showAttachMenu ? 'bg-gray-100 text-gray-600 rotate-45' : ''}" title="Ekle">
 				<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
 			</button>
 			{#if showAttachMenu}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div class="absolute bottom-full left-0 mb-2 bg-white shadow-xl rounded-xl border border-gray-200 py-1 min-w-[160px] z-30" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
 					<button onclick={() => { fileInputEl?.click(); showAttachMenu = false; }} class="w-full px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer">
-						<svg class="w-4.5 h-4.5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
+						<svg class="w-4.5 h-4.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" /></svg>
 						Dosya
 					</button>
 					<button onclick={() => { showEmojiPicker = !showEmojiPicker; showAttachMenu = false; }} class="w-full px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer">
@@ -206,7 +206,7 @@
 						Emoji
 					</button>
 					<button onclick={() => { cameraInputEl?.click(); showAttachMenu = false; }} class="w-full px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 cursor-pointer">
-						<svg class="w-4.5 h-4.5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg>
+						<svg class="w-4.5 h-4.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg>
 						Kamera
 					</button>
 				</div>

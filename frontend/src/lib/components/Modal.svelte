@@ -39,7 +39,7 @@
 	<div class="bg-white rounded-2xl shadow-xl w-full {maxWidth} max-h-[90vh] overflow-y-auto">
 		<div class="flex items-center justify-between p-4 sm:p-5 border-b border-gray-200">
 			<h2 class="text-base sm:text-lg font-bold text-gray-800">{title}</h2>
-			<button onclick={handleClose} class="text-gray-400 hover:text-gray-600 text-xl cursor-pointer touch-target w-11 h-11 -mr-2 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors" aria-label="Kapat">&times;</button>
+			<button onclick={handleClose} class="text-gray-500 hover:text-gray-600 text-xl cursor-pointer touch-target w-11 h-11 -mr-2 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors" aria-label="Kapat">&times;</button>
 		</div>
 		<div class="p-4 sm:p-5">
 			{@render children()}

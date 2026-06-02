@@ -247,17 +247,17 @@
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
 			<div class="text-xs uppercase tracking-wide text-gray-500">Toplam Oda</div>
 			<div class="text-3xl font-bold text-teal-700 mt-1">{totalCapacity}</div>
-			<div class="text-xs text-gray-400 mt-1">Aktif tiplerin toplamı</div>
+			<div class="text-xs text-gray-500 mt-1">Aktif tiplerin toplamı</div>
 		</div>
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
 			<div class="text-xs uppercase tracking-wide text-gray-500">Aktif Tip</div>
 			<div class="text-3xl font-bold text-gray-800 mt-1">{activeCount}</div>
-			<div class="text-xs text-gray-400 mt-1">Doluluk hesabına dahil</div>
+			<div class="text-xs text-gray-500 mt-1">Doluluk hesabına dahil</div>
 		</div>
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
 			<div class="text-xs uppercase tracking-wide text-gray-500">Hedef</div>
 			<div class="text-3xl font-bold text-amber-600 mt-1">341</div>
-			<div class="text-xs text-gray-400 mt-1">
+			<div class="text-xs text-gray-500 mt-1">
 				Otel toplam oda — {totalCapacity === 341 ? '✓ uyumlu' : `fark: ${341 - totalCapacity}`}
 			</div>
 		</div>
@@ -265,7 +265,7 @@
 
 	<!-- Liste -->
 	{#if loading}
-		<div class="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-400">
+		<div class="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-500">
 			Yükleniyor...
 		</div>
 	{:else if items.length === 0}
@@ -301,7 +301,7 @@
 								<td class="px-4 py-3">
 									<div class="text-gray-900">{rt.name}</div>
 									{#if rt.description}
-										<div class="text-xs text-gray-400 mt-0.5">{rt.description}</div>
+										<div class="text-xs text-gray-500 mt-0.5">{rt.description}</div>
 									{/if}
 								</td>
 								<td class="px-4 py-3 text-right">
@@ -341,14 +341,14 @@
 										<div class="flex items-center justify-end gap-2">
 											<button
 												onclick={() => openEdit(rt)}
-												class="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer"
+												class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer"
 												title="Düzenle"
 											>
 												<PencilLine class="w-4 h-4" />
 											</button>
 											<button
 												onclick={() => askDelete(rt)}
-												class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+												class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
 												title="Sil"
 											>
 												<Trash2 class="w-4 h-4" />
@@ -382,7 +382,7 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="rt-code" class="block text-sm font-medium text-gray-700 mb-1">
-					Kod <span class="text-red-500">*</span>
+					Kod <span class="text-red-600">*</span>
 				</label>
 				<input
 					id="rt-code"
@@ -392,14 +392,14 @@
 					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono uppercase {fieldErrors.code ? 'border-red-300' : 'border-gray-300'}"
 				/>
 				{#if fieldErrors.code}
-					<p class="text-xs text-red-500 mt-1">{fieldErrors.code}</p>
+					<p class="text-xs text-red-600 mt-1">{fieldErrors.code}</p>
 				{:else}
-					<p class="text-xs text-gray-400 mt-1">Excel'deki Type sütunuyla aynı yazılmalı</p>
+					<p class="text-xs text-gray-500 mt-1">Excel'deki Type sütunuyla aynı yazılmalı</p>
 				{/if}
 			</div>
 			<div>
 				<label for="rt-name" class="block text-sm font-medium text-gray-700 mb-1">
-					Adı <span class="text-red-500">*</span>
+					Adı <span class="text-red-600">*</span>
 				</label>
 				<input
 					id="rt-name"
@@ -409,7 +409,7 @@
 					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.name ? 'border-red-300' : 'border-gray-300'}"
 				/>
 				{#if fieldErrors.name}
-					<p class="text-xs text-red-500 mt-1">{fieldErrors.name}</p>
+					<p class="text-xs text-red-600 mt-1">{fieldErrors.name}</p>
 				{/if}
 			</div>
 		</div>
@@ -417,7 +417,7 @@
 		<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 			<div>
 				<label for="rt-total" class="block text-sm font-medium text-gray-700 mb-1">
-					Oda Sayısı <span class="text-red-500">*</span>
+					Oda Sayısı <span class="text-red-600">*</span>
 				</label>
 				<input
 					id="rt-total"
@@ -427,7 +427,7 @@
 					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.total_rooms ? 'border-red-300' : 'border-gray-300'}"
 				/>
 				{#if fieldErrors.total_rooms}
-					<p class="text-xs text-red-500 mt-1">{fieldErrors.total_rooms}</p>
+					<p class="text-xs text-red-600 mt-1">{fieldErrors.total_rooms}</p>
 				{/if}
 			</div>
 			<div>
@@ -443,7 +443,7 @@
 					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.max_occupancy ? 'border-red-300' : 'border-gray-300'}"
 				/>
 				{#if fieldErrors.max_occupancy}
-					<p class="text-xs text-red-500 mt-1">{fieldErrors.max_occupancy}</p>
+					<p class="text-xs text-red-600 mt-1">{fieldErrors.max_occupancy}</p>
 				{/if}
 			</div>
 			<div>

@@ -11,7 +11,7 @@
 
 	// ── Sabitler ──────────────────────────────────────────────
 	const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
-		pending: { label: 'Bekliyor', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' },
+		pending: { label: 'Bekliyor', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
 		approved: { label: 'Onaylandı', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
 		rejected: { label: 'Reddedildi', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' },
 		returned: { label: 'İade Edildi', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
@@ -646,14 +646,14 @@
 										{wf.module_name ?? wf.module_code ?? '—'}
 									</span>
 									{#if wf.description}
-										<span class="text-gray-300">|</span>
+										<span class="text-gray-500">|</span>
 										<span class="truncate max-w-xs">{wf.description}</span>
 									{/if}
 								</div>
 								<!-- Rol bilgileri -->
 								<div class="flex flex-col sm:flex-row gap-2 text-xs text-gray-500">
 									<div class="flex items-center gap-1.5">
-										<span class="text-gray-400">Talep:</span>
+										<span class="text-gray-500">Talep:</span>
 										<div class="flex flex-wrap gap-1">
 											{#each wf.requestor_roles as role}
 												<span class="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
@@ -662,11 +662,11 @@
 											{/each}
 										</div>
 									</div>
-									<svg class="w-4 h-4 text-gray-300 hidden sm:block shrink-0 self-center" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+									<svg class="w-4 h-4 text-gray-500 hidden sm:block shrink-0 self-center" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 										<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
 									</svg>
 									<div class="flex items-center gap-1.5">
-										<span class="text-gray-400">Onay:</span>
+										<span class="text-gray-500">Onay:</span>
 										<div class="flex flex-wrap gap-1">
 											{#each wf.approver_roles as role}
 												<span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
@@ -681,7 +681,7 @@
 								<div class="flex items-center gap-2 shrink-0">
 									<button
 										onclick={() => openEditWorkflow(wf)}
-										class="p-2 rounded-lg text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+										class="p-2 rounded-lg text-gray-500 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
 										title="Düzenle"
 									>
 										<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -690,7 +690,7 @@
 									</button>
 									<button
 										onclick={() => confirmDeleteWorkflow(wf)}
-										class="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+										class="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
 										title="Sil"
 									>
 										<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -738,7 +738,7 @@
 							</div>
 							<button
 								onclick={() => openDetail(req)}
-								class="p-2 rounded-lg text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer shrink-0"
+								class="p-2 rounded-lg text-gray-500 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer shrink-0"
 								title="Detay"
 							>
 								<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -751,7 +751,7 @@
 						<!-- Gönderen + Tarih -->
 						<div class="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-3">
 							<span>Gönderen: <span class="font-medium text-gray-700">{req.requested_by_name}</span></span>
-							<span class="text-gray-300">·</span>
+							<span class="text-gray-500">·</span>
 							<span>{formatRelative(req.requested_at)}</span>
 						</div>
 
@@ -818,12 +818,12 @@
 				<div class="w-8 h-8 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
 			</div>
 		{:else if mySubmissions.length === 0}
-			<div class="flex flex-col items-center justify-center py-16 text-gray-400">
-				<svg class="w-16 h-16 mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+			<div class="flex flex-col items-center justify-center py-16 text-gray-500">
+				<svg class="w-16 h-16 mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
 				</svg>
 				<p class="text-lg font-medium text-gray-500">Henüz talep göndermediniz</p>
-				<p class="text-sm text-gray-400 mt-1">Gönderdiğiniz onay talepleri burada listelenir</p>
+				<p class="text-sm text-gray-500 mt-1">Gönderdiğiniz onay talepleri burada listelenir</p>
 			</div>
 		{:else}
 			<!-- Mobil: Kart görünümü -->
@@ -969,8 +969,8 @@
 				<div class="w-8 h-8 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
 			</div>
 		{:else if historyRequests.length === 0}
-			<div class="flex flex-col items-center justify-center py-16 text-gray-400">
-				<svg class="w-16 h-16 mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+			<div class="flex flex-col items-center justify-center py-16 text-gray-500">
+				<svg class="w-16 h-16 mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
 				</svg>
 				<p class="text-lg font-medium text-gray-500">Geçmiş kayıt bulunamadı</p>
@@ -1052,7 +1052,7 @@
 	<div class="space-y-5">
 		<!-- Onay Adı -->
 		<div>
-			<label for="wf-name" class="block text-sm font-medium text-gray-700 mb-1">Onay Adı <span class="text-red-500">*</span></label>
+			<label for="wf-name" class="block text-sm font-medium text-gray-700 mb-1">Onay Adı <span class="text-red-600">*</span></label>
 			<input
 				id="wf-name"
 				type="text"
@@ -1064,7 +1064,7 @@
 
 		<!-- Modül Seçimi -->
 		<div>
-			<label for="wf-module" class="block text-sm font-medium text-gray-700 mb-1">Modül <span class="text-red-500">*</span></label>
+			<label for="wf-module" class="block text-sm font-medium text-gray-700 mb-1">Modül <span class="text-red-600">*</span></label>
 			<select
 				id="wf-module"
 				bind:value={wfModuleId}
@@ -1089,8 +1089,8 @@
 		{#if wfModuleId && availableRoles.length > 0}
 			<div>
 				<span class="block text-sm font-medium text-gray-700 mb-2">
-					Talep Eden Roller <span class="text-red-500">*</span>
-					<span class="text-xs text-gray-400 font-normal ml-1">(Bu rollerdeki kullanıcıların işlemleri onaya tabi olacak)</span>
+					Talep Eden Roller <span class="text-red-600">*</span>
+					<span class="text-xs text-gray-500 font-normal ml-1">(Bu rollerdeki kullanıcıların işlemleri onaya tabi olacak)</span>
 				</span>
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
 					{#each availableRoles as role}
@@ -1113,8 +1113,8 @@
 			<!-- Onay Veren Roller -->
 			<div>
 				<span class="block text-sm font-medium text-gray-700 mb-2">
-					Onay Veren Roller <span class="text-red-500">*</span>
-					<span class="text-xs text-gray-400 font-normal ml-1">(Bu rollerdeki kullanıcılar onay/red verebilir)</span>
+					Onay Veren Roller <span class="text-red-600">*</span>
+					<span class="text-xs text-gray-500 font-normal ml-1">(Bu rollerdeki kullanıcılar onay/red verebilir)</span>
 				</span>
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
 					{#each availableRoles as role}
@@ -1251,7 +1251,7 @@
 					placeholder="{actionType === 'approve' ? 'Onay notu ekleyin...' : actionType === 'reject' ? 'Red gerekçesini yazın...' : 'İade gerekçesini yazın...'}"
 				></textarea>
 				{#if (actionType === 'reject' || actionType === 'return') && actionNote !== '' && !actionNote.trim()}
-					<p class="text-xs text-red-500 mt-1">Gerekçe boş bırakılamaz</p>
+					<p class="text-xs text-red-600 mt-1">Gerekçe boş bırakılamaz</p>
 				{/if}
 			</div>
 			<div class="flex items-center justify-end gap-3 pt-2">
@@ -1396,7 +1396,7 @@
 									{#if log.note}
 										<p class="text-gray-500 text-xs mt-0.5 italic">"{log.note}"</p>
 									{/if}
-									<p class="text-gray-400 text-xs mt-0.5">{formatDateTime(log.created_at)}</p>
+									<p class="text-gray-500 text-xs mt-0.5">{formatDateTime(log.created_at)}</p>
 								</div>
 							</div>
 						{/each}

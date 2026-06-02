@@ -68,7 +68,7 @@
 				<option value={size}>{size}</option>
 			{/each}
 		</select>
-		<span class="text-gray-400 hidden sm:inline">· Toplam {total}</span>
+		<span class="text-gray-500 hidden sm:inline">· Toplam {total}</span>
 	</div>
 
 	<div class="flex items-center gap-1">
@@ -83,7 +83,7 @@
 
 		{#each visibleNumbers as n, i (`${n}-${i}`)}
 			{#if n === '...'}
-				<span class="px-2 text-gray-400">…</span>
+				<span class="px-2 text-gray-500">…</span>
 			{:else}
 				<button
 					onclick={() => go(n)}

@@ -522,7 +522,7 @@
 	<!-- Filtre barı: Arama (sol) + Yıl seçici + Ekle (sağ) -->
 	<div class="flex flex-col sm:flex-row sm:items-center gap-3">
 		<div class="relative flex-1 max-w-md">
-			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
 			<input
 				type="text"
 				bind:value={searchInput}
@@ -533,7 +533,7 @@
 				<button
 					onclick={() => (searchInput = '')}
 					aria-label="Aramayı temizle"
-					class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded cursor-pointer"
+					class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-600 rounded cursor-pointer"
 				>
 					<X size={14} />
 				</button>
@@ -568,17 +568,17 @@
 			<div class="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm flex-1 min-w-[140px]">
 				<div class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Toplam</div>
 				<div class="mt-1 text-base sm:text-xl font-bold text-gray-800">{fmt(summary.total)}</div>
-				<div class="text-[10px] sm:text-xs text-gray-400 mt-1">{summary.count || 0} giriş</div>
+				<div class="text-[10px] sm:text-xs text-gray-500 mt-1">{summary.count || 0} giriş</div>
 			</div>
 			<div class="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm flex-1 min-w-[140px]">
 				<div class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Ödenen</div>
 				<div class="mt-1 text-base sm:text-xl font-bold text-emerald-700">{fmt(summary.paid)}</div>
-				<div class="text-[10px] sm:text-xs text-gray-400 mt-1">{summary.paid_count || 0} giriş</div>
+				<div class="text-[10px] sm:text-xs text-gray-500 mt-1">{summary.paid_count || 0} giriş</div>
 			</div>
 			<div class="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm flex-1 min-w-[140px]">
 				<div class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Bekleyen</div>
-				<div class="mt-1 text-base sm:text-xl font-bold text-yellow-700">{fmt(summary.pending)}</div>
-				<div class="text-[10px] sm:text-xs text-gray-400 mt-1">{(summary.count || 0) - (summary.paid_count || 0)} giriş</div>
+				<div class="mt-1 text-base sm:text-xl font-bold text-amber-700">{fmt(summary.pending)}</div>
+				<div class="text-[10px] sm:text-xs text-gray-500 mt-1">{(summary.count || 0) - (summary.paid_count || 0)} giriş</div>
 			</div>
 		</div>
 	{/if}
@@ -636,7 +636,7 @@
 								{/if}
 								<StatusBadge type="neutral">{FREQ_LABELS[defn.frequency] || defn.frequency}</StatusBadge>
 							</div>
-							<div class="flex items-center gap-3 mt-1 text-xs {isPendingCreate ? 'text-orange-500' : 'text-gray-400'} flex-wrap">
+							<div class="flex items-center gap-3 mt-1 text-xs {isPendingCreate ? 'text-orange-500' : 'text-gray-500'} flex-wrap">
 								<span>{fmt(defn.amount)} / dönem</span>
 								{#if !isInactive}
 									<span>{paidCount}/{entries.length} ödendi</span>
@@ -677,7 +677,7 @@
 							{:else if canUse && !isInactive}
 								<button
 									onclick={(e) => { e.stopPropagation(); openEdit(defn); }}
-									class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
+									class="p-1.5 text-gray-500 hover:text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
 									title="Düzenle"
 								>
 									<Pencil size={16} />
@@ -691,7 +691,7 @@
 								</button>
 							{/if}
 							{#if !isInactive}
-								<ChevronDown size={16} class="text-gray-400 transition-transform {isExpanded ? 'rotate-180' : ''}" />
+								<ChevronDown size={16} class="text-gray-500 transition-transform {isExpanded ? 'rotate-180' : ''}" />
 							{/if}
 						</div>
 					</div>
@@ -747,7 +747,7 @@
 														<button onclick={() => saveEntryEdit(entry)} disabled={entryFormSaving} class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer disabled:opacity-50" title="Kaydet">
 															<Check size={16} />
 														</button>
-														<button onclick={cancelEntryEdit} class="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg cursor-pointer" title="İptal">
+														<button onclick={cancelEntryEdit} class="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg cursor-pointer" title="İptal">
 															<X size={16} />
 														</button>
 													</div>
@@ -788,10 +788,10 @@
 															</button>
 														{:else}
 															<div class="flex items-center justify-center gap-1">
-																<button onclick={() => openEntryEdit(entry)} class="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer" title="Düzenle">
+																<button onclick={() => openEntryEdit(entry)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer" title="Düzenle">
 																	<Pencil size={16} />
 																</button>
-																<button onclick={() => togglePaid(entry)} class="p-1.5 rounded-lg transition-colors cursor-pointer {entry.is_paid ? 'text-yellow-600 hover:bg-yellow-50' : 'text-emerald-600 hover:bg-emerald-50'}" title={entry.is_paid ? 'Ödenmemiş yap' : 'Ödendi olarak işaretle'}>
+																<button onclick={() => togglePaid(entry)} class="p-1.5 rounded-lg transition-colors cursor-pointer {entry.is_paid ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}" title={entry.is_paid ? 'Ödenmemiş yap' : 'Ödendi olarak işaretle'}>
 																	{#if entry.is_paid}
 																		<RotateCcw size={16} />
 																	{:else}
@@ -833,7 +833,7 @@
 													<button onclick={() => saveEntryEdit(entry)} disabled={entryFormSaving} class="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer disabled:opacity-50" title="Kaydet">
 														<Check size={20} />
 													</button>
-													<button onclick={cancelEntryEdit} class="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg cursor-pointer" title="İptal">
+													<button onclick={cancelEntryEdit} class="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg cursor-pointer" title="İptal">
 														<X size={20} />
 													</button>
 												</div>
@@ -895,10 +895,10 @@
 												</div>
 												<div class="flex items-center gap-2 mt-0.5">
 													<span class="text-sm font-bold text-gray-800">{fmt(entry.amount)}</span>
-													<span class="text-[11px] text-gray-400">• {fmtDate(entry.paid_date || entry.entry_date)}</span>
+													<span class="text-[11px] text-gray-500">• {fmtDate(entry.paid_date || entry.entry_date)}</span>
 												</div>
 												{#if entry.notes}
-													<p class="text-[11px] text-gray-400 mt-0.5 truncate">{entry.notes}</p>
+													<p class="text-[11px] text-gray-500 mt-0.5 truncate">{entry.notes}</p>
 												{/if}
 											</div>
 											{#if canUse}
@@ -908,10 +908,10 @@
 															<X size={16} />
 														</button>
 													{:else}
-														<button onclick={() => openEntryEdit(entry)} class="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer" title="Düzenle">
+														<button onclick={() => openEntryEdit(entry)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer" title="Düzenle">
 															<Pencil size={16} />
 														</button>
-														<button onclick={() => togglePaid(entry)} class="p-1.5 rounded-lg transition-colors cursor-pointer {entry.is_paid ? 'text-yellow-600 hover:bg-yellow-50' : 'text-emerald-600 hover:bg-emerald-50'}" title={entry.is_paid ? 'Ödenmemiş yap' : 'Ödendi olarak işaretle'}>
+														<button onclick={() => togglePaid(entry)} class="p-1.5 rounded-lg transition-colors cursor-pointer {entry.is_paid ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}" title={entry.is_paid ? 'Ödenmemiş yap' : 'Ödendi olarak işaretle'}>
 															{#if entry.is_paid}
 																<RotateCcw size={16} />
 															{:else}
@@ -1129,19 +1129,19 @@
 		{#if actionType === 'approve'}
 			<p class="text-sm text-gray-600">Bu talebi onaylamak istediğinize emin misiniz?</p>
 			<div>
-				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">Not <span class="text-gray-400 font-normal">(opsiyonel)</span></label>
+				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">Not <span class="text-gray-500 font-normal">(opsiyonel)</span></label>
 				<textarea id="action-note" bind:value={actionNote} rows="2" placeholder="Onay notu ekleyin..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"></textarea>
 			</div>
 		{:else if actionType === 'reject'}
 			<p class="text-sm text-gray-600">Bu talebi reddetmek istediğinize emin misiniz?</p>
 			<div>
-				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">Red gerekçesi <span class="text-red-500">*</span></label>
+				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">Red gerekçesi <span class="text-red-600">*</span></label>
 				<textarea id="action-note" bind:value={actionNote} rows="3" placeholder="Red gerekçenizi yazın..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"></textarea>
 			</div>
 		{:else}
 			<p class="text-sm text-gray-600">Bu talebi düzeltme için iade etmek istediğinize emin misiniz?</p>
 			<div>
-				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">İade gerekçesi <span class="text-red-500">*</span></label>
+				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">İade gerekçesi <span class="text-red-600">*</span></label>
 				<textarea id="action-note" bind:value={actionNote} rows="3" placeholder="İade gerekçenizi yazın..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"></textarea>
 			</div>
 		{/if}

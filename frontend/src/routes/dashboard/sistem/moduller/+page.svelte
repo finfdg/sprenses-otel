@@ -160,9 +160,9 @@
 	{/if}
 
 	{#if loading}
-		<p class="text-gray-400">Yükleniyor...</p>
+		<p class="text-gray-500">Yükleniyor...</p>
 	{:else if modules.length === 0}
-		<div class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-400 shadow-sm">
+		<div class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-500 shadow-sm">
 			Henüz modül yok.
 		</div>
 	{:else}
@@ -172,18 +172,18 @@
 					<div class="p-4 md:p-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 						<div class="min-w-0">
 							<span class="font-semibold text-gray-900">{m.name}</span>
-							<span class="text-gray-400 ml-2 text-xs font-mono">{m.code}</span>
+							<span class="text-gray-500 ml-2 text-xs font-mono">{m.code}</span>
 							{#if m.description}
-								<div class="text-gray-400 text-sm mt-0.5">{m.description}</div>
+								<div class="text-gray-500 text-sm mt-0.5">{m.description}</div>
 							{/if}
 						</div>
 						<div class="flex items-center gap-2 shrink-0">
 							{#if !m.is_active}
-								<span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">Pasif</span>
+								<span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Pasif</span>
 							{/if}
 							{#if canUse}
 								<button onclick={() => openEdit(m)} class="px-3 py-2 sm:py-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">Düzenle</button>
-								<button onclick={() => askDelete(m)} class="px-3 py-2 sm:py-1.5 text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
+								<button onclick={() => askDelete(m)} class="px-3 py-2 sm:py-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
 							{/if}
 						</div>
 					</div>
@@ -193,17 +193,17 @@
 							{#each m.children as child}
 								<div class="px-4 md:px-5 py-3 pl-6 md:pl-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-gray-50 last:border-b-0 bg-gray-50/50">
 									<div class="min-w-0">
-										<span class="text-gray-300 mr-1.5">└</span>
+										<span class="text-gray-500 mr-1.5">└</span>
 										<span class="text-sm text-gray-700">{child.name}</span>
-										<span class="text-gray-400 ml-2 text-xs font-mono">{child.code}</span>
+										<span class="text-gray-500 ml-2 text-xs font-mono">{child.code}</span>
 									</div>
 									<div class="flex items-center gap-2 shrink-0">
 										{#if !child.is_active}
-											<span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">Pasif</span>
+											<span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Pasif</span>
 										{/if}
 										{#if canUse}
 											<button onclick={() => openEdit(child)} class="px-3 py-2 sm:py-1 text-xs text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">Düzenle</button>
-											<button onclick={() => askDelete(child)} class="px-3 py-2 sm:py-1 text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
+											<button onclick={() => askDelete(child)} class="px-3 py-2 sm:py-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
 										{/if}
 									</div>
 								</div>
@@ -227,14 +227,14 @@
 			<label for="m-name" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Modül Adı</label>
 			<input id="m-name" bind:value={formName} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 			{#if fieldErrors.name}
-				<p class="text-red-500 text-xs mt-1">{fieldErrors.name}</p>
+				<p class="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
 			{/if}
 		</div>
 		<div>
 			<label for="m-code" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Kod</label>
 			<input id="m-code" bind:value={formCode} placeholder="system.newmodule" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm font-mono outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 			{#if fieldErrors.code}
-				<p class="text-red-500 text-xs mt-1">{fieldErrors.code}</p>
+				<p class="text-red-600 text-xs mt-1">{fieldErrors.code}</p>
 			{/if}
 		</div>
 		<div>

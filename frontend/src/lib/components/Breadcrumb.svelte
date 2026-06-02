@@ -19,7 +19,7 @@
 	<nav aria-label="Yol göstergesi" class="flex items-center gap-1 text-xs text-gray-500 mb-3">
 		{#each items as item, i (i)}
 			{#if i > 0}
-				<ChevronRight size={12} class="text-gray-300 shrink-0" />
+				<ChevronRight size={12} class="text-gray-500 shrink-0" />
 			{/if}
 			{#if item.href && i < items.length - 1}
 				<a
