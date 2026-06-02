@@ -45,7 +45,7 @@
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
 			<div class="text-xs font-medium text-gray-500 uppercase tracking-wider truncate">{label}</div>
-			<div class="mt-1.5 text-xl sm:text-2xl font-bold {a.value} truncate" title={String(value)}>{value}</div>
+			<div class="mt-1.5 text-xl font-bold tabular-nums leading-tight {a.value}" title={String(value)}>{value}</div>
 			{#if hint}
 				<div class="text-xs text-gray-500 mt-1">{hint}</div>
 			{/if}

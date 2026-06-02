@@ -255,7 +255,7 @@
 
 	<!-- Özet kartları (para birimi bazında, doğru) -->
 	{#if !loading && (Object.keys(summary).length > 0)}
-		<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
 			{#each CURRENCIES as cur (cur)}
 				{@const s = summary[cur]}
 				{#if s && s.pending_count > 0}
