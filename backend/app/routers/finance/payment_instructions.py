@@ -20,6 +20,7 @@ from app.models.payment_instruction import (
     PaymentInstructionList,
 )
 from app.models.user import User
+from app.models.vendor import Vendor
 from app.schemas.payment_instruction import (
     BulkAddItemsRequest,
     PaymentItemResponse,
@@ -33,6 +34,20 @@ from app.utils.audit import log_action
 router = APIRouter(prefix="/payment-instructions")
 
 MAX_ITEMS = 1000
+
+
+def _valid_vendor_ids(db: Session, vendor_ids) -> set:
+    """Verilen vendor_id'lerden DB'de gerçekten var olanları döndür.
+
+    Var olmayan (silinmiş/geçersiz) vendor_id ile kalem eklenirse FK ihlali (500)
+    oluşur. Bu helper ile geçersiz id'ler kalemde None'a çevrilir; hesap_kodu/adi
+    snapshot alanları kalemi korur (modelin vendor FK'si ondelete=SET NULL'dur).
+    """
+    ids = {v for v in vendor_ids if v is not None}
+    if not ids:
+        return set()
+    rows = db.query(Vendor.id).filter(Vendor.id.in_(ids)).all()
+    return {r[0] for r in rows}
 
 
 def _fmt_try(v: float) -> str:
@@ -142,10 +157,11 @@ def create_instruction_list(
     db.add(pl)
     db.flush()
 
+    valid_vids = _valid_vendor_ids(db, [it.vendor_id for it in data.items])
     for i, item in enumerate(data.items):
         db.add(PaymentInstructionItem(
             list_id=pl.id,
-            vendor_id=item.vendor_id,
+            vendor_id=item.vendor_id if item.vendor_id in valid_vids else None,
             hesap_kodu=item.hesap_kodu,
             hesap_adi=item.hesap_adi,
             amount=item.amount,
@@ -232,6 +248,7 @@ def add_items(
         raise HTTPException(status_code=400, detail=f"En fazla {MAX_ITEMS} kalem eklenebilir")
 
     so = _next_sort_order(pl)
+    valid_vids = _valid_vendor_ids(db, [it.vendor_id for it in body.items])
     added = 0
     skipped = 0
     for item in body.items:
@@ -240,7 +257,7 @@ def add_items(
             continue
         db.add(PaymentInstructionItem(
             list_id=pl.id,
-            vendor_id=item.vendor_id,
+            vendor_id=item.vendor_id if item.vendor_id in valid_vids else None,
             hesap_kodu=item.hesap_kodu,
             hesap_adi=item.hesap_adi,
             amount=item.amount,

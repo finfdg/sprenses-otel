@@ -124,6 +124,34 @@ def test_add_items(client, auth_headers, db):
     assert data["total_amount"] == 5000
 
 
+def test_create_with_nonexistent_vendor_id_no_500(client, auth_headers):
+    """REGRESYON: var olmayan vendor_id ile liste oluşturma 500 (FK ihlali) vermemeli;
+    kalem vendor_id=None ile (snapshot korunarak) eklenmeli. (Üretimde görülen hata.)"""
+    res = _create_list(client, auth_headers, items=[
+        {"vendor_id": 9999999, "hesap_kodu": "320.X", "hesap_adi": "Silinmiş Cari", "amount": 1500},
+    ])
+    assert res.status_code == 201, res.text
+    data = res.json()
+    assert data["item_count"] == 1
+    assert data["items"][0]["vendor_id"] is None
+    assert data["items"][0]["hesap_adi"] == "Silinmiş Cari"
+
+
+def test_add_items_nonexistent_vendor_id_no_500(client, auth_headers):
+    """REGRESYON: var olmayan vendor_id ile kalem ekleme 500 vermemeli — vendor_id None'a düşer."""
+    lid = _create_list(client, auth_headers).json()["id"]
+    res = client.post(
+        f"{PREFIX}/{lid}/items",
+        json={"items": [{"vendor_id": 9999999, "hesap_kodu": "320.Y", "hesap_adi": "Geçersiz", "amount": 5000}]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert data["added"] == 1
+    assert data["items"][0]["vendor_id"] is None
+    assert data["items"][0]["hesap_adi"] == "Geçersiz"
+
+
 def test_add_duplicate_vendor_skipped(client, auth_headers, db):
     """Aynı vendor_id iki kez eklenmez."""
     v = _make_vendor(db)
