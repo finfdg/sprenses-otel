@@ -6,6 +6,7 @@
 	import MoneyInput from '$lib/components/MoneyInput.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { ChevronDown, Send, Printer, Download, X } from 'lucide-svelte';
 
 	// ─── Types ───────────────────────────────────────────
@@ -585,18 +586,13 @@
 
 				<!-- Oluştur Butonu -->
 				<div class="flex justify-end pt-2">
-					<button
+					<Button
 						onclick={generateTransferPDF}
-						disabled={generating || !transferForm.source_account_id || !transferForm.dest_account_id || !transferForm.amount}
-						class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						loading={generating}
+						disabled={!transferForm.source_account_id || !transferForm.dest_account_id || !transferForm.amount}
 					>
-						{#if generating}
-							<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-						{:else}
-							<Send size={16} />
-						{/if}
-						PDF Oluştur
-					</button>
+						{#if !generating}<Send size={16} />{/if} PDF Oluştur
+					</Button>
 				</div>
 			</div>
 		{/if}
@@ -718,18 +714,13 @@
 
 				<!-- Oluştur Butonu -->
 				<div class="flex justify-end pt-2">
-					<button
+					<Button
 						onclick={generateExchangePDF}
-						disabled={generating || !exchangeForm.source_account_id || !exchangeForm.target_currency || !exchangeForm.amount}
-						class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						loading={generating}
+						disabled={!exchangeForm.source_account_id || !exchangeForm.target_currency || !exchangeForm.amount}
 					>
-						{#if generating}
-							<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-						{:else}
-							<Send size={16} />
-						{/if}
-						PDF Oluştur
-					</button>
+						{#if !generating}<Send size={16} />{/if} PDF Oluştur
+					</Button>
 				</div>
 			</div>
 		{/if}
@@ -760,7 +751,7 @@
 					<a
 						href={pdfPreview.url}
 						download={pdfPreview.filename}
-						class="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-lg hover:bg-teal-700 cursor-pointer"
+						class="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white text-xs font-medium rounded-lg hover:bg-teal-800 cursor-pointer"
 						title="İndir"
 					>
 						<Download size={14} />

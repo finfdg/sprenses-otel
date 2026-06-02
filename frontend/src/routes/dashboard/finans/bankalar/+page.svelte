@@ -12,6 +12,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import {
 		Upload, Plus, Pencil, Trash2, Check, ChevronRight, Building2, FileText, FileSpreadsheet
 	} from 'lucide-svelte';
@@ -831,12 +832,7 @@
 					<div class="text-[10px] text-amber-500 mt-0.5">Mükerrer</div>
 				</div>
 			</div>
-			<button
-				onclick={() => showUploadResult = false}
-				class="w-full py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors cursor-pointer"
-			>
-				Tamam
-			</button>
+			<Button fullWidth onclick={() => showUploadResult = false}>Tamam</Button>
 		</div>
 	{/if}
 </Modal>
@@ -949,20 +945,8 @@
 		</div>
 
 		<div class="flex justify-end gap-3 pt-2">
-			<button
-				type="button"
-				onclick={() => showAccountForm = false}
-				class="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
-			>
-				İptal
-			</button>
-			<button
-				type="submit"
-				disabled={savingAccount}
-				class="px-5 py-2.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
-			>
-				{savingAccount ? 'Kaydediliyor...' : (editingAccount ? 'Güncelle' : 'Ekle')}
-			</button>
+			<Button type="button" variant="secondary" onclick={() => showAccountForm = false}>İptal</Button>
+			<Button type="submit" loading={savingAccount}>{editingAccount ? 'Güncelle' : 'Ekle'}</Button>
 		</div>
 	</form>
 </Modal>

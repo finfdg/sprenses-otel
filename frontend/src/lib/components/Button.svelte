@@ -31,6 +31,7 @@
 		ariaLabel = undefined,
 		title = undefined,
 		fullWidth = false,
+		class: extraClass = '',
 		children,
 	}: {
 		variant?: ButtonVariant;
@@ -43,6 +44,8 @@
 		ariaLabel?: string;
 		title?: string;
 		fullWidth?: boolean;
+		/** Yalnızca layout (genişlik/kenar boşluğu vb.) için ek sınıf — renk/stil variant'tan gelir */
+		class?: string;
 		children: Snippet;
 	} = $props();
 
@@ -61,7 +64,8 @@
 		'inline-flex items-center justify-center font-medium rounded-lg transition-colors cursor-pointer ' +
 		'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ' +
 		'disabled:opacity-50 disabled:cursor-not-allowed ' +
-		VARIANTS[variant] + ' ' + SIZES[size] + (fullWidth ? ' w-full' : '')
+		VARIANTS[variant] + ' ' + SIZES[size] + (fullWidth ? ' w-full' : '') +
+		(extraClass ? ' ' + extraClass : '')
 	);
 
 	let isDisabled = $derived(disabled || loading);

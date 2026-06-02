@@ -9,6 +9,7 @@
 	import FormRenderer from '$lib/components/quality/FormRenderer.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import FormSkeleton from '$lib/components/FormSkeleton.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { FileText } from 'lucide-svelte';
 
 	const canUse = hasPermission('quality.forms', 'use');
@@ -374,20 +375,8 @@
 		<div class="mt-4 sm:mt-6 space-y-3">
 			{#if canSubmit}
 				<div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
-					<button
-						onclick={handleSave}
-						disabled={saving}
-						class="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors cursor-pointer"
-					>
-						{saving ? 'Kaydediliyor...' : 'Kaydet (Taslak)'}
-					</button>
-					<button
-						onclick={handleSubmit}
-						disabled={submitting || saving}
-						class="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors cursor-pointer"
-					>
-						{submitting ? 'Gönderiliyor...' : 'Gönder'}
-					</button>
+					<Button variant="secondary" class="w-full sm:w-auto" onclick={handleSave} loading={saving}>Kaydet (Taslak)</Button>
+					<Button class="w-full sm:w-auto" onclick={handleSubmit} loading={submitting} disabled={saving}>Gönder</Button>
 				</div>
 			{/if}
 

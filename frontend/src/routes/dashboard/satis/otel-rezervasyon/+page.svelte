@@ -28,6 +28,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
@@ -2016,12 +2017,7 @@
 				</div>
 			{/if}
 
-			<button
-				onclick={() => (showResultModal = false)}
-				class="w-full mt-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium"
-			>
-				Tamam
-			</button>
+			<Button fullWidth class="mt-2" onclick={() => (showResultModal = false)}>Tamam</Button>
 		</div>
 	{/if}
 </Modal>
@@ -2241,14 +2237,8 @@
 
 		<!-- Liste alt aksiyonları -->
 		<div class="flex justify-end gap-2 pt-4 mt-4 border-t border-gray-200">
-			<button onclick={closeGroupMgmt}
-				class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 cursor-pointer">
-				Kapat
-			</button>
-			<button onclick={openNewGroup}
-				class="flex items-center gap-2 px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 cursor-pointer">
-				<Plus size={15} /> Yeni Grup
-			</button>
+			<Button variant="secondary" onclick={closeGroupMgmt}>Kapat</Button>
+			<Button onclick={openNewGroup}><Plus size={15} /> Yeni Grup</Button>
 		</div>
 	{:else}
 		<div class="space-y-4">
@@ -2306,18 +2296,8 @@
 
 		<!-- Form alt aksiyonları -->
 		<div class="flex justify-end gap-2 pt-4 mt-4 border-t border-gray-200">
-			<button onclick={() => (gmView = 'list')}
-				class="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer">
-				← Geri
-			</button>
-			<button
-				onclick={gmSave}
-				disabled={gmSaving || !gmNewName.trim()}
-				class="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-			>
-				{#if gmSaving}<Loader2 size={14} class="animate-spin" />{/if}
-				{gmEditTarget ? 'Kaydet' : 'Oluştur'}
-			</button>
+			<Button variant="secondary" onclick={() => (gmView = 'list')}>← Geri</Button>
+			<Button onclick={gmSave} loading={gmSaving} disabled={!gmNewName.trim()}>{gmEditTarget ? 'Kaydet' : 'Oluştur'}</Button>
 		</div>
 	{/if}
 </Modal>
