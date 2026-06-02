@@ -1,0 +1,21 @@
+# Ruff yapılandırması — bkz. https://docs.astral.sh/ruff/
+target-version = "py39"
+line-length = 120
+
+[lint]
+# Default kurallar dışında ne dahil/hariç
+select = ["E", "F", "W", "I"]
+
+# Bilerek hariç tutulan kurallar:
+# E712 - SQLAlchemy boolean karşılaştırması (`Column == True`) doğru kullanım
+# E701 - tek satır if/return ("if x: return") - mevcut stil tercihi
+# E702 - tek satır `;` ayraçlı statement - mevcut stil tercihi
+# E402 - module-level import top'ta değil - lazy import desenleri için
+# E501 - satır uzunluğu - line-length zaten 120, marjinal aşımları görmezden gel
+ignore = ["E712", "E701", "E702", "E402", "E501", "F841"]
+# F841 (unused-variable) şimdilik bypass — yedi adet eski kod var,
+# manuel temizlik için ayrı bir görev planlandı.
+
+[lint.per-file-ignores]
+# Test dosyalarında unused import bazen mantıklı (fixture import'ları)
+"tests/*" = ["F401"]

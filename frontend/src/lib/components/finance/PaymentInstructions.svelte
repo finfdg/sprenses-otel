@@ -1,0 +1,442 @@
+<script lang="ts">
+	import { api, ApiError } from '$lib/api';
+	import MoneyInput from '$lib/components/MoneyInput.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+	import { showToast } from '$lib/stores/toast.svelte';
+	import { FileText, Plus, Trash2, Download, Search, X, Loader2 } from 'lucide-svelte';
+
+	let { canUse = false }: { canUse?: boolean } = $props();
+
+	// ───── Tipler ─────────────────────────────────────────
+	type PiItem = {
+		id: number;
+		vendor_id: number | null;
+		hesap_kodu: string | null;
+		hesap_adi: string;
+		amount: number;
+		balance_snapshot: number | null;
+		notes: string | null;
+		sort_order: number;
+	};
+	type PiList = {
+		id: number;
+		name: string;
+		description: string | null;
+		status: string;
+		item_count: number;
+		total_amount: number;
+		creator_name: string | null;
+		created_at: string | null;
+		items: PiItem[];
+	};
+	type VendorHit = {
+		id: number;
+		hesap_kodu: string;
+		hesap_adi: string;
+		bakiye: number;
+	};
+
+	// ───── State ──────────────────────────────────────────
+	let lists = $state<PiList[]>([]);
+	let activeList = $state<PiList | null>(null);
+	let loading = $state(true);
+	let busy = $state(false);
+
+	// Yeni liste modal
+	let showNewModal = $state(false);
+	let newName = $state('');
+
+	// Cari arama
+	let searchTerm = $state('');
+	let searchResults = $state<VendorHit[]>([]);
+	let searching = $state(false);
+	let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Silme onayı
+	let confirmDelete = $state<{ show: boolean; kind: 'list' | 'item'; id: number | null; label: string }>(
+		{ show: false, kind: 'list', id: null, label: '' },
+	);
+
+	const activeTotal = $derived(
+		activeList ? activeList.items.reduce((s, it) => s + (it.amount || 0), 0) : 0,
+	);
+
+	// ───── Formatlama ─────────────────────────────────────
+	function fmt(n: number): string {
+		return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+	}
+	function fmtDate(iso: string | null): string {
+		if (!iso) return '-';
+		const d = new Date(iso);
+		return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+	}
+
+	// ───── Veri ───────────────────────────────────────────
+	async function loadLists() {
+		loading = true;
+		try {
+			lists = await api.get<PiList[]>('/finance/payment-instructions/');
+		} catch (e) {
+			console.error('Talimat listeleri alınamadı:', e);
+			showToast('Talimat listeleri alınamadı', 'error');
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function openList(id: number) {
+		try {
+			activeList = await api.get<PiList>(`/finance/payment-instructions/${id}`);
+		} catch (e) {
+			console.error('Liste açılamadı:', e);
+			showToast('Liste açılamadı', 'error');
+		}
+	}
+
+	// ───── Liste CRUD ─────────────────────────────────────
+	function openNewModal() {
+		newName = `Ödeme Talimatı ${new Date().toLocaleDateString('tr-TR')}`;
+		showNewModal = true;
+	}
+
+	async function createList() {
+		const name = newName.trim();
+		if (!name) {
+			showToast('Liste adı zorunludur', 'warning');
+			return;
+		}
+		busy = true;
+		try {
+			const created = await api.post<PiList>('/finance/payment-instructions/', { name, items: [] });
+			showNewModal = false;
+			await loadLists();
+			activeList = created;
+			showToast('Talimat listesi oluşturuldu', 'success');
+		} catch (e) {
+			console.error('Liste oluşturulamadı:', e);
+			showToast(e instanceof ApiError ? e.message : 'Liste oluşturulamadı', 'error');
+		} finally {
+			busy = false;
+		}
+	}
+
+	function askDeleteList() {
+		if (!activeList) return;
+		confirmDelete = { show: true, kind: 'list', id: activeList.id, label: activeList.name };
+	}
+
+	async function doDelete() {
+		if (confirmDelete.id == null) return;
+		try {
+			if (confirmDelete.kind === 'list') {
+				await api.delete(`/finance/payment-instructions/${confirmDelete.id}`);
+				activeList = null;
+				await loadLists();
+				showToast('Liste silindi', 'success');
+			} else if (activeList) {
+				await api.delete(`/finance/payment-instructions/${activeList.id}/items/${confirmDelete.id}`);
+				activeList.items = activeList.items.filter((it) => it.id !== confirmDelete.id);
+				await loadLists();
+			}
+		} catch (e) {
+			console.error('Silme hatası:', e);
+			showToast('Silinemedi', 'error');
+		} finally {
+			confirmDelete = { show: false, kind: 'list', id: null, label: '' };
+		}
+	}
+
+	// ───── Cari arama + ekleme ────────────────────────────
+	function onSearchInput() {
+		if (searchTimer) clearTimeout(searchTimer);
+		const q = searchTerm.trim();
+		if (q.length < 2) {
+			searchResults = [];
+			return;
+		}
+		searchTimer = setTimeout(() => runSearch(q), 300);
+	}
+
+	async function runSearch(q: string) {
+		searching = true;
+		try {
+			const res = await api.get<any>(`/finance/cariler/vendors?search=${encodeURIComponent(q)}&page_size=15`);
+			const existingIds = new Set((activeList?.items || []).map((it) => it.vendor_id));
+			searchResults = (res.items || []).filter((v: VendorHit) => !existingIds.has(v.id));
+		} catch (e) {
+			console.error('Cari arama hatası:', e);
+		} finally {
+			searching = false;
+		}
+	}
+
+	async function addVendor(v: VendorHit) {
+		if (!activeList) return;
+		// Negatif bakiye = bizim borcumuz (ödenecek). Pozitifse 0 başlat.
+		const payAmount = v.bakiye < 0 ? Math.abs(v.bakiye) : 0;
+		try {
+			const updated = await api.post<any>(`/finance/payment-instructions/${activeList.id}/items`, {
+				items: [{
+					vendor_id: v.id,
+					hesap_kodu: v.hesap_kodu,
+					hesap_adi: v.hesap_adi,
+					amount: payAmount,
+					balance_snapshot: v.bakiye,
+				}],
+			});
+			activeList = updated;
+			searchResults = searchResults.filter((r) => r.id !== v.id);
+			searchTerm = '';
+			searchResults = [];
+			await loadLists();
+		} catch (e) {
+			console.error('Cari eklenemedi:', e);
+			showToast('Cari eklenemedi', 'error');
+		}
+	}
+
+	// ───── Tutar düzenleme (debounce'lu kaydet) ───────────
+	let saveTimers = new Map<number, ReturnType<typeof setTimeout>>();
+	function scheduleSave(item: PiItem) {
+		const existing = saveTimers.get(item.id);
+		if (existing) clearTimeout(existing);
+		saveTimers.set(item.id, setTimeout(() => persistAmount(item), 600));
+	}
+
+	async function persistAmount(item: PiItem) {
+		if (!activeList) return;
+		try {
+			await api.patch(`/finance/payment-instructions/${activeList.id}/items/${item.id}`, {
+				amount: item.amount ?? 0,
+			});
+			await loadLists();
+		} catch (e) {
+			console.error('Tutar güncellenemedi:', e);
+			showToast('Tutar güncellenemedi', 'error');
+		}
+	}
+
+	function askDeleteItem(item: PiItem) {
+		confirmDelete = { show: true, kind: 'item', id: item.id, label: item.hesap_adi };
+	}
+
+	// ───── Dışa aktarma ───────────────────────────────────
+	async function download(kind: 'excel' | 'pdf') {
+		if (!activeList) return;
+		busy = true;
+		try {
+			const res = await api.fetchRaw(`/finance/payment-instructions/${activeList.id}/export/${kind}`);
+			if (!res.ok) throw new Error('İndirme başarısız');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `odeme-talimati-${activeList.id}.${kind === 'excel' ? 'xlsx' : 'pdf'}`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} catch (e) {
+			console.error('İndirme hatası:', e);
+			showToast('Dosya indirilemedi', 'error');
+		} finally {
+			busy = false;
+		}
+	}
+
+	// İlk yükleme
+	loadLists();
+</script>
+
+<div class="space-y-4">
+	<!-- Üst bar: liste seçimi + yeni -->
+	<div class="flex items-center gap-2 flex-wrap">
+		<select
+			value={activeList?.id ?? ''}
+			onchange={(e) => {
+				const v = (e.target as HTMLSelectElement).value;
+				if (v) openList(Number(v));
+				else activeList = null;
+			}}
+			class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 sm:flex-none sm:min-w-[280px]"
+		>
+			<option value="">— Liste seçin —</option>
+			{#each lists as l (l.id)}
+				<option value={l.id}>{l.name} ({l.item_count} cari · ₺{fmt(l.total_amount)})</option>
+			{/each}
+		</select>
+		{#if canUse}
+			<button
+				onclick={openNewModal}
+				class="inline-flex items-center gap-1.5 px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+			>
+				<Plus size={16} /> Yeni Liste
+			</button>
+		{/if}
+		{#if activeList && canUse}
+			<button
+				onclick={askDeleteList}
+				class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm font-medium"
+			>
+				<Trash2 size={16} /> Listeyi Sil
+			</button>
+		{/if}
+	</div>
+
+	{#if loading}
+		<div class="py-12 text-center text-gray-400"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
+	{:else if !activeList}
+		<EmptyState
+			icon={FileText}
+			title="Ödeme talimat listesi seçilmedi"
+			description={lists.length === 0 ? 'Henüz liste yok. Yeni bir liste oluşturup cari ekleyin.' : 'Yukarıdan bir liste seçin veya yeni oluşturun.'}
+		/>
+	{:else}
+		<!-- Aktif liste -->
+		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+			<!-- Başlık + toplam + indirme -->
+			<div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-100 bg-gray-50/60 flex-wrap">
+				<div>
+					<div class="font-semibold text-gray-800">{activeList.name}</div>
+					<div class="text-xs text-gray-400">{activeList.items.length} cari · {fmtDate(activeList.created_at)}</div>
+				</div>
+				<div class="flex items-center gap-3 flex-wrap">
+					<div class="text-right">
+						<div class="text-[10px] text-gray-400 uppercase">Toplam</div>
+						<div class="text-lg font-bold text-rose-600 tabular-nums">₺{fmt(activeTotal)}</div>
+					</div>
+					<button onclick={() => download('excel')} disabled={busy || activeList.items.length === 0}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 text-xs font-medium disabled:opacity-50">
+						<Download size={14} /> Excel
+					</button>
+					<button onclick={() => download('pdf')} disabled={busy || activeList.items.length === 0}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 text-xs font-medium disabled:opacity-50">
+						<Download size={14} /> PDF
+					</button>
+				</div>
+			</div>
+
+			<!-- Cari ekleme arama -->
+			{#if canUse}
+				<div class="px-4 py-3 border-b border-gray-100 relative">
+					<div class="relative">
+						<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+						<input
+							bind:value={searchTerm}
+							oninput={onSearchInput}
+							placeholder="Cari ekle — hesap kodu veya ad ara…"
+							class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
+						/>
+						{#if searchTerm}
+							<button onclick={() => { searchTerm = ''; searchResults = []; }} class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+								<X size={16} />
+							</button>
+						{/if}
+					</div>
+					{#if searchResults.length > 0}
+						<div class="absolute left-4 right-4 z-20 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+							{#each searchResults as v (v.id)}
+								<button
+									onclick={() => addVendor(v)}
+									class="w-full flex items-center justify-between gap-2 px-3 py-2 hover:bg-teal-50 text-left text-sm border-b border-gray-50 last:border-0"
+								>
+									<span class="min-w-0">
+										<span class="font-medium text-gray-800 truncate block">{v.hesap_adi}</span>
+										<span class="text-xs text-gray-400">{v.hesap_kodu}</span>
+									</span>
+									<span class="text-xs font-semibold tabular-nums shrink-0 {v.bakiye < 0 ? 'text-rose-600' : 'text-gray-400'}">
+										{v.bakiye < 0 ? '₺' + fmt(Math.abs(v.bakiye)) : '₺0,00'}
+									</span>
+								</button>
+							{/each}
+						</div>
+					{:else if searching}
+						<div class="text-xs text-gray-400 mt-1 pl-1">Aranıyor…</div>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Kalemler -->
+			{#if activeList.items.length === 0}
+				<p class="text-sm text-gray-400 text-center py-8">Henüz cari eklenmedi. Yukarıdan arayıp ekleyin.</p>
+			{:else}
+				<div class="overflow-x-auto">
+					<table class="w-full text-sm">
+						<thead>
+							<tr class="text-xs text-gray-500 border-b border-gray-100">
+								<th class="text-left py-2 px-3 w-8">#</th>
+								<th class="text-left py-2 px-3 hidden sm:table-cell">Hesap Kodu</th>
+								<th class="text-left py-2 px-3">Cari Adı</th>
+								<th class="text-right py-2 px-3 w-44">Ödeme Tutarı</th>
+								{#if canUse}<th class="w-10"></th>{/if}
+							</tr>
+						</thead>
+						<tbody>
+							{#each activeList.items as item, i (item.id)}
+								<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+									<td class="py-1.5 px-3 text-gray-400">{i + 1}</td>
+									<td class="py-1.5 px-3 text-gray-500 hidden sm:table-cell tabular-nums">{item.hesap_kodu ?? '-'}</td>
+									<td class="py-1.5 px-3 text-gray-800 truncate max-w-[220px]" title={item.hesap_adi}>{item.hesap_adi}</td>
+									<td class="py-1.5 px-3">
+										{#if canUse}
+											<MoneyInput
+												bind:value={item.amount}
+												currency="TRY"
+												min={0}
+												onchange={() => scheduleSave(item)}
+											/>
+										{:else}
+											<span class="block text-right tabular-nums font-medium">₺{fmt(item.amount)}</span>
+										{/if}
+									</td>
+									{#if canUse}
+										<td class="py-1.5 px-2 text-center">
+											<button onclick={() => askDeleteItem(item)} class="p-1 text-red-400 hover:text-red-600" title="Çıkar">
+												<Trash2 size={14} />
+											</button>
+										</td>
+									{/if}
+								</tr>
+							{/each}
+						</tbody>
+						<tfoot>
+							<tr class="border-t-2 border-gray-200 font-bold">
+								<td colspan={3} class="py-2 px-3 text-right text-gray-600">TOPLAM</td>
+								<td class="py-2 px-3 text-right tabular-nums text-rose-600">₺{fmt(activeTotal)}</td>
+								{#if canUse}<td></td>{/if}
+							</tr>
+						</tfoot>
+					</table>
+				</div>
+			{/if}
+		</div>
+	{/if}
+</div>
+
+<!-- Yeni liste modal -->
+<Modal bind:show={showNewModal} title="Yeni Ödeme Talimat Listesi" maxWidth="max-w-md">
+	<form onsubmit={(e) => { e.preventDefault(); createList(); }} class="space-y-4">
+		<div>
+			<label for="pi-name" class="text-xs text-gray-500 mb-1 block">Liste Adı <span class="text-rose-500">*</span></label>
+			<input id="pi-name" bind:value={newName} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="ör: Haftalık Ödeme 26.05" required />
+		</div>
+		<div class="flex items-center justify-end gap-2">
+			<button type="button" onclick={() => (showNewModal = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
+			<button type="submit" disabled={busy} class="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium disabled:opacity-50">Oluştur</button>
+		</div>
+	</form>
+</Modal>
+
+<ConfirmDialog
+	bind:show={confirmDelete.show}
+	title={confirmDelete.kind === 'list' ? 'Listeyi Sil' : 'Cariyi Çıkar'}
+	message={confirmDelete.kind === 'list'
+		? `"${confirmDelete.label}" listesi ve tüm kalemleri silinecek. Devam edilsin mi?`
+		: `"${confirmDelete.label}" listeden çıkarılsın mı?`}
+	confirmText={confirmDelete.kind === 'list' ? 'Listeyi Sil' : 'Çıkar'}
+	cancelText="Vazgeç"
+	danger
+	onConfirm={doDelete}
+/>

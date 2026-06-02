@@ -1,0 +1,60 @@
+"""Finans modülü WS broadcast yardımcısı.
+
+Cari, banka, çek, kredi vb. işlemlerde tüm bağlı kullanıcılara
+'finance_updated' event'i gönderir. Frontend bu event'i dinleyerek
+ilgili sayfaları otomatik yeniler.
+
+Debounce mekanizması: Aynı istek döngüsünde (background_tasks) aynı modülden
+birden fazla broadcast çağrısı gelirse yalnızca tekini gönderir.
+Toplu Excel yüklemelerinde (500 satır = 500 broadcast yerine 1 broadcast) bunu önler.
+"""
+import asyncio
+import logging
+from typing import Set
+
+from fastapi import BackgroundTasks
+
+from app.websocket.manager import manager
+
+logger = logging.getLogger(__name__)
+
+# Mevcut arka plan görev döngüsünde bekleyen modüller (debounce takibi)
+_pending_modules: Set[str] = set()
+_debounce_lock = asyncio.Lock()
+
+
+async def _debounced_send(module: str, action: str) -> None:
+    """500ms bekle, sonra göndер. Bu sürede aynı modülden gelen diğer çağrılar iptal edilir."""
+    await asyncio.sleep(0.5)
+    async with _debounce_lock:
+        if module not in _pending_modules:
+            return  # Başkası gönderdi, atla
+        _pending_modules.discard(module)
+
+    try:
+        await manager.send_to_all({
+            "type": "finance_updated",
+            "module": module,
+            "action": action,
+        })
+    except Exception as e:
+        logger.error("finance_broadcast hatası module=%s: %s", module, e)
+
+
+def broadcast_finance_update(
+    background_tasks: BackgroundTasks,
+    module: str,
+    action: str = "update",
+) -> None:
+    """Tüm bağlı kullanıcılara finans güncelleme event'i gönder.
+
+    Debounce: Aynı modülden 500ms içinde gelen birden fazla çağrı tek event'e indirilir.
+    Toplu yüklemelerde performansı korur.
+
+    Args:
+        background_tasks: FastAPI BackgroundTasks
+        module: Güncellenen modül (cariler, cash_flow, checks, credits, banks, advances)
+        action: İşlem türü (upload, delete, match, update, tag)
+    """
+    _pending_modules.add(module)
+    background_tasks.add_task(_debounced_send, module, action)

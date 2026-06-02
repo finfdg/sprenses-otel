@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="tr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+		<!-- PWA -->
+		<link rel="manifest" href="/manifest.json" />
+		<meta name="theme-color" content="#0d9488" />
+
+		<!-- Favicon -->
+		<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+
+		<!-- iOS PWA -->
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="apple-mobile-web-app-title" content="Sprenses" />
+
+		<!-- Travelpayouts site doğrulama (marker: 523156) -->
+		<script data-noptimize="1" data-cfasync="false" data-wpfc-render="false" seraph-accel-crit="1" data-no-defer="1">
+			(function () {
+				var script = document.createElement("script");
+				script.async = 1;
+				script.src = 'https://tp-em.com/NTIzMTU2.js?t=523156';
+				document.head.appendChild(script);
+			})();
+		</script>
+
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

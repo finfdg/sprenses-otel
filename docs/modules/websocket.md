@@ -1,0 +1,63 @@
+# WebSocket Altyapısı
+
+## Genel Bilgi
+- **Endpoint:** `WS /api/ws`
+- **Auth:** Upgrade request cookie'sinden JWT, fallback olarak auth mesajı
+- **Router:** `backend/app/routers/ws.py`
+- **Manager:** `backend/app/websocket/manager.py`
+- **Frontend store:** `frontend/src/lib/stores/websocket.svelte.ts`
+
+## Bağlantı Yönetimi
+- **ConnectionManager** (singleton) — `dict[user_id, set[WebSocket]]` tutar
+- Aynı kullanıcı birden fazla cihaz/sekmeden bağlanabilir
+- **Ping/pong keepalive:** Client her 30 sn `ping` gönderir, server `pong` döner (sadece bu amaçla `setInterval` izinli)
+- **Reconnect:** Bağlantı koparsa exponential backoff (1s → 2s → 4s → … max 30s)
+
+## Event Türleri
+
+### Sistem Event'leri
+| Event | Payload | Açıklama |
+|---|---|---|
+| `connected` | `{ online_users: [...], server_time: ISO }` | İlk bağlantıda başlangıç state |
+| `user_online` | `{ user_id }` | Kullanıcı çevrimiçi oldu |
+| `user_offline` | `{ user_id }` | Tüm bağlantılar kapandı |
+
+### Mesajlaşma
+`new_message`, `message_edited`, `message_deleted`, `message_read`, `typing`, `unread_updated`
+
+### Bildirim
+`notification` — her yeni bildirim için hedef kullanıcıya
+
+### Finans (Nakit Akım)
+`cash_flow_changed` — herhangi bir finans event'i (vendor tx, bank tx, check, credit payment) değiştiğinde debounce'lu broadcast (`finance_broadcast.py`)
+
+### Onay Akışı
+`approval_request` — onay bekliyor
+`approval_decision` — onaylandı/reddedildi
+
+## Broadcast Helper'ları
+```python
+from app.websocket.manager import manager
+
+# Tek kullanıcıya
+await manager.send_to_user(user_id, {"type": "notification", "data": {...}})
+
+# Birden fazla kullanıcıya
+await manager.send_to_users([u1, u2], {"type": "new_message", "data": {...}})
+
+# Herkese (dikkatli kullan)
+await manager.broadcast({"type": "announcement", "data": {...}})
+```
+
+## Debounce (Finans)
+`backend/app/utils/finance_broadcast.py` — 500ms debounce window ile `cash_flow_changed` event'i birleştirilir (batch upload'ta 100 event tek mesajda)
+
+## Geliştirme Kuralları
+- **Polling yasak** — tüm gerçek zamanlı veri WS üzerinden (CLAUDE.md kuralı)
+- **Auth:** Cookie preferred; eski client'lar için `{ type: "auth", token: "..." }` mesajı da kabul edilir
+- **Hata yönetimi:** Send sırasında `WebSocketDisconnect` → bağlantı manager'dan temizlenir
+- **Event tipi yeni eklerken:** 
+  1. Backend `manager.send_to_user(...)` ile gönder
+  2. Frontend `websocket.svelte.ts` içinde handler ekle
+  3. İlgili store'u güncelle
+  4. Bu dosyayı güncelle

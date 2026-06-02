@@ -1,0 +1,82 @@
+# ============================================================
+#  Sprenses Otel Yönetim Sistemi — .gitignore
+# ============================================================
+
+# --- Gizli bilgiler / ortam değişkenleri (ASLA commit edilmez) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.installed.cfg
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.hypothesis/
+
+# --- Python sanal ortam ---
+backend/venv/
+venv/
+env/
+ENV/
+.venv/
+
+# --- Loglar ---
+*.log
+backend/logs/
+logs/
+
+# --- Runtime kullanıcı yüklemeleri (kullanıcı verisi, kod değil) ---
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# --- Node.js / SvelteKit / Vite ---
+node_modules/
+frontend/build/
+frontend/.svelte-kit/
+.svelte-kit/
+frontend/.vite/
+frontend/.output/
+.vite/
+*.local
+
+# --- Test çıktıları ---
+frontend/coverage/
+playwright-report/
+test-results/
+
+# --- İşletim sistemi ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
+
+# --- Editör / IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.fleet/
+
+# --- Yedek / geçici dosyalar ---
+*.bak
+*.orig
+*.tmp
+
+# --- Claude Code (yerel, kullanıcıya özel ayarlar) ---
+.claude/settings.local.json

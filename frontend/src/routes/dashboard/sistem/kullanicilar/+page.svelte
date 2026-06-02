@@ -1,0 +1,387 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { api, ApiError } from '$lib/api';
+	import { hasPermission } from '$lib/stores/auth.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { validateRequired, validateEmail, validatePassword } from '$lib/utils/validation';
+	import { showToast } from '$lib/stores/toast.svelte';
+	import { onlinePresence, onWsEvent } from '$lib/stores/websocket.svelte';
+
+	const canUse = hasPermission('system.users', 'use');
+
+	interface Role {
+		id: number;
+		name: string;
+	}
+
+	interface UserItem {
+		id: number;
+		username: string;
+		email: string;
+		first_name: string;
+		last_name: string;
+		role_id: number;
+		role: Role | null;
+		is_active: boolean;
+		created_at: string;
+		last_online_at: string | null;
+	}
+
+	function isOnline(userId: number): boolean {
+		void onlinePresence.version;
+		return onlinePresence.ids.has(userId);
+	}
+
+	function formatLastSeen(dateStr: string | null): string {
+		if (!dateStr) return '';
+		const d = new Date(dateStr);
+		const now = new Date();
+		const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+		if (diff < 60) return 'Az önce';
+		if (diff < 3600) return `${Math.floor(diff / 60)} dk önce`;
+		if (diff < 86400) return `${Math.floor(diff / 3600)} saat önce`;
+		if (diff < 604800) return `${Math.floor(diff / 86400)} gün önce`;
+		return d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+	}
+
+	let users = $state<UserItem[]>([]);
+	let roles = $state<Role[]>([]);
+	let loading = $state(true);
+	let showModal = $state(false);
+	let editingUser = $state<UserItem | null>(null);
+	let showDeleteConfirm = $state(false);
+	let deleteTarget = $state<UserItem | null>(null);
+
+	let formFirstName = $state('');
+	let formLastName = $state('');
+	let formUsername = $state('');
+	let formEmail = $state('');
+	let formPassword = $state('');
+	let formRoleId = $state(2);
+	let formActive = $state(true);
+	let formError = $state('');
+	let saving = $state(false);
+
+	let fieldErrors = $state<Record<string, string | null>>({});
+
+	async function loadData() {
+		loading = true;
+		try {
+			const [uRes, r] = await Promise.all([
+				api.get<any>('/system/users/?page=1&page_size=200'),
+				api.get<any[]>('/system/roles/'),
+			]);
+			users = uRes.items ?? uRes;
+			roles = r.map((role: any) => ({ id: role.id, name: role.name }));
+		} catch (err) { console.error('Kullanıcı verileri yüklenemedi:', err); }
+		loading = false;
+	}
+
+	function openCreate() {
+		editingUser = null;
+		formFirstName = '';
+		formLastName = '';
+		formUsername = '';
+		formEmail = '';
+		formPassword = '';
+		formRoleId = 2;
+		formActive = true;
+		formError = '';
+		fieldErrors = {};
+		showModal = true;
+	}
+
+	function openEdit(u: UserItem) {
+		editingUser = u;
+		formFirstName = u.first_name;
+		formLastName = u.last_name;
+		formUsername = u.username;
+		formEmail = u.email;
+		formPassword = '';
+		formRoleId = u.role_id;
+		formActive = u.is_active;
+		formError = '';
+		fieldErrors = {};
+		showModal = true;
+	}
+
+	function validateForm(): boolean {
+		const errors: Record<string, string | null> = {};
+
+		errors.first_name = validateRequired(formFirstName, 'Ad');
+		errors.username = validateRequired(formUsername, 'Kullanıcı adı');
+		errors.email = validateEmail(formEmail);
+
+		if (editingUser) {
+			errors.password = validatePassword(formPassword, false);
+		} else {
+			errors.password = validatePassword(formPassword, true);
+		}
+
+		fieldErrors = errors;
+
+		return !Object.values(errors).some(e => e !== null);
+	}
+
+	async function handleSave() {
+		formError = '';
+
+		if (!validateForm()) return;
+
+		saving = true;
+		try {
+			if (editingUser) {
+				const data: any = {
+					first_name: formFirstName,
+					last_name: formLastName,
+					username: formUsername,
+					email: formEmail || '',
+					role_id: formRoleId,
+					is_active: formActive,
+				};
+				if (formPassword) data.password = formPassword;
+				await api.patch(`/system/users/${editingUser.id}`, data);
+			} else {
+				await api.post('/system/users/', {
+					first_name: formFirstName,
+					last_name: formLastName,
+					username: formUsername,
+					email: formEmail || '',
+					password: formPassword,
+					role_id: formRoleId,
+					is_active: formActive,
+				});
+			}
+			showModal = false;
+			await loadData();
+		} catch (err: any) {
+			formError = err.message || 'Hata oluştu';
+			if (err instanceof ApiError && err.fields.length > 0) {
+				const updated = { ...fieldErrors };
+				for (const f of err.fields) {
+					updated[f] = ' ';
+				}
+				fieldErrors = updated;
+			}
+		}
+		saving = false;
+	}
+
+	function askDelete(u: UserItem) {
+		deleteTarget = u;
+		showDeleteConfirm = true;
+	}
+
+	async function handleDelete() {
+		if (!deleteTarget) return;
+		try {
+			await api.delete(`/system/users/${deleteTarget.id}`);
+			await loadData();
+		} catch (err: any) {
+			showToast(err.message || 'Silinemedi', 'error');
+		}
+	}
+
+	let showResetModal = $state(false);
+	let resetUserId = $state(0);
+	let resetPassword = $state('');
+	let resetError = $state('');
+	let resetting = $state(false);
+
+	async function handleResetPassword() {
+		if (!resetPassword || resetPassword.length < 6) {
+			resetError = 'Şifre en az 6 karakter olmalıdır';
+			return;
+		}
+		resetting = true;
+		resetError = '';
+		try {
+			await api.post(`/system/users/${resetUserId}/reset-password`, { new_password: resetPassword });
+			showResetModal = false;
+			showToast('Şifre başarıyla sıfırlandı', 'success');
+		} catch (err: any) {
+			resetError = err?.message || 'Şifre sıfırlanırken bir hata oluştu';
+		} finally {
+			resetting = false;
+		}
+	}
+
+	onMount(() => {
+		loadData();
+
+		// Kullanıcı offline olduğunda last_online_at'i anında güncelle
+		const unsub = onWsEvent('user_status', (data: any) => {
+			if (!data.is_online && typeof data.user_id === 'number') {
+				const idx = users.findIndex(u => u.id === data.user_id);
+				if (idx !== -1) {
+					users[idx].last_online_at = new Date().toISOString();
+				}
+			}
+		});
+
+		return unsub;
+	});
+</script>
+
+<svelte:head><title>Sprenses - Kullanıcılar</title></svelte:head>
+
+<div class="max-w-4xl mx-auto">
+	{#if canUse}
+		<div class="flex justify-end mb-6">
+			<button onclick={openCreate} class="px-4 py-2.5 sm:py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors cursor-pointer whitespace-nowrap">
+				+ Yeni Kullanıcı
+			</button>
+		</div>
+	{/if}
+
+	{#if loading}
+		<p class="text-gray-400">Yükleniyor...</p>
+	{:else if users.length === 0}
+		<div class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-400 shadow-sm">
+			Henüz kullanıcı yok.
+		</div>
+	{:else}
+		<div class="grid gap-3">
+			{#each users as u}
+				<div class="bg-white border border-gray-200 rounded-xl p-4 md:p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+					<div class="min-w-0">
+						<div class="flex items-center gap-2">
+							<span class="relative flex h-2.5 w-2.5 shrink-0">
+								{#if isOnline(u.id)}
+									<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+									<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+								{:else}
+									<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-gray-300"></span>
+								{/if}
+							</span>
+							<span class="font-semibold text-gray-900">{u.first_name} {u.last_name}</span>
+							<span class="text-gray-400 text-sm">@{u.username}</span>
+						</div>
+						<div class="flex items-center gap-2 mt-1 ml-[18px]">
+							<span class="text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-600 border border-teal-200">{u.role?.name || '-'}</span>
+							{#if !u.is_active}
+								<span class="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200">Pasif</span>
+							{/if}
+							{#if isOnline(u.id)}
+								<span class="text-[10px] text-green-500 font-medium">Online</span>
+							{:else}
+								<span class="text-[10px] text-gray-400" title={u.last_online_at ? new Date(u.last_online_at).toLocaleString('tr-TR') : ''}>
+									{u.last_online_at ? `Son görülme: ${formatLastSeen(u.last_online_at)}` : 'Çevrimdışı'}
+								</span>
+							{/if}
+						</div>
+					</div>
+					{#if canUse}
+					<div class="flex items-center gap-2 shrink-0">
+						<button onclick={() => openEdit(u)} class="px-3 py-2 sm:py-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">Düzenle</button>
+						<button onclick={() => { resetUserId = u.id; resetPassword = ''; resetError = ''; showResetModal = true; }} class="px-3 py-2 sm:py-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer" title="Şifre sıfırla">
+							<svg class="w-4 h-4 inline-block mr-0.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+							</svg>
+							Şifre Sıfırla
+						</button>
+						<button onclick={() => askDelete(u)} class="px-3 py-2 sm:py-1.5 text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
+					</div>
+				{/if}
+				</div>
+			{/each}
+		</div>
+	{/if}
+</div>
+
+<!-- Modal -->
+<Modal bind:show={showModal} title={editingUser ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı'} maxWidth="max-w-md">
+	{#if formError}
+		<div class="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-lg text-sm mb-4">{formError}</div>
+	{/if}
+
+	<div class="space-y-4">
+		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+			<div>
+				<label for="u-first" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Ad</label>
+				<input id="u-first" bind:value={formFirstName} placeholder="Ad" class="w-full px-3 py-2.5 bg-gray-50 border rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all {fieldErrors.first_name ? 'border-red-400 border-2' : 'border-gray-200'}" />
+				{#if fieldErrors.first_name}
+					<p class="text-red-500 text-xs mt-1">{fieldErrors.first_name}</p>
+				{/if}
+			</div>
+			<div>
+				<label for="u-last" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Soyad</label>
+				<input id="u-last" bind:value={formLastName} placeholder="Soyad" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+			</div>
+		</div>
+		<div>
+			<label for="u-username" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Kullanıcı Adı</label>
+			<input id="u-username" bind:value={formUsername} placeholder="kullaniciadi" class="w-full px-3 py-2.5 bg-gray-50 border rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all {fieldErrors.username ? 'border-red-400 border-2' : 'border-gray-200'}" />
+			{#if fieldErrors.username}
+				<p class="text-red-500 text-xs mt-1">{fieldErrors.username}</p>
+			{/if}
+		</div>
+		<div>
+			<label for="u-email" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">E-posta <span class="normal-case text-gray-300">(isteğe bağlı)</span></label>
+			<input id="u-email" type="email" bind:value={formEmail} placeholder="ornek@sprenses.com" class="w-full px-3 py-2.5 bg-gray-50 border rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all {fieldErrors.email ? 'border-red-400 border-2' : 'border-gray-200'}" />
+			{#if fieldErrors.email}
+				<p class="text-red-500 text-xs mt-1">{fieldErrors.email}</p>
+			{/if}
+		</div>
+		<div>
+			<label for="u-password" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Şifre {editingUser ? '(boş bırakırsanız değişmez)' : ''}</label>
+			<input id="u-password" type="password" bind:value={formPassword} class="w-full px-3 py-2.5 bg-gray-50 border rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all {fieldErrors.password ? 'border-red-400 border-2' : 'border-gray-200'}" />
+			{#if fieldErrors.password}
+				<p class="text-red-500 text-xs mt-1">{fieldErrors.password}</p>
+			{/if}
+		</div>
+		<div>
+			<label for="u-role" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Rol</label>
+			<select id="u-role" bind:value={formRoleId} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all">
+				{#each roles as r}
+					<option value={r.id}>{r.name}</option>
+				{/each}
+			</select>
+		</div>
+		<div class="flex items-center gap-2">
+			<input type="checkbox" id="active" bind:checked={formActive} class="accent-teal-600" />
+			<label for="active" class="text-sm text-gray-600">Aktif</label>
+		</div>
+	</div>
+
+	<div class="flex gap-3 mt-6">
+		<button onclick={() => showModal = false} class="flex-1 py-2.5 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">İptal</button>
+		<button onclick={handleSave} disabled={saving} class="flex-1 py-2.5 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-50">
+			{saving ? 'Kaydediliyor...' : 'Kaydet'}
+		</button>
+	</div>
+</Modal>
+
+<!-- Şifre Sıfırla Modal -->
+<Modal bind:show={showResetModal} title="Şifre Sıfırla" maxWidth="max-w-sm">
+	<div class="space-y-4">
+		<div>
+			<label for="u-reset-pwd" class="block text-sm font-medium text-gray-700 mb-1">Yeni Şifre</label>
+			<input id="u-reset-pwd" type="password" bind:value={resetPassword}
+				class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
+				placeholder="En az 6 karakter" />
+		</div>
+		{#if resetError}
+			<p class="text-red-500 text-sm">{resetError}</p>
+		{/if}
+		<div class="flex gap-3 mt-6">
+			<button onclick={() => showResetModal = false}
+				class="flex-1 py-2.5 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">İptal</button>
+			<button onclick={handleResetPassword} disabled={resetting}
+				class="flex-1 py-2.5 text-sm text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-50">
+				{resetting ? 'Sıfırlanıyor...' : 'Sıfırla'}
+			</button>
+		</div>
+	</div>
+</Modal>
+
+<!-- Silme Onayı -->
+<ConfirmDialog
+	bind:show={showDeleteConfirm}
+	title="Kullanıcı Sil"
+	message="{deleteTarget?.first_name} {deleteTarget?.last_name} kullanıcısını silmek istediğinize emin misiniz?"
+	confirmText="Sil"
+	danger={true}
+	onConfirm={handleDelete}
+/>

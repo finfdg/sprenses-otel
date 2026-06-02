@@ -1,0 +1,690 @@
+# Finans Modülü — Geliştirici Rehberi
+
+Bu dosya finans modülüne katkıda bulunanlar için temel kuralları ve mimari kararları belgeler.
+Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
+
+---
+
+## BCH Ödeme Planı finance_events Eksikliği (2026-06-01 düzeltildi)
+
+**Sorun:** `_helpers.py:_regenerate_bch_payments` BCH/recalc taksitlerini oluşturuyor ama
+`finance_event_svc.upsert_credit_payment` çağırmıyordu → **BCH kredileri nakit akımda
+görünmüyordu**. Ayrıca recalc sırasında silinen ödenmemiş taksitlerin FE'leri
+invalidate edilmiyordu → orphan finance_events kalıyordu. Etkilenen krediler: yeni
+oluşturulan tüm BCH'ler (örn. 448, 451, 395 — manuel onarıldı).
+
+**Çözüm:** `_regenerate_bch_payments`:
+1. Ödenmemiş taksitleri silmeden **önce** her biri için `finance_event_svc.invalidate(db, "credit", pay_id)`
+2. Yeni taksitleri `new_payments` listesinde topla → sonunda `db.flush()` + her biri için
+   `finance_event_svc.upsert_credit_payment(db, pay, product)`
+
+**Kritik kural:** Taksit/ödeme üreten HER fonksiyon finance_events'e yazmalı (CLAUDE.md
+"Her Para Hareketi finance_events'e Yazılmalı"). `_regenerate_kmh_payments` KMH için ayrı
+`sync_kmh_to_finance_events` mekanizması kullandığından bu düzeltmeden hariç tutuldu.
+
+**Test:** `test_credits.py::TestBchFinanceEvents` — create→FE üretimi + recalc→FE tazeleme.
+
+---
+
+## `mobile_dashboard_summary` — Banka Bakiyesi Sorgusu (N+1 Giderildi)
+
+`GET /cash-flow/mobile-dashboard` endpoint'indeki banka bakiyesi hesabı artık tek sorguda yapılır.
+
+**Eski yöntem (N+1):** Her `BankAccount` için ayrı bir `BankTransaction` sorgusu çalıştırılıyordu.
+
+**Yeni yöntem:** Subquery ile her hesabın `max(id)` değeri bulunur, ardından tek `JOIN` ile tüm son bakiyeler tek sorguda alınır:
+
+```python
+last_tx_sub = db.query(
+    BankTransaction.account_id,
+    func.max(BankTransaction.id).label("max_id"),
+).filter(BankTransaction.balance.isnot(None)).group_by(BankTransaction.account_id).subquery()
+
+last_balance_rows = db.query(
+    BankTransaction.account_id,
+    BankTransaction.balance,
+).join(
+    last_tx_sub,
+    (BankTransaction.account_id == last_tx_sub.c.account_id) &
+    (BankTransaction.id == last_tx_sub.c.max_id),
+).all()
+```
+
+TRY para birimli hesapları tespit etmek için `account_currency = {a.id: a.currency for a in accounts}` map'i kullanılır — hesap listesi (accounts) zaten çekilmiş olduğundan ek sorgu gerekmez.
+
+---
+
+## Kritik Kural: Her Para Hareketi `finance_events`'e Yazılmalı
+
+Her yeni para hareketi oluşturulduğunda, güncellendiğinde veya silindiğinde
+`finance_event_svc` servisi çağrılmalıdır:
+
+```python
+from app.utils.finance_event_service import finance_event_svc
+
+# Ekleme / Güncelleme — db.flush() SONRA, db.commit() ÖNCE
+finance_event_svc.upsert_*(db, model_instance, ...)
+
+# Silme — silme işleminden ÖNCE
+finance_event_svc.invalidate(db, source_type, source_id)
+
+# Eşleştirme (banka ↔ çek/kredi/avans)
+finance_event_svc.match(db, type_a, id_a, type_b, id_b)
+```
+
+Neden? Nakit akım listesi artık `finance_events` tablosundan okunuyor.
+Buraya yazılmayan kayıt nakit akımda görünmez.
+
+**Kritik:** `sync_tag()` çağrılırken `is_matched` da güncellenir. `match_number > 0` → `is_matched = True`.
+Bu yapılmazsa eşleşen kayıtlar nakit akımda çift görünür (`WHERE is_matched = FALSE` filtresi çalışmaz).
+
+---
+
+## Yeni Dosya Yükleme Endpoint'i Ekleme
+
+Tüm dosya yüklemeleri `validate_upload_file` kullanmalı:
+
+```python
+from app.utils.file_validation import validate_upload_file
+
+@router.post("/upload")
+async def my_upload(file: UploadFile = File(...), ...):
+    content = await validate_upload_file(file, allowed_types=["excel"])  # veya ["pdf"]
+    # content: bytes — artık file.file.read() çağrısına gerek yok
+    with open(file_path, "wb") as f:
+        f.write(content)
+```
+
+**Not:** `validate_upload_file` async'tir — endpoint `async def` olmalıdır.
+
+---
+
+## WS Broadcast — Zorunlu
+
+Her CRUD işlemi sonunda broadcast:
+
+```python
+from app.utils.finance_broadcast import broadcast_finance_update
+
+# Endpoint imzasına BackgroundTasks ekle
+def my_endpoint(background_tasks: BackgroundTasks, ...):
+    # ... işlem ...
+    broadcast_finance_update(background_tasks, "banks", "upload")
+    # modül: banks, cariler, checks, credits, advances, cash_flow
+    # action: upload, delete, update, match, tag
+```
+
+500ms debounce otomatik uygulanır — toplu işlemlerde spam olmaz.
+
+---
+
+## Source Type Referansı
+
+| Modül | source_type | upsert metodu |
+|---|---|---|
+| Banka işlemi | `"bank"` | `upsert_bank_tx(db, tx, account)` |
+| Çek | `"check"` | `upsert_check(db, check, bank_tx=None)` |
+| Kredi ödemesi | `"credit"` | `upsert_credit_payment(db, payment, product)` |
+| Kredi kartı ekstresi | `"cc_payment"` | `upsert_cc_statement(db, stmt, product)` |
+| Avans | `"advance"` | `upsert_advance(db, advance)` |
+| Cari ödeme | `"vendor_payment"` | `upsert_vendor_tx(db, vtx, vendor, amount_try)` |
+| Vergi | `"tax"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
+| Düzenli ödeme | `"recurring"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
+| Maaş | `"salary"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
+| Stopaj | `"withholding"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
+| Alınan kira | `"rent_income"` | `upsert_scheduled_entry(db, entry, direction=1)` |
+| Verilen kira | `"rent_expense"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
+| SGK | `"sgk"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
+| Temettü | `"dividend"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
+
+---
+
+## Çift Sayım Kuralı
+
+İki kayıt aynı para hareketini temsil ediyorsa (ör. banka işlemi + çek):
+
+```python
+# Eşleştirme — ikincisi gizlenir (is_matched=True)
+finance_event_svc.match(db, "bank", btx_id, "check", check_id)
+# Banka işlemi görünür kalır; çek gizlenir
+
+# Eşleştirme iptali
+finance_event_svc.unmatch(db, "check", check_id)
+```
+
+Nakit akım sorgusu `WHERE is_matched = FALSE` ile sadece aktif kayıtları döner.
+
+**Kritik Kural:** `is_matched = True` **sadece çift sayım durumlarında** kullanılır:
+- Banka hareketi + Çek aynı para → çek `is_matched=True` (banka görünür)
+- Banka hareketi + Kredi ödemesi aynı para → kredi `is_matched=True`
+- **Cari eşleştirmesi (tag) `is_matched`'ı DEĞİŞTİRMEZ** — banka hareketi nakit akımda görünmeye devam eder
+- `sync_tag()` fonksiyonu `is_matched`'a dokunmaz, sadece `match()` ve `unmatch()` fonksiyonları değiştirir
+
+### Kredi Kartı Ekstresi (cc_payment) Kuralları
+- CC finance event tutarı **kalan borç** (`toplam_borc - paid_amount`) kullanır — toplam değil
+- Banka üzerinden yapılan kısmi ödemeler zaten banka işlemi olarak görünür; CC tarafı yalnızca ödenmemiş kısmı temsil eder
+- **Vadesi geçmiş** (`son_odeme_tarihi < bugün`) ekstreler `is_matched=True` ile gizlenir — gerçek ödeme banka kaydında
+- `match-cc-payment` ve `unmatch-cc-payment` çağrıldığında `upsert_cc_statement()` ile CC FE otomatik güncellenir
+- `eur-balances` endpoint'i de vadesi geçmiş CC ekstrelerini hariç tutar
+
+---
+
+## KMH (Kredili Mevduat Hesabı) — Adat Bazlı Faiz
+
+KMH `taksitli kredi` mantığında değildir. Bağlı banka hesabının (`linked_account_id`)
+bakiyesi negatife düştüğünde "adat" üzerinden faiz birikir, ay sonu tahakkuk eder.
+
+**Algoritma** (`utils/kmh_calculator.py:calculate_kmh_status`):
+```
+Adat        = SUM_over_each_day(|negatif_bakiye_o_gün|)   ← gün × |bakiye|
+Faiz        = Adat × yıllık_oran / 36000   ← Türk bankacılığı standardı (360 günlük ticari yıl)
+BSMV        = Faiz × bsmv_rate / 100
+Komisyon    = Faiz × commission_rate / 100
+Toplam Borç = Faiz + BSMV + Komisyon
+```
+
+**Bölen 36000 (NOT 36500):** Türk bankacılığı kredi faiz hesaplamasında 360 günlük
+ticari yıl kullanır. 365 ile bölmek (Avrupa/ABD standardı) yaklaşık %1.4 daha düşük
+faiz çıkarır — bu farklı bir hesap olur, banka ekstresiyle uyuşmaz.
+
+**Period:** Her ay bağımsız hesaplanır. `period_start = max(ay_başı, KMH.start_date)`,
+`period_end = ay_son_gün`. Bugüne kadar gerçekleşen adat (`past_adat`) + bugünden
+ay sonuna kadar **mevcut bakiyenin devam ettiği varsayılan** projeksiyon (`future_adat`).
+
+**Forward fill:** Period başlangıcı öncesi son tx'in bakiyesi `initial_balance` olarak
+alınır (önceki ay devrinden gelen bakiye dikkate alınır).
+
+**Frontend:** `/dashboard/finans/krediler` — `type='kmh'` kredisi genişletildiğinde
+ödeme planı yerine 4 stat kart + bu ayki hareketler tablosu gösterilir
+(`GET /api/finance/krediler/{id}/kmh-status`).
+
+**KMH için zorunlu:** `linked_account_id` (bank_accounts FK). Yoksa endpoint 400 döner.
+
+---
+
+## Bakiye Hesabı
+
+Nakit akım bakiyesi:
+```python
+balance = SUM(direction * amount_try)  WHERE is_matched = FALSE AND is_realized = TRUE
+```
+
+`is_realized = True` → Gerçekleşmiş işlemler (ödendi, tahsil edildi)
+`is_realized = False` → Bekleyen/ilerideki işlemler (vadeli çek, kredi taksiti)
+
+---
+
+## Cari Firma Durumu (Vendor Status)
+
+### Durum Seçenekleri
+- `normal` (varsayılan) — Normal cari, ödeme planına dahil
+- `odeme_yasaklisi` — Ödeme yasaklı cari, ödeme planından hariç
+
+### Etki Zinciri
+1. `PATCH /vendors/{id}/status` ile durum değiştirilir
+2. `_get_vendor_net_debts()` (vendor_fifo.py) ödeme yasaklı carileri filtreler
+3. `calculate_fifo_amounts()` ve `get_payment_schedule()` bu carileri atlar
+4. `sync_vendor_finance_events()` yasaklı carilerin `finance_events` kayıtlarını siler
+5. WS broadcast → frontend anlık güncellenir (cari listesi + ödeme planı)
+
+### Frontend Gösterimi
+- Cari listesinde "Durum" sütunu — tıklanabilir badge (Normal / Yasaklı)
+- Yasaklı cariler kırmızı arka plan + kırmızı badge
+- Mobilde yasaklı cariler için ek kırmızı etiket
+- Durum değişikliğinde onay diyalogu gösterilir
+
+---
+
+## Cari Ödeme Planı — İş Kuralları
+
+### Vade Tarihi Hesaplama
+- **Tüm alacak kayıtları** (sadece "fatura" tipi değil, "Muhasebe Fişi" dahil) vade tarihi alır
+- Hesaplama: `fatura_tarihi + payment_days + ilk_cuma`
+- `_is_invoice_type()` filtresi KULLANILMAZ — `alacak > 0 && date != null` yeterli koşul
+- Vade günü değiştirildiğinde tüm alacak kayıtlarının tarihi yeniden hesaplanır
+
+### Net Borç Bazlı FIFO Kırpma
+- Ödeme planı toplamı = Cari Borçları kartı ile **birebir eşleşmeli**
+- Her carinin `net_borç = alacak - borç` hesaplanır
+- Faturalar en eskiden yeniye sıralanır (FIFO)
+- Yapılan ödemeler en eski faturalardan düşülür
+- Kısmi ödenen fatura kalan tutarıyla gösterilir
+- Vadeli faturası olmayan cariler için `invoice_date + payment_days → next_friday` hesaplanır
+
+### Vadesi Geçmiş Faturaların Kaydırılması (Roll-over)
+- Vadesi geçmiş (payment_due_date < bugün) ödenmemiş faturalar **sonraki Cuma'ya** kaydırılır
+- `effective_due_date()` fonksiyonu (`vendor_fifo.py`): bugünden itibaren en yakın Cuma'yı döner
+- Bu kaydırma hem **ödeme planı** (display) hem **finance_events** (nakit akım) tablosunda uygulanır
+- `sync_vendor_finance_events()` çağrıldığında `event_date` güncellenir
+- Ödeme planı endpoint'i (`/payment-schedule`) her çağrıda sync tetikler → gün değiştiğinde otomatik güncelleme
+- Neden? Ödenmemiş tutarlar eski haftanın listesinde takılı kalmamalı, bir sonraki haftanın bütçesine dahil olmalı
+
+### Kısmi Ödeme / Çek ile Düşme
+- Kısmi ödeme (yeni borç kaydı yükleme) → net borç azalır → FIFO yeniden hesaplar → tutar düşer
+- Çek eşleştirme (`/transactions/{vtx_id}/match-check/{check_id}`) → `sync_vendor_finance_events()` çağrılır
+- Eşleştirme kaldırma → tutar geri eklenir
+- Her iki durumda da hem ödeme planı hem nakit akım tablosu otomatik güncellenir
+- **Minimum tutar eşiği (0.01 TL):** Float aritmetiğindeki kırıntı hataları (ör. 8.37e-11) filtrelenir — aksi halde finance_events'te 0 tutarlı hayalet kayıtlar oluşur
+
+### Neden Böyle?
+- Eski mantık tüm faturaları brüt gösteriyordu (₺41M) — gerçek borç ₺16M
+- Kullanıcı sadece ödenmemiş tutarı görmek istiyor
+- Bakiyesi sıfır/pozitif cariler ödeme planında yer almaz (zaten ödenmiş)
+
+---
+
+## Cari Eşleştirme Sistemi
+
+### Eşleştirme Türleri
+1. **Banka ile eşleştirme** — Nakit akım sayfasına yönlendirme → `match_number` + `payment_method` (havale_eft, nakit vb.)
+2. **Çek ile eşleştirme** — Modal ile çek seçimi → `match_number` + `payment_method = "cek"`
+3. **Devir işaretleme** — Açılış/devir kayıtları → `match_number = -1`, `payment_method = "devir"`
+
+### match_number Kuralları
+- PostgreSQL sequence (`match_number_seq`) ile üretilir
+- **Asla tekrar kullanılmaz** — audit trail için her eşleştirme benzersiz numara alır
+- Kaldırılıp tekrar yapılan eşleştirme farklı numara alır (ör: #90 kaldırıldı, yeni #91)
+- Neden? Denetim izi: "ne zaman eşleştirildi, ne zaman kaldırıldı" takip edilebilir
+
+### Özel match_number Değerleri
+- `-1` = Avans/Devir (eşleştirme gerekmez)
+- `-2` = İade
+- `-3` = Satış Faturası
+- `NULL` = Eşleştirilmemiş
+- `> 0` = Eşleştirilmiş (banka veya çek ile)
+
+### Eşleştirme Kaldırma
+- Cari sayfasında eşleşme badge'inin yanındaki **X** butonu ile kaldırılır
+- Çek eşleştirmesi: `DELETE /transactions/{vtx_id}/unmatch-check`
+- Banka eşleştirmesi: `DELETE /transactions/{vtx_id}/unmatch`
+- Her iki tarafın da (`VendorTransaction` + `BankTransaction/Check`) match bilgisi temizlenir
+
+### Check Modeli Eşleşme Alanları
+- `checks.match_number` — Cari eşleştirmesinde atanan numara (VendorTransaction ile aynı)
+- `checks.matched_vendor_id` — Eşleşen carinin vendor_id'si
+- Eşleştirme yapıldığında her iki tarafa da aynı `match_number` yazılır
+- Çekler sayfasında `match_number` varsa "📄 #N" badge'i gösterilir
+- Çek iptal edildiğinde `match_number` ile direkt cari işlemi bulunup temizlenir (N+1 sorgu yok)
+
+### Çek Durumu ve Eşleştirme İlişkisi
+- Cari ile çek eşleştirmesi çekin durumunu **değiştirmez** — çek "Bekliyor" kalır
+- Çek durumu ancak bankadan tahsil edildiğinde "Ödendi" olur (otomatik eşleşme veya manuel)
+- Çek "İptal" edildiğinde eşleştirme de otomatik kaldırılır (cari + banka tarafı)
+- Kullanıcıya onay diyalogu gösterilir
+- Çek tekrar "Bekliyor" yapıldığında eşleştirme geri gelmez — yeniden yapılması gerekir
+
+### Çek Eşleştirme Skorlama
+- Tutar tam eşleşme: +50 puan
+- Tutar yakın (%5 içinde): +20 puan
+- Firma adı 2+ kelime eşleşme: +30 puan
+- Firma adı 1 kelime (>3 harf): +15 puan
+- Skor sıralamasıyla en uygun çek önerilir
+
+---
+
+## Cari Yüklemesi — Kaynakta Olmayan Kayıtların Tespiti (2026-04-28)
+
+Cari Excel yükleme insert-only çalıştığından, kaynakta (muhasebe programında) silinen bir hareket DB'de durup Excel'in yürüyen bakiyesiyle uyuşmazlığa neden olur. Bu sorunu manuel onaylı bir diff akışıyla çözüyoruz:
+
+### Akış
+1. `POST /cariler/upload` yanıtına `removal_candidates: RemovalCandidate[]` eklenir (`uploads.py:_compute_removal_candidates`)
+2. Frontend modal'ı (`cariler/+page.svelte`) checkbox listesi gösterir, kullanıcı seçim yapar
+3. `POST /cariler/transactions/bulk-delete` çağrısıyla seçilen ID'ler silinir
+
+### Diff Kapsamı (İki Katmanlı Kısıt)
+- **Vendor scope:** Sadece yüklenen Excel'deki `hesap_kodu` listesi içindeki vendor'lar
+- **Tarih scope:** Sadece Excel'in `min(date) ↔ max(date)` aralığı
+
+Tek vendor yükleyen kullanıcı diğer carilerin kayıtlarını yanlışlıkla silmez; "son 3 ay" Excel'i daha eski kayıtlara dokunmaz.
+
+### Korumalı Kayıtlar (otomatik atlanır)
+SQL seviyesinde filtrelenir, asla aday gösterilmez:
+- `match_number IS NOT NULL` → banka/çek ile eşleşmiş
+- `dept_status IN ('assigned', 'approved')` → departmana atanmış/onaylanmış (`_PROTECTED_DEPT_STATUSES`)
+- `finance_events.is_matched = TRUE` (source_type='vendor_payment') → karşı tarafla bağlı
+
+**`dept_status NULL` özel durumu:** PostgreSQL'de `NULL NOT IN (...)` UNKNOWN döner ve WHERE'de FALSE gibi davranır. Bu yüzden filtre `or_(dept_status.is_(None), ~dept_status.in_(...))` şeklinde yazılmıştır — aksi halde tüm yeni eklenen (dept atanmamış) kayıtlar diff'ten atılırdı.
+
+### Bulk Delete Endpoint Güvencesi
+`bulk-delete` endpoint'i upload akışından bağımsız olarak da çağrılabilir, bu yüzden korumaları **tekrar kontrol eder** (race condition güvencesi):
+- Aynı kontroller burada da uygulanır
+- Atlanan kayıtlar `skipped_reasons` alanında raporlanır
+- Tek seferde maksimum **5000 ID** (DoS koruması)
+- Her başarılı silme `finance_event_svc.invalidate("vendor_payment", id)` çağırır
+- Yetim cariler (`VendorTransaction kalmayan Vendor`) otomatik temizlenir
+- Audit log: `entity_type=vendor_transaction`, `action=delete`, `entity_id=None`
+
+### Test
+- `tests/test_finance.py::TestRemovalCandidates` — 8 test
+  - `_compute_removal_candidates` unit testleri (basic diff, tarih kapsamı, korumalı kayıtlar)
+  - `bulk-delete` endpoint testleri (boş, auth, 5000 limit, korumalı atla, eksik id)
+
+---
+
+## Cari "Devir" Butonu Gösterim Kuralı
+
+- "Devir" butonu **sadece** açıklamasında veya işlem tipinde "açılış" veya "devir" geçen kayıtlarda gösterilir
+- Normal ödeme kayıtlarında (EFT, çek vb.) Devir butonu gizlidir
+- "Eşleştir" butonu tüm eşleşmemiş borç kayıtlarında gösterilir (ilk kayıda özel değil)
+
+---
+
+## Vade Günü Değişikliği Etki Zinciri
+
+Cari vade günü değiştirildiğinde şu işlemler sırayla yapılır:
+1. `Vendor.payment_days` güncellenir
+2. Tüm alacak kayıtlarının `payment_due_date`'i yeniden hesaplanır
+3. Her kayıt için `finance_event_svc.upsert_vendor_tx()` çağrılır → `finance_events.event_date` güncellenir
+4. Frontend'de `schedule = []` ile ödeme planı cache'i sıfırlanır
+5. WS broadcast tetiklenir → nakit akım sayfası otomatik yenilenir
+
+---
+
+## Excel Export
+
+### Cariler Listesi (`GET /export/vendors`)
+- Tüm cariler: hesap kodu, adı, vade, borç, alacak, bakiye, işlem sayısı
+- Renkli başlıklar (teal), negatif bakiye kırmızı, pozitif yeşil
+- Alt toplam formülleri
+
+### Ödeme Planı (`GET /export/payment-schedule`)
+- Aynı FIFO mantığı ile net borç bazlı
+- `get_payment_schedule()` fonksiyonunu çağırarak tutarlılık sağlar
+
+---
+
+## Ödeme Planı EUR Karşılığı
+
+- Ödeme planı yüklenirken TCMB döviz kuru da paralel çekilir (`/finance/exchange-rates/latest`)
+- Aylık, haftalık ve toplam tutarların yanında EUR karşılığı gösterilir
+- `formatEur(tryAmount)` helper'ı TL→EUR dönüşümü yapar
+
+---
+
+## 90 Gün Dışı Vade Renklendirme
+
+- **< 90 gün** → Mavi arka plan (`bg-blue-100 text-blue-700`)
+- **> 90 gün** → Turuncu arka plan (`bg-amber-100 text-amber-700`)
+- **= 90 gün** → Normal gri (varsayılan)
+- Hem cari listesindeki tablo sütununda hem detay bölümünde uygulanır
+
+---
+
+## Banka Ekstre Mükerrer Kontrolü
+
+Mükerrer tespiti **bakiye bazlı** yapılır — en güvenilir yöntem:
+
+1. **Birincil kontrol:** `(tarih, tutar, bakiye)` üçlüsü DB'de var mı?
+   - Aynı tarih + aynı tutar + aynı bakiye = **kesinlikle aynı işlem** → atla
+   - Farklı bakiye = farklı işlem → ekle
+2. **Açıklama bazlı fallback (2026-04-20 düzeltildi):** `(tarih, tutar, normalize_desc)` — **yalnızca bakiye yoksa (None) veya 0 ise** devreye girer. Aksi halde aynı gün/tutar/açıklama olan ama bakiyesi farklı iki ayrı işlem (ör. aynı güne iki ayrı EFT çıkışı) birbirini yutar.
+3. **Hash bazlı fallback:** Bakiye ve açıklama eşleşmediyse hash kontrolü — `compute_tx_hash(date, receipt_no, amount, description, seq)` ile çakışırsa seq 1-19 artırılarak benzersiz hash üretilir
+
+**Neden bakiye en güvenilir?**
+- Her banka işlemi sonrası bakiye benzersizdir (ardışık işlemler farklı bakiye üretir)
+- Aynı gün iki ayrı 100.000 TL çıkış varsa bakiyeleri farklıdır → ikisi de eklenir
+- Aynı işlem farklı ekstreden gelirse bakiyesi aynıdır → mükerrer olarak atlanır
+- Açıklama formatı farklı olsa bile bakiye değişmez
+
+**Neden sadece hash veya tarih+tutar yetmez?**
+- Farklı ekstre formatları aynı işlem için farklı açıklama üretebilir → hash farklı → çift kayıt
+- Aynı gün aynı tutar farklı işlem olabilir → tarih+tutar bazlı sayım yanlış sonuç verir
+
+---
+
+## Banka Talimatları (Bank Instructions)
+
+### EFT / Havale / Transfer Talimatı
+- `POST /bank-instructions/transfer` — Kaynak ve hedef hesap seçilir, PDF oluşturulur
+- PDF formatı: Logo (sol üst) + tarih (sağ üst) + banka başlığı (ortalı, bold) + gövde (justify + paragraf başı) + imzalar
+- **İşlem Adı Kuralı (2026-04-16)** — Otomatik tespit:
+  - **TL + aynı banka** → "havale" (örn: Halkbank TL → Halkbank TL)
+  - **TL + farklı banka** → "EFT" (örn: Halkbank TL → Garanti TL)
+  - **TL dışı** (EUR/USD/GBP vb.) → "transfer" (döviz havalesi)
+  - `_transfer_term(source_currency, source_bank, dest_bank)` → `"havale"|"EFT"|"transfer"` (case/whitespace toleranslı banka karşılaştırması)
+  - Dosya adı da işleme göre: `havale-talimat-*.pdf`, `eft-talimat-*.pdf`, `transfer-talimat-*.pdf`
+- **Metin Yapısı (2026-04-16 sadeleştirildi — "bulunan" tekrarı giderildi):**
+  - **EFT/Havale/Transfer:**
+    > "Şubeniz nezdindeki {hesap_no} numaralı, {source_IBAN} IBAN'lı vadesiz {cur} hesabımızdan, {hedef_banka} {hedef_şube} Şubesindeki {dest_IBAN} IBAN'lı hesabımıza {tutar} tutarında **{havale|EFT} yapılmasını / transfer gerçekleştirilmesini** rica ederiz."
+  - **Döviz bozma (aktarım ile):**
+    > "Şubeniz nezdindeki {hesap_no} numaralı, {source_IBAN} IBAN'lı {source_name} hesabımızdan {tutar} tutarın **{target_name} cinsine çevrilerek** {target_IBAN} IBAN'lı hesabımıza **aktarılmasını** rica ederiz."
+  - **Döviz bozma (aktarım olmadan):** "...tutarın {target_name} cinsine çevrilmesini rica ederiz."
+  - **Kaynak hesap IBAN'ı** gövde metninde belirtilir (hesap no varsa + IBAN)
+  - **"bulunan" kelimesi artık kullanılmaz** — yerine "-deki" eki kullanılır (anlam düşüklüğü olmaması için)
+  - **Fiil seçimi:** havale/EFT → `yapılmasını`, transfer → `gerçekleştirilmesini`, döviz bozma → `çevrilmesini/aktarılmasını`
+- **Yazışma Düzeni (2026-04-16):**
+  - Platypus `Paragraph` kullanılır — `reportlab.platypus`
+  - `ParagraphStyle`: `alignment=TA_JUSTIFY` (iki yana dayalı, sağa-sola yaslı)
+  - `firstLineIndent=12*mm` — paragraf başı girintisi
+  - `leading=18pt` — satır yüksekliği
+  - Açıklama varsa ayrı paragraf olarak "Açıklama: ..." şeklinde render edilir
+- **İmza Düzeni (2026-04-16 güncellendi):**
+  - **SOL:** Uğur CARUS (Yön.Kur.Üyesi) — varsayılan / **ya da** Erol YILDIZ (Yön.Kur.Bşk.Yrd.)
+  - **SAĞ:** İsmail ÖZDEN (Yön.Kur.Baş.) — sabit
+  - **Seçim:** PDF oluşturma formunda radio ile yapılır; payload'da `left_signer: "ugur"|"erol"` gönderilir (default: `"ugur"`)
+  - Backend: `LEFT_SIGNERS` sabitinden name/title çözülür, bilinmeyen değer → `ugur` fallback
+  - "Saygılarımızla," ibaresi imza bloğu öncesinde **ayrı bir paragraf** olarak render edilir (paragraf başı + justify, gövdeyle aynı stil)
+- **Para birimi kuralı (2026-04-16):** Kaynak hesabın para birimi ile hedef hesabın para birimi **aynı olmak zorundadır** (TL→TL, EUR→EUR vb.). Farklı para birimi için **Döviz Bozma Talimatı** kullanılır.
+  - **Backend:** `bank_instructions.py:create_transfer_instruction` — farklı currency için HTTP 400 döner
+  - **Frontend:** Hedef hesap dropdown'u kaynak hesabın para birimiyle süzülür (`transferDestAccounts` derived). Kaynak hesap değiştiğinde mevcut hedef seçimi uyumsuzsa `$effect` ile otomatik sıfırlanır. Eşleşen hedef hesap yoksa kullanıcı "Döviz Bozma Talimatı" sekmesine yönlendirilir.
+  - **Frontend rozet:** Form başlığında seçilen işlem türüne göre renkli badge: "Havale (aynı banka)" mavi, "EFT (farklı banka)" teal, "Döviz Transferi" mor — `transferTerm` derived ile canlı hesaplanır.
+
+### Döviz Bozma Talimatı
+- `POST /bank-instructions/currency-exchange` — Kaynak hesap + hedef para birimi + opsiyonel hedef hesap
+- Metin: "...{tutar}'nin {hedef_para_birimi} olarak bozulmasını [ve {IBAN} nolu hesabımıza aktarılmasını] rica ederiz."
+
+### Hesap Listesi
+- `GET /bank-instructions/accounts` — Aktif banka hesaplarını label ile döner
+
+### Frontend
+- Rota: `/dashboard/finans/bankalar/talimatlar`
+- İki sekme: EFT/Havale + Döviz Bozma
+- Hesaplar dropdown'dan seçilir, PDF yeni sekmede açılır
+- İzin: `finance.banks` view
+
+### iOS Safari Uyumluluğu — "WebKitBlobResource hatası 1" Fix (2026-04-20)
+**Sorun:** iPad/iPhone Safari'de "PDF Oluştur" tuşuna basılınca `blob:https://...` açılamıyor, `WebKitBlobResource hatası 1` veriyordu.
+
+**Kök neden 1 — CMYK logo:** `uploads/logos/1_17e1b8ab.jpg` **CMYK renk modunda** 945×709 / 813KB idi. iOS Safari embedded CMYK görüntü içeren PDF'leri sorunlu render ediyor.
+→ `PIL.Image.convert('RGB')` + thumbnail(900×450) → 37KB, PDF 1.1MB → 89KB. Orijinal `.cmyk.bak.jpg` olarak saklandı.
+
+**Kök neden 2 — Blob URL yeni sekme erişimi (asıl sorun):** iOS Safari blob URL'leri yalnızca oluşturan **document context** içinde erişilebilir tutar. `window.open(blob_url, '_blank')` veya `<a target="_blank">` ile yeni sekmede açmaya çalışılan blob'lar `WebKitBlobResource hatası 1` verir — yeni sekme parent blob deposuna erişemez.
+
+**Çözüm — Sayfa içi modal iframe:**
+- Blob URL yeni sekmede açılmaya çalışılmaz; bunun yerine **aynı sayfada `<iframe src={blobUrl}>` ile modal** gösterilir (aynı-origin blob sorunsuz çalışır).
+- Modal başlığında **Yazdır / İndir / Kapat** aksiyon butonları (Lucide ikonlu: Printer/Download/X) vardır.
+  - **Yazdır:** `iframe.contentWindow.print()` ile tetiklenir; hata olursa gizli iframe fallback'i devreye girer (iOS Safari bazen iframe print sinyalini yoksayar — kullanıcıya Paylaş → Yazdır ile fallback önerilir).
+  - **İndir:** `<a download>` ile native indirme.
+- Tüm platformlarda (iPad / Mac / Windows / Android) aynı akış çalışır — iOS tespiti artık gereksiz.
+- Modal kapandığında veya yeni PDF üretildiğinde `URL.revokeObjectURL()` ile bellek serbest bırakılır.
+- Esc tuşu ile modal kapatılabilir; backdrop'a tıklama da kapatır.
+- İlgili dosya: `frontend/src/routes/dashboard/finans/bankalar/talimatlar/+page.svelte` → `downloadPdfBlob()`, `printPdf()`, `pdfPreview` state, template sonundaki modal.
+
+**Yeni logo yüklerken:** `convert_logo_to_rgb(path)` helper'ı çağrılmalı veya upload endpoint'i PIL ile CMYK→RGB dönüşümü yapmalı — aksi halde Safari PDF render'da hatalı renk gösterebilir.
+
+---
+
+## Dosya Yapısı
+
+```
+app/routers/finance/
+├── banks.py            # Banka hesapları + ekstre
+├── bank_instructions.py # Banka talimatları (EFT/havale, döviz bozma PDF)
+├── checks.py           # Çekler
+├── krediler/            # Kredi ürünleri paketi
+│   ├── __init__.py      # Alt router'ları birleştirir (prefix="/krediler") + `_match_credits_to_bank` ihracı (banks.py geriye uyumluluk)
+│   ├── products.py      # Kredi ürünleri CRUD (list, get, create, update, delete)
+│   ├── payments.py      # Ödeme planı CRUD + `_match_credits_to_bank` (banka-kredi otomatik eşleştirme)
+│   ├── kmh.py           # KMH durumu (adat, faiz, projeksiyon)
+│   ├── summary.py       # Tip bazlı özet + yaklaşan ödemeler
+│   └── _helpers.py      # Ortak yardımcı fonksiyonlar (`_build_product_response`, `_batch_payment_stats`, BCH/KMH plan üreticileri)
+├── cc_statements.py    # Kredi kartı ekstresi
+├── cariler/             # Cari hesaplar paketi
+│   ├── __init__.py      # Alt router'ları birleştirir
+│   ├── uploads.py       # Excel yükleme, yükleme geçmişi, silme
+│   ├── vendors.py       # Cari listesi, detay, vade günü güncelleme
+│   ├── payment_schedule.py  # Ödeme planı + Excel export
+│   ├── matching.py      # Çek eşleştirme, kaldırma, devir
+│   └── _helpers.py      # Ortak yardımcı fonksiyonlar (UPLOAD_DIR, response builder)
+├── advances.py         # Avanslar
+├── butce.py            # Bütçe yönetimi (kategori + bütçe kaydı CRUD + özet)
+├── onay.py             # Departman onay iş akışı (atama, onay, ret)
+├── departmanlar.py     # Departman CRUD
+├── cash_flow/           # Nakit akım paketi (finance_events üzerinden)
+│   ├── __init__.py      # Alt router'ları birleştirir
+│   ├── listing.py       # Liste, özet, mobil dashboard
+│   ├── matching.py      # Eşleştirme (cari, kredi kartı, kredi)
+│   ├── eur_balances.py  # EUR bakiye özeti
+│   └── _helpers.py      # Ortak yardımcı fonksiyonlar
+├── exchange_rates.py   # Döviz kurları
+└── transaction_tags.py # Etiketleme + kategori yönetimi
+```
+
+---
+
+## Önemli Dosyalar
+
+| Dosya | Açıklama |
+|---|---|
+| `app/utils/finance_event_service.py` | Merkezi olay deposu servisi |
+| `app/utils/finance_broadcast.py` | WS broadcast + 500ms debounce |
+| `app/utils/file_validation.py` | MIME + boyut güvenlik doğrulaması |
+| `app/models/finance_event.py` | `finance_events` tablo modeli |
+| `backend/cron_fetch_exchange_rates.py` | Günlük TCMB kur güncelleme cronu |
+| `backend/cron_weekly_push.py` | Pazartesi haftalık push bildirimi cronu |
+| `backend/backfill_finance_events.py` | Mevcut verilerin tek seferlik aktarımı |
+
+---
+
+## Veritabanı Rollback Koruması
+
+Çok adımlı veritabanı işlemleri `_safe_commit()` context manager ile sarılmıştır.
+Herhangi bir adım başarısız olursa `db.rollback()` çağrılarak tutarsız durum önlenir.
+
+### cariler.py — `_safe_commit(db, error_msg, sync=True)`
+Tüm yazma endpoint'leri bu context manager'ı kullanır:
+- `upload_vendor_excel`, `delete_upload`, `update_vendor_payment_days`
+- `match_vendor_with_check`, `unmatch_vendor_check`, `unmatch_vendor_transaction`
+- `mark_as_devir`
+
+`sync=True` (varsayılan) olduğunda commit sonrası otomatik `sync_vendor_finance_events()` çağrılır.
+
+### banks.py
+- `_process_statement` — Ekstre kaydı + işlem ekleme döngüsü (flush + finance_event) + commit
+- `upload_statement_auto` / `upload_statement` — Otomatik eşleştirmeler (çek, kredi, kredi kartı) her biri `db.begin_nested()` (SAVEPOINT) ile izole edilir; biri başarısız olursa rollback sadece o matcher'ın değişikliklerini geri alır, matched=0 durumunda session'daki asılı değişiklikler sonraki matcher'ın commit'ine sızmaz
+
+**Kural:** `broadcast_finance_update()` her zaman try bloğunun **dışında** çağrılır — rollback sonrasında yanlış WS bildirimi gönderilmez.
+
+---
+
+## Hata Düzeltmeleri
+
+### cariler.py — Refactoring (2026-04-12)
+**Sorun:** ~1360 satır, 40+ doğrudan DB sorgusu, tekrarlayan try/except/rollback/broadcast kalıbı, ödeme planı mantığı (~190 satır) `vendor_fifo.py` ile mükerrer, inline import'lar, duplicate `_next_friday`, Excel export'ta tekrarlayan styling kodu, `export_payment_schedule_excel`'de `len(rows)` yerine `len(flat_rows)` hatalı kullanımı.
+**Çözüm:**
+1. `_safe_commit(db, error_msg, sync)` context manager — 7 endpoint'teki tekrarlayan try/except/rollback/sync kalıbını tek yere topladı
+2. `get_payment_schedule(db, from_date, to_date)` fonksiyonu `vendor_fifo.py`'ye taşındı — endpoint ince wrapper oldu
+3. `_build_lookup_maps(db, transactions)` — dept/category/user map oluşturmayı tek helper'da birleştirdi
+4. `_paginate(total, page, page_size)` — pagination meta tekrarını kaldırdı
+5. `_get_eur_rate(db)` — EUR kuru sorgusunu izole etti
+6. `_setup_excel_sheet()` / `_excel_response()` — Excel export styling tekrarını kaldırdı
+7. `_upsert_vendors()` / `_insert_transactions()` / `_detect_file_headers()` — upload fonksiyonunu parçaladı
+8. `_score_candidate_checks()` — skorlama mantığını endpoint'ten çıkardı
+9. Tüm import'lar dosya başına taşındı (inline `from datetime`, `from sqlalchemy`, `from openpyxl` kaldırıldı)
+10. `vendor_fifo.py`'de `_get_vendor_net_debts()` ve `_get_vendor_payment_days()` ortak helper'ları çıkarıldı — `calculate_fifo_amounts` ve `get_payment_schedule` tarafından paylaşılıyor
+
+### butce.py — Audit Log `details` Tipi (2026-04-12)
+**Sorun:** `log_action()` çağrılarında `details` parametresine `dict` geçiliyordu, `str` bekleniyordu → `psycopg2.ProgrammingError: can't adapt type 'dict'` hatası.
+**Çözüm:** Tüm `log_action()` çağrılarında `json.dumps(details, ensure_ascii=False)` kullanıldı.
+
+### banks.py — Upload Sonrası Kod Tekrarı (2026-04-12)
+**Sorun:** `upload_statement_auto` ve `upload_statement` endpoint'lerinde ~80 satır tekrarlayan otomatik eşleştirme kodu vardı.
+**Çözüm:** `_post_upload_processing()` helper fonksiyonu çıkarıldı — WS bildirim + çek/kredi/kredi kartı eşleştirmelerini tek yerde yönetir.
+
+### files.py — session_id Kontrolü (2026-04-12)
+**Sorun:** Dosya sunma endpoint'i JWT'den sadece `user_id` çıkarıyordu, `session_id` kontrolü yoktu → çıkış yapmış kullanıcılar hâlâ dosyalara erişebiliyordu.
+**Çözüm:** `_authenticate_from_request()` artık `(user_id, session_id)` tuple döner, `serve_file()` aktif oturum kontrolü yapar.
+
+### cash_flow.py — match_credit_payment finance_events Sync Eksikliği (2026-04-12)
+**Sorun:** `match_credit_payment` endpoint'i kredi taksitini ödendi olarak işaretliyor ve banka işlemini etiketliyordu ama `finance_event_svc` çağrısı yoktu → eşleşen kredi taksiti nakit akımda hâlâ "pending" görünüyordu, çift sayım engeli çalışmıyordu.
+**Çözüm:** `upsert_credit_payment()` + `match()` + `sync_tag()` çağrıları eklendi. try/except + rollback ile sarıldı.
+
+### finance_event_service.py — invalidate() Orphan Match (2026-04-12)
+**Sorun:** `invalidate()` sadece kaydı siliyordu, `matched_event_id` ile bağlı karşı tarafın `is_matched` flag'ini temizlemiyordu → silinen kaydın eşi sonsuza dek gizli kalıyordu.
+**Çözüm:** Silme öncesi çift yönlü orphan temizliği eklendi — hem bu event'e bağlı karşı taraf hem bu event'in bağlı olduğu karşı taraf temizlenir.
+
+### finance_event_service.py — unmatch() matched_event_id Temizlenmiyordu (2026-04-12)
+**Sorun:** `unmatch()` sadece `is_matched=False, is_realized=False` yapıyordu, `matched_event_id` alanını `None` yapmıyordu → eski referans kalıyordu.
+**Çözüm:** `matched_event_id: None` update'e eklendi.
+
+### cash_flow.py — Tarih Aralığı + Metin Arama Filtresi Eklendi (2026-04-12)
+**Sorun:** `list_cash_flows` endpoint'i tarih aralığı ve metin araması desteklemiyordu. Frontend 5000 kayıt sessizce yüklüyor, kullanıcı truncation farkında olmuyordu.
+**Çözüm:**
+- Backend: `start_date`, `end_date` (YYYY-MM-DD) ve `search` (ILIKE açıklama/banka/cari/etiket) parametreleri eklendi
+- Frontend store: `cashFlowCache.filters` + `applyCashFlowFilters()` + `totalCount` alanı eklendi
+- Frontend UI: Açılır filtre çubuğu (tarih + arama) + truncation uyarı banner'ı eklendi
+
+### cash_flow — page_size=5000 Performans Düzeltmesi (2026-04-12)
+**Sorun:** Frontend `page_size=5000` ile tüm kayıtları filtresiz çekiyordu → ağ/bellek yükü, 5000+ kayıtta sessiz veri kaybı.
+**Çözüm:**
+- Backend: `page_size` üst sınırı `5000 → 2000` olarak düşürüldü
+- Frontend store: Varsayılan filtre olarak mevcut yılın başlangıcı (`YYYY-01-01`) ayarlandı → ilk yüklemede sadece yıl içi veriler gelir
+- Frontend store: `page_size` `5000 → 2000` olarak düşürüldü
+- "Temizle" butonu tüm filtreleri kaldırır (kullanıcı bilinçli tercih), `invalidateCashFlowCache()` ise yıl filtresini korur
+- Truncation uyarı banner'ı zaten mevcut — 2000+ kayıt durumunda kullanıcı bilgilendirilir
+
+### bank_parser.py — Aynı Gün İçi İşlem Sıralama Hatası (2026-04-15)
+**Sorun:** TEB PDF ekstreleri işlemleri ters kronolojik sırada (yeni→eski) listeler. `_ensure_chronological_order` çok günlü ekstrelerde doğru çalışıyordu ama aynı güne ait tüm işlemlerde bakiye zinciri skoru berabere kalıyordu → sıra düzelmiyordu → son bakiye yanlış görünüyordu. TEB EUR hesabında havale (+70K, 16:10) ve çek ödemesi (-70K, 16:12) ters sırayla kaydedildi → bakiye 3,86 yerine 70.003,86 görünüyordu.
+**Çözüm:**
+1. `ParsedTransaction` modeline `time: Optional[str] = None` alanı eklendi
+2. `_detect_columns`'a "saat" kolonu algılama eklendi (TEB format)
+3. `_try_parse_mapped_row`'da saat bilgisi çıkarılıyor (HH:MM formatı)
+4. `_ensure_chronological_order`'a 2 ek tiebreaker eklendi:
+   - Saat bilgisi: ilk TX saati > son TX saati → reverse
+   - Dekont numarası: ilk dekont > son dekont → reverse
+5. Bu düzeltme tüm banka formatlarını etkiler ama sadece saat/dekont bilgisi olan bankalar için aktif olur
+
+---
+
+## Test
+
+```bash
+# Backend testleri (662+ test)
+cd backend && source venv/bin/activate && python -m pytest tests/ -v
+
+# Finans modülü testleri
+python -m pytest tests/test_finance.py tests/test_finance_performance.py tests/test_credits.py tests/test_checks.py tests/test_budget.py tests/test_onay.py tests/test_advances.py -v
+
+# Cron dry-run
+python cron_weekly_push.py --dry-run
+python cron_fetch_exchange_rates.py
+```
+
+### Test Kapsamı (2026-04-12 güncel)
+- `test_finance.py` — Nakit akım, banka, cariler, döviz genel testleri
+- `test_finance_performance.py` — Performans ve eş zamanlılık testleri
+- `test_credits.py` — Kredi ürün CRUD + ödeme planı + remaining_amount testi
+- `test_checks.py` — Çek liste, özet, durum güncelleme, yükleme geçmişi
+- `test_budget.py` — Bütçe kategori CRUD + bütçe kaydı upsert + bulk + özet
+- `test_onay.py` — Departman onay iş akışı (atama, onay, ret, kaldırma)
+- `test_advances.py` — Avans CRUD
+- `test_scheduled_base.py` — Planlı gider fabrikası (8 modül: vergi, düzenli ödeme, kiralar, temettü, maaş, stopaj, SGK)
+- `test_permissions.py` — Tüm endpoint'lerde auth + izin kontrolü
+
+---
+
+## Modül Dokümantasyonu
+
+| Modül | Dosya |
+|---|---|
+| Finans Mimarisi | `docs/modules/finans-mimarisi.md` |
+| Nakit Akım | `docs/modules/nakit-akim.md` |
+| Bankalar | `docs/modules/bankalar.md` |
+| Cariler | `docs/modules/cariler.md` |
+| Çekler | `docs/modules/cekler.md` |
+| Krediler | `docs/modules/krediler.md` |
+| Avanslar | `docs/modules/avanslar.md` |
+| Döviz | `docs/modules/doviz.md` |
+| İşlem Etiketleme | `docs/modules/transaction-tags.md` |
+| Bütçe | `docs/modules/butce.md` |
+| Onay | `docs/modules/onay.md` |
