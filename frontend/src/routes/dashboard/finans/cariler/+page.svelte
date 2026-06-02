@@ -16,6 +16,7 @@
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
 	import { Users } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
 
 	// Generic onay state
 	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({
@@ -1889,10 +1890,7 @@
 					</button>
 				</div>
 			{:else}
-				<button
-					onclick={() => showUploadResult = false}
-					class="w-full py-2.5 bg-teal-600 text-white text-sm font-medium rounded-xl hover:bg-teal-700 transition-colors"
-				>Tamam</button>
+				<Button fullWidth onclick={() => showUploadResult = false}>Tamam</Button>
 			{/if}
 		</div>
 	{/if}
@@ -2004,8 +2002,8 @@
 			</div>
 
 			<div class="flex items-center justify-end gap-2 pt-1">
-				<button onclick={() => (addToListModal = { show: false, vendor: null })} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
-				<button onclick={confirmAddToList} disabled={piAdding} class="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium disabled:opacity-50">Ekle</button>
+				<Button variant="secondary" onclick={() => (addToListModal = { show: false, vendor: null })}>Vazgeç</Button>
+				<Button onclick={confirmAddToList} loading={piAdding}>Ekle</Button>
 			</div>
 		</div>
 	{/if}

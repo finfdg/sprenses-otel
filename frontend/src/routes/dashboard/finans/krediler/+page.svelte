@@ -10,7 +10,8 @@
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { CreditCard, ChevronRight, FileDown } from 'lucide-svelte';
+	import { CreditCard, ChevronRight, FileDown, Plus } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
 	import type { LatestRates } from '$lib/types/exchange-rate';
 
 	// Generic silme onayı state
@@ -733,13 +734,11 @@
 	<div class="flex items-center justify-between mb-4 sm:mb-6 gap-2">
 		<h1 class="text-2xl font-semibold text-gray-900">Krediler</h1>
 		<div class="flex items-center gap-2 shrink-0">
-			<button onclick={downloadPdf} disabled={pdfLoading} title="Kredileri PDF rapor olarak indir (açılış + vade tarihleri dahil)" class="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs sm:text-sm font-medium cursor-pointer disabled:opacity-50">
+			<Button variant="secondary" onclick={downloadPdf} disabled={pdfLoading} title="Kredileri PDF rapor olarak indir (açılış + vade tarihleri dahil)">
 				<FileDown size={16} /> <span class="hidden sm:inline">{pdfLoading ? 'Hazırlanıyor…' : 'PDF Rapor'}</span>
-			</button>
+			</Button>
 			{#if canUse}
-				<button onclick={openAdd} class="px-3 sm:px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs sm:text-sm font-medium cursor-pointer">
-					+ <span class="hidden sm:inline">Yeni</span> Ürün
-				</button>
+				<Button onclick={openAdd}><Plus size={16} /> <span class="hidden sm:inline">Yeni</span> Ürün</Button>
 			{/if}
 		</div>
 	</div>
@@ -1002,7 +1001,7 @@
 								<div class="flex gap-1.5 sm:gap-2 flex-wrap">
 									{#if canUse}
 										{#if p.type !== 'kredi_karti' && p.type !== 'kmh'}
-											<button onclick={() => openPaymentModal(p.id)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 cursor-pointer">+ Taksit</button>
+											<button onclick={() => openPaymentModal(p.id)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-teal-700 text-white rounded-lg hover:bg-teal-800 cursor-pointer">+ Taksit</button>
 										{/if}
 										<button onclick={() => openEdit(p)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 cursor-pointer">Düzenle</button>
 										{#if p.status === 'closed'}
@@ -1452,8 +1451,8 @@
 			<textarea id="k-notes" bind:value={form.notes} rows="2" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 resize-none" placeholder="Opsiyonel notlar"></textarea>
 		</div>
 		<div class="flex justify-end gap-2 pt-2">
-			<button type="button" onclick={() => showAddModal = false} class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">İptal</button>
-			<button type="submit" class="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 cursor-pointer">Kaydet</button>
+			<Button type="button" variant="secondary" onclick={() => showAddModal = false}>İptal</Button>
+			<Button type="submit">Kaydet</Button>
 		</div>
 	</form>
 </Modal>
@@ -1492,8 +1491,8 @@
 			</div>
 		</div>
 		<div class="flex justify-end gap-2 pt-2">
-			<button type="button" onclick={() => showPaymentModal = false} class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">İptal</button>
-			<button type="submit" class="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 cursor-pointer">{paymentForm.count} Taksit Oluştur</button>
+			<Button type="button" variant="secondary" onclick={() => showPaymentModal = false}>İptal</Button>
+			<Button type="submit">{paymentForm.count} Taksit Oluştur</Button>
 		</div>
 	</form>
 </Modal>
