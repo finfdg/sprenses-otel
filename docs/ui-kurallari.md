@@ -2,6 +2,23 @@
 
 Tüm frontend sayfalar bu dokümandaki şablona ve bileşen API'lerine uyar. Yeni modül eklerken bu spec rehber alınır.
 
+## 0. Referans Sayfa & Temel Primitive'ler
+
+> **Yeni/yeniden tasarlanan her liste sayfası `finans/avanslar`'ı örnek almalıdır.** Bu sayfa tasarım sisteminin kanonik uygulamasıdır: PageHeader + Button + StatCard + StatusBadge + Pagination + ConfirmDialog + MoneyInput'u doğru, kontrast-güvenli (WCAG AA) ve form-ARIA'lı biçimde kullanır.
+
+**Zorunlu primitive'ler (inline kopya yazma):**
+| Bileşen | Ne için | Kural |
+|---|---|---|
+| `Button.svelte` | Tüm butonlar | Primary rengin **tek kaynağı**. `variant` (primary/secondary/danger/ghost), `size`, `loading`. Elle `bg-teal-* ... rounded-lg` buton yazma. AA-uyumlu (teal-700). |
+| `PageHeader.svelte` | Sayfa başlığı | `<h1>` + açıklama + `{#snippet actions()}`. Her sayfada başlık zorunlu. |
+| `StatCard.svelte` | Özet kartları | `label`/`value` + opsiyonel `icon`/`accent`/`hint`. Inline stat kartı yazma. |
+| `StatusBadge.svelte` | Durum rozetleri | `type` (success/warning/error/info/neutral). Semantik renk sabit; inline `rounded-full` rozet yazma. |
+| `Pagination.svelte` | Sayfalama | Sayfa numaraları + boyut seçici + `aria-current`. Inline "Önceki/Sonraki" yazma. |
+| `ConfirmDialog.svelte` | Silme/onay | Native `confirm()` **yasak**. |
+| `MoneyInput.svelte` | Para girişi | `<input type=number/text>` para için yasak. Form hatası için `ariaInvalid`/`ariaDescribedby`. |
+
+**Erişilebilirlik tabanı:** İkincil metin `text-gray-500` (gray-400/300 değil — AA kontrast). Form alan hataları `aria-invalid` + `aria-describedby` ile bağlanır. İkon-only butonlar `aria-label` taşır. Select'lere `aria-label`. `app.css` `prefers-reduced-motion` destekler.
+
 ## 1. Global Sistem
 
 ### İkon Kütüphanesi
