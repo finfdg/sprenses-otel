@@ -47,6 +47,8 @@
       return approval_resp
   ```
 - Onaylanan talepler `approval_executor.py`'deki handler ile uygulanır — yeni modül için handler eklenmeli
+  - **Handler model alanları gerçek kolonlarla birebir olmalı.** Handler'lar yalnızca onay onaylanınca çalıştığı için yanlış import yolu / yanlış model alanı sessizce kalır (kapsam düşük). `tests/test_approval_system.py::TestExecutorImportIntegrity` iki AST testiyle (her `from app...import` ve her `Model(kwarg=...)` çağrısı) bu hata sınıfını **otomatik yakalar** — yeni handler bu testlerden geçmeli
+  - Tüm onay motoru (workflow + talep + executor) `tests/test_approval_system.py` ile test edilir (49 test, uçtan-uca onay→uygula dahil)
 - Detaylı bilgi: `docs/modules/onay-akisi.md`
 
 ### Python 3.9 Uyumluluğu
