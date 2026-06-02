@@ -5,8 +5,10 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { validateRequired } from '$lib/utils/validation';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import { Plus, Pencil, Trash2 } from 'lucide-svelte';
 
 	const canUse = hasPermission('system.roles', 'use');
 
@@ -221,9 +223,7 @@
 		<PageHeader title="Roller" description="Sistem rolleri ve modül izin matrisi">
 			{#snippet actions()}
 				{#if canUse}
-					<button onclick={openCreate} class="px-4 py-2.5 sm:py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors cursor-pointer whitespace-nowrap">
-						+ Yeni Rol
-					</button>
+					<Button onclick={openCreate}><Plus size={16} /> Yeni Rol</Button>
 				{/if}
 			{/snippet}
 		</PageHeader>
@@ -248,8 +248,8 @@
 					</div>
 					{#if canUse}
 					<div class="flex items-center gap-2 shrink-0">
-						<button onclick={() => openEdit(r)} class="px-3 py-2 sm:py-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">Düzenle</button>
-						<button onclick={() => askDelete(r)} class="px-3 py-2 sm:py-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">Sil</button>
+						<Button variant="secondary" size="sm" onclick={() => openEdit(r)}><Pencil size={14} /> Düzenle</Button>
+						<Button variant="danger" size="sm" onclick={() => askDelete(r)}><Trash2 size={14} /> Sil</Button>
 					</div>
 				{/if}
 				</div>
@@ -335,11 +335,9 @@
 		</div>
 	</div>
 
-	<div class="flex gap-3 mt-6">
-		<button onclick={() => showModal = false} class="flex-1 py-2.5 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">İptal</button>
-		<button onclick={handleSave} disabled={saving} class="flex-1 py-2.5 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-50">
-			{saving ? 'Kaydediliyor...' : 'Kaydet'}
-		</button>
+	<div class="flex justify-end gap-2 mt-6">
+		<Button variant="secondary" onclick={() => showModal = false}>İptal</Button>
+		<Button onclick={handleSave} loading={saving}>{editingRole ? 'Güncelle' : 'Kaydet'}</Button>
 	</div>
 </Modal>
 
