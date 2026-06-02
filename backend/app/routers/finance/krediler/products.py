@@ -6,6 +6,7 @@ from datetime import date as date_cls
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -86,6 +87,150 @@ def list_products(
         "page_size": page_size,
         "pages": math.ceil(total / page_size) if total > 0 else 1,
     }
+
+
+def _fmt_money_tr(v, currency: Optional[str]) -> str:
+    """Tutarı TR formatında + para birimi sembolüyle döndür (₺1.234.567,89)."""
+    sym = {"TRY": "₺", "EUR": "€", "USD": "$", "GBP": "£"}.get(currency or "TRY", "")
+    try:
+        s = f"{float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"{sym}{s}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+@router.get("/export/pdf")
+def export_credits_pdf(
+    type_filter: Optional[str] = Query(None),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.krediler", "view")),
+):
+    """Kredi ürünlerini PDF rapor olarak indir (açılış + vade tarihleri dahil).
+
+    Liste ekranındaki filtreleri (tip/durum/arama) destekler — rapor, ekranda
+    görülen krediyle eşleşir. Sayfalama yoktur; tüm eşleşen krediler raporlanır.
+    """
+    import io
+    import os
+
+    import reportlab
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    # Liste ile aynı filtreler (sayfalama yok)
+    query = db.query(CreditProduct)
+    if type_filter and type_filter in CREDIT_PRODUCT_TYPES:
+        query = query.filter(CreditProduct.type == type_filter)
+    if status_filter:
+        query = query.filter(CreditProduct.status == status_filter)
+    if search:
+        s = like_pattern(search, max_len=100)
+        query = query.filter(
+            (CreditProduct.name.ilike(s, escape="\\")) |
+            (CreditProduct.bank_name.ilike(s, escape="\\"))
+        )
+    products = query.order_by(
+        CreditProduct.type, CreditProduct.bank_name, CreditProduct.name
+    ).all()
+
+    # Türkçe karakter destekli font
+    font_dir = os.path.join(os.path.dirname(reportlab.__file__), "fonts")
+    try:
+        pdfmetrics.registerFont(TTFont("Vera", os.path.join(font_dir, "Vera.ttf")))
+        pdfmetrics.registerFont(TTFont("VeraBd", os.path.join(font_dir, "VeraBd.ttf")))
+        base_font, bold_font = "Vera", "VeraBd"
+    except Exception:
+        base_font, bold_font = "Helvetica", "Helvetica-Bold"
+
+    status_labels = {"active": "Aktif", "closed": "Kapalı"}
+
+    def fmt_date(d):
+        return d.strftime("%d.%m.%Y") if d else "—"
+
+    def fmt_pct(v):
+        return ("%" + (f"{float(v):g}")) if v is not None else "—"
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(
+        output, pagesize=landscape(A4),
+        topMargin=14 * mm, bottomMargin=14 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
+    )
+    title_style = ParagraphStyle("t", fontName=bold_font, fontSize=14, spaceAfter=4)
+    sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=10)
+
+    today = date_cls.today()
+    elems = [
+        Paragraph("Kredi Raporu", title_style),
+        Paragraph(f"{len(products)} kredi &nbsp;·&nbsp; Rapor tarihi: {today.strftime('%d.%m.%Y')}", sub_style),
+        Spacer(1, 4),
+    ]
+
+    data = [["Banka", "Kredi Adı", "Tip", "Tutar", "Faiz", "Kom.", "Açılış", "Vade", "Kalan", "Durum"]]
+    for p in products:
+        data.append([
+            p.bank_name or "—",
+            p.name,
+            CREDIT_TYPE_LABELS.get(p.type, p.type),
+            _fmt_money_tr(p.total_amount, p.currency),
+            fmt_pct(p.interest_rate),
+            fmt_pct(p.commission_rate),
+            fmt_date(p.start_date),
+            fmt_date(p.end_date),
+            _fmt_money_tr(p.remaining_amount, p.currency),
+            status_labels.get(p.status, p.status or "—"),
+        ])
+
+    col_widths = [28 * mm, 50 * mm, 22 * mm, 32 * mm, 15 * mm, 15 * mm, 24 * mm, 24 * mm, 32 * mm, 18 * mm]
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), bold_font),
+        ("FONTNAME", (0, 1), (-1, -1), base_font),
+        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0D9488")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("ALIGN", (3, 0), (5, -1), "RIGHT"),
+        ("ALIGN", (6, 0), (7, -1), "CENTER"),
+        ("ALIGN", (8, 0), (8, -1), "RIGHT"),
+        ("ALIGN", (9, 0), (9, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F3F4F6")]),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#0D9488")),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    elems.append(table)
+
+    # Para birimi bazında toplam (karışık para birimlerini toplamaz)
+    totals: dict = {}
+    for p in products:
+        c = p.currency or "TRY"
+        t = totals.setdefault(c, {"total": 0.0, "remaining": 0.0})
+        t["total"] += float(p.total_amount or 0)
+        t["remaining"] += float(p.remaining_amount or 0)
+    if totals:
+        elems.append(Spacer(1, 8))
+        lines = "<br/>".join(
+            f"{c}: Toplam {_fmt_money_tr(v['total'], c)} &nbsp;·&nbsp; Kalan {_fmt_money_tr(v['remaining'], c)}"
+            for c, v in totals.items()
+        )
+        elems.append(Paragraph(lines, ParagraphStyle("tot", fontName=bold_font, fontSize=9, leading=14)))
+
+    doc.build(elems)
+    output.seek(0)
+    return Response(
+        content=output.read(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=kredi-raporu-{today.isoformat()}.pdf"},
+    )
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)

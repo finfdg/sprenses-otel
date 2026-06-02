@@ -10,7 +10,7 @@
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { CreditCard, ChevronRight } from 'lucide-svelte';
+	import { CreditCard, ChevronRight, FileDown } from 'lucide-svelte';
 	import type { LatestRates } from '$lib/types/exchange-rate';
 
 	// Generic silme onayı state
@@ -61,6 +61,7 @@
 	let expandedMonths = $state<Set<string>>(new Set());  // Ödeme planı akordiyonunda açık aylar (YYYY-MM)
 	let typeFilter = $state('');
 	let statusFilter = $state('active');
+	let pdfLoading = $state(false);
 
 	// Kapatma modal state
 	let closeModal = $state<{ show: boolean; id: number | null; name: string; closedDate: string }>({
@@ -399,6 +400,31 @@
 		showAddModal = true;
 	}
 
+	// Kredileri PDF rapor olarak indir (ekrandaki tip/durum filtresiyle eşleşir; açılış+vade dahil)
+	async function downloadPdf() {
+		pdfLoading = true;
+		try {
+			const params = new URLSearchParams();
+			if (typeFilter) params.set('type_filter', typeFilter);
+			if (statusFilter) params.set('status', statusFilter);
+			const qs = params.toString();
+			const res = await api.fetchRaw(`/finance/krediler/export/pdf${qs ? '?' + qs : ''}`);
+			if (!res.ok) throw new Error('İndirme başarısız');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `kredi-raporu-${new Date().toISOString().slice(0, 10)}.pdf`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			console.error('PDF indirme hatası:', err);
+			showToast('PDF raporu indirilemedi', 'error');
+		} finally {
+			pdfLoading = false;
+		}
+	}
+
 	function openEdit(p: any) {
 		editProduct = p;
 		form = {
@@ -706,11 +732,16 @@
 	<!-- Başlık -->
 	<div class="flex items-center justify-between mb-4 sm:mb-6 gap-2">
 		<h1 class="text-2xl font-semibold text-gray-900">Krediler</h1>
-		{#if canUse}
-			<button onclick={openAdd} class="px-3 sm:px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs sm:text-sm font-medium cursor-pointer shrink-0">
-				+ <span class="hidden sm:inline">Yeni</span> Ürün
+		<div class="flex items-center gap-2 shrink-0">
+			<button onclick={downloadPdf} disabled={pdfLoading} title="Kredileri PDF rapor olarak indir (açılış + vade tarihleri dahil)" class="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs sm:text-sm font-medium cursor-pointer disabled:opacity-50">
+				<FileDown size={16} /> <span class="hidden sm:inline">{pdfLoading ? 'Hazırlanıyor…' : 'PDF Rapor'}</span>
 			</button>
-		{/if}
+			{#if canUse}
+				<button onclick={openAdd} class="px-3 sm:px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-xs sm:text-sm font-medium cursor-pointer">
+					+ <span class="hidden sm:inline">Yeni</span> Ürün
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Özet Kartları -->

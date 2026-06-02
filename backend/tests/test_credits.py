@@ -521,3 +521,27 @@ class TestBchFinanceEvents:
             FinanceEvent.source_id.in_(new_pay_ids),
         ).count()
         assert new_fe == len(new_pay_ids)
+
+
+# ─── PDF Rapor ─────────────────────────────────────────────
+
+def test_export_pdf(client, auth_headers):
+    """Kredi PDF raporu: 200 + application/pdf + geçerli PDF (açılış/vade tarihli)."""
+    _create_product(client, auth_headers, name="PDF Test Kredi", start_date="2026-03-01", end_date="2027-03-01")
+    res = client.get(f"{PREFIX}/export/pdf", headers=auth_headers)
+    assert res.status_code == 200, res.text
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.content[:4] == b"%PDF"  # geçerli PDF imzası
+    assert len(res.content) > 800
+
+
+def test_export_pdf_respects_type_filter(client, auth_headers):
+    """Tip filtresi PDF'e de uygulanır (ekrandaki görünümle eşleşir)."""
+    _create_product(client, auth_headers, type="spot_kredi", name="Spot A")
+    res = client.get(f"{PREFIX}/export/pdf?type_filter=bch", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.content[:4] == b"%PDF"
+
+
+def test_export_pdf_requires_permission(client, no_perm_user_headers):
+    assert client.get(f"{PREFIX}/export/pdf", headers=no_perm_user_headers).status_code == 403
