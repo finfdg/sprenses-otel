@@ -11,6 +11,7 @@
 	} from 'lucide-svelte';
 
 	import { api, ApiError } from '$lib/api';
+	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -231,13 +232,7 @@
 				Pasif tipleri göster
 			</label>
 			{#if canUse}
-				<button
-					onclick={openCreate}
-					class="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors cursor-pointer"
-				>
-					<Plus class="w-4 h-4" />
-					Yeni Tip
-				</button>
+				<Button onclick={openCreate}><Plus size={16} /> Yeni Tip</Button>
 			{/if}
 		</div>
 	</div>
@@ -508,20 +503,8 @@
 		{/if}
 
 		<div class="flex justify-end gap-2 pt-2">
-			<button
-				type="button"
-				onclick={() => (showModal = false)}
-				class="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
-			>
-				İptal
-			</button>
-			<button
-				type="submit"
-				disabled={saving}
-				class="px-4 py-2 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-			>
-				{saving ? 'Kaydediliyor...' : 'Kaydet'}
-			</button>
+			<Button type="button" variant="secondary" onclick={() => (showModal = false)}>İptal</Button>
+			<Button type="submit" loading={saving}>{editing ? 'Güncelle' : 'Kaydet'}</Button>
 		</div>
 	</form>
 </Modal>

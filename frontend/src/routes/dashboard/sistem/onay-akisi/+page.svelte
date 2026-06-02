@@ -6,8 +6,9 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { ClipboardCheck, Inbox } from 'lucide-svelte';
+	import { ClipboardCheck, Inbox, Plus } from 'lucide-svelte';
 
 	// ── Sabitler ──────────────────────────────────────────────
 	const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -607,15 +608,7 @@
 		<!-- Üst Bar -->
 		{#if canUse}
 			<div class="flex justify-end mb-4">
-				<button
-					onclick={openCreateWorkflow}
-					class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-teal-600 text-white hover:bg-teal-700 active:scale-95 transition-all cursor-pointer"
-				>
-					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-					</svg>
-					Yeni Tanım
-				</button>
+				<Button onclick={openCreateWorkflow}><Plus size={16} /> Yeni Tanım</Button>
 			</div>
 		{/if}
 
@@ -1165,26 +1158,8 @@
 
 		<!-- Butonlar -->
 		<div class="flex items-center justify-end gap-3 pt-2">
-			<button
-				onclick={() => { showWorkflowModal = false; }}
-				class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-			>
-				İptal
-			</button>
-			<button
-				onclick={saveWorkflow}
-				disabled={wfSaving}
-				class="px-4 py-2.5 rounded-lg font-medium text-sm bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-			>
-				{#if wfSaving}
-					<span class="inline-flex items-center gap-2">
-						<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-						Kaydediliyor...
-					</span>
-				{:else}
-					{editingWorkflow ? 'Güncelle' : 'Oluştur'}
-				{/if}
-			</button>
+			<Button variant="secondary" onclick={() => { showWorkflowModal = false; }}>İptal</Button>
+			<Button onclick={saveWorkflow} loading={wfSaving}>{editingWorkflow ? 'Güncelle' : 'Oluştur'}</Button>
 		</div>
 	</div>
 </Modal>

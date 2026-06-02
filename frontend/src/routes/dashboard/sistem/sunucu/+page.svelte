@@ -7,6 +7,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { Server, RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock } from 'lucide-svelte';
 
 	interface ServiceInfo {
@@ -158,14 +159,10 @@
 					{/if}
 				</div>
 			</div>
-			<button
-				onclick={loadInfo}
-				disabled={refreshing}
-				class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium disabled:opacity-50"
-			>
-				<RefreshCw class="w-4 h-4 {refreshing ? 'animate-spin' : ''}" />
+			<Button onclick={loadInfo} disabled={refreshing}>
+				<RefreshCw size={16} class={refreshing ? 'animate-spin' : ''} />
 				Yenile
-			</button>
+			</Button>
 		</div>
 
 		{#if loading}
