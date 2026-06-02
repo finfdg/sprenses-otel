@@ -789,6 +789,46 @@ Yeni veya yeniden tasarlanan **her frontend sayfası** tasarım sistemini kullan
 - **Kontrast:** Tüm metin/buton WCAG AA (≥4.5:1). teal **600 değil 700** (beyaz üzerinde 600 ≈ 3.8:1 → AA-fail).
 - Bileşen API'leri + detay: `docs/ui-kurallari.md`.
 
+### Modüller Arası Tutarlılık Standardı (Tasarımcı Denetimi — 2026-06-02)
+
+Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen, aynı sırada** olmasını şart koşar. Yeni modüller de bu standarda uyar. **Kanonik sayfa anatomisi (liste/CRUD sayfası), yukarıdan aşağıya değişmez sıra:**
+
+```
+1. PageHeader      → <h1> (SOL hizalı) + açıklama + actions snippet (birincil "+ Yeni X" butonu BURADA)
+2. Stat Cards      → StatCard bileşeni (yatay grid), başlığın hemen altında
+3. Filtre barı     → sol: arama (debounce 300ms + ✕) · orta: durum/dönem dropdown/chip · sağ: kayıt sayısı + export
+4. Ana içerik      → tablo / kart listesi / accordion (loading=Skeleton, boş=EmptyState+CTA)
+5. Pagination      → altta (varsa)
+6. Modal'lar       → dosya sonunda
+```
+
+**Tek-standart kuralları (denetimde bulunan sapmaları kapatır):**
+
+| Konu | TEK standart | Sapma yazma |
+|---|---|---|
+| **Özet kart** | **`StatCard` bileşeni** (ikon accent + label + value + hint). Tüm sayfalar aynı. | Renkli-tinted kart, ikonsuz beyaz kart, inline custom kart **yok** (nakit-akım/cariler/döviz/dashboard/ScheduledModule hepsi StatCard'a hizalanmalı) |
+| **Sayfa başlığı** | **`PageHeader`** her sayfada — **sol hizalı**, üstte. Sadece Topbar başlığı **yetmez**. | Başlıksız sayfa **yok** (bankalar, nakit-akım eksik); ortalanmış/fazla-padding'li başlık **yok** (audit-loglar); ham `<h1>` yerine PageHeader |
+| **Birincil aksiyon** | PageHeader `actions` snippet'inde (başlık yanında, sağ) | Filtre barına / section header'a gömme **yok** (ScheduledModule, bankalar) |
+| **İskelet sırası** | StatCards **filtreden önce** (yukarıdaki sıra) | ScheduledModule'deki "filtre→StatCards" sırası standarda çekilmeli |
+| **Boş durum** | `EmptyState` (ikon + mesaj + CTA buton) | Düz "Henüz X yok" metni yerine bileşen |
+| **Loading** | Skeleton (`TableSkeleton`/`FormSkeleton`) | Spinner / "Yükleniyor..." metni **yok** |
+| **Tehlikeli aksiyon** | `Button variant="danger"` (dolu kırmızı) veya `ConfirmDialog` | Ham kırmızı-outline buton **yok** (hata-loglar "Tümünü Temizle") |
+| **Para değeri** | `tabular-nums` + taşmaya karşı yeterli kolon/kart genişliği; uzun TRY tutarı kırpılmaz | Sabit dar stat kartında uzun tutar taşması **yok** (cariler) |
+
+**Bilerek istisna olan sayfalar (kanonik iskelete uymaz, normaldir):** Mesajlaşma (iki-panel sohbet), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli + grafik), Panel/Dashboard (karşılama + özet — kendi başlığı), Nakit Akım iç accordion'u. Bunlar yine de **Button/Lucide/AA/StatCard** ilkelerine uyar.
+
+**Yeni modül "tasarımcı" kontrol listesi** (10 boyut — her yeni sayfa için):
+1. **Kullanılabilirlik** — arama+filtre+CTA çalışıyor mu, aksiyonlar keşfedilebilir mi?
+2. **Tutarlılık** — kanonik iskelet + StatCard + PageHeader + Button (referans: avanslar)?
+3. **Görsel hiyerarşi** — başlık → özet → filtre → içerik; en önemli sayı en büyük?
+4. **Hız** — Skeleton loading, WS event-driven (polling yasak), 2000+ kayıtta truncation uyarısı?
+5. **Mobil** — `<md`'de sidebar hamburger, tablo→kart, butonlar `w-full sm:w-auto`, taşma yok?
+6. **Erişilebilirlik** — AA kontrast (teal-700), StatusBadge semantik renk, form label+ARIA, focus halkası?
+7. **Hata yönetimi** — Toast + ErrorLog, boş `catch{}` yasak, EmptyState, ConfirmDialog?
+8. **Tasarım** — kart `rounded-xl shadow-sm`, teal tema, Lucide ikon, tutarlı padding?
+9. **Bir bakışta anlaşılma** — StatCard'lar + renk kodlama durumu anında okutuyor mu?
+10. **Başarı ölçütü** — sayfa tek bakışta "ne durumdayım"ı cevaplıyor; birincil eylem ≤1 tık?
+
 Hızlı özet:
 - **Renk paleti:** Cyan/Teal (ana), Gray (nötr), Red (tehlike), Amber (uyarı), Green (başarı), Blue (bilgi)
 - **Layout:** Sidebar (sol, açılır/kapanır) + Topbar (üst, kullanıcı dropdown + geri butonu)
