@@ -613,3 +613,127 @@ class TestApprovalExecutorMoreModules:
 
         db.expire_all()
         assert db.query(Role).filter(Role.name == rname).first() is not None
+
+    def test_bank_account_create_via_approval(self, db):
+        """REGRESYON: banks handler'ı `from app.models.bank_transaction import BankAccount`
+        ile yanlış modülden import ediyordu → onaylanınca ImportError → 500."""
+        from app.models.bank_account import BankAccount
+        _, req_role, req_client = _make_actor(db, {"finance.banks": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.banks", req_role, app_role)
+
+        bname = f"Banka {uuid4().hex[:6]}"
+        resp = req_client.post("/api/finance/banks/accounts/", json={
+            "bank_name": bname, "iban": f"TR{uuid4().hex[:20]}", "currency": "TRY",
+        })
+        assert resp.status_code == 202, resp.text
+        req_id = resp.json()["request_id"]
+
+        db.expire_all()
+        assert db.query(BankAccount).filter(BankAccount.bank_name == bname).first() is None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"banks handler 500 vermemeli (import regresyonu): {ap.text}"
+
+        db.expire_all()
+        assert db.query(BankAccount).filter(BankAccount.bank_name == bname).first() is not None
+
+    def test_credit_product_create_via_approval(self, db):
+        """REGRESYON: krediler handler'ı `from app.models.credit import ...` ile yanlış
+        modülden import ediyordu (doğrusu credit_product) → onaylanınca 500."""
+        from app.models.credit_product import CreditProduct
+        _, req_role, req_client = _make_actor(db, {"finance.krediler": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.krediler", req_role, app_role)
+
+        cname = f"Kredi {uuid4().hex[:6]}"
+        resp = req_client.post("/api/finance/krediler/", json={
+            "type": "spot_kredi", "name": cname, "currency": "TRY", "total_amount": 100000,
+        })
+        assert resp.status_code == 202, resp.text
+        req_id = resp.json()["request_id"]
+
+        db.expire_all()
+        assert db.query(CreditProduct).filter(CreditProduct.name == cname).first() is None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"krediler handler 500 vermemeli (import regresyonu): {ap.text}"
+
+        db.expire_all()
+        assert db.query(CreditProduct).filter(CreditProduct.name == cname).first() is not None
+
+
+class TestExecutorImportIntegrity:
+    def test_all_lazy_imports_resolve(self):
+        """Executor handler'larındaki TÜM lazy import'lar geçerli modül yoluna işaret etmeli.
+
+        Bu handler'lar yalnızca ilgili modülün onayı onaylandığında çalıştığı ve
+        kapsam düşük olduğu için yanlış import yolları fark edilmeden kalabiliyordu
+        (banks→bank_transaction, krediler→credit, quality→quality). Her biri o
+        modülün onayını onaylayınca ImportError → 500'e yol açıyordu. Bu test, AST ile
+        executor'daki her `from app...import` ifadesini çözerek bu hata sınıfını korur.
+        """
+        import ast
+        import importlib
+        import inspect as _inspect
+
+        import app.utils.approval_executor as ax
+
+        tree = ast.parse(_inspect.getsource(ax))
+        failures = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app."):
+                for alias in node.names:
+                    try:
+                        mod = importlib.import_module(node.module)
+                        getattr(mod, alias.name)
+                    except (ImportError, AttributeError) as exc:
+                        failures.append(f"satır {node.lineno}: {node.module}.{alias.name} → {exc}")
+        assert not failures, "Çözülemeyen executor import'ları:\n" + "\n".join(failures)
+
+    def test_all_model_constructions_use_valid_fields(self):
+        """Executor'da kurulan her SQLAlchemy modelinin kwarg'ları gerçek kolon/ilişki
+        olmalı. 'Model alanını tahmin etme' hatalarını kalıcı yakalar — departmanlar
+        (eksik code + olmayan description), krediler (details_json), butce (amount,
+        parent_id), quality (title, options_json, assigned_to/created_by) hepsi bu sınıftı.
+        Modeller executor'ın kendi lazy import'larından dinamik çözülür."""
+        import ast
+        import importlib
+        import inspect as _inspect
+
+        from sqlalchemy import inspect as sqla_inspect
+        from sqlalchemy.orm import class_mapper
+
+        import app.utils.approval_executor as ax
+
+        tree = ast.parse(_inspect.getsource(ax))
+
+        name_to_module = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("app.models"):
+                for alias in node.names:
+                    name_to_module[alias.asname or alias.name] = node.module
+
+        def resolve_model(name):
+            mod_path = name_to_module.get(name)
+            if not mod_path:
+                return None
+            try:
+                cls = getattr(importlib.import_module(mod_path), name)
+                class_mapper(cls)  # yalnızca SQLAlchemy mapped sınıfları
+                return cls
+            except Exception:
+                return None
+
+        problems = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                cls = resolve_model(node.func.id)
+                if cls is None:
+                    continue
+                valid = {c.key for c in sqla_inspect(cls).columns}
+                valid |= {r.key for r in sqla_inspect(cls).relationships}
+                for kw in node.keywords:
+                    if kw.arg and kw.arg not in valid:
+                        problems.append(f"satır {node.lineno}: {node.func.id}({kw.arg}=...) — modelde yok")
+        assert not problems, "Executor'da geçersiz model alanı kullanımı:\n" + "\n".join(problems)

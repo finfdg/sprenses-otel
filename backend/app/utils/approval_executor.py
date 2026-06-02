@@ -321,7 +321,7 @@ def _handle_system_modules(db, action_type, entity_id, payload, actor_id):
 # ── Finans modülleri ──────────────────────────────────────────
 
 def _handle_finance_banks(db, action_type, entity_id, payload, actor_id):
-    from app.models.bank_transaction import BankAccount
+    from app.models.bank_account import BankAccount
 
     if action_type == "create":
         acc = BankAccount(
@@ -349,7 +349,7 @@ def _handle_finance_banks(db, action_type, entity_id, payload, actor_id):
 
 
 def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
-    from app.models.credit import CreditPayment, CreditProduct
+    from app.models.credit_product import CreditPayment, CreditProduct
     from app.utils.finance_event_service import finance_event_svc
 
     target = payload.pop("_target", "product")
@@ -395,7 +395,7 @@ def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
             commission_rate=payload.get("commission_rate"),
             start_date=payload.get("start_date"),
             end_date=payload.get("end_date"),
-            details_json=json.dumps(details) if details else None,
+            details=json.dumps(details, ensure_ascii=False) if details else None,
             notes=payload.get("notes"),
             created_by=actor_id,
         )
@@ -408,7 +408,7 @@ def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
         details = payload.pop("details", None)
         _apply_fields(product, payload, exclude={"_target"})
         if details is not None:
-            product.details_json = json.dumps(details)
+            product.details = json.dumps(details, ensure_ascii=False)
 
     elif action_type == "delete":
         product = db.query(CreditProduct).filter(CreditProduct.id == entity_id).first()
@@ -490,7 +490,7 @@ def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):
         if action_type == "create":
             cat = BudgetCategory(
                 name=payload.get("name", ""),
-                parent_id=payload.get("parent_id"),
+                type=payload.get("type", "expense"),
                 sort_order=payload.get("sort_order", 0),
             )
             db.add(cat)
@@ -515,9 +515,11 @@ def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):
         else:
             budget = Budget(
                 category_id=payload.get("category_id"),
+                department_id=payload.get("department_id"),
                 year=payload.get("year"),
                 month=payload.get("month"),
-                amount=payload.get("amount", 0),
+                planned_amount=payload.get("planned_amount", payload.get("amount", 0)),
+                currency=payload.get("currency", "TRY"),
                 notes=payload.get("notes"),
             )
             db.add(budget)
@@ -551,7 +553,9 @@ def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):
 # ── Kalite modülleri ──────────────────────────────────────────
 
 def _handle_quality_templates(db, action_type, entity_id, payload, actor_id):
-    from app.models.quality import QualityTemplate, QualityTemplateAssignee, QualityTemplateSection
+    from app.models.quality_template import QualityTemplate
+    from app.models.quality_template_assignee import QualityTemplateAssignee
+    from app.models.quality_template_section import QualityTemplateSection
 
     if action_type == "create":
         sections_data = payload.pop("sections", [])
@@ -599,12 +603,13 @@ def _handle_quality_templates(db, action_type, entity_id, payload, actor_id):
 
 def _save_template_sections(db, template_id, sections_data):
     """Şablon bölümlerini ve alanlarını kaydet."""
-    from app.models.quality import QualityTemplateField, QualityTemplateSection
+    from app.models.quality_template_field import QualityTemplateField
+    from app.models.quality_template_section import QualityTemplateSection
 
     for i, sec in enumerate(sections_data):
         section = QualityTemplateSection(
             template_id=template_id,
-            title=sec.get("title", ""),
+            name=sec.get("name", sec.get("title", "")),
             sort_order=sec.get("sort_order", i),
         )
         db.add(section)
@@ -614,7 +619,7 @@ def _save_template_sections(db, template_id, sections_data):
                 section_id=section.id,
                 label=fld.get("label", ""),
                 field_type=fld.get("field_type", "text"),
-                options_json=json.dumps(fld.get("options")) if fld.get("options") else None,
+                options=json.dumps(fld.get("options")) if fld.get("options") else None,
                 is_required=fld.get("is_required", False),
                 sort_order=fld.get("sort_order", j),
             )
@@ -623,7 +628,7 @@ def _save_template_sections(db, template_id, sections_data):
 
 def _save_template_assignees(db, template_id, assignees_data):
     """Şablon atananları kaydet."""
-    from app.models.quality import QualityTemplateAssignee
+    from app.models.quality_template_assignee import QualityTemplateAssignee
 
     for a in assignees_data:
         assignee = QualityTemplateAssignee(
@@ -634,16 +639,14 @@ def _save_template_assignees(db, template_id, assignees_data):
 
 
 def _handle_quality_forms(db, action_type, entity_id, payload, actor_id):
-    from app.models.quality import QualityForm
+    from app.models.quality_form import QualityForm
 
     if action_type == "create":
         form = QualityForm(
             template_id=payload.get("template_id"),
-            assigned_to=payload.get("assigned_to"),
             period_date=payload.get("period_date"),
             notes=payload.get("notes"),
             status="draft",
-            created_by=actor_id,
         )
         db.add(form)
 
