@@ -731,13 +731,15 @@ cd frontend && npx vitest run
 
 Her modülün kendi CLAUDE.md dosyası `docs/modules/` altında bulunur. **Yeni modül eklerken bu klasöre modül dokümantasyonu oluşturulmalıdır.**
 
+> **Yeni modül eklerken — frontend zorunluluğu:** Sayfalar tasarım sistemine uymalıdır (Button/PageHeader/StatCard/StatusBadge/ConfirmDialog/EmptyState/MoneyInput/Pagination — elle `bg-teal-*` buton yazma, AA kontrast). Referans sayfa: `finans/avanslar` veya `sistem/kullanicilar`. Kurallar: **[UI Tasarım Kuralları → Yeni Modül/Sayfa Eklerken — Zorunlu](#ui-tasarım-kuralları)** ve `docs/ui-kurallari.md`. Backend tarafı için ayrıca: izin sistemi (`require_permission`), onay akışı (`check_approval` + executor handler), audit log.
+
 ### Modül Dokümantasyon Şablonu
 Her modül dosyası şu bölümleri içermelidir:
 1. **Genel Bilgi** — Modül kodu, üst modül, frontend rota, backend prefix, izin kodu
 2. **Dosya Haritası** — Backend (model, schema, router) ve Frontend (sayfa, bileşen) dosyaları
 3. **Veritabanı Şeması** — Tablo yapısı, kolonlar, indeksler
 4. **API Endpoint'leri** — Method, path, izin seviyesi, açıklama
-5. **Frontend UI Yapısı** — Bileşenler, state yönetimi, renk şeması
+5. **Frontend UI Yapısı** — Tasarım sistemi bileşenleri (Button/PageHeader/StatCard… — referans: avanslar/kullanicilar, detay `docs/ui-kurallari.md`), state yönetimi, renk şeması
 6. **Audit Log Entegrasyonu** — entity_type, kaydedilen eylemler
 7. **Geliştirme Kuralları** — Modüle özel iş kuralları ve kısıtlamalar
 
@@ -774,12 +776,27 @@ Her modül dosyası şu bölümleri içermelidir:
 
 **Tüm UI tutarlılık spec'i → [`docs/ui-kurallari.md`](docs/ui-kurallari.md)** (sayfa iskeleti, paylaşılan bileşen API'leri, renk kodları, faz planı)
 
+### Yeni Modül/Sayfa Eklerken — Zorunlu
+
+Yeni veya yeniden tasarlanan **her frontend sayfası** tasarım sistemini kullanır. Referans (kanonik uygulamalar): **`finans/avanslar`** ve **`sistem/kullanicilar`** — yeni sayfa yazmadan önce bunlardan birini örnek al.
+
+- **Butonlar:** `Button.svelte` kullanılır (`variant`: primary/secondary/danger/ghost; `size`, `loading`, `fullWidth`). Elle `bg-teal-* ... rounded-lg` buton **yazma** — AA kontrast (teal-700, 5.5:1) ve tutarlılık tek kaynaktan gelir. Layout için `class` prop'u **yalnızca** genişlik/boşluk içindir (renk/stil variant'tan gelir).
+  - Birincil aksiyon `<Button>` (primary), düzenle `variant="secondary"` + `<Pencil>`, sil `variant="danger"` + `<Trash2>`, modal İptal `variant="secondary"`.
+  - **İstisnalar (bilerek):** yoğun tablo satır-aksiyonları ikon-only kalabilir; sıkı mini-chip kümeleri / sekme / ısı-haritası hücresi buton değildir — bunlar Button'a alınmaz, gerekiyorsa sadece teal-700'e çekilir (AA).
+- **Sayfa başlığı:** `PageHeader.svelte` (`<h1>` + açıklama + `{#snippet actions()}`). Her sayfada in-page başlık zorunlu (sadece Topbar başlığı yetmez).
+- **Diğer zorunlu bileşenler:** `StatCard`, `StatusBadge`, `ConfirmDialog` (native `confirm()` **yasak**), `EmptyState`, `MoneyInput` (tüm para girişleri), `FileDropzone` (yükleme), `Pagination`, `Modal`.
+- **İkonlar:** **Lucide** (`lucide-svelte`) — emoji/inline SVG yasak.
+- **Kontrast:** Tüm metin/buton WCAG AA (≥4.5:1). teal **600 değil 700** (beyaz üzerinde 600 ≈ 3.8:1 → AA-fail).
+- Bileşen API'leri + detay: `docs/ui-kurallari.md`.
+
 Hızlı özet:
 - **Renk paleti:** Cyan/Teal (ana), Gray (nötr), Red (tehlike), Amber (uyarı), Green (başarı), Blue (bilgi)
 - **Layout:** Sidebar (sol, açılır/kapanır) + Topbar (üst, kullanıcı dropdown + geri butonu)
+- **Buton:** `Button.svelte` — primary rengin tek kaynağı (teal-700, AA). Elle buton yazma. `variant`/`size`/`loading`/`fullWidth`/`class` (layout-only)
+- **Sayfa başlığı:** `PageHeader.svelte` — `<h1>` + açıklama + `actions` snippet (her sayfada zorunlu)
 - **Kart stili:** `bg-white border border-gray-200 rounded-xl shadow-sm`
 - **İkon kütüphanesi:** **Lucide** (`lucide-svelte`) — emoji/inline SVG yeni kodda kullanılmaz
-- **Sayfa iskeleti:** Başlık → Stat Cards → Filtre barı (sol arama + filtre chip + sağ export/Yeni) → Tablo/liste → Pagination
+- **Sayfa iskeleti:** PageHeader → Stat Cards → Filtre barı (sol arama + filtre chip + sağ export/Yeni) → Tablo/liste → Pagination
 - **Modal:** `Modal.svelte` — `md` (600px) varsayılan; `sm` (400px) onay, `lg` (800px) detay
 - **Silme onayı:** `ConfirmDialog.svelte` — native `confirm()` **yasak**
 - **Loading:** Skeleton ekran (spinner değil)
