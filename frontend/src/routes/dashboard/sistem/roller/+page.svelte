@@ -63,6 +63,39 @@
 		}
 	}
 
+	// ── Toplu izin işlemleri ───────────────────────────────
+	// Tüm modülleri topluca ayarla (Tümünü seç / Sadece görme / Temizle)
+	function setAllPerms(view: boolean, use: boolean) {
+		for (const m of modules) {
+			formPerms[m.id] = { view, use };
+		}
+	}
+
+	type Group = { parent: ModuleItem; children: ModuleItem[] };
+
+	// Grubun (ana modül + alt modüller) toplu durumu: hiç / kısmi / tümü
+	function groupState(group: Group, key: 'view' | 'use'): 'none' | 'some' | 'all' {
+		const all = [group.parent, ...group.children];
+		const on = all.filter(m => formPerms[m.id]?.[key]).length;
+		return on === 0 ? 'none' : on === all.length ? 'all' : 'some';
+	}
+
+	// Grup görme'yi topluca aç/kapat (alt modüllere yayılır)
+	function toggleGroupView(group: Group, checked: boolean) {
+		for (const m of [group.parent, ...group.children]) {
+			formPerms[m.id].view = checked;
+			if (!checked) formPerms[m.id].use = false;
+		}
+	}
+
+	// Grup kullanma'yı topluca aç/kapat (kullanma → görme'yi de açar)
+	function toggleGroupUse(group: Group, checked: boolean) {
+		for (const m of [group.parent, ...group.children]) {
+			formPerms[m.id].use = checked;
+			if (checked) formPerms[m.id].view = true;
+		}
+	}
+
 	onMount(async () => {
 		await loadData();
 	});
@@ -246,7 +279,14 @@
 
 		<!-- Permission Matrix -->
 		<div>
-			<span class="block text-gray-500 text-xs font-medium mb-2 uppercase tracking-wider">İzinler</span>
+			<div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
+				<span class="text-gray-500 text-xs font-medium uppercase tracking-wider">İzinler</span>
+				<div class="flex gap-1.5 shrink-0">
+					<button type="button" onclick={() => setAllPerms(true, true)} class="px-2.5 py-1 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 transition-colors cursor-pointer">Tümünü seç</button>
+					<button type="button" onclick={() => setAllPerms(true, false)} class="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors cursor-pointer">Sadece görme</button>
+					<button type="button" onclick={() => setAllPerms(false, false)} class="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors cursor-pointer">Temizle</button>
+				</div>
+			</div>
 			<div class="border border-gray-200 rounded-xl overflow-x-auto">
 				<table class="w-full text-sm min-w-[320px]">
 					<thead>
@@ -260,12 +300,17 @@
 						{#each getGroupedModules() as group}
 							<!-- Ana modül satırı -->
 							<tr class="border-t border-gray-100">
-								<td class="px-3 md:px-4 py-2.5 text-gray-700 font-medium">{group.parent.name}</td>
-								<td class="text-center px-3 md:px-4 py-2.5">
-									<input type="checkbox" checked={formPerms[group.parent.id].view} onchange={(e) => toggleView(group.parent.id, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
+								<td class="px-3 md:px-4 py-2.5 text-gray-700 font-medium">
+									{group.parent.name}
+									{#if group.children.length}
+										<span class="text-gray-400 font-normal text-xs ml-1">(grup)</span>
+									{/if}
 								</td>
 								<td class="text-center px-3 md:px-4 py-2.5">
-									<input type="checkbox" checked={formPerms[group.parent.id].use} onchange={(e) => toggleUse(group.parent.id, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
+									<input type="checkbox" checked={groupState(group, 'view') === 'all'} indeterminate={groupState(group, 'view') === 'some'} onchange={(e) => toggleGroupView(group, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
+								</td>
+								<td class="text-center px-3 md:px-4 py-2.5">
+									<input type="checkbox" checked={groupState(group, 'use') === 'all'} indeterminate={groupState(group, 'use') === 'some'} onchange={(e) => toggleGroupUse(group, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
 								</td>
 							</tr>
 							<!-- Alt modül satırları -->
