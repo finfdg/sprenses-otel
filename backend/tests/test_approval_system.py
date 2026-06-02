@@ -34,6 +34,7 @@ from app.models.department import Department
 from app.models.module import Module
 from app.models.role import Role
 from app.models.role_module_permission import RoleModulePermission
+from app.models.scheduled import ScheduledDefinition
 from app.models.user import User
 from app.utils.approval_service import (
     _evaluate_conditions,
@@ -551,3 +552,64 @@ class TestApprovalListEndpoints:
         _, req_id = _create_advance_request(req_client)
         assert app_client.get(f"{API}/requests/{req_id}").status_code == 200
         assert app_client.get(f"{API}/requests/99999999").status_code == 404
+
+
+# ─────── Executor — ek modül handler'ları (scheduled + system.roles) ───────
+
+class TestApprovalExecutorMoreModules:
+    def test_scheduled_salary_create_via_approval(self, db):
+        """Scheduled handler (8 modülün paylaştığı): onay yolunda pasif tanım oluşur,
+        onaylanınca executor onu aktifleştirir + girişleri üretir."""
+        _, req_role, req_client = _make_actor(db, {"hr.salary": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "hr.salary", req_role, app_role)
+
+        name = f"Maaş {uuid4().hex[:6]}"
+        resp = req_client.post("/api/hr/salary/", json={
+            "name": name, "amount": 5000.0, "currency": "TRY",
+            "frequency": "monthly", "payment_day": 15, "start_month": 1, "year": 2026,
+        })
+        assert resp.status_code == 202, resp.text
+        req_id = resp.json()["request_id"]
+
+        # Onaydan önce: pasif tanım var ama aktif değil
+        db.expire_all()
+        defn = (
+            db.query(ScheduledDefinition)
+            .filter(ScheduledDefinition.source_type == "salary", ScheduledDefinition.name == name)
+            .first()
+        )
+        assert defn is not None and defn.is_active is False
+
+        # Onayla → executor aktifleştirir (200 = executor hatasız çalıştı)
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, ap.text
+
+        db.expire_all()
+        defn2 = (
+            db.query(ScheduledDefinition)
+            .filter(ScheduledDefinition.source_type == "salary", ScheduledDefinition.name == name)
+            .first()
+        )
+        assert defn2 is not None and defn2.is_active is True
+
+    def test_role_create_via_approval(self, db):
+        """system.roles handler: onaylanınca rol gerçekten oluşturulur."""
+        _, req_role, req_client = _make_actor(db, {"system.roles": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "system.roles", req_role, app_role)
+
+        rname = f"Rol {uuid4().hex[:6]}"
+        resp = req_client.post("/api/system/roles/",
+                               json={"name": rname, "description": "onay testi", "permissions": []})
+        assert resp.status_code == 202, resp.text
+        req_id = resp.json()["request_id"]
+
+        db.expire_all()
+        assert db.query(Role).filter(Role.name == rname).first() is None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, ap.text
+
+        db.expire_all()
+        assert db.query(Role).filter(Role.name == rname).first() is not None
