@@ -11,6 +11,30 @@ from app.utils.push import send_push_to_user
 
 router = APIRouter()
 
+# Bir kullanıcı için aktif tutulacak azami abonelik sayısı. Her tarayıcı / cihaz /
+# yeniden kurulum YENİ bir endpoint üretir (endpoint bazlı upsert eskileri
+# birleştirmez) → eski endpoint'ler ölü kalır ve her bildirimde boş yere push
+# denenir, gönderim yavaşlar. Yeni abonelikte en yeni N tutulur, fazlası pasiflenir.
+MAX_ACTIVE_SUBSCRIPTIONS_PER_USER = 10
+
+
+def _prune_user_subscriptions(db: Session, user_id: int) -> None:
+    """Kullanıcının en yeni N aktif aboneliğini tut, daha eskilerini pasifleştir."""
+    stale = (
+        db.query(PushSubscription)
+        .filter(
+            PushSubscription.user_id == user_id,
+            PushSubscription.is_active == True,
+        )
+        .order_by(PushSubscription.created_at.desc(), PushSubscription.id.desc())
+        .offset(MAX_ACTIVE_SUBSCRIPTIONS_PER_USER)
+        .all()
+    )
+    if stale:
+        for s in stale:
+            s.is_active = False
+        db.commit()
+
 
 @router.get("/vapid-key", response_model=VapidPublicKeyResponse)
 def get_vapid_public_key(
@@ -42,6 +66,7 @@ def subscribe(
         existing.user_agent = data.user_agent
         existing.is_active = True
         db.commit()
+        _prune_user_subscriptions(db, current_user.id)
         db.refresh(existing)
         return existing
 
@@ -54,6 +79,7 @@ def subscribe(
     )
     db.add(sub)
     db.commit()
+    _prune_user_subscriptions(db, current_user.id)
     db.refresh(sub)
     return sub
 

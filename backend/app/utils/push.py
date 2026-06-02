@@ -10,6 +10,11 @@ from app.models.push_subscription import PushSubscription
 
 logger = logging.getLogger("uvicorn.error")
 
+# Push servisine (FCM/Mozilla/Apple) yapılan HTTP isteği için zaman aşımı.
+# Olmadan: requests sonsuza dek bekler → ölü/yavaş bir abonelik endpoint'i
+# tüm gönderimi (ve çağıran isteği) kilitler. Bir bağlantı + okuma sınırı koyar.
+PUSH_TIMEOUT_SECONDS = 10
+
 
 def send_push_to_user(
     user_id: int,
@@ -65,7 +70,8 @@ def send_push_to_user(
                     vapid_private_key=settings.vapid_private_key,
                     vapid_claims={
                         "sub": settings.vapid_mailto,
-                    }
+                    },
+                    timeout=PUSH_TIMEOUT_SECONDS,
                 )
                 logger.info("Push gönderildi: user_id=%d, title=%s", user_id, title)
             except WebPushException as e:

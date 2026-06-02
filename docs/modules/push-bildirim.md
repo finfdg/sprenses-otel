@@ -47,6 +47,9 @@
 - Endpoint duplicate → upsert (UPDATE yerine aynı endpoint varsa user_id eşleşiyor)
 
 ## Geliştirme Kuralları
+- **Push HER ZAMAN arka planda gönderilir:** `send_push_to_user` push servisine **senkron HTTP** isteği yapar; istek içinde doğrudan çağrılırsa yanıtı bloklar. Daima `background_tasks.add_task(send_push_to_user, ...)` ile çağrılmalı (istek dışı thread'lerden doğrudan çağrı kabul edilir). 2026-06-02: banka ekstresi yüklemesi bu kurala uymadığı için yavaşlamıştı.
+- **`webpush()` zaman aşımıyla çağrılır:** `timeout=PUSH_TIMEOUT_SECONDS` (10sn) — ölü/yavaş endpoint sonsuza dek beklemez (`requests` varsayılanı zaman aşımsızdır).
+- **Kullanıcı başına aktif abonelik tavanı:** `MAX_ACTIVE_SUBSCRIPTIONS_PER_USER` (10). Her tarayıcı/cihaz yeni endpoint üretir; tavan olmadan ölü abonelikler birikir. `subscribe` sonrası `_prune_user_subscriptions()` en yeni N'i tutar, fazlasını pasifler.
 - **Gönderim hataları sessiz olmamalı:** `utils/push.py` her push hatası `ErrorLog` tablosuna yazılır
 - **Eski endpoint'ler temizlenmeli:** 404/410 dönerse abonelik silinir (pywebpush exception handler)
 - **iOS Safari:** Push desteği 16.4+ — frontend `isPushSupported()` ile kontrol eder

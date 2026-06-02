@@ -109,6 +109,41 @@ class TestPush:
         response = client.get("/api/push/vapid-key")
         assert response.status_code == 401
 
+    def _subscribe(self, client, headers, n):
+        return client.post(
+            "/api/push/subscribe",
+            json={
+                "endpoint": f"https://push.example.com/ep/{n}",
+                "keys": {"p256dh": "BPk-fakekey-p256dh-value-for-test-000", "auth": "fakeauthvalue00"},
+                "user_agent": f"TestAgent/{n}",
+            },
+            headers=headers,
+        )
+
+    def test_subscribe_caps_active_per_user(self, client, auth_headers, db):
+        """REGRESYON (yavaş banka yükleme kök nedeni): kullanıcı başına aktif abonelik
+        sayısı sınırlanmalı. Her tarayıcı/cihaz yeni endpoint üretir; sınır olmadan
+        ölü abonelikler birikir (üretimde tek kullanıcıda 77) ve her bildirimde push
+        servisine boş yere senkron HTTP isteği yapılır → gönderim yavaşlar."""
+        from sqlalchemy import func
+
+        from app.models.push_subscription import PushSubscription
+        from app.routers.push import MAX_ACTIVE_SUBSCRIPTIONS_PER_USER as CAP
+
+        # CAP'ten fazla farklı endpoint ile abone ol
+        for i in range(CAP + 5):
+            assert self._subscribe(client, auth_headers, i).status_code == 201
+
+        # Hiçbir kullanıcının aktif abonelik sayısı sınırı aşmamalı
+        counts = (
+            db.query(PushSubscription.user_id, func.count(PushSubscription.id))
+            .filter(PushSubscription.is_active == True)  # noqa: E712
+            .group_by(PushSubscription.user_id)
+            .all()
+        )
+        for uid, cnt in counts:
+            assert cnt <= CAP, f"user {uid}: {cnt} aktif abonelik > sınır {CAP}"
+
 
 # ==================== WEBSOCKET AUTH TESTLERİ ====================
 

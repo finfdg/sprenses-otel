@@ -5,6 +5,41 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Banka Ekstresi Yüklemede Yavaşlık — Senkron Push Bildirimleri (2026-06-02 düzeltildi)
+
+**Belirti:** Banka ekstresi yükleme zamanla "çok yavaş" hale geldi. Kod değişikliği
+yoktu, tablolar küçük (`bank_transactions` ~2.3K satır, indeksli) → veri/indeks
+sorunu değildi.
+
+**Kök neden — istek içinde senkron, zaman aşımsız push gönderimi:**
+1. `banks.py:_notify_bank_upload` push bildirimini **`send_push_to_user`'ı doğrudan
+   (senkron) çağırarak** gönderiyordu — kod tabanındaki **tek** senkron push çağrısı
+   (diğer tüm modüller `background_tasks.add_task(send_push_to_user, ...)` kullanır).
+   Bu çağrı `await _post_upload_processing(...)` içinde olduğundan **HTTP yanıtını
+   bloklar**.
+2. `push.py:send_push_to_user` → `webpush()` **`timeout` parametresi olmadan** çağrılıyordu
+   → altındaki `requests` sonsuza dek bekler. Ölü/yavaş bir abonelik endpoint'i tüm
+   yüklemeyi kilitler.
+3. **Eski abonelik birikimi:** abonelik upsert'i endpoint bazlı; her tarayıcı/cihaz
+   yeni endpoint üretir → ölü endpoint'ler birikir (üretimde tek kullanıcıda 77 aktif).
+   Her yüklemede çevrimdışı kullanıcıların onlarca ölü aboneliğine boş yere push denenir.
+
+**Çözüm (3 katman):**
+- **Arka plan:** `_notify_bank_upload(... , background_tasks)` artık push'u
+  `background_tasks.add_task(...)` ile gönderir → yanıt anında döner, push sonra çalışır.
+  WS + DB bildirimi inline kalır (yerel, hızlı).
+- **Zaman aşımı:** `push.py` `webpush(..., timeout=PUSH_TIMEOUT_SECONDS)` (10sn) — ölü
+  endpoint sonsuza dek beklemez. Zaman aşımı `WebPushException` değildir → generic
+  `except`'e düşer, abonelik **pasifleştirilmez** (geçici olabilir).
+- **Abonelik tavanı:** `push.py:subscribe` → `_prune_user_subscriptions()` kullanıcı
+  başına en yeni `MAX_ACTIVE_SUBSCRIPTIONS_PER_USER` (10) aboneliği tutar, fazlasını
+  pasifler. Tek seferlik temizlikle mevcut birikim de düşürüldü (aktif 94→32).
+
+**Test:** `test_ws_push_audit.py::test_subscribe_caps_active_per_user` (kullanıcı başına
+aktif abonelik sınırını doğrular).
+
+---
+
 ## PDF Türk Lirası Sembolü (₺) "Kutu" Sorunu + Ortak Font Helper (2026-06-02 düzeltildi)
 
 **Sorun:** Kredi PDF raporunda (ve Ödeme Talimatı PDF'inde) TL tutarları `₺` yerine

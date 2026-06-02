@@ -46,12 +46,17 @@ from app.websocket.manager import manager
 
 async def _notify_bank_upload(
     db: Session, viewer_ids: List[int], event: dict, uploader_id: int,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Banka ekstresi yükleme bildirimini DB + WS + Push ile gönder.
 
     - DB'ye bildirim kaydı oluştur (yükleyen hariç)
     - Online ve ön plandaki kullanıcılar → WS toast + WS notification (çan)
     - Arka plandaki veya çevrimdışı kullanıcılar → Push bildirim
+
+    Push gönderimi `background_tasks` ile yapılır — yanıt dönüşünü bloklamaz.
+    Push, push servisine senkron HTTP isteği yapar; isteğin içinde çağrılırsa
+    (özellikle çok sayıda eski/ölü abonelik varsa) yükleme yavaşlar.
     """
     try:
         account_id = event.get("account_id", "")
@@ -96,8 +101,10 @@ async def _notify_bank_upload(
                 if notif:
                     await manager.send_to_user(uid, _notification_to_ws_event(notif))
             elif uid != uploader_id:
-                # Arka planda veya çevrimdışı — Push bildirim gönder
-                send_push_to_user(
+                # Arka planda veya çevrimdışı — Push bildirim (yanıt dönüşünü
+                # bloklamaması için arka plana al; senkron HTTP isteği yapar)
+                background_tasks.add_task(
+                    send_push_to_user,
                     uid,
                     notif_title,
                     notif_body,
@@ -559,7 +566,7 @@ async def _post_upload_processing(
             "skipped_transactions": result.get("skipped_transactions"),
             "uploader_name": f"{current_user.first_name} {current_user.last_name}",
         }
-        await _notify_bank_upload(db, viewer_ids, ws_event, current_user.id)
+        await _notify_bank_upload(db, viewer_ids, ws_event, current_user.id, background_tasks)
 
     # Otomatik eşleştirmeler — her biri SAVEPOINT ile izole; biri başarısız olursa diğerleri etkilenmez
     for match_fn, label, key in [
