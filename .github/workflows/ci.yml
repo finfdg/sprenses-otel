@@ -3,8 +3,10 @@ name: CI
 # Her push ve pull request'te backend (pytest) + frontend (vitest) testlerini çalıştırır.
 # Test DB'si, çalışan şemadan alınmış dump (tests/ci/01_schema.sql) + referans veri
 # (02_seed.sql) + admin seed (seed_admin.py) ile kurulur — production şemasıyla birebir.
-# Not: Şema migration zinciri yerine dump'tan kurulur çünkü migration'lar şu an sıfırdan
-# temiz uygulanmıyor (bkz. tests/ci/README.md). Şema değişince dump yenilenmeli.
+# Not: `alembic upgrade head` artık sıfırdan temiz uygulanıyor (checks/check_uploads FK
+# sıra hatası düzeltildi). Şema yine de dump'tan kurulur çünkü migration zinciri ile model
+# arasında bu görevle alakasız birkaç küçük içerik farkı sürüyor; dump prod ile birebir
+# olduğu için otoriter kaynak (bkz. tests/ci/README.md). Şema değişince dump yenilenmeli.
 
 on:
   push:

@@ -30,11 +30,9 @@ def upgrade() -> None:
         ON bank_transactions (type)
     """)
 
-    # bank_transactions.category_id — kategori bazlı sorgular
-    op.execute("""
-        CREATE INDEX IF NOT EXISTS ix_bank_tx_category
-        ON bank_transactions (category_id)
-    """)
+    # NOT: ix_bank_tx_category, d4b2e9f01a23 (transaction_tagging) migration'ında
+    # oluşturulur ve orada düşürülür. Buradaki tekrar (IF NOT EXISTS) artık no-op olduğu
+    # için kaldırıldı; aksi halde downgrade'de çift drop (UndefinedObject) hatası oluyordu.
 
     # bank_transactions.match_number — eşleştirme sorguları
     op.execute("""
@@ -45,5 +43,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_bank_tx_match_number", table_name="bank_transactions")
-    op.drop_index("ix_bank_tx_category", table_name="bank_transactions")
+    # ix_bank_tx_category d4b2e9f01a23 tarafından yönetilir; burada düşürülmez (çift drop önlenir)
     op.drop_index("ix_bank_tx_type", table_name="bank_transactions")

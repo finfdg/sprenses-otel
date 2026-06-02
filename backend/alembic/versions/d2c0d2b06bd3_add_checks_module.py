@@ -30,6 +30,13 @@ def upgrade() -> None:
     )
 
     # checks tablosu
+    #
+    # NOT: bank_transaction_id / match_number / matched_vendor_id sütunları, ix_checks_bank_tx
+    # indeksi ve uq_check_no_vendor_date kısıtı (check_no + vendor_code + due_date) prod'a
+    # sonradan elle eklenmiş; ileri yönde bir migration ile kayıt altına alınmamıştı. Sıfırdan
+    # `alembic upgrade head` ile oluşan şemanın model/prod ile bire bir eşleşmesi için bu
+    # alanlar checks'in doğduğu yere (bu create_table) taşındı. Prod head'de stamp'li olduğundan
+    # (bu migration tekrar çalışmaz) prod etkilenmez. Bkz. app/models/check.py
     op.create_table(
         'checks',
         sa.Column('id', sa.Integer(), primary_key=True),
@@ -48,9 +55,13 @@ def upgrade() -> None:
         sa.Column('transaction_type', sa.String(50), nullable=True),
         sa.Column('status', sa.String(20), server_default='pending'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.UniqueConstraint('check_no', 'vendor_code', name='uq_check_no_vendor'),
+        sa.Column('bank_transaction_id', sa.Integer(), sa.ForeignKey('bank_transactions.id', ondelete='SET NULL'), nullable=True),
+        sa.Column('match_number', sa.Integer(), nullable=True),
+        sa.Column('matched_vendor_id', sa.Integer(), sa.ForeignKey('vendors.id', ondelete='SET NULL'), nullable=True),
+        sa.UniqueConstraint('check_no', 'vendor_code', 'due_date', name='uq_check_no_vendor_date'),
         sa.Index('ix_checks_due_date', 'due_date'),
         sa.Index('ix_checks_vendor_code', 'vendor_code'),
+        sa.Index('ix_checks_bank_tx', 'bank_transaction_id'),
     )
 
     # finance.checks modülünü ekle
