@@ -147,10 +147,12 @@
 			|| (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 		dlog(`sayfa=/devam/kur · ${sa ? 'ANA-EKRAN (standalone)' : 'TARAYICI sekmesi'}`);
 		token = $page.url.searchParams.get('t') ?? '';
-		dlog(`URL t=${token ? 'VAR' : 'YOK'}`);
+		const k = $page.url.searchParams.get('k') ?? '';
+		dlog(`URL t=${token ? 'VAR' : 'YOK'} · k=${k ? 'VAR' : 'YOK'}`);
 		if (!token) { view = 'error'; errMsg = 'Geçersiz link.'; return; }
 		try { localStorage.setItem('pdks_token', token); } catch { /* yoksay */ }
-		loadMe();
+		if (k) doPunch(k);   // /devam'dan yönlendirme → anında bas
+		else loadMe();
 	});
 	onDestroy(stopScan);
 </script>

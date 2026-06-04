@@ -39,7 +39,8 @@
 	{:else}
 		<div class="text-center mb-6">
 			<h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Personel Giriş / Çıkış</h1>
-			<p class="text-teal-100 mt-2 text-lg">Telefonunuzun kamerasıyla aşağıdaki karekodu okutun</p>
+			<p class="text-teal-100 mt-2 text-lg">Kişisel <strong>uygulamanızı</strong> açıp <strong>"Tara"</strong> ile bu karekodu okutun</p>
+			<p class="text-teal-200/80 mt-1 text-sm">(Telefonun kendi kamera uygulamasıyla değil — kendi uygulamanızdaki Tara ile)</p>
 		</div>
 
 		<div class="bg-white rounded-3xl p-5 sm:p-6 shadow-2xl">

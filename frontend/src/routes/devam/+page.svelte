@@ -1,104 +1,40 @@
 <script lang="ts">
-	// Personel basış sayfası — kiosk QR'ı okutunca açılır (/devam?k=<token>).
-	// Çerez (pdks_token) kimliği + k token ile giriş/çıkış kaydeder.
+	// Native-scan landing — iOS kamerasıyla girişteki ekranın QR'ı okutulunca açılır.
+	// Bu bağlam İZOLE olduğundan kimlik (localStorage/çerez) YOKtur → buradan basış YAPILAMAZ.
+	// (Teşhis: header=False cookie=False → 401.) Çözüm: kimlik varsa kişisel uygulamaya
+	// yönlendir; yoksa "kendi uygulamandaki Tara'yı kullan" talimatı göster.
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 
-	type View = 'loading' | 'punched' | 'status' | 'no-setup' | 'error';
+	type View = 'loading' | 'use-app';
 	let view = $state<View>('loading');
 
-	// punched sonucu
-	let punchType = $state<'in' | 'out'>('in');
-	let punchName = $state('');
-	let punchTime = $state('');
-	let punchMsg = $state('');
-	let minutesToday = $state(0);
-
-	// status (me)
-	let meName = $state('');
-	let meInside = $state(false);
-	let meDept = $state('');
-
-	let errMsg = $state('');
-
-	// ─── TANI (geçici) — iOS kimlik-taşıma sorununu yerinde görmek için ───
+	// ─── TANI (geçici) ───
 	let dbg = $state<string[]>([]);
 	function dlog(s: string) { dbg = [...dbg, s]; }
 
-	function fmtMin(m: number): string {
-		const h = Math.floor(m / 60);
-		return h > 0 ? `${h} saat ${m % 60} dk` : `${m} dk`;
-	}
-
-	// Kimlik token'ı — kurulumda localStorage'a yazılır; başlıkla gönderilir
-	// (iOS Safari, kameranın açtığı sayfada çerezi her zaman taşımıyor).
 	function pdksToken(): string {
 		try { return localStorage.getItem('pdks_token') ?? ''; } catch { return ''; }
 	}
 
-	async function loadStatus() {
-		try {
-			const tk = pdksToken();
-			dlog(`me → token ${tk ? 'VAR(' + tk.slice(0, 6) + '…)' : 'YOK'}`);
-			const res = await fetch('/api/attendance/me', {
-				credentials: 'include',
-				headers: { 'X-Pdks-Token': tk },
-			});
-			dlog(`me ← HTTP ${res.status}`);
-			if (res.status === 401) { view = 'no-setup'; return; }
-			const data = await res.json();
-			meName = data.full_name ?? '';
-			meInside = !!data.inside;
-			meDept = data.department ?? '';
-			minutesToday = data.minutes_today ?? 0;
-			view = 'status';
-		} catch (e) {
-			console.error(e);
-			view = 'error';
-			errMsg = 'Bağlantı hatası.';
-		}
-	}
-
-	async function doPunch(k: string) {
-		try {
-			const tk = pdksToken();
-			dlog(`punch → k=${k.slice(0, 10)}… token ${tk ? 'VAR(' + tk.slice(0, 6) + '…)' : 'YOK'}`);
-			const res = await fetch('/api/attendance/punch', {
-				method: 'POST',
-				credentials: 'include',
-				headers: { 'Content-Type': 'application/json', 'X-Pdks-Token': tk },
-				body: JSON.stringify({ k }),
-			});
-			dlog(`punch ← HTTP ${res.status}`);
-			if (res.status === 401) { view = 'no-setup'; return; }
-			const data = await res.json().catch(() => ({}));
-			if (res.ok) {
-				punchType = data.type;
-				punchName = data.full_name ?? '';
-				punchTime = data.time ?? '';
-				punchMsg = data.message ?? '';
-				minutesToday = data.minutes_today ?? 0;
-				view = 'punched';
-			} else {
-				view = 'error';
-				errMsg = data.detail ?? 'İşlem başarısız.';
-			}
-		} catch (e) {
-			console.error(e);
-			view = 'error';
-			errMsg = 'Bağlantı hatası.';
-		}
-	}
-
 	onMount(() => {
-		// Ortam tanısı: standalone (ana ekran uygulaması) mı, Safari sekmesi mi?
 		const sa = (navigator as any).standalone === true
 			|| (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 		dlog(`sayfa=/devam · ${sa ? 'ANA-EKRAN (standalone)' : 'TARAYICI sekmesi'}`);
 		const k = $page.url.searchParams.get('k');
-		dlog(`URL k=${k ? 'VAR' : 'YOK'}`);
-		if (k) doPunch(k);
-		else loadStatus();
+		const tk = pdksToken();
+		dlog(`URL k=${k ? 'VAR' : 'YOK'} · localStorage token ${tk ? 'VAR(' + tk.slice(0, 6) + '…)' : 'YOK'}`);
+		if (tk) {
+			// Kimlik bu bağlamda var → kişisel uygulamaya geç (k varsa orada anında bas).
+			const dest = k
+				? `/devam/kur?t=${encodeURIComponent(tk)}&k=${encodeURIComponent(k)}`
+				: `/devam/kur?t=${encodeURIComponent(tk)}`;
+			dlog('kimlik VAR → /devam/kur yönlendiriliyor');
+			window.location.replace(dest);
+			return;
+		}
+		dlog('kimlik YOK → uygulama talimatı');
+		view = 'use-app';
 	});
 </script>
 
@@ -109,66 +45,28 @@
 		{#if view === 'loading'}
 			<div class="w-12 h-12 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto"></div>
 
-		{:else if view === 'punched'}
-			<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-7 space-y-4 {punchType === 'in' ? 'ring-2 ring-emerald-300' : 'ring-2 ring-amber-300'}">
-				<div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto {punchType === 'in' ? 'bg-emerald-100' : 'bg-amber-100'}">
-					{#if punchType === 'in'}
-						<svg class="w-11 h-11 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-					{:else}
-						<svg class="w-11 h-11 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H9m0-9H6.75A2.25 2.25 0 004.5 5.25v13.5A2.25 2.25 0 006.75 21H9" /></svg>
-					{/if}
-				</div>
-				<div>
-					<div class="text-3xl font-bold {punchType === 'in' ? 'text-emerald-700' : 'text-amber-700'}">
-						{punchType === 'in' ? 'GİRİŞ' : 'ÇIKIŞ'}
-					</div>
-					<div class="text-5xl font-bold text-gray-900 tabular-nums mt-1">{punchTime}</div>
-				</div>
-				<div class="text-lg font-medium text-gray-800">{punchName}</div>
-				<p class="text-sm text-gray-500">{punchMsg}</p>
-				{#if minutesToday > 0}
-					<div class="text-xs text-gray-400 border-t border-gray-100 pt-3">Bugün toplam: {fmtMin(minutesToday)}</div>
-				{/if}
-			</div>
-
-		{:else if view === 'status'}
-			<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-7 space-y-3">
-				<div class="text-lg font-semibold text-gray-900">{meName}</div>
-				{#if meDept}<div class="text-xs text-gray-500">{meDept}</div>{/if}
-				<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium {meInside ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
-					<span class="w-2 h-2 rounded-full {meInside ? 'bg-emerald-500' : 'bg-gray-400'}"></span>
-					{meInside ? 'İçeridesin' : 'Dışarıdasın'}
-				</div>
-				{#if minutesToday > 0}<div class="text-xs text-gray-400">Bugün: {fmtMin(minutesToday)}</div>{/if}
-				<div class="bg-teal-50 border border-teal-200 rounded-lg p-3 text-sm text-teal-800 leading-snug mt-2">
-					📷 {meInside ? 'Çıkış' : 'Giriş'} için, girişteki ekrandaki <strong>karekodu telefon kameranla okut</strong>.
-				</div>
-			</div>
-
-		{:else if view === 'no-setup'}
-			<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-7 space-y-3">
-				<div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
-					<svg class="w-9 h-9 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
-				</div>
-				<h1 class="text-lg font-bold text-gray-900">Önce kurulum gerekli</h1>
-				<p class="text-sm text-gray-600 leading-snug">
-					Bu telefon henüz tanımlı değil. Yöneticinizin verdiği <strong>kişisel QR kartınızı</strong>
-					bir kez okutarak kurulumu tamamlayın.
-				</p>
-			</div>
-
 		{:else}
-			<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-7 space-y-3">
-				<div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-					<svg class="w-9 h-9 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+			<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-7 space-y-4">
+				<div class="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto">
+					<svg class="w-9 h-9 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg>
 				</div>
-				<h1 class="text-lg font-bold text-gray-900">İşlem yapılamadı</h1>
-				<p class="text-sm text-gray-600">{errMsg}</p>
-				<p class="text-xs text-gray-400">Girişteki ekrandaki <strong>güncel</strong> kodu tekrar okutmayı deneyin.</p>
+				<h1 class="text-lg font-bold text-gray-900">Uygulamandan okut</h1>
+				<p class="text-sm text-gray-600 leading-snug">
+					Telefonundaki <strong>kişisel uygulamanı</strong> aç ve <strong>"Tara"</strong>
+					düğmesiyle bu ekranı okut.
+				</p>
+				<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 leading-snug text-left">
+					⚠️ Telefonun <strong>kendi kamera uygulamasıyla</strong> bu ekranı okutma — iOS'ta kimlik
+					taşınmadığı için çalışmaz. Mutlaka <strong>kendi uygulamandaki "Tara"</strong> ile okut.
+				</div>
+				<p class="text-xs text-gray-400 leading-snug">
+					Uygulaman yoksa: yöneticinden <strong>kişisel QR kartını</strong> iste → bir kez okut →
+					açılan sayfayı <strong>ana ekrana ekle</strong>.
+				</p>
 			</div>
 		{/if}
 
-		<!-- TANI paneli (geçici) — sorunu yerinde görmek için -->
+		<!-- TANI paneli (geçici) -->
 		{#if dbg.length}
 			<div class="mt-4 bg-gray-900 text-gray-100 rounded-xl p-3 text-left font-mono text-[11px] leading-relaxed break-all">
 				<div class="text-gray-400 mb-1">🔎 tanı kaydı</div>
