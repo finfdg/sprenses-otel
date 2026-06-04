@@ -144,3 +144,11 @@ risk-without-reward). Yeni liste sayfaları doğrudan ListPage ile kurulmalıdı
 - Backend: `python -c "import app.main"` + `pytest` (sabit değerleri korundu, import temiz).
 - Frontend: `svelte-check` **0 hata**, `vitest` **274 test geçti**, `npm run build` başarılı.
 - Davranış değişmedi (sabitler aynı değer; sidebar/guard mevcut izin matrisine sadık).
+
+---
+
+## Yedekleme (GitHub + otomatik kanca)
+
+- **Uzak depo:** `github.com/finfdg/sprenses-otel` (private). Kod + git geçmişi off-site yedeklidir.
+- **Gizli bilgi:** `.env` ve sırlar yedeğe DAHİL DEĞİL (gitignore). `backend/.env` ayrı, güvenli bir yerde saklanmalı.
+- **Otomatik yedek:** `.claude/settings.json` içindeki **Stop hook**, her iş bitiminde değişiklik varsa zaman damgalı commit + `origin/master`'a push eder (async, kendini-iyileştiren, turu bloke etmez). Değişiklik yoksa no-op.
