@@ -14,7 +14,9 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
    Personel kartı telefonuyla okutur → `/devam/kur?t=<access_token>` açılır → **kimlik URL'dedir** (`?t=`).
    Personel sayfayı **ana ekrana ekler** (kalıcı kimlikli ikon).
 2. **Giriş ekranı:** Yönetici "Kiosk Linki"ni alır (`/devam/ekran?key=<KIOSK_KEY>`), girişteki bir
-   tablet/TV'de açar. Ekran ~10sn'de yenilenen **dönen QR** gösterir.
+   tablet/TV'de açar. **İki sütun:** SOL'da yalnız **dönen QR**, SAĞ'da **canlı giriş/çıkış paneli**
+   (son hareket büyük: kişi adı + GİRİŞ/ÇIKIŞ + saat; altında önceki hareketler + saat). Sağ panel
+   `/attendance/kiosk/recent`'ten **3sn'de bir** tazelenir (kiosk-display istisnası).
 3. **Günlük basış:** Personel **kendi uygulamasını** açar (ana ekrandaki ikon) → **"Tara"** düğmesine basar →
    uygulama-içi kamera girişteki ekranın QR'ını okur → token + `?t=` kimliği `X-Pdks-Token` başlığıyla
    gider → son duruma göre **giriş/çıkış** kaydedilir → "Hoş geldin Ahmet ✅".
@@ -42,6 +44,7 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 |---|---|---|---|
 | GET | `/attendance/kiosk/qr?key=` | KIOSK_KEY | Girişteki ekranın dönen QR'ı (SVG) |
 | GET | `/attendance/kiosk/config?key=` | KIOSK_KEY | Ekran yenileme süresi (`refresh_sec`, `ttl_sec`) |
+| GET | `/attendance/kiosk/recent?key=` | KIOSK_KEY | Kiosk sağ paneli — son giriş/çıkış hareketleri (isim/tip/saat) |
 | GET | `/attendance/kiosk-link` | hr.attendance view | Kiosk ekranı linki (KIOSK_KEY dahil) |
 | GET | `/attendance/settings` | hr.attendance view | QR ayarları (refresh_sec, ttl_sec, min, max) |
 | PATCH | `/attendance/settings` | hr.attendance use | QR yenileme süresini değiştir (2-120sn) |

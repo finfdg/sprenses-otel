@@ -304,6 +304,31 @@ def kiosk_config(key: str = Query(...), db: Session = Depends(get_db)):
     return {"refresh_sec": refresh, "ttl_sec": _ttl_for(refresh)}
 
 
+@router.get("/attendance/kiosk/recent")
+def kiosk_recent(
+    key: str = Query(...),
+    limit: int = Query(8, ge=1, le=20),
+    db: Session = Depends(get_db),
+):
+    """Girişteki ekranın sağ paneli için son giriş/çıkış hareketleri. KIOSK_KEY gerektirir."""
+    if not hmac.compare_digest(key, KIOSK_KEY):
+        raise HTTPException(status_code=403, detail="Geçersiz kiosk anahtarı")
+    rows = (
+        db.query(AttendanceLog, Personnel)
+        .join(Personnel, Personnel.id == AttendanceLog.personnel_id)
+        .order_by(desc(AttendanceLog.punched_at))
+        .limit(limit)
+        .all()
+    )
+    return {"items": [{
+        "id": lg.id,
+        "full_name": p.full_name,
+        "department": p.department,
+        "type": lg.type,
+        "punched_at": lg.punched_at.isoformat(),
+    } for lg, p in rows]}
+
+
 # ═══ PUBLIC — Personel kimlik + basış ════════════════════
 
 @router.post("/attendance/setup")
