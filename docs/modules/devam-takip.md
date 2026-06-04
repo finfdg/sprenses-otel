@@ -114,6 +114,11 @@ yönetici tipi kendi seçtiği için iki koruma eklendi:
 - **Event PII içermez** (yalnızca `{type, action}`). Tüm bağlı kullanıcılara gider ama veri
   `require_permission(hr.attendance)` korumalı uçlardan çekildiği için yetkisiz kullanıcı içeriği göremez.
 - Sabit tek kaynak: backend `WSEvent.ATTENDANCE_UPDATED` ↔ frontend `WS_EVENT.ATTENDANCE_UPDATED` (birebir).
+- **Onay-tetikli tazeleme:** Elle giriş onaya düştüyse, kayıt **`attendance_updated`** yaymaz (executor
+  içinden değil). Onay verilince akış **`approval_status_changed` (`module_code=hr.attendance`)** yayınlar —
+  bu event **kayıt commit edildikten SONRA** gider. Panel ayrıca bunu dinler ve `module_code` eşleşince
+  tazeler → onay anında yeni kayıt panoda **anlık** belirir. (Onay akışı zaten bu event'i yaydığı için
+  executor'a ek broadcast eklemeye gerek kalmadı.)
 
 ## Geliştirme Kuralları
 - **Onay akışı:** Yalnızca **elle giriş/çıkış** (`POST /attendance/manual`) onaya tabidir (yukarıdaki bölüm).

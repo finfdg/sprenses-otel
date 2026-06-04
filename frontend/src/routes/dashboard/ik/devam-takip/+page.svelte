@@ -257,12 +257,20 @@
 		refreshAll();
 		// Canlı pano — başka biri (telefon/elle) basınca panel ANINDA tazelenir (polling yok).
 		// Sinyal PII içermez; veriyi izin-korumalı uçtan sessizce (skeleton flash'sız) çekeriz.
-		const unsub = onWsEvent(WS_EVENT.ATTENDANCE_UPDATED, () => {
+		const refresh = () => {
 			loadStatus();
 			loadSummary();
 			if (logsLoaded) loadLogs();
-		});
-		return unsub;
+		};
+		const unsubs = [
+			onWsEvent(WS_EVENT.ATTENDANCE_UPDATED, refresh),
+			// Elle giriş/çıkış ONAYLANINCA: executor kaydı oluşturup commit ettikten SONRA
+			// approval_status_changed yayınlanır → panel anında tazelensin (yalnızca hr.attendance).
+			onWsEvent(WS_EVENT.APPROVAL_STATUS_CHANGED, (e) => {
+				if (e?.module_code === 'hr.attendance') refresh();
+			}),
+		];
+		return () => unsubs.forEach((u) => u());
 	});
 </script>
 
