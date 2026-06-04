@@ -32,8 +32,6 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 - `/devam` (native-scan landing) artık **basış denemez**; kimlik varsa `/devam/kur`'a yönlendirir,
   yoksa "kendi uygulamandaki Tara'yı kullan" talimatı gösterir.
 - `/devam/kur?t=...&k=...` ile gelince (yönlendirme) **otomatik basar**.
-- **Tanı:** `setup`/`me`/`punch` uçları journald'a `PDKS|...` satırı yazar (kimlik header/çerez/yok, UA,
-  personel). Sayfalarda geçici "🔎 tanı kaydı" paneli aynısını ekranda gösterir. Sorun netleşince kaldırılabilir.
 
 ## Veritabanı (3 tablo)
 - `personnel`: id, full_name, employee_code (unique), department, phone, **access_token** (kişisel kimlik), is_active.

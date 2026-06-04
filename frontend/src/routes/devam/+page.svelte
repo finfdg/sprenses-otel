@@ -9,31 +9,21 @@
 	type View = 'loading' | 'use-app';
 	let view = $state<View>('loading');
 
-	// ─── TANI (geçici) ───
-	let dbg = $state<string[]>([]);
-	function dlog(s: string) { dbg = [...dbg, s]; }
-
 	function pdksToken(): string {
 		try { return localStorage.getItem('pdks_token') ?? ''; } catch { return ''; }
 	}
 
 	onMount(() => {
-		const sa = (navigator as any).standalone === true
-			|| (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-		dlog(`sayfa=/devam · ${sa ? 'ANA-EKRAN (standalone)' : 'TARAYICI sekmesi'}`);
 		const k = $page.url.searchParams.get('k');
 		const tk = pdksToken();
-		dlog(`URL k=${k ? 'VAR' : 'YOK'} · localStorage token ${tk ? 'VAR(' + tk.slice(0, 6) + '…)' : 'YOK'}`);
 		if (tk) {
 			// Kimlik bu bağlamda var → kişisel uygulamaya geç (k varsa orada anında bas).
 			const dest = k
 				? `/devam/kur?t=${encodeURIComponent(tk)}&k=${encodeURIComponent(k)}`
 				: `/devam/kur?t=${encodeURIComponent(tk)}`;
-			dlog('kimlik VAR → /devam/kur yönlendiriliyor');
 			window.location.replace(dest);
 			return;
 		}
-		dlog('kimlik YOK → uygulama talimatı');
 		view = 'use-app';
 	});
 </script>
@@ -63,14 +53,6 @@
 					Uygulaman yoksa: yöneticinden <strong>kişisel QR kartını</strong> iste → bir kez okut →
 					açılan sayfayı <strong>ana ekrana ekle</strong>.
 				</p>
-			</div>
-		{/if}
-
-		<!-- TANI paneli (geçici) -->
-		{#if dbg.length}
-			<div class="mt-4 bg-gray-900 text-gray-100 rounded-xl p-3 text-left font-mono text-[11px] leading-relaxed break-all">
-				<div class="text-gray-400 mb-1">🔎 tanı kaydı</div>
-				{#each dbg as line}<div>• {line}</div>{/each}
 			</div>
 		{/if}
 	</div>

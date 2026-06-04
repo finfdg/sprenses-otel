@@ -19,7 +19,6 @@ import hashlib
 import hmac
 import io
 import json
-import logging
 import math
 import secrets
 import time
@@ -77,16 +76,6 @@ COOKIE_NAME = "pdks_token"
 
 punch_limiter = RateLimiter(max_requests=40, window_seconds=60)
 
-# PDKS tanı logu — journald'a düşer (journalctl -u sprenses-api | grep PDKS).
-# iOS kimlik-taşıma sorununu teşhis için geçici; çözüm netleşince sadeleştirilebilir.
-logger = logging.getLogger("pdks")
-if not logger.handlers:
-    _h = logging.StreamHandler()
-    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-    logger.addHandler(_h)
-logger.setLevel(logging.INFO)
-logger.propagate = False
-
 router = APIRouter()
 
 
@@ -136,29 +125,19 @@ def _set_cookie(response: Response, token: str) -> None:
     )
 
 
-def _personnel_from_request(request: Request, db: Session, label: str = "") -> Optional[Personnel]:
+def _personnel_from_request(request: Request, db: Session) -> Optional[Personnel]:
     """Personel kimliği: önce X-Pdks-Token başlığı (localStorage'dan), sonra çerez.
 
     iOS Safari, kameranın açtığı sayfada fetch ile set edilen HttpOnly çerezi her
     zaman taşımıyor; bu yüzden frontend kimliği localStorage'da da tutup başlıkla
     gönderir. Aynı-origin istek olduğundan özel başlık CORS'a takılmaz.
     """
-    hdr = request.headers.get("X-Pdks-Token")
-    cookie = request.cookies.get(COOKIE_NAME)
-    ua = request.headers.get("User-Agent", "")[:90]
-    tok = hdr or cookie
+    tok = request.headers.get("X-Pdks-Token") or request.cookies.get(COOKIE_NAME)
     if not tok:
-        logger.info("PDKS|%s|KİMLİK-YOK header=%s cookie=%s ua=%s", label, bool(hdr), bool(cookie), ua)
         return None
-    p = db.query(Personnel).filter(
+    return db.query(Personnel).filter(
         Personnel.access_token == tok, Personnel.is_active.is_(True)
     ).first()
-    logger.info(
-        "PDKS|%s|kaynak=%s header=%s cookie=%s personel=%s ua=%s",
-        label, "header" if hdr else "cookie", bool(hdr), bool(cookie),
-        (p.full_name if p else "BULUNAMADI"), ua,
-    )
-    return p
 
 
 def _last_log(db: Session, personnel_id: int) -> Optional[AttendanceLog]:
@@ -341,15 +320,13 @@ def setup(data: SetupRequest, request: Request, response: Response, db: Session 
     if not p:
         raise HTTPException(status_code=404, detail="Geçersiz veya pasif personel linki")
     _set_cookie(response, p.access_token)
-    logger.info("PDKS|setup|personel=%s secure_cookie=%s ua=%s", p.full_name,
-                "https" in settings.cors_origins, request.headers.get("User-Agent", "")[:90])
     return {"ok": True, "full_name": p.full_name, "employee_code": p.employee_code}
 
 
 @router.get("/attendance/me")
 def me(request: Request, db: Session = Depends(get_db)):
     """Çerezdeki personelin bilgisi + bugünkü durumu."""
-    p = _personnel_from_request(request, db, "me")
+    p = _personnel_from_request(request, db)
     if not p:
         raise HTTPException(status_code=401, detail="Personel tanımlı değil — kurulum linkini açın")
     summary = _today_summary(db, p.id)
@@ -366,11 +343,10 @@ def me(request: Request, db: Session = Depends(get_db)):
 def punch(data: PunchRequest, request: Request, db: Session = Depends(get_db)):
     """Kiosk QR'ı okutunca çağrılır — token doğrula, giriş/çıkış kaydet."""
     punch_limiter.check(f"pdks-punch-{get_client_ip(request)}")
-    p = _personnel_from_request(request, db, "punch")
+    p = _personnel_from_request(request, db)
     if not p:
         raise HTTPException(status_code=401, detail="Personel tanımlı değil — kurulum linkini açın")
     if not _valid_token(data.k, _ttl_for(_get_refresh(db))):
-        logger.info("PDKS|punch|GEÇERSİZ-TOKEN personel=%s k=%s", p.full_name, (data.k or "")[:24])
         raise HTTPException(status_code=400, detail="Karekod süresi doldu — ekrandaki güncel kodu tekrar okutun")
 
     now = datetime.now(TZ)
@@ -382,7 +358,6 @@ def punch(data: PunchRequest, request: Request, db: Session = Depends(get_db)):
     lg = AttendanceLog(personnel_id=p.id, type=new_type, source=SOURCE_PHONE)
     db.add(lg)
     db.commit()
-    logger.info("PDKS|punch|BAŞARILI personel=%s type=%s", p.full_name, new_type)
     # Canlı pano: bağlı yöneticilere sinyal (PII yok — veri izin-korumalı uçtan çekilir)
     manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "punch"})
 
