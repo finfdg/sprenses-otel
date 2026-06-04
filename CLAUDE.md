@@ -450,9 +450,9 @@ TEMPLATE:
 
 ### İnsan Kaynakları — Devam Takip (PDKS)
 - `GET /api/attendance/kiosk/qr?key=` — Girişteki ekranın dönen QR'ı (SVG, KIOSK_KEY gerekli; token panelden ayarlanan süre kadar geçerli)
-- `GET /api/attendance/kiosk/config?key=` — Kiosk ekran yenileme süresi (KIOSK_KEY)
+- `GET /api/attendance/kiosk/config?key=` — Kiosk ekran yenileme süresi (KIOSK_KEY; ~15sn'de bir otomatik uyarlanır)
 - `GET /api/attendance/kiosk-link` — Kiosk ekranı linki (admin; KIOSK_KEY dahil)
-- `GET/PATCH /api/attendance/settings` — QR geçerlilik süresi ayarı (hr.attendance; 5-120sn, panelden Ayarlar)
+- `GET/PATCH /api/attendance/settings` — QR yenileme süresi ayarı (hr.attendance; 2-120sn; geçerlilik=yenileme+3sn; panelden Ayarlar)
 - `POST /api/attendance/setup` — Kişisel kurulum (token → kimlik çerezi)
 - `GET /api/attendance/me` — Personelin durumu (çerez)
 - `POST /api/attendance/punch` — Giriş/çıkış kaydet (çerez + dönen token)

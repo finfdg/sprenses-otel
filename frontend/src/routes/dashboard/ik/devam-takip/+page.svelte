@@ -65,13 +65,14 @@
 	let manualForm = $state({ personnel_id: 0, type: 'in', note: '' });
 	let manualSaving = $state(false);
 
-	// Ayarlar modalı (QR geçerlilik süresi)
+	// Ayarlar modalı (QR yenileme süresi)
 	let showSettings = $state(false);
-	let settingsForm = $state({ token_ttl_sec: 7 });
-	let settingsMeta = $state({ refresh_sec: 4, min: 5, max: 120 });
+	let settingsForm = $state({ refresh_sec: 7 });
+	let settingsMeta = $state({ ttl_sec: 10, min: 2, max: 120 });
 	let settingsSaving = $state(false);
 	let settingsError = $state('');
-	let derivedRefresh = $derived(Math.max(2, (Number(settingsForm.token_ttl_sec) || 0) - 3));
+	// Güvenlik geçerliliği = yenileme + 3sn (grace) — canlı önizleme
+	let derivedTtl = $derived((Number(settingsForm.refresh_sec) || 0) + 3);
 
 	function fmtTime(iso: string): string {
 		return new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
@@ -212,13 +213,13 @@
 	}
 
 	// ── Ayarlar (QR geçerlilik süresi) ──
-	type SettingsResp = { token_ttl_sec: number; refresh_sec: number; min: number; max: number };
+	type SettingsResp = { refresh_sec: number; ttl_sec: number; min: number; max: number };
 	async function openSettings() {
 		settingsError = '';
 		try {
 			const r = await api.get<SettingsResp>('/attendance/settings');
-			settingsForm.token_ttl_sec = r.token_ttl_sec;
-			settingsMeta = { refresh_sec: r.refresh_sec, min: r.min, max: r.max };
+			settingsForm.refresh_sec = r.refresh_sec;
+			settingsMeta = { ttl_sec: r.ttl_sec, min: r.min, max: r.max };
 		} catch (e) {
 			console.error('Ayarlar alınamadı:', e);
 			showToast('Ayarlar alınamadı', 'error');
@@ -226,7 +227,7 @@
 		showSettings = true;
 	}
 	async function saveSettings() {
-		const v = Math.round(Number(settingsForm.token_ttl_sec));
+		const v = Math.round(Number(settingsForm.refresh_sec));
 		if (!Number.isFinite(v) || v < settingsMeta.min || v > settingsMeta.max) {
 			settingsError = `Süre ${settingsMeta.min}-${settingsMeta.max} saniye arasında olmalı`;
 			return;
@@ -234,11 +235,11 @@
 		settingsSaving = true;
 		settingsError = '';
 		try {
-			const r = await api.patch<SettingsResp>('/attendance/settings', { token_ttl_sec: v });
-			settingsForm.token_ttl_sec = r.token_ttl_sec;
-			settingsMeta = { refresh_sec: r.refresh_sec, min: r.min, max: r.max };
+			const r = await api.patch<SettingsResp>('/attendance/settings', { refresh_sec: v });
+			settingsForm.refresh_sec = r.refresh_sec;
+			settingsMeta = { ttl_sec: r.ttl_sec, min: r.min, max: r.max };
 			showSettings = false;
-			showToast(`QR geçerlilik süresi ${r.token_ttl_sec} sn olarak kaydedildi`, 'success');
+			showToast(`QR yenileme süresi ${r.refresh_sec} sn olarak kaydedildi`, 'success');
 		} catch (e) {
 			settingsError = e instanceof ApiError ? e.message : 'Kaydedilemedi';
 			console.error('Ayar kaydedilemedi:', e);
@@ -494,31 +495,31 @@
 	</div>
 </Modal>
 
-<!-- Ayarlar: QR geçerlilik süresi -->
+<!-- Ayarlar: QR yenileme süresi -->
 <Modal bind:show={showSettings} title="Karekod Ayarları" maxWidth="max-w-md">
 	<div class="space-y-4 text-sm">
 		<p class="text-gray-600 leading-snug">
-			Girişteki ekranda gösterilen karekodun <strong>geçerlilik süresi</strong>. Kısaldıkça ekran
-			görüntüsü/paylaşımla sahte basış zorlaşır; uzadıkça yavaş taramalar kolaylaşır.
+			Girişteki ekrandaki karekodun <strong>ne sıklıkta değişeceği</strong>. Kısaldıkça ekran
+			görüntüsü/paylaşımla sahte basış zorlaşır (daha güvenli); uzadıkça ekran daha sakin durur.
 		</p>
 		<div>
-			<label for="set-ttl" class="block text-sm font-medium text-gray-700 mb-1">
-				QR geçerlilik süresi (saniye) <span class="text-red-500">*</span>
+			<label for="set-refresh" class="block text-sm font-medium text-gray-700 mb-1">
+				QR yenileme süresi (saniye) <span class="text-red-500">*</span>
 			</label>
 			<input
-				id="set-ttl"
+				id="set-refresh"
 				type="number"
 				min={settingsMeta.min}
 				max={settingsMeta.max}
 				step="1"
-				bind:value={settingsForm.token_ttl_sec}
+				bind:value={settingsForm.refresh_sec}
 				class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
 			/>
-			<p class="text-xs text-gray-400 mt-1">{settingsMeta.min}-{settingsMeta.max} sn arası · öneri: 7 sn</p>
+			<p class="text-xs text-gray-400 mt-1">{settingsMeta.min}-{settingsMeta.max} sn arası · öneri: 10-15 sn (sakin), 5-7 sn (güvenli)</p>
 		</div>
 		<div class="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-800 leading-snug">
-			⏱️ Giriş ekranı karekodu otomatik olarak <strong>{derivedRefresh} sn</strong>'de bir yenilenir
-			(geçerlilik süresinden kısa tutulur ki meşru taramalar kaçmasın).
+			⏱️ Karekod ekranda <strong>{settingsForm.refresh_sec} sn</strong>'de bir değişir ·
+			güvenlik geçerliliği <strong>{derivedTtl} sn</strong> (yenileme + 3 sn tarama payı).
 		</div>
 		{#if settingsError}
 			<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{settingsError}</div>

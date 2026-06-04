@@ -34,8 +34,8 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 ## Veritabanı (3 tablo)
 - `personnel`: id, full_name, employee_code (unique), department, phone, **access_token** (kişisel kimlik), is_active.
 - `attendance_logs`: id, personnel_id (FK CASCADE), type (in/out), punched_at, source (phone_qr/manual), recorded_by (manuel ise yönetici FK), note.
-- `attendance_settings`: tek satır (id=1). **token_ttl_sec** (kiosk QR geçerlilik süresi, sn), updated_at.
-  Panelden düzenlenir (5-120sn). Ekran yenileme süresi `max(2, ttl-3)` ile bundan türetilir.
+- `attendance_settings`: tek satır (id=1). **refresh_sec** (kiosk QR ekranda ne sıklıkta değişir, sn), updated_at.
+  Panelden düzenlenir (2-120sn). Token güvenlik geçerliliği = `refresh_sec + 3` (grace) ile türetilir.
 
 ## API
 | Method | Path | İzin | Açıklama |
@@ -43,8 +43,8 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 | GET | `/attendance/kiosk/qr?key=` | KIOSK_KEY | Girişteki ekranın dönen QR'ı (SVG) |
 | GET | `/attendance/kiosk/config?key=` | KIOSK_KEY | Ekran yenileme süresi (`refresh_sec`, `ttl_sec`) |
 | GET | `/attendance/kiosk-link` | hr.attendance view | Kiosk ekranı linki (KIOSK_KEY dahil) |
-| GET | `/attendance/settings` | hr.attendance view | QR ayarları (token_ttl_sec, refresh_sec, min, max) |
-| PATCH | `/attendance/settings` | hr.attendance use | QR geçerlilik süresini değiştir (5-120sn) |
+| GET | `/attendance/settings` | hr.attendance view | QR ayarları (refresh_sec, ttl_sec, min, max) |
+| PATCH | `/attendance/settings` | hr.attendance use | QR yenileme süresini değiştir (2-120sn) |
 | POST | `/attendance/setup` | public (token) | Kişisel kurulum → kimlik çerezi |
 | GET | `/attendance/me` | çerez | Personelin durumu (içeride/dışarıda) |
 | POST | `/attendance/punch` | çerez + token | Giriş/çıkış kaydet |
@@ -56,12 +56,13 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 | POST | `/attendance/manual` | hr.attendance use | Yönetici elle giriş/çıkış |
 
 ## Güvenlik / Sahtecilik Tasarımı
-- **Zaman-damgalı token:** `<unix_ts>.HMAC(SECRET, ts)` — üretiminden **`token_ttl_sec` saniye** geçerli
-  (varsayılan **7sn**, panelden 5-120 arası ayarlanır; pencere hizalama yok → süre net). **Bayat ekran
+- **Zaman-damgalı token:** `<unix_ts>.HMAC(SECRET, ts)` — geçerlilik = **`refresh_sec + 3` saniye**
+  (knob = QR yenileme süresi; +3sn grace taze QR tarama payı; pencere hizalama yok → süre net). **Bayat ekran
   görüntüsünü** etkisizleştirir: "fotoğrafı kaydet, sonra kullan" çalışmaz (süre sonunda → 400). Kiosk ekranı
-  QR'ı `ttl-3` sn'de bir yeniler (ör. 7sn TTL → 4sn) → ekrandaki kod hep taze, meşru tarama kaçmaz.
-  - **Panel → Ayarlar** (İK → Devam Takip): yönetici QR geçerlilik süresini değiştirir; ekran yenileme
-    otomatik türetilir. DB: `attendance_settings` (tek satır). Audit: `update / attendance_settings`.
+  QR'ı tam **`refresh_sec`** sn'de bir yeniler (girilen sayı = ekranda görülen değişim hızı) → kod hep taze.
+  - **Panel → Ayarlar** (İK → Devam Takip): yönetici **QR yenileme süresini** (kaç sn'de bir değişsin)
+    değiştirir; güvenlik geçerliliği `+3sn` ile türetilir. Düşük = güvenli/sık değişen, yüksek = sakin ekran.
+    DB: `attendance_settings.refresh_sec`. Audit: `update / attendance_settings`.
   - **Kiosk otomatik uyarlanır:** giriş ekranı ayarı **~15sn'de bir** kontrol eder (`/attendance/kiosk/config`);
     değişince yenileme aralığını **canlı** günceller (sayfa/elle yenileme gerekmez). Kiosk public+oturumsuz
     olduğu için kimlikli WS kullanılamaz → bu hafif kontrol kiosk-display istisnası kapsamındadır.
