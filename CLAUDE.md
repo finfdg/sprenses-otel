@@ -527,6 +527,9 @@ TEMPLATE:
 - `GET /api/system/server/info` — Sunucu durumu (CPU/RAM/disk/servisler/DB boyutu)
 - `POST /api/system/server/services/{name}/restart` — Servisi yeniden başlat (whitelist + sudo NOPASSWD)
 - `GET /api/system/server/services/{name}/logs?lines=N` — Servis journalctl logu (son N satır)
+- `GET /api/system/backup/status` — Git/GitHub yedek durumu (son commit, bekleyen değişiklik, senkron, geçmiş)
+- `POST /api/system/backup/run` — Manuel yedek (commit + GitHub push)
+- `POST /api/system/backup/restore` — Seçilen commit'e güvenli geri yükleme (ileri-commit, force-push yok). Detay: `docs/modules/yedekleme.md`
 
 ### Satış — Otel Rezervasyon
 - `POST /api/sales/reservations/upload` — Crystal Reports XLS/XLSX yükleme (RecId bazlı upsert). Response'a `removal_candidates: RemovalCandidate[]` eklenir — yüklemenin check-in + record-date kapsamı içinde olup dosyada bulunmayan kayıtlar (olası iptaller)
@@ -626,7 +629,7 @@ TEMPLATE:
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
-- Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server)
+- Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
 - Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Oda Tipleri (sales.room_types)
 
 ## Giriş Bilgileri
@@ -772,6 +775,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Uçak Rezervasyon | `docs/modules/ucak-rezervasyon.md` |
 | Otel Rezervasyon | `docs/modules/otel-rezervasyon.md` |
 | Oda Tipleri | `docs/modules/oda-tipleri.md` |
+| Yedekleme | `docs/modules/yedekleme.md` |
 
 ## UI Tasarım Kuralları
 

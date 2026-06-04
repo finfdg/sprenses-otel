@@ -80,6 +80,7 @@ COPY public.modules (id, name, code, description, icon, parent_id, sort_order, i
 899	Oda Tipleri	sales.room_types	Otel oda tipi envanteri — doluluk hesaplamasında payda olarak kullanılır	\N	896	30	t	2026-05-21 13:03:43.683492+00
 198	Krediler	finance.krediler	Kredi ürünleri ve ödeme planı yönetimi	CreditCard	16	11	t	2026-03-24 19:47:13.983049+00
 199	Alınan Avanslar	finance.avanslar	\N	\N	16	70	t	2026-03-26 01:01:34.13118+00
+900	Yedekleme	system.backup	\N	cloud-arrow-up	5	100	t	2026-06-04 00:00:00+00
 \.
 
 
@@ -421,6 +422,7 @@ COPY public.role_module_permissions (id, role_id, module_id, can_view, created_a
 1535	255	897	f	2026-05-25 12:03:36.472892+00	f
 1536	255	898	t	2026-05-25 12:03:36.472892+00	f
 1537	255	899	f	2026-05-25 12:03:36.472892+00	f
+9001	1	900	t	2026-06-04 00:00:00+00	t
 \.
 
 
