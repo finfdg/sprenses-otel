@@ -17,8 +17,8 @@
 	onMount(() => {
 		key = $page.url.searchParams.get('key') ?? '';
 		updateClock();
-		// QR'ı 10sn'de bir yenile (token 15sn'de döner, payı bırakıyoruz)
-		qrTimer = setInterval(() => (tick = Date.now()), 10000);
+		// QR'ı 4sn'de bir yenile (token 7sn geçerli — ekrandaki QR hep taze, ~3sn pay kalır)
+		qrTimer = setInterval(() => (tick = Date.now()), 4000);
 		clockTimer = setInterval(updateClock, 1000);
 		tick = Date.now();
 	});

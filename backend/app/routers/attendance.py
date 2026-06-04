@@ -8,8 +8,9 @@ Akış:
 - Personel kimliği: kişisel `access_token` (kurulum linki bir kez açılınca çerez olur).
 
 Güvenlik:
-- Dönen token HMAC(SECRET, window) — 15sn'de değişir, ~30sn geçerli. Evden basma:
-  kiosk QR endpoint'i KIOSK_KEY ister (admin-only) → token uzaktan çekilemez.
+- Zaman-damgalı token HMAC(SECRET, unix_ts) — üretiminden TOKEN_TTL_SEC (7sn) geçerli;
+  bayat ekran görüntüsü işe yaramaz. Evden basma: kiosk QR endpoint'i KIOSK_KEY ister
+  (admin-only) → güncel token uzaktan çekilemez. (Canlı video aktarımı sınırı: docs/modules/devam-takip.md)
 - Tek kullanım yerine personel-bazlı debounce (çift basışı engeller).
 - Yönetici işlemleri require_permission(hr.attendance); kiosk/setup/punch public.
 - Bu modül onay akışından muaftır (Sunucu/Yedekleme gibi ops modülü).
@@ -54,8 +55,7 @@ PUBLIC_BASE = settings.cors_origins.split(",")[0].strip().rstrip("/")
 # Kiosk ekranını yetkilendiren stabil, admin-only anahtar (SECRET'ten türetilir)
 KIOSK_KEY = hmac.new(SECRET, b"pdks-kiosk-key", hashlib.sha256).hexdigest()[:24]
 
-WINDOW_SEC = 15            # token bu saniyede bir döner
-TOKEN_VALID_WINDOWS = 2    # current + previous → ~30sn geçerlilik
+TOKEN_TTL_SEC = 7          # kiosk QR token'ı üretiminden bu kadar saniye geçerli (ekran-görüntüsü penceresi)
 PUNCH_DEBOUNCE_SEC = 30    # aynı personel bu sürede tekrar basamaz
 COOKIE_NAME = "pdks_token"
 
@@ -74,31 +74,31 @@ logger.propagate = False
 router = APIRouter()
 
 
-# ─── Dönen token yardımcıları ────────────────────────────
+# ─── Zaman-damgalı token yardımcıları ────────────────────
+# Token = "<unix_ts>.<HMAC(SECRET, ts)>" — üretildiği andan itibaren TOKEN_TTL_SEC
+# saniye geçerli. Pencere hizalama yok → "geçerlilik süresi" net ve öngörülebilir
+# (ekran görüntüsü/bayat QR bu süre dolunca işe yaramaz).
 
-def _window(t: Optional[float] = None) -> int:
-    return int((t if t is not None else time.time()) // WINDOW_SEC)
-
-
-def _sign(w: int) -> str:
-    return hmac.new(SECRET, f"pdks:{w}".encode(), hashlib.sha256).hexdigest()[:16]
+def _sign_ts(ts: int) -> str:
+    return hmac.new(SECRET, f"pdks:{ts}".encode(), hashlib.sha256).hexdigest()[:16]
 
 
 def _make_token() -> str:
-    w = _window()
-    return f"{w}.{_sign(w)}"
+    ts = int(time.time())
+    return f"{ts}.{_sign_ts(ts)}"
 
 
 def _valid_token(token: str) -> bool:
     try:
-        w_str, sig = token.split(".", 1)
-        w = int(w_str)
+        ts_str, sig = token.split(".", 1)
+        ts = int(ts_str)
     except (ValueError, AttributeError):
         return False
-    cur = _window()
-    if w > cur or w < cur - (TOKEN_VALID_WINDOWS - 1):
+    now = int(time.time())
+    # +1sn: saat kayması toleransı (ileri); now-ts>TTL: süresi dolmuş
+    if ts > now + 1 or now - ts > TOKEN_TTL_SEC:
         return False
-    return hmac.compare_digest(sig, _sign(w))
+    return hmac.compare_digest(sig, _sign_ts(ts))
 
 
 def _set_cookie(response: Response, token: str) -> None:
