@@ -410,8 +410,8 @@
 				<img src={`/api/attendance/personnel/${qrCard.id}/qr`} alt="Kurulum QR" class="w-56 h-56 border border-gray-200 rounded-lg" />
 			</div>
 			<p class="text-xs text-gray-500 leading-snug">
-				Personel bu kodu telefonuyla <strong>bir kez</strong> okutsun (kamerayla). Açılan sayfa onu tanır;
-				sonrasında girişteki ekran QR'ını okutarak giriş/çıkış yapar.
+				Personel bu kartı telefonuyla okutsun → açılan sayfayı <strong>"Ana Ekrana Ekle"</strong> ile kaydetsin.
+				Her gün o sayfayı açıp <strong>"Tara"</strong> ile girişteki ekrandaki karekodu okutarak giriş/çıkış yapar.
 			</p>
 			<Button fullWidth variant="secondary" onclick={() => window.print()}><Printer size={16} /> Yazdır</Button>
 		</div>
