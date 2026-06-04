@@ -136,15 +136,15 @@
 				{#if displayed}
 					{@const last = displayed}
 					<!-- Son hareket (büyük) — 5sn sonra otomatik silinir -->
-					<div class="mt-6 rounded-2xl border p-5 sm:p-6 {last.type === 'in' ? 'bg-blue-500/25 border-blue-400/50' : 'bg-red-500/25 border-red-400/50'}">
-						<div class="text-sm text-teal-100/70">Son hareket</div>
+					<div class="mt-6 rounded-2xl border p-5 sm:p-6 shadow-xl text-white {last.type === 'in' ? 'bg-blue-700 border-blue-500' : 'bg-red-700 border-red-500'}">
+						<div class="text-sm text-white/70">Son hareket</div>
 						<div class="text-3xl sm:text-4xl font-bold mt-1 leading-tight">{last.full_name}</div>
-						{#if last.department}<div class="text-sm text-teal-100/60">{last.department}</div>{/if}
+						{#if last.department}<div class="text-sm text-white/60">{last.department}</div>{/if}
 						<div class="flex items-center gap-4 mt-3">
-							<span class="text-2xl sm:text-3xl font-extrabold {last.type === 'in' ? 'text-blue-300' : 'text-red-300'}">
+							<span class="text-2xl sm:text-3xl font-extrabold text-white">
 								{last.type === 'in' ? 'GİRİŞ' : 'ÇIKIŞ'}
 							</span>
-							<span class="text-2xl sm:text-3xl tabular-nums">{fmtTime(last.punched_at)}</span>
+							<span class="text-2xl sm:text-3xl tabular-nums text-white/90">{fmtTime(last.punched_at)}</span>
 						</div>
 					</div>
 					<div class="flex-1"></div>
