@@ -42,7 +42,7 @@
 	async function fetchRecent() {
 		if (!key) return;
 		try {
-			const res = await fetch(`/api/attendance/kiosk/recent?key=${encodeURIComponent(key)}&limit=8`);
+			const res = await fetch(`/api/attendance/kiosk/recent?key=${encodeURIComponent(key)}&limit=1`);
 			if (res.ok) { const d = await res.json(); recent = d.items ?? []; }
 		} catch (e) { console.error('Son hareketler alınamadı:', e); }
 	}
@@ -129,24 +129,7 @@
 							<span class="text-2xl sm:text-3xl tabular-nums">{fmtTime(last.punched_at)}</span>
 						</div>
 					</div>
-
-					<!-- Önceki hareketler -->
-					{#if recent.length > 1}
-						<div class="mt-6 min-h-0 flex-1 overflow-y-auto">
-							<div class="text-xs uppercase tracking-wider text-teal-200/50 mb-2">Önceki hareketler</div>
-							<div class="space-y-2">
-								{#each recent.slice(1) as r (r.id)}
-									<div class="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2.5">
-										<span class="font-medium truncate">{r.full_name}</span>
-										<span class="flex items-center gap-3 shrink-0 ml-2">
-											<span class="text-sm font-semibold {r.type === 'in' ? 'text-emerald-300' : 'text-amber-300'}">{r.type === 'in' ? 'Giriş' : 'Çıkış'}</span>
-											<span class="text-sm tabular-nums text-teal-100/70">{fmtTime(r.punched_at)}</span>
-										</span>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
+					<div class="flex-1"></div>
 				{:else}
 					<div class="flex-1 flex items-center justify-center text-teal-100/50 text-lg">Henüz hareket yok</div>
 				{/if}
