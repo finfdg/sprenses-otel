@@ -32,6 +32,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import RateLimiter, get_client_ip
@@ -45,6 +46,7 @@ from app.models.personnel import (
 )
 from app.models.user import User
 from app.utils.audit import log_action
+from app.websocket.manager import manager
 
 TZ = pytz.timezone("Europe/Istanbul")
 SECRET = settings.secret_key.encode()
@@ -281,6 +283,8 @@ def punch(data: PunchRequest, request: Request, db: Session = Depends(get_db)):
     db.add(lg)
     db.commit()
     logger.info("PDKS|punch|BAŞARILI personel=%s type=%s", p.full_name, new_type)
+    # Canlı pano: bağlı yöneticilere sinyal (PII yok — veri izin-korumalı uçtan çekilir)
+    manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "punch"})
 
     summary = _today_summary(db, p.id)
     return {
@@ -535,4 +539,5 @@ def manual_punch(
     log_action(db, current_user.id, "manual_punch", "attendance", p.id,
                f"Elle {data.type}: {p.full_name}", get_client_ip(request))
     db.commit()
+    manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "manual"})
     return {"ok": True, "type": data.type, "personnel": p.full_name}

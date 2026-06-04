@@ -20,6 +20,7 @@ export const WS_EVENT = {
 	APPROVAL_STATUS_CHANGED: 'approval_status_changed',
 	BANK_STATEMENT_UPLOADED: 'bank_statement_uploaded',
 	QUALITY_FORM_UPDATE: 'quality_form_update',
+	ATTENDANCE_UPDATED: 'attendance_updated',
 	PERMISSION_CHANGED: 'permission_changed',
 
 	// Oturum / bağlantı

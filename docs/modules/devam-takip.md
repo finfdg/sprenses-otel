@@ -70,7 +70,16 @@ Ek aksiyonlar: "Kiosk Linki", "Elle Giriş/Çıkış" (telefonsuz/unutan için, 
 ## Audit Log
 - entity_type: `personnel` (CRUD), `attendance` (manuel basış). Eylemler: create/update/delete/manual_punch.
 
+## Gerçek Zamanlılık (canlı pano)
+- Basış (telefon `punch` veya yönetici `manual`) sonrası backend **`attendance_updated`** WS event'i
+  yayınlar (`manager.send_to_all_sync`). Yönetici paneli `onWsEvent(WS_EVENT.ATTENDANCE_UPDATED)` ile dinler
+  ve **İçeride + Puantaj + (açıksa) Geçmiş**'i sessizce (skeleton flash'sız) tazeler → sayfa yenilemeye gerek yok.
+- **Event PII içermez** (yalnızca `{type, action}`). Tüm bağlı kullanıcılara gider ama veri
+  `require_permission(hr.attendance)` korumalı uçlardan çekildiği için yetkisiz kullanıcı içeriği göremez.
+- Sabit tek kaynak: backend `WSEvent.ATTENDANCE_UPDATED` ↔ frontend `WS_EVENT.ATTENDANCE_UPDATED` (birebir).
+
 ## Geliştirme Kuralları
 - Bu modül **onay akışından muaftır** (Sunucu/Yedekleme gibi ops/HR modülü).
 - Kiosk QR yenileme `setInterval` kullanır — "polling yasak" kuralının **bilinçli istisnası** (kiosk display, WS ile taşınamaz).
+  Yönetici panelindeki canlı güncelleme ise polling değil, **WS event-driven**'dir (yukarıdaki bölüm).
 - `segno` (saf-python QR) bağımlılığı eklendi.

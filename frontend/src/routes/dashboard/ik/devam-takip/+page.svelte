@@ -3,6 +3,8 @@
 	import { api, ApiError } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import { onWsEvent } from '$lib/stores/websocket.svelte';
+	import { WS_EVENT } from '$lib/constants/realtime';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -201,7 +203,17 @@
 		}
 	}
 
-	onMount(refreshAll);
+	onMount(() => {
+		refreshAll();
+		// Canlı pano — başka biri (telefon/elle) basınca panel ANINDA tazelenir (polling yok).
+		// Sinyal PII içermez; veriyi izin-korumalı uçtan sessizce (skeleton flash'sız) çekeriz.
+		const unsub = onWsEvent(WS_EVENT.ATTENDANCE_UPDATED, () => {
+			loadStatus();
+			loadSummary();
+			if (logsLoaded) loadLogs();
+		});
+		return unsub;
+	});
 </script>
 
 <div class="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5">

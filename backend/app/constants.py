@@ -47,6 +47,7 @@ class WSEvent:
     APPROVAL_STATUS_CHANGED = "approval_status_changed"
     BANK_STATEMENT_UPLOADED = "bank_statement_uploaded"
     QUALITY_FORM_UPDATE = "quality_form_update"
+    ATTENDANCE_UPDATED = "attendance_updated"  # PDKS giriş/çıkış — canlı pano tazeleme
     PERMISSION_CHANGED = "permission_changed"
 
     # Oturum / bağlantı
