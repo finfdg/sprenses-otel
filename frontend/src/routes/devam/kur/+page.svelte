@@ -17,6 +17,10 @@
 	let errMsg = $state('');
 	let scanError = $state('');
 
+	// ─── TANI (geçici) — iOS kimlik/kamera akışını yerinde görmek için ───
+	let dbg = $state<string[]>([]);
+	function dlog(s: string) { dbg = [...dbg, s]; }
+
 	// punch sonucu
 	let punchType = $state<'in' | 'out'>('in');
 	let punchTime = $state('');
@@ -34,7 +38,9 @@
 
 	async function loadMe() {
 		try {
+			dlog(`me → token ${token ? 'VAR(' + token.slice(0, 6) + '…)' : 'YOK'}`);
 			const res = await fetch('/api/attendance/me', { headers: { 'X-Pdks-Token': token } });
+			dlog(`me ← HTTP ${res.status}`);
 			if (res.status === 401) { view = 'error'; errMsg = 'Bu kart tanımlı değil veya pasif.'; return; }
 			const d = await res.json();
 			name = d.full_name ?? '';
@@ -53,12 +59,15 @@
 		scanError = '';
 		view = 'scanning';
 		try {
+			dlog('kamera isteniyor (getUserMedia)…');
 			stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
 			videoEl.srcObject = stream;
 			await videoEl.play();
+			dlog('kamera AÇIK · tarama başladı');
 			rafId = requestAnimationFrame(tick);
-		} catch (e) {
+		} catch (e: any) {
 			console.error('Kamera hatası:', e);
+			dlog(`kamera HATA: ${e?.name || e}`);
 			scanError = 'Kamera açılamadı. Tarayıcı kamera iznini verin.';
 			view = 'ready';
 		}
@@ -92,6 +101,7 @@
 
 	function onDecode(data: string) {
 		stopScan();
+		dlog(`QR okundu: ${data.slice(0, 32)}…`);
 		// Kiosk QR'ı "https://.../devam?k=<token>" taşır — k'yı ayıkla
 		let k = data;
 		try { const u = new URL(data); k = u.searchParams.get('k') ?? data; } catch { /* ham token */ }
@@ -101,11 +111,13 @@
 	async function doPunch(k: string) {
 		view = 'loading';
 		try {
+			dlog(`punch → k=${k.slice(0, 10)}… token ${token ? 'VAR(' + token.slice(0, 6) + '…)' : 'YOK'}`);
 			const res = await fetch('/api/attendance/punch', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', 'X-Pdks-Token': token },
 				body: JSON.stringify({ k }),
 			});
+			dlog(`punch ← HTTP ${res.status}`);
 			const d = await res.json().catch(() => ({}));
 			if (res.ok) {
 				punchType = d.type;
@@ -131,7 +143,11 @@
 	}
 
 	onMount(() => {
+		const sa = (navigator as any).standalone === true
+			|| (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+		dlog(`sayfa=/devam/kur · ${sa ? 'ANA-EKRAN (standalone)' : 'TARAYICI sekmesi'}`);
 		token = $page.url.searchParams.get('t') ?? '';
+		dlog(`URL t=${token ? 'VAR' : 'YOK'}`);
 		if (!token) { view = 'error'; errMsg = 'Geçersiz link.'; return; }
 		try { localStorage.setItem('pdks_token', token); } catch { /* yoksay */ }
 		loadMe();
@@ -199,6 +215,14 @@
 				<h1 class="text-lg font-bold text-gray-900">Hata</h1>
 				<p class="text-sm text-gray-600">{errMsg}</p>
 				<p class="text-xs text-gray-400">Yöneticinizden güncel QR kartınızı isteyin.</p>
+			</div>
+		{/if}
+
+		<!-- TANI paneli (geçici) -->
+		{#if dbg.length && view !== 'scanning'}
+			<div class="mt-4 bg-gray-900 text-gray-100 rounded-xl p-3 text-left font-mono text-[11px] leading-relaxed break-all">
+				<div class="text-gray-400 mb-1">🔎 tanı kaydı</div>
+				{#each dbg as line}<div>• {line}</div>{/each}
 			</div>
 		{/if}
 	</div>

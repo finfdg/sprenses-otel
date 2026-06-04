@@ -21,6 +21,10 @@
 
 	let errMsg = $state('');
 
+	// ─── TANI (geçici) — iOS kimlik-taşıma sorununu yerinde görmek için ───
+	let dbg = $state<string[]>([]);
+	function dlog(s: string) { dbg = [...dbg, s]; }
+
 	function fmtMin(m: number): string {
 		const h = Math.floor(m / 60);
 		return h > 0 ? `${h} saat ${m % 60} dk` : `${m} dk`;
@@ -34,10 +38,13 @@
 
 	async function loadStatus() {
 		try {
+			const tk = pdksToken();
+			dlog(`me → token ${tk ? 'VAR(' + tk.slice(0, 6) + '…)' : 'YOK'}`);
 			const res = await fetch('/api/attendance/me', {
 				credentials: 'include',
-				headers: { 'X-Pdks-Token': pdksToken() },
+				headers: { 'X-Pdks-Token': tk },
 			});
+			dlog(`me ← HTTP ${res.status}`);
 			if (res.status === 401) { view = 'no-setup'; return; }
 			const data = await res.json();
 			meName = data.full_name ?? '';
@@ -54,12 +61,15 @@
 
 	async function doPunch(k: string) {
 		try {
+			const tk = pdksToken();
+			dlog(`punch → k=${k.slice(0, 10)}… token ${tk ? 'VAR(' + tk.slice(0, 6) + '…)' : 'YOK'}`);
 			const res = await fetch('/api/attendance/punch', {
 				method: 'POST',
 				credentials: 'include',
-				headers: { 'Content-Type': 'application/json', 'X-Pdks-Token': pdksToken() },
+				headers: { 'Content-Type': 'application/json', 'X-Pdks-Token': tk },
 				body: JSON.stringify({ k }),
 			});
+			dlog(`punch ← HTTP ${res.status}`);
 			if (res.status === 401) { view = 'no-setup'; return; }
 			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
@@ -81,7 +91,12 @@
 	}
 
 	onMount(() => {
+		// Ortam tanısı: standalone (ana ekran uygulaması) mı, Safari sekmesi mi?
+		const sa = (navigator as any).standalone === true
+			|| (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+		dlog(`sayfa=/devam · ${sa ? 'ANA-EKRAN (standalone)' : 'TARAYICI sekmesi'}`);
 		const k = $page.url.searchParams.get('k');
+		dlog(`URL k=${k ? 'VAR' : 'YOK'}`);
 		if (k) doPunch(k);
 		else loadStatus();
 	});
@@ -150,6 +165,14 @@
 				<h1 class="text-lg font-bold text-gray-900">İşlem yapılamadı</h1>
 				<p class="text-sm text-gray-600">{errMsg}</p>
 				<p class="text-xs text-gray-400">Girişteki ekrandaki <strong>güncel</strong> kodu tekrar okutmayı deneyin.</p>
+			</div>
+		{/if}
+
+		<!-- TANI paneli (geçici) — sorunu yerinde görmek için -->
+		{#if dbg.length}
+			<div class="mt-4 bg-gray-900 text-gray-100 rounded-xl p-3 text-left font-mono text-[11px] leading-relaxed break-all">
+				<div class="text-gray-400 mb-1">🔎 tanı kaydı</div>
+				{#each dbg as line}<div>• {line}</div>{/each}
 			</div>
 		{/if}
 	</div>
