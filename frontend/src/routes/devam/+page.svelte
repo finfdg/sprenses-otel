@@ -26,9 +26,18 @@
 		return h > 0 ? `${h} saat ${m % 60} dk` : `${m} dk`;
 	}
 
+	// Kimlik token'ı — kurulumda localStorage'a yazılır; başlıkla gönderilir
+	// (iOS Safari, kameranın açtığı sayfada çerezi her zaman taşımıyor).
+	function pdksToken(): string {
+		try { return localStorage.getItem('pdks_token') ?? ''; } catch { return ''; }
+	}
+
 	async function loadStatus() {
 		try {
-			const res = await fetch('/api/attendance/me', { credentials: 'include' });
+			const res = await fetch('/api/attendance/me', {
+				credentials: 'include',
+				headers: { 'X-Pdks-Token': pdksToken() },
+			});
 			if (res.status === 401) { view = 'no-setup'; return; }
 			const data = await res.json();
 			meName = data.full_name ?? '';
@@ -48,7 +57,7 @@
 			const res = await fetch('/api/attendance/punch', {
 				method: 'POST',
 				credentials: 'include',
-				headers: { 'Content-Type': 'application/json' },
+				headers: { 'Content-Type': 'application/json', 'X-Pdks-Token': pdksToken() },
 				body: JSON.stringify({ k }),
 			});
 			if (res.status === 401) { view = 'no-setup'; return; }

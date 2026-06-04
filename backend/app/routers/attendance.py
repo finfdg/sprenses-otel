@@ -96,8 +96,14 @@ def _set_cookie(response: Response, token: str) -> None:
     )
 
 
-def _personnel_from_cookie(request: Request, db: Session) -> Optional[Personnel]:
-    tok = request.cookies.get(COOKIE_NAME)
+def _personnel_from_request(request: Request, db: Session) -> Optional[Personnel]:
+    """Personel kimliği: önce X-Pdks-Token başlığı (localStorage'dan), sonra çerez.
+
+    iOS Safari, kameranın açtığı sayfada fetch ile set edilen HttpOnly çerezi her
+    zaman taşımıyor; bu yüzden frontend kimliği localStorage'da da tutup başlıkla
+    gönderir. Aynı-origin istek olduğundan özel başlık CORS'a takılmaz.
+    """
+    tok = request.headers.get("X-Pdks-Token") or request.cookies.get(COOKIE_NAME)
     if not tok:
         return None
     return db.query(Personnel).filter(
@@ -218,7 +224,7 @@ def setup(data: SetupRequest, request: Request, response: Response, db: Session 
 @router.get("/attendance/me")
 def me(request: Request, db: Session = Depends(get_db)):
     """Çerezdeki personelin bilgisi + bugünkü durumu."""
-    p = _personnel_from_cookie(request, db)
+    p = _personnel_from_request(request, db)
     if not p:
         raise HTTPException(status_code=401, detail="Personel tanımlı değil — kurulum linkini açın")
     summary = _today_summary(db, p.id)
@@ -235,7 +241,7 @@ def me(request: Request, db: Session = Depends(get_db)):
 def punch(data: PunchRequest, request: Request, db: Session = Depends(get_db)):
     """Kiosk QR'ı okutunca çağrılır — token doğrula, giriş/çıkış kaydet."""
     punch_limiter.check(f"pdks-punch-{get_client_ip(request)}")
-    p = _personnel_from_cookie(request, db)
+    p = _personnel_from_request(request, db)
     if not p:
         raise HTTPException(status_code=401, detail="Personel tanımlı değil — kurulum linkini açın")
     if not _valid_token(data.k):

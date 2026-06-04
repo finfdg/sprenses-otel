@@ -20,6 +20,8 @@
 			});
 			const data = await res.json().catch(() => ({}));
 			if (res.ok) {
+				// Kimliği localStorage'da da sakla (iOS'ta çerezden daha güvenilir taşınır)
+				try { localStorage.setItem('pdks_token', t); } catch (e) { console.error('localStorage yazılamadı:', e); }
 				name = data.full_name ?? '';
 				phase = 'ok';
 			} else {
