@@ -7,17 +7,20 @@
 	import { page } from '$app/stores';
 
 	const CONFIG_POLL_MS = 15000; // ayar değişikliğini yakalama
-	const RECENT_POLL_MS = 3000;  // son hareketleri tazeleme
+	const RECENT_POLL_MS = 1000;  // son hareketi sık kontrol (hızlı art arda basışta isim hemen değişsin)
+	const HOLD_MS = 5000;         // isim en geç bu kadar ekranda kalır, sonra silinir
 
 	let key = $state('');
 	let tick = $state(0);
 	let clock = $state('');
 	let refreshMs = 4000;
-	let recent = $state<any[]>([]);
+	let displayed = $state<any | null>(null); // ekranda gösterilen son hareket (5sn sonra silinir)
+	let lastSeenId: number | null = null;     // tekrar göstermemek için son görülen log id
 	let qrTimer: ReturnType<typeof setInterval> | null = null;
 	let clockTimer: ReturnType<typeof setInterval> | null = null;
 	let configTimer: ReturnType<typeof setInterval> | null = null;
 	let recentTimer: ReturnType<typeof setInterval> | null = null;
+	let clearTimer: ReturnType<typeof setTimeout> | null = null;
 	let destroyed = false;
 
 	function updateClock() {
@@ -39,11 +42,25 @@
 		} catch (e) { console.error('Kiosk config alınamadı:', e); }
 		return refreshMs;
 	}
+	// Yeni hareketi göster + 5sn'lik silme zamanlayıcısını (yeniden) kur.
+	function showPunch(p: any) {
+		displayed = p;
+		if (clearTimer) clearTimeout(clearTimer);
+		clearTimer = setTimeout(() => { displayed = null; }, HOLD_MS);
+	}
 	async function fetchRecent() {
 		if (!key) return;
 		try {
 			const res = await fetch(`/api/attendance/kiosk/recent?key=${encodeURIComponent(key)}&limit=1`);
-			if (res.ok) { const d = await res.json(); recent = d.items ?? []; }
+			if (!res.ok) return;
+			const d = await res.json();
+			const latest = (d.items && d.items[0]) || null;
+			if (!latest || latest.id === lastSeenId) return; // yeni basış yoksa dokunma (timer siler)
+			const firstLoad = lastSeenId === null;
+			lastSeenId = latest.id;
+			// İlk yüklemede yalnızca gerçekten taze (son 5sn) basışı göster — eski kaydı gösterme
+			const fresh = Date.now() - new Date(latest.punched_at).getTime() < HOLD_MS;
+			if (!firstLoad || fresh) showPunch(latest);
 		} catch (e) { console.error('Son hareketler alınamadı:', e); }
 	}
 
@@ -78,6 +95,7 @@
 		if (clockTimer) clearInterval(clockTimer);
 		if (configTimer) clearInterval(configTimer);
 		if (recentTimer) clearInterval(recentTimer);
+		if (clearTimer) clearTimeout(clearTimer);
 	});
 </script>
 
@@ -115,9 +133,9 @@
 					<div class="text-3xl sm:text-4xl font-bold tabular-nums">{clock}</div>
 				</div>
 
-				{#if recent.length}
-					{@const last = recent[0]}
-					<!-- Son hareket (büyük) -->
+				{#if displayed}
+					{@const last = displayed}
+					<!-- Son hareket (büyük) — 5sn sonra otomatik silinir -->
 					<div class="mt-6 rounded-2xl border p-5 sm:p-6 {last.type === 'in' ? 'bg-emerald-500/20 border-emerald-400/40' : 'bg-amber-500/20 border-amber-400/40'}">
 						<div class="text-sm text-teal-100/70">Son hareket</div>
 						<div class="text-3xl sm:text-4xl font-bold mt-1 leading-tight">{last.full_name}</div>

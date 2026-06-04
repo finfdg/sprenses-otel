@@ -15,8 +15,10 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
    Personel sayfayı **ana ekrana ekler** (kalıcı kimlikli ikon).
 2. **Giriş ekranı:** Yönetici "Kiosk Linki"ni alır (`/devam/ekran?key=<KIOSK_KEY>`), girişteki bir
    tablet/TV'de açar. **İki sütun:** SOL'da yalnız **dönen QR**, SAĞ'da **canlı son hareket**
-   (kişi adı + departman + GİRİŞ/ÇIKIŞ + saat) ve **saat**. Sağ panel `/attendance/kiosk/recent?limit=1`'den
-   **3sn'de bir** tazelenir (kiosk-display istisnası).
+   (kişi adı + departman + GİRİŞ/ÇIKIŞ + saat) ve **saat**. Sağ panel `/attendance/kiosk/recent?limit=1`'i
+   **1sn'de bir** yoklar; yeni basış gelince ismi hemen değiştirir, **5sn** sonra otomatik siler
+   (her yeni basış 5sn'lik silme zamanlayıcısını sıfırlar). İlk yüklemede yalnız son 5sn'lik basışı
+   gösterir (eski kaydı göstermez). Kiosk-display istisnası.
 3. **Günlük basış:** Personel **kendi uygulamasını** açar (ana ekrandaki ikon) → **"Tara"** düğmesine basar →
    uygulama-içi kamera girişteki ekranın QR'ını okur → token + `?t=` kimliği `X-Pdks-Token` başlığıyla
    gider → son duruma göre **giriş/çıkış** kaydedilir → "Hoş geldin Ahmet ✅".
