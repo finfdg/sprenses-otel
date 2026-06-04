@@ -62,6 +62,9 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
   QR'ı `ttl-3` sn'de bir yeniler (ör. 7sn TTL → 4sn) → ekrandaki kod hep taze, meşru tarama kaçmaz.
   - **Panel → Ayarlar** (İK → Devam Takip): yönetici QR geçerlilik süresini değiştirir; ekran yenileme
     otomatik türetilir. DB: `attendance_settings` (tek satır). Audit: `update / attendance_settings`.
+  - **Kiosk otomatik uyarlanır:** giriş ekranı ayarı **~15sn'de bir** kontrol eder (`/attendance/kiosk/config`);
+    değişince yenileme aralığını **canlı** günceller (sayfa/elle yenileme gerekmez). Kiosk public+oturumsuz
+    olduğu için kimlikli WS kullanılamaz → bu hafif kontrol kiosk-display istisnası kapsamındadır.
 - **Kiosk QR endpoint'i `KIOSK_KEY` ister** (SECRET'ten türetilen, admin-only stabil anahtar) → güncel token
   **uzaktan çekilemez**. Yani personel **tek başına evden** canlı token'a erişip basamaz.
 - **Personel kimliği:** kişisel `access_token` (tahmin edilemez) → kimlik. Raw token API yanıtında **dönmez** (yalnızca QR'a gömülür).
@@ -101,6 +104,7 @@ Ek aksiyonlar: "Kiosk Linki", "Elle Giriş/Çıkış" (telefonsuz/unutan için, 
 
 ## Geliştirme Kuralları
 - Bu modül **onay akışından muaftır** (Sunucu/Yedekleme gibi ops/HR modülü).
-- Kiosk QR yenileme `setInterval` kullanır — "polling yasak" kuralının **bilinçli istisnası** (kiosk display, WS ile taşınamaz).
-  Yönetici panelindeki canlı güncelleme ise polling değil, **WS event-driven**'dir (yukarıdaki bölüm).
+- Kiosk QR yenileme + 15sn'lik ayar-kontrolü `setInterval` kullanır — "polling yasak" kuralının **bilinçli
+  istisnası** (kiosk public+oturumsuz display, kimlikli WS taşınamaz). Yönetici panelindeki canlı güncelleme
+  ise polling değil, **WS event-driven**'dir (yukarıdaki bölüm).
 - `segno` (saf-python QR) bağımlılığı eklendi.

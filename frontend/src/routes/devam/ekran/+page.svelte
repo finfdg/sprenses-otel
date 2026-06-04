@@ -1,18 +1,41 @@
 <script lang="ts">
 	// Kiosk ekranı — girişteki tablet/TV'de açılır. Dönen QR gösterir.
-	// KIOSK_KEY ?key= ile gelir. QR ~10sn'de bir yenilenir (kiosk display istisnası).
+	// KIOSK_KEY ?key= ile gelir. QR'ı panelden ayarlanan süreye göre yeniler (kiosk display istisnası).
+	// Panelden ayar değişince ekran ~15sn'de OTOMATİK uyarlanır — kiosk'u elle yenilemeye gerek yok.
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
+
+	const CONFIG_POLL_MS = 15000; // ayar değişikliğini yakalama aralığı (kiosk display istisnası)
 
 	let key = $state('');
 	let tick = $state(0);
 	let clock = $state('');
+	let refreshMs = 4000;
 	let qrTimer: ReturnType<typeof setInterval> | null = null;
 	let clockTimer: ReturnType<typeof setInterval> | null = null;
+	let configTimer: ReturnType<typeof setInterval> | null = null;
 	let destroyed = false;
 
 	function updateClock() {
 		clock = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	}
+
+	// Panelden ayarlanan yenileme süresini çek (yoksa mevcut değeri koru). Hep geçerlilikten kısadır.
+	async function fetchRefreshMs(): Promise<number> {
+		if (!key) return refreshMs;
+		try {
+			const res = await fetch(`/api/attendance/kiosk/config?key=${encodeURIComponent(key)}`);
+			if (res.ok) {
+				const d = await res.json();
+				if (d.refresh_sec) return d.refresh_sec * 1000;
+			}
+		} catch (e) { console.error('Kiosk config alınamadı:', e); }
+		return refreshMs;
+	}
+
+	function startQrTimer() {
+		if (qrTimer) clearInterval(qrTimer);
+		qrTimer = setInterval(() => (tick = Date.now()), refreshMs);
 	}
 
 	onMount(async () => {
@@ -20,24 +43,24 @@
 		updateClock();
 		clockTimer = setInterval(updateClock, 1000);
 		tick = Date.now();
-		// Ekran yenileme süresini panel ayarından çek (yoksa 4sn). Hep geçerlilik süresinden kısadır.
-		let refreshMs = 4000;
-		if (key) {
-			try {
-				const res = await fetch(`/api/attendance/kiosk/config?key=${encodeURIComponent(key)}`);
-				if (res.ok) {
-					const d = await res.json();
-					if (d.refresh_sec) refreshMs = d.refresh_sec * 1000;
-				}
-			} catch (e) { console.error('Kiosk config alınamadı:', e); }
-		}
+		refreshMs = await fetchRefreshMs();
 		if (destroyed) return;
-		qrTimer = setInterval(() => (tick = Date.now()), refreshMs);
+		startQrTimer();
+		// Ayar değişikliğini otomatik yakala → yenileme aralığını CANLI güncelle (sayfa yenilemeden)
+		configTimer = setInterval(async () => {
+			const newMs = await fetchRefreshMs();
+			if (!destroyed && newMs !== refreshMs) {
+				refreshMs = newMs;
+				tick = Date.now();   // hemen taze QR göster
+				startQrTimer();      // yeni aralıkla yeniden kur
+			}
+		}, CONFIG_POLL_MS);
 	});
 	onDestroy(() => {
 		destroyed = true;
 		if (qrTimer) clearInterval(qrTimer);
 		if (clockTimer) clearInterval(clockTimer);
+		if (configTimer) clearInterval(configTimer);
 	});
 </script>
 
