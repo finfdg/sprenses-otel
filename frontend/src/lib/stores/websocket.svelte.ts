@@ -1,5 +1,7 @@
 // WebSocket bağlantı yönetimi — Svelte 5 runes modülü
 
+import type { WsEventType } from '$lib/constants/realtime';
+
 type EventHandler = (event: any) => void;
 
 export const wsState = $state({
@@ -29,7 +31,7 @@ let visibilityChangeHandler: (() => void) | null = null;
 // Event listener kayıt defteri
 const listeners: Map<string, Set<EventHandler>> = new Map();
 
-export function onWsEvent(type: string, handler: EventHandler): () => void {
+export function onWsEvent(type: WsEventType, handler: EventHandler): () => void {
 	if (!listeners.has(type)) {
 		listeners.set(type, new Set());
 	}
@@ -89,7 +91,7 @@ function emit(type: string, data: any): void {
  * Yerel event tetikle — WebSocket üzerinden değil, aynı tarayıcı içinde.
  * Sidebar gibi bileşenlere sayfa içi bildirim göndermek için kullanılır.
  */
-export function emitLocal(type: string, data: any = {}): void {
+export function emitLocal(type: WsEventType, data: any = {}): void {
 	emit(type, { type, ...data });
 }
 

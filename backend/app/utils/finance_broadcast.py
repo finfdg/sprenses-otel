@@ -14,6 +14,7 @@ from typing import Set
 
 from fastapi import BackgroundTasks
 
+from app.constants import WSEvent
 from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ async def _debounced_send(module: str, action: str) -> None:
 
     try:
         await manager.send_to_all({
-            "type": "finance_updated",
+            "type": WSEvent.FINANCE_UPDATED,
             "module": module,
             "action": action,
         })

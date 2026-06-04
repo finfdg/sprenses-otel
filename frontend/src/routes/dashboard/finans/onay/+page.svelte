@@ -2,11 +2,11 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
+	import ListPage from '$lib/components/ListPage.svelte';
 	import Modal from '$lib/components/Modal.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { CheckCircle2, X, Check } from 'lucide-svelte';
+	import { CheckCircle2 } from 'lucide-svelte';
 
 	interface PendingItem {
 		id: number;
@@ -161,33 +161,23 @@
 	});
 </script>
 
-<div class="max-w-4xl mx-auto px-4 py-6">
-	<!-- Header -->
-	<div class="flex items-center gap-3 mb-6">
-		<h1 class="text-2xl font-semibold text-gray-900">Onay Kutusu</h1>
-		{#if pendingCount > 0}
-			<span class="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-sm font-semibold bg-teal-100 text-teal-700">
-				{pendingCount}
-			</span>
-		{/if}
-	</div>
-
-	<!-- Loading -->
-	{#if loading}
+<ListPage
+	title="Onay Kutusu"
+	description={pendingCount > 0 ? `${pendingCount} onay bekliyor` : ''}
+	{loading}
+	isEmpty={pendingInvoices.length === 0}
+	emptyIcon={CheckCircle2}
+	emptyTitle="Onay bekleyen fatura bulunmuyor"
+	emptyMessage="Tüm faturalar incelendi"
+	card={false}
+	maxWidth="max-w-4xl"
+>
+	{#snippet skeleton()}
 		<TableSkeleton rows={4} columns={3} showHeader={false} />
+	{/snippet}
 
-	<!-- Empty State -->
-	{:else if pendingInvoices.length === 0}
-		<EmptyState
-			icon={CheckCircle2}
-			title="Onay bekleyen fatura bulunmuyor"
-			description="Tüm faturalar incelendi"
-		/>
-
-	<!-- Invoice Cards -->
-	{:else}
-		<div class="space-y-4">
-			{#each pendingInvoices as invoice (invoice.id)}
+	<div class="space-y-4">
+		{#each pendingInvoices as invoice (invoice.id)}
 				<div
 					class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 transition-all duration-400"
 					class:opacity-0={fadingIds.has(invoice.id)}
@@ -261,8 +251,7 @@
 				</div>
 			{/each}
 		</div>
-	{/if}
-</div>
+</ListPage>
 
 <!-- Approval Modal -->
 <Modal bind:show={showApproveModal} title="Faturayı Onayla" maxWidth="max-w-md">

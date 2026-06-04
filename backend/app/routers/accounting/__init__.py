@@ -1,42 +1,43 @@
 from fastapi import APIRouter
 
+from app.constants import BroadcastModule, SourceType
 from app.routers.scheduled_base import create_scheduled_router
 
 taxes_router = create_scheduled_router(
-    source_type="tax",
+    source_type=SourceType.TAX,
     permission_code="accounting.taxes",
     entity_label="Vergi",
-    broadcast_module="accounting",
+    broadcast_module=BroadcastModule.ACCOUNTING,
 )
 
 recurring_router = create_scheduled_router(
-    source_type="recurring",
+    source_type=SourceType.RECURRING,
     permission_code="accounting.recurring",
     entity_label="Düzenli Ödeme",
-    broadcast_module="accounting",
+    broadcast_module=BroadcastModule.ACCOUNTING,
 )
 
 rent_income_router = create_scheduled_router(
-    source_type="rent_income",
+    source_type=SourceType.RENT_INCOME,
     permission_code="accounting.rent_income",
     entity_label="Alınan Kira",
-    broadcast_module="accounting",
+    broadcast_module=BroadcastModule.ACCOUNTING,
     direction=1,  # GELİR
 )
 
 rent_expense_router = create_scheduled_router(
-    source_type="rent_expense",
+    source_type=SourceType.RENT_EXPENSE,
     permission_code="accounting.rent_expense",
     entity_label="Verilen Kira",
-    broadcast_module="accounting",
+    broadcast_module=BroadcastModule.ACCOUNTING,
     direction=-1,  # GİDER
 )
 
 dividend_router = create_scheduled_router(
-    source_type="dividend",
+    source_type=SourceType.DIVIDEND,
     permission_code="accounting.dividend",
     entity_label="Temettü",
-    broadcast_module="accounting",
+    broadcast_module=BroadcastModule.ACCOUNTING,
     direction=-1,  # GİDER
 )
 

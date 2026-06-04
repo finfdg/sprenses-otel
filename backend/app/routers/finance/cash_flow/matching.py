@@ -19,6 +19,7 @@ from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.utils.audit import log_action
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 
@@ -89,7 +90,7 @@ def match_vendor_tx(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "cariler", "match")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "match")
 
     return {"ok": True, "match_number": match_number}
 
@@ -176,7 +177,7 @@ def match_cc_payment(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "credits", "match")
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "match")
 
     return {
         "ok": True,

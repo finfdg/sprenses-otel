@@ -15,6 +15,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.constants import SourceType
 from app.models.approval import ApprovalRequest
 
 logger = logging.getLogger(__name__)
@@ -107,14 +108,14 @@ def _apply_fields(obj, payload: dict, exclude: Optional[set] = None):
 # ── Scheduled modüller (8 modül) ──────────────────────────────
 
 _SCHEDULED_SOURCE_MAP = {
-    "accounting.taxes": ("tax", -1),
-    "accounting.recurring": ("recurring", -1),
-    "accounting.rent_income": ("rent_income", 1),
-    "accounting.rent_expense": ("rent_expense", -1),
-    "accounting.dividend": ("dividend", -1),
-    "hr.salary": ("salary", -1),
-    "hr.withholding": ("withholding", -1),
-    "hr.sgk": ("sgk", -1),
+    "accounting.taxes": (SourceType.TAX, -1),
+    "accounting.recurring": (SourceType.RECURRING, -1),
+    "accounting.rent_income": (SourceType.RENT_INCOME, 1),
+    "accounting.rent_expense": (SourceType.RENT_EXPENSE, -1),
+    "accounting.dividend": (SourceType.DIVIDEND, -1),
+    "hr.salary": (SourceType.SALARY, -1),
+    "hr.withholding": (SourceType.WITHHOLDING, -1),
+    "hr.sgk": (SourceType.SGK, -1),
 }
 
 

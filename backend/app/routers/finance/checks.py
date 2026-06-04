@@ -20,6 +20,7 @@ from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.utils.check_parser import parse_check_excel
 from app.utils.file_validation import validate_upload_file
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 
@@ -129,7 +130,7 @@ async def upload_checks(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "checks", "upload")
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "upload")
 
     return CheckUploadResult(
         upload_id=upload.id,
@@ -194,7 +195,7 @@ def delete_upload(
     )
     db.delete(upload)
     db.commit()
-    broadcast_finance_update(background_tasks, "checks", "delete")
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "delete")
 
 
 # ─── Çek Listesi ────────────────────────────────────────
@@ -384,7 +385,7 @@ def update_check_status(
         bank_tx = db.query(BankTransaction).filter(BankTransaction.id == check.bank_transaction_id).first()
     finance_event_svc.upsert_check(db, check, bank_tx)
     db.commit()
-    broadcast_finance_update(background_tasks, "checks", "update")
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "update")
 
     return {"ok": True, "status": new_status}
 
@@ -505,6 +506,6 @@ def auto_match_bank(
             ip_address=get_client_ip(request),
         )
     db.commit()
-    broadcast_finance_update(background_tasks, "checks", "match")
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "match")
 
     return result

@@ -25,6 +25,7 @@ from app.schemas.reservation import (
 from app.utils.audit import log_action
 from app.utils.file_validation import validate_upload_file
 from app.utils.reservation_parser import parse_reservation_excel
+from app.constants import BroadcastModule
 from app.utils.sales_broadcast import broadcast_sales_update
 
 from ._helpers import UPLOAD_DIR, _ensure_upload_dir, logger
@@ -239,7 +240,7 @@ async def upload_reservations(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_sales_update(background_tasks, "hotel_reservation", "upload")
+    broadcast_sales_update(background_tasks, BroadcastModule.HOTEL_RESERVATION, "upload")
 
     return ReservationUploadResult(
         upload_id=upload.id,
@@ -316,7 +317,7 @@ def delete_upload(
     )
     db.delete(upload)
     db.commit()
-    broadcast_sales_update(background_tasks, "hotel_reservation", "delete")
+    broadcast_sales_update(background_tasks, BroadcastModule.HOTEL_RESERVATION, "delete")
 
 
 # ─── Toplu Silme (kaynakta olmayan kayıtlar) ────────────
@@ -388,7 +389,7 @@ def bulk_delete_reservations(
         )
 
     if deleted:
-        broadcast_sales_update(background_tasks, "hotel_reservation", "delete")
+        broadcast_sales_update(background_tasks, BroadcastModule.HOTEL_RESERVATION, "delete")
 
     return BulkDeleteResult(
         deleted=deleted,

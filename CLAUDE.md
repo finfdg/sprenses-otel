@@ -89,6 +89,7 @@
 - **Modal:** Frontend'de `lib/components/Modal.svelte` reusable bileşeni kullanılır
 - **Hata Yakalama:** Boş `catch {}` blokları **yasaktır** — her catch bloğunda `console.error` ve gerekirse kullanıcı bildirimi olmalıdır
 - **Pagination:** List endpoint'leri `{ items, total, page, page_size, pages }` formatında döner
+- **Merkezi Sabitler (sihirli string yasak):** WS event tipleri, broadcast modül adları ve planlı `source_type` değerleri **literal yazılmaz** — backend `app/constants.py` (`WSEvent`/`BroadcastModule`/`SourceType`), frontend `lib/constants/realtime.ts` (`WS_EVENT`/`BROADCAST_MODULE`). İki taraf birebir aynı tutulur (otomatik senkron yok). Finans `source_type`'ları `models/finance_event.py`'den re-export edilir (çift tanım yok). DB-saklı değerler değiştirilemez. `onWsEvent`/`emitLocal` `WsEventType` union ile tiplidir → typo derleme hatası. Detay: `docs/modulerlik-iyilestirmeleri.md`
 
 ### Dosya İçi Kod Düzeni — Zorunlu
 
@@ -785,6 +786,8 @@ Yeni veya yeniden tasarlanan **her frontend sayfası** tasarım sistemini kullan
   - **İstisnalar (bilerek):** yoğun tablo satır-aksiyonları ikon-only kalabilir; sıkı mini-chip kümeleri / sekme / ısı-haritası hücresi buton değildir — bunlar Button'a alınmaz, gerekiyorsa sadece teal-700'e çekilir (AA).
 - **Sayfa başlığı:** `PageHeader.svelte` (`<h1>` + açıklama + `{#snippet actions()}`). Her sayfada in-page başlık zorunlu (sadece Topbar başlığı yetmez).
 - **Diğer zorunlu bileşenler:** `StatCard`, `StatusBadge`, `ConfirmDialog` (native `confirm()` **yasak**), `EmptyState`, `MoneyInput` (tüm para girişleri), `FileDropzone` (yükleme), `Pagination`, `Modal`.
+- **Liste sayfası iskeleti:** Yeni liste/CRUD sayfaları `ListPage.svelte` ile kurulur (PageHeader → Stat kartları → Filtre barı → İçerik[loading/empty/children] → Pagination tek yerde). Sayfa yalnızca içeriğini (tablo, modallar) snippet verir. Referans migrasyon: `sistem/audit-loglar`. Detay: `docs/modulerlik-iyilestirmeleri.md`
+- **Sidebar + route guard tek konfigten:** Menü yapısı ve "rota → gerekli modül izni" haritası `lib/config/navigation.ts` (`NAV_GROUPS` + `requiredModuleForPath`) içindedir. Yeni sayfa eklerken **buraya bir `NavItem` ekle** → sidebar linki + route koruması (`+layout.svelte` guard'ı) otomatik gelir. Sidebar bu konfigi loop ile render eder (elle link bloğu yazma). Backend `require_permission` asıl kapıdır; guard derinlemesine savunmadır.
 - **İkonlar:** **Lucide** (`lucide-svelte`) — emoji/inline SVG yasak.
 - **Kontrast:** Tüm metin/buton WCAG AA (≥4.5:1). teal **600 değil 700** (beyaz üzerinde 600 ≈ 3.8:1 → AA-fail).
 - Bileşen API'leri + detay: `docs/ui-kurallari.md`.

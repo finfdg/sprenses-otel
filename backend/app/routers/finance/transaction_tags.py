@@ -26,6 +26,7 @@ from app.utils.auto_tagger import (
     auto_match_vendors,
     auto_tag_transactions,
 )
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.finance_helpers import MIN_DATE, validate_category
@@ -323,7 +324,7 @@ def tag_transaction(
         vendor_id=tx.vendor_id,
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "cash_flow", "tag")
+    broadcast_finance_update(background_tasks, BroadcastModule.CASH_FLOW, "tag")
 
     # Virman/Döviz pair'in ID'sini döndür — frontend karşı tarafı da güncellesin
     paired_tx_id = None
@@ -380,7 +381,7 @@ def bulk_tag_transactions(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "cash_flow", "tag")
+    broadcast_finance_update(background_tasks, BroadcastModule.CASH_FLOW, "tag")
 
     return {"ok": True, "count": len(txs)}
 
@@ -409,7 +410,7 @@ def run_auto_tag(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "cash_flow", "auto_tag")
+    broadcast_finance_update(background_tasks, BroadcastModule.CASH_FLOW, "auto_tag")
 
     return {"tagged": tagged, "total_untagged": total, "payment_methods_detected": pm_total}
 

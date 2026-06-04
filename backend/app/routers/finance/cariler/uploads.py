@@ -24,6 +24,7 @@ from app.schemas.vendor import (
 )
 from app.utils.audit import log_action
 from app.utils.file_validation import validate_upload_file
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.sync_vendor_fifo import sync_vendor_finance_events
@@ -293,7 +294,7 @@ async def upload_vendor_excel(
         logger.error("Cari dosya yükleme veritabanı hatası (%s): %s", file.filename, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Dosya yüklenirken bir veritabanı hatası oluştu. Lütfen tekrar deneyin.")
 
-    broadcast_finance_update(background_tasks, "cariler", "upload")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "upload")
 
     return VendorUploadResult(
         upload_id=upload.id,
@@ -393,7 +394,7 @@ def delete_upload(
         logger.error("Cari yükleme silme hatası (upload_id=%s): %s", upload_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Yükleme silinirken bir veritabanı hatası oluştu.")
 
-    broadcast_finance_update(background_tasks, "cariler", "delete")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "delete")
 
 
 # ─── Toplu İşlem Silme (kaynakta olmayan kayıtlar) ──────
@@ -499,7 +500,7 @@ def bulk_delete_transactions(
         raise HTTPException(status_code=500, detail="İşlemler silinirken bir veritabanı hatası oluştu.")
 
     if deleted:
-        broadcast_finance_update(background_tasks, "cariler", "delete")
+        broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "delete")
 
     return BulkDeleteResult(
         deleted=deleted,

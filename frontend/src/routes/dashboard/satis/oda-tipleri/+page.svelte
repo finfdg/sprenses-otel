@@ -13,7 +13,7 @@
 	import { api, ApiError } from '$lib/api';
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
+	import ListPage from '$lib/components/ListPage.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
@@ -209,167 +209,151 @@
 	<title>Sprenses - Oda Tipleri</title>
 </svelte:head>
 
-<div class="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
-	<!-- Header -->
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
-				<BedDouble class="w-7 h-7 text-teal-600" />
-				Oda Tipleri
-			</h1>
-			<p class="text-sm text-gray-500 mt-1">
-				Otelin fiziksel oda envanteri — doluluk hesabında payda olarak kullanılır
-			</p>
-		</div>
-		<div class="flex items-center gap-2">
-			<label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-				<input
-					type="checkbox"
-					checked={includeInactive}
-					onchange={toggleIncludeInactive}
-					class="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-				/>
-				Pasif tipleri göster
-			</label>
-			{#if canUse}
-				<Button onclick={openCreate}><Plus size={16} /> Yeni Tip</Button>
-			{/if}
-		</div>
-	</div>
+<ListPage
+	title="Oda Tipleri"
+	description="Otelin fiziksel oda envanteri — doluluk hesabında payda olarak kullanılır"
+	{loading}
+	isEmpty={items.length === 0}
+	emptyIcon={BedDouble}
+	emptyTitle="Henüz oda tipi yok"
+	emptyMessage="İlk oda tipini ekleyerek başlayın"
+	emptyCtaText={canUse ? 'Yeni Tip' : ''}
+	onEmptyCta={canUse ? openCreate : null}
+	skeletonColumns={6}
+	maxWidth="max-w-5xl"
+>
+	{#snippet actions()}
+		<label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+			<input
+				type="checkbox"
+				checked={includeInactive}
+				onchange={toggleIncludeInactive}
+				class="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+			/>
+			Pasif tipleri göster
+		</label>
+		{#if canUse}
+			<Button onclick={openCreate}><Plus size={16} /> Yeni Tip</Button>
+		{/if}
+	{/snippet}
 
-	<!-- Stat Cards -->
-	<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-			<div class="text-xs uppercase tracking-wide text-gray-500">Toplam Oda</div>
-			<div class="text-3xl font-bold text-teal-700 mt-1">{totalCapacity}</div>
-			<div class="text-xs text-gray-500 mt-1">Aktif tiplerin toplamı</div>
-		</div>
-		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-			<div class="text-xs uppercase tracking-wide text-gray-500">Aktif Tip</div>
-			<div class="text-3xl font-bold text-gray-800 mt-1">{activeCount}</div>
-			<div class="text-xs text-gray-500 mt-1">Doluluk hesabına dahil</div>
-		</div>
-		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-			<div class="text-xs uppercase tracking-wide text-gray-500">Hedef</div>
-			<div class="text-3xl font-bold text-amber-600 mt-1">341</div>
-			<div class="text-xs text-gray-500 mt-1">
-				Otel toplam oda — {totalCapacity === 341 ? '✓ uyumlu' : `fark: ${341 - totalCapacity}`}
+	{#snippet stats()}
+		<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+				<div class="text-xs uppercase tracking-wide text-gray-500">Toplam Oda</div>
+				<div class="text-3xl font-bold text-teal-700 mt-1">{totalCapacity}</div>
+				<div class="text-xs text-gray-500 mt-1">Aktif tiplerin toplamı</div>
+			</div>
+			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+				<div class="text-xs uppercase tracking-wide text-gray-500">Aktif Tip</div>
+				<div class="text-3xl font-bold text-gray-800 mt-1">{activeCount}</div>
+				<div class="text-xs text-gray-500 mt-1">Doluluk hesabına dahil</div>
+			</div>
+			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+				<div class="text-xs uppercase tracking-wide text-gray-500">Hedef</div>
+				<div class="text-3xl font-bold text-amber-600 mt-1">341</div>
+				<div class="text-xs text-gray-500 mt-1">
+					Otel toplam oda — {totalCapacity === 341 ? '✓ uyumlu' : `fark: ${341 - totalCapacity}`}
+				</div>
 			</div>
 		</div>
-	</div>
+	{/snippet}
 
-	<!-- Liste -->
-	{#if loading}
-		<div class="bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-500">
-			Yükleniyor...
-		</div>
-	{:else if items.length === 0}
-		<EmptyState
-			icon={BedDouble}
-			title="Henüz oda tipi yok"
-			description="İlk oda tipini ekleyerek başlayın"
-			ctaText={canUse ? 'Yeni Tip' : ''}
-			onCta={canUse ? openCreate : null}
-		/>
-	{:else}
-		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-			<div class="overflow-x-auto">
-				<table class="w-full text-sm">
-					<thead class="bg-gray-50 border-b border-gray-200">
-						<tr>
-							<th class="px-4 py-3 text-left font-medium text-gray-600">Kod</th>
-							<th class="px-4 py-3 text-left font-medium text-gray-600">Adı</th>
-							<th class="px-4 py-3 text-right font-medium text-gray-600">Oda</th>
-							<th class="px-4 py-3 text-right font-medium text-gray-600">Maks. Kişi</th>
-							<th class="px-4 py-3 text-center font-medium text-gray-600">Durum</th>
-							{#if canUse}
-								<th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
+	<div class="overflow-x-auto">
+		<table class="w-full text-sm">
+			<thead class="bg-gray-50 border-b border-gray-200">
+				<tr>
+					<th class="px-4 py-3 text-left font-medium text-gray-600">Kod</th>
+					<th class="px-4 py-3 text-left font-medium text-gray-600">Adı</th>
+					<th class="px-4 py-3 text-right font-medium text-gray-600">Oda</th>
+					<th class="px-4 py-3 text-right font-medium text-gray-600">Maks. Kişi</th>
+					<th class="px-4 py-3 text-center font-medium text-gray-600">Durum</th>
+					{#if canUse}
+						<th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
+					{/if}
+				</tr>
+			</thead>
+			<tbody>
+				{#each items as rt (rt.id)}
+					<tr class="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+						<td class="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
+							{rt.code}
+						</td>
+						<td class="px-4 py-3">
+							<div class="text-gray-900">{rt.name}</div>
+							{#if rt.description}
+								<div class="text-xs text-gray-500 mt-0.5">{rt.description}</div>
 							{/if}
-						</tr>
-					</thead>
-					<tbody>
-						{#each items as rt (rt.id)}
-							<tr class="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-								<td class="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
-									{rt.code}
-								</td>
-								<td class="px-4 py-3">
-									<div class="text-gray-900">{rt.name}</div>
-									{#if rt.description}
-										<div class="text-xs text-gray-500 mt-0.5">{rt.description}</div>
-									{/if}
-								</td>
-								<td class="px-4 py-3 text-right">
-									<span
-										class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 text-xs font-medium"
+						</td>
+						<td class="px-4 py-3 text-right">
+							<span
+								class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 text-xs font-medium"
+							>
+								<Hash class="w-3 h-3" />
+								{rt.total_rooms}
+							</span>
+						</td>
+						<td class="px-4 py-3 text-right">
+							<span
+								class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-700 text-xs"
+							>
+								<Users class="w-3 h-3" />
+								{rt.max_occupancy}
+							</span>
+						</td>
+						<td class="px-4 py-3 text-center">
+							{#if rt.is_active}
+								<span
+									class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs"
+								>
+									<CheckCircle2 class="w-3 h-3" />
+									Aktif
+								</span>
+							{:else}
+								<span
+									class="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs"
+								>
+									Pasif
+								</span>
+							{/if}
+						</td>
+						{#if canUse}
+							<td class="px-4 py-3 text-right">
+								<div class="flex items-center justify-end gap-2">
+									<button
+										onclick={() => openEdit(rt)}
+										class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer"
+										title="Düzenle"
 									>
-										<Hash class="w-3 h-3" />
-										{rt.total_rooms}
-									</span>
-								</td>
-								<td class="px-4 py-3 text-right">
-									<span
-										class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-700 text-xs"
+										<PencilLine class="w-4 h-4" />
+									</button>
+									<button
+										onclick={() => askDelete(rt)}
+										class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
+										title="Sil"
 									>
-										<Users class="w-3 h-3" />
-										{rt.max_occupancy}
-									</span>
-								</td>
-								<td class="px-4 py-3 text-center">
-									{#if rt.is_active}
-										<span
-											class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs"
-										>
-											<CheckCircle2 class="w-3 h-3" />
-											Aktif
-										</span>
-									{:else}
-										<span
-											class="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs"
-										>
-											Pasif
-										</span>
-									{/if}
-								</td>
-								{#if canUse}
-									<td class="px-4 py-3 text-right">
-										<div class="flex items-center justify-end gap-2">
-											<button
-												onclick={() => openEdit(rt)}
-												class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer"
-												title="Düzenle"
-											>
-												<PencilLine class="w-4 h-4" />
-											</button>
-											<button
-												onclick={() => askDelete(rt)}
-												class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
-												title="Sil"
-											>
-												<Trash2 class="w-4 h-4" />
-											</button>
-										</div>
-									</td>
-								{/if}
-							</tr>
-						{/each}
-					</tbody>
-					<tfoot class="bg-gray-50 border-t border-gray-200">
-						<tr>
-							<td colspan="2" class="px-4 py-3 text-right font-medium text-gray-700">
-								Toplam (aktif)
+										<Trash2 class="w-4 h-4" />
+									</button>
+								</div>
 							</td>
-							<td class="px-4 py-3 text-right font-bold text-teal-700">
-								{items.filter((i) => i.is_active).reduce((s, i) => s + i.total_rooms, 0)}
-							</td>
-							<td colspan={canUse ? 3 : 2}></td>
-						</tr>
-					</tfoot>
-				</table>
-			</div>
-		</div>
-	{/if}
-</div>
+						{/if}
+					</tr>
+				{/each}
+			</tbody>
+			<tfoot class="bg-gray-50 border-t border-gray-200">
+				<tr>
+					<td colspan="2" class="px-4 py-3 text-right font-medium text-gray-700">
+						Toplam (aktif)
+					</td>
+					<td class="px-4 py-3 text-right font-bold text-teal-700">
+						{items.filter((i) => i.is_active).reduce((s, i) => s + i.total_rooms, 0)}
+					</td>
+					<td colspan={canUse ? 3 : 2}></td>
+				</tr>
+			</tfoot>
+		</table>
+	</div>
+</ListPage>
 
 <!-- Modal: Oluştur / Düzenle -->
 <Modal bind:show={showModal} title={editing ? 'Oda Tipini Düzenle' : 'Yeni Oda Tipi'} maxWidth="max-w-xl">

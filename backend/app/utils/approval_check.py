@@ -14,6 +14,7 @@ from typing import List, Optional
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule, WSEvent
 from app.models.approval import STATUS_PENDING, ApprovalRequest
 from app.utils.approval_service import (
     check_and_trigger_approval,
@@ -32,9 +33,9 @@ def _broadcast_approval_created(module_code: str) -> None:
     manager.send_to_all_sync() ile ana event loop'a thread-safe coroutine ekler.
     """
     try:
-        manager.send_to_all_sync({"type": "finance_updated", "module": "approval", "action": "update"})
-        manager.send_to_all_sync({"type": "approval_updated"})
-        manager.send_to_all_sync({"type": "approval_status_changed", "module_code": module_code})
+        manager.send_to_all_sync({"type": WSEvent.FINANCE_UPDATED, "module": BroadcastModule.APPROVAL, "action": "update"})
+        manager.send_to_all_sync({"type": WSEvent.APPROVAL_UPDATED})
+        manager.send_to_all_sync({"type": WSEvent.APPROVAL_STATUS_CHANGED, "module_code": module_code})
     except Exception:
         logger.debug("Onay WS broadcast gönderilemedi", exc_info=True)
 

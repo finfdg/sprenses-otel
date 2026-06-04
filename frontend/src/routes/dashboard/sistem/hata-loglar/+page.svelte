@@ -2,9 +2,8 @@
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import ListPage from '$lib/components/ListPage.svelte';
 	import Modal from '$lib/components/Modal.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { onMount } from 'svelte';
 	import { CheckCircle2 } from 'lucide-svelte';
 
@@ -106,22 +105,28 @@
 		loadLogs();
 	}
 
-	let searchTimeout: ReturnType<typeof setTimeout>;
-	function onSearchInput() {
-		clearTimeout(searchTimeout);
-		searchTimeout = setTimeout(applyFilter, 400);
-	}
-
 	onMount(() => { loadLogs(); });
 </script>
 
-<div class="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
-	<!-- Başlık -->
-	<div class="flex items-center justify-between mb-4 sm:mb-6">
-		<div>
-			<h1 class="text-2xl font-semibold text-gray-900">Hata Logları</h1>
-			<p class="text-xs sm:text-sm text-gray-500 mt-0.5">Sunucu hata kayıtları — {total} kayıt</p>
-		</div>
+<ListPage
+	title="Hata Logları"
+	description={`Sunucu hata kayıtları — ${total} kayıt`}
+	{loading}
+	isEmpty={logs.length === 0}
+	emptyIcon={CheckCircle2}
+	emptyTitle="Hata kaydı bulunmuyor"
+	emptyMessage="Sistem sorunsuz çalışıyor"
+	bind:search={filterSearch}
+	searchPlaceholder="Hata mesajında ara..."
+	onSearch={() => applyFilter()}
+	{page}
+	{pages}
+	{total}
+	{pageSize}
+	skeletonRows={5}
+	onPageChange={(p: number) => { page = p; loadLogs(); }}
+>
+	{#snippet actions()}
 		{#if canUse && total > 0}
 			<button
 				onclick={() => showClearConfirm = true}
@@ -130,90 +135,45 @@
 				Tümünü Temizle
 			</button>
 		{/if}
-	</div>
+	{/snippet}
 
-	<!-- Filtreler -->
-	<div class="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 mb-4 shadow-sm">
-		<div class="flex flex-wrap gap-2 sm:gap-3 items-end">
-			<div class="min-w-[120px]">
-				<label for="hl-level" class="block text-xs font-medium text-gray-500 mb-1">Seviye</label>
-				<select id="hl-level" bind:value={filterLevel} onchange={applyFilter} class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
-					<option value="">Tümü</option>
-					<option value="ERROR">ERROR</option>
-					<option value="CRITICAL">CRITICAL</option>
-					<option value="WARNING">WARNING</option>
-				</select>
-			</div>
-			<div class="flex-1 min-w-[200px]">
-				<label for="hl-search" class="block text-xs font-medium text-gray-500 mb-1">Arama</label>
-				<input
-					id="hl-search"
-					type="text"
-					bind:value={filterSearch}
-					oninput={onSearchInput}
-					placeholder="Hata mesajında ara..."
-					class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white"
-				/>
-			</div>
+	{#snippet filters()}
+		<div class="min-w-[120px]">
+			<label for="hl-level" class="block text-xs font-medium text-gray-500 mb-1">Seviye</label>
+			<select id="hl-level" bind:value={filterLevel} onchange={applyFilter} class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
+				<option value="">Tümü</option>
+				<option value="ERROR">ERROR</option>
+				<option value="CRITICAL">CRITICAL</option>
+				<option value="WARNING">WARNING</option>
+			</select>
 		</div>
-	</div>
+	{/snippet}
 
-	<!-- Liste -->
-	<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-		{#if loading}
-			<TableSkeleton rows={5} columns={4} />
-		{:else if logs.length === 0}
-			<EmptyState icon={CheckCircle2} title="Hata kaydı bulunmuyor" description="Sistem sorunsuz çalışıyor" />
-		{:else}
-			<div class="divide-y divide-gray-100">
-				{#each logs as log}
-					<button
-						class="w-full text-left p-3 sm:p-4 hover:bg-red-50/30 transition-colors cursor-pointer"
-						onclick={() => selectedLog = log}
-					>
-						<div class="flex items-start justify-between gap-3">
-							<div class="flex-1 min-w-0">
-								<div class="flex items-center gap-2 mb-1">
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border {LEVEL_COLORS[log.level] || 'bg-gray-50 text-gray-600 border-gray-200'}">
-										{log.level}
-									</span>
-									{#if log.method && log.path}
-										<span class="text-[10px] font-mono text-gray-500">{log.method} {log.path}</span>
-									{/if}
-									<span class="text-[10px] text-gray-500 ml-auto shrink-0" title={formatDate(log.created_at)}>{formatRelative(log.created_at)}</span>
-								</div>
-								<p class="text-sm text-gray-800 font-medium truncate">{log.message}</p>
-								<p class="text-xs text-gray-500 mt-0.5">{log.source}</p>
-							</div>
+	<div class="divide-y divide-gray-100">
+		{#each logs as log}
+			<button
+				class="w-full text-left p-3 sm:p-4 hover:bg-red-50/30 transition-colors cursor-pointer"
+				onclick={() => selectedLog = log}
+			>
+				<div class="flex items-start justify-between gap-3">
+					<div class="flex-1 min-w-0">
+						<div class="flex items-center gap-2 mb-1">
+							<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border {LEVEL_COLORS[log.level] || 'bg-gray-50 text-gray-600 border-gray-200'}">
+								{log.level}
+							</span>
+							{#if log.method && log.path}
+								<span class="text-[10px] font-mono text-gray-500">{log.method} {log.path}</span>
+							{/if}
+							<span class="text-[10px] text-gray-500 ml-auto shrink-0" title={formatDate(log.created_at)}>{formatRelative(log.created_at)}</span>
 						</div>
-					</button>
-				{/each}
-			</div>
-		{/if}
-
-		<!-- Pagination -->
-		{#if pages > 1}
-			<div class="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
-				<span class="text-xs text-gray-500">
-					{(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} / {total}
-				</span>
-				<div class="flex items-center gap-2">
-					<button
-						onclick={() => { page--; loadLogs(); }}
-						disabled={page <= 1}
-						class="px-3 py-1.5 text-xs rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors cursor-pointer"
-					>Önceki</button>
-					<span class="text-xs text-gray-500">{page}/{pages}</span>
-					<button
-						onclick={() => { page++; loadLogs(); }}
-						disabled={page >= pages}
-						class="px-3 py-1.5 text-xs rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors cursor-pointer"
-					>Sonraki</button>
+						<p class="text-sm text-gray-800 font-medium truncate">{log.message}</p>
+						<p class="text-xs text-gray-500 mt-0.5">{log.source}</p>
+					</div>
 				</div>
-			</div>
-		{/if}
+			</button>
+		{/each}
 	</div>
-</div>
+</ListPage>
 
 <!-- Detay Modalı -->
 {#if selectedLog}

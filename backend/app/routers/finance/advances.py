@@ -21,6 +21,7 @@ from app.schemas.advance import (
 )
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.sql_search import like_pattern
@@ -133,7 +134,7 @@ def create_advance(
     )
     finance_event_svc.upsert_advance(db, adv)
     db.commit()
-    broadcast_finance_update(background_tasks, "advances", "create")
+    broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "create")
     db.refresh(adv)
     return _build_response(adv)
 
@@ -176,7 +177,7 @@ def update_advance(
     )
     finance_event_svc.upsert_advance(db, adv)
     db.commit()
-    broadcast_finance_update(background_tasks, "advances", "update")
+    broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "update")
     db.refresh(adv)
     return _build_response(adv)
 
@@ -212,7 +213,7 @@ def delete_advance(
     finance_event_svc.invalidate(db, "advance", adv.id)
     db.delete(adv)
     db.commit()
-    broadcast_finance_update(background_tasks, "advances", "delete")
+    broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "delete")
     return {"detail": "Avans kaydı silindi"}
 
 
@@ -258,7 +259,7 @@ def match_advance(
     else:
         finance_event_svc.upsert_advance(db, adv)
     db.commit()
-    broadcast_finance_update(background_tasks, "advances", "match")
+    broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "match")
     db.refresh(adv)
     return _build_response(adv)
 

@@ -25,6 +25,7 @@ from app.schemas.vendor import (
 )
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.sync_vendor_fifo import sync_vendor_finance_events
@@ -381,7 +382,7 @@ def update_vendor_payment_days(
         logger.error("Vade güncelleme hatası (vendor_id=%s): %s", vendor_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Ödeme vadesi güncellenirken bir veritabanı hatası oluştu.")
 
-    broadcast_finance_update(background_tasks, "cariler", "update")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "update")
 
     return {
         "payment_days": vendor.payment_days,
@@ -436,6 +437,6 @@ def update_vendor_status(
         logger.error("Firma durumu güncelleme hatası (vendor_id=%s): %s", vendor_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Firma durumu güncellenirken bir hata oluştu.")
 
-    broadcast_finance_update(background_tasks, "cariler", "update")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "update")
 
     return {"status": vendor.status}

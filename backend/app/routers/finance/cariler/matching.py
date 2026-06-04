@@ -12,6 +12,7 @@ from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.utils.audit import log_action
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.sync_vendor_fifo import sync_vendor_finance_events
@@ -136,7 +137,7 @@ def match_vendor_with_check(
         logger.error("Çek eşleştirme hatası (vtx_id=%s, check_id=%s): %s", vtx_id, check_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Çek eşleştirme sırasında bir veritabanı hatası oluştu.")
 
-    broadcast_finance_update(background_tasks, "cariler", "match")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "match")
 
     return {
         "match_number": match_num,
@@ -187,7 +188,7 @@ def unmatch_vendor_check(
         logger.error("Çek eşleştirme kaldırma hatası (vtx_id=%s): %s", vtx_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Çek eşleştirmesi kaldırılırken bir veritabanı hatası oluştu.")
 
-    broadcast_finance_update(background_tasks, "cariler", "unmatch")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "unmatch")
 
     return {"status": "ok"}
 
@@ -236,7 +237,7 @@ def unmatch_vendor_transaction(
         logger.error("Banka eşleştirme kaldırma hatası (vtx_id=%s): %s", vtx_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Eşleştirme kaldırılırken bir veritabanı hatası oluştu.")
 
-    broadcast_finance_update(background_tasks, "cariler", "unmatch")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "unmatch")
 
     return {"status": "ok"}
 
@@ -278,4 +279,4 @@ def mark_as_devir(
         logger.error("Devir işaretleme hatası (vtx_id=%s): %s", vtx_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Devir işaretlenirken bir veritabanı hatası oluştu.")
 
-    broadcast_finance_update(background_tasks, "cariler", "match")
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "match")

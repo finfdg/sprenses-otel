@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { loadAuth, refreshAuth, logout, authState } from '$lib/stores/auth.svelte';
+	import { page } from '$app/stores';
+	import { loadAuth, refreshAuth, logout, authState, hasPermission } from '$lib/stores/auth.svelte';
+	import { requiredModuleForPath } from '$lib/config/navigation';
 	import { sidebar, closeSidebar } from '$lib/stores/ui.svelte';
 	import { unlockAudio } from '$lib/stores/notification.svelte';
 	import { connectWebSocket, disconnectWebSocket, onWsEvent } from '$lib/stores/websocket.svelte';
@@ -15,6 +17,23 @@
 	let ready = $state(false);
 	let wsUnsubscribers: Array<() => void> = [];
 	let wsConnectedOnce = false;
+
+	// ── Route guard (derinlemesine savunma) ──────────────────────────────
+	// Yetkisiz kullanıcı bir modül sayfasına gitmeye çalışırsa, sayfanın veri
+	// çekmesi beklenmeden panele yönlendirilir. Backend zaten her endpoint'i
+	// require_permission ile 403'ler (asıl kapı orada); bu, temiz UX + ikinci
+	// savunma katmanıdır. Gerekli izin haritası tek kaynaktan: lib/config/navigation.
+	$effect(() => {
+		if (!ready) return;
+		const user = authState.user;
+		if (!user) return;
+		const pathname = $page.url.pathname;
+		const required = requiredModuleForPath(pathname);
+		if (required && !hasPermission(required, 'view')) {
+			showToast('Bu sayfaya erişim yetkiniz yok', 'error');
+			goto('/dashboard', { replaceState: true });
+		}
+	});
 
 	onMount(() => {
 		if (!loadAuth()) {

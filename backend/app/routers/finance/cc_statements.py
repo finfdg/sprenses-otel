@@ -26,6 +26,7 @@ from app.schemas.credit_card import (
 from app.utils.audit import log_action
 from app.utils.cc_statement_parser import parse_cc_statement
 from app.utils.file_validation import validate_upload_file
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 
@@ -163,7 +164,7 @@ async def auto_upload_statement(
     )
     finance_event_svc.upsert_cc_statement(db, stmt, matched_product)
     db.commit()
-    broadcast_finance_update(background_tasks, "credits", "upload")
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "upload")
 
     return CCStatementUploadResult(
         statement_id=stmt.id,
@@ -307,7 +308,7 @@ async def upload_statement(
     )
     finance_event_svc.upsert_cc_statement(db, stmt, product)
     db.commit()
-    broadcast_finance_update(background_tasks, "credits", "upload")
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "upload")
     db.refresh(stmt)
 
     return CCStatementUploadResult(
@@ -463,7 +464,7 @@ def delete_statement(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "credits", "delete")
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "delete")
 
     # Dosyayi sil
     if file_url:

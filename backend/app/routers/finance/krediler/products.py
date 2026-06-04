@@ -28,6 +28,7 @@ from app.schemas.credit import (
 )
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.sql_search import like_pattern
@@ -510,7 +511,7 @@ def close_product(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Kredi kapatılırken hata oluştu: {str(e)[:120]}")
 
-    broadcast_finance_update(background_tasks, "credits", "update")
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "update")
     return _build_product_response(product, _batch_payment_stats(db, [product.id]))
 
 
@@ -575,5 +576,5 @@ def reopen_product(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Kredi yeniden açılırken hata oluştu: {str(e)[:120]}")
 
-    broadcast_finance_update(background_tasks, "credits", "update")
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "update")
     return _build_product_response(product, _batch_payment_stats(db, [product.id]))

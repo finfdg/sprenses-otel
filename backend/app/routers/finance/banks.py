@@ -37,6 +37,7 @@ from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.utils.bank_parser import parse_excel, parse_pdf
 from app.utils.file_validation import validate_upload_file
+from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.notification import _notification_to_ws_event, create_notifications
@@ -266,7 +267,7 @@ def create_account(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "banks", "create")
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "create")
     db.refresh(acc)
 
     return BankAccountResponse(
@@ -314,7 +315,7 @@ def update_account(
         ip_address=get_client_ip(request),
     )
     db.commit()
-    broadcast_finance_update(background_tasks, "banks", "update")
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "update")
     db.refresh(acc)
 
     return {"detail": "Hesap güncellendi"}
@@ -345,7 +346,7 @@ def delete_account(
     )
     db.delete(acc)
     db.commit()
-    broadcast_finance_update(background_tasks, "banks", "delete")
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "delete")
 
 
 # ─── Ortak Ekstre Yükleme (IBAN otomatik tespit) ────────
@@ -587,7 +588,7 @@ async def _post_upload_processing(
             db.rollback()
             logger.error("%s otomatik eşleştirme hatası: %s", label, e, exc_info=True)
 
-    broadcast_finance_update(background_tasks, "banks", "upload")
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "upload")
 
 
 @router.post("/upload")
