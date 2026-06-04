@@ -51,15 +51,26 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 | POST | `/attendance/manual` | hr.attendance use | Yönetici elle giriş/çıkış |
 
 ## Güvenlik / Sahtecilik Tasarımı
-- **Dönen token:** `HMAC(SECRET, 15sn-pencere)` — 15sn'de değişir, ~30sn geçerli. **Evden basma imkânsız**
-  (canlı ekranı taramadan token alınamaz) — asıl tehdit budur, çözülmüştür.
-- **Kiosk QR endpoint'i `KIOSK_KEY` ister** (SECRET'ten türetilen, admin-only stabil anahtar) → token uzaktan çekilemez.
-  - *Daha sıkı için (v2): kiosk endpoint'ini otel ağına IP-kısıtlamak.*
-- **Personel kimliği:** kişisel `access_token` (tahmin edilemez) → çerez. Raw token API yanıtında **dönmez** (yalnızca QR'a gömülür).
+- **Dönen token:** `HMAC(SECRET, 15sn-pencere)` — 15sn'de değişir, ~15-30sn geçerli. **Bayat ekran
+  görüntüsünü** etkisizleştirir: "fotoğrafı kaydet, sonra kullan" çalışmaz (token süresi dolar → 400).
+- **Kiosk QR endpoint'i `KIOSK_KEY` ister** (SECRET'ten türetilen, admin-only stabil anahtar) → güncel token
+  **uzaktan çekilemez**. Yani personel **tek başına evden** canlı token'a erişip basamaz.
+- **Personel kimliği:** kişisel `access_token` (tahmin edilemez) → kimlik. Raw token API yanıtında **dönmez** (yalnızca QR'a gömülür).
 - **Debounce:** aynı personel 30sn içinde tekrar basamaz (çift basış / replay sınırı).
 - **Komut enjeksiyonu yok** (ORM), **rate limit** (setup/punch IP başına).
-- **Bilinen sınır:** Telefonunu/kartını fiziksel olarak veren personel için "buddy-punch" tam engellenemez
-  (biyometri olmadan). v2'de basış anı **selfie** ile caydırılabilir.
+
+### ⚠️ Bilinen sınır — canlı aktarım (relay) ve buddy-punch
+Dönen token **bayat** görüntüyü durdurur ama **canlı aktarımı durdurmaz**. Girişte bir **suç ortağı**,
+canlı QR'ı **WhatsApp video / anlık ekran görüntüsü** ile evdeki personele gösterirse (~30sn içinde),
+evdeki personel **basabilir**. Bu, biyometri olmadan her "girişte kod tara" sisteminde olan **buddy-punch**
+sınıfı bir zafiyettir. Tek başına bir personel bunu **yapamaz** (canlı token'a erişemez); **iş birliği** gerekir.
+- **En güçlü pratik önlem (uygulanmadı — operasyonel karar):** `punch`'ı **otel ağı IP'sine kısıtlamak**.
+  Canlı-video aktarımında bile basış evdeki kişinin IP'sinden geleceği için reddedilir. Gerekli: otelin
+  **sabit public IP'si** + personelin **otel Wi-Fi**'sinde basması (hücresel veri değil).
+- Ek caydırıcılar (uygulanmadı): basış anı **selfie** (denetim izi), **QR süresini ~10sn'ye** düşürmek
+  (ekran-görüntüsü iletme penceresini daraltır).
+- **Karar (2026-06):** Risk kabul edilebilir görüldü; mevcut dönen-token tasarımı korunuyor. Yukarıdaki
+  sertleştirmeler ihtiyaç halinde eklenebilir.
 
 ## Yönetici Paneli (İK → Devam Takip)
 4 sekme: **İçeride** (canlı pano), **Personel** (CRUD + QR kart), **Geçmiş** (loglar), **Puantaj** (aylık toplam süre).
