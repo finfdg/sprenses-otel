@@ -37,6 +37,11 @@ from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import RateLimiter, get_client_ip
+from app.models.attendance_setting import (
+    MAX_TOKEN_TTL_SEC,
+    MIN_TOKEN_TTL_SEC,
+    AttendanceSetting,
+)
 from app.models.personnel import (
     SOURCE_MANUAL,
     SOURCE_PHONE,
@@ -88,7 +93,7 @@ def _make_token() -> str:
     return f"{ts}.{_sign_ts(ts)}"
 
 
-def _valid_token(token: str) -> bool:
+def _valid_token(token: str, ttl_sec: int) -> bool:
     try:
         ts_str, sig = token.split(".", 1)
         ts = int(ts_str)
@@ -96,9 +101,20 @@ def _valid_token(token: str) -> bool:
         return False
     now = int(time.time())
     # +1sn: saat kayması toleransı (ileri); now-ts>TTL: süresi dolmuş
-    if ts > now + 1 or now - ts > TOKEN_TTL_SEC:
+    if ts > now + 1 or now - ts > ttl_sec:
         return False
     return hmac.compare_digest(sig, _sign_ts(ts))
+
+
+def _get_ttl(db: Session) -> int:
+    """Panelden ayarlanan QR geçerlilik süresi (DB tek satır); yoksa varsayılan."""
+    row = db.query(AttendanceSetting).filter(AttendanceSetting.id == 1).first()
+    return row.token_ttl_sec if row else TOKEN_TTL_SEC
+
+
+def _refresh_sec(ttl: int) -> int:
+    """Kiosk ekran yenileme süresi — TTL'den hep kısa (meşru tarama bozulmasın)."""
+    return max(2, ttl - 3)
 
 
 def _set_cookie(response: Response, token: str) -> None:
@@ -218,6 +234,10 @@ class ManualPunch(BaseModel):
     note: Optional[str] = None
 
 
+class SettingsUpdate(BaseModel):
+    token_ttl_sec: int
+
+
 # ═══ PUBLIC — Kiosk ekranı ═══════════════════════════════
 
 @router.get("/attendance/kiosk/qr")
@@ -227,6 +247,15 @@ def kiosk_qr(key: str = Query(...)):
         raise HTTPException(status_code=403, detail="Geçersiz kiosk anahtarı")
     url = f"{PUBLIC_BASE}/devam?k={_make_token()}"
     return _svg_qr(url)
+
+
+@router.get("/attendance/kiosk/config")
+def kiosk_config(key: str = Query(...), db: Session = Depends(get_db)):
+    """Kiosk ekranının yenileme süresi (saniye). KIOSK_KEY gerektirir."""
+    if not hmac.compare_digest(key, KIOSK_KEY):
+        raise HTTPException(status_code=403, detail="Geçersiz kiosk anahtarı")
+    ttl = _get_ttl(db)
+    return {"ttl_sec": ttl, "refresh_sec": _refresh_sec(ttl)}
 
 
 # ═══ PUBLIC — Personel kimlik + basış ════════════════════
@@ -269,7 +298,7 @@ def punch(data: PunchRequest, request: Request, db: Session = Depends(get_db)):
     p = _personnel_from_request(request, db, "punch")
     if not p:
         raise HTTPException(status_code=401, detail="Personel tanımlı değil — kurulum linkini açın")
-    if not _valid_token(data.k):
+    if not _valid_token(data.k, _get_ttl(db)):
         logger.info("PDKS|punch|GEÇERSİZ-TOKEN personel=%s k=%s", p.full_name, (data.k or "")[:24])
         raise HTTPException(status_code=400, detail="Karekod süresi doldu — ekrandaki güncel kodu tekrar okutun")
 
@@ -414,6 +443,52 @@ def personnel_setup_qr(
 def kiosk_link(_: User = Depends(require_permission("hr.attendance", "view"))):
     """Giriş ekranı için açılacak link (KIOSK_KEY dahil) — admin cihaza kurar."""
     return {"url": f"{PUBLIC_BASE}/devam/ekran?key={KIOSK_KEY}"}
+
+
+@router.get("/attendance/settings")
+def get_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("hr.attendance", "view")),
+):
+    """PDKS ayarları — QR geçerlilik süresi + türetilen ekran yenileme süresi."""
+    ttl = _get_ttl(db)
+    return {
+        "token_ttl_sec": ttl,
+        "refresh_sec": _refresh_sec(ttl),
+        "min": MIN_TOKEN_TTL_SEC,
+        "max": MAX_TOKEN_TTL_SEC,
+    }
+
+
+@router.patch("/attendance/settings")
+def update_settings(
+    data: SettingsUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("hr.attendance", "use")),
+):
+    """QR geçerlilik süresini güncelle (saniye). Bu modül onay akışından muaftır (ops/HR)."""
+    ttl = data.token_ttl_sec
+    if ttl < MIN_TOKEN_TTL_SEC or ttl > MAX_TOKEN_TTL_SEC:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Süre {MIN_TOKEN_TTL_SEC}-{MAX_TOKEN_TTL_SEC} saniye arasında olmalı",
+        )
+    row = db.query(AttendanceSetting).filter(AttendanceSetting.id == 1).first()
+    if not row:
+        row = AttendanceSetting(id=1, token_ttl_sec=ttl)
+        db.add(row)
+    else:
+        row.token_ttl_sec = ttl
+    log_action(db, current_user.id, "update", "attendance_settings", 1,
+               f"QR geçerlilik süresi: {ttl}sn", get_client_ip(request))
+    db.commit()
+    return {
+        "token_ttl_sec": ttl,
+        "refresh_sec": _refresh_sec(ttl),
+        "min": MIN_TOKEN_TTL_SEC,
+        "max": MAX_TOKEN_TTL_SEC,
+    }
 
 
 @router.get("/attendance/status")

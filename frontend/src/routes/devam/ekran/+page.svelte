@@ -9,20 +9,33 @@
 	let clock = $state('');
 	let qrTimer: ReturnType<typeof setInterval> | null = null;
 	let clockTimer: ReturnType<typeof setInterval> | null = null;
+	let destroyed = false;
 
 	function updateClock() {
 		clock = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		key = $page.url.searchParams.get('key') ?? '';
 		updateClock();
-		// QR'ı 4sn'de bir yenile (token 7sn geçerli — ekrandaki QR hep taze, ~3sn pay kalır)
-		qrTimer = setInterval(() => (tick = Date.now()), 4000);
 		clockTimer = setInterval(updateClock, 1000);
 		tick = Date.now();
+		// Ekran yenileme süresini panel ayarından çek (yoksa 4sn). Hep geçerlilik süresinden kısadır.
+		let refreshMs = 4000;
+		if (key) {
+			try {
+				const res = await fetch(`/api/attendance/kiosk/config?key=${encodeURIComponent(key)}`);
+				if (res.ok) {
+					const d = await res.json();
+					if (d.refresh_sec) refreshMs = d.refresh_sec * 1000;
+				}
+			} catch (e) { console.error('Kiosk config alınamadı:', e); }
+		}
+		if (destroyed) return;
+		qrTimer = setInterval(() => (tick = Date.now()), refreshMs);
 	});
 	onDestroy(() => {
+		destroyed = true;
 		if (qrTimer) clearInterval(qrTimer);
 		if (clockTimer) clearInterval(clockTimer);
 	});

@@ -449,8 +449,10 @@ TEMPLATE:
 - Detaylı bilgi: `docs/modules/muhasebe-ik.md`
 
 ### İnsan Kaynakları — Devam Takip (PDKS)
-- `GET /api/attendance/kiosk/qr?key=` — Girişteki ekranın dönen QR'ı (SVG, KIOSK_KEY gerekli)
+- `GET /api/attendance/kiosk/qr?key=` — Girişteki ekranın dönen QR'ı (SVG, KIOSK_KEY gerekli; token panelden ayarlanan süre kadar geçerli)
+- `GET /api/attendance/kiosk/config?key=` — Kiosk ekran yenileme süresi (KIOSK_KEY)
 - `GET /api/attendance/kiosk-link` — Kiosk ekranı linki (admin; KIOSK_KEY dahil)
+- `GET/PATCH /api/attendance/settings` — QR geçerlilik süresi ayarı (hr.attendance; 5-120sn, panelden Ayarlar)
 - `POST /api/attendance/setup` — Kişisel kurulum (token → kimlik çerezi)
 - `GET /api/attendance/me` — Personelin durumu (çerez)
 - `POST /api/attendance/punch` — Giriş/çıkış kaydet (çerez + dönen token)
@@ -460,6 +462,7 @@ TEMPLATE:
 - `GET /api/attendance/logs` — Giriş/çıkış geçmişi (filtreli)
 - `GET /api/attendance/summary?month=` — Aylık puantaj
 - `POST /api/attendance/manual` — Yönetici elle giriş/çıkış
+- Gerçek zamanlı: basışta `attendance_updated` WS event'i → panel canlı tazelenir (polling yok)
 - Public sayfalar: `/devam/ekran` (kiosk), `/devam/kur` (kurulum), `/devam` (basış)
 - Detaylı bilgi: `docs/modules/devam-takip.md`
 
@@ -625,7 +628,7 @@ TEMPLATE:
 
 - **DB adı:** sprenses
 - **Kullanıcı:** sprenses
-- **Tablolar (53):** personnel, attendance_logs, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
+- **Tablolar (54):** personnel, attendance_logs, attendance_settings, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
 - **Saat dilimi:** Europe/Istanbul (her bağlantıda SET edilir)
 - **Migrations:** `cd backend && source venv/bin/activate && alembic upgrade head`
 

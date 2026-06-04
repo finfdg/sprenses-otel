@@ -15,7 +15,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
-		LogIn, Printer, Copy, Fingerprint,
+		LogIn, Printer, Copy, Fingerprint, Settings,
 	} from 'lucide-svelte';
 
 	type Personnel = {
@@ -64,6 +64,14 @@
 	let showManual = $state(false);
 	let manualForm = $state({ personnel_id: 0, type: 'in', note: '' });
 	let manualSaving = $state(false);
+
+	// Ayarlar modalı (QR geçerlilik süresi)
+	let showSettings = $state(false);
+	let settingsForm = $state({ token_ttl_sec: 7 });
+	let settingsMeta = $state({ refresh_sec: 4, min: 5, max: 120 });
+	let settingsSaving = $state(false);
+	let settingsError = $state('');
+	let derivedRefresh = $derived(Math.max(2, (Number(settingsForm.token_ttl_sec) || 0) - 3));
 
 	function fmtTime(iso: string): string {
 		return new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
@@ -203,6 +211,42 @@
 		}
 	}
 
+	// ── Ayarlar (QR geçerlilik süresi) ──
+	type SettingsResp = { token_ttl_sec: number; refresh_sec: number; min: number; max: number };
+	async function openSettings() {
+		settingsError = '';
+		try {
+			const r = await api.get<SettingsResp>('/attendance/settings');
+			settingsForm.token_ttl_sec = r.token_ttl_sec;
+			settingsMeta = { refresh_sec: r.refresh_sec, min: r.min, max: r.max };
+		} catch (e) {
+			console.error('Ayarlar alınamadı:', e);
+			showToast('Ayarlar alınamadı', 'error');
+		}
+		showSettings = true;
+	}
+	async function saveSettings() {
+		const v = Math.round(Number(settingsForm.token_ttl_sec));
+		if (!Number.isFinite(v) || v < settingsMeta.min || v > settingsMeta.max) {
+			settingsError = `Süre ${settingsMeta.min}-${settingsMeta.max} saniye arasında olmalı`;
+			return;
+		}
+		settingsSaving = true;
+		settingsError = '';
+		try {
+			const r = await api.patch<SettingsResp>('/attendance/settings', { token_ttl_sec: v });
+			settingsForm.token_ttl_sec = r.token_ttl_sec;
+			settingsMeta = { refresh_sec: r.refresh_sec, min: r.min, max: r.max };
+			showSettings = false;
+			showToast(`QR geçerlilik süresi ${r.token_ttl_sec} sn olarak kaydedildi`, 'success');
+		} catch (e) {
+			settingsError = e instanceof ApiError ? e.message : 'Kaydedilemedi';
+			console.error('Ayar kaydedilemedi:', e);
+		} finally {
+			settingsSaving = false;
+		}
+	}
+
 	onMount(() => {
 		refreshAll();
 		// Canlı pano — başka biri (telefon/elle) basınca panel ANINDA tazelenir (polling yok).
@@ -222,6 +266,7 @@
 			{#if canUse}
 				<Button variant="secondary" onclick={openManual}><LogIn size={16} /> Elle Giriş</Button>
 				<Button variant="secondary" onclick={openKiosk}><Monitor size={16} /> Kiosk Linki</Button>
+				<Button variant="secondary" onclick={openSettings}><Settings size={16} /> Ayarlar</Button>
 				<Button onclick={openCreate}><UserPlus size={16} /> Yeni Personel</Button>
 			{/if}
 		{/snippet}
@@ -445,6 +490,42 @@
 		<div class="flex items-center gap-2">
 			<input readonly value={kioskUrl} class="flex-1 text-xs font-mono border border-gray-200 rounded-lg px-2 py-2 bg-gray-50 truncate" />
 			<Button variant="secondary" onclick={copyKiosk}><Copy size={14} /> Kopyala</Button>
+		</div>
+	</div>
+</Modal>
+
+<!-- Ayarlar: QR geçerlilik süresi -->
+<Modal bind:show={showSettings} title="Karekod Ayarları" maxWidth="max-w-md">
+	<div class="space-y-4 text-sm">
+		<p class="text-gray-600 leading-snug">
+			Girişteki ekranda gösterilen karekodun <strong>geçerlilik süresi</strong>. Kısaldıkça ekran
+			görüntüsü/paylaşımla sahte basış zorlaşır; uzadıkça yavaş taramalar kolaylaşır.
+		</p>
+		<div>
+			<label for="set-ttl" class="block text-sm font-medium text-gray-700 mb-1">
+				QR geçerlilik süresi (saniye) <span class="text-red-500">*</span>
+			</label>
+			<input
+				id="set-ttl"
+				type="number"
+				min={settingsMeta.min}
+				max={settingsMeta.max}
+				step="1"
+				bind:value={settingsForm.token_ttl_sec}
+				class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+			/>
+			<p class="text-xs text-gray-400 mt-1">{settingsMeta.min}-{settingsMeta.max} sn arası · öneri: 7 sn</p>
+		</div>
+		<div class="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-800 leading-snug">
+			⏱️ Giriş ekranı karekodu otomatik olarak <strong>{derivedRefresh} sn</strong>'de bir yenilenir
+			(geçerlilik süresinden kısa tutulur ki meşru taramalar kaçmasın).
+		</div>
+		{#if settingsError}
+			<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{settingsError}</div>
+		{/if}
+		<div class="flex justify-end gap-2 pt-1">
+			<Button type="button" variant="secondary" onclick={() => (showSettings = false)}>İptal</Button>
+			<Button onclick={saveSettings} loading={settingsSaving}>Kaydet</Button>
 		</div>
 	</div>
 </Modal>
