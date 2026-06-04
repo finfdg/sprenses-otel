@@ -64,6 +64,8 @@ class AttendanceLog(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Elle düzenlendiyse zaman damgası (panoda farklı renk + "düzenlendi" rozeti)
+    edited_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     personnel: Mapped["Personnel"] = relationship("Personnel", back_populates="logs")

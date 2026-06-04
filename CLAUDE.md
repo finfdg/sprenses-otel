@@ -464,6 +464,9 @@ TEMPLATE:
 - `POST /api/attendance/manual` — Yönetici elle giriş/çıkış (zaman seçilebilir; çift giriş/çıkış engelli; hr.attendance workflow'u varsa onaya düşer → `_handle_attendance` executor)
 - `PATCH /api/attendance/logs/{id}` — Kaydı elle düzenle (tip/zaman/not; çift engelli; audit + onay)
 - `DELETE /api/attendance/logs/{id}` — Kaydı sil (yanlış/çift düzeltme; audit + onay)
+- `GET /api/attendance/logs/{id}/history` — Kaydın değişiklik tarihçesi (audit) + bekleyen işlem
+- `GET /api/attendance/pending` — Bekleyen onay talepleri (ekle/düzenle/sil; can_cancel)
+- `POST /api/attendance/pending/{request_id}/cancel` — Kendi bekleyen talebini iptal (modül-içi)
 - Gerçek zamanlı: basış/düzenleme/silme sonrası `attendance_updated`; onay verilince `approval_status_changed` → panel canlı tazelenir (polling yok)
 - Public sayfalar: `/devam/ekran` (kiosk), `/devam/kur` (kurulum), `/devam` (basış)
 - Detaylı bilgi: `docs/modules/devam-takip.md`

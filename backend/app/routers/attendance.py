@@ -18,6 +18,7 @@ Güvenlik:
 import hashlib
 import hmac
 import io
+import json
 import logging
 import math
 import secrets
@@ -37,6 +38,12 @@ from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import RateLimiter, get_client_ip
+from app.models.approval import (
+    ACTION_CANCEL,
+    STATUS_PENDING,
+    STATUS_RETURNED,
+    ApprovalRequest,
+)
 from app.models.attendance_setting import (
     DEFAULT_REFRESH_SEC,
     MAX_REFRESH_SEC,
@@ -44,6 +51,7 @@ from app.models.attendance_setting import (
     TOKEN_GRACE_SEC,
     AttendanceSetting,
 )
+from app.models.audit_log import AuditLog
 from app.models.personnel import (
     SOURCE_MANUAL,
     SOURCE_PHONE,
@@ -54,6 +62,7 @@ from app.models.personnel import (
 )
 from app.models.user import User
 from app.utils.approval_check import check_approval
+from app.utils.approval_service import get_pending_approver_ids, process_action
 from app.utils.audit import log_action
 from app.websocket.manager import manager
 
@@ -578,6 +587,7 @@ def list_logs(
         "id": lg.id, "personnel_id": p.id, "full_name": p.full_name, "department": p.department,
         "type": lg.type, "punched_at": lg.punched_at.isoformat(), "source": lg.source,
         "note": lg.note,
+        "edited_at": lg.edited_at.isoformat() if lg.edited_at else None,
     } for lg, p in rows]
     return {"items": items, "total": total, "page": page, "page_size": page_size,
             "pages": math.ceil(total / page_size) if total else 1}
@@ -664,7 +674,8 @@ def manual_punch(
         punched_at=when,
     )
     db.add(lg)
-    log_action(db, current_user.id, "manual_punch", "attendance", p.id,
+    db.flush()
+    log_action(db, current_user.id, "manual_punch", "attendance", lg.id,
                f"Elle {data.type} ({when.strftime('%d.%m %H:%M')}): {p.full_name}", get_client_ip(request))
     db.commit()
     manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "manual"})
@@ -710,7 +721,8 @@ def update_log(
         lg.note = (fields["note"] or "").strip() or None
     if fields.get("punched_at"):
         lg.punched_at = new_when
-    log_action(db, current_user.id, "update", "attendance", lg.personnel_id,
+    lg.edited_at = datetime.now(TZ)
+    log_action(db, current_user.id, "update", "attendance", lg.id,
                f"Kayıt #{lg.id} düzenlendi → {lg.type} {lg.punched_at.strftime('%d.%m %H:%M')}",
                get_client_ip(request))
     db.commit()
@@ -735,10 +747,127 @@ def delete_log(
     if approval_resp:
         return approval_resp
 
-    log_action(db, current_user.id, "delete", "attendance", lg.personnel_id,
+    log_action(db, current_user.id, "delete", "attendance", lg.id,
                f"Kayıt #{lg.id} silindi ({lg.type} {lg.punched_at.strftime('%d.%m %H:%M')})",
                get_client_ip(request))
     db.delete(lg)
     db.commit()
     manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "delete"})
+    return {"ok": True}
+
+
+@router.get("/attendance/logs/{log_id}/history")
+def log_history(
+    log_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("hr.attendance", "view")),
+):
+    """Bir kaydın değişiklik tarihçesi (audit_logs) + varsa bekleyen onay işlemi."""
+    lg = db.query(AttendanceLog).filter(AttendanceLog.id == log_id).first()
+    if not lg:
+        raise HTTPException(status_code=404, detail="Kayıt bulunamadı")
+    rows = (
+        db.query(AuditLog, User)
+        .outerjoin(User, User.id == AuditLog.user_id)
+        .filter(AuditLog.entity_type == "attendance", AuditLog.entity_id == log_id)
+        .order_by(AuditLog.created_at)
+        .all()
+    )
+    history = [{
+        "action": a.action,
+        "user_name": (u.full_name if u else None),
+        "details": a.details,
+        "created_at": a.created_at.isoformat() if a.created_at else None,
+    } for a, u in rows]
+    pending = (
+        db.query(ApprovalRequest)
+        .filter(ApprovalRequest.module_code == "hr.attendance",
+                ApprovalRequest.entity_id == log_id,
+                ApprovalRequest.status == STATUS_PENDING)
+        .first()
+    )
+    return {
+        "id": lg.id,
+        "edited_at": lg.edited_at.isoformat() if lg.edited_at else None,
+        "history": history,
+        "pending_action": pending.action_type if pending else None,
+    }
+
+
+# ═══ YÖNETİCİ — Onay bekleyenler (PDKS) ══════════════════
+
+@router.get("/attendance/pending")
+def list_pending(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("hr.attendance", "view")),
+):
+    """Bekleyen hr.attendance onay talepleri (ekle/düzenle/sil) — pano + filtre + iptal."""
+    reqs = (
+        db.query(ApprovalRequest)
+        .filter(ApprovalRequest.module_code == "hr.attendance",
+                ApprovalRequest.status == STATUS_PENDING)
+        .order_by(desc(ApprovalRequest.requested_at))
+        .all()
+    )
+    user_ids = {r.requested_by for r in reqs if r.requested_by}
+    users = {}
+    if user_ids:
+        users = {u.id: u.full_name for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+    items = []
+    for r in reqs:
+        try:
+            payload = json.loads(r.payload_json) if r.payload_json else {}
+        except (json.JSONDecodeError, TypeError):
+            payload = {}
+        pid = payload.get("personnel_id")
+        ptype = payload.get("type")
+        ptime = payload.get("punched_at")
+        if r.action_type in ("update", "delete") and r.entity_id:
+            lg = db.query(AttendanceLog).filter(AttendanceLog.id == r.entity_id).first()
+            if lg:
+                pid = lg.personnel_id
+                ptype = ptype or lg.type
+                ptime = ptime or lg.punched_at.isoformat()
+        pname = None
+        if pid:
+            per = db.query(Personnel).filter(Personnel.id == pid).first()
+            pname = per.full_name if per else None
+        items.append({
+            "request_id": r.id,
+            "action_type": r.action_type,
+            "entity_id": r.entity_id,
+            "personnel_id": pid,
+            "personnel_name": pname,
+            "type": ptype,
+            "punched_at": ptime,
+            "note": payload.get("note"),
+            "requested_by": r.requested_by,
+            "requested_by_name": users.get(r.requested_by),
+            "requested_at": r.requested_at.isoformat() if r.requested_at else None,
+            "can_cancel": r.requested_by == current_user.id,
+        })
+    return {"items": items, "count": len(items)}
+
+
+@router.post("/attendance/pending/{request_id}/cancel")
+def cancel_pending(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("hr.attendance", "use")),
+):
+    """Kendi bekleyen hr.attendance onay talebini iptal et (talep sahibi)."""
+    req = db.query(ApprovalRequest).filter(ApprovalRequest.id == request_id).first()
+    if not req or req.module_code != "hr.attendance":
+        raise HTTPException(status_code=404, detail="Onay talebi bulunamadı")
+    if req.requested_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Yalnızca kendi talebinizi iptal edebilirsiniz")
+    if req.status not in (STATUS_PENDING, STATUS_RETURNED):
+        raise HTTPException(status_code=400, detail="Bu talep iptal edilebilir durumda değil")
+    process_action(db, req, ACTION_CANCEL, current_user.id, None)
+    log_action(db, current_user.id, "cancel", "approval_request", req.id,
+               f"PDKS onay talebi iptal edildi ({req.action_type})", get_client_ip(request))
+    db.commit()
+    manager.send_to_all_sync({"type": WSEvent.APPROVAL_STATUS_CHANGED, "module_code": "hr.attendance"})
+    manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "cancel"})
     return {"ok": True}

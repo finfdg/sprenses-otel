@@ -665,7 +665,12 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
     """
     from datetime import datetime as _dt
 
+    import pytz
+
     from app.models.personnel import SOURCE_MANUAL, AttendanceLog
+    from app.utils.audit import log_action
+
+    tz = pytz.timezone("Europe/Istanbul")
 
     def _parse(raw):
         try:
@@ -685,6 +690,8 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
         if when is not None:
             log.punched_at = when
         db.add(log)
+        db.flush()
+        log_action(db, actor_id, "manual_punch", "attendance", log.id, f"Onaylı elle {log.type}")
 
     elif action_type == "update":
         log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
@@ -697,10 +704,13 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
         when = _parse(payload.get("punched_at"))
         if when is not None:
             log.punched_at = when
+        log.edited_at = _dt.now(tz)
+        log_action(db, actor_id, "update", "attendance", log.id, f"Onaylı düzenleme → {log.type}")
 
     elif action_type == "delete":
         log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
         if log:
+            log_action(db, actor_id, "delete", "attendance", log.id, "Onaylı silme")
             db.delete(log)
 
 

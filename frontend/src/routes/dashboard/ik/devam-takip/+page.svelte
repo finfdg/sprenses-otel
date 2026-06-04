@@ -15,7 +15,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
-		LogIn, Printer, Copy, Fingerprint, Settings,
+		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban,
 	} from 'lucide-svelte';
 
 	type Personnel = {
@@ -25,7 +25,7 @@
 	type InsideRow = { personnel_id: number; full_name: string; department: string | null; since: string };
 	type LogRow = {
 		id: number; personnel_id: number; full_name: string; department: string | null;
-		type: string; punched_at: string; source: string; note: string | null;
+		type: string; punched_at: string; source: string; note: string | null; edited_at: string | null;
 	};
 	type SummaryRow = {
 		personnel_id: number; full_name: string; department: string | null;
@@ -70,6 +70,26 @@
 	let editForm = $state({ id: 0, type: 'in', punched_at: '', note: '' });
 	let editSaving = $state(false);
 	let confirmDelLog = $state<{ show: boolean; target: LogRow | null }>({ show: false, target: null });
+
+	// Onay bekleyenler + filtre + tarihçe
+	let pending = $state<any[]>([]);
+	let logFilter = $state<'all' | 'pending' | 'edited'>('all');
+	let showHistory = $state(false);
+	let historyData = $state<any>(null);
+	let historyTitle = $state('');
+	// entity_id (log) → bekleyen update/delete talebi
+	let pendingByEntity = $derived(
+		new Map(pending.filter((p) => p.entity_id && p.action_type !== 'create').map((p) => [p.entity_id, p]))
+	);
+	let pendingCreates = $derived(pending.filter((p) => p.action_type === 'create'));
+	let showCreates = $derived(logFilter !== 'edited');
+	let displayLogs = $derived(
+		logFilter === 'edited'
+			? logs.filter((l) => l.edited_at)
+			: logFilter === 'pending'
+				? logs.filter((l) => pendingByEntity.has(l.id))
+				: logs
+	);
 
 	// Ayarlar modalı (QR yenileme süresi)
 	let showSettings = $state(false);
@@ -129,10 +149,40 @@
 			summary = r.personnel;
 		} catch (e) { console.error('Puantaj alınamadı:', e); }
 	}
+	async function loadPending() {
+		try {
+			const r = await api.get<{ items: any[] }>('/attendance/pending');
+			pending = r.items;
+		} catch (e) { console.error('Onay bekleyenler alınamadı:', e); }
+	}
+
+	function actionLabel(a: string): string {
+		return a === 'create' ? 'ekleme' : a === 'update' ? 'düzenleme' : a === 'delete' ? 'silme' : a;
+	}
+	async function cancelPending(requestId: number) {
+		try {
+			await api.post(`/attendance/pending/${requestId}/cancel`, {});
+			showToast('Onay talebi iptal edildi', 'success');
+			await Promise.all([loadPending(), loadLogs()]);
+		} catch (e) {
+			showToast(e instanceof ApiError ? e.message : 'İptal edilemedi', 'error');
+		}
+	}
+	async function openHistory(lg: LogRow) {
+		historyTitle = `${lg.full_name} — ${lg.type === 'in' ? 'Giriş' : 'Çıkış'} ${fmtDateTime(lg.punched_at)}`;
+		historyData = null;
+		showHistory = true;
+		try {
+			historyData = await api.get<any>(`/attendance/logs/${lg.id}/history`);
+		} catch (e) {
+			console.error('Tarihçe alınamadı:', e);
+			showToast('Tarihçe alınamadı', 'error');
+		}
+	}
 
 	async function refreshAll() {
 		loading = true;
-		await Promise.all([loadStatus(), loadPersonnel(), loadSummary()]);
+		await Promise.all([loadStatus(), loadPersonnel(), loadSummary(), loadPending()]);
 		loading = false;
 	}
 
@@ -215,8 +265,9 @@
 			const res: any = await api.post('/attendance/manual', manualForm);
 			showManual = false;
 			if (res?.requires_approval) {
-				// Onay akışına düştü — kayıt henüz oluşmadı, listeyi tazelemeye gerek yok
+				// Onay akışına düştü — bekleyenler listesi + badge anında görünsün
 				showToast('İşlem onaya gönderildi', 'info');
+				loadPending();
 			} else {
 				showToast('Kayıt eklendi', 'success');
 				await Promise.all([loadStatus(), loadLogs()]);
@@ -244,6 +295,7 @@
 			showEditLog = false;
 			if (res?.requires_approval) {
 				showToast('Düzenleme onaya gönderildi', 'info');
+				loadPending();
 			} else {
 				showToast('Kayıt güncellendi', 'success');
 				await Promise.all([loadStatus(), loadSummary(), loadLogs()]);
@@ -265,6 +317,7 @@
 			confirmDelLog = { show: false, target: null };
 			if (res?.requires_approval) {
 				showToast('Silme onaya gönderildi', 'info');
+				loadPending();
 			} else {
 				showToast('Kayıt silindi', 'success');
 				await Promise.all([loadStatus(), loadSummary(), loadLogs()]);
@@ -317,6 +370,7 @@
 		const refresh = () => {
 			loadStatus();
 			loadSummary();
+			loadPending();
 			if (logsLoaded) loadLogs();
 		};
 		const unsubs = [
@@ -343,10 +397,11 @@
 		{/snippet}
 	</PageHeader>
 
-	<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+	<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
 		<StatCard label="Şu An İçeride" value={`${inside.length} kişi`} icon={Clock} accent="emerald" hint="Aktif personel" />
 		<StatCard label="Toplam Personel" value={`${personnel.length}`} icon={Users} accent="teal" hint="Kayıtlı çalışan" />
 		<StatCard label="Bu Ay Çalışan" value={`${summary.length}`} icon={History} accent="blue" hint={summaryMonth} />
+		<StatCard label="Onay Bekleyen" value={`${pending.length}`} icon={Hourglass} accent="amber" hint="Elle işlem talebi" />
 	</div>
 
 	<!-- Sekmeler -->
@@ -433,8 +488,18 @@
 
 			<!-- GEÇMİŞ -->
 			{:else if tab === 'logs'}
-				{#if logs.length === 0}
-					<EmptyState icon={History} title="Kayıt yok" />
+				<!-- Filtre: Tümü / Onay bekleyen / Düzenlenmiş -->
+				<div class="flex items-center gap-2 px-4 py-3 border-b border-gray-100 flex-wrap">
+					{#each [['all', 'Tümü'], ['pending', 'Onay bekleyen'], ['edited', 'Düzenlenmiş']] as opt (opt[0])}
+						<button onclick={() => (logFilter = opt[0] as 'all' | 'pending' | 'edited')}
+							class="px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors {logFilter === opt[0] ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
+							{opt[1]}{opt[0] === 'pending' && pending.length ? ` (${pending.length})` : ''}
+						</button>
+					{/each}
+				</div>
+
+				{#if displayLogs.length === 0 && !(showCreates && pendingCreates.length)}
+					<EmptyState icon={History} title={logFilter === 'pending' ? 'Onay bekleyen kayıt yok' : logFilter === 'edited' ? 'Düzenlenmiş kayıt yok' : 'Kayıt yok'} />
 				{:else}
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm">
@@ -443,30 +508,61 @@
 									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs">Personel</th>
 									<th class="px-4 py-3 text-center font-medium text-gray-500 text-xs">Hareket</th>
 									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs">Zaman</th>
-									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs hidden sm:table-cell">Kaynak</th>
+									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs hidden sm:table-cell">Kaynak / Durum</th>
 									{#if canUse}<th class="px-4 py-3 text-right font-medium text-gray-500 text-xs">İşlem</th>{/if}
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-100">
-								{#each logs as lg (lg.id)}
-									<tr class="hover:bg-gray-50">
+								<!-- Onaya gönderilmiş EKLEME talepleri (henüz kayıt yok → sanal satır) -->
+								{#if showCreates}
+									{#each pendingCreates as pc (pc.request_id)}
+										<tr class="bg-amber-50">
+											<td class="px-4 py-3 text-gray-900">{pc.personnel_name ?? '—'}</td>
+											<td class="px-4 py-3 text-center">
+												{#if pc.type === 'in'}<StatusBadge type="success">Giriş</StatusBadge>{:else}<StatusBadge type="warning">Çıkış</StatusBadge>{/if}
+											</td>
+											<td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{pc.punched_at ? fmtDateTime(pc.punched_at) : '—'}</td>
+											<td class="px-4 py-3 hidden sm:table-cell"><StatusBadge type="warning">Onay bekliyor · ekleme</StatusBadge></td>
+											{#if canUse}
+												<td class="px-4 py-3">
+													<div class="flex items-center justify-end gap-1">
+														{#if pc.can_cancel}
+															<button onclick={() => cancelPending(pc.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
+														{/if}
+													</div>
+												</td>
+											{/if}
+										</tr>
+									{/each}
+								{/if}
+								<!-- Gerçek kayıtlar -->
+								{#each displayLogs as lg (lg.id)}
+									{@const pend = pendingByEntity.get(lg.id)}
+									<tr class={pend ? 'bg-amber-50' : lg.edited_at ? 'bg-blue-50' : 'hover:bg-gray-50'}>
 										<td class="px-4 py-3 text-gray-900">{lg.full_name}</td>
 										<td class="px-4 py-3 text-center">
 											{#if lg.type === 'in'}<StatusBadge type="success">Giriş</StatusBadge>{:else}<StatusBadge type="warning">Çıkış</StatusBadge>{/if}
 										</td>
 										<td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{fmtDateTime(lg.punched_at)}</td>
-										<td class="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">
-											{lg.source === 'manual' ? 'Elle' : 'Karekod'}{lg.note ? ` · ${lg.note}` : ''}
+										<td class="px-4 py-3 hidden sm:table-cell">
+											<div class="flex flex-col gap-1 items-start">
+												<span class="text-gray-500 text-xs">{lg.source === 'manual' ? 'Elle' : 'Karekod'}{lg.note ? ` · ${lg.note}` : ''}</span>
+												{#if pend}<StatusBadge type="warning">Onay bekliyor · {actionLabel(pend.action_type)}</StatusBadge>
+												{:else if lg.edited_at}<StatusBadge type="info">düzenlendi</StatusBadge>{/if}
+											</div>
 										</td>
 										{#if canUse}
 											<td class="px-4 py-3">
 												<div class="flex items-center justify-end gap-1">
-													<button onclick={() => openEditLog(lg)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle">
-														<Pencil size={16} />
-													</button>
-													<button onclick={() => confirmDeleteLog(lg)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil">
-														<Trash2 size={16} />
-													</button>
+													<button onclick={() => openHistory(lg)} class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer" title="Tarihçe"><History size={16} /></button>
+													{#if pend}
+														{#if pend.can_cancel}
+															<button onclick={() => cancelPending(pend.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
+														{/if}
+													{:else}
+														<button onclick={() => openEditLog(lg)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle"><Pencil size={16} /></button>
+														<button onclick={() => confirmDeleteLog(lg)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil"><Trash2 size={16} /></button>
+													{/if}
 												</div>
 											</td>
 										{/if}
@@ -682,6 +778,39 @@
 	onCancel={() => (confirmDelLog = { show: false, target: null })}
 	onConfirm={doDeleteLog}
 />
+
+<!-- Kayıt Tarihçesi -->
+<Modal bind:show={showHistory} title="Kayıt Tarihçesi" maxWidth="max-w-lg">
+	<div class="space-y-3 text-sm">
+		<p class="text-xs text-gray-500">{historyTitle}</p>
+		{#if !historyData}
+			<div class="py-8 text-center"><div class="w-8 h-8 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto"></div></div>
+		{:else if historyData.history.length === 0 && !historyData.pending_action}
+			<EmptyState icon={History} title="Bu kayıt için değişiklik kaydı yok" />
+		{:else}
+			{#if historyData.pending_action}
+				<div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
+					⏳ Bu kayıt için <strong>{actionLabel(historyData.pending_action)}</strong> onayı bekliyor.
+				</div>
+			{/if}
+			<ol class="relative border-l-2 border-gray-100 ml-2 space-y-4 pt-1">
+				{#each historyData.history as h (h.created_at)}
+					<li class="ml-4">
+						<span class="absolute -left-[7px] w-3 h-3 rounded-full {h.action === 'delete' ? 'bg-red-400' : h.action === 'update' ? 'bg-blue-400' : 'bg-emerald-400'}"></span>
+						<div class="text-gray-800 font-medium">
+							{h.action === 'manual_punch' ? 'Elle oluşturuldu' : h.action === 'update' ? 'Düzenlendi' : h.action === 'delete' ? 'Silindi' : h.action}
+						</div>
+						{#if h.details}<div class="text-xs text-gray-500">{h.details}</div>{/if}
+						<div class="text-[11px] text-gray-400 mt-0.5">{h.user_name ?? 'Sistem'} · {fmtDateTime(h.created_at)}</div>
+					</li>
+				{/each}
+			</ol>
+		{/if}
+		<div class="flex justify-end pt-1">
+			<Button type="button" variant="secondary" onclick={() => (showHistory = false)}>Kapat</Button>
+		</div>
+	</div>
+</Modal>
 
 <ConfirmDialog
 	bind:show={confirmDel.show}
