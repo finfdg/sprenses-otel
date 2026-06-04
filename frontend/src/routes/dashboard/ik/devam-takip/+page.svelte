@@ -72,7 +72,9 @@
 	function fmtMinutes(m: number): string {
 		const h = Math.floor(m / 60);
 		const mm = m % 60;
-		return h > 0 ? `${h}s ${mm}dk` : `${mm}dk`;
+		if (h > 0 && mm > 0) return `${h} sa ${mm} dk`;
+		if (h > 0) return `${h} sa`;
+		return `${mm} dk`;
 	}
 	function sinceLabel(iso: string): string {
 		const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -359,7 +361,7 @@
 										<td class="px-4 py-3 text-gray-900">{s.full_name}</td>
 										<td class="px-4 py-3 text-gray-600 hidden sm:table-cell">{s.department ?? '—'}</td>
 										<td class="px-4 py-3 text-right tabular-nums">{s.days_worked}</td>
-										<td class="px-4 py-3 text-right tabular-nums font-medium text-teal-700">{s.total_hours} saat</td>
+										<td class="px-4 py-3 text-right tabular-nums font-medium text-teal-700">{fmtMinutes(s.total_minutes)}</td>
 									</tr>
 								{/each}
 							</tbody>

@@ -11,11 +11,25 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
 
 ## Çalışma Akışı
 1. **Kurulum (bir kez):** Yönetici her personel için QR kart üretir (panel → Personel → QR ikonu).
-   Personel kartı telefonuyla okutur → `/devam/kur?t=<access_token>` açılır → **kimlik çerezi** (`pdks_token`) oturur.
+   Personel kartı telefonuyla okutur → `/devam/kur?t=<access_token>` açılır → **kimlik URL'dedir** (`?t=`).
+   Personel sayfayı **ana ekrana ekler** (kalıcı kimlikli ikon).
 2. **Giriş ekranı:** Yönetici "Kiosk Linki"ni alır (`/devam/ekran?key=<KIOSK_KEY>`), girişteki bir
    tablet/TV'de açar. Ekran ~10sn'de yenilenen **dönen QR** gösterir.
-3. **Günlük basış:** Personel telefon kamerasını ekrandaki QR'a tutar → `/devam?k=<token>` açılır →
-   çerez kimliği + token doğrulanır → son duruma göre **giriş/çıkış** kaydedilir → "Hoş geldin Ahmet ✅".
+3. **Günlük basış:** Personel **kendi uygulamasını** açar (ana ekrandaki ikon) → **"Tara"** düğmesine basar →
+   uygulama-içi kamera girişteki ekranın QR'ını okur → token + `?t=` kimliği `X-Pdks-Token` başlığıyla
+   gider → son duruma göre **giriş/çıkış** kaydedilir → "Hoş geldin Ahmet ✅".
+
+### ⚠️ iOS dersi — neden uygulama-içi tarayıcı (native kamera DEĞİL)
+iOS Camera uygulaması bir QR'ı okutunca URL'i **izole/geçici bir bağlamda** açar; **her okutma ayrı bağlam**
+olduğundan ne çerez ne de localStorage taşınır. Bu yüzden "girişteki ekranı telefonun kendi kamerasıyla
+okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteği `header=False cookie=False` → 401 →
+"Önce kurulum gerekli"). **Çözüm:** kimlik personelin **kendi URL'sinde** (`?t=`) durur ve tarama
+**uygulama-içi** (`getUserMedia` + `jsqr`) yapılır → her şey tek, kalıcı bağlamda olur.
+- `/devam` (native-scan landing) artık **basış denemez**; kimlik varsa `/devam/kur`'a yönlendirir,
+  yoksa "kendi uygulamandaki Tara'yı kullan" talimatı gösterir.
+- `/devam/kur?t=...&k=...` ile gelince (yönlendirme) **otomatik basar**.
+- **Tanı:** `setup`/`me`/`punch` uçları journald'a `PDKS|...` satırı yazar (kimlik header/çerez/yok, UA,
+  personel). Sayfalarda geçici "🔎 tanı kaydı" paneli aynısını ekranda gösterir. Sorun netleşince kaldırılabilir.
 
 ## Veritabanı (2 tablo)
 - `personnel`: id, full_name, employee_code (unique), department, phone, **access_token** (kişisel kimlik), is_active.
@@ -48,7 +62,9 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
   (biyometri olmadan). v2'de basış anı **selfie** ile caydırılabilir.
 
 ## Yönetici Paneli (İK → Devam Takip)
-4 sekme: **İçeride** (canlı pano), **Personel** (CRUD + QR kart), **Geçmiş** (loglar), **Puantaj** (aylık saat).
+4 sekme: **İçeride** (canlı pano), **Personel** (CRUD + QR kart), **Geçmiş** (loglar), **Puantaj** (aylık toplam süre).
+Toplam süre **`sa/dk`** olarak gösterilir (ör. `28 dk`, `8 sa 28 dk`) — ondalık saate yuvarlama yok
+(28 dk yanlışlıkla "0,5 saat" görünmez). API hem `total_minutes` hem `total_hours` döndürür.
 Ek aksiyonlar: "Kiosk Linki", "Elle Giriş/Çıkış" (telefonsuz/unutan için, audit'li).
 
 ## Audit Log
