@@ -254,8 +254,13 @@
 		);
 	}
 
+	// Seçili personelin son hareketine göre önerilen tip: içerideyse (son=giriş) → çıkış, değilse → giriş
+	function defaultTypeFor(pid: number): 'in' | 'out' {
+		return inside.some((i) => i.personnel_id === pid) ? 'out' : 'in';
+	}
 	function openManual() {
-		manualForm = { personnel_id: personnel[0]?.id ?? 0, type: 'in', punched_at: toLocalInput(new Date()), note: '' };
+		const pid = personnel[0]?.id ?? 0;
+		manualForm = { personnel_id: pid, type: defaultTypeFor(pid), punched_at: toLocalInput(new Date()), note: '' };
 		showManual = true;
 	}
 	async function doManual() {
@@ -716,7 +721,7 @@
 		<p class="text-xs text-gray-500 leading-snug">Telefonu olmayan / unutan personel için yöneticinin manuel kaydı.</p>
 		<div>
 			<label for="mf-p" class="block text-sm font-medium text-gray-700 mb-1">Personel</label>
-			<select id="mf-p" bind:value={manualForm.personnel_id} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+			<select id="mf-p" bind:value={manualForm.personnel_id} onchange={() => (manualForm.type = defaultTypeFor(manualForm.personnel_id))} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
 				{#each personnel as p (p.id)}<option value={p.id}>{p.full_name} ({p.employee_code})</option>{/each}
 			</select>
 		</div>
