@@ -461,7 +461,7 @@ TEMPLATE:
 - `GET /api/attendance/status` — Şu an içeride kim
 - `GET /api/attendance/logs` — Giriş/çıkış geçmişi (filtreli)
 - `GET /api/attendance/summary?month=` — Aylık puantaj
-- `POST /api/attendance/manual` — Yönetici elle giriş/çıkış
+- `POST /api/attendance/manual` — Yönetici elle giriş/çıkış (çift giriş/çıkış engelli; hr.attendance workflow'u varsa onaya düşer → `_handle_attendance` executor)
 - Gerçek zamanlı: basışta `attendance_updated` WS event'i → panel canlı tazelenir (polling yok)
 - Public sayfalar: `/devam/ekran` (kiosk), `/devam/kur` (kurulum), `/devam` (basış)
 - Detaylı bilgi: `docs/modules/devam-takip.md`

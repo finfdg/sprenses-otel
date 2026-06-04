@@ -201,10 +201,15 @@
 		if (!manualForm.personnel_id) { showToast('Personel seçin', 'warning'); return; }
 		manualSaving = true;
 		try {
-			await api.post('/attendance/manual', manualForm);
-			showToast('Kayıt eklendi', 'success');
+			const res: any = await api.post('/attendance/manual', manualForm);
 			showManual = false;
-			await Promise.all([loadStatus(), loadLogs()]);
+			if (res?.requires_approval) {
+				// Onay akışına düştü — kayıt henüz oluşmadı, listeyi tazelemeye gerek yok
+				showToast('İşlem onaya gönderildi', 'info');
+			} else {
+				showToast('Kayıt eklendi', 'success');
+				await Promise.all([loadStatus(), loadLogs()]);
+			}
 		} catch (e) {
 			showToast(e instanceof ApiError ? e.message : 'Kayıt başarısız', 'error');
 		} finally {

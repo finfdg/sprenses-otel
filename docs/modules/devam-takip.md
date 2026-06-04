@@ -53,7 +53,7 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 | GET | `/attendance/status` | hr.attendance view | Şu an içeride kim |
 | GET | `/attendance/logs` | hr.attendance view | Geçmiş (filtreli) |
 | GET | `/attendance/summary?month=` | hr.attendance view | Aylık puantaj (kişi başı saat/gün) |
-| POST | `/attendance/manual` | hr.attendance use | Yönetici elle giriş/çıkış |
+| POST | `/attendance/manual` | hr.attendance use | Yönetici elle giriş/çıkış (çift giriş/çıkış engelli; onay akışına tabi) |
 
 ## Güvenlik / Sahtecilik Tasarımı
 - **Zaman-damgalı token:** `<unix_ts>.HMAC(SECRET, ts)` — geçerlilik = **`refresh_sec + 3` saniye**
@@ -90,7 +90,19 @@ sınıfı bir zafiyettir. Tek başına bir personel bunu **yapamaz** (canlı tok
 4 sekme: **İçeride** (canlı pano), **Personel** (CRUD + QR kart), **Geçmiş** (loglar), **Puantaj** (aylık toplam süre).
 Toplam süre **`sa/dk`** olarak gösterilir (ör. `28 dk`, `8 sa 28 dk`) — ondalık saate yuvarlama yok
 (28 dk yanlışlıkla "0,5 saat" görünmez). API hem `total_minutes` hem `total_hours` döndürür.
-Ek aksiyonlar: "Kiosk Linki", "Elle Giriş/Çıkış" (telefonsuz/unutan için, audit'li).
+Ek aksiyonlar: "Kiosk Linki", "Ayarlar", "Elle Giriş/Çıkış" (telefonsuz/unutan için, audit'li).
+
+## Elle Giriş/Çıkış — Doğrulama + Onay Akışı
+Telefon basışı (`punch`) son duruma göre **otomatik** giriş/çıkış seçer → çift olamaz. Elle basışta (`manual`)
+yönetici tipi kendi seçtiği için iki koruma eklendi:
+- **Durum tutarlılığı:** Yeni hareketin **komşuları** (zaman olarak önceki/sonraki log) aynı tip olamaz →
+  içerideki kişiye tekrar **giriş**, dışarıdakine tekrar **çıkış** **400** ile reddedilir (geriye-tarihli
+  düzeltmelerde de doğru: araya ters hareket gerekir).
+- **Onay akışı:** `manual` endpoint'i `check_approval(db, "hr.attendance", 0, user, "create", payload)` çağırır.
+  hr.attendance için **aktif workflow** varsa ve talep edenin **rolü requestor** ise işlem **202 → onaya düşer**
+  (payload'da `punched_at` talep anında sabitlenir). Onaylanınca `approval_executor._handle_attendance`
+  manuel `AttendanceLog`'u oluşturur (`source=manual`, `recorded_by=talep eden`). Eşleşen workflow yoksa
+  (ör. admin requestor değilse) doğrudan kaydedilir. Frontend 202'de "İşlem onaya gönderildi" gösterir.
 
 ## Audit Log
 - entity_type: `personnel` (CRUD), `attendance` (manuel basış). Eylemler: create/update/delete/manual_punch.
@@ -104,7 +116,9 @@ Ek aksiyonlar: "Kiosk Linki", "Elle Giriş/Çıkış" (telefonsuz/unutan için, 
 - Sabit tek kaynak: backend `WSEvent.ATTENDANCE_UPDATED` ↔ frontend `WS_EVENT.ATTENDANCE_UPDATED` (birebir).
 
 ## Geliştirme Kuralları
-- Bu modül **onay akışından muaftır** (Sunucu/Yedekleme gibi ops/HR modülü).
+- **Onay akışı:** Yalnızca **elle giriş/çıkış** (`POST /attendance/manual`) onaya tabidir (yukarıdaki bölüm).
+  Telefon `punch` (self-servis, app-user'a bağlı değil), personel CRUD ve ayarlar onaydan **muaftır**.
+  `_HANDLERS["hr.attendance"]` = `_handle_attendance` (create) — `tests/test_approval_system.py` AST testlerinden geçer.
 - Kiosk QR yenileme + 15sn'lik ayar-kontrolü `setInterval` kullanır — "polling yasak" kuralının **bilinçli
   istisnası** (kiosk public+oturumsuz display, kimlikli WS taşınamaz). Yönetici panelindeki canlı güncelleme
   ise polling değil, **WS event-driven**'dir (yukarıdaki bölüm).

@@ -657,6 +657,35 @@ def _handle_quality_forms(db, action_type, entity_id, payload, actor_id):
             db.delete(form)
 
 
+def _handle_attendance(db, action_type, entity_id, payload, actor_id):
+    """Onaylanan elle giriş/çıkış (hr.attendance) → manuel AttendanceLog oluştur.
+
+    Yalnızca 'create' anlamlıdır (elle basış). punched_at payload'da ISO string olarak
+    talep anında sabitlenir; burada parse edilir (yoksa kolon server_default=now uygular).
+    """
+    from datetime import datetime as _dt
+
+    from app.models.personnel import SOURCE_MANUAL, AttendanceLog
+
+    if action_type != "create":
+        return
+    raw = payload.get("punched_at")
+    try:
+        when = _dt.fromisoformat(raw) if raw else None
+    except (TypeError, ValueError):
+        when = None
+    log = AttendanceLog(
+        personnel_id=payload.get("personnel_id"),
+        type=payload.get("type"),
+        source=SOURCE_MANUAL,
+        recorded_by=actor_id,
+        note=(payload.get("note") or None),
+    )
+    if when is not None:
+        log.punched_at = when
+    db.add(log)
+
+
 # ── Handler kayıt tablosu ────────────────────────────────────
 
 _HANDLERS = {
@@ -675,6 +704,8 @@ _HANDLERS = {
     # Kalite
     "quality.templates": _handle_quality_templates,
     "quality.forms": _handle_quality_forms,
+    # İK — Devam Takip (elle giriş/çıkış)
+    "hr.attendance": _handle_attendance,
 }
 
 # Scheduled modüller (8 adet)

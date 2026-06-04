@@ -53,6 +53,7 @@ from app.models.personnel import (
     Personnel,
 )
 from app.models.user import User
+from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.websocket.manager import manager
 
@@ -599,13 +600,47 @@ def manual_punch(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hr.attendance", "use")),
 ):
-    """Yönetici elle giriş/çıkış kaydı (telefonu olmayan / unutulan için)."""
+    """Yönetici elle giriş/çıkış kaydı (telefonu olmayan / unutulan için).
+
+    - **Durum tutarlılığı:** içerideki kişiye tekrar 'giriş' (veya dışarıdakine 'çıkış')
+      engellenir — komşu hareketlerle art arda aynı tip olamaz.
+    - **Onay akışı:** hr.attendance için aktif workflow + talep edenin rolü requestor ise
+      işlem onaya düşer (202); aksi halde doğrudan kaydedilir.
+    """
     if data.type not in (TYPE_IN, TYPE_OUT):
         raise HTTPException(status_code=400, detail="type 'in' veya 'out' olmalı")
     p = db.query(Personnel).filter(Personnel.id == data.personnel_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Personel bulunamadı")
+
     when = data.punched_at or datetime.now(TZ)
+    type_tr = "giriş" if data.type == TYPE_IN else "çıkış"
+    other_tr = "çıkış" if data.type == TYPE_IN else "giriş"
+    # Durum tutarlılığı — when'in komşu hareketleri aynı tip olamaz (çift giriş/çıkış)
+    prev = (
+        db.query(AttendanceLog)
+        .filter(AttendanceLog.personnel_id == p.id, AttendanceLog.punched_at <= when)
+        .order_by(desc(AttendanceLog.punched_at)).first()
+    )
+    nxt = (
+        db.query(AttendanceLog)
+        .filter(AttendanceLog.personnel_id == p.id, AttendanceLog.punched_at > when)
+        .order_by(AttendanceLog.punched_at).first()
+    )
+    if (prev and prev.type == data.type) or (nxt and nxt.type == data.type):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bu personelin komşu hareketi zaten '{type_tr}'. Art arda çift {type_tr} "
+                   f"kaydedilemez — araya '{other_tr}' gerekir.",
+        )
+
+    # Onay akışı — aktif workflow + requestor rolü varsa 202 döner, kayıt onaya gider
+    payload = data.model_dump()
+    payload["punched_at"] = when.isoformat()
+    approval_resp = check_approval(db, "hr.attendance", 0, current_user.id, "create", payload)
+    if approval_resp:
+        return approval_resp
+
     lg = AttendanceLog(
         personnel_id=p.id, type=data.type, source=SOURCE_MANUAL,
         recorded_by=current_user.id, note=(data.note or "").strip() or None,
