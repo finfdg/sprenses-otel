@@ -464,7 +464,7 @@ TEMPLATE:
 - `GET /api/attendance/summary?month=` — Aylık puantaj
 - `POST /api/attendance/manual` — Yönetici elle giriş/çıkış (zaman seçilebilir; çift giriş/çıkış engelli; hr.attendance workflow'u varsa onaya düşer → `_handle_attendance` executor)
 - `PATCH /api/attendance/logs/{id}` — Kaydı elle düzenle (tip/zaman/not; çift engelli; audit + onay)
-- `DELETE /api/attendance/logs/{id}` — Kaydı sil (yanlış/çift düzeltme; audit + onay)
+- `DELETE /api/attendance/logs/{id}` — Kaydı sil (soft delete: deleted_at; Geçmiş'te soluk kalır, aktif hesaplara girmez; audit + onay)
 - `GET /api/attendance/logs/{id}/history` — Kaydın değişiklik tarihçesi (audit) + bekleyen işlem
 - `GET /api/attendance/pending` — Bekleyen onay talepleri (ekle/düzenle/sil; can_cancel)
 - `POST /api/attendance/pending/{request_id}/cancel` — Kendi bekleyen talebini iptal (modül-içi)

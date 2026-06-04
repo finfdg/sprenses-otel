@@ -25,7 +25,8 @@
 	type InsideRow = { personnel_id: number; full_name: string; department: string | null; since: string };
 	type LogRow = {
 		id: number; personnel_id: number; full_name: string; department: string | null;
-		type: string; punched_at: string; source: string; note: string | null; edited_at: string | null;
+		type: string; punched_at: string; source: string; note: string | null;
+		edited_at: string | null; deleted_at: string | null;
 	};
 	type SummaryRow = {
 		personnel_id: number; full_name: string; department: string | null;
@@ -73,7 +74,7 @@
 
 	// Onay bekleyenler + filtre + tarihçe
 	let pending = $state<any[]>([]);
-	let logFilter = $state<'all' | 'pending' | 'edited'>('all');
+	let logFilter = $state<'all' | 'pending' | 'edited' | 'deleted'>('all');
 	let showHistory = $state(false);
 	let historyData = $state<any>(null);
 	let historyTitle = $state('');
@@ -82,13 +83,15 @@
 		new Map(pending.filter((p) => p.entity_id && p.action_type !== 'create').map((p) => [p.entity_id, p]))
 	);
 	let pendingCreates = $derived(pending.filter((p) => p.action_type === 'create'));
-	let showCreates = $derived(logFilter !== 'edited');
+	let showCreates = $derived(logFilter === 'all' || logFilter === 'pending');
 	let displayLogs = $derived(
 		logFilter === 'edited'
-			? logs.filter((l) => l.edited_at)
+			? logs.filter((l) => l.edited_at && !l.deleted_at)
 			: logFilter === 'pending'
-				? logs.filter((l) => pendingByEntity.has(l.id))
-				: logs
+				? logs.filter((l) => pendingByEntity.has(l.id) && !l.deleted_at)
+				: logFilter === 'deleted'
+					? logs.filter((l) => l.deleted_at)
+					: logs
 	);
 
 	// Ayarlar modalı (QR yenileme süresi)
@@ -495,8 +498,8 @@
 			{:else if tab === 'logs'}
 				<!-- Filtre: Tümü / Onay bekleyen / Düzenlenmiş -->
 				<div class="flex items-center gap-2 px-4 py-3 border-b border-gray-100 flex-wrap">
-					{#each [['all', 'Tümü'], ['pending', 'Onay bekleyen'], ['edited', 'Düzenlenmiş']] as opt (opt[0])}
-						<button onclick={() => (logFilter = opt[0] as 'all' | 'pending' | 'edited')}
+					{#each [['all', 'Tümü'], ['pending', 'Onay bekleyen'], ['edited', 'Düzenlenmiş'], ['deleted', 'Silinmiş']] as opt (opt[0])}
+						<button onclick={() => (logFilter = opt[0] as 'all' | 'pending' | 'edited' | 'deleted')}
 							class="px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors {logFilter === opt[0] ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
 							{opt[1]}{opt[0] === 'pending' && pending.length ? ` (${pending.length})` : ''}
 						</button>
@@ -504,7 +507,7 @@
 				</div>
 
 				{#if displayLogs.length === 0 && !(showCreates && pendingCreates.length)}
-					<EmptyState icon={History} title={logFilter === 'pending' ? 'Onay bekleyen kayıt yok' : logFilter === 'edited' ? 'Düzenlenmiş kayıt yok' : 'Kayıt yok'} />
+					<EmptyState icon={History} title={logFilter === 'pending' ? 'Onay bekleyen kayıt yok' : logFilter === 'edited' ? 'Düzenlenmiş kayıt yok' : logFilter === 'deleted' ? 'Silinmiş kayıt yok' : 'Kayıt yok'} />
 				{:else}
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm">
@@ -543,16 +546,17 @@
 								<!-- Gerçek kayıtlar -->
 								{#each displayLogs as lg (lg.id)}
 									{@const pend = pendingByEntity.get(lg.id)}
-									<tr class={pend ? 'bg-amber-50' : lg.edited_at ? 'bg-blue-50' : 'hover:bg-gray-50'}>
-										<td class="px-4 py-3 text-gray-900">{lg.full_name}</td>
+									<tr class={lg.deleted_at ? 'opacity-60 bg-gray-50' : pend ? 'bg-amber-50' : lg.edited_at ? 'bg-blue-50' : 'hover:bg-gray-50'}>
+										<td class="px-4 py-3 text-gray-900 {lg.deleted_at ? 'line-through' : ''}">{lg.full_name}</td>
 										<td class="px-4 py-3 text-center">
 											{#if lg.type === 'in'}<StatusBadge type="success">Giriş</StatusBadge>{:else}<StatusBadge type="warning">Çıkış</StatusBadge>{/if}
 										</td>
-										<td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap">{fmtDateTime(lg.punched_at)}</td>
+										<td class="px-4 py-3 text-gray-600 text-xs whitespace-nowrap {lg.deleted_at ? 'line-through' : ''}">{fmtDateTime(lg.punched_at)}</td>
 										<td class="px-4 py-3 hidden sm:table-cell">
 											<div class="flex flex-col gap-1 items-start">
 												<span class="text-gray-500 text-xs">{lg.source === 'manual' ? 'Elle' : 'Karekod'}{lg.note ? ` · ${lg.note}` : ''}</span>
-												{#if pend}<StatusBadge type="warning">Onay bekliyor · {actionLabel(pend.action_type)}</StatusBadge>
+												{#if lg.deleted_at}<StatusBadge type="error">Silindi</StatusBadge>
+												{:else if pend}<StatusBadge type="warning">Onay bekliyor · {actionLabel(pend.action_type)}</StatusBadge>
 												{:else if lg.edited_at}<StatusBadge type="info">düzenlendi</StatusBadge>{/if}
 											</div>
 										</td>
@@ -560,13 +564,15 @@
 											<td class="px-4 py-3">
 												<div class="flex items-center justify-end gap-1">
 													<button onclick={() => openHistory(lg)} class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer" title="Tarihçe"><History size={16} /></button>
-													{#if pend}
-														{#if pend.can_cancel}
-															<button onclick={() => cancelPending(pend.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
+													{#if !lg.deleted_at}
+														{#if pend}
+															{#if pend.can_cancel}
+																<button onclick={() => cancelPending(pend.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
+															{/if}
+														{:else}
+															<button onclick={() => openEditLog(lg)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle"><Pencil size={16} /></button>
+															<button onclick={() => confirmDeleteLog(lg)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil"><Trash2 size={16} /></button>
 														{/if}
-													{:else}
-														<button onclick={() => openEditLog(lg)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle"><Pencil size={16} /></button>
-														<button onclick={() => confirmDeleteLog(lg)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil"><Trash2 size={16} /></button>
 													{/if}
 												</div>
 											</td>

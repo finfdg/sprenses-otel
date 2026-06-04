@@ -35,7 +35,7 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 
 ## Veritabanı (3 tablo)
 - `personnel`: id, full_name, employee_code (unique), department, phone, **access_token** (kişisel kimlik), is_active.
-- `attendance_logs`: id, personnel_id (FK CASCADE), type (in/out), punched_at, source (phone_qr/manual), recorded_by (manuel ise yönetici FK), note, **edited_at** (elle düzenlendiyse zaman damgası → panoda farklı renk).
+- `attendance_logs`: id, personnel_id (FK CASCADE), type (in/out), punched_at, source (phone_qr/manual), recorded_by (manuel ise yönetici FK), note, **edited_at** (düzenlendiyse → mavi), **deleted_at** (soft delete → soluk gösterilir, aktif hesaplara girmez).
 - `attendance_settings`: tek satır (id=1). **refresh_sec** (kiosk QR ekranda ne sıklıkta değişir, sn), updated_at.
   Panelden düzenlenir (2-120sn). Token güvenlik geçerliliği = `refresh_sec + 3` (grace) ile türetilir.
 
@@ -58,7 +58,7 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 | GET | `/attendance/summary?month=` | hr.attendance view | Aylık puantaj (kişi başı saat/gün) |
 | POST | `/attendance/manual` | hr.attendance use | Yönetici elle giriş/çıkış (zaman seçilebilir; çift engelli; onay akışına tabi) |
 | PATCH | `/attendance/logs/{id}` | hr.attendance use | Kaydı düzenle (tip/zaman/not; çift engelli; audit + onay) |
-| DELETE | `/attendance/logs/{id}` | hr.attendance use | Kaydı sil (yanlış/çift düzeltme; audit + onay) |
+| DELETE | `/attendance/logs/{id}` | hr.attendance use | Kaydı sil — **soft delete** (deleted_at; soluk kalır); audit + onay |
 | GET | `/attendance/logs/{id}/history` | hr.attendance view | Kaydın değişiklik tarihçesi (audit) + bekleyen işlem |
 | GET | `/attendance/pending` | hr.attendance view | Bekleyen onay talepleri (ekle/düzenle/sil) + can_cancel |
 | POST | `/attendance/pending/{request_id}/cancel` | hr.attendance use | Kendi bekleyen talebini iptal et |
@@ -121,7 +121,10 @@ Geçmiş sekmesi kayıtların onay/düzenleme yaşam döngüsünü renkli göste
 - **Onay bekleyen** (ekle/düzenle/sil): **amber** satır + "Onay bekliyor · {işlem}" rozeti. Bekleyen **ekleme**ler
   henüz kayıt olmadığından `pendingCreates`'ten **sanal satır** olarak en üstte gösterilir.
 - **Düzenlenmiş** (`edited_at`): **mavi** satır + "düzenlendi" rozeti.
-- **Filtre çubuğu:** Tümü / Onay bekleyen / Düzenlenmiş (chip). "Onay bekleyen" sayıyı gösterir.
+- **Silinmiş** (`deleted_at`, soft delete): **soluk** (opacity) satır + üstü çizili + "Silindi" rozeti.
+  Kayıt ekrandan **gitmez**; düzenle/sil butonları gizlenir (yalnız tarihçe). Aktif hesaplara
+  (içeride / puantaj / kiosk / alternasyon) **dahil edilmez** — backend tüm aktif sorgularda `deleted_at IS NULL` filtreler.
+- **Filtre çubuğu:** Tümü / Onay bekleyen / Düzenlenmiş / **Silinmiş** (chip). "Onay bekleyen" sayıyı gösterir.
 - **Stat kart "Onay Bekleyen":** `GET /attendance/pending` sayısı (canlı, WS ile tazelenir).
 - **İptal:** talep sahibi (`can_cancel`) kendi bekleyen talebini satırdaki **⃠** ile iptal eder
   (`POST /attendance/pending/{id}/cancel` → modül-içi, `system.approval` izni gerekmez).

@@ -709,9 +709,9 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
 
     elif action_type == "delete":
         log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
-        if log:
+        if log and not log.deleted_at:
             log_action(db, actor_id, "delete", "attendance", log.id, "Onaylı silme")
-            db.delete(log)
+            log.deleted_at = _dt.now(tz)  # soft delete
 
 
 # ── Handler kayıt tablosu ────────────────────────────────────

@@ -143,7 +143,7 @@ def _personnel_from_request(request: Request, db: Session) -> Optional[Personnel
 def _last_log(db: Session, personnel_id: int) -> Optional[AttendanceLog]:
     return (
         db.query(AttendanceLog)
-        .filter(AttendanceLog.personnel_id == personnel_id)
+        .filter(AttendanceLog.personnel_id == personnel_id, AttendanceLog.deleted_at.is_(None))
         .order_by(desc(AttendanceLog.punched_at))
         .first()
     )
@@ -164,7 +164,9 @@ def _assert_alternation(
     """
     type_tr = "giriş" if new_type == TYPE_IN else "çıkış"
     other_tr = "çıkış" if new_type == TYPE_IN else "giriş"
-    base = db.query(AttendanceLog).filter(AttendanceLog.personnel_id == personnel_id)
+    base = db.query(AttendanceLog).filter(
+        AttendanceLog.personnel_id == personnel_id, AttendanceLog.deleted_at.is_(None)
+    )
     if exclude_id:
         base = base.filter(AttendanceLog.id != exclude_id)
     prev = base.filter(AttendanceLog.punched_at <= when).order_by(desc(AttendanceLog.punched_at)).first()
@@ -183,7 +185,8 @@ def _today_summary(db: Session, personnel_id: int) -> dict:
     start = TZ.localize(datetime.combine(today, datetime.min.time()))
     logs = (
         db.query(AttendanceLog)
-        .filter(AttendanceLog.personnel_id == personnel_id, AttendanceLog.punched_at >= start)
+        .filter(AttendanceLog.personnel_id == personnel_id, AttendanceLog.punched_at >= start,
+                AttendanceLog.deleted_at.is_(None))
         .order_by(AttendanceLog.punched_at)
         .all()
     )
@@ -295,6 +298,7 @@ def kiosk_recent(
     rows = (
         db.query(AttendanceLog, Personnel)
         .join(Personnel, Personnel.id == AttendanceLog.personnel_id)
+        .filter(AttendanceLog.deleted_at.is_(None))
         .order_by(desc(AttendanceLog.punched_at))
         .limit(limit)
         .all()
@@ -546,6 +550,7 @@ def who_is_inside(
     # Her personelin son log'u
     sub = (
         db.query(AttendanceLog.personnel_id, func.max(AttendanceLog.punched_at).label("mx"))
+        .filter(AttendanceLog.deleted_at.is_(None))
         .group_by(AttendanceLog.personnel_id)
         .subquery()
     )
@@ -553,7 +558,7 @@ def who_is_inside(
         db.query(AttendanceLog, Personnel)
         .join(sub, (AttendanceLog.personnel_id == sub.c.personnel_id) & (AttendanceLog.punched_at == sub.c.mx))
         .join(Personnel, Personnel.id == AttendanceLog.personnel_id)
-        .filter(AttendanceLog.type == TYPE_IN)
+        .filter(AttendanceLog.type == TYPE_IN, AttendanceLog.deleted_at.is_(None))
         .order_by(desc(AttendanceLog.punched_at))
         .all()
     )
@@ -588,6 +593,7 @@ def list_logs(
         "type": lg.type, "punched_at": lg.punched_at.isoformat(), "source": lg.source,
         "note": lg.note,
         "edited_at": lg.edited_at.isoformat() if lg.edited_at else None,
+        "deleted_at": lg.deleted_at.isoformat() if lg.deleted_at else None,
     } for lg, p in rows]
     return {"items": items, "total": total, "page": page, "page_size": page_size,
             "pages": math.ceil(total / page_size) if total else 1}
@@ -614,7 +620,8 @@ def monthly_summary(
     logs = (
         db.query(AttendanceLog, Personnel)
         .join(Personnel, Personnel.id == AttendanceLog.personnel_id)
-        .filter(AttendanceLog.punched_at >= start, AttendanceLog.punched_at < end)
+        .filter(AttendanceLog.punched_at >= start, AttendanceLog.punched_at < end,
+                AttendanceLog.deleted_at.is_(None))
         .order_by(AttendanceLog.personnel_id, AttendanceLog.punched_at)
         .all()
     )
@@ -697,6 +704,8 @@ def update_log(
     lg = db.query(AttendanceLog).filter(AttendanceLog.id == log_id).first()
     if not lg:
         raise HTTPException(status_code=404, detail="Kayıt bulunamadı")
+    if lg.deleted_at:
+        raise HTTPException(status_code=400, detail="Silinmiş kayıt düzenlenemez")
 
     fields = data.model_dump(exclude_unset=True)
     if not fields:
@@ -738,10 +747,12 @@ def delete_log(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hr.attendance", "use")),
 ):
-    """Giriş/çıkış kaydını sil (yanlış/çift kayıt düzeltme). Audit + onay akışına tabi."""
+    """Giriş/çıkış kaydını sil (soft delete — kayıt kalır, soluk gösterilir). Audit + onay akışına tabi."""
     lg = db.query(AttendanceLog).filter(AttendanceLog.id == log_id).first()
     if not lg:
         raise HTTPException(status_code=404, detail="Kayıt bulunamadı")
+    if lg.deleted_at:
+        raise HTTPException(status_code=400, detail="Kayıt zaten silinmiş")
 
     approval_resp = check_approval(db, "hr.attendance", lg.id, current_user.id, "delete", {})
     if approval_resp:
@@ -750,7 +761,7 @@ def delete_log(
     log_action(db, current_user.id, "delete", "attendance", lg.id,
                f"Kayıt #{lg.id} silindi ({lg.type} {lg.punched_at.strftime('%d.%m %H:%M')})",
                get_client_ip(request))
-    db.delete(lg)
+    lg.deleted_at = datetime.now(TZ)  # soft delete
     db.commit()
     manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "delete"})
     return {"ok": True}
