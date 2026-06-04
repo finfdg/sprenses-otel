@@ -448,6 +448,21 @@ TEMPLATE:
 - `GET /api/hr/sgk/summary/totals` — SGK özeti
 - Detaylı bilgi: `docs/modules/muhasebe-ik.md`
 
+### İnsan Kaynakları — Devam Takip (PDKS)
+- `GET /api/attendance/kiosk/qr?key=` — Girişteki ekranın dönen QR'ı (SVG, KIOSK_KEY gerekli)
+- `GET /api/attendance/kiosk-link` — Kiosk ekranı linki (admin; KIOSK_KEY dahil)
+- `POST /api/attendance/setup` — Kişisel kurulum (token → kimlik çerezi)
+- `GET /api/attendance/me` — Personelin durumu (çerez)
+- `POST /api/attendance/punch` — Giriş/çıkış kaydet (çerez + dönen token)
+- `GET/POST/PATCH/DELETE /api/attendance/personnel[/{id}]` — Personel CRUD (hr.attendance)
+- `GET /api/attendance/personnel/{id}/qr` — Kişisel kurulum QR (kart)
+- `GET /api/attendance/status` — Şu an içeride kim
+- `GET /api/attendance/logs` — Giriş/çıkış geçmişi (filtreli)
+- `GET /api/attendance/summary?month=` — Aylık puantaj
+- `POST /api/attendance/manual` — Yönetici elle giriş/çıkış
+- Public sayfalar: `/devam/ekran` (kiosk), `/devam/kur` (kurulum), `/devam` (basış)
+- Detaylı bilgi: `docs/modules/devam-takip.md`
+
 ### Finans — Bankalar
 - `GET /api/finance/banks/accounts/` — Banka hesap listesi
 - `POST /api/finance/banks/accounts/` — Banka hesabı oluştur
@@ -610,7 +625,7 @@ TEMPLATE:
 
 - **DB adı:** sprenses
 - **Kullanıcı:** sprenses
-- **Tablolar (51):** users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
+- **Tablolar (53):** personnel, attendance_logs, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
 - **Saat dilimi:** Europe/Istanbul (her bağlantıda SET edilir)
 - **Migrations:** `cd backend && source venv/bin/activate && alembic upgrade head`
 
@@ -627,7 +642,7 @@ TEMPLATE:
 - Mesajlaşma (messaging)
 - Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend)
-- İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk)
+- İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
 - Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Oda Tipleri (sales.room_types)
@@ -776,6 +791,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Otel Rezervasyon | `docs/modules/otel-rezervasyon.md` |
 | Oda Tipleri | `docs/modules/oda-tipleri.md` |
 | Yedekleme | `docs/modules/yedekleme.md` |
+| Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
 
 ## UI Tasarım Kuralları
 

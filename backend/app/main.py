@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.routers import (
     accounting,
+    attendance,
     audit,
     auth,
     error_logs,
@@ -185,6 +186,7 @@ app.include_router(quality.router, prefix="/api/quality", tags=["quality"])
 app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 app.include_router(accounting.router, prefix="/api/accounting", tags=["accounting"])
 app.include_router(hr.router, prefix="/api/hr", tags=["hr"])
+app.include_router(attendance.router, prefix="/api", tags=["attendance"])
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
 app.include_router(files.router, tags=["files"])
 app.include_router(internal.router, tags=["internal"])

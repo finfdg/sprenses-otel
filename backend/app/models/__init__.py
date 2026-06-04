@@ -38,6 +38,7 @@ from app.models.role_module_permission import RoleModulePermission
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
 from app.models.transaction_category import TransactionCategory
 from app.models.payment_instruction import PaymentInstructionItem, PaymentInstructionList
+from app.models.personnel import AttendanceLog, Personnel
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
