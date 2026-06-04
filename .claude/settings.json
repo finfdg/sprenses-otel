@@ -1,0 +1,16 @@
+{
+	"hooks": {
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "cd /home/ec2-user/otel 2>/dev/null || exit 0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then git add -A 2>/dev/null; git commit -q -m \"Otomatik yedek: $(date '+%Y-%m-%d %H:%M:%S')\" 2>/dev/null; fi; if git rev-parse origin/master >/dev/null 2>&1 && [ -n \"$(git log origin/master..master --oneline 2>/dev/null)\" ]; then git push -q origin master 2>/dev/null; fi; exit 0",
+						"async": true,
+						"statusMessage": "GitHub yedeği alınıyor..."
+					}
+				]
+			}
+		]
+	}
+}
