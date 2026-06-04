@@ -53,7 +53,9 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 | GET | `/attendance/status` | hr.attendance view | Şu an içeride kim |
 | GET | `/attendance/logs` | hr.attendance view | Geçmiş (filtreli) |
 | GET | `/attendance/summary?month=` | hr.attendance view | Aylık puantaj (kişi başı saat/gün) |
-| POST | `/attendance/manual` | hr.attendance use | Yönetici elle giriş/çıkış (çift giriş/çıkış engelli; onay akışına tabi) |
+| POST | `/attendance/manual` | hr.attendance use | Yönetici elle giriş/çıkış (zaman seçilebilir; çift engelli; onay akışına tabi) |
+| PATCH | `/attendance/logs/{id}` | hr.attendance use | Kaydı düzenle (tip/zaman/not; çift engelli; audit + onay) |
+| DELETE | `/attendance/logs/{id}` | hr.attendance use | Kaydı sil (yanlış/çift düzeltme; audit + onay) |
 
 ## Güvenlik / Sahtecilik Tasarımı
 - **Zaman-damgalı token:** `<unix_ts>.HMAC(SECRET, ts)` — geçerlilik = **`refresh_sec + 3` saniye**
@@ -92,20 +94,25 @@ Toplam süre **`sa/dk`** olarak gösterilir (ör. `28 dk`, `8 sa 28 dk`) — ond
 (28 dk yanlışlıkla "0,5 saat" görünmez). API hem `total_minutes` hem `total_hours` döndürür.
 Ek aksiyonlar: "Kiosk Linki", "Ayarlar", "Elle Giriş/Çıkış" (telefonsuz/unutan için, audit'li).
 
-## Elle Giriş/Çıkış — Doğrulama + Onay Akışı
-Telefon basışı (`punch`) son duruma göre **otomatik** giriş/çıkış seçer → çift olamaz. Elle basışta (`manual`)
-yönetici tipi kendi seçtiği için iki koruma eklendi:
-- **Durum tutarlılığı:** Yeni hareketin **komşuları** (zaman olarak önceki/sonraki log) aynı tip olamaz →
-  içerideki kişiye tekrar **giriş**, dışarıdakine tekrar **çıkış** **400** ile reddedilir (geriye-tarihli
-  düzeltmelerde de doğru: araya ters hareket gerekir).
-- **Onay akışı:** `manual` endpoint'i `check_approval(db, "hr.attendance", 0, user, "create", payload)` çağırır.
-  hr.attendance için **aktif workflow** varsa ve talep edenin **rolü requestor** ise işlem **202 → onaya düşer**
-  (payload'da `punched_at` talep anında sabitlenir). Onaylanınca `approval_executor._handle_attendance`
-  manuel `AttendanceLog`'u oluşturur (`source=manual`, `recorded_by=talep eden`). Eşleşen workflow yoksa
-  (ör. admin requestor değilse) doğrudan kaydedilir. Frontend 202'de "İşlem onaya gönderildi" gösterir.
+## Elle Giriş/Çıkış — Oluştur / Düzenle / Sil
+Telefon basışı (`punch`) son duruma göre **otomatik** giriş/çıkış seçer → çift olamaz. Elle işlemlerde
+(oluştur `manual`, düzenle `PATCH logs/{id}`, sil `DELETE logs/{id}`) yönetici tipi/zamanı kendi belirler;
+bu yüzden korumalar eklendi:
+- **Zaman girişi:** Elle oluştur + düzenlemede `datetime-local` ile **zaman seçilir** (varsayılan: şimdi).
+  Naive değer backend'de `_localize()` ile **Europe/Istanbul**'a sabitlenir (tz-aware kolon tutarlılığı).
+- **Durum tutarlılığı (`_assert_alternation`):** Hareketin **zaman-komşuları** (önceki/sonraki log) aynı tip
+  olamaz → içerideki kişiye tekrar **giriş**, dışarıdakine tekrar **çıkış** **400** ile reddedilir.
+  Düzenlemede kaydın **kendisi hariç** tutulur (`exclude_id`). Geriye-tarihli kayıtlarda da doğru.
+- **Audit:** create/update/delete → `log_action(... "attendance" ...)` (kim, ne zaman, hangi kayıt).
+- **Onay akışı:** Üç işlem de `check_approval(db, "hr.attendance", entity_id, user, action, payload)` çağırır
+  (create→entity_id=0, update/delete→log id). hr.attendance için **aktif workflow** + talep edenin **rolü
+  requestor** ise **202 → onaya düşer** (payload'da `punched_at` ISO olarak sabitlenir). Onaylanınca
+  `approval_executor._handle_attendance` create/update/delete'i uygular. Eşleşen workflow yoksa (ör. admin)
+  doğrudan uygulanır. Frontend 202'de "… onaya gönderildi" gösterir. Aynı log için bekleyen onay varsa **409**.
 
 ## Audit Log
-- entity_type: `personnel` (CRUD), `attendance` (manuel basış). Eylemler: create/update/delete/manual_punch.
+- entity_type: `personnel` (CRUD), `attendance` (manuel basış + kayıt düzenle/sil), `attendance_settings` (QR ayarı).
+  Eylemler: create/update/delete/manual_punch.
 
 ## Gerçek Zamanlılık (canlı pano)
 - Basış (telefon `punch` veya yönetici `manual`) sonrası backend **`attendance_updated`** WS event'i

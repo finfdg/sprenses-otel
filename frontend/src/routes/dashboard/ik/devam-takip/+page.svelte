@@ -62,8 +62,14 @@
 
 	// Elle giriş modalı
 	let showManual = $state(false);
-	let manualForm = $state({ personnel_id: 0, type: 'in', note: '' });
+	let manualForm = $state({ personnel_id: 0, type: 'in', punched_at: '', note: '' });
 	let manualSaving = $state(false);
+
+	// Kayıt düzenle / sil
+	let showEditLog = $state(false);
+	let editForm = $state({ id: 0, type: 'in', punched_at: '', note: '' });
+	let editSaving = $state(false);
+	let confirmDelLog = $state<{ show: boolean; target: LogRow | null }>({ show: false, target: null });
 
 	// Ayarlar modalı (QR yenileme süresi)
 	let showSettings = $state(false);
@@ -76,6 +82,11 @@
 
 	function fmtTime(iso: string): string {
 		return new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+	}
+	// Date → datetime-local input değeri ("YYYY-MM-DDTHH:MM", yerel saat)
+	function toLocalInput(d: Date): string {
+		const p = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 	}
 	function fmtDateTime(iso: string): string {
 		return new Date(iso).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -194,7 +205,7 @@
 	}
 
 	function openManual() {
-		manualForm = { personnel_id: personnel[0]?.id ?? 0, type: 'in', note: '' };
+		manualForm = { personnel_id: personnel[0]?.id ?? 0, type: 'in', punched_at: toLocalInput(new Date()), note: '' };
 		showManual = true;
 	}
 	async function doManual() {
@@ -214,6 +225,52 @@
 			showToast(e instanceof ApiError ? e.message : 'Kayıt başarısız', 'error');
 		} finally {
 			manualSaving = false;
+		}
+	}
+
+	// ── Kayıt düzenle / sil (elle düzeltme; audit + onay akışına tabi) ──
+	function openEditLog(lg: LogRow) {
+		editForm = { id: lg.id, type: lg.type, punched_at: toLocalInput(new Date(lg.punched_at)), note: lg.note ?? '' };
+		showEditLog = true;
+	}
+	async function saveEditLog() {
+		editSaving = true;
+		try {
+			const res: any = await api.patch(`/attendance/logs/${editForm.id}`, {
+				type: editForm.type,
+				punched_at: editForm.punched_at,
+				note: editForm.note,
+			});
+			showEditLog = false;
+			if (res?.requires_approval) {
+				showToast('Düzenleme onaya gönderildi', 'info');
+			} else {
+				showToast('Kayıt güncellendi', 'success');
+				await Promise.all([loadStatus(), loadSummary(), loadLogs()]);
+			}
+		} catch (e) {
+			showToast(e instanceof ApiError ? e.message : 'Güncellenemedi', 'error');
+		} finally {
+			editSaving = false;
+		}
+	}
+	function confirmDeleteLog(lg: LogRow) {
+		confirmDelLog = { show: true, target: lg };
+	}
+	async function doDeleteLog() {
+		const lg = confirmDelLog.target;
+		if (!lg) return;
+		try {
+			const res: any = await api.delete(`/attendance/logs/${lg.id}`);
+			confirmDelLog = { show: false, target: null };
+			if (res?.requires_approval) {
+				showToast('Silme onaya gönderildi', 'info');
+			} else {
+				showToast('Kayıt silindi', 'success');
+				await Promise.all([loadStatus(), loadSummary(), loadLogs()]);
+			}
+		} catch (e) {
+			showToast(e instanceof ApiError ? e.message : 'Silinemedi', 'error');
 		}
 	}
 
@@ -387,6 +444,7 @@
 									<th class="px-4 py-3 text-center font-medium text-gray-500 text-xs">Hareket</th>
 									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs">Zaman</th>
 									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs hidden sm:table-cell">Kaynak</th>
+									{#if canUse}<th class="px-4 py-3 text-right font-medium text-gray-500 text-xs">İşlem</th>{/if}
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-100">
@@ -400,6 +458,18 @@
 										<td class="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">
 											{lg.source === 'manual' ? 'Elle' : 'Karekod'}{lg.note ? ` · ${lg.note}` : ''}
 										</td>
+										{#if canUse}
+											<td class="px-4 py-3">
+												<div class="flex items-center justify-end gap-1">
+													<button onclick={() => openEditLog(lg)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle">
+														<Pencil size={16} />
+													</button>
+													<button onclick={() => confirmDeleteLog(lg)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil">
+														<Trash2 size={16} />
+													</button>
+												</div>
+											</td>
+										{/if}
 									</tr>
 								{/each}
 							</tbody>
@@ -562,6 +632,11 @@
 			</div>
 		</div>
 		<div>
+			<label for="mf-time" class="block text-sm font-medium text-gray-700 mb-1">Zaman</label>
+			<input id="mf-time" type="datetime-local" bind:value={manualForm.punched_at} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums" />
+			<p class="text-xs text-gray-400 mt-1">Varsayılan: şimdi. Geçmiş bir an için değiştirebilirsiniz.</p>
+		</div>
+		<div>
 			<label for="mf-note" class="block text-sm font-medium text-gray-700 mb-1">Not (opsiyonel)</label>
 			<input id="mf-note" type="text" bind:value={manualForm.note} placeholder="ör. telefonu yoktu" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
 		</div>
@@ -571,6 +646,42 @@
 		</div>
 	</div>
 </Modal>
+
+<!-- Kaydı Düzenle (tip / zaman / not) -->
+<Modal bind:show={showEditLog} title="Kaydı Düzenle" maxWidth="max-w-md">
+	<div class="space-y-4">
+		<p class="text-xs text-gray-500 leading-snug">Giriş/çıkış kaydını düzelt. Değişiklik audit'lenir ve onay akışına tabidir.</p>
+		<div>
+			<span class="block text-sm font-medium text-gray-700 mb-1">Hareket</span>
+			<div class="flex gap-2">
+				<button onclick={() => editForm.type = 'in'} class="flex-1 py-2 rounded-lg border text-sm font-medium cursor-pointer {editForm.type === 'in' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'border-gray-200 text-gray-500'}">Giriş</button>
+				<button onclick={() => editForm.type = 'out'} class="flex-1 py-2 rounded-lg border text-sm font-medium cursor-pointer {editForm.type === 'out' ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-200 text-gray-500'}">Çıkış</button>
+			</div>
+		</div>
+		<div>
+			<label for="ef-time" class="block text-sm font-medium text-gray-700 mb-1">Zaman</label>
+			<input id="ef-time" type="datetime-local" bind:value={editForm.punched_at} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums" />
+		</div>
+		<div>
+			<label for="ef-note" class="block text-sm font-medium text-gray-700 mb-1">Not (opsiyonel)</label>
+			<input id="ef-note" type="text" bind:value={editForm.note} placeholder="ör. düzeltme nedeni" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+		</div>
+		<div class="flex justify-end gap-2 pt-1">
+			<Button type="button" variant="secondary" onclick={() => (showEditLog = false)}>İptal</Button>
+			<Button onclick={saveEditLog} loading={editSaving}>Kaydet</Button>
+		</div>
+	</div>
+</Modal>
+
+<ConfirmDialog
+	bind:show={confirmDelLog.show}
+	danger
+	title="Kaydı Sil"
+	message={confirmDelLog.target ? `${confirmDelLog.target.full_name} — ${confirmDelLog.target.type === 'in' ? 'Giriş' : 'Çıkış'} (${fmtDateTime(confirmDelLog.target.punched_at)}) kaydı silinecek. Devam edilsin mi?` : ''}
+	confirmText="Sil"
+	onCancel={() => (confirmDelLog = { show: false, target: null })}
+	onConfirm={doDeleteLog}
+/>
 
 <ConfirmDialog
 	bind:show={confirmDel.show}

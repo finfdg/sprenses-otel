@@ -658,32 +658,50 @@ def _handle_quality_forms(db, action_type, entity_id, payload, actor_id):
 
 
 def _handle_attendance(db, action_type, entity_id, payload, actor_id):
-    """Onaylanan elle giriş/çıkış (hr.attendance) → manuel AttendanceLog oluştur.
+    """Onaylanan elle giriş/çıkış (hr.attendance) → AttendanceLog oluştur/güncelle/sil.
 
-    Yalnızca 'create' anlamlıdır (elle basış). punched_at payload'da ISO string olarak
-    talep anında sabitlenir; burada parse edilir (yoksa kolon server_default=now uygular).
+    punched_at payload'da ISO string olarak talep anında sabitlenir; burada parse edilir.
+    create → entity_id=0 (yeni kayıt). update/delete → entity_id=düzenlenen log id.
     """
     from datetime import datetime as _dt
 
     from app.models.personnel import SOURCE_MANUAL, AttendanceLog
 
-    if action_type != "create":
-        return
-    raw = payload.get("punched_at")
-    try:
-        when = _dt.fromisoformat(raw) if raw else None
-    except (TypeError, ValueError):
-        when = None
-    log = AttendanceLog(
-        personnel_id=payload.get("personnel_id"),
-        type=payload.get("type"),
-        source=SOURCE_MANUAL,
-        recorded_by=actor_id,
-        note=(payload.get("note") or None),
-    )
-    if when is not None:
-        log.punched_at = when
-    db.add(log)
+    def _parse(raw):
+        try:
+            return _dt.fromisoformat(raw) if raw else None
+        except (TypeError, ValueError):
+            return None
+
+    if action_type == "create":
+        log = AttendanceLog(
+            personnel_id=payload.get("personnel_id"),
+            type=payload.get("type"),
+            source=SOURCE_MANUAL,
+            recorded_by=actor_id,
+            note=(payload.get("note") or None),
+        )
+        when = _parse(payload.get("punched_at"))
+        if when is not None:
+            log.punched_at = when
+        db.add(log)
+
+    elif action_type == "update":
+        log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
+        if not log:
+            return
+        if payload.get("type"):
+            log.type = payload["type"]
+        if "note" in payload:
+            log.note = (payload.get("note") or "").strip() or None
+        when = _parse(payload.get("punched_at"))
+        if when is not None:
+            log.punched_at = when
+
+    elif action_type == "delete":
+        log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
+        if log:
+            db.delete(log)
 
 
 # ── Handler kayıt tablosu ────────────────────────────────────

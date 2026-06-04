@@ -161,6 +161,34 @@ def _last_log(db: Session, personnel_id: int) -> Optional[AttendanceLog]:
     )
 
 
+def _localize(dt: datetime) -> datetime:
+    """Naive datetime'ı Europe/Istanbul'a yerelleştir (tz-aware kolon için tutarlılık)."""
+    return TZ.localize(dt) if dt.tzinfo is None else dt
+
+
+def _assert_alternation(
+    db: Session, personnel_id: int, when: datetime, new_type: str, exclude_id: Optional[int] = None
+) -> None:
+    """Çift giriş/çıkış engeli: `when`'in zaman-komşuları aynı tip olamaz.
+
+    Hem elle oluşturma hem düzenlemede kullanılır. exclude_id ile düzenlenen kaydın
+    kendisi komşu sayılmaz. Geriye-tarihli kayıtlarda da doğru (önceki + sonraki bakılır).
+    """
+    type_tr = "giriş" if new_type == TYPE_IN else "çıkış"
+    other_tr = "çıkış" if new_type == TYPE_IN else "giriş"
+    base = db.query(AttendanceLog).filter(AttendanceLog.personnel_id == personnel_id)
+    if exclude_id:
+        base = base.filter(AttendanceLog.id != exclude_id)
+    prev = base.filter(AttendanceLog.punched_at <= when).order_by(desc(AttendanceLog.punched_at)).first()
+    nxt = base.filter(AttendanceLog.punched_at > when).order_by(AttendanceLog.punched_at).first()
+    if (prev and prev.type == new_type) or (nxt and nxt.type == new_type):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Bu personelin komşu hareketi zaten '{type_tr}'. Art arda çift {type_tr} "
+                   f"kaydedilemez — araya '{other_tr}' gerekir.",
+        )
+
+
 def _today_summary(db: Session, personnel_id: int) -> dict:
     """Bugünkü toplam içeride-süre (dakika) + şu an içeride mi."""
     today = datetime.now(TZ).date()
@@ -232,6 +260,13 @@ class PunchRequest(BaseModel):
 class ManualPunch(BaseModel):
     personnel_id: int
     type: str
+    punched_at: Optional[datetime] = None
+    note: Optional[str] = None
+
+
+class LogUpdate(BaseModel):
+    """Mevcut giriş/çıkış kaydını elle düzenleme (tip / zaman / not)."""
+    type: Optional[str] = None
     punched_at: Optional[datetime] = None
     note: Optional[str] = None
 
@@ -613,26 +648,8 @@ def manual_punch(
     if not p:
         raise HTTPException(status_code=404, detail="Personel bulunamadı")
 
-    when = data.punched_at or datetime.now(TZ)
-    type_tr = "giriş" if data.type == TYPE_IN else "çıkış"
-    other_tr = "çıkış" if data.type == TYPE_IN else "giriş"
-    # Durum tutarlılığı — when'in komşu hareketleri aynı tip olamaz (çift giriş/çıkış)
-    prev = (
-        db.query(AttendanceLog)
-        .filter(AttendanceLog.personnel_id == p.id, AttendanceLog.punched_at <= when)
-        .order_by(desc(AttendanceLog.punched_at)).first()
-    )
-    nxt = (
-        db.query(AttendanceLog)
-        .filter(AttendanceLog.personnel_id == p.id, AttendanceLog.punched_at > when)
-        .order_by(AttendanceLog.punched_at).first()
-    )
-    if (prev and prev.type == data.type) or (nxt and nxt.type == data.type):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bu personelin komşu hareketi zaten '{type_tr}'. Art arda çift {type_tr} "
-                   f"kaydedilemez — araya '{other_tr}' gerekir.",
-        )
+    when = _localize(data.punched_at or datetime.now(TZ))
+    _assert_alternation(db, p.id, when, data.type)
 
     # Onay akışı — aktif workflow + requestor rolü varsa 202 döner, kayıt onaya gider
     payload = data.model_dump()
@@ -648,7 +665,80 @@ def manual_punch(
     )
     db.add(lg)
     log_action(db, current_user.id, "manual_punch", "attendance", p.id,
-               f"Elle {data.type}: {p.full_name}", get_client_ip(request))
+               f"Elle {data.type} ({when.strftime('%d.%m %H:%M')}): {p.full_name}", get_client_ip(request))
     db.commit()
     manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "manual"})
     return {"ok": True, "type": data.type, "personnel": p.full_name}
+
+
+@router.patch("/attendance/logs/{log_id}")
+def update_log(
+    log_id: int,
+    data: LogUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("hr.attendance", "use")),
+):
+    """Mevcut giriş/çıkış kaydını elle düzenle (tip / zaman / not).
+
+    Çift giriş/çıkış engeli (kendisi hariç komşulara göre) + audit + onay akışına tabi.
+    """
+    lg = db.query(AttendanceLog).filter(AttendanceLog.id == log_id).first()
+    if not lg:
+        raise HTTPException(status_code=404, detail="Kayıt bulunamadı")
+
+    fields = data.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="Güncellenecek alan yok")
+    new_type = fields.get("type") or lg.type
+    if new_type not in (TYPE_IN, TYPE_OUT):
+        raise HTTPException(status_code=400, detail="type 'in' veya 'out' olmalı")
+    new_when = _localize(fields["punched_at"]) if fields.get("punched_at") else lg.punched_at
+    _assert_alternation(db, lg.personnel_id, new_when, new_type, exclude_id=lg.id)
+
+    # Onay akışı — payload'da punched_at concrete isoformat
+    payload = dict(fields)
+    if fields.get("punched_at"):
+        payload["punched_at"] = new_when.isoformat()
+    approval_resp = check_approval(db, "hr.attendance", lg.id, current_user.id, "update", payload)
+    if approval_resp:
+        return approval_resp
+
+    if "type" in fields:
+        lg.type = new_type
+    if "note" in fields:
+        lg.note = (fields["note"] or "").strip() or None
+    if fields.get("punched_at"):
+        lg.punched_at = new_when
+    log_action(db, current_user.id, "update", "attendance", lg.personnel_id,
+               f"Kayıt #{lg.id} düzenlendi → {lg.type} {lg.punched_at.strftime('%d.%m %H:%M')}",
+               get_client_ip(request))
+    db.commit()
+    manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "edit"})
+    return {"ok": True, "id": lg.id, "type": lg.type,
+            "punched_at": lg.punched_at.isoformat(), "note": lg.note}
+
+
+@router.delete("/attendance/logs/{log_id}")
+def delete_log(
+    log_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("hr.attendance", "use")),
+):
+    """Giriş/çıkış kaydını sil (yanlış/çift kayıt düzeltme). Audit + onay akışına tabi."""
+    lg = db.query(AttendanceLog).filter(AttendanceLog.id == log_id).first()
+    if not lg:
+        raise HTTPException(status_code=404, detail="Kayıt bulunamadı")
+
+    approval_resp = check_approval(db, "hr.attendance", lg.id, current_user.id, "delete", {})
+    if approval_resp:
+        return approval_resp
+
+    log_action(db, current_user.id, "delete", "attendance", lg.personnel_id,
+               f"Kayıt #{lg.id} silindi ({lg.type} {lg.punched_at.strftime('%d.%m %H:%M')})",
+               get_client_ip(request))
+    db.delete(lg)
+    db.commit()
+    manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "delete"})
+    return {"ok": True}
