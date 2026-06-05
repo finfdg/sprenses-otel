@@ -13,6 +13,7 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import SortableHeader, { type SortOrder } from '$lib/components/SortableHeader.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
 		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload,
@@ -83,6 +84,25 @@
 		new Map(pending.filter((p) => p.entity_id && p.action_type !== 'create').map((p) => [p.entity_id, p]))
 	);
 	let pendingCreates = $derived(pending.filter((p) => p.action_type === 'create'));
+
+	// Personel listesi sıralama (istemci-taraflı — liste tek seferde yüklenir)
+	let psortKey = $state<string | null>(null);
+	let psortOrder = $state<SortOrder>(null);
+	function onPersonnelSort(key: string | null, order: SortOrder) {
+		psortKey = key;
+		psortOrder = order;
+	}
+	function _pcmp(a: Personnel, b: Personnel, key: string): number {
+		if (key === 'is_active') return a.is_active === b.is_active ? 0 : a.is_active ? -1 : 1;
+		const av = (a as any)[key] ?? '';
+		const bv = (b as any)[key] ?? '';
+		return String(av).localeCompare(String(bv), 'tr', { numeric: true, sensitivity: 'base' });
+	}
+	let sortedPersonnel = $derived.by(() => {
+		if (!psortKey || !psortOrder) return personnel;
+		const dir = psortOrder === 'asc' ? 1 : -1;
+		return [...personnel].sort((a, b) => dir * _pcmp(a, b, psortKey as string));
+	});
 	let showCreates = $derived(logFilter === 'all' || logFilter === 'pending');
 	let displayLogs = $derived(
 		logFilter === 'edited'
@@ -493,16 +513,16 @@
 						<table class="w-full text-sm">
 							<thead class="bg-gray-50 border-b border-gray-200">
 								<tr>
-									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs">Ad Soyad</th>
-									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs">Sicil</th>
-									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs hidden sm:table-cell">Departman</th>
-									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs hidden md:table-cell">Görev</th>
-									<th class="px-4 py-3 text-center font-medium text-gray-500 text-xs">Durum</th>
+									<th class="px-4 py-3 text-left"><SortableHeader column="full_name" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Ad Soyad</SortableHeader></th>
+									<th class="px-4 py-3 text-left"><SortableHeader column="employee_code" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Sicil</SortableHeader></th>
+									<th class="px-4 py-3 text-left hidden sm:table-cell"><SortableHeader column="department" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Departman</SortableHeader></th>
+									<th class="px-4 py-3 text-left hidden md:table-cell"><SortableHeader column="title" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Görev</SortableHeader></th>
+									<th class="px-4 py-3"><SortableHeader column="is_active" align="center" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Durum</SortableHeader></th>
 									<th class="px-4 py-3 text-right font-medium text-gray-500 text-xs">İşlem</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-100">
-								{#each personnel as p (p.id)}
+								{#each sortedPersonnel as p (p.id)}
 									<tr class="hover:bg-gray-50">
 										<td class="px-4 py-3 text-gray-900">{p.full_name}</td>
 										<td class="px-4 py-3 font-mono text-xs text-gray-600">{p.employee_code}</td>

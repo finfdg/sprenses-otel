@@ -113,6 +113,9 @@ Ek aksiyonlar: "Kiosk Linki", "Ayarlar", "Elle Giriş/Çıkış" (telefonsuz/unu
     (+ CASCADE ile giriş/çıkış kayıtları) silinir → temiz sicil listesi. **Sıra güvenli:** dosya
     doğrulandıktan (rows boş değil) **sonra** silinir; bozuk dosya veriyi silmez.
   - Personel listesi `page_size` üst sınırı **1000** (231+ personel tek sayfada gelir).
+- **Personel listesi sıralama:** sütun başlıkları (`SortableHeader`) tıklanabilir — Ad Soyad / Sicil /
+  Departman / Görev / Durum. Cycle: artan→azalan→temizle. **İstemci-taraflı** (liste tek seferde yüklü),
+  Türkçe locale + sayısal sicil sıralaması (`localeCompare(..., 'tr', {numeric:true})`).
 - **Toplu QR kart** (`GET /attendance/personnel/cards.pdf`): reportlab ile A4'e 2×5 kart/sayfa — her kartta
   kurulum QR'ı (`/devam/kur?t=…`) + ad + sicil + departman + görev. DejaVuSans (TR karakter). Yazdırılıp kesilir.
   Frontend "QR Kartları" butonu PDF'i yeni sekmede açar.
