@@ -15,12 +15,12 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
-		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban,
+		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload,
 	} from 'lucide-svelte';
 
 	type Personnel = {
 		id: number; full_name: string; employee_code: string;
-		department: string | null; phone: string | null; is_active: boolean; created_at: string;
+		department: string | null; title: string | null; phone: string | null; is_active: boolean; created_at: string;
 	};
 	type InsideRow = { personnel_id: number; full_name: string; department: string | null; since: string };
 	type LogRow = {
@@ -48,7 +48,7 @@
 	// Personel modalı
 	let showPersonnelModal = $state(false);
 	let editing = $state<Personnel | null>(null);
-	let form = $state({ full_name: '', employee_code: '', department: '', phone: '' });
+	let form = $state({ full_name: '', employee_code: '', department: '', title: '', phone: '' });
 	let saving = $state(false);
 	let formError = $state('');
 
@@ -197,13 +197,13 @@
 	// ── Personel CRUD ──
 	function openCreate() {
 		editing = null;
-		form = { full_name: '', employee_code: '', department: '', phone: '' };
+		form = { full_name: '', employee_code: '', department: '', title: '', phone: '' };
 		formError = '';
 		showPersonnelModal = true;
 	}
 	function openEdit(p: Personnel) {
 		editing = p;
-		form = { full_name: p.full_name, employee_code: p.employee_code, department: p.department ?? '', phone: p.phone ?? '' };
+		form = { full_name: p.full_name, employee_code: p.employee_code, department: p.department ?? '', title: p.title ?? '', phone: p.phone ?? '' };
 		formError = '';
 		showPersonnelModal = true;
 	}
@@ -241,6 +241,39 @@
 			showToast(e instanceof ApiError ? e.message : 'Silinemedi', 'error');
 		}
 		confirmDel = { show: false, target: null };
+	}
+
+	// ── Excel içe aktarma (sicil listesi) + QR kartları ──
+	let showImport = $state(false);
+	let importing = $state(false);
+	let importFile = $state<File | null>(null);
+	let importResult = $state<{ created: number; updated: number; total: number } | null>(null);
+	let importError = $state('');
+	function openImport() {
+		importFile = null; importResult = null; importError = ''; showImport = true;
+	}
+	function onImportFile(e: Event) {
+		const t = e.target as HTMLInputElement;
+		importFile = t.files && t.files.length ? t.files[0] : null;
+	}
+	async function doImport() {
+		if (!importFile) { importError = 'Lütfen bir Excel dosyası seçin'; return; }
+		importing = true; importError = '';
+		try {
+			const fd = new FormData();
+			fd.append('file', importFile);
+			const r = await api.upload<{ created: number; updated: number; total: number }>('/attendance/personnel/import', fd);
+			importResult = r;
+			await Promise.all([loadPersonnel(), loadStatus()]);
+			showToast(`İçe aktarıldı: ${r.created} yeni, ${r.updated} güncel`, 'success');
+		} catch (e) {
+			importError = e instanceof ApiError ? e.message : 'İçe aktarılamadı';
+		} finally {
+			importing = false;
+		}
+	}
+	function openCards() {
+		window.open('/api/attendance/personnel/cards.pdf', '_blank');
 	}
 
 	async function openKiosk() {
@@ -399,6 +432,8 @@
 			{#if canUse}
 				<Button variant="secondary" onclick={openManual}><LogIn size={16} /> Elle Giriş</Button>
 				<Button variant="secondary" onclick={openKiosk}><Monitor size={16} /> Kiosk Linki</Button>
+				<Button variant="secondary" onclick={openCards}><QrCode size={16} /> QR Kartları</Button>
+				<Button variant="secondary" onclick={openImport}><Upload size={16} /> Excel İçe Aktar</Button>
 				<Button variant="secondary" onclick={openSettings}><Settings size={16} /> Ayarlar</Button>
 				<Button onclick={openCreate}><UserPlus size={16} /> Yeni Personel</Button>
 			{/if}
@@ -459,6 +494,7 @@
 									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs">Ad Soyad</th>
 									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs">Sicil</th>
 									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs hidden sm:table-cell">Departman</th>
+									<th class="px-4 py-3 text-left font-medium text-gray-500 text-xs hidden md:table-cell">Görev</th>
 									<th class="px-4 py-3 text-center font-medium text-gray-500 text-xs">Durum</th>
 									<th class="px-4 py-3 text-right font-medium text-gray-500 text-xs">İşlem</th>
 								</tr>
@@ -469,6 +505,7 @@
 										<td class="px-4 py-3 text-gray-900">{p.full_name}</td>
 										<td class="px-4 py-3 font-mono text-xs text-gray-600">{p.employee_code}</td>
 										<td class="px-4 py-3 text-gray-600 hidden sm:table-cell">{p.department ?? '—'}</td>
+										<td class="px-4 py-3 text-gray-600 text-xs hidden md:table-cell">{p.title ?? '—'}</td>
 										<td class="px-4 py-3 text-center">
 											{#if p.is_active}<StatusBadge type="success">Aktif</StatusBadge>{:else}<StatusBadge type="neutral">Pasif</StatusBadge>{/if}
 										</td>
@@ -639,6 +676,10 @@
 			</div>
 		</div>
 		<div>
+			<label for="pf-title" class="block text-sm font-medium text-gray-700 mb-1">Görev</label>
+			<input id="pf-title" type="text" bind:value={form.title} placeholder="Elektrikçi, Teknik Müdür…" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+		</div>
+		<div>
 			<label for="pf-phone" class="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
 			<input id="pf-phone" type="text" bind:value={form.phone} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
 		</div>
@@ -655,7 +696,7 @@
 	{#if qrCard}
 		<div class="text-center space-y-3">
 			<div class="font-semibold text-gray-900">{qrCard.full_name}</div>
-			<div class="text-xs font-mono text-gray-500">{qrCard.employee_code}{qrCard.department ? ` · ${qrCard.department}` : ''}</div>
+			<div class="text-xs font-mono text-gray-500">{qrCard.employee_code}{qrCard.department ? ` · ${qrCard.department}` : ''}{qrCard.title ? ` · ${qrCard.title}` : ''}</div>
 			<div class="flex justify-center">
 				<img src={`/api/attendance/personnel/${qrCard.id}/qr`} alt="Kurulum QR" class="w-56 h-56 border border-gray-200 rounded-lg" />
 			</div>
@@ -681,6 +722,35 @@
 		<div class="flex items-center gap-2">
 			<input readonly value={kioskUrl} class="flex-1 text-xs font-mono border border-gray-200 rounded-lg px-2 py-2 bg-gray-50 truncate" />
 			<Button variant="secondary" onclick={copyKiosk}><Copy size={14} /> Kopyala</Button>
+		</div>
+	</div>
+</Modal>
+
+<!-- Excel'den personel içe aktar (sicil listesi) -->
+<Modal bind:show={showImport} title="Excel'den Personel İçe Aktar" maxWidth="max-w-md">
+	<div class="space-y-4 text-sm">
+		<p class="text-gray-600 leading-snug">
+			Sicil listesi Excel'ini (<strong>.xls</strong> / <strong>.xlsx</strong>) yükleyin. Beklenen başlıklar:
+			<strong>Sicil No</strong>, <strong>Ad Soyad</strong>, <strong>Departman</strong>, <strong>Görev</strong>
+			(sıra önemsiz). Var olan sicil güncellenir, yeni sicil eklenir.
+		</p>
+		<input
+			type="file"
+			accept=".xls,.xlsx"
+			onchange={onImportFile}
+			class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:font-medium hover:file:bg-teal-100 cursor-pointer"
+		/>
+		{#if importError}
+			<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{importError}</div>
+		{/if}
+		{#if importResult}
+			<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 leading-snug">
+				✅ <strong>{importResult.created}</strong> yeni eklendi · <strong>{importResult.updated}</strong> güncellendi · toplam {importResult.total} satır.
+			</div>
+		{/if}
+		<div class="flex justify-end gap-2 pt-1">
+			<Button type="button" variant="secondary" onclick={() => (showImport = false)}>Kapat</Button>
+			<Button onclick={doImport} loading={importing}>İçe Aktar</Button>
 		</div>
 	</div>
 </Modal>

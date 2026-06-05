@@ -457,8 +457,10 @@ TEMPLATE:
 - `POST /api/attendance/setup` — Kişisel kurulum (token → kimlik çerezi)
 - `GET /api/attendance/me` — Personelin durumu (çerez)
 - `POST /api/attendance/punch` — Giriş/çıkış kaydet (çerez + dönen token)
-- `GET/POST/PATCH/DELETE /api/attendance/personnel[/{id}]` — Personel CRUD (hr.attendance)
+- `GET/POST/PATCH/DELETE /api/attendance/personnel[/{id}]` — Personel CRUD (hr.attendance; sicil no=employee_code, departman, **görev**)
+- `POST /api/attendance/personnel/import` — Excel sicil listesi içe aktar (Sicil No/Ad Soyad/Departman/Görev; upsert; .xls+.xlsx)
 - `GET /api/attendance/personnel/{id}/qr` — Kişisel kurulum QR (kart)
+- `GET /api/attendance/personnel/cards.pdf` — Tüm aktif personelin QR kartları tek PDF (yazdırılıp kesilebilir)
 - `GET /api/attendance/status` — Şu an içeride kim
 - `GET /api/attendance/logs` — Giriş/çıkış geçmişi (filtreli)
 - `GET /api/attendance/summary?month=` — Aylık puantaj

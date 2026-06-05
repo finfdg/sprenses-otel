@@ -34,7 +34,7 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 - `/devam/kur?t=...&k=...` ile gelince (yönlendirme) **otomatik basar**.
 
 ## Veritabanı (3 tablo)
-- `personnel`: id, full_name, employee_code (unique), department, phone, **access_token** (kişisel kimlik), is_active.
+- `personnel`: id, full_name, employee_code (unique, **sicil no**), department, **title** (görev/ünvan), phone, **access_token** (kişisel kimlik), is_active.
 - `attendance_logs`: id, personnel_id (FK CASCADE), type (in/out), punched_at, source (phone_qr/manual), recorded_by (manuel ise yönetici FK), note, **edited_at** (düzenlendiyse → mavi), **deleted_at** (soft delete → soluk gösterilir, aktif hesaplara girmez).
 - `attendance_settings`: tek satır (id=1). **refresh_sec** (kiosk QR ekranda ne sıklıkta değişir, sn), updated_at.
   Panelden düzenlenir (2-120sn). Token güvenlik geçerliliği = `refresh_sec + 3` (grace) ile türetilir.
@@ -51,8 +51,10 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
 | POST | `/attendance/setup` | public (token) | Kişisel kurulum → kimlik çerezi |
 | GET | `/attendance/me` | çerez | Personelin durumu (içeride/dışarıda) |
 | POST | `/attendance/punch` | çerez + token | Giriş/çıkış kaydet |
-| GET/POST/PATCH/DELETE | `/attendance/personnel[/{id}]` | hr.attendance | Personel CRUD |
+| GET/POST/PATCH/DELETE | `/attendance/personnel[/{id}]` | hr.attendance | Personel CRUD (sicil no + departman + görev) |
+| POST | `/attendance/personnel/import` | hr.attendance use | Excel sicil listesi içe aktar (upsert; .xls/.xlsx) |
 | GET | `/attendance/personnel/{id}/qr` | hr.attendance view | Kişisel kurulum QR (kart) |
+| GET | `/attendance/personnel/cards.pdf` | hr.attendance view | Tüm aktif personel QR kartları (PDF, yazdırılabilir) |
 | GET | `/attendance/status` | hr.attendance view | Şu an içeride kim |
 | GET | `/attendance/logs` | hr.attendance view | Geçmiş (filtreli) |
 | GET | `/attendance/summary?month=` | hr.attendance view | Aylık puantaj (kişi başı saat/gün) |
@@ -98,7 +100,18 @@ sınıfı bir zafiyettir. Tek başına bir personel bunu **yapamaz** (canlı tok
 4 sekme: **İçeride** (canlı pano), **Personel** (CRUD + QR kart), **Geçmiş** (loglar), **Puantaj** (aylık toplam süre).
 Toplam süre **`sa/dk`** olarak gösterilir (ör. `28 dk`, `8 sa 28 dk`) — ondalık saate yuvarlama yok
 (28 dk yanlışlıkla "0,5 saat" görünmez). API hem `total_minutes` hem `total_hours` döndürür.
-Ek aksiyonlar: "Kiosk Linki", "Ayarlar", "Elle Giriş/Çıkış" (telefonsuz/unutan için, audit'li).
+Ek aksiyonlar: "Kiosk Linki", "Ayarlar", "Elle Giriş/Çıkış" (telefonsuz/unutan için, audit'li),
+**"Excel İçe Aktar"** (sicil listesi) ve **"QR Kartları"** (toplu PDF).
+
+## Sicil İçe Aktarma + Toplu QR Kart
+- **Personel = sicil yapısı:** `employee_code` = **sicil no**, ayrıca `department` ve `title` (görev/ünvan).
+- **Excel içe aktarma** (`POST /attendance/personnel/import`): `_parse_personnel_excel` başlık satırını otomatik
+  bulur ('sicil' geçen), **Sicil No / Ad Soyad / Departman / Görev** kolonlarını TR-normalize başlıkla eşler
+  (sıra/boş kolon önemsiz). `.xls` → xlrd 2.x, `.xlsx` → openpyxl. **Upsert** (sicil no anahtar): var olan
+  güncellenir + reaktive edilir, yoksa yeni eklenir (`secrets.token_urlsafe` kişisel token üretilir).
+- **Toplu QR kart** (`GET /attendance/personnel/cards.pdf`): reportlab ile A4'e 2×5 kart/sayfa — her kartta
+  kurulum QR'ı (`/devam/kur?t=…`) + ad + sicil + departman + görev. DejaVuSans (TR karakter). Yazdırılıp kesilir.
+  Frontend "QR Kartları" butonu PDF'i yeni sekmede açar.
 
 ## Elle Giriş/Çıkış — Oluştur / Düzenle / Sil
 Telefon basışı (`punch`) son duruma göre **otomatik** giriş/çıkış seçer → çift olamaz. Elle işlemlerde

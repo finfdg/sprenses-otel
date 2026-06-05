@@ -33,6 +33,7 @@ class Personnel(Base):
     full_name: Mapped[str] = mapped_column(String(150))
     employee_code: Mapped[str] = mapped_column(String(30), unique=True, index=True)  # sicil no
     department: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    title: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)  # görev / ünvan
     phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     # Kişisel kimlik/kurulum token'ı — telefon çerezi bununla set edilir
     access_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)

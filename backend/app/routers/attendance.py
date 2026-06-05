@@ -20,6 +20,7 @@ import hmac
 import io
 import json
 import math
+import os
 import secrets
 import time
 from datetime import date, datetime, timedelta
@@ -27,7 +28,7 @@ from typing import List, Optional
 
 import pytz
 import segno
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
@@ -63,6 +64,7 @@ from app.models.user import User
 from app.utils.approval_check import check_approval
 from app.utils.approval_service import get_pending_approver_ids, process_action
 from app.utils.audit import log_action
+from app.utils.file_validation import validate_upload_file
 from app.websocket.manager import manager
 
 TZ = pytz.timezone("Europe/Istanbul")
@@ -226,9 +228,82 @@ def _today_summary(db: Session, personnel_id: int) -> dict:
 def _personnel_dict(p: Personnel) -> dict:
     return {
         "id": p.id, "full_name": p.full_name, "employee_code": p.employee_code,
-        "department": p.department, "phone": p.phone, "is_active": p.is_active,
+        "department": p.department, "title": p.title, "phone": p.phone, "is_active": p.is_active,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
+
+
+def _norm_hdr(s) -> str:
+    """Başlık adını normalize et (TR karakter + boşluk + küçük harf) — kolon eşleştirme için."""
+    t = str(s or "").strip().lower()
+    for a, b in (("ı", "i"), ("ö", "o"), ("ü", "u"), ("ç", "c"), ("ş", "s"), ("ğ", "g"), ("İ", "i")):
+        t = t.replace(a, b)
+    return " ".join(t.split())
+
+
+def _parse_personnel_excel(content: bytes, ext: str) -> List[dict]:
+    """Sicil Excel'ini (Sicil No / Ad Soyad / Departman / Görev) satırlara çevir.
+
+    Başlık satırı otomatik bulunur (içinde 'sicil' geçen). xls (xlrd) ve xlsx (openpyxl).
+    """
+    matrix: List[list] = []
+    if ext == ".xls":
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=content)
+        ws = wb.sheet_by_index(0)
+        for r in range(ws.nrows):
+            matrix.append([ws.cell(r, c).value for c in range(ws.ncols)])
+    else:
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+        for row in ws.iter_rows(values_only=True):
+            matrix.append(list(row))
+        wb.close()
+
+    cols: dict = {}
+    hdr_idx = None
+    for i, row in enumerate(matrix[:25]):
+        norm = [_norm_hdr(c) for c in row]
+        if any("sicil" in n for n in norm):
+            for j, n in enumerate(norm):
+                if not n:
+                    continue
+                if "sicil" in n:
+                    cols["code"] = j
+                elif "ad soyad" in n or n in ("ad", "adi", "isim", " adi soyadi"):
+                    cols["name"] = j
+                elif "departman" in n or "bolum" in n:
+                    cols["dept"] = j
+                elif "gorev" in n or "unvan" in n or "pozisyon" in n:
+                    cols["title"] = j
+            hdr_idx = i
+            break
+    if hdr_idx is None or "code" not in cols or "name" not in cols:
+        return []
+
+    def _cell(row, key):
+        j = cols.get(key)
+        return row[j] if j is not None and j < len(row) else None
+
+    out: List[dict] = []
+    for row in matrix[hdr_idx + 1:]:
+        raw_code = _cell(row, "code")
+        raw_name = _cell(row, "name")
+        if raw_code is None or not str(raw_name or "").strip():
+            continue
+        code = str(int(raw_code)) if isinstance(raw_code, float) else str(raw_code).strip()
+        if not code:
+            continue
+        dept = str(_cell(row, "dept")).strip() if _cell(row, "dept") else None
+        title = str(_cell(row, "title")).strip() if _cell(row, "title") else None
+        out.append({
+            "employee_code": code,
+            "full_name": str(raw_name).strip(),
+            "department": dept or None,
+            "title": title or None,
+        })
+    return out
 
 
 def _svg_qr(data: str) -> Response:
@@ -248,6 +323,7 @@ class PersonnelCreate(BaseModel):
     full_name: str
     employee_code: str
     department: Optional[str] = None
+    title: Optional[str] = None
     phone: Optional[str] = None
 
 
@@ -255,6 +331,7 @@ class PersonnelUpdate(BaseModel):
     full_name: Optional[str] = None
     employee_code: Optional[str] = None
     department: Optional[str] = None
+    title: Optional[str] = None
     phone: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -436,6 +513,7 @@ def create_personnel(
         full_name=data.full_name.strip(),
         employee_code=code,
         department=(data.department or "").strip() or None,
+        title=(data.title or "").strip() or None,
         phone=(data.phone or "").strip() or None,
         access_token=secrets.token_urlsafe(24),
     )
@@ -446,6 +524,59 @@ def create_personnel(
     db.commit()
     db.refresh(p)
     return _personnel_dict(p)
+
+
+@router.post("/attendance/personnel/import")
+async def import_personnel(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("hr.attendance", "use")),
+):
+    """Excel sicil listesinden personel içe aktar — upsert (sicil no = employee_code).
+
+    Beklenen başlıklar (sırası önemsiz): Sicil No, Ad Soyad, Departman, Görev.
+    Var olan sicil güncellenir (ad/departman/görev), yoksa yeni eklenir (kişisel token üretilir).
+    """
+    content = await validate_upload_file(file, allowed_types=["excel"])
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".xlsx"
+    try:
+        rows = _parse_personnel_excel(content, ext)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Dosya ayrıştırılamadı. Geçerli bir Excel (.xls/.xlsx) yükleyin.")
+    if not rows:
+        raise HTTPException(
+            status_code=400,
+            detail="Beklenen kolonlar bulunamadı. Başlıkta en az 'Sicil No' ve 'Ad Soyad' olmalı (Departman/Görev opsiyonel).",
+        )
+
+    created = updated = 0
+    seen: set = set()
+    for r in rows:
+        if r["employee_code"] in seen:
+            continue
+        seen.add(r["employee_code"])
+        existing = db.query(Personnel).filter(Personnel.employee_code == r["employee_code"]).first()
+        if existing:
+            existing.full_name = r["full_name"]
+            existing.department = r["department"]
+            existing.title = r["title"]
+            existing.is_active = True
+            updated += 1
+        else:
+            db.add(Personnel(
+                full_name=r["full_name"],
+                employee_code=r["employee_code"],
+                department=r["department"],
+                title=r["title"],
+                access_token=secrets.token_urlsafe(24),
+            ))
+            created += 1
+    log_action(db, current_user.id, "import", "personnel", None,
+               f"Sicil içe aktarma: {created} yeni, {updated} güncellendi ({len(seen)} satır)",
+               get_client_ip(request))
+    db.commit()
+    return {"ok": True, "created": created, "updated": updated, "total": len(seen)}
 
 
 @router.patch("/attendance/personnel/{pid}")
@@ -466,7 +597,7 @@ def update_personnel(
         if clash:
             raise HTTPException(status_code=400, detail="Bu sicil no başka personelde")
         p.employee_code = code
-    for f in ("full_name", "department", "phone", "is_active"):
+    for f in ("full_name", "department", "title", "phone", "is_active"):
         if f in payload:
             setattr(p, f, payload[f])
     log_action(db, current_user.id, "update", "personnel", p.id,
@@ -504,6 +635,84 @@ def personnel_setup_qr(
     if not p:
         raise HTTPException(status_code=404, detail="Personel bulunamadı")
     return _svg_qr(f"{PUBLIC_BASE}/devam/kur?t={p.access_token}")
+
+
+@router.get("/attendance/personnel/cards.pdf")
+def personnel_cards_pdf(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("hr.attendance", "view")),
+):
+    """Tüm aktif personelin QR kartlarını tek PDF'te üretir (yazdırılıp kesilebilir)."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas as rl_canvas
+
+    from app.utils.pdf_fonts import register_turkish_fonts
+
+    base_font, bold_font = register_turkish_fonts()
+    people = (
+        db.query(Personnel)
+        .filter(Personnel.is_active.is_(True))
+        .order_by(Personnel.employee_code)
+        .all()
+    )
+
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    W, H = A4
+    cols, rows = 2, 5
+    margin = 10 * mm
+    gap = 5 * mm
+    cw = (W - 2 * margin - (cols - 1) * gap) / cols
+    ch = (H - 2 * margin - (rows - 1) * gap) / rows
+    per_page = cols * rows
+    qsize = 28 * mm
+
+    for idx, p in enumerate(people):
+        pos = idx % per_page
+        if idx > 0 and pos == 0:
+            c.showPage()
+        col = pos % cols
+        row = pos // cols
+        x = margin + col * (cw + gap)
+        y = H - margin - (row + 1) * ch - row * gap
+        c.setStrokeColorRGB(0.82, 0.82, 0.82)
+        c.roundRect(x, y, cw, ch, 6, stroke=1, fill=0)
+        # QR (kurulum linki)
+        qr = segno.make(f"{PUBLIC_BASE}/devam/kur?t={p.access_token}", error="m")
+        qb = io.BytesIO()
+        qr.save(qb, kind="png", scale=6, border=1)
+        qb.seek(0)
+        c.drawImage(ImageReader(qb), x + 4 * mm, y + (ch - qsize) / 2, qsize, qsize)
+        # Metin
+        tx = x + qsize + 8 * mm
+        ty = y + ch - 9 * mm
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont(bold_font, 10)
+        c.drawString(tx, ty, (p.full_name or "")[:24])
+        c.setFont(base_font, 8)
+        c.drawString(tx, ty - 13, f"Sicil: {p.employee_code}")
+        if p.department:
+            c.drawString(tx, ty - 25, p.department[:22])
+        if p.title:
+            c.setFillColorRGB(0.3, 0.3, 0.3)
+            c.drawString(tx, ty - 37, p.title[:22])
+        c.setFont(base_font, 6.5)
+        c.setFillColorRGB(0.55, 0.55, 0.55)
+        c.drawString(tx, y + 5 * mm, "Uygulamandan 'Tara' ile okut")
+
+    if not people:
+        c.setFont(base_font, 12)
+        c.drawString(margin, H / 2, "Aktif personel yok")
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline; filename=personel-qr-kartlari.pdf"},
+    )
 
 
 # ═══ YÖNETİCİ — İzleme + raporlar ════════════════════════
