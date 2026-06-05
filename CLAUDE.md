@@ -455,6 +455,7 @@ TEMPLATE:
 - `GET /api/attendance/kiosk-link` — Kiosk ekranı linki (admin; KIOSK_KEY dahil)
 - `GET/PATCH /api/attendance/settings` — QR yenileme süresi ayarı (hr.attendance; 2-120sn; geçerlilik=yenileme+3sn; panelden Ayarlar)
 - `POST /api/attendance/setup` — Kişisel kurulum (token → kimlik çerezi)
+- `GET /api/attendance/pdks-manifest?t=` — Kişiye özel PWA manifest'i (public): "Ana Ekrana Ekle" ikonu kişisel basış sayfasını (token'lı start_url, standalone) açar — login'e değil. Global manifest `/devam`'da kullanılmaz; geçmiş silinse de token URL'de kalır
 - `GET /api/attendance/me` — Personelin durumu (çerez)
 - `POST /api/attendance/punch` — Giriş/çıkış kaydet (çerez + dönen token)
 - `GET/POST/PATCH/DELETE /api/attendance/personnel[/{id}]` — Personel CRUD (hr.attendance; sicil no=employee_code, departman, **görev**)

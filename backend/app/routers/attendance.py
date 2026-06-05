@@ -410,6 +410,41 @@ def kiosk_recent(
 
 # ═══ PUBLIC — Personel kimlik + basış ════════════════════
 
+@router.get("/attendance/pdks-manifest")
+def pdks_manifest(t: str = Query(...), db: Session = Depends(get_db)):
+    """Kişiye özel PWA manifest'i — "Ana Ekrana Ekle" ikonu kişisel basış sayfasını açsın.
+
+    Global manifest (start_url="/") /devam'da KULLANILMAZ; orada login'e gidiyordu.
+    Burada start_url personelin token'ını taşır (`/devam/kur?t=<token>`) → ikon doğrudan
+    kişisel sayfayı standalone açar VE tarayıcı geçmişi/verisi silinse bile token URL'de
+    kaldığından kimlik kendi kendine geri yüklenir (localStorage'a yeniden yazılır).
+    """
+    tok = (t or "").strip()
+    p = db.query(Personnel).filter(
+        Personnel.access_token == tok, Personnel.is_active.is_(True)
+    ).first()
+    label = f"{p.full_name.split()[0]} · Devam" if p else "Devam Takip"
+    manifest = {
+        "name": label,
+        "short_name": "Devam",
+        "start_url": f"/devam/kur?t={tok}",
+        "scope": "/devam",
+        "display": "standalone",
+        "background_color": "#f9fafb",
+        "theme_color": "#0d9488",
+        "icons": [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+    }
+    return Response(
+        content=json.dumps(manifest, ensure_ascii=False),
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @router.post("/attendance/setup")
 def setup(data: SetupRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     """Kişisel kurulum linki → kimlik çerezi (pdks_token) set et."""

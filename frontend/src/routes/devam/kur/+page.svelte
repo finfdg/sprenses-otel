@@ -131,7 +131,10 @@
 	}
 
 	onMount(() => {
-		token = $page.url.searchParams.get('t') ?? '';
+		const urlT = $page.url.searchParams.get('t') ?? '';
+		let stored = '';
+		try { stored = localStorage.getItem('pdks_token') ?? ''; } catch { /* yoksay */ }
+		token = urlT || stored;   // URL'de token yoksa daha önce kurulan kimliğe düş
 		const k = $page.url.searchParams.get('k') ?? '';
 		if (!token) { view = 'error'; errMsg = 'Geçersiz link.'; return; }
 		try { localStorage.setItem('pdks_token', token); } catch { /* yoksay */ }
@@ -141,7 +144,14 @@
 	onDestroy(stopScan);
 </script>
 
-<svelte:head><title>Giriş / Çıkış</title></svelte:head>
+<svelte:head>
+	<title>Giriş / Çıkış</title>
+	<!-- Kişiye özel manifest: "Ana Ekrana Ekle" ikonu kişisel sayfayı (token'lı) açar.
+	     Global manifest (start_url="/") /devam'da eklenmez → login'e gitmez. -->
+	{#if token}
+		<link rel="manifest" href={`/api/attendance/pdks-manifest?t=${encodeURIComponent(token)}`} />
+	{/if}
+</svelte:head>
 
 <div class="min-h-screen flex items-center justify-center p-5 bg-gray-50">
 	<div class="max-w-sm w-full">
@@ -166,8 +176,11 @@
 					{inside ? 'ÇIKIŞ — Karekodu Tara' : 'GİRİŞ — Karekodu Tara'}
 				</button>
 				<p class="text-xs text-gray-400 leading-snug">Girişteki ekranın karekoduna telefonu tut.</p>
-				<div class="bg-teal-50 border border-teal-200 rounded-lg p-2.5 text-[11px] text-teal-800 leading-snug">
-					💡 Bu sayfayı telefonun <strong>ana ekranına ekle</strong> — her gün hızlıca aç.
+				<div class="bg-teal-50 border border-teal-200 rounded-lg p-2.5 text-[11px] text-teal-800 leading-snug text-left">
+					💡 <strong>Ana ekrana ekle</strong> — her gün tek dokunuşla aç:<br>
+					• iPhone: <strong>Paylaş ⬆️ → "Ana Ekrana Ekle"</strong><br>
+					• Android: <strong>⋮ → "Ana ekrana ekle"</strong><br>
+					İkon doğrudan <strong>seni</strong> açar; tarayıcı geçmişini silsen bile çalışır.
 				</div>
 			</div>
 

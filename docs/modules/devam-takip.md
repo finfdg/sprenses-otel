@@ -33,6 +33,24 @@ okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteğ
   yoksa "kendi uygulamandaki Tara'yı kullan" talimatı gösterir.
 - `/devam/kur?t=...&k=...` ile gelince (yönlendirme) **otomatik basar**.
 
+### 📱 "Ana Ekrana Ekle" — kişiye özel manifest (kalıcılık)
+**Sorun:** Global PWA manifest'i (`/manifest.json`) `start_url:"/"` taşır. Personel `/devam/kur`'u
+ana ekrana eklediğinde, modern iOS/Android manifest'i onurlandırıp ikonu **köke (login ekranına)**
+açıyordu. Ayrıca tarayıcı verisi/geçmişi silinince `localStorage` (tek kimlik kaynağı) gidiyordu.
+
+**Çözüm — kişiye özel dinamik manifest:**
+- Global manifest `app.html`'den kaldırıldı; **root layout** onu **yalnızca `/devam` DIŞINDA** ekler
+  (`{#if !isDevam}`). Böylece yönetim PWA'sı korunur, `/devam` ondan etkilenmez.
+- `/devam/kur` sayfası **kendi manifest'ini** verir: `GET /api/attendance/pdks-manifest?t=<token>` →
+  `start_url:"/devam/kur?t=<token>"`, `scope:"/devam"`, `display:"standalone"`, ad = personelin adı.
+- Sonuç: ana ekran ikonu **doğrudan kişisel basış sayfasını** (token'lı, standalone) açar — login'e
+  gitmez. **start_url token taşıdığından**, tarayıcı geçmişi/verisi silinse bile ikon kimliği geri
+  yükler (`?t=` → `localStorage`'a yeniden yazılır). Kur sayfası URL'de token yoksa `localStorage`'a düşer.
+- Tüm uygulama SPA (`ssr=false`) olduğundan manifest linkleri istemci tarafında enjekte edilir
+  (kurulum kullanıcı eylemi yüklemeden sonra olduğu için sorun değil).
+- **Kalan tek kurtarma gereği:** personel verisini silip ana ekran ikonunu DA silerse → fiziksel
+  QR kartı tekrar okutur (kimlik kartta gömülü).
+
 ## Veritabanı (3 tablo)
 - `personnel`: id, full_name, employee_code (unique, **sicil no**), department, **title** (görev/ünvan), phone, **access_token** (kişisel kimlik), is_active.
 - `attendance_logs`: id, personnel_id (FK CASCADE), type (in/out), punched_at, source (phone_qr/manual), recorded_by (manuel ise yönetici FK), note, **edited_at** (düzenlendiyse → mavi), **deleted_at** (soft delete → soluk gösterilir, aktif hesaplara girmez).

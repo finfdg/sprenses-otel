@@ -4,8 +4,9 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-		<!-- PWA -->
-		<link rel="manifest" href="/manifest.json" />
+		<!-- PWA — manifest linki global DEĞİL: /devam (personel basış) için root layout'ta
+		     koşullu eklenir. /devam kendi kişisel (token'lı) manifest'ini verir; aksi halde
+		     "Ana Ekrana Ekle" start_url="/" yüzünden login ekranına gidiyordu. -->
 		<meta name="theme-color" content="#0d9488" />
 
 		<!-- Favicon -->
