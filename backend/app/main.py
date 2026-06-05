@@ -24,6 +24,7 @@ from app.routers import (
     push,
     quality,
     sales,
+    shifts,
     system_backup,
     system_modules,
     system_roles,
@@ -186,6 +187,7 @@ app.include_router(quality.router, prefix="/api/quality", tags=["quality"])
 app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 app.include_router(accounting.router, prefix="/api/accounting", tags=["accounting"])
 app.include_router(hr.router, prefix="/api/hr", tags=["hr"])
+app.include_router(shifts.router, prefix="/api/hr", tags=["hr-shifts"])
 app.include_router(attendance.router, prefix="/api", tags=["attendance"])
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
 app.include_router(files.router, tags=["files"])

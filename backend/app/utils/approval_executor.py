@@ -727,6 +727,60 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
             log.deleted_at = _dt.now(tz)  # soft delete
 
 
+def _handle_shifts(db, action_type, entity_id, payload, actor_id):
+    """Onaylanan vardiya tanımı (hr.shifts) → ShiftDefinition oluştur/güncelle/sil.
+
+    Zaman alanları payload'da ISO string ("HH:MM:SS") olarak gelir; time'a parse edilir.
+    """
+    from datetime import time as _time
+
+    from app.models.shift import DEFAULT_COLOR, ShiftDefinition
+
+    def _pt(v):
+        if not v:
+            return None
+        try:
+            parts = str(v).split(":")
+            return _time(int(parts[0]), int(parts[1]))
+        except (ValueError, IndexError):
+            return None
+
+    if action_type == "create":
+        is_active = payload.get("is_active")
+        db.add(ShiftDefinition(
+            name=(payload.get("name") or "").strip(),
+            color=payload.get("color") or DEFAULT_COLOR,
+            start_time=_pt(payload.get("start_time")),
+            end_time=_pt(payload.get("end_time")),
+            start_time2=_pt(payload.get("start_time2")),
+            end_time2=_pt(payload.get("end_time2")),
+            description=(payload.get("description") or None),
+            is_active=True if is_active is None else is_active,
+            sort_order=payload.get("sort_order") or 0,
+        ))
+    elif action_type == "update":
+        s = db.query(ShiftDefinition).filter(ShiftDefinition.id == entity_id).first()
+        if not s:
+            return
+        if "name" in payload:
+            s.name = payload["name"]
+        if "color" in payload:
+            s.color = payload["color"]
+        for tf in ("start_time", "end_time", "start_time2", "end_time2"):
+            if tf in payload:
+                setattr(s, tf, _pt(payload[tf]))
+        if "description" in payload:
+            s.description = payload.get("description") or None
+        if "is_active" in payload:
+            s.is_active = payload["is_active"]
+        if "sort_order" in payload:
+            s.sort_order = payload["sort_order"]
+    elif action_type == "delete":
+        s = db.query(ShiftDefinition).filter(ShiftDefinition.id == entity_id).first()
+        if s:
+            db.delete(s)
+
+
 # ── Handler kayıt tablosu ────────────────────────────────────
 
 _HANDLERS = {
@@ -747,6 +801,8 @@ _HANDLERS = {
     "quality.forms": _handle_quality_forms,
     # İK — Devam Takip (elle giriş/çıkış)
     "hr.attendance": _handle_attendance,
+    # İK — Vardiya tanımları
+    "hr.shifts": _handle_shifts,
 }
 
 # Scheduled modüller (8 adet)
