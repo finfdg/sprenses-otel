@@ -72,6 +72,7 @@ const I = {
 	cloudUp: 'M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z',
 	fingerprint: 'M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33',
 	clock: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z',
+	calendarDays: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z',
 };
 
 /** Üst menü: Panel (her zaman görünür, izin gerekmez) ikon path'i */
@@ -120,6 +121,7 @@ export const NAV_GROUPS: NavGroup[] = [
 			{ code: 'hr.sgk', label: 'SGK', href: '/dashboard/ik/sgk', icon: [I.check] },
 			{ code: 'hr.attendance', label: 'Devam Takip', href: '/dashboard/ik/devam-takip', icon: [I.fingerprint] },
 			{ code: 'hr.shifts', label: 'Vardiyalar', href: '/dashboard/ik/vardiyalar', icon: [I.clock] },
+			{ code: 'hr.shift_schedule', label: 'Vardiya Çizelgesi', href: '/dashboard/ik/vardiya-cizelgesi', icon: [I.calendarDays] },
 		],
 	},
 	{

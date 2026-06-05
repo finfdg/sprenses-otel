@@ -83,6 +83,7 @@ COPY public.modules (id, name, code, description, icon, parent_id, sort_order, i
 900	Yedekleme	system.backup	\N	cloud-arrow-up	5	100	t	2026-06-04 00:00:00+00
 901	Devam Takip	hr.attendance	\N	finger-print	250	10	t	2026-06-04 00:00:00+00
 902	Vardiyalar	hr.shifts	\N	clock	250	11	t	2026-06-05 00:00:00+00
+903	Vardiya Çizelgesi	hr.shift_schedule	\N	calendar-days	250	12	t	2026-06-05 00:00:00+00
 \.
 
 
@@ -427,6 +428,7 @@ COPY public.role_module_permissions (id, role_id, module_id, can_view, created_a
 9001	1	900	t	2026-06-04 00:00:00+00	t
 9002	1	901	t	2026-06-04 00:00:00+00	t
 9100	1	902	t	2026-06-05 00:00:00+00	t
+9101	1	903	t	2026-06-05 00:00:00+00	t
 \.
 
 

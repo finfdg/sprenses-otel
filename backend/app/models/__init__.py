@@ -41,6 +41,7 @@ from app.models.payment_instruction import PaymentInstructionItem, PaymentInstru
 from app.models.attendance_setting import AttendanceSetting
 from app.models.personnel import AttendanceLog, Personnel
 from app.models.shift import ShiftDefinition
+from app.models.shift_assignment import ShiftAssignment
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
@@ -70,5 +71,5 @@ __all__ = [
     "ApprovalWorkflowRequestorRole", "ApprovalWorkflowApproverRole",
     "ApprovalRequest", "ApprovalRequestLog",
     "PaymentInstructionList", "PaymentInstructionItem",
-    "AttendanceSetting", "ShiftDefinition",
+    "AttendanceSetting", "ShiftDefinition", "ShiftAssignment",
 ]

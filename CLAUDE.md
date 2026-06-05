@@ -481,6 +481,14 @@ TEMPLATE:
 - `DELETE /api/hr/shifts/{id}` — Vardiya sil
 - Model: `shift_definitions` (start_time/end_time, split için start_time2/end_time2; gece vardiyası end<=start). Frontend: `/dashboard/ik/vardiyalar`. İzin: `hr.shifts`. Onay executor: `_handle_shifts`.
 
+### İnsan Kaynakları — Vardiya Çizelgesi (Rota)
+- `GET /api/hr/shift-schedule?start&end&department` — Aralık rota: aktif vardiyalar + aktif personel + atamalar + departman listesi (tek çağrı, ≤45 gün)
+- `POST /api/hr/shift-schedule` — Tek hücre ata (upsert; `(personnel_id, work_date)` benzersiz) — onay akışına tabi
+- `DELETE /api/hr/shift-schedule/{id}` — Hücreyi sil (çıkar) — onay akışına tabi
+- `POST /api/hr/shift-schedule/bulk` — Toplu ata/temizle (`shift_id=null` → sil; ≤2000 hücre) — onaydan muaf (toplu işlem)
+- `POST /api/hr/shift-schedule/copy-week` — Kaynak haftayı hedef haftaya kopyala — onaydan muaf
+- Model: `shift_assignments` (personnel_id+shift_id+work_date; unique (personnel_id, work_date); CASCADE). Frontend: `/dashboard/ik/vardiya-cizelgesi` (haftalık grid + fırça boyama). İzin: `hr.shift_schedule`. Onay executor: `_handle_shift_schedule`. WS: `shift_schedule_updated`. Detay: `docs/modules/vardiyalar.md` (Rota bölümü)
+
 ### Finans — Bankalar
 - `GET /api/finance/banks/accounts/` — Banka hesap listesi
 - `POST /api/finance/banks/accounts/` — Banka hesabı oluştur
@@ -643,7 +651,7 @@ TEMPLATE:
 
 - **DB adı:** sprenses
 - **Kullanıcı:** sprenses
-- **Tablolar (55):** personnel, attendance_logs, attendance_settings, shift_definitions, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
+- **Tablolar (56):** personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
 - **Saat dilimi:** Europe/Istanbul (her bağlantıda SET edilir)
 - **Migrations:** `cd backend && source venv/bin/activate && alembic upgrade head`
 
@@ -660,7 +668,7 @@ TEMPLATE:
 - Mesajlaşma (messaging)
 - Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend)
-- İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts)
+- İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
 - Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Oda Tipleri (sales.room_types)

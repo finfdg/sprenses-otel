@@ -781,6 +781,62 @@ def _handle_shifts(db, action_type, entity_id, payload, actor_id):
             db.delete(s)
 
 
+def _handle_shift_schedule(db, action_type, entity_id, payload, actor_id):
+    """Onaylanan vardiya çizelgesi (hr.shift_schedule) → ShiftAssignment upsert/sil.
+
+    create → entity_id=0, upsert (personnel_id + work_date benzersiz).
+    delete → entity_id=atama id.
+    work_date payload'da ISO string ("YYYY-MM-DD") gelir; date'e parse edilir.
+    """
+    from datetime import date as _date
+    from datetime import datetime as _dt
+
+    import pytz
+
+    from app.models.shift_assignment import ShiftAssignment
+    from app.utils.audit import log_action
+
+    tz = pytz.timezone("Europe/Istanbul")
+
+    def _pd(v):
+        try:
+            return _date.fromisoformat(str(v)) if v else None
+        except (TypeError, ValueError):
+            return None
+
+    if action_type == "create":
+        wd = _pd(payload.get("work_date"))
+        pid = payload.get("personnel_id")
+        sid = payload.get("shift_id")
+        if not (wd and pid and sid):
+            return
+        note = payload.get("note")
+        a = (
+            db.query(ShiftAssignment)
+            .filter(ShiftAssignment.personnel_id == pid, ShiftAssignment.work_date == wd)
+            .first()
+        )
+        if a:
+            a.shift_id = sid
+            if note is not None:
+                a.note = note or None
+            a.updated_at = _dt.now(tz)
+        else:
+            a = ShiftAssignment(
+                personnel_id=pid, shift_id=sid, work_date=wd,
+                note=(note or None), created_by=actor_id,
+            )
+            db.add(a)
+        db.flush()
+        log_action(db, actor_id, "create", "shift_assignment", a.id, "Onaylı rota ataması")
+
+    elif action_type == "delete":
+        a = db.query(ShiftAssignment).filter(ShiftAssignment.id == entity_id).first()
+        if a:
+            log_action(db, actor_id, "delete", "shift_assignment", a.id, "Onaylı rota silme")
+            db.delete(a)
+
+
 # ── Handler kayıt tablosu ────────────────────────────────────
 
 _HANDLERS = {
@@ -803,6 +859,8 @@ _HANDLERS = {
     "hr.attendance": _handle_attendance,
     # İK — Vardiya tanımları
     "hr.shifts": _handle_shifts,
+    # İK — Vardiya çizelgesi (rota)
+    "hr.shift_schedule": _handle_shift_schedule,
 }
 
 # Scheduled modüller (8 adet)

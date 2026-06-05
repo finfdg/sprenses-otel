@@ -48,6 +48,7 @@ class WSEvent:
     BANK_STATEMENT_UPLOADED = "bank_statement_uploaded"
     QUALITY_FORM_UPDATE = "quality_form_update"
     ATTENDANCE_UPDATED = "attendance_updated"  # PDKS giriş/çıkış — canlı pano tazeleme
+    SHIFT_SCHEDULE_UPDATED = "shift_schedule_updated"  # vardiya çizelgesi (rota) — canlı tazeleme
     PERMISSION_CHANGED = "permission_changed"
 
     # Oturum / bağlantı
