@@ -135,7 +135,7 @@
 	}
 	async function loadPersonnel() {
 		try {
-			const r = await api.get<{ items: Personnel[] }>('/attendance/personnel?page_size=200');
+			const r = await api.get<{ items: Personnel[] }>('/attendance/personnel?page_size=1000');
 			personnel = r.items;
 		} catch (e) { console.error('Personel listesi alınamadı:', e); }
 	}
@@ -247,10 +247,11 @@
 	let showImport = $state(false);
 	let importing = $state(false);
 	let importFile = $state<File | null>(null);
-	let importResult = $state<{ created: number; updated: number; total: number } | null>(null);
+	let replaceExisting = $state(false);
+	let importResult = $state<{ created: number; updated: number; deleted: number; total: number } | null>(null);
 	let importError = $state('');
 	function openImport() {
-		importFile = null; importResult = null; importError = ''; showImport = true;
+		importFile = null; importResult = null; importError = ''; replaceExisting = false; showImport = true;
 	}
 	function onImportFile(e: Event) {
 		const t = e.target as HTMLInputElement;
@@ -262,9 +263,10 @@
 		try {
 			const fd = new FormData();
 			fd.append('file', importFile);
-			const r = await api.upload<{ created: number; updated: number; total: number }>('/attendance/personnel/import', fd);
+			fd.append('replace', replaceExisting ? 'true' : 'false');
+			const r = await api.upload<{ created: number; updated: number; deleted: number; total: number }>('/attendance/personnel/import', fd);
 			importResult = r;
-			await Promise.all([loadPersonnel(), loadStatus()]);
+			await Promise.all([loadPersonnel(), loadStatus(), loadSummary(), loadPending()]);
 			showToast(`İçe aktarıldı: ${r.created} yeni, ${r.updated} güncel`, 'success');
 		} catch (e) {
 			importError = e instanceof ApiError ? e.message : 'İçe aktarılamadı';
@@ -740,12 +742,19 @@
 			onchange={onImportFile}
 			class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:font-medium hover:file:bg-teal-100 cursor-pointer"
 		/>
+		<label class="flex items-start gap-2 cursor-pointer">
+			<input type="checkbox" bind:checked={replaceExisting} class="mt-0.5 rounded border-gray-300 text-teal-700 focus:ring-teal-500" />
+			<span class="text-xs text-gray-700 leading-snug">
+				İçe aktarmadan önce <strong>mevcut tüm personeli sil</strong>
+				<span class="block text-red-600 mt-0.5">⚠️ Tüm personel + giriş/çıkış geçmişi silinir (geri alınamaz). Temiz sicil listesi için işaretle.</span>
+			</span>
+		</label>
 		{#if importError}
 			<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{importError}</div>
 		{/if}
 		{#if importResult}
 			<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 leading-snug">
-				✅ <strong>{importResult.created}</strong> yeni eklendi · <strong>{importResult.updated}</strong> güncellendi · toplam {importResult.total} satır.
+				✅ <strong>{importResult.created}</strong> yeni · <strong>{importResult.updated}</strong> güncel{importResult.deleted > 0 ? ` · ${importResult.deleted} silindi` : ''} · toplam {importResult.total} satır.
 			</div>
 		{/if}
 		<div class="flex justify-end gap-2 pt-1">

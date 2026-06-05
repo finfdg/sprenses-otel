@@ -109,6 +109,10 @@ Ek aksiyonlar: "Kiosk Linki", "Ayarlar", "Elle Giriş/Çıkış" (telefonsuz/unu
   bulur ('sicil' geçen), **Sicil No / Ad Soyad / Departman / Görev** kolonlarını TR-normalize başlıkla eşler
   (sıra/boş kolon önemsiz). `.xls` → xlrd 2.x, `.xlsx` → openpyxl. **Upsert** (sicil no anahtar): var olan
   güncellenir + reaktive edilir, yoksa yeni eklenir (`secrets.token_urlsafe` kişisel token üretilir).
+  - **`replace=True` (modalda "mevcut personeli sil"):** içe aktarmadan **önce** TÜM personel
+    (+ CASCADE ile giriş/çıkış kayıtları) silinir → temiz sicil listesi. **Sıra güvenli:** dosya
+    doğrulandıktan (rows boş değil) **sonra** silinir; bozuk dosya veriyi silmez.
+  - Personel listesi `page_size` üst sınırı **1000** (231+ personel tek sayfada gelir).
 - **Toplu QR kart** (`GET /attendance/personnel/cards.pdf`): reportlab ile A4'e 2×5 kart/sayfa — her kartta
   kurulum QR'ı (`/devam/kur?t=…`) + ad + sicil + departman + görev. DejaVuSans (TR karakter). Yazdırılıp kesilir.
   Frontend "QR Kartları" butonu PDF'i yeni sekmede açar.

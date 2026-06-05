@@ -28,7 +28,7 @@ from typing import List, Optional
 
 import pytz
 import segno
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
@@ -481,7 +481,7 @@ def list_personnel(
     _: User = Depends(require_permission("hr.attendance", "view")),
     search: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
+    page_size: int = Query(50, ge=1, le=1000),
     include_inactive: bool = Query(True),
 ):
     q = db.query(Personnel)
@@ -530,6 +530,7 @@ def create_personnel(
 async def import_personnel(
     request: Request,
     file: UploadFile = File(...),
+    replace: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("hr.attendance", "use")),
 ):
@@ -537,6 +538,7 @@ async def import_personnel(
 
     Beklenen başlıklar (sırası önemsiz): Sicil No, Ad Soyad, Departman, Görev.
     Var olan sicil güncellenir (ad/departman/görev), yoksa yeni eklenir (kişisel token üretilir).
+    replace=True ise içe aktarmadan önce TÜM personel (ve CASCADE ile giriş/çıkış kayıtları) silinir.
     """
     content = await validate_upload_file(file, allowed_types=["excel"])
     ext = os.path.splitext(file.filename or "")[1].lower() or ".xlsx"
@@ -549,6 +551,10 @@ async def import_personnel(
             status_code=400,
             detail="Beklenen kolonlar bulunamadı. Başlıkta en az 'Sicil No' ve 'Ad Soyad' olmalı (Departman/Görev opsiyonel).",
         )
+
+    deleted = 0
+    if replace:
+        deleted = db.query(Personnel).delete(synchronize_session=False)  # CASCADE → attendance_logs
 
     created = updated = 0
     seen: set = set()
@@ -573,10 +579,10 @@ async def import_personnel(
             ))
             created += 1
     log_action(db, current_user.id, "import", "personnel", None,
-               f"Sicil içe aktarma: {created} yeni, {updated} güncellendi ({len(seen)} satır)",
+               f"Sicil içe aktarma: {created} yeni, {updated} güncel, {deleted} silindi ({len(seen)} satır)",
                get_client_ip(request))
     db.commit()
-    return {"ok": True, "created": created, "updated": updated, "total": len(seen)}
+    return {"ok": True, "created": created, "updated": updated, "deleted": deleted, "total": len(seen)}
 
 
 @router.patch("/attendance/personnel/{pid}")
