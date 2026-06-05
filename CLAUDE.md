@@ -454,11 +454,12 @@ TEMPLATE:
 - `GET /api/attendance/kiosk/recent?key=` — Kiosk sağ paneli için son giriş/çıkış hareketleri (KIOSK_KEY)
 - `GET /api/attendance/kiosk-link` — Kiosk ekranı linki (admin; KIOSK_KEY dahil)
 - `GET/PATCH /api/attendance/settings` — QR yenileme süresi ayarı (hr.attendance; 2-120sn; geçerlilik=yenileme+3sn; panelden Ayarlar)
-- `POST /api/attendance/setup` — Kişisel kurulum (token → kimlik çerezi)
+- `POST /api/attendance/setup` — Kişisel kurulum (enrollment): access_token ile **bu cihazı bağlar**, cihaza özel `device_token` döndürür (anti-buddy-punch). Zaten başka cihaza bağlıysa **409** → admin "Cihaz Sıfırla" gerekir
 - `GET /api/attendance/pdks-manifest?t=` — Kişiye özel PWA manifest'i (public): "Ana Ekrana Ekle" ikonu kişisel basış sayfasını (token'lı start_url, standalone) açar — login'e değil. Global manifest `/devam`'da kullanılmaz; geçmiş silinse de token URL'de kalır
-- `GET /api/attendance/me` — Personelin durumu (çerez)
-- `POST /api/attendance/punch` — Giriş/çıkış kaydet (çerez + dönen token)
-- `GET/POST/PATCH/DELETE /api/attendance/personnel[/{id}]` — Personel CRUD (hr.attendance; sicil no=employee_code, departman, **görev**)
+- `GET /api/attendance/me` — Personelin durumu (`X-Pdks-Device` başlığı)
+- `POST /api/attendance/punch` — Giriş/çıkış kaydet (`X-Pdks-Device` cihaz token'ı + canlı kiosk token `k`)
+- `POST /api/attendance/personnel/{id}/reset-device` — Bağlı cihazı çöz (hr.attendance use; audit'li) → yeni telefon/veri-silme sonrası tekrar kurulum için
+- `GET/POST/PATCH/DELETE /api/attendance/personnel[/{id}]` — Personel CRUD (hr.attendance; sicil no=employee_code, departman, **görev**; liste `device_bound` durumu döner)
 - `POST /api/attendance/personnel/import` — Excel sicil listesi içe aktar (Sicil No/Ad Soyad/Departman/Görev; upsert; .xls+.xlsx)
 - `GET /api/attendance/personnel/{id}/qr` — Kişisel kurulum QR (kart)
 - `GET /api/attendance/personnel/cards.pdf` — Tüm aktif personelin QR kartları tek PDF (yazdırılıp kesilebilir)

@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Personel uygulaması — kişisel QR karttan açılır (?t=access_token), ana ekrana eklenir.
-	// Kimlik URL'deki t'dir (kalıcı). Giriş/çıkış için UYGULAMA-İÇİ kamerayla girişteki
-	// ekranın QR'ı taranır → her şey tek bağlamda olur (iOS kamera-izole-bağlam sorunu yok).
+	// access_token yalnızca KAYIT (enrollment) içindir: ilk açılışta sunucu bu cihaza özel bir
+	// `device_token` üretir (localStorage'da, URL'de/QR'da DEĞİL) ve BASIŞ kimliği odur. Böylece
+	// kişisel link kopyalanıp başka telefonda kullanılsa bile basış yapılamaz (anti-buddy-punch).
+	// Tek aktif cihaz: kart zaten başka cihaza bağlıysa 409 → yöneticiden "Cihaz Sıfırla".
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import jsQR from 'jsqr';
@@ -9,7 +11,8 @@
 	type View = 'loading' | 'ready' | 'scanning' | 'result' | 'error';
 	let view = $state<View>('loading');
 
-	let token = $state('');
+	let device = $state('');       // basış kimliği (cihaza özel; sunucudan, localStorage'da)
+	let enrollToken = $state('');  // kayıt token'ı = access_token (URL ?t / manifest start_url)
 	let name = $state('');
 	let dept = $state('');
 	let inside = $state(false);
@@ -32,20 +35,53 @@
 		return h > 0 ? `${h} saat ${m % 60} dk` : `${m} dk`;
 	}
 
-	async function loadMe() {
+	// Cihazı bağla (enroll): access_token ile sunucudan device_token al → localStorage'a yaz.
+	async function enroll(): Promise<boolean> {
+		if (!enrollToken) { view = 'error'; errMsg = 'Geçersiz link.'; return false; }
 		try {
-			const res = await fetch('/api/attendance/me', { headers: { 'X-Pdks-Token': token } });
-			if (res.status === 401) { view = 'error'; errMsg = 'Bu kart tanımlı değil veya pasif.'; return; }
+			const res = await fetch('/api/attendance/setup', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ token: enrollToken }),
+			});
+			const d = await res.json().catch(() => ({}));
+			if (res.ok && d.device_token) {
+				device = d.device_token;
+				try { localStorage.setItem('pdks_device', device); } catch { /* yoksay */ }
+				return true;
+			}
+			if (res.status === 409) {
+				view = 'error';
+				errMsg = 'Bu telefonda kullanılamıyor — kart başka bir cihaza tanımlı. Yöneticiden "Cihaz Sıfırla" iste.';
+			} else {
+				view = 'error';
+				errMsg = 'Bu kart tanımlı değil veya pasif.';
+			}
+			return false;
+		} catch (e) {
+			console.error(e);
+			view = 'error'; errMsg = 'Bağlantı hatası.';
+			return false;
+		}
+	}
+
+	// Durum yükle. false → cihaz tanımlı değil (401; reset edilmiş olabilir → çağıran re-enroll dener).
+	async function loadMe(): Promise<boolean> {
+		try {
+			const res = await fetch('/api/attendance/me', { headers: { 'X-Pdks-Device': device } });
+			if (res.status === 401) return false;
 			const d = await res.json();
 			name = d.full_name ?? '';
 			dept = d.department ?? '';
 			inside = !!d.inside;
 			minutesToday = d.minutes_today ?? 0;
 			view = 'ready';
+			return true;
 		} catch (e) {
 			console.error(e);
 			view = 'error';
 			errMsg = 'Bağlantı hatası.';
+			return true;
 		}
 	}
 
@@ -103,7 +139,7 @@
 		try {
 			const res = await fetch('/api/attendance/punch', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json', 'X-Pdks-Token': token },
+				headers: { 'Content-Type': 'application/json', 'X-Pdks-Device': device },
 				body: JSON.stringify({ k }),
 			});
 			const d = await res.json().catch(() => ({}));
@@ -113,6 +149,10 @@
 				punchMsg = d.message ?? '';
 				minutesToday = d.minutes_today ?? 0;
 				view = 'result';
+			} else if (res.status === 401) {
+				// Cihaz tanımlı değil (admin sıfırlamış olabilir) → kartı tekrar okutması gerekir
+				view = 'error';
+				errMsg = 'Cihaz tanımlı değil — kişisel QR kartını tekrar okut.';
 			} else {
 				scanError = d.detail ?? 'İşlem başarısız.';
 				view = 'ready';
@@ -130,16 +170,30 @@
 		loadMe();
 	}
 
-	onMount(() => {
-		const urlT = $page.url.searchParams.get('t') ?? '';
-		let stored = '';
-		try { stored = localStorage.getItem('pdks_token') ?? ''; } catch { /* yoksay */ }
-		token = urlT || stored;   // URL'de token yoksa daha önce kurulan kimliğe düş
+	onMount(async () => {
+		enrollToken = $page.url.searchParams.get('t') ?? '';
+		try { device = localStorage.getItem('pdks_device') ?? ''; } catch { /* yoksay */ }
+		// Eski sürümden (access_token localStorage'da) gelenler için enroll'a düş
+		if (!enrollToken) { try { enrollToken = localStorage.getItem('pdks_token') ?? ''; } catch { /* yoksay */ } }
 		const k = $page.url.searchParams.get('k') ?? '';
-		if (!token) { view = 'error'; errMsg = 'Geçersiz link.'; return; }
-		try { localStorage.setItem('pdks_token', token); } catch { /* yoksay */ }
-		if (k) doPunch(k);   // /devam'dan yönlendirme → anında bas
-		else loadMe();
+
+		if (!device && !enrollToken) { view = 'error'; errMsg = 'Geçersiz link.'; return; }
+
+		// Bu cihaz henüz bağlı değilse kaydet (enroll)
+		if (!device) {
+			if (!(await enroll())) return;   // hata view'i enroll set etti
+		}
+
+		if (k) {
+			await doPunch(k);   // /devam'dan yönlendirme → anında bas
+		} else {
+			const ok = await loadMe();
+			if (!ok) {
+				// Cihaz geçersiz (admin sıfırlamış olabilir) → kart token'ı varsa yeniden bağlan
+				if (enrollToken && (await enroll())) await loadMe();
+				else { view = 'error'; errMsg = 'Cihaz tanımlı değil — kişisel QR kartını tekrar okut.'; }
+			}
+		}
 	});
 	onDestroy(stopScan);
 </script>
@@ -148,8 +202,8 @@
 	<title>Giriş / Çıkış</title>
 	<!-- Kişiye özel manifest: "Ana Ekrana Ekle" ikonu kişisel sayfayı (token'lı) açar.
 	     Global manifest (start_url="/") /devam'da eklenmez → login'e gitmez. -->
-	{#if token}
-		<link rel="manifest" href={`/api/attendance/pdks-manifest?t=${encodeURIComponent(token)}`} />
+	{#if enrollToken}
+		<link rel="manifest" href={`/api/attendance/pdks-manifest?t=${encodeURIComponent(enrollToken)}`} />
 	{/if}
 </svelte:head>
 

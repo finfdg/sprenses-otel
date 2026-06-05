@@ -74,7 +74,6 @@ PUBLIC_BASE = settings.cors_origins.split(",")[0].strip().rstrip("/")
 KIOSK_KEY = hmac.new(SECRET, b"pdks-kiosk-key", hashlib.sha256).hexdigest()[:24]
 
 PUNCH_DEBOUNCE_SEC = 30    # aynı personel bu sürede tekrar basamaz
-COOKIE_NAME = "pdks_token"
 
 punch_limiter = RateLimiter(max_requests=40, window_seconds=60)
 
@@ -119,26 +118,22 @@ def _ttl_for(refresh: int) -> int:
     return refresh + TOKEN_GRACE_SEC
 
 
-def _set_cookie(response: Response, token: str) -> None:
-    is_secure = "https" in settings.cors_origins
-    response.set_cookie(
-        COOKIE_NAME, token,
-        max_age=60 * 60 * 24 * 365, httponly=True, secure=is_secure, samesite="lax", path="/",
-    )
+def _hash_device(tok: str) -> str:
+    return hashlib.sha256(tok.encode()).hexdigest()
 
 
-def _personnel_from_request(request: Request, db: Session) -> Optional[Personnel]:
-    """Personel kimliği: önce X-Pdks-Token başlığı (localStorage'dan), sonra çerez.
+def _personnel_from_device(request: Request, db: Session) -> Optional[Personnel]:
+    """Basış kimliği = cihaza özel token (X-Pdks-Device başlığı).
 
-    iOS Safari, kameranın açtığı sayfada fetch ile set edilen HttpOnly çerezi her
-    zaman taşımıyor; bu yüzden frontend kimliği localStorage'da da tutup başlıkla
-    gönderir. Aynı-origin istek olduğundan özel başlık CORS'a takılmaz.
+    Bu token yalnızca kurulumu yapan telefonun localStorage'ında durur; URL'de/QR'da
+    ASLA yer almaz → kişisel link kopyalanıp başka telefonda kullanılsa bile basış yapılamaz
+    (anti-buddy-punch). Tek aktif cihaz: hash personnel.device_token_hash ile eşleşmeli.
     """
-    tok = request.headers.get("X-Pdks-Token") or request.cookies.get(COOKIE_NAME)
+    tok = request.headers.get("X-Pdks-Device")
     if not tok:
         return None
     return db.query(Personnel).filter(
-        Personnel.access_token == tok, Personnel.is_active.is_(True)
+        Personnel.device_token_hash == _hash_device(tok), Personnel.is_active.is_(True)
     ).first()
 
 
@@ -229,6 +224,8 @@ def _personnel_dict(p: Personnel) -> dict:
     return {
         "id": p.id, "full_name": p.full_name, "employee_code": p.employee_code,
         "department": p.department, "title": p.title, "phone": p.phone, "is_active": p.is_active,
+        "device_bound": bool(p.device_token_hash),
+        "device_bound_at": p.device_bound_at.isoformat() if p.device_bound_at else None,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
 
@@ -446,24 +443,40 @@ def pdks_manifest(t: str = Query(...), db: Session = Depends(get_db)):
 
 
 @router.post("/attendance/setup")
-def setup(data: SetupRequest, request: Request, response: Response, db: Session = Depends(get_db)):
-    """Kişisel kurulum linki → kimlik çerezi (pdks_token) set et."""
+def setup(data: SetupRequest, request: Request, db: Session = Depends(get_db)):
+    """Kişisel kurulum (enrollment) — access_token ile BU cihazı bağla, cihaz token'ı döndür.
+
+    Tek aktif cihaz: personel zaten bir cihaza bağlıysa **409** → yönetici 'Cihaz Sıfırla'
+    yapmadan yeni telefonda kullanılamaz. Dönen `device_token` yalnızca bu telefonun
+    localStorage'ında saklanır ve basışta `X-Pdks-Device` ile gönderilir (URL'de/QR'da olmaz)
+    → kopyalanan kişisel link başka telefonda basış yapamaz.
+    """
     punch_limiter.check(f"pdks-setup-{get_client_ip(request)}")
     p = db.query(Personnel).filter(
         Personnel.access_token == data.token.strip(), Personnel.is_active.is_(True)
     ).first()
     if not p:
         raise HTTPException(status_code=404, detail="Geçersiz veya pasif personel linki")
-    _set_cookie(response, p.access_token)
-    return {"ok": True, "full_name": p.full_name, "employee_code": p.employee_code}
+    if p.device_token_hash:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu kart başka bir cihaza tanımlı. Yöneticiden 'Cihaz Sıfırla' isteyin.",
+        )
+    device_token = secrets.token_urlsafe(32)
+    p.device_token_hash = _hash_device(device_token)
+    p.device_bound_at = datetime.now(TZ)
+    log_action(db, None, "device_bound", "attendance_device", p.id,
+               f"Cihaz bağlandı: {p.full_name}", get_client_ip(request))
+    db.commit()
+    return {"ok": True, "full_name": p.full_name, "employee_code": p.employee_code, "device_token": device_token}
 
 
 @router.get("/attendance/me")
 def me(request: Request, db: Session = Depends(get_db)):
-    """Çerezdeki personelin bilgisi + bugünkü durumu."""
-    p = _personnel_from_request(request, db)
+    """Cihaza bağlı personelin bilgisi + bugünkü durumu (X-Pdks-Device)."""
+    p = _personnel_from_device(request, db)
     if not p:
-        raise HTTPException(status_code=401, detail="Personel tanımlı değil — kurulum linkini açın")
+        raise HTTPException(status_code=401, detail="Cihaz tanımlı değil — kurulum gerekli")
     summary = _today_summary(db, p.id)
     last = _last_log(db, p.id)
     return {
@@ -478,9 +491,9 @@ def me(request: Request, db: Session = Depends(get_db)):
 def punch(data: PunchRequest, request: Request, db: Session = Depends(get_db)):
     """Kiosk QR'ı okutunca çağrılır — token doğrula, giriş/çıkış kaydet."""
     punch_limiter.check(f"pdks-punch-{get_client_ip(request)}")
-    p = _personnel_from_request(request, db)
+    p = _personnel_from_device(request, db)
     if not p:
-        raise HTTPException(status_code=401, detail="Personel tanımlı değil — kurulum linkini açın")
+        raise HTTPException(status_code=401, detail="Cihaz tanımlı değil — kurulum gerekli")
     if not _valid_token(data.k, _ttl_for(_get_refresh(db))):
         raise HTTPException(status_code=400, detail="Karekod süresi doldu — ekrandaki güncel kodu tekrar okutun")
 
@@ -509,6 +522,29 @@ def punch(data: PunchRequest, request: Request, db: Session = Depends(get_db)):
 
 
 # ═══ YÖNETİCİ — Personel yönetimi ════════════════════════
+
+@router.post("/attendance/personnel/{personnel_id}/reset-device")
+def reset_device(
+    personnel_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("hr.attendance", "use")),
+):
+    """Personelin bağlı cihazını çöz — yeni telefon / tarayıcı verisi silme sonrası.
+
+    Bağ kalkınca personel kartını okutan İLK cihaz yeniden bağlanır. Operasyonel
+    güvenlik işlemi (şifre sıfırlama gibi) — onay akışına tabi değil, audit'lenir.
+    """
+    p = db.query(Personnel).filter(Personnel.id == personnel_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Personel bulunamadı")
+    p.device_token_hash = None
+    p.device_bound_at = None
+    log_action(db, current_user.id, "device_reset", "attendance_device", p.id,
+               f"Cihaz sıfırlandı: {p.full_name}", get_client_ip(request))
+    db.commit()
+    return {"ok": True}
+
 
 @router.get("/attendance/personnel")
 def list_personnel(

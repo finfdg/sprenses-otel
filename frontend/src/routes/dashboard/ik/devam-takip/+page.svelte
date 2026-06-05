@@ -16,12 +16,13 @@
 	import SortableHeader, { type SortOrder } from '$lib/components/SortableHeader.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
-		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload,
+		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload, RotateCcw,
 	} from 'lucide-svelte';
 
 	type Personnel = {
 		id: number; full_name: string; employee_code: string;
 		department: string | null; title: string | null; phone: string | null; is_active: boolean; created_at: string;
+		device_bound: boolean; device_bound_at: string | null;
 	};
 	type InsideRow = { personnel_id: number; full_name: string; department: string | null; since: string };
 	type LogRow = {
@@ -261,6 +262,21 @@
 			showToast(e instanceof ApiError ? e.message : 'Silinemedi', 'error');
 		}
 		confirmDel = { show: false, target: null };
+	}
+
+	// ── Cihaz sıfırlama (anti-buddy-punch: bağlı cihazı çöz → yeni telefon bağlanabilsin) ──
+	let confirmReset = $state<{ show: boolean; target: Personnel | null }>({ show: false, target: null });
+	function askResetDevice(p: Personnel) { confirmReset = { show: true, target: p }; }
+	async function doResetDevice() {
+		if (!confirmReset.target) return;
+		try {
+			await api.post(`/attendance/personnel/${confirmReset.target.id}/reset-device`, {});
+			showToast('Cihaz sıfırlandı — personel kartını tekrar okutarak yeni telefonu bağlayabilir', 'success');
+			await loadPersonnel();
+		} catch (e) {
+			showToast(e instanceof ApiError ? e.message : 'Sıfırlanamadı', 'error');
+		}
+		confirmReset = { show: false, target: null };
 	}
 
 	// ── Excel içe aktarma (sicil listesi) + QR kartları ──
@@ -518,6 +534,7 @@
 									<th class="px-4 py-3 text-left hidden sm:table-cell"><SortableHeader column="department" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Departman</SortableHeader></th>
 									<th class="px-4 py-3 text-left hidden md:table-cell"><SortableHeader column="title" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Görev</SortableHeader></th>
 									<th class="px-4 py-3"><SortableHeader column="is_active" align="center" sortKey={psortKey} sortOrder={psortOrder} onSort={onPersonnelSort}>Durum</SortableHeader></th>
+									<th class="px-4 py-3 text-center font-medium text-gray-500 text-xs hidden lg:table-cell">Cihaz</th>
 									<th class="px-4 py-3 text-right font-medium text-gray-500 text-xs">İşlem</th>
 								</tr>
 							</thead>
@@ -531,12 +548,26 @@
 										<td class="px-4 py-3 text-center">
 											{#if p.is_active}<StatusBadge type="success">Aktif</StatusBadge>{:else}<StatusBadge type="neutral">Pasif</StatusBadge>{/if}
 										</td>
+										<td class="px-4 py-3 text-center hidden lg:table-cell">
+											{#if p.device_bound}
+												<span class="inline-flex items-center gap-1" title={p.device_bound_at ? `Bağlandı: ${new Date(p.device_bound_at).toLocaleString('tr-TR')}` : ''}>
+													<StatusBadge type="info">Bağlı</StatusBadge>
+												</span>
+											{:else}
+												<StatusBadge type="neutral">Yok</StatusBadge>
+											{/if}
+										</td>
 										<td class="px-4 py-3">
 											<div class="flex items-center justify-end gap-1">
 												<button onclick={() => qrCard = p} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="QR Kart">
 													<QrCode size={16} />
 												</button>
 												{#if canUse}
+													{#if p.device_bound}
+														<button onclick={() => askResetDevice(p)} class="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded cursor-pointer" title="Cihaz Sıfırla (yeni telefon bağlamak için)">
+															<RotateCcw size={16} />
+														</button>
+													{/if}
 													<button onclick={() => openEdit(p)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle">
 														<Pencil size={16} />
 													</button>
@@ -930,4 +961,13 @@
 	confirmText="Sil"
 	onCancel={() => (confirmDel = { show: false, target: null })}
 	onConfirm={doDelete}
+/>
+
+<ConfirmDialog
+	bind:show={confirmReset.show}
+	title="Cihazı Sıfırla"
+	message={confirmReset.target ? `${confirmReset.target.full_name} için bağlı cihaz çözülecek. Mevcut telefonu basış yapamaz; personel kişisel QR kartını tekrar okutarak yeni telefonunu bağlar. Devam edilsin mi?` : ''}
+	confirmText="Sıfırla"
+	onCancel={() => (confirmReset = { show: false, target: null })}
+	onConfirm={doResetDevice}
 />

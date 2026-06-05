@@ -35,8 +35,15 @@ class Personnel(Base):
     department: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     title: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)  # görev / ünvan
     phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
-    # Kişisel kimlik/kurulum token'ı — telefon çerezi bununla set edilir
+    # Kişisel KAYIT (enrollment) token'ı — kişisel QR/URL bunu taşır. Tek başına BASIŞ
+    # YETKİSİ DEĞİLDİR; yalnızca bir cihazı bağlamak (enroll) için kullanılır.
     access_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # Cihaz bağlama (anti-buddy-punch): kurulumda sunucu cihaza özel bir token üretir;
+    # SHA-256 hash'i burada tutulur. Basış kimliği = bu cihaz token'ı (yalnızca o telefonun
+    # localStorage'ında; URL'de/QR'da DEĞİL). Kopyalanan URL başka telefonda basamaz.
+    # Tek aktif cihaz: zaten bağlıysa yeni enroll 409 → admin "Cihaz Sıfırla" gerekir.
+    device_token_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    device_bound_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

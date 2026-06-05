@@ -27,7 +27,8 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
 iOS Camera uygulaması bir QR'ı okutunca URL'i **izole/geçici bir bağlamda** açar; **her okutma ayrı bağlam**
 olduğundan ne çerez ne de localStorage taşınır. Bu yüzden "girişteki ekranı telefonun kendi kamerasıyla
 okut → `/devam?k=` bas" akışı iOS'ta **kalıcı çalışmaz** (punch isteği `header=False cookie=False` → 401 →
-"Önce kurulum gerekli"). **Çözüm:** kimlik personelin **kendi URL'sinde** (`?t=`) durur ve tarama
+"Önce kurulum gerekli"). **Çözüm:** kayıt (enrollment) token'ı personelin **kendi URL'sinde** (`?t=`)
+durur; ilk açılışta sunucu **cihaza özel bir basış token'ı** üretir (localStorage) ve tarama
 **uygulama-içi** (`getUserMedia` + `jsqr`) yapılır → her şey tek, kalıcı bağlamda olur.
 - `/devam` (native-scan landing) artık **basış denemez**; kimlik varsa `/devam/kur`'a yönlendirir,
   yoksa "kendi uygulamandaki Tara'yı kullan" talimatı gösterir.
@@ -49,10 +50,29 @@ açıyordu. Ayrıca tarayıcı verisi/geçmişi silinince `localStorage` (tek ki
 - Tüm uygulama SPA (`ssr=false`) olduğundan manifest linkleri istemci tarafında enjekte edilir
   (kurulum kullanıcı eylemi yüklemeden sonra olduğu için sorun değil).
 - **Kalan tek kurtarma gereği:** personel verisini silip ana ekran ikonunu DA silerse → fiziksel
-  QR kartı tekrar okutur (kimlik kartta gömülü).
+  QR kartı tekrar okutur (kayıt token'ı kartta gömülü).
+
+### 🔒 Cihaz Bağlama (anti-buddy-punch)
+**Sorun:** Kişisel URL/QR `access_token`'ı taşıyordu ve basış kimliği oydu → URL kopyalanıp **başka
+telefonda** kullanılırsa o kişi adına basılabiliyordu (buddy-punching). (Uzaktan basış zaten engelliydi:
+basış canlı dönen kiosk QR'ı `k`'yı da ister; bu ~refresh+3 sn'de geçersiz olur, fiziksel varlık şart.)
+
+**Çözüm — basış kimliğini cihaza kilitle:**
+- `access_token` artık **yalnızca kayıt (enrollment)**. Kurulumda (`POST /attendance/setup`) sunucu
+  cihaza özel bir **`device_token`** üretir; SHA-256 hash'i `personnel.device_token_hash`'te tutulur.
+  device_token **yalnızca o telefonun localStorage'ında** durur; **URL'de/QR'da/manifest'te ASLA** yer almaz.
+- Basış/durum (`/punch`, `/me`) kimliği artık **`X-Pdks-Device`** başlığıdır (device_token). Eski
+  `X-Pdks-Token` (access_token) **artık kimlik vermez** → kopyalanan link başka telefonda **basamaz**.
+- **Tek aktif cihaz:** personel zaten bir cihaza bağlıysa yeni kurulum **409** → yönetici panelden
+  **"Cihaz Sıfırla"** (`POST /attendance/personnel/{id}/reset-device`, audit'li) yapar; sonra personel
+  kartını okutan **ilk** cihaz yeniden bağlanır. Panelde personel satırında **Cihaz: Bağlı/Yok** rozeti.
+- **Takas:** Tarayıcı verisi silinince device_token gider → ikon `?t=` ile açılsa da kart zaten bağlı
+  olduğundan **otomatik geri yüklenemez**; yönetici "Cihaz Sıfırla" yapar (nadiren gerekir). Güvenlik
+  bilinçli olarak kalıcılığın önüne geçer.
+- Test: `backend/tests/test_attendance_device.py` (5 test — enroll/409/yanlış-cihaz/eski-token-401/reset→re-enroll).
 
 ## Veritabanı (3 tablo)
-- `personnel`: id, full_name, employee_code (unique, **sicil no**), department, **title** (görev/ünvan), phone, **access_token** (kişisel kimlik), is_active.
+- `personnel`: id, full_name, employee_code (unique, **sicil no**), department, **title** (görev/ünvan), phone, **access_token** (yalnızca KAYIT/enrollment), **device_token_hash** (bağlı cihazın basış kimliği — SHA-256), **device_bound_at**, is_active.
 - `attendance_logs`: id, personnel_id (FK CASCADE), type (in/out), punched_at, source (phone_qr/manual), recorded_by (manuel ise yönetici FK), note, **edited_at** (düzenlendiyse → mavi), **deleted_at** (soft delete → soluk gösterilir, aktif hesaplara girmez).
 - `attendance_settings`: tek satır (id=1). **refresh_sec** (kiosk QR ekranda ne sıklıkta değişir, sn), updated_at.
   Panelden düzenlenir (2-120sn). Token güvenlik geçerliliği = `refresh_sec + 3` (grace) ile türetilir.

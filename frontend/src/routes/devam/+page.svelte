@@ -9,19 +9,17 @@
 	type View = 'loading' | 'use-app';
 	let view = $state<View>('loading');
 
-	function pdksToken(): string {
-		try { return localStorage.getItem('pdks_token') ?? ''; } catch { return ''; }
+	function hasIdentity(): boolean {
+		// Cihaz token'ı (yeni) veya eski access_token (migrasyon) bu cihazda var mı?
+		try { return !!(localStorage.getItem('pdks_device') || localStorage.getItem('pdks_token')); } catch { return false; }
 	}
 
 	onMount(() => {
 		const k = $page.url.searchParams.get('k');
-		const tk = pdksToken();
-		if (tk) {
-			// Kimlik bu bağlamda var → kişisel uygulamaya geç (k varsa orada anında bas).
-			const dest = k
-				? `/devam/kur?t=${encodeURIComponent(tk)}&k=${encodeURIComponent(k)}`
-				: `/devam/kur?t=${encodeURIComponent(tk)}`;
-			window.location.replace(dest);
+		if (hasIdentity()) {
+			// Kimlik bu bağlamda var → kişisel uygulamaya geç; kimliği kur sayfası localStorage'dan
+			// çözer (cihaz token'ı URL'de TAŞINMAZ — kopyalanamasın diye).
+			window.location.replace(k ? `/devam/kur?k=${encodeURIComponent(k)}` : '/devam/kur');
 			return;
 		}
 		view = 'use-app';
