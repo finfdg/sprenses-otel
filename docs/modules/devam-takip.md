@@ -129,8 +129,11 @@ Geçmiş sekmesi kayıtların onay/düzenleme yaşam döngüsünü renkli göste
 - **İptal:** talep sahibi (`can_cancel`) kendi bekleyen talebini satırdaki **⃠** ile iptal eder
   (`POST /attendance/pending/{id}/cancel` → modül-içi, `system.approval` izni gerekmez).
 - **Tarihçe (🕘):** her kayıtta `GET /attendance/logs/{id}/history` → audit zaman çizelgesi
-  (oluşturma/düzenleme/silme; kim, ne zaman, detay) + varsa bekleyen işlem. Audit `entity_id=log id` ile
+  (oluşturma/düzenleme/silme; kim, ne zaman) + varsa bekleyen işlem. Audit `entity_id=log id` ile
   yazılır (hem doğrudan endpoint hem onay-executor); bu yüzden onaylı değişiklikler de tarihçede görünür.
+  **Düzenleme detayı `eski→yeni` farkını gösterir** (`_edit_detail`): yalnızca değişen alanlar
+  — `hareket: giriş→çıkış`, `zaman: 10:00→10:30`, `not: 'a'→'b'`. Zaman dk hassasiyetinde + Istanbul'a
+  çevrilir (`astimezone(TZ)` — DB UTC tz döndüğü için; aynı düzeltme silme detayında da uygulandı).
 - Bekleyen kayıtta düzenle/sil butonları gizlenir (çakışma + 409 önlemi); yalnızca tarihçe + iptal kalır.
 
 ## Audit Log

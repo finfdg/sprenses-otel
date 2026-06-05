@@ -697,6 +697,7 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
         log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
         if not log:
             return
+        old_type, old_when, old_note = log.type, log.punched_at, log.note
         if payload.get("type"):
             log.type = payload["type"]
         if "note" in payload:
@@ -705,7 +706,19 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
         if when is not None:
             log.punched_at = when
         log.edited_at = _dt.now(tz)
-        log_action(db, actor_id, "update", "attendance", log.id, f"Onaylı düzenleme → {log.type}")
+        # Eski→yeni farkı (audit detayı + tarihçe)
+        def _tt(t):
+            return "giriş" if t == "in" else "çıkış"
+        ch = []
+        if old_type != log.type:
+            ch.append(f"hareket: {_tt(old_type)}→{_tt(log.type)}")
+        ows, nws = old_when.astimezone(tz).strftime("%d.%m %H:%M"), log.punched_at.astimezone(tz).strftime("%d.%m %H:%M")
+        if ows != nws:
+            ch.append(f"zaman: {ows}→{nws}")
+        if (old_note or "") != (log.note or ""):
+            ch.append(f"not: '{old_note or '—'}'→'{log.note or '—'}'")
+        detail = "; ".join(ch) if ch else "değişiklik yok"
+        log_action(db, actor_id, "update", "attendance", log.id, detail)
 
     elif action_type == "delete":
         log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()

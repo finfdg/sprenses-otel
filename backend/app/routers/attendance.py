@@ -154,6 +154,25 @@ def _localize(dt: datetime) -> datetime:
     return TZ.localize(dt) if dt.tzinfo is None else dt
 
 
+def _type_tr(t: str) -> str:
+    return "giriş" if t == TYPE_IN else "çıkış"
+
+
+def _edit_detail(ot: str, ow: datetime, on: Optional[str],
+                 nt: str, nw: datetime, nn: Optional[str]) -> str:
+    """Eski→yeni farkını okunur metne çevir (audit detayı + tarihçe). Zaman dk hassasiyetinde."""
+    parts = []
+    if ot != nt:
+        parts.append(f"hareket: {_type_tr(ot)}→{_type_tr(nt)}")
+    # DB'den okunan datetime UTC tz'li olabilir → her ikisini de Istanbul'a çevir
+    ows, nws = ow.astimezone(TZ).strftime("%d.%m %H:%M"), nw.astimezone(TZ).strftime("%d.%m %H:%M")
+    if ows != nws:
+        parts.append(f"zaman: {ows}→{nws}")
+    if (on or "") != (nn or ""):
+        parts.append(f"not: '{on or '—'}'→'{nn or '—'}'")
+    return "; ".join(parts) if parts else "değişiklik yok"
+
+
 def _assert_alternation(
     db: Session, personnel_id: int, when: datetime, new_type: str, exclude_id: Optional[int] = None
 ) -> None:
@@ -724,6 +743,7 @@ def update_log(
     if approval_resp:
         return approval_resp
 
+    old_type, old_when, old_note = lg.type, lg.punched_at, lg.note
     if "type" in fields:
         lg.type = new_type
     if "note" in fields:
@@ -731,9 +751,8 @@ def update_log(
     if fields.get("punched_at"):
         lg.punched_at = new_when
     lg.edited_at = datetime.now(TZ)
-    log_action(db, current_user.id, "update", "attendance", lg.id,
-               f"Kayıt #{lg.id} düzenlendi → {lg.type} {lg.punched_at.strftime('%d.%m %H:%M')}",
-               get_client_ip(request))
+    detail = _edit_detail(old_type, old_when, old_note, lg.type, lg.punched_at, lg.note)
+    log_action(db, current_user.id, "update", "attendance", lg.id, detail, get_client_ip(request))
     db.commit()
     manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "edit"})
     return {"ok": True, "id": lg.id, "type": lg.type,
@@ -759,7 +778,7 @@ def delete_log(
         return approval_resp
 
     log_action(db, current_user.id, "delete", "attendance", lg.id,
-               f"Kayıt #{lg.id} silindi ({lg.type} {lg.punched_at.strftime('%d.%m %H:%M')})",
+               f"Kayıt #{lg.id} silindi ({_type_tr(lg.type)} {lg.punched_at.astimezone(TZ).strftime('%d.%m %H:%M')})",
                get_client_ip(request))
     lg.deleted_at = datetime.now(TZ)  # soft delete
     db.commit()
