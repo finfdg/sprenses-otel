@@ -100,16 +100,44 @@ def test_advance_balance_and_by_advance(client, auth_headers):
     assert items["AINV1"]["status"] == "paid" and items["AINV1"]["by_advance"] is True
     assert items["AINV2"]["status"] == "paid" and items["AINV2"]["by_advance"] is True
 
-    # avans bakiyesi: 1500 yatırılan - 1200 fatura = 300 kalan
+    # avans bakiyesi: 1500 yatırılan - 1200 fatura = 300 kalan (TL)
     adv = client.get(f"{PREFIX}/advances", headers=auth_headers).json()
-    assert adv["count"] == 1 and adv["total_balance"] == 300.0
+    assert adv["count"] == 1 and adv["total_by_currency"]["TL"] == 300.0
     row = adv["items"][0]
     assert row["customer_code"] == "120.02.01.0099" and row["customer_name"] == "AVANS ACENTE"
+    assert row["currency"] == "TL"
     assert row["total_collected"] == 1500.0 and row["consumed"] == 1200.0 and row["net_advance"] == 300.0
 
-    # özette de avans bakiyesi
+    # özette de avans bakiyesi (para birimi bazlı)
     s = client.get(f"{PREFIX}/summary", headers=auth_headers).json()
-    assert s["advance"]["balance"] == 300.0 and s["advance"]["agency_count"] == 1
+    assert s["advance"]["by_currency"]["TL"] == 300.0 and s["advance"]["agency_count"] == 1
+
+
+FAKE_EUR = {
+    "invoices": [
+        {"customer_code": "120.01.02.A001", "customer_name": "ALLTOURS", "invoice_date": date(2026, 2, 1),
+         "invoice_no": "EUR1", "amount": 35000, "currency": "EUR", "amount_currency": 1000, "aciklama": "x"},
+    ],
+    "collections": [  # EUR avans önce
+        {"customer_code": "120.01.02.A001", "customer_name": "ALLTOURS", "collection_date": date(2026, 1, 1),
+         "amount": 54000, "currency": "EUR", "amount_currency": 1500, "fis_no": 1, "aciklama": "avans"},
+    ],
+}
+
+
+def test_eur_currency_per_currency_fifo(client, auth_headers):
+    """EUR avans EUR faturayı kapatır; bakiye EUR olarak raporlanır (TL'ye karışmaz)."""
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE_EUR):
+        client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
+    it = client.get(f"{PREFIX}/?search=EUR1", headers=auth_headers).json()["items"][0]
+    assert it["currency"] == "EUR" and it["amount"] == 1000.0 and it["amount_tl"] == 35000.0
+    assert it["status"] == "paid" and it["by_advance"] is True   # EUR avansla kapandı
+    # avans EUR olarak: 1500 - 1000 = 500 EUR
+    adv = client.get(f"{PREFIX}/advances", headers=auth_headers).json()
+    eur = [x for x in adv["items"] if x["currency"] == "EUR"]
+    assert eur and eur[0]["net_advance"] == 500.0 and eur[0]["customer_name"] == "ALLTOURS"
+    assert adv["total_by_currency"]["EUR"] == 500.0
 
 
 def test_same_day_payment_not_advance(client, auth_headers):

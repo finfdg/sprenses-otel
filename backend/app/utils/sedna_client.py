@@ -103,6 +103,8 @@ SELECT
     CONVERT(date, o.FicheDate)  AS invoice_date,
     t.DocumentNo                AS invoice_no,
     t.Debit                     AS amount,
+    t.Curr                      AS currency,
+    t.CurrDebit                 AS amount_currency,
     t.Remark1                   AS aciklama
 FROM AccountingTrans t
 JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
@@ -119,6 +121,8 @@ SELECT
     COALESCE(acc.Remark, '')    AS customer_name,
     CONVERT(date, o.FicheDate)  AS collection_date,
     t.Credit                    AS amount,
+    t.Curr                      AS currency,
+    t.CurrCredit                AS amount_currency,
     t.Remark1                   AS aciklama,
     o.Voucher                   AS fis_no
 FROM AccountingTrans t

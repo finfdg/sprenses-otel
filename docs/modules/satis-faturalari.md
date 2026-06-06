@@ -22,8 +22,21 @@ tahsilatların faturalara **FIFO** (en eskiden) düşülmesiyle hesaplanır.
 
 ## Veritabanı
 - `sales_invoices` — kesilen faturalar: `customer_code`, `customer_name`, `is_munferit`, `invoice_no`,
-  `invoice_date`, `amount`, `currency`, `description`, `tx_hash` (dedup), `created_at`.
-- `sales_collections` — tahsilatlar: `customer_code`, `collection_date`, `amount`, `description`, `tx_hash`.
+  `invoice_date`, `amount` (TL karşılığı), `currency`, **`amount_currency`** (döviz tutarı), `description`, `tx_hash`, `created_at`.
+- `sales_collections` — tahsilatlar: `customer_code`, `customer_name`, `collection_date`, `amount` (TL),
+  `currency`, **`amount_currency`**, `description`, `tx_hash`.
+
+## Çoklu para birimi (EUR operatörler — 2026-06-06)
+Yabancı operatörler (Alltours, Odeon, W2M…) **EUR** çalışır; Sedna 120'de `Debit`/`Credit` TL karşılığı,
+`Curr`/`CurrDebit`/`CurrCredit` döviz tutarıdır. Modül her ikisini saklar (`amount`=TL, `amount_currency`=döviz).
+- **FIFO `(müşteri, para birimi)` bazında** — EUR avans yalnız EUR faturayı kapatır; kur dalgalanması TL-düzleme
+  hatasını engeller (TL FIFO yanlış olurdu).
+- **Liste:** fatura tutarı **döviz** olarak gösterilir (`amount`+`currency`), TL karşılığı (`amount_tl`) ayrıca.
+- **Özet/Avans:** TL toplamları konsolide; **avans bakiyesi para birimi bazında** (`advance.by_currency` /
+  `total_by_currency`: `{TL: x, EUR: y}`). EUR operatörler EUR avansla görünür.
+- **Manuel `finance.avanslar` ile kıyas:** Manuel modül EUR girer; artık bu modül de EUR taşıdığından
+  Alltours beklenen (manuel) vs gerçekleşen (Sedna EUR) **birebir kıyaslanabilir**.
+  Not: büyük operatörler çoğu zaman **net alacaklı** (avans tüketilmiş, bize borçlu) — o an net avans göstermezler.
 - Dedup `tx_hash` ile (kod seviyesinde): fatura `sha256(sinv|kod|tarih|no|tutar)`, tahsilat `sha256(scol|kod|tarih|tutar|fis)`.
 
 ## FIFO tahsil durumu (`_status_map`)

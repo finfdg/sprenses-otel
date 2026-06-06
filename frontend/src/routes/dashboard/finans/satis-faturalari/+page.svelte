@@ -20,16 +20,16 @@
 		munferit: { invoiced: number; collected: number; outstanding: number; count: number };
 		agency: { invoiced: number; collected: number; outstanding: number; count: number };
 		status_counts: { paid: number; partial: number; open: number };
-		advance: { balance: number; agency_count: number };
+		advance: { by_currency: Record<string, number>; agency_count: number };
 	};
 	type Invoice = {
 		id: number; customer_code: string; customer_name: string; is_munferit: boolean;
-		invoice_no: string | null; invoice_date: string; amount: number; currency: string;
+		invoice_no: string | null; invoice_date: string; amount: number; amount_tl: number; currency: string;
 		collected: number; remaining: number; status: string;
 		advance_covered: number; by_advance: boolean;
 	};
 	type Advance = {
-		customer_code: string; customer_name: string; is_munferit: boolean;
+		customer_code: string; customer_name: string; is_munferit: boolean; currency: string;
 		total_collected: number; consumed: number; net_advance: number;
 	};
 
@@ -37,7 +37,7 @@
 	let summary = $state<Summary | null>(null);
 	let items = $state<Invoice[]>([]);
 	let advances = $state<Advance[]>([]);
-	let advTotal = $state(0);
+	let advByCur = $state<Record<string, number>>({});
 	let advLoaded = $state(false);
 	let loading = $state(true);
 	let total = $state(0);
@@ -54,6 +54,14 @@
 	}
 	function fmt2(n: number): string {
 		return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+	}
+	function curSym(c: string): string {
+		return c === 'EUR' ? '€' : c === 'USD' ? '$' : c === 'GBP' ? '£' : '₺';
+	}
+	function fmtCur(n: number, c: string): string { return fmt2(n) + ' ' + curSym(c); }
+	function fmtCurMap(m: Record<string, number>): string {
+		const parts = Object.entries(m || {}).filter(([, v]) => Math.abs(v) > 0.01).map(([c, v]) => fmtCur(v, c));
+		return parts.length ? parts.join(' · ') : '0 ₺';
 	}
 	function fmtDate(s: string): string {
 		if (!s) return '-';
@@ -89,9 +97,9 @@
 	async function loadAdvances() {
 		if (advLoaded) return;
 		try {
-			const r = await api.get<{ items: Advance[]; total_balance: number }>('/finance/sales-invoices/advances');
+			const r = await api.get<{ items: Advance[]; total_by_currency: Record<string, number> }>('/finance/sales-invoices/advances');
 			advances = r.items;
-			advTotal = r.total_balance;
+			advByCur = r.total_by_currency;
 			advLoaded = true;
 		} catch (e) {
 			console.error('Acente avansları alınamadı:', e);
@@ -128,7 +136,7 @@
 			<StatCard label="Tahsil Edilen" value={fmt(summary.total.collected)} accent="emerald" icon={CircleCheck} hint={`${summary.status_counts.paid} ödendi`} />
 			<StatCard label="Açık (Tahsil Edilmemiş)" value={fmt(summary.total.outstanding)} accent="amber" icon={CircleDashed} hint={`${summary.status_counts.open} açık · ${summary.status_counts.partial} kısmi`} />
 			<button onclick={() => setView('advances')} class="text-left cursor-pointer">
-				<StatCard label="Acente Avansı (kullanılmamış)" value={fmt(summary.advance.balance)} accent="teal" icon={Wallet} hint={`${summary.advance.agency_count} acente prepaid → görüntüle`} />
+				<StatCard label="Acente Avansı (kullanılmamış)" value={`${fmt(summary.advance.by_currency.TL ?? 0)} ₺`} accent="teal" icon={Wallet} hint={`${summary.advance.agency_count} acente${summary.advance.by_currency.EUR ? ' · ' + fmt(summary.advance.by_currency.EUR) + ' €' : ''} → görüntüle`} />
 			</button>
 		</div>
 	{/if}
@@ -197,7 +205,7 @@
 									<span class="truncate max-w-[18rem]">{inv.customer_name}</span>
 								</span>
 							</td>
-							<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(inv.amount)}</td>
+							<td class="px-4 py-2.5 text-right tabular-nums text-gray-800 whitespace-nowrap">{fmtCur(inv.amount, inv.currency)}</td>
 							<td class="px-4 py-2.5 text-right tabular-nums text-emerald-600">{inv.collected ? fmt2(inv.collected) : '—'}</td>
 							<td class="px-4 py-2.5 text-right tabular-nums {inv.remaining > 0.01 ? 'text-amber-700 font-medium' : 'text-gray-400'}">{inv.remaining > 0.01 ? fmt2(inv.remaining) : '—'}</td>
 							<td class="px-4 py-2.5 text-center">
@@ -223,8 +231,8 @@
 							<StatusBadge type={STATUS_BADGE[inv.status] ?? 'neutral'}>{STATUS_LABELS[inv.status] ?? inv.status}</StatusBadge>
 						</div>
 						<div class="flex items-center justify-between mt-2 text-xs tabular-nums">
-							<span class="text-gray-500">Tutar: <span class="text-gray-800">{fmt2(inv.amount)} ₺</span></span>
-							{#if inv.remaining > 0.01}<span class="text-amber-700">Kalan: {fmt2(inv.remaining)} ₺</span>{:else}<span class="text-emerald-600 inline-flex items-center gap-1">Tahsil edildi{#if inv.by_advance}<span class="text-teal-600 text-[10px]">· avans</span>{/if}</span>{/if}
+							<span class="text-gray-500">Tutar: <span class="text-gray-800">{fmtCur(inv.amount, inv.currency)}</span></span>
+							{#if inv.remaining > 0.01}<span class="text-amber-700">Kalan: {fmtCur(inv.remaining, inv.currency)}</span>{:else}<span class="text-emerald-600 inline-flex items-center gap-1">Tahsil edildi{#if inv.by_advance}<span class="text-teal-600 text-[10px]">· avans</span>{/if}</span>{/if}
 						</div>
 					</div>
 				{/each}
@@ -240,7 +248,7 @@
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			<div class="px-4 py-3 border-b border-gray-100 bg-teal-50/40 flex items-center justify-between flex-wrap gap-2">
 				<p class="text-sm text-gray-600 max-w-2xl">Acentelerin yatırıp henüz fatura ile kapatmadığı <strong>kullanılmamış avans</strong> bakiyesi. Yeni faturalar kesildikçe bu avanstan FIFO ile düşülür (mahsup).</p>
-				<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">Toplam: {fmt2(advTotal)} ₺</span>
+				<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">Toplam: {fmtCurMap(advByCur)}</span>
 			</div>
 			{#if advances.length === 0}
 				<EmptyState icon={Wallet} title="Açık avans yok" message="Net avans bakiyesi olan acente bulunmuyor. Üst bardaki 'Sedna' butonuyla içe aktarın." />
@@ -265,7 +273,7 @@
 								</td>
 								<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(a.total_collected)}</td>
 								<td class="px-4 py-2.5 text-right tabular-nums text-gray-400">{a.consumed > 0.01 ? fmt2(a.consumed) : '—'}</td>
-								<td class="px-4 py-2.5 text-right tabular-nums text-teal-700 font-semibold">{fmt2(a.net_advance)}</td>
+								<td class="px-4 py-2.5 text-right tabular-nums text-teal-700 font-semibold whitespace-nowrap">{fmtCur(a.net_advance, a.currency)}</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -275,7 +283,7 @@
 						<div class="p-3">
 							<div class="flex items-center justify-between gap-2">
 								<p class="text-sm font-medium text-gray-800 truncate">{a.customer_name}</p>
-								<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">{fmt2(a.net_advance)} ₺</span>
+								<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">{fmtCur(a.net_advance, a.currency)}</span>
 							</div>
 							<p class="text-xs text-gray-500 mt-1 tabular-nums">Yatırılan {fmt2(a.total_collected)} · Kapanan {fmt2(a.consumed)}</p>
 						</div>

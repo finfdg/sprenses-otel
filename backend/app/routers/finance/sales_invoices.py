@@ -55,6 +55,15 @@ def _hash(*parts) -> str:
     return hashlib.sha256("|".join(str(p) for p in parts).encode("utf-8")).hexdigest()
 
 
+def _native(amount_tl: float, currency, amt_cur) -> tuple:
+    """(currency, amount_currency) — döviz ise (Curr, CurrDebit/Credit); değilse ('TL', TL tutarı)."""
+    cur = (currency or "TL").strip() or "TL"
+    nat = _f(amt_cur)
+    if cur != "TL" and nat > 0:
+        return cur, round(nat, 2)
+    return "TL", round(amount_tl, 2)
+
+
 def _compute(db: Session):
     """Tarih-sıralı FIFO. Döner: (inv_map, advance_balance).
 
@@ -67,27 +76,33 @@ def _compute(db: Session):
     faturaya backfill (sonradan gelen = normal tahsilat); fatura kesildiğinde önce mevcut
     avans havuzundan karşılanır (prepaid).
     """
+    def _amt(o):  # native (döviz) tutar — yoksa TL'ye düş
+        n = _f(o.amount_currency)
+        return n if n > _EPS else _f(o.amount)
+
+    # (müşteri, para birimi) bazında grupla — EUR avans yalnız EUR faturayı kapatır
     inv_by: dict = defaultdict(list)
     col_by: dict = defaultdict(list)
     for inv in db.query(SalesInvoice).all():
-        inv_by[inv.customer_code].append(inv)
+        inv_by[(inv.customer_code, inv.currency)].append(inv)
     for col in db.query(SalesCollection).all():
-        col_by[col.customer_code].append(col)
+        col_by[(col.customer_code, col.currency)].append(col)
 
     inv_map: dict = {}
-    advance_balance: dict = {}
+    advance_balance: dict = {}   # (code, currency) -> native leftover (net avans)
 
-    for code in set(inv_by) | set(col_by):
-        events = [(inv.invoice_date, 0, "inv", inv) for inv in inv_by.get(code, [])]
-        events += [(col.collection_date, 1, "col", col) for col in col_by.get(code, [])]
+    for key in set(inv_by) | set(col_by):
+        invs = inv_by.get(key, [])
+        events = [(inv.invoice_date, 0, "inv", inv) for inv in invs]
+        events += [(col.collection_date, 1, "col", col) for col in col_by.get(key, [])]
         events.sort(key=lambda e: (e[0], e[1]))
 
-        pool = 0.0           # mevcut avans/kredi havuzu
-        open_q: list = []    # açık faturalar FIFO: [(inv, remaining)]
-        state: dict = {}     # inv.id -> [collected, advance_covered]
+        pool = 0.0           # mevcut avans/kredi havuzu (native)
+        open_q: list = []    # açık faturalar FIFO: [(inv, remaining_native)]
+        state: dict = {}     # inv.id -> [collected_native, advance_native]
         for _d, _t, kind, obj in events:
             if kind == "col":
-                pool += _f(obj.amount)
+                pool += _amt(obj)
                 i = 0
                 while i < len(open_q) and pool > _EPS:
                     inv, rem = open_q[i]
@@ -102,25 +117,31 @@ def _compute(db: Session):
                         break
                 open_q = open_q[i:]
             else:
-                amount = _f(obj.amount)
+                amount = _amt(obj)
                 adv = min(pool, amount) if pool > _EPS else 0.0
                 pool -= adv
                 state[obj.id] = [adv, adv]
                 if amount - adv > _EPS:
                     open_q.append((obj, amount - adv))
 
-        for inv in inv_by.get(code, []):
+        for inv in invs:
             collected, adv = state.get(inv.id, [0.0, 0.0])
-            amount = _f(inv.amount)
-            if collected >= amount - _EPS:
+            nat_amt = _amt(inv)
+            ratio = (collected / nat_amt) if nat_amt > _EPS else 0.0
+            if collected >= nat_amt - _EPS:
                 st = STATUS_PAID
             elif collected > _EPS:
                 st = STATUS_PARTIAL
             else:
                 st = STATUS_OPEN
-            inv_map[inv.id] = {"collected": round(collected, 2), "advance": round(adv, 2), "status": st}
+            inv_map[inv.id] = {
+                "collected": round(collected, 2),           # native
+                "collected_tl": round(_f(inv.amount) * ratio, 2),
+                "advance": round(adv, 2),                   # native
+                "status": st,
+            }
         if pool > _EPS:
-            advance_balance[code] = round(pool, 2)
+            advance_balance[key] = round(pool, 2)
     return inv_map, advance_balance
 
 
@@ -160,9 +181,10 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
                 inv_skip += 1
                 continue
             name = (r.get("customer_name") or "").strip()
+            cur, amt_nat = _native(amt, r.get("currency"), r.get("amount_currency"))
             db.add(SalesInvoice(
                 customer_code=code, customer_name=name, is_munferit=_is_munferit(code, name),
-                invoice_no=no, invoice_date=d, amount=amt, currency="TL",
+                invoice_no=no, invoice_date=d, amount=amt, currency=cur, amount_currency=amt_nat,
                 description=(r.get("aciklama") or None), tx_hash=h,
             ))
             existing_inv.add(h)
@@ -184,8 +206,10 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
                     ex.customer_name = name   # boş ismi Sedna'dan doldur
                 col_skip += 1
                 continue
+            cur, amt_nat = _native(amt, r.get("currency"), r.get("amount_currency"))
             col = SalesCollection(
                 customer_code=code, customer_name=name, collection_date=d, amount=amt,
+                currency=cur, amount_currency=amt_nat,
                 description=(r.get("aciklama") or None), tx_hash=h,
             )
             db.add(col)
@@ -250,13 +274,15 @@ def list_invoices(
         st = entry["status"]
         if status and st != status:
             continue
-        amt = _f(inv.amount)
+        amt_tl = _f(inv.amount)
+        amt_nat = _f(inv.amount_currency) or amt_tl     # döviz tutarı (TL ise = TL)
+        col = entry["collected"]                        # native
         items.append({
             "id": inv.id, "customer_code": inv.customer_code, "customer_name": inv.customer_name,
             "is_munferit": inv.is_munferit, "invoice_no": inv.invoice_no,
             "invoice_date": inv.invoice_date.isoformat() if inv.invoice_date else None,
-            "amount": amt, "currency": inv.currency,
-            "collected": entry["collected"], "remaining": round(amt - entry["collected"], 2),
+            "amount": amt_nat, "amount_tl": amt_tl, "currency": inv.currency,
+            "collected": col, "remaining": round(amt_nat - col, 2),
             "status": st, "advance_covered": entry["advance"], "by_advance": entry["advance"] > _EPS,
             "description": inv.description,
         })
@@ -285,24 +311,29 @@ def summary(
     }
     status_counts = {STATUS_PAID: 0, STATUS_PARTIAL: 0, STATUS_OPEN: 0}
     for inv in invoices:
-        entry = smap.get(inv.id, {"collected": 0.0, "status": STATUS_OPEN})
-        amt = _f(inv.amount)
+        entry = smap.get(inv.id, {"collected_tl": 0.0, "status": STATUS_OPEN})
+        amt = _f(inv.amount)  # TL karşılığı (konsolide)
         bucket = "munferit" if inv.is_munferit else "agency"
         for key in ("total", bucket):
             agg[key]["invoiced"] += amt
-            agg[key]["collected"] += entry["collected"]
+            agg[key]["collected"] += entry.get("collected_tl", 0.0)
             agg[key]["count"] += 1
         status_counts[entry["status"]] += 1
     for key in agg:
         agg[key]["invoiced"] = round(agg[key]["invoiced"], 2)
         agg[key]["collected"] = round(agg[key]["collected"], 2)
         agg[key]["outstanding"] = round(agg[key]["invoiced"] - agg[key]["collected"], 2)
+
+    # net avans — para birimi bazında (EUR avanslar TL'ye karıştırılmaz)
+    adv_by_cur: dict = {}
+    for (code, cur), bal in adv_bal.items():
+        adv_by_cur[cur] = round(adv_by_cur.get(cur, 0.0) + bal, 2)
     return {
         **agg,
         "status_counts": status_counts,
         "advance": {  # kullanılmamış net avans (acentelerin yatırıp henüz fatura ile kapatmadığı)
-            "balance": round(sum(adv_bal.values()), 2),
-            "agency_count": len(adv_bal),
+            "by_currency": adv_by_cur,                        # {"TL": x, "EUR": y}
+            "agency_count": len({code for (code, _c) in adv_bal}),
         },
     }
 
@@ -317,41 +348,45 @@ def advance_balances(
     Avans = müşterinin 120 hesabına yatırdığı, henüz fatura ile mahsup edilmemiş tutar
     (toplam tahsilat > toplam fatura). Faturalar kesildikçe avans kapanır.
     """
-    _, adv_bal = _compute(db)
+    _, adv_bal = _compute(db)   # (code, currency) -> native net avans
     if not adv_bal:
-        return {"items": [], "total_balance": 0.0, "count": 0}
+        return {"items": [], "total_by_currency": {}, "count": 0}
 
-    # müşteri adı/tür + toplam fatura (faturalardan) ve tahsilat/ad (tahsilatlardan)
-    info: dict = {}
-    for code, name, ism, inv in (
-        db.query(SalesInvoice.customer_code, func.max(SalesInvoice.customer_name),
-                 func.bool_or(SalesInvoice.is_munferit), func.sum(SalesInvoice.amount))
-        .group_by(SalesInvoice.customer_code).all()
+    # (müşteri, para birimi) bazında native toplam fatura + tahsilat/ad
+    inv_info: dict = {}
+    for code, cur, name, ism, inv in (
+        db.query(SalesInvoice.customer_code, SalesInvoice.currency,
+                 func.max(SalesInvoice.customer_name), func.bool_or(SalesInvoice.is_munferit),
+                 func.sum(SalesInvoice.amount_currency))
+        .group_by(SalesInvoice.customer_code, SalesInvoice.currency).all()
     ):
-        info[code] = {"name": name, "ism": bool(ism), "invoiced": _f(inv)}
+        inv_info[(code, cur)] = {"name": name, "ism": bool(ism), "invoiced": _f(inv)}
     col_info: dict = {}
-    for code, name, tot in (
-        db.query(SalesCollection.customer_code, func.max(SalesCollection.customer_name),
-                 func.sum(SalesCollection.amount))
-        .group_by(SalesCollection.customer_code).all()
+    for code, cur, name, tot in (
+        db.query(SalesCollection.customer_code, SalesCollection.currency,
+                 func.max(SalesCollection.customer_name), func.sum(SalesCollection.amount_currency))
+        .group_by(SalesCollection.customer_code, SalesCollection.currency).all()
     ):
-        col_info[code] = {"name": name, "amount": _f(tot)}
+        col_info[(code, cur)] = {"name": name, "amount": _f(tot)}
 
     items = []
-    for code, net in sorted(adv_bal.items(), key=lambda x: -x[1]):
-        inv_meta = info.get(code)
-        col_meta = col_info.get(code, {})
-        name = (inv_meta["name"] if inv_meta else None) or col_meta.get("name") or code
-        ism = inv_meta["ism"] if inv_meta else code.startswith("120.03")
-        invoiced = inv_meta["invoiced"] if inv_meta else 0.0
-        collected = col_meta.get("amount", 0.0)
+    for (code, cur), net in sorted(adv_bal.items(), key=lambda x: -x[1]):
+        im = inv_info.get((code, cur))
+        cm = col_info.get((code, cur), {})
+        name = (im["name"] if im else None) or cm.get("name") or code
+        ism = im["ism"] if im else code.startswith("120.03")
+        invoiced = im["invoiced"] if im else 0.0
+        collected = cm.get("amount", 0.0)
         items.append({
-            "customer_code": code, "customer_name": name, "is_munferit": ism,
+            "customer_code": code, "customer_name": name, "is_munferit": ism, "currency": cur,
             "total_collected": round(collected, 2),          # yatırılan (avans + tahsilat)
             "consumed": round(min(collected, invoiced), 2),  # faturayla kapanan
             "net_advance": net,                              # kalan (kullanılmamış avans)
         })
-    return {"items": items, "total_balance": round(sum(adv_bal.values()), 2), "count": len(items)}
+    total_by_cur: dict = {}
+    for (code, cur), bal in adv_bal.items():
+        total_by_cur[cur] = round(total_by_cur.get(cur, 0.0) + bal, 2)
+    return {"items": items, "total_by_currency": total_by_cur, "count": len(items)}
 
 
 @router.post("/sedna-import")
