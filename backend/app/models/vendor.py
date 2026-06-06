@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.vendor_bank_account import VendorBankAccount
     from app.models.vendor_transaction import VendorTransaction
 
 # Firma durumu sabitleri
@@ -39,4 +40,8 @@ class Vendor(Base):
 
     transactions: Mapped[List["VendorTransaction"]] = relationship(
         "VendorTransaction", back_populates="vendor", cascade="all, delete-orphan",
+    )
+    bank_accounts: Mapped[List["VendorBankAccount"]] = relationship(
+        "VendorBankAccount", back_populates="vendor", cascade="all, delete-orphan",
+        order_by="VendorBankAccount.sort_order",
     )

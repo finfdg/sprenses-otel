@@ -8,19 +8,23 @@ from pydantic import BaseModel, Field
 # ─── Kalem ───────────────────────────────────────────────
 
 class PaymentItemCreate(BaseModel):
-    """Listeye eklenecek kalem — cari ve tutar."""
+    """Listeye eklenecek kalem — cari ve tutar (+ seçili banka/IBAN)."""
     vendor_id: Optional[int] = None
     hesap_kodu: Optional[str] = None
     hesap_adi: str
     amount: float = 0
     balance_snapshot: Optional[float] = None
     notes: Optional[str] = None
+    bank_name: Optional[str] = None
+    iban: Optional[str] = None
 
 
 class PaymentItemUpdate(BaseModel):
     amount: Optional[float] = None
     notes: Optional[str] = None
     sort_order: Optional[int] = None
+    bank_name: Optional[str] = None
+    iban: Optional[str] = None
 
 
 class PaymentItemResponse(BaseModel):
@@ -32,6 +36,8 @@ class PaymentItemResponse(BaseModel):
     balance_snapshot: Optional[float] = None
     notes: Optional[str] = None
     sort_order: int
+    bank_name: Optional[str] = None
+    iban: Optional[str] = None
 
     class Config:
         from_attributes = True

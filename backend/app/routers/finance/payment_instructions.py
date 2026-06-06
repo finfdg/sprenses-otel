@@ -7,6 +7,7 @@ Excel/PDF olarak dışa aktarılabilir (export_instruction.py).
 
 import io
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response, StreamingResponse
@@ -56,6 +57,20 @@ def _fmt_try(v: float) -> str:
     return s.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _norm_iban(s) -> Optional[str]:
+    """IBAN normalize: büyük harf, boşluksuz. Boşsa None."""
+    if not s:
+        return None
+    v = "".join(str(s).split()).upper()
+    return v or None
+
+
+def _fmt_iban(iban) -> str:
+    """IBAN'ı 4'erli gruplayarak okunur göster (TR12 3456 ...)."""
+    v = (iban or "").strip()
+    return " ".join(v[i:i + 4] for i in range(0, len(v), 4)) if v else ""
+
+
 # ─── Yardımcı ────────────────────────────────────────────
 
 def _build_list_response(pl: PaymentInstructionList, with_items: bool = True) -> dict:
@@ -86,6 +101,8 @@ def _build_list_response(pl: PaymentInstructionList, with_items: bool = True) ->
                 balance_snapshot=float(it.balance_snapshot) if it.balance_snapshot is not None else None,
                 notes=it.notes,
                 sort_order=it.sort_order,
+                bank_name=it.bank_name,
+                iban=it.iban,
             )
             for it in items
         ] if with_items else [],
@@ -249,12 +266,30 @@ def add_items(
 
     so = _next_sort_order(pl)
     valid_vids = _valid_vendor_ids(db, [it.vendor_id for it in body.items])
+
+    # Carilerin varsayılan banka/IBAN'ı — kalemde belirtilmemişse otomatik gelir
+    from app.models.vendor_bank_account import VendorBankAccount
+    default_bank = {}
+    add_vids = [v for v in (it.vendor_id for it in body.items) if v]
+    if add_vids:
+        for ba in (
+            db.query(VendorBankAccount)
+            .filter(VendorBankAccount.vendor_id.in_(add_vids))
+            .order_by(VendorBankAccount.is_default.desc(), VendorBankAccount.sort_order)
+            .all()
+        ):
+            if ba.vendor_id not in default_bank:  # ilk (varsayılan) kazanır
+                default_bank[ba.vendor_id] = (ba.bank_name, ba.iban)
+
     added = 0
     skipped = 0
     for item in body.items:
         if item.vendor_id is not None and item.vendor_id in existing_vendor_ids:
             skipped += 1
             continue
+        b_name, b_iban = item.bank_name, _norm_iban(item.iban)
+        if b_name is None and b_iban is None and item.vendor_id in default_bank:
+            b_name, b_iban = default_bank[item.vendor_id]
         db.add(PaymentInstructionItem(
             list_id=pl.id,
             vendor_id=item.vendor_id if item.vendor_id in valid_vids else None,
@@ -263,6 +298,8 @@ def add_items(
             amount=item.amount,
             balance_snapshot=item.balance_snapshot,
             notes=item.notes,
+            bank_name=b_name,
+            iban=b_iban,
             sort_order=so,
         ))
         if item.vendor_id is not None:
@@ -306,6 +343,8 @@ def update_item(
         raise HTTPException(status_code=404, detail="Kalem bulunamadı")
 
     update_data = data.model_dump(exclude_unset=True)
+    if "iban" in update_data:
+        update_data["iban"] = _norm_iban(update_data["iban"])
     for key, value in update_data.items():
         setattr(item, key, value)
     db.commit()
@@ -319,6 +358,8 @@ def update_item(
         balance_snapshot=float(item.balance_snapshot) if item.balance_snapshot is not None else None,
         notes=item.notes,
         sort_order=item.sort_order,
+        bank_name=item.bank_name,
+        iban=item.iban,
     ).model_dump()
 
 
@@ -369,7 +410,7 @@ def export_excel(
     ws.cell(row=1, column=1, value=pl.name).font = title_font
     ws.cell(row=2, column=1, value=f"Oluşturulma: {pl.created_at.strftime('%d.%m.%Y') if pl.created_at else '-'}")
 
-    headers = ["Sıra", "Hesap Kodu", "Cari Adı", "Açıklama", "Ödeme Tutarı (₺)"]
+    headers = ["Sıra", "Hesap Kodu", "Cari Adı", "Banka", "IBAN", "Açıklama", "Ödeme Tutarı (₺)"]
     head_row = 4
     for col, h in enumerate(headers, start=1):
         cell = ws.cell(row=head_row, column=col, value=h)
@@ -385,17 +426,19 @@ def export_excel(
         ws.cell(row=r, column=1, value=i)
         ws.cell(row=r, column=2, value=it.hesap_kodu or "")
         ws.cell(row=r, column=3, value=it.hesap_adi)
-        ws.cell(row=r, column=4, value=it.notes or "")
-        c = ws.cell(row=r, column=5, value=amt)
+        ws.cell(row=r, column=4, value=it.bank_name or "")
+        ws.cell(row=r, column=5, value=_fmt_iban(it.iban))
+        ws.cell(row=r, column=6, value=it.notes or "")
+        c = ws.cell(row=r, column=7, value=amt)
         c.number_format = "#,##0.00"
         r += 1
 
-    ws.cell(row=r, column=4, value="TOPLAM").font = Font(bold=True)
-    tc = ws.cell(row=r, column=5, value=round(total, 2))
+    ws.cell(row=r, column=6, value="TOPLAM").font = Font(bold=True)
+    tc = ws.cell(row=r, column=7, value=round(total, 2))
     tc.font = Font(bold=True)
     tc.number_format = "#,##0.00"
 
-    widths = [8, 18, 40, 30, 18]
+    widths = [8, 18, 38, 22, 34, 26, 16]
     for col, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(row=head_row, column=col).column_letter].width = w
 
@@ -456,30 +499,34 @@ def export_pdf(
         Spacer(1, 4),
     ]
 
-    data = [["#", "Hesap Kodu", "Cari Adı", "Ödeme Tutarı (₺)"]]
+    data = [["#", "Hesap Kodu", "Cari Adı", "Banka", "IBAN", "Tutar (₺)"]]
     total = 0.0
     for i, it in enumerate(pl.items, start=1):
         amt = float(it.amount or 0)
         total += amt
-        data.append([str(i), it.hesap_kodu or "", it.hesap_adi, _fmt_try(amt)])
-    data.append(["", "", "TOPLAM", _fmt_try(round(total, 2))])
+        data.append([
+            str(i), it.hesap_kodu or "", it.hesap_adi,
+            it.bank_name or "", _fmt_iban(it.iban), _fmt_try(amt),
+        ])
+    data.append(["", "", "", "", "TOPLAM", _fmt_try(round(total, 2))])
 
-    table = Table(data, colWidths=[12 * mm, 30 * mm, 85 * mm, 38 * mm], repeatRows=1)
+    table = Table(data, colWidths=[8 * mm, 24 * mm, 42 * mm, 22 * mm, 52 * mm, 30 * mm], repeatRows=1)
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, 0), bold_font),
         ("FONTNAME", (0, 1), (-1, -1), base_font),
-        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0D9488")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("ALIGN", (0, 0), (0, -1), "CENTER"),
-        ("ALIGN", (3, 0), (3, -1), "RIGHT"),
+        ("ALIGN", (5, 0), (5, -1), "RIGHT"),
+        ("ALIGN", (4, -1), (4, -1), "RIGHT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#F3F4F6")]),
         ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#0D9488")),
         ("FONTNAME", (0, -1), (-1, -1), bold_font),
         ("LINEABOVE", (0, -1), (-1, -1), 0.8, colors.HexColor("#374151")),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     elems.append(table)
 

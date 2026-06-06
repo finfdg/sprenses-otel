@@ -15,7 +15,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
-	import { Users, Database } from 'lucide-svelte';
+	import { Users, Database, Landmark, Star, Trash2, Plus } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 
 	// Generic onay state
@@ -632,7 +632,10 @@
 		detailTab = 'transactions';
 		bankTxs = [];
 		bankTxTotal = 0;
+		vendorIbans = [];
+		ibanForm = { bank_name: '', iban: '', account_holder: '' };
 		await loadVendorDetail(vendorId);
+		loadVendorIbans(vendorId);
 		// Banka sayısını arka planda al (sekme badge'i için)
 		loadBankTransactions(vendorId);
 	}
@@ -650,6 +653,44 @@
 		} finally {
 			vtxLoading = false;
 		}
+	}
+
+	// ─── Cari Banka / IBAN yönetimi ─────────────────────────
+	type VIban = { id: number; bank_name: string | null; iban: string; account_holder: string | null; is_default: boolean };
+	let vendorIbans = $state<VIban[]>([]);
+	let ibanForm = $state({ bank_name: '', iban: '', account_holder: '' });
+	let ibanSaving = $state(false);
+	function fmtIbanDisplay(s: string | null): string {
+		const v = (s || '').replace(/\s+/g, '');
+		return v ? (v.match(/.{1,4}/g) || []).join(' ') : '';
+	}
+	async function loadVendorIbans(vendorId: number) {
+		try { vendorIbans = await api.get<VIban[]>(`/finance/cariler/vendors/${vendorId}/bank-accounts`); }
+		catch (e) { console.error('IBAN listesi alınamadı:', e); vendorIbans = []; }
+	}
+	async function addVendorIban(vendorId: number) {
+		if (!ibanForm.iban.trim()) { showToast('IBAN girin', 'error'); return; }
+		ibanSaving = true;
+		try {
+			await api.post(`/finance/cariler/vendors/${vendorId}/bank-accounts`, {
+				bank_name: ibanForm.bank_name.trim() || null,
+				iban: ibanForm.iban.trim(),
+				account_holder: ibanForm.account_holder.trim() || null,
+			});
+			ibanForm = { bank_name: '', iban: '', account_holder: '' };
+			await loadVendorIbans(vendorId);
+			showToast('IBAN eklendi', 'success');
+		} catch (e: any) {
+			showToast(e?.message || 'IBAN eklenemedi', 'error');
+		} finally { ibanSaving = false; }
+	}
+	async function setDefaultIban(vendorId: number, id: number) {
+		try { await api.patch(`/finance/cariler/vendors/${vendorId}/bank-accounts/${id}`, { is_default: true }); await loadVendorIbans(vendorId); }
+		catch (e) { console.error(e); showToast('Varsayılan yapılamadı', 'error'); }
+	}
+	async function deleteVendorIban(vendorId: number, id: number) {
+		try { await api.delete(`/finance/cariler/vendors/${vendorId}/bank-accounts/${id}`); await loadVendorIbans(vendorId); showToast('IBAN silindi', 'success'); }
+		catch (e) { console.error(e); showToast('Silinemedi', 'error'); }
 	}
 
 	// ─── Bank Transactions ─────────────────────────────
@@ -1247,6 +1288,37 @@
 									</div>
 								{:else}
 									<div class="px-3 sm:px-5 py-3 sm:py-4">
+										<!-- Banka / IBAN yönetimi (ödeme talimatında kullanılır) -->
+										{#if canUse}
+											<div class="mb-4 bg-white rounded-lg border border-gray-200 p-3">
+												<div class="flex items-center justify-between mb-2">
+													<h4 class="text-xs font-semibold text-gray-700 inline-flex items-center gap-1.5"><Landmark size={14} class="text-teal-600" /> Banka / IBAN</h4>
+													<span class="text-[11px] text-gray-400">Ödeme talimatında kullanılır</span>
+												</div>
+												{#if vendorIbans.length > 0}
+													<div class="space-y-1.5 mb-2">
+														{#each vendorIbans as ba (ba.id)}
+															<div class="flex items-center gap-2 text-xs bg-gray-50 rounded px-2 py-1.5">
+																<button onclick={() => setDefaultIban(vendor.id, ba.id)} title={ba.is_default ? 'Varsayılan' : 'Varsayılan yap'} class="shrink-0 cursor-pointer {ba.is_default ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}"><Star size={14} fill={ba.is_default ? 'currentColor' : 'none'} /></button>
+																<span class="min-w-0 flex-1 truncate">
+																	<span class="font-medium text-gray-800">{ba.bank_name || 'Banka'}</span>
+																	<span class="font-mono text-gray-500 ml-1">{fmtIbanDisplay(ba.iban)}</span>
+																</span>
+																<button onclick={() => deleteVendorIban(vendor.id, ba.id)} class="shrink-0 text-gray-300 hover:text-red-500 cursor-pointer" title="Sil"><Trash2 size={14} /></button>
+															</div>
+														{/each}
+													</div>
+												{:else}
+													<p class="text-xs text-gray-400 mb-2">Kayıtlı IBAN yok. Ödeme talimatında banka/IBAN göstermek için ekleyin.</p>
+												{/if}
+												<div class="flex flex-col sm:flex-row gap-2">
+													<input bind:value={ibanForm.bank_name} placeholder="Banka (ör. Yapı Kredi)" class="sm:w-44 px-2 py-1.5 text-xs border border-gray-300 rounded outline-none focus:ring-1 focus:ring-teal-500" />
+													<input bind:value={ibanForm.iban} placeholder="TR.. IBAN" class="flex-1 px-2 py-1.5 text-xs font-mono border border-gray-300 rounded outline-none focus:ring-1 focus:ring-teal-500" />
+													<button onclick={() => addVendorIban(vendor.id)} disabled={ibanSaving} class="shrink-0 px-3 py-1.5 text-xs font-medium rounded bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-1"><Plus size={13} /> Ekle</button>
+												</div>
+											</div>
+										{/if}
+
 										<!-- Sayfalama -->
 										{#if vtxPages > 1}
 											<div class="flex items-center justify-end gap-2 mb-2">

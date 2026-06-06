@@ -86,6 +86,9 @@ class PaymentInstructionItem(Base):
     amount: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
     balance_snapshot: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    # Seçilen banka/IBAN snapshot'ı (carinin banka hesaplarından biri; cari/hesap silinse de kalır)
+    bank_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    iban: Mapped[Optional[str]] = mapped_column(String(34), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(),

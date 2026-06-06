@@ -5,6 +5,36 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
+
+# ─── Cari Banka Hesabı (IBAN) ───────────────────────────
+
+class VendorBankAccountCreate(BaseModel):
+    bank_name: Optional[str] = None
+    iban: str
+    account_holder: Optional[str] = None
+    is_default: bool = False
+
+
+class VendorBankAccountUpdate(BaseModel):
+    bank_name: Optional[str] = None
+    iban: Optional[str] = None
+    account_holder: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
+class VendorBankAccountResponse(BaseModel):
+    id: int
+    vendor_id: int
+    bank_name: Optional[str] = None
+    iban: str
+    account_holder: Optional[str] = None
+    is_default: bool
+    sort_order: int
+
+    class Config:
+        from_attributes = True
+
+
 # ─── Vendor ─────────────────────────────────────────────
 
 class VendorResponse(BaseModel):

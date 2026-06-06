@@ -19,6 +19,8 @@
 		balance_snapshot: number | null;
 		notes: string | null;
 		sort_order: number;
+		bank_name: string | null;
+		iban: string | null;
 	};
 	type PiList = {
 		id: number;
@@ -222,6 +224,43 @@
 		confirmDelete = { show: true, kind: 'item', id: item.id, label: item.hesap_adi };
 	}
 
+	// ───── Banka / IBAN seçimi ────────────────────────────
+	let ibanMenuId = $state<number | null>(null);
+	let ibanOpts = $state<Array<{ id: number; bank_name: string | null; iban: string; is_default: boolean }>>([]);
+	let ibanLoading = $state(false);
+	function fmtIban(s: string | null): string {
+		const v = (s || '').replace(/\s+/g, '');
+		return v ? (v.match(/.{1,4}/g) || []).join(' ') : '';
+	}
+	async function openIban(item: PiItem) {
+		if (!item.vendor_id) { showToast('Bu kalemin carisi yok — IBAN seçilemez', 'info'); return; }
+		if (ibanMenuId === item.id) { ibanMenuId = null; return; }
+		ibanMenuId = item.id; ibanOpts = []; ibanLoading = true;
+		try {
+			ibanOpts = await api.get(`/finance/cariler/vendors/${item.vendor_id}/bank-accounts`);
+		} catch (e) {
+			console.error('IBAN listesi alınamadı:', e);
+			showToast('IBAN listesi alınamadı', 'error');
+		} finally {
+			ibanLoading = false;
+		}
+	}
+	async function pickIban(item: PiItem, ba: { bank_name: string | null; iban: string } | null) {
+		if (!activeList) return;
+		try {
+			await api.patch(`/finance/payment-instructions/${activeList.id}/items/${item.id}`, {
+				bank_name: ba?.bank_name ?? null,
+				iban: ba?.iban ?? null,
+			});
+			item.bank_name = ba?.bank_name ?? null;
+			item.iban = ba?.iban ?? null;
+			ibanMenuId = null;
+		} catch (e) {
+			console.error('IBAN güncellenemedi:', e);
+			showToast('IBAN güncellenemedi', 'error');
+		}
+	}
+
 	// ───── Dışa aktarma ───────────────────────────────────
 	async function download(kind: 'excel' | 'pdf') {
 		if (!activeList) return;
@@ -369,6 +408,7 @@
 								<th class="text-left py-2 px-3 w-8">#</th>
 								<th class="text-left py-2 px-3 hidden sm:table-cell">Hesap Kodu</th>
 								<th class="text-left py-2 px-3">Cari Adı</th>
+								<th class="text-left py-2 px-3 hidden md:table-cell">Banka / IBAN</th>
 								<th class="text-right py-2 px-3 w-44">Ödeme Tutarı</th>
 								{#if canUse}<th class="w-10"></th>{/if}
 							</tr>
@@ -379,6 +419,44 @@
 									<td class="py-1.5 px-3 text-gray-500">{i + 1}</td>
 									<td class="py-1.5 px-3 text-gray-500 hidden sm:table-cell tabular-nums">{item.hesap_kodu ?? '-'}</td>
 									<td class="py-1.5 px-3 text-gray-800 truncate max-w-[220px]" title={item.hesap_adi}>{item.hesap_adi}</td>
+									<td class="py-1.5 px-3 hidden md:table-cell">
+										{#if canUse}
+											<div class="relative">
+												<button onclick={() => openIban(item)} class="text-left hover:bg-gray-100 rounded px-1.5 py-1 max-w-[220px] cursor-pointer {item.iban ? 'text-gray-700' : 'text-gray-400 italic'}" title="IBAN seç/değiştir">
+													{#if item.iban}
+														<span class="block text-xs font-medium truncate">{item.bank_name || 'Banka'}</span>
+														<span class="block font-mono text-[11px] text-gray-500 truncate">{fmtIban(item.iban)}</span>
+													{:else}
+														<span class="text-xs">IBAN seç</span>
+													{/if}
+												</button>
+												{#if ibanMenuId === item.id}
+													<button class="fixed inset-0 z-10 cursor-default" aria-label="Kapat" onclick={() => (ibanMenuId = null)}></button>
+													<div class="absolute left-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 max-h-64 overflow-y-auto">
+														{#if ibanLoading}
+															<div class="px-3 py-2 text-xs text-gray-400">Yükleniyor…</div>
+														{:else if ibanOpts.length === 0}
+															<div class="px-3 py-2 text-xs text-gray-500">Bu carinin kayıtlı IBAN'ı yok. <span class="text-gray-400">Cari kartından ekleyin.</span></div>
+														{:else}
+															{#each ibanOpts as ba (ba.id)}
+																<button onclick={() => pickIban(item, ba)} class="w-full text-left px-3 py-2 hover:bg-teal-50 cursor-pointer {item.iban === ba.iban ? 'bg-teal-50' : ''}">
+																	<span class="block text-xs font-medium text-gray-800">{ba.bank_name || 'Banka'}{ba.is_default ? ' · varsayılan' : ''}</span>
+																	<span class="block font-mono text-[11px] text-gray-500">{fmtIban(ba.iban)}</span>
+																</button>
+															{/each}
+														{/if}
+														{#if item.iban}
+															<button onclick={() => pickIban(item, null)} class="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 border-t border-gray-100 cursor-pointer">IBAN'ı kaldır</button>
+														{/if}
+													</div>
+												{/if}
+											</div>
+										{:else if item.iban}
+											<span class="text-xs"><span class="block">{item.bank_name || ''}</span><span class="block font-mono text-[11px] text-gray-500">{fmtIban(item.iban)}</span></span>
+										{:else}
+											<span class="text-xs text-gray-300">—</span>
+										{/if}
+									</td>
 									<td class="py-1.5 px-3">
 										{#if canUse}
 											<MoneyInput
@@ -403,7 +481,7 @@
 						</tbody>
 						<tfoot>
 							<tr class="border-t-2 border-gray-200 font-bold">
-								<td colspan={3} class="py-2 px-3 text-right text-gray-600">TOPLAM</td>
+								<td colspan={4} class="py-2 px-3 text-right text-gray-600">TOPLAM</td>
 								<td class="py-2 px-3 text-right tabular-nums text-rose-600">₺{fmt(activeTotal)}</td>
 								{#if canUse}<td></td>{/if}
 							</tr>

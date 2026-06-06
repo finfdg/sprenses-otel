@@ -118,7 +118,18 @@ düzenle, Excel/PDF olarak dışa aktar. Listeler **kalıcıdır** (`finance.car
 
 **Veritabanı:**
 - `payment_instruction_lists` — başlık (ad, açıklama, status=draft/completed, created_by)
-- `payment_instruction_items` — kalemler (list_id CASCADE, vendor_id SET NULL, `hesap_kodu`/`hesap_adi` snapshot, `amount`, `balance_snapshot`, `notes`, `sort_order`)
+- `payment_instruction_items` — kalemler (list_id CASCADE, vendor_id SET NULL, `hesap_kodu`/`hesap_adi` snapshot, `amount`, `balance_snapshot`, `notes`, `sort_order`, **`bank_name`/`iban`** seçili banka snapshot'ı)
+
+### Cari Banka / IBAN (`vendor_bank_accounts`) — Ödeme Talimatı için (2026-06-06)
+
+Sedna muhasebe DB'sinde cari IBAN'ları **boş** olduğundan IBAN'lar Sprenses'te yönetilir.
+Bir cari → **0..N** banka hesabı (`bank_name`, `iban`, `account_holder`, `is_default`, `sort_order`).
+
+- **CRUD:** `GET/POST/PATCH/DELETE /cariler/vendors/{id}/bank-accounts[/{ba_id}]` (finance.cariler use, audit'li, onaydan muaf — master veri).
+  IBAN **normalize** (büyük harf, boşluksuz), **mükerrer 409**, **ilk hesap otomatik varsayılan**, varsayılan değiştirme, **varsayılan silinince devir**.
+- **Frontend:** Cari detayında "Banka / IBAN" bölümü (listele + ekle + varsayılan ★ + sil).
+- **Ödeme talimatı entegrasyonu:** Cari kalem eklenince **varsayılan banka/IBAN otomatik** gelir; kalemdeki **"Banka / IBAN" sütunundan** carinin IBAN'ları arasında seçim yapılabilir (`PATCH .../items/{id}` `bank_name`+`iban`). **PDF/Excel dökümünde Banka + IBAN sütunları** (IBAN 4'erli gruplu). Tek IBAN → otomatik; çok IBAN → seçim; yok → boş.
+- **Test:** `tests/test_vendor_bank_ibans.py` (ilk-varsayılan/normalize/mükerrer/devir/PI-otomatik/export).
 - Migration: `d4e8f1a9c2b6_add_payment_instructions.py`
 
 **İş kuralları:**

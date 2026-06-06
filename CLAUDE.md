@@ -398,13 +398,14 @@ TEMPLATE:
 - `POST /api/finance/cariler/transactions/bulk-delete` — Toplu işlem silme (kaynakta olmayan kayıtlar için; korumalı kayıtlar atlanır)
 - `GET /api/finance/cariler/vendors` — Cari listesi (paginated, arama)
 - `GET /api/finance/cariler/vendors/{id}` — Cari detay + işlemler
+- `GET/POST/PATCH/DELETE /api/finance/cariler/vendors/{id}/bank-accounts[/{ba_id}]` — **Cari banka hesapları (IBAN)** — bir cari → 0..N IBAN; biri varsayılan. Sedna'da cari IBAN'ı boş olduğundan burada yönetilir; ödeme talimatında kullanılır. IBAN normalize + mükerrer 409 + varsayılan devri. finance.cariler use, audit'li
 - `GET /api/finance/cariler/payment-schedule` — Haftalık ödeme planı
 - Detaylı bilgi: `docs/modules/cariler.md`
 
 ### Finans — Ödeme Talimat Listeleri
 - `GET/POST /api/finance/payment-instructions/` — Talimat listesi listele/oluştur
 - `GET/PATCH/DELETE /api/finance/payment-instructions/{id}` — Liste detay/güncelle/sil
-- `POST /api/finance/payment-instructions/{id}/items` — Cari kalem(ler) ekle (tutar bakiyeden gelir, mükerrer vendor atlanır)
+- `POST /api/finance/payment-instructions/{id}/items` — Cari kalem(ler) ekle (tutar bakiyeden gelir, mükerrer vendor atlanır; **carinin varsayılan banka/IBAN'ı otomatik gelir**, kalemde override edilebilir). Kalem `bank_name`+`iban` snapshot'ı taşır; PDF/Excel dökümünde **Banka + IBAN sütunları** yer alır
 - `PATCH/DELETE /api/finance/payment-instructions/{id}/items/{item_id}` — Kalem tutarı güncelle / çıkar
 - `GET /api/finance/payment-instructions/{id}/export/excel` — Excel dökümü
 - `GET /api/finance/payment-instructions/{id}/export/pdf` — PDF dökümü
@@ -656,7 +657,7 @@ TEMPLATE:
 
 - **DB adı:** sprenses
 - **Kullanıcı:** sprenses
-- **Tablolar (56):** personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
+- **Tablolar (57):** personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, vendor_bank_accounts, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
 - **Saat dilimi:** Europe/Istanbul (her bağlantıda SET edilir)
 - **Migrations:** `cd backend && source venv/bin/activate && alembic upgrade head`
 

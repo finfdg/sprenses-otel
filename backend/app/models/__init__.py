@@ -44,6 +44,7 @@ from app.models.shift import ShiftDefinition
 from app.models.shift_assignment import ShiftAssignment
 from app.models.user import User
 from app.models.vendor import Vendor
+from app.models.vendor_bank_account import VendorBankAccount
 from app.models.vendor_transaction import VendorTransaction
 from app.models.vendor_upload import VendorUpload
 
@@ -56,7 +57,7 @@ __all__ = [
     "CashFlow",
     "BankAccount", "BankStatement", "BankTransaction", "TransactionCategory",
     "ExchangeRate",
-    "Vendor", "VendorUpload", "VendorTransaction",
+    "Vendor", "VendorUpload", "VendorTransaction", "VendorBankAccount",
     "Notification",
     "CreditProduct", "CreditPayment",
     "CreditCardStatement", "CreditCardTransaction",
