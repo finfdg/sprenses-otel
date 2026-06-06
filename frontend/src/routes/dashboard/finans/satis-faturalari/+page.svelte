@@ -29,8 +29,8 @@
 		advance_covered: number; by_advance: boolean;
 	};
 	type Advance = {
-		customer_code: string; customer_name: string; is_munferit: boolean; currency: string;
-		total_collected: number; consumed: number; net_advance: number;
+		customer_name: string; currency: string; source: string; is_munferit: boolean;
+		received: number; consumed: number; remaining: number;
 	};
 
 	let view = $state<'invoices' | 'advances'>('invoices');
@@ -247,7 +247,7 @@
 		<!-- ═══ ACENTE AVANSLARI ═══ -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			<div class="px-4 py-3 border-b border-gray-100 bg-teal-50/40 flex items-center justify-between flex-wrap gap-2">
-				<p class="text-sm text-gray-600 max-w-2xl">Acentelerin yatırıp henüz fatura ile kapatmadığı <strong>kullanılmamış avans</strong> bakiyesi. Yeni faturalar kesildikçe bu avanstan FIFO ile düşülür (mahsup).</p>
+				<p class="text-sm text-gray-600 max-w-2xl">Acentelerin yatırıp henüz fatura ile kapatmadığı <strong>kullanılmamış avans</strong>. <span class="text-teal-700">Avans hesabı</span> = Sedna 340 (asıl defter), <span class="text-amber-700">Cari net</span> = 120 cariye doğrudan yatan. Faturalar kesildikçe mahsup edilir.</p>
 				<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">Toplam: {fmtCurMap(advByCur)}</span>
 			</div>
 			{#if advances.length === 0}
@@ -267,13 +267,13 @@
 							<tr class="hover:bg-gray-50/60">
 								<td class="px-4 py-2.5 text-gray-700">
 									<span class="inline-flex items-center gap-1.5">
-										<span class="text-[10px] px-1.5 py-0.5 rounded {a.is_munferit ? 'bg-purple-50 text-purple-600' : 'bg-cyan-50 text-cyan-700'}">{a.is_munferit ? 'Münferit' : 'Acente'}</span>
+										<span class="text-[10px] px-1.5 py-0.5 rounded {a.source === '340' ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}" title={a.source === '340' ? 'Sedna 340 Alınan Avanslar hesabı' : '120 cari net alacak (faturaya mahsup edilecek)'}>{a.source === '340' ? 'Avans hesabı' : 'Cari net'}</span>
 										<span class="truncate max-w-[24rem]">{a.customer_name}</span>
 									</span>
 								</td>
-								<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(a.total_collected)}</td>
+								<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(a.received)}</td>
 								<td class="px-4 py-2.5 text-right tabular-nums text-gray-400">{a.consumed > 0.01 ? fmt2(a.consumed) : '—'}</td>
-								<td class="px-4 py-2.5 text-right tabular-nums text-teal-700 font-semibold whitespace-nowrap">{fmtCur(a.net_advance, a.currency)}</td>
+								<td class="px-4 py-2.5 text-right tabular-nums text-teal-700 font-semibold whitespace-nowrap">{fmtCur(a.remaining, a.currency)}</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -283,9 +283,9 @@
 						<div class="p-3">
 							<div class="flex items-center justify-between gap-2">
 								<p class="text-sm font-medium text-gray-800 truncate">{a.customer_name}</p>
-								<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">{fmtCur(a.net_advance, a.currency)}</span>
+								<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">{fmtCur(a.remaining, a.currency)}</span>
 							</div>
-							<p class="text-xs text-gray-500 mt-1 tabular-nums">Yatırılan {fmt2(a.total_collected)} · Kapanan {fmt2(a.consumed)}</p>
+							<p class="text-xs text-gray-500 mt-1 tabular-nums"><span class="px-1 rounded {a.source === '340' ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}">{a.source === '340' ? 'avans hesabı' : 'cari net'}</span> · Yatırılan {fmt2(a.received)} · Kapanan {fmt2(a.consumed)}</p>
 						</div>
 					{/each}
 				</div>

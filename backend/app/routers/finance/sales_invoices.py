@@ -23,12 +23,20 @@ from app.models.sales_invoice import (
     STATUS_OPEN,
     STATUS_PAID,
     STATUS_PARTIAL,
+    SalesAdvance,
     SalesCollection,
     SalesInvoice,
 )
 from app.models.user import User
 from app.utils.audit import log_action
-from app.utils.sedna_client import SednaUnavailable, fetch_sales_invoices, sedna_configured
+from app.utils.sedna_client import (
+    SednaUnavailable,
+    fetch_advance_accounts,
+    fetch_sales_invoices,
+    sedna_configured,
+)
+
+from .advances import _norm_tokens  # acente adı token eşleştirme (340 ↔ 120 mükerrer önleme)
 
 logger = logging.getLogger(__name__)
 TZ = pytz.timezone("Europe/Istanbul")
@@ -227,9 +235,27 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
         logger.error("Satış faturası içe aktarma DB hatası: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Satış faturası içe aktarma sırasında veritabanı hatası.")
 
+    # 340 'Alınan Avanslar' özetini tazele (truncate + reload) — acente avanslarının asıl defteri
+    adv_count = 0
+    try:
+        accounts = fetch_advance_accounts()
+        db.query(SalesAdvance).delete()
+        for a in accounts:
+            db.add(SalesAdvance(
+                code=(a.get("code") or "")[:50], name=(a.get("name") or None),
+                currency=(a.get("currency") or "TL").strip() or "TL",
+                received=_f(a.get("received")), consumed=_f(a.get("consumed")),
+            ))
+            adv_count += 1
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning("340 avans özeti tazelenemedi: %s", e)
+
     return {
         "invoices_total": len(inv_rows), "invoices_new": inv_new, "invoices_skipped": inv_skip,
         "collections_total": len(col_rows), "collections_new": col_new, "collections_skipped": col_skip,
+        "advance_accounts": adv_count,
     }
 
 
@@ -302,7 +328,7 @@ def summary(
     _: User = Depends(require_permission("finance.sales_invoices", "view")),
 ):
     """Satış faturası özeti: toplam faturalanan/tahsil/açık + durum + münferit/acente kırılımı + avans."""
-    smap, adv_bal = _compute(db)
+    smap, _ = _compute(db)
     invoices = db.query(SalesInvoice).all()
     agg = {
         "total": {"invoiced": 0.0, "collected": 0.0, "count": 0},
@@ -324,18 +350,78 @@ def summary(
         agg[key]["collected"] = round(agg[key]["collected"], 2)
         agg[key]["outstanding"] = round(agg[key]["invoiced"] - agg[key]["collected"], 2)
 
-    # net avans — para birimi bazında (EUR avanslar TL'ye karıştırılmaz)
-    adv_by_cur: dict = {}
-    for (code, cur), bal in adv_bal.items():
-        adv_by_cur[cur] = round(adv_by_cur.get(cur, 0.0) + bal, 2)
+    # net avans — 340 'Alınan Avanslar' + 120 net-alacak birleşik (para birimi bazında)
+    merged_adv, adv_by_cur = _merged_advances(db)
     return {
         **agg,
         "status_counts": status_counts,
-        "advance": {  # kullanılmamış net avans (acentelerin yatırıp henüz fatura ile kapatmadığı)
+        "advance": {  # kullanılmamış net avans (340 asıl defter + 120 net-alacak)
             "by_currency": adv_by_cur,                        # {"TL": x, "EUR": y}
-            "agency_count": len({code for (code, _c) in adv_bal}),
+            "agency_count": len(merged_adv),
         },
     }
+
+
+def _merged_advances(db: Session):
+    """Acente avans bakiyeleri (EKSİKSİZ): Sedna 340 'Alınan Avanslar' (asıl defter) + 120 net-alacak.
+    340'ta adı geçen 120 kaydı atlanır (mükerrer önleme). Döner: (merged_items, total_by_currency)."""
+    # 120 net-alacak (offline, import edilmiş veriden)
+    _, adv_bal = _compute(db)
+    items_120 = []
+    if adv_bal:
+        inv_info: dict = {}
+        for code, cur, name, ism, inv in (
+            db.query(SalesInvoice.customer_code, SalesInvoice.currency,
+                     func.max(SalesInvoice.customer_name), func.bool_or(SalesInvoice.is_munferit),
+                     func.sum(SalesInvoice.amount_currency))
+            .group_by(SalesInvoice.customer_code, SalesInvoice.currency).all()
+        ):
+            inv_info[(code, cur)] = {"name": name, "ism": bool(ism), "invoiced": _f(inv)}
+        col_info: dict = {}
+        for code, cur, name, tot in (
+            db.query(SalesCollection.customer_code, SalesCollection.currency,
+                     func.max(SalesCollection.customer_name), func.sum(SalesCollection.amount_currency))
+            .group_by(SalesCollection.customer_code, SalesCollection.currency).all()
+        ):
+            col_info[(code, cur)] = {"name": name, "amount": _f(tot)}
+        for (code, cur), net in adv_bal.items():
+            im = inv_info.get((code, cur))
+            cm = col_info.get((code, cur), {})
+            invoiced = im["invoiced"] if im else 0.0
+            collected = cm.get("amount", 0.0)
+            items_120.append({
+                "customer_name": (im["name"] if im else None) or cm.get("name") or code,
+                "currency": cur, "source": "120",
+                "is_munferit": im["ism"] if im else code.startswith("120.03"),
+                "received": round(collected, 2), "consumed": round(min(collected, invoiced), 2),
+                "remaining": net,
+            })
+
+    # 340 'Alınan Avanslar' (asıl avans defteri; import edilmiş tablodan — offline)
+    items_340 = []
+    for a in db.query(SalesAdvance).all():
+        rem = round(_f(a.received) - _f(a.consumed), 2)
+        if rem > 1:
+            items_340.append({
+                "customer_name": a.name or a.code, "currency": a.currency or "TL", "source": "340",
+                "is_munferit": False,
+                "received": round(_f(a.received), 2), "consumed": round(_f(a.consumed), 2), "remaining": rem,
+            })
+
+    # birleştir — 340 öncelikli; 120'den adı 340'ta geçeni at (mükerrer)
+    tok_340 = [_norm_tokens(x["customer_name"]) for x in items_340]
+    merged = list(items_340)
+    for it in items_120:
+        t = _norm_tokens(it["customer_name"])
+        if t and any(len(t & n) >= 1 for n in tok_340):
+            continue
+        merged.append(it)
+    merged.sort(key=lambda x: -x["remaining"])
+
+    total_by_cur: dict = {}
+    for x in merged:
+        total_by_cur[x["currency"]] = round(total_by_cur.get(x["currency"], 0.0) + x["remaining"], 2)
+    return merged, total_by_cur
 
 
 @router.get("/advances")
@@ -343,50 +429,9 @@ def advance_balances(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("finance.sales_invoices", "view")),
 ):
-    """Net avans bakiyesi olan müşteriler (acente prepaid) — yatırılan / faturayla kapanan / kalan.
-
-    Avans = müşterinin 120 hesabına yatırdığı, henüz fatura ile mahsup edilmemiş tutar
-    (toplam tahsilat > toplam fatura). Faturalar kesildikçe avans kapanır.
-    """
-    _, adv_bal = _compute(db)   # (code, currency) -> native net avans
-    if not adv_bal:
-        return {"items": [], "total_by_currency": {}, "count": 0}
-
-    # (müşteri, para birimi) bazında native toplam fatura + tahsilat/ad
-    inv_info: dict = {}
-    for code, cur, name, ism, inv in (
-        db.query(SalesInvoice.customer_code, SalesInvoice.currency,
-                 func.max(SalesInvoice.customer_name), func.bool_or(SalesInvoice.is_munferit),
-                 func.sum(SalesInvoice.amount_currency))
-        .group_by(SalesInvoice.customer_code, SalesInvoice.currency).all()
-    ):
-        inv_info[(code, cur)] = {"name": name, "ism": bool(ism), "invoiced": _f(inv)}
-    col_info: dict = {}
-    for code, cur, name, tot in (
-        db.query(SalesCollection.customer_code, SalesCollection.currency,
-                 func.max(SalesCollection.customer_name), func.sum(SalesCollection.amount_currency))
-        .group_by(SalesCollection.customer_code, SalesCollection.currency).all()
-    ):
-        col_info[(code, cur)] = {"name": name, "amount": _f(tot)}
-
-    items = []
-    for (code, cur), net in sorted(adv_bal.items(), key=lambda x: -x[1]):
-        im = inv_info.get((code, cur))
-        cm = col_info.get((code, cur), {})
-        name = (im["name"] if im else None) or cm.get("name") or code
-        ism = im["ism"] if im else code.startswith("120.03")
-        invoiced = im["invoiced"] if im else 0.0
-        collected = cm.get("amount", 0.0)
-        items.append({
-            "customer_code": code, "customer_name": name, "is_munferit": ism, "currency": cur,
-            "total_collected": round(collected, 2),          # yatırılan (avans + tahsilat)
-            "consumed": round(min(collected, invoiced), 2),  # faturayla kapanan
-            "net_advance": net,                              # kalan (kullanılmamış avans)
-        })
-    total_by_cur: dict = {}
-    for (code, cur), bal in adv_bal.items():
-        total_by_cur[cur] = round(total_by_cur.get(cur, 0.0) + bal, 2)
-    return {"items": items, "total_by_currency": total_by_cur, "count": len(items)}
+    """Acente avans bakiyeleri — 340 'Alınan Avanslar' + 120 net-alacak birleşik (source: 340|120)."""
+    merged, total_by_cur = _merged_advances(db)
+    return {"items": merged, "total_by_currency": total_by_cur, "count": len(merged)}
 
 
 @router.post("/sedna-import")

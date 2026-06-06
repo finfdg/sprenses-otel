@@ -27,7 +27,7 @@ from app.models.notification import Notification
 from app.models.push_subscription import PushSubscription
 from app.models.reservation import Reservation, ReservationUpload
 from app.models.room_type import RoomType
-from app.models.sales_invoice import SalesCollection, SalesInvoice
+from app.models.sales_invoice import SalesAdvance, SalesCollection, SalesInvoice
 from app.models.quality_form import QualityForm
 from app.models.quality_form_value import QualityFormValue
 from app.models.quality_template import QualityTemplate
@@ -68,7 +68,7 @@ __all__ = [
     "ErrorLog",
     "Reservation", "ReservationUpload",
     "RoomType", "AgencyGroup",
-    "SalesInvoice", "SalesCollection",
+    "SalesInvoice", "SalesCollection", "SalesAdvance",
     "ScheduledDefinition", "ScheduledEntry",
     "ApprovalWorkflow", "ApprovalWorkflowStep",
     "ApprovalWorkflowRequestorRole", "ApprovalWorkflowApproverRole",

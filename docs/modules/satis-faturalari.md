@@ -71,11 +71,17 @@ işler:
 karşılıklı linklidir. **Otomatik mutabakat** yapıldı: `GET /avanslar/sedna-reconciliation` (avanslar sayfasında
 "Sedna Mutabakatı" butonu) — manuel ↔ Sedna isim eşleştirmeli kıyas.
 
-> **ÖNEMLİ (340 vs 120):** Acente avanslarının **asıl yeri Sedna `340 "Alınan Sipariş Avansları"`** hesabıdır
-> (ör. ALLTOURS 340.02.01.0017 = 4,75M € — manuel modülle birebir). Bu modüldeki **Acente Avansları** sekmesi
-> ise **120 net-alacak** bazlıdır (faturayla mahsup sonrası kalan), büyük EUR operatörlerin 340 avansını TAM
-> yansıtmaz. Gerçek/eksiksiz alınan-avans tablosu için **mutabakat** (340) kullanılır. İki görünümü 340'a
-> hizalamak ileride yapılabilir.
+### Acente Avansları sekmesi — 340 + 120 birleşik (2026-06-06 hizalandı)
+Acente avanslarının **asıl yeri Sedna `340 "Alınan Sipariş Avansları"`** (ALLTOURS 4,75M € — manuel ile birebir).
+Bazı küçük acentelerin avansı ise doğrudan **120 net-alacak** olarak durur (TUANA). "Acente Avansları" sekmesi
+artık **ikisini birleştirir**:
+- `sales_advances` tablosu (340 hesap özeti: code/name/currency/received/consumed) — sales import'ta **truncate+reload** (canlı 340 çekilir; sync butonu tazeler).
+- `_merged_advances(db)`: 340 (asıl, öncelikli) + 120 net-alacak (`_compute`). **340'ta adı geçen 120 kaydı atlanır** (token eşleştirmeli mükerrer önleme; `advances._norm_tokens`).
+- Her satır `source` taşır (`340`=Avans hesabı / `120`=Cari net). Özet kartı + liste para birimi bazında (TL/EUR).
+- Canlı: **6,2M € + 10M ₺ / 28 kayıt** (ALLTOURS 4,16M €, LAVİNYA 3,43M ₺, TUANA 467K ₺[120]…).
+
+**Manuel `finance.avanslar` ↔ Sedna mutabakatı:** `GET /avanslar/sedna-reconciliation` (avanslar sayfasında
+"Sedna Mutabakatı" butonu) — manuel acente avansları **340 ile** isim eşleştirmeli kıyaslanır (Alltours +0 fark).
 
 İçe aktarma servis fonksiyonu `run_sales_invoice_import(db, user, ip)` — merkezi Sedna sync
 (`sedna_sync.py:_STEPS`) tarafından da çağrılır. Yeni adımlar gibi tek "Sedna" butonuna bağlı.

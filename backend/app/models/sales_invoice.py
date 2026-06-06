@@ -47,6 +47,22 @@ class SalesInvoice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class SalesAdvance(Base):
+    """Sedna 340 'Alınan Avanslar' hesap özeti (acente avansları). Import'ta truncate+reload.
+
+    Acente avanslarının ASIL defteri (159=bizim verdiğimiz; 120 net-alacak ayrı/eksik). received=alınan,
+    consumed=faturayla mahsup; kalan = received - consumed."""
+    __tablename__ = "sales_advances"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(50))
+    name: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    currency: Mapped[str] = mapped_column(String(5), server_default="TL")
+    received: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
+    consumed: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class SalesCollection(Base):
     """120 tahsilat (Alacak hareketi) — faturalardan FIFO ile düşülür. Dedup: tx_hash."""
     __tablename__ = "sales_collections"

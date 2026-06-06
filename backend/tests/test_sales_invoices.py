@@ -26,9 +26,10 @@ FAKE = {
 }
 
 
-def _import(client, headers):
+def _import(client, headers, fake=FAKE, accounts=None):
     with patch(f"{TARGET}.sedna_configured", return_value=True), \
-         patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE):
+         patch(f"{TARGET}.fetch_sales_invoices", return_value=fake), \
+         patch(f"{TARGET}.fetch_advance_accounts", return_value=accounts or []):
         return client.post(f"{PREFIX}/sedna-import", headers=headers)
 
 
@@ -91,22 +92,19 @@ FAKE_ADV = {
 
 def test_advance_balance_and_by_advance(client, auth_headers):
     """Avans faturadan ÖNCE yatınca: faturalar 'avansla kapandı' + kalan avans bakiyesi."""
-    with patch(f"{TARGET}.sedna_configured", return_value=True), \
-         patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE_ADV):
-        assert client.post(f"{PREFIX}/sedna-import", headers=auth_headers).status_code == 200
+    assert _import(client, auth_headers, FAKE_ADV).status_code == 200
 
     # faturalar avansla kapandı (FIFO tarih-sıralı: önce avans havuzu)
     items = {it["invoice_no"]: it for it in client.get(f"{PREFIX}/", headers=auth_headers).json()["items"]}
     assert items["AINV1"]["status"] == "paid" and items["AINV1"]["by_advance"] is True
     assert items["AINV2"]["status"] == "paid" and items["AINV2"]["by_advance"] is True
 
-    # avans bakiyesi: 1500 yatırılan - 1200 fatura = 300 kalan (TL)
+    # avans bakiyesi: 1500 yatırılan - 1200 fatura = 300 kalan (TL); kaynak 120 (340 boş)
     adv = client.get(f"{PREFIX}/advances", headers=auth_headers).json()
     assert adv["count"] == 1 and adv["total_by_currency"]["TL"] == 300.0
     row = adv["items"][0]
-    assert row["customer_code"] == "120.02.01.0099" and row["customer_name"] == "AVANS ACENTE"
-    assert row["currency"] == "TL"
-    assert row["total_collected"] == 1500.0 and row["consumed"] == 1200.0 and row["net_advance"] == 300.0
+    assert row["customer_name"] == "AVANS ACENTE" and row["currency"] == "TL" and row["source"] == "120"
+    assert row["received"] == 1500.0 and row["consumed"] == 1200.0 and row["remaining"] == 300.0
 
     # özette de avans bakiyesi (para birimi bazlı)
     s = client.get(f"{PREFIX}/summary", headers=auth_headers).json()
@@ -127,17 +125,39 @@ FAKE_EUR = {
 
 def test_eur_currency_per_currency_fifo(client, auth_headers):
     """EUR avans EUR faturayı kapatır; bakiye EUR olarak raporlanır (TL'ye karışmaz)."""
-    with patch(f"{TARGET}.sedna_configured", return_value=True), \
-         patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE_EUR):
-        client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
+    _import(client, auth_headers, FAKE_EUR)
     it = client.get(f"{PREFIX}/?search=EUR1", headers=auth_headers).json()["items"][0]
     assert it["currency"] == "EUR" and it["amount"] == 1000.0 and it["amount_tl"] == 35000.0
     assert it["status"] == "paid" and it["by_advance"] is True   # EUR avansla kapandı
-    # avans EUR olarak: 1500 - 1000 = 500 EUR
+    # avans EUR olarak: 1500 - 1000 = 500 EUR (kaynak 120, 340 boş)
     adv = client.get(f"{PREFIX}/advances", headers=auth_headers).json()
     eur = [x for x in adv["items"] if x["currency"] == "EUR"]
-    assert eur and eur[0]["net_advance"] == 500.0 and eur[0]["customer_name"] == "ALLTOURS"
+    assert eur and eur[0]["remaining"] == 500.0 and eur[0]["customer_name"] == "ALLTOURS"
     assert adv["total_by_currency"]["EUR"] == 500.0
+
+
+def test_advances_merge_340_and_120_with_dedup(client, auth_headers):
+    """Avans listesi 340 (asıl) + 120 net-alacak birleşik; 340'ta adı geçen 120 atlanır."""
+    accounts = [{"code": "340.02.01.0017", "name": "ALLTOURS FLUGREİSEN GMBH", "currency": "EUR",
+                 "received": 4748000, "consumed": 592630}]
+    fake = {
+        "invoices": [{"customer_code": "120.99.01.0001", "customer_name": "TUANA",
+                      "invoice_date": date(2026, 2, 1), "invoice_no": "T1", "amount": 1000, "aciklama": "x"}],
+        "collections": [
+            {"customer_code": "120.99.01.0001", "customer_name": "TUANA",
+             "collection_date": date(2026, 1, 1), "amount": 1500, "aciklama": "avans", "fis_no": 1},
+            # ALLTOURS 120 net-alacak — 340'ta olduğu için DEDUP edilmeli
+            {"customer_code": "120.01.02.A001", "customer_name": "ALLTOURS FLUGREISEN",
+             "collection_date": date(2026, 1, 1), "amount": 99999, "aciklama": "avans", "fis_no": 2},
+        ],
+    }
+    _import(client, auth_headers, fake, accounts=accounts)
+    adv = client.get(f"{PREFIX}/advances", headers=auth_headers).json()
+    alltours = [x for x in adv["items"] if "ALLTOURS" in x["customer_name"].upper()]
+    assert len(alltours) == 1 and alltours[0]["source"] == "340"   # 120 kopyası dedup edildi
+    assert alltours[0]["remaining"] == 4155370.0 and alltours[0]["currency"] == "EUR"
+    tuana = [x for x in adv["items"] if x["customer_name"] == "TUANA"]
+    assert tuana and tuana[0]["source"] == "120" and tuana[0]["remaining"] == 500.0
 
 
 def test_same_day_payment_not_advance(client, auth_headers):
@@ -148,9 +168,7 @@ def test_same_day_payment_not_advance(client, auth_headers):
         "collections": [{"customer_code": "120.03.01.0001", "customer_name": "MÜNFERİT GENEL",
                          "collection_date": date(2026, 4, 1), "amount": 500, "aciklama": "nakit", "fis_no": 7}],
     }
-    with patch(f"{TARGET}.sedna_configured", return_value=True), \
-         patch(f"{TARGET}.fetch_sales_invoices", return_value=same):
-        client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
+    _import(client, auth_headers, same)
     it = client.get(f"{PREFIX}/?search=SD1", headers=auth_headers).json()["items"][0]
     assert it["status"] == "paid" and it["by_advance"] is False  # aynı gün = normal tahsilat
 
@@ -162,7 +180,8 @@ def test_central_sync_includes_sales(client, auth_headers, db):
          patch("app.routers.finance.cariler.sedna_import.fetch_cari_transactions", return_value=[]), \
          patch("app.routers.finance.cariler.sedna_import.fetch_vendor_ibans", return_value=[]), \
          patch("app.routers.finance.checks.fetch_issued_checks", return_value=[]), \
-         patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE):
+         patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE), \
+         patch(f"{TARGET}.fetch_advance_accounts", return_value=[]):
         j = client.post("/api/finance/sedna/sync-all", headers=auth_headers).json()
         keys = {s["key"] for s in j["steps"]}
         assert "sales_invoices" in keys
