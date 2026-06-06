@@ -67,9 +67,15 @@ işler:
 - Tüm faturalardan **artan tahsilat** = müşterinin **net avans bakiyesi** (`/advances`).
 - Canlı: **839.889 ₺ kullanılmamış avans / 12 acente** (ör. TUANA OPTİK 777K yatırmış, 309K faturayla kapanmış, **467,6K kalan**).
 
-**İlişki — `finance.avanslar` (Alınan Avanslar):** O modül **elle/planlama** (beklenen avans + banka eşleştirme,
-Sedna'sız). Bu modüldeki **Acente Avansları** sekmesi **gerçekleşen** (muhasebe 120) bakiyedir. İki sayfa
-karşılıklı linklidir. Tam otomatik mutabakat (isim/ID eşleştirme) ileride eklenebilir.
+**İlişki — `finance.avanslar` (Alınan Avanslar):** O modül **elle/planlama** (beklenen avans). İki sayfa
+karşılıklı linklidir. **Otomatik mutabakat** yapıldı: `GET /avanslar/sedna-reconciliation` (avanslar sayfasında
+"Sedna Mutabakatı" butonu) — manuel ↔ Sedna isim eşleştirmeli kıyas.
+
+> **ÖNEMLİ (340 vs 120):** Acente avanslarının **asıl yeri Sedna `340 "Alınan Sipariş Avansları"`** hesabıdır
+> (ör. ALLTOURS 340.02.01.0017 = 4,75M € — manuel modülle birebir). Bu modüldeki **Acente Avansları** sekmesi
+> ise **120 net-alacak** bazlıdır (faturayla mahsup sonrası kalan), büyük EUR operatörlerin 340 avansını TAM
+> yansıtmaz. Gerçek/eksiksiz alınan-avans tablosu için **mutabakat** (340) kullanılır. İki görünümü 340'a
+> hizalamak ileride yapılabilir.
 
 İçe aktarma servis fonksiyonu `run_sales_invoice_import(db, user, ip)` — merkezi Sedna sync
 (`sedna_sync.py:_STEPS`) tarafından da çağrılır. Yeni adımlar gibi tek "Sedna" butonuna bağlı.

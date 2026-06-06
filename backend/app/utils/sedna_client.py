@@ -135,9 +135,60 @@ ORDER BY o.FicheDate, t.RecId
 """
 
 
+# Alınan avanslar — 340 "Alınan Sipariş Avansları" (acente/müşteriden alınan; 159 = bizim verdiğimiz).
+# Alacak = alınan avans, Borç = faturayla mahsup. Döviz: CurrCredit/CurrDebit (yoksa TL).
+_ADVANCE_ACCOUNT_QUERY = """
+SELECT
+    t.AccountingCode AS code,
+    MIN(acc.Remark)  AS name,
+    MIN(t.Curr)      AS currency,
+    SUM(CASE WHEN t.Curr <> 'TL' THEN t.CurrCredit ELSE t.Credit END) AS received,
+    SUM(CASE WHEN t.Curr <> 'TL' THEN t.CurrDebit  ELSE t.Debit  END) AS consumed
+FROM AccountingTrans t
+LEFT JOIN Accounting acc ON acc.Code = t.AccountingCode
+WHERE t.AccountingCode LIKE '340%' AND t.Deleted = 0
+GROUP BY t.AccountingCode
+HAVING SUM(t.Credit) > 0
+ORDER BY SUM(t.Credit) DESC
+"""
+
+
 def sedna_configured() -> bool:
     """SEDNA_PASSWORD tanımlı mı (import özelliği etkin mi)."""
     return bool(settings.sedna_password)
+
+
+def fetch_advance_accounts() -> List[dict]:
+    """Sedna'dan 340 'Alınan Avanslar' hesaplarını çek (acente bazında alınan/mahsup, döviz).
+
+    Anahtarlar: code, name, currency, received (native), consumed (native).
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+
+    import pymssql  # yerel import
+
+    try:
+        conn = pymssql.connect(
+            server=settings.sedna_host, port=settings.sedna_port,
+            user=settings.sedna_user, password=settings.sedna_password,
+            database=settings.sedna_database, charset=settings.sedna_charset,
+            tds_version="7.4", login_timeout=10, timeout=60,
+        )
+    except Exception as e:
+        logger.warning("Sedna bağlantısı kurulamadı (avans mutabakat): %s", e)
+        raise SednaUnavailable(
+            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
+            f"({settings.sedna_host}:{settings.sedna_port})."
+        )
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_ADVANCE_ACCOUNT_QUERY)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d alınan-avans (340) hesabı çekildi", len(rows))
+    return rows
 
 
 def fetch_cari_transactions() -> List[dict]:

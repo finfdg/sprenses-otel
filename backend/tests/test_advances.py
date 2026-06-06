@@ -1,6 +1,38 @@
 """Alınan Avanslar modülü testleri."""
 import pytest
 from datetime import date
+from unittest.mock import patch
+
+REC = "app.routers.finance.advances"
+
+
+def test_sedna_reconciliation_matches(client, auth_headers, db):
+    """Manuel avans ↔ Sedna 340 eşleşir (isim) + Sedna-only avanslar raporlanır."""
+    from app.models.advance import Advance
+    db.add(Advance(agency_name="Alltours", amount=4748000, currency="EUR",
+                   status="received", received_amount=4748000, advance_date=date(2026, 1, 1)))
+    db.flush()
+    fake = [
+        {"code": "340.02.01.0017", "name": "ALLTOURS FLUGREİSEN", "currency": "EUR",
+         "received": 4748000, "consumed": 592630},
+        {"code": "340.01.01.0099", "name": "LAVİNYA OTELCİLİK TURİZM", "currency": "TL",
+         "received": 3432964, "consumed": 0},
+    ]
+    with patch(f"{REC}.sedna_configured", return_value=True), \
+         patch(f"{REC}.fetch_advance_accounts", return_value=fake):
+        r = client.get("/api/finance/avanslar/sedna-reconciliation", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        m = next(x for x in d["matched"] if x["agency_name"] == "Alltours")
+        assert m["matched"] and m["sedna_code"] == "340.02.01.0017"
+        assert m["sedna_received"] == 4748000.0 and m["variance"] == 0.0
+        assert m["sedna_remaining"] == 4155370.0   # 4748000 - 592630
+        assert any(x["sedna_code"] == "340.01.01.0099" for x in d["sedna_only"])  # manuelde yok
+
+
+def test_reconciliation_not_configured_503(client, auth_headers):
+    with patch(f"{REC}.sedna_configured", return_value=False):
+        assert client.get("/api/finance/avanslar/sedna-reconciliation", headers=auth_headers).status_code == 503
 
 
 def test_list_advances_empty(client, auth_headers):

@@ -2,10 +2,11 @@
 
 import json
 import math
+import re
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from sqlalchemy import desc, func
+from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -24,9 +25,44 @@ from app.utils.audit import log_action
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.utils.sedna_client import SednaUnavailable, fetch_advance_accounts, sedna_configured
 from app.utils.sql_search import like_pattern
 
 router = APIRouter(prefix="/avanslar")
+
+# Acente adı eşleştirme — ayırt edici olmayan kelimeler atılır (token çakışmasını azaltır)
+_STOP_TOKENS = {
+    "TUR", "TURIZM", "TIC", "TICARET", "LTD", "STI", "SAN", "VE", "AS", "ANONIM", "SIRKETI",
+    "ONLINE", "GMBH", "SLU", "SL", "OTEL", "OTELCILIK", "INS", "INSAAT", "ITH", "IHR",
+}
+
+
+def _norm_tokens(s: str) -> set:
+    """Acente adını ASCII'ye fold + büyük harf + ayırt edici token kümesi."""
+    s = s or ""
+    for a, b in (("İ", "I"), ("ı", "i"), ("Ş", "S"), ("ş", "s"), ("Ğ", "G"), ("ğ", "g"),
+                 ("Ü", "U"), ("ü", "u"), ("Ö", "O"), ("ö", "o"), ("Ç", "C"), ("ç", "c")):
+        s = s.replace(a, b)
+    s = s.upper()
+    return {t for t in re.split(r"[^A-Z0-9]+", s) if len(t) >= 2 and t not in _STOP_TOKENS}
+
+
+def _match_account(agency_name: str, currency: str, accounts: list, used: set):
+    """Manuel acente adını Sedna 340 hesabıyla eşleştir (token örtüşmesi + para birimi)."""
+    mt = _norm_tokens(agency_name)
+    if not mt:
+        return None
+    best, best_score = None, 0.0
+    for a in accounts:
+        if a["code"] in used:
+            continue
+        overlap = len(mt & _norm_tokens(a["name"]))
+        if overlap < 1:
+            continue
+        score = overlap + (0.5 if a.get("currency") == currency else 0.0)
+        if score > best_score:
+            best_score, best = score, a
+    return best
 
 
 # ─── Yardımcı ────────────────────────────────────────────
@@ -297,3 +333,74 @@ def advance_summary(
             result[currency]["received_count"] = count
 
     return result
+
+
+# ─── SEDNA MUTABAKAT (340 Alınan Avanslar ile) ───────────
+
+
+@router.get("/sedna-reconciliation")
+def sedna_reconciliation(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.avanslar", "view")),
+):
+    """Manuel avanslar ↔ Sedna 340 'Alınan Avanslar' mutabakatı.
+
+    Manuel modüldeki acente bazında ALINAN avanslar, Sedna'nın 340 hesaplarıyla (acente adı
+    eşleştirmeli) kıyaslanır: beklenen (manuel) vs gerçekleşen (Sedna) + kalan avans + fark.
+    Sedna'da olup manuelde olmayan avans hesapları da raporlanır (eksik kayıtlar). Canlı 340 çekilir.
+    """
+    if not sedna_configured():
+        raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
+    try:
+        accounts = fetch_advance_accounts()
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail="Sedna avans verisi alınamadı. Lütfen tekrar deneyin.")
+
+    for a in accounts:
+        a["received"] = float(a.get("received") or 0)
+        a["consumed"] = float(a.get("consumed") or 0)
+        a["currency"] = (a.get("currency") or "TL").strip() or "TL"
+
+    manual = (
+        db.query(
+            Advance.agency_name, Advance.currency,
+            func.sum(case((Advance.status == "received", Advance.received_amount), else_=0)),
+            func.sum(case((Advance.status == "pending", Advance.amount), else_=0)),
+        )
+        .group_by(Advance.agency_name, Advance.currency)
+        .all()
+    )
+
+    used: set = set()
+    matched = []
+    for name, cur, rec, pend in manual:
+        cur = (cur or "EUR")
+        m = _match_account(name, cur, accounts, used)
+        if m:
+            used.add(m["code"])
+        s_rec = m["received"] if m else 0.0
+        s_rem = (m["received"] - m["consumed"]) if m else 0.0
+        matched.append({
+            "agency_name": name, "currency": cur,
+            "manual_received": round(float(rec or 0), 2),
+            "manual_pending": round(float(pend or 0), 2),
+            "matched": m is not None,
+            "sedna_account": m["name"] if m else None,
+            "sedna_code": m["code"] if m else None,
+            "sedna_currency": m["currency"] if m else None,
+            "sedna_received": round(s_rec, 2),
+            "sedna_remaining": round(s_rem, 2),
+            "variance": round(s_rec - float(rec or 0), 2),
+        })
+
+    sedna_only = sorted(
+        [
+            {"agency_name": a["name"], "sedna_code": a["code"], "currency": a["currency"],
+             "received": round(a["received"], 2), "remaining": round(a["received"] - a["consumed"], 2)}
+            for a in accounts if a["code"] not in used and (a["received"] - a["consumed"]) > 1
+        ],
+        key=lambda x: -x["remaining"],
+    )
+    return {"matched": matched, "sedna_only": sedna_only, "sedna_account_count": len(accounts)}

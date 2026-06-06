@@ -33,6 +33,26 @@
 	let page = $state(1);
 	let pageSize = $state(50);
 
+	// Sedna mutabakat
+	let reconOpen = $state(false);
+	let reconLoading = $state(false);
+	let reconData = $state<{ matched: any[]; sedna_only: any[]; sedna_account_count: number } | null>(null);
+	function rSym(c: string): string { return c === 'EUR' ? '€' : c === 'USD' ? '$' : c === 'GBP' ? '£' : '₺'; }
+	function rFmt(n: number): string { return new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(n || 0); }
+	async function openRecon() {
+		reconOpen = true;
+		if (reconData || reconLoading) return;
+		reconLoading = true;
+		try {
+			reconData = await api.get('/finance/avanslar/sedna-reconciliation');
+		} catch (err: any) {
+			showToast(err?.body?.detail || 'Mutabakat alınamadı (SSH tüneli kapalı olabilir)', 'error');
+			reconOpen = false;
+		} finally {
+			reconLoading = false;
+		}
+	}
+
 	// Filtre state
 	let statusFilter = $state('');
 	let currencyFilter = $state('');
@@ -253,12 +273,73 @@
 		{/snippet}
 	</PageHeader>
 
-	{#if hasPermission('finance.sales_invoices', 'view')}
-		<div class="mb-4 -mt-1 text-xs text-gray-500">
-			Bu modül elle planlanan/beklenen avansları izler.
-			<a href="/dashboard/finans/satis-faturalari" class="text-teal-700 hover:underline font-medium">Muhasebedeki gerçekleşen acente avans bakiyeleri (Sedna) →</a>
+	<div class="mb-4 -mt-1 flex items-center justify-between gap-3 flex-wrap">
+		{#if hasPermission('finance.sales_invoices', 'view')}
+			<div class="text-xs text-gray-500">
+				Bu modül elle planlanan/beklenen avansları izler.
+				<a href="/dashboard/finans/satis-faturalari" class="text-teal-700 hover:underline font-medium">Muhasebedeki gerçekleşen acente avans bakiyeleri (Sedna) →</a>
+			</div>
+		{:else}<span></span>{/if}
+		<Button variant="secondary" onclick={openRecon}><Wallet size={15} /> Sedna Mutabakatı</Button>
+	</div>
+
+	<!-- Sedna mutabakat modalı -->
+	<Modal bind:show={reconOpen} title="Avans Mutabakatı — Manuel ↔ Sedna (340)" maxWidth="max-w-4xl">
+		<div class="p-4 sm:p-5">
+			{#if reconLoading}
+				<p class="text-sm text-gray-500 py-6 text-center">Sedna'dan çekiliyor…</p>
+			{:else if reconData}
+				<p class="text-xs text-gray-500 mb-3">Manuel modüldeki acente avansları, muhasebenin (Sedna) <strong>340 "Alınan Avanslar"</strong> hesaplarıyla acente adı eşleştirilerek kıyaslanır.</p>
+				<h3 class="text-sm font-semibold text-gray-800 mb-2">Eşleşen acenteler</h3>
+				<div class="overflow-x-auto border border-gray-200 rounded-lg mb-5">
+					<table class="w-full text-sm">
+						<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+							<tr>
+								<th class="text-left font-medium px-3 py-2">Acente</th>
+								<th class="text-right font-medium px-3 py-2">Manuel Alınan</th>
+								<th class="text-right font-medium px-3 py-2">Sedna Alınan</th>
+								<th class="text-right font-medium px-3 py-2">Fark</th>
+								<th class="text-right font-medium px-3 py-2">Kalan Avans</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-100">
+							{#each reconData.matched as r}
+								<tr class="hover:bg-gray-50/60">
+									<td class="px-3 py-2 text-gray-700">
+										{r.agency_name}
+										{#if r.matched}<span class="block text-[10px] text-gray-400 truncate max-w-[16rem]">≈ {r.sedna_account}</span>{:else}<span class="block text-[10px] text-red-500">Sedna'da eşleşmedi</span>{/if}
+									</td>
+									<td class="px-3 py-2 text-right tabular-nums text-gray-700">{rFmt(r.manual_received)} {rSym(r.currency)}</td>
+									<td class="px-3 py-2 text-right tabular-nums text-gray-700">{r.matched ? rFmt(r.sedna_received) + ' ' + rSym(r.currency) : '—'}</td>
+									<td class="px-3 py-2 text-right tabular-nums font-medium {Math.abs(r.variance) < 1 ? 'text-emerald-600' : 'text-amber-700'}">{r.matched ? (r.variance > 0 ? '+' : '') + rFmt(r.variance) : '—'}</td>
+									<td class="px-3 py-2 text-right tabular-nums text-teal-700 font-semibold">{r.matched ? rFmt(r.sedna_remaining) + ' ' + rSym(r.currency) : '—'}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+				{#if reconData.sedna_only.length > 0}
+					<h3 class="text-sm font-semibold text-gray-800 mb-1">Sedna'da olup manuelde olmayan avanslar <span class="text-xs font-normal text-gray-400">({reconData.sedna_only.length})</span></h3>
+					<p class="text-xs text-gray-500 mb-2">Muhasebede kayıtlı ama "Alınan Avanslar" modülüne girilmemiş — eklenebilir.</p>
+					<div class="overflow-x-auto border border-gray-200 rounded-lg">
+						<table class="w-full text-sm">
+							<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+								<tr><th class="text-left font-medium px-3 py-2">Acente (Sedna)</th><th class="text-right font-medium px-3 py-2">Kalan Avans</th></tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{#each reconData.sedna_only as r}
+									<tr class="hover:bg-gray-50/60">
+										<td class="px-3 py-2 text-gray-700 truncate max-w-[28rem]">{r.agency_name}</td>
+										<td class="px-3 py-2 text-right tabular-nums text-teal-700 font-semibold">{rFmt(r.remaining)} {rSym(r.currency)}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			{/if}
 		</div>
-	{/if}
+	</Modal>
 
 	<!-- Özet kartları (para birimi bazında, doğru) -->
 	{#if !loading && (Object.keys(summary).length > 0)}

@@ -546,8 +546,9 @@ TEMPLATE:
 - Detaylı bilgi: `docs/modules/krediler.md`
 
 ### Finans — Avanslar
-- `GET/POST/PATCH/DELETE /api/finance/avanslar/` — Avans CRUD
+- `GET/POST/PATCH/DELETE /api/finance/avanslar/` — Avans CRUD (elle/planlama; beklenen avanslar)
 - `GET /api/finance/avanslar/summary` — Avans özeti
+- `GET /api/finance/avanslar/sedna-reconciliation` — **Manuel avans ↔ Sedna mutabakatı**. Acente avansları Sedna'da **340 "Alınan Sipariş Avansları"** hesabındadır (159=bizim verdiğimiz; 320/120 ile karıştırma). Manuel acente adı ↔ Sedna 340 adı **token eşleştirmeli** kıyaslanır: manuel alınan vs Sedna alınan + kalan avans + fark + Sedna'da olup manuelde olmayan avanslar. Canlı 340 çekilir (tünel kapalıysa 503). Frontend: avanslar sayfasında "Sedna Mutabakatı" butonu. İlk canlı: Alltours manuel 4,75M € = Sedna 340 4,75M € (birebir)
 - Detaylı bilgi: `docs/modules/avanslar.md`
 
 ### Finans — Döviz
