@@ -36,6 +36,7 @@ export interface BankTransaction {
 	amount: number;
 	balance: number | null;
 	type: 'income' | 'expense';
+	source?: 'statement' | 'manual';
 }
 
 export interface UploadResult {

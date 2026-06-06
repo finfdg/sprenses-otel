@@ -56,6 +56,13 @@
 	let uploadResult = $state<UploadResult | null>(null);
 	let showUploadResult = $state(false);
 
+	// Manuel (ekstre-dışı) hareket
+	let showManualTx = $state(false);
+	let manualTxAccount = $state<BankAccount | null>(null);
+	let manualForm = $state({ date: '', direction: 'out' as 'in' | 'out', amount: null as number | null, description: '' });
+	let manualSaving = $state(false);
+	let manualError = $state('');
+
 	// Hesap formu
 	let showAccountForm = $state(false);
 	let editingAccount = $state<BankAccount | null>(null);
@@ -382,6 +389,39 @@
 	}
 
 	// ─── Format helpers ─────────────────────────────────────
+	// ─── Manuel (ekstre-dışı) hareket ──────────────────────
+	function openManualTx(acc: BankAccount) {
+		manualTxAccount = acc;
+		manualError = '';
+		const t = new Date();
+		const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+		manualForm = { date: iso, direction: 'out', amount: null, description: '' };
+		showManualTx = true;
+	}
+	async function submitManualTx() {
+		if (!manualTxAccount) return;
+		manualError = '';
+		if (!manualForm.date) { manualError = 'Tarih zorunlu'; return; }
+		if (!manualForm.amount || manualForm.amount <= 0) { manualError = 'Tutar girin'; return; }
+		if (!manualForm.description.trim()) { manualError = 'Açıklama zorunlu'; return; }
+		manualSaving = true;
+		try {
+			const signed = manualForm.direction === 'out' ? -Math.abs(manualForm.amount) : Math.abs(manualForm.amount);
+			await api.post(`/finance/banks/accounts/${manualTxAccount.id}/manual-transaction`, {
+				date: manualForm.date, amount: signed, description: manualForm.description.trim(),
+			});
+			const accId = manualTxAccount.id;
+			showManualTx = false;
+			showToast('Manuel hareket eklendi — ilgili ekstre yüklenince otomatik temizlenir', 'success');
+			await loadAccounts();
+			if (expandedAccount === accId) loadTransactions(accId);
+		} catch (e: any) {
+			manualError = e?.message || 'Eklenemedi';
+		} finally {
+			manualSaving = false;
+		}
+	}
+
 	function formatCurrency(amount: number, currency: string = 'TRY'): string {
 		return new Intl.NumberFormat('tr-TR', { style: 'currency', currency }).format(amount);
 	}
@@ -668,6 +708,15 @@
 												>
 													Ekstreler
 												</button>
+												{#if canUse}
+													<button
+														onclick={() => openManualTx(acc)}
+														class="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 cursor-pointer"
+														title="Ekstre-dışı (manuel) hareket ekle — ilgili ekstre yüklenince otomatik temizlenir"
+													>
+														<Plus size={13} /> Manuel Hareket
+													</button>
+												{/if}
 											</div>
 
 											{#if activeTab === 'transactions'}
@@ -698,7 +747,12 @@
 																	<tr class="border-b border-gray-50 hover:bg-gray-50/50">
 																		<td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{formatDate(tx.date)}</td>
 																		<td class="px-4 py-2.5 text-gray-500 whitespace-nowrap text-xs">{tx.receipt_no || '-'}</td>
-																		<td class="px-4 py-2.5 text-gray-800 max-w-xs truncate" title={tx.description}>{tx.description}</td>
+																		<td class="px-4 py-2.5 text-gray-800 max-w-xs">
+																			<div class="flex items-center gap-1.5 min-w-0">
+																				<span class="truncate" title={tx.description}>{tx.description}</span>
+																				{#if tx.source === 'manual'}<span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Manuel</span>{/if}
+																			</div>
+																		</td>
 																		<td class="px-4 py-2.5 text-right font-medium whitespace-nowrap {tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">
 																			{tx.type === 'income' ? '+' : ''}{formatCurrency(tx.amount, acc.currency)}
 																		</td>
@@ -717,7 +771,10 @@
 															<div class="px-4 py-3">
 																<div class="flex items-start justify-between gap-2">
 																	<div class="min-w-0 flex-1">
-																		<p class="text-sm text-gray-800 truncate">{tx.description}</p>
+																		<div class="flex items-center gap-1.5 min-w-0">
+																			<p class="text-sm text-gray-800 truncate">{tx.description}</p>
+																			{#if tx.source === 'manual'}<span class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Manuel</span>{/if}
+																		</div>
 																		<p class="text-[11px] text-gray-500 mt-0.5">{formatDate(tx.date)} {tx.receipt_no ? `• ${tx.receipt_no}` : ''}</p>
 																	</div>
 																	<span class="text-sm font-bold whitespace-nowrap {tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">
@@ -949,6 +1006,42 @@
 			<Button type="submit" loading={savingAccount}>{editingAccount ? 'Güncelle' : 'Ekle'}</Button>
 		</div>
 	</form>
+</Modal>
+
+<!-- Manuel (ekstre-dışı) hareket -->
+<Modal bind:show={showManualTx} title="Manuel Hareket (Ekstre Dışı)" maxWidth="max-w-md">
+	{#if manualTxAccount}
+		<div class="space-y-4">
+			<div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800 leading-snug">
+				<strong>{manualTxAccount.bank_name}</strong> ({manualTxAccount.currency}) — ekstresi henüz gelmemiş bir işlemi yansıtır.
+				İlgili ekstre yüklenince bu satır o tarih aralığında <strong>otomatik silinir</strong> (çift kayıt olmaz).
+			</div>
+			<div>
+				<label for="mtx-date" class="block text-sm font-medium text-gray-700 mb-1">İşlem Tarihi <span class="text-red-500">*</span></label>
+				<input id="mtx-date" type="date" bind:value={manualForm.date} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+			</div>
+			<div>
+				<span class="block text-sm font-medium text-gray-700 mb-1">Yön <span class="text-red-500">*</span></span>
+				<div class="grid grid-cols-2 gap-2">
+					<button type="button" onclick={() => (manualForm.direction = 'out')} class="px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer {manualForm.direction === 'out' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}">Çıkış (−)</button>
+					<button type="button" onclick={() => (manualForm.direction = 'in')} class="px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer {manualForm.direction === 'in' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}">Giriş (+)</button>
+				</div>
+			</div>
+			<div>
+				<label for="mtx-amount" class="block text-sm font-medium text-gray-700 mb-1">Tutar <span class="text-red-500">*</span></label>
+				<MoneyInput bind:value={manualForm.amount} currency={manualTxAccount.currency} min={0} placeholder="0,00" />
+			</div>
+			<div>
+				<label for="mtx-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-red-500">*</span></label>
+				<input id="mtx-desc" type="text" bind:value={manualForm.description} placeholder="Ör: YKB ANTALYA hesabına virman" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+			</div>
+			{#if manualError}<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{manualError}</div>{/if}
+			<div class="flex justify-end gap-2 pt-1">
+				<Button type="button" variant="secondary" onclick={() => (showManualTx = false)}>İptal</Button>
+				<Button onclick={submitManualTx} loading={manualSaving}>Ekle</Button>
+			</div>
+		</div>
+	{/if}
 </Modal>
 
 <!-- Silme Onayı -->

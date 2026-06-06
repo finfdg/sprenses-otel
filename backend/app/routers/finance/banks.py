@@ -1,5 +1,6 @@
 """Banka hesapları ve ekstre yönetimi — hesap CRUD, ekstre yükleme, işlem listeleme."""
 
+import hashlib
 import logging
 import math
 import os
@@ -31,6 +32,7 @@ from app.schemas.bank import (
     BankAccountUpdate,
     BankStatementResponse,
     BankTransactionResponse,
+    ManualTransactionCreate,
     UploadResult,
 )
 from app.utils.approval_check import check_approval
@@ -417,6 +419,36 @@ def _process_statement(
         db.add(stmt)
         db.flush()
 
+        # ── Manuel (ekstre-dışı) hareketleri temizle (dedup) ──────────────────
+        # Bu ekstrenin kapsadığı tarih aralığında daha önce ELLE eklenmiş satırlar artık
+        # ekstreden geleceği için silinir → ÇİFT KAYIT OLMAZ. finance_event'leri de
+        # invalidate edilir. Bu, gerçek dedup setleri kurulmadan ÖNCE yapılır ki bakiye
+        # bazlı mükerrer kontrol manuel satırı "mevcut" sanıp gerçek satırı atlamasın.
+        manual_purged = 0
+        _stmt_dates = [t.date for t in parsed.transactions if t.date]
+        if _stmt_dates:
+            _dmin, _dmax = min(_stmt_dates), max(_stmt_dates)
+            _manual_rows = (
+                db.query(BankTransaction)
+                .filter(
+                    BankTransaction.account_id == acc.id,
+                    BankTransaction.source == "manual",
+                    BankTransaction.date >= _dmin,
+                    BankTransaction.date <= _dmax,
+                )
+                .all()
+            )
+            for _mr in _manual_rows:
+                finance_event_svc.invalidate(db, "bank", _mr.id)
+                db.delete(_mr)
+            manual_purged = len(_manual_rows)
+            if manual_purged:
+                db.flush()
+                logger.info(
+                    "Manuel hareket temizlendi (hesap=%s): %d satır [%s..%s]",
+                    acc.iban, manual_purged, _dmin, _dmax,
+                )
+
         # Mevcut hash'leri çek
         existing_hashes = set(
             row[0] for row in
@@ -533,7 +565,7 @@ def _process_statement(
         logger.error("Banka ekstresi kaydetme hatası (hesap=%s): %s", acc.iban, e, exc_info=True)
         raise HTTPException(status_code=500, detail="Ekstre kaydedilirken bir veritabanı hatası oluştu. Lütfen tekrar deneyin.")
 
-    return UploadResult(
+    _result = UploadResult(
         statement_id=stmt.id,
         file_name=file.filename or unique_name,
         total_transactions=len(parsed.transactions),
@@ -542,6 +574,8 @@ def _process_statement(
         account_iban=acc.iban,
         account_currency=acc.currency,
     ).model_dump()
+    _result["manual_purged"] = manual_purged  # ekstre yüklenince temizlenen manuel satır sayısı
+    return _result
 
 
 async def _post_upload_processing(
@@ -688,6 +722,7 @@ def list_transactions(
                 amount=float(tx.amount),
                 balance=float(tx.balance) if tx.balance is not None else None,
                 type=tx.type,
+                source=tx.source,
             ).model_dump()
             for tx in items
         ],
@@ -696,6 +731,79 @@ def list_transactions(
         "page_size": page_size,
         "pages": math.ceil(total / page_size) if total > 0 else 1,
     }
+
+
+# ─── Manuel (ekstre-dışı) hareket ───────────────────────
+
+@router.post("/accounts/{account_id}/manual-transaction", status_code=status.HTTP_201_CREATED)
+def create_manual_transaction(
+    account_id: int,
+    data: ManualTransactionCreate,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.banks", "use")),
+):
+    """Ekstre-dışı (manuel) banka hareketi ekle — ekstresi henüz gelmemiş bir işlemi yansıtmak için.
+
+    İlgili ekstre yüklenince bu satır o ekstrenin tarih aralığında OTOMATİK silinir
+    (finance_event'i de invalidate edilir) → ekstre asıl kaynak olur, **çift kayıt olmaz**.
+    Operasyonel düzeltme endpoint'i (dosya yükleme/eşleştirme gibi) — onay akışından muaf, audit'li.
+
+    `amount` işaretlidir: negatif → hesaptan çıkış (bakiye düşer), pozitif → giriş.
+    Yeni bakiye = hesabın güncel son bakiyesi + tutar.
+    """
+    acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
+    if not acc:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+    if not (data.description or "").strip():
+        raise HTTPException(status_code=400, detail="Açıklama zorunlu")
+    if not data.amount or float(data.amount) == 0:
+        raise HTTPException(status_code=400, detail="Tutar sıfır olamaz")
+
+    last_balance = (
+        db.query(BankTransaction.balance)
+        .filter(BankTransaction.account_id == acc.id, BankTransaction.balance.isnot(None))
+        .order_by(desc(BankTransaction.date), desc(BankTransaction.id))
+        .limit(1)
+        .scalar()
+    )
+    new_balance = float(last_balance or 0) + float(data.amount)
+
+    # Ekstre satırlarıyla ASLA çakışmayan benzersiz hash (statement hash'leri compute_tx_hash formatında)
+    manual_hash = hashlib.sha256(
+        f"manual:{acc.id}:{data.date}:{data.amount}:{uuid.uuid4().hex}".encode()
+    ).hexdigest()
+
+    db_tx = BankTransaction(
+        account_id=acc.id,
+        statement_id=None,
+        date=data.date,
+        description=f"[MANUEL] {data.description.strip()}",
+        amount=data.amount,
+        balance=new_balance,
+        type="income" if float(data.amount) > 0 else "expense",
+        tx_hash=manual_hash,
+        source="manual",
+        category_id=data.category_id,
+    )
+    db.add(db_tx)
+    db.flush()
+    finance_event_svc.upsert_bank_tx(db, db_tx, acc)
+    log_action(
+        db, current_user.id, "create", "bank_transaction", db_tx.id,
+        f"Manuel hareket: {acc.iban} {float(data.amount):+.2f} {acc.currency} → bakiye {new_balance:.2f}",
+        get_client_ip(request),
+    )
+    db.commit()
+    db.refresh(db_tx)
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "create")
+    return BankTransactionResponse(
+        id=db_tx.id, account_id=db_tx.account_id, date=db_tx.date, receipt_no=db_tx.receipt_no,
+        description=db_tx.description, amount=float(db_tx.amount),
+        balance=float(db_tx.balance) if db_tx.balance is not None else None,
+        type=db_tx.type, source=db_tx.source,
+    ).model_dump()
 
 
 # ─── Ekstre Geçmişi ─────────────────────────────────────

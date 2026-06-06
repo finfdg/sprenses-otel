@@ -86,6 +86,15 @@ class BankTransactionResponse(BaseModel):
     amount: float
     balance: Optional[float] = None
     type: str
+    source: str = "statement"  # 'statement' | 'manual' (ekstre-dışı)
 
     class Config:
         from_attributes = True
+
+
+class ManualTransactionCreate(BaseModel):
+    """Ekstre-dışı (manuel) banka hareketi — ekstresi gelmemiş bir işlemi yansıtmak için."""
+    date: date
+    amount: float  # işaretli: negatif = çıkış (hesaptan düşer), pozitif = giriş
+    description: str
+    category_id: Optional[int] = None

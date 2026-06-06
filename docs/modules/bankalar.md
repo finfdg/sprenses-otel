@@ -91,7 +91,8 @@
 | `DELETE` | `/banks/accounts/{id}` | use | Hesap sil (işlem varsa engellenir) |
 | `POST` | `/banks/upload` | use | Ekstre yükle — banka otomatik algıla |
 | `POST` | `/banks/accounts/{id}/upload` | use | Belirli hesaba ekstre yükle |
-| `GET` | `/banks/accounts/{id}/transactions` | view | İşlem listesi (paginated, tarih filtresi) |
+| `POST` | `/banks/accounts/{id}/manual-transaction` | use | **Ekstre-dışı (manuel) hareket** — ekstresi gelmemiş işlemi yansıtır; ekstre yüklenince o tarih aralığında **otomatik silinir** (çift kayıt yok). `source='manual'`, audit'li |
+| `GET` | `/banks/accounts/{id}/transactions` | view | İşlem listesi (paginated; yanıt `source`: statement/manual) |
 | `GET` | `/banks/accounts/{id}/statements` | view | Ekstre yükleme geçmişi |
 | `DELETE` | `/banks/accounts/{id}/statements/{stmt_id}` | use | Ekstre sil (işlemler geri alınır) |
 

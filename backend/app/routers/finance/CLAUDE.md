@@ -475,6 +475,29 @@ Cari vade günü değiştirildiğinde şu işlemler sırayla yapılır:
 
 ---
 
+## Manuel (Ekstre-Dışı) Banka Hareketi + Dedup (2026-06-06)
+
+**İhtiyaç:** Ekstresi henüz alınamayan bir banka işlemini (ör. iki kendi EUR hesabı arası
+virmanın ekstre-gelmemiş tarafı) bakiyeye yansıtmak — ama ekstre yüklenince **çift kayıt olmasın**.
+
+**Tasarım:**
+- `bank_transactions.source` (`'statement'` | `'manual'`). Manuel satırlar `POST
+  /accounts/{id}/manual-transaction` ile eklenir (finance.banks use, audit, onaydan muaf —
+  dosya yükleme/eşleştirme gibi özel düzeltme endpoint'i). Tutar **işaretlidir** (negatif=çıkış);
+  yeni bakiye = hesabın güncel son bakiyesi + tutar; açıklama `[MANUEL]` ön ekli; tx_hash
+  **benzersiz** (`sha256("manual:...uuid")`) → ekstre hash'leriyle asla çakışmaz. `upsert_bank_tx`
+  ile finance_event'e de yazılır (her para hareketi kuralı; yön tutar işaretinden).
+- **Dedup (kritik):** `_process_statement` ekstre satırlarını işlemeden ÖNCE, o ekstrenin
+  kapsadığı **tarih aralığındaki** (`min..max(parsed dates)`) `source='manual'` satırları siler
+  ve finance_event'lerini `invalidate` eder. Böylece bakiye-bazlı mükerrer kontrol manuel satırı
+  "mevcut" sanıp gerçek satırı atlamaz; ekstre **asıl kaynak** olur. Yükleme sonucu `manual_purged`
+  sayısını döner.
+- **Neden tarih-aralığı purjü (tutar eşleştirme değil):** Manuel satırın tahmini bakiyesi gerçek
+  ekstre satırının bakiyesiyle birebir tutmayabilir; aralık-bazlı temizlik bakiyeden bağımsız
+  çalışır ve sağlamdır. Ekstre transferin gününü kapsamıyorsa (daha eski ay) manuel satır korunur.
+- **Test:** `tests/test_bank_manual_transaction.py` — oluşturma + bakiye hesabı + finance_event +
+  **upload→purge→çift kayıt yok** (kritik) + izin/doğrulama (4 test).
+
 ## Banka Ekstre Mükerrer Kontrolü
 
 Mükerrer tespiti **bakiye bazlı** yapılır — en güvenilir yöntem:

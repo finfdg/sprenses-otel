@@ -498,7 +498,8 @@ TEMPLATE:
 - `DELETE /api/finance/banks/accounts/{id}` — Banka hesabı sil
 - `POST /api/finance/banks/upload` — Ekstre yükleme (otomatik tanıma)
 - `POST /api/finance/banks/accounts/{id}/upload` — Hesaba özel ekstre yükleme
-- `GET /api/finance/banks/accounts/{id}/transactions` — Hesap işlemleri
+- `POST /api/finance/banks/accounts/{id}/manual-transaction` — Ekstre-dışı (manuel) hareket ekle (`source='manual'`; işaretli tutar; bakiye=son+tutar). İlgili ekstre yüklenince o tarih aralığında **otomatik silinir** → çift kayıt olmaz. finance.banks use, audit'li, onaydan muaf (özel/düzeltme endpoint'i)
+- `GET /api/finance/banks/accounts/{id}/transactions` — Hesap işlemleri (yanıt `source` alanı döner: statement/manual)
 - `GET /api/finance/banks/accounts/{id}/statements` — Ekstre listesi
 - Detaylı bilgi: `docs/modules/bankalar.md`
 

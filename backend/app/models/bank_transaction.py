@@ -43,6 +43,10 @@ class BankTransaction(Base):
     amount: Mapped[float] = mapped_column(Numeric(15, 2))
     balance: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)
     type: Mapped[str] = mapped_column(String(10))  # income / expense
+    # Kaynak: 'statement' (ekstreden gelir) | 'manual' (elle, ekstre-dışı düzeltme).
+    # Manuel satırlar, ilgili ekstre yüklenince o ekstrenin tarih aralığında OTOMATİK
+    # silinir (finance_event'i de invalidate edilir) → ekstre asıl kaynak, çift kayıt olmaz.
+    source: Mapped[str] = mapped_column(String(20), default="statement", server_default="statement")
     tx_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(),
