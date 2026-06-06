@@ -16,7 +16,7 @@
 	import SortableHeader, { type SortOrder } from '$lib/components/SortableHeader.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
-		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload, RotateCcw,
+		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload, RotateCcw, MoreHorizontal,
 	} from 'lucide-svelte';
 
 	type Personnel = {
@@ -61,6 +61,7 @@
 
 	// Kiosk linki modalı
 	let showKiosk = $state(false);
+	let toolsMenu = $state(false);  // mobil "Araçlar" açılır menüsü
 	let kioskUrl = $state('');
 
 	// Elle giriş modalı
@@ -468,12 +469,32 @@
 	<PageHeader title="Devam Takip" description="Personel giriş/çıkış izleme ve yönetimi (karekod ile)">
 		{#snippet actions()}
 			{#if canUse}
-				<Button variant="secondary" onclick={openManual}><LogIn size={16} /> Elle Giriş</Button>
-				<Button variant="secondary" onclick={openKiosk}><Monitor size={16} /> Kiosk Linki</Button>
-				<Button variant="secondary" onclick={openCards}><QrCode size={16} /> QR Kartları</Button>
-				<Button variant="secondary" onclick={openImport}><Upload size={16} /> Excel İçe Aktar</Button>
-				<Button variant="secondary" onclick={openSettings}><Settings size={16} /> Ayarlar</Button>
-				<Button onclick={openCreate}><UserPlus size={16} /> Yeni Personel</Button>
+				<!-- Mobil: Araçlar menüsü + Yeni -->
+				<div class="flex items-center gap-2 sm:hidden">
+					<div class="relative">
+						<Button variant="secondary" onclick={() => (toolsMenu = !toolsMenu)}><MoreHorizontal size={16} /> Araçlar</Button>
+						{#if toolsMenu}
+							<button class="fixed inset-0 z-10 cursor-default" aria-label="Menüyü kapat" onclick={() => (toolsMenu = false)}></button>
+							<div class="absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1.5">
+								<button onclick={() => { toolsMenu = false; openManual(); }} class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"><LogIn size={16} class="text-gray-400" /> Elle Giriş</button>
+								<button onclick={() => { toolsMenu = false; openKiosk(); }} class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"><Monitor size={16} class="text-gray-400" /> Kiosk Linki</button>
+								<button onclick={() => { toolsMenu = false; openCards(); }} class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"><QrCode size={16} class="text-gray-400" /> QR Kartları</button>
+								<button onclick={() => { toolsMenu = false; openImport(); }} class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"><Upload size={16} class="text-gray-400" /> Excel İçe Aktar</button>
+								<button onclick={() => { toolsMenu = false; openSettings(); }} class="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"><Settings size={16} class="text-gray-400" /> Ayarlar</button>
+							</div>
+						{/if}
+					</div>
+					<Button onclick={openCreate}><UserPlus size={16} /> Yeni</Button>
+				</div>
+				<!-- Masaüstü: tüm butonlar -->
+				<div class="hidden sm:flex items-center gap-2 flex-wrap justify-end">
+					<Button variant="secondary" onclick={openManual}><LogIn size={16} /> Elle Giriş</Button>
+					<Button variant="secondary" onclick={openKiosk}><Monitor size={16} /> Kiosk Linki</Button>
+					<Button variant="secondary" onclick={openCards}><QrCode size={16} /> QR Kartları</Button>
+					<Button variant="secondary" onclick={openImport}><Upload size={16} /> Excel İçe Aktar</Button>
+					<Button variant="secondary" onclick={openSettings}><Settings size={16} /> Ayarlar</Button>
+					<Button onclick={openCreate}><UserPlus size={16} /> Yeni Personel</Button>
+				</div>
 			{/if}
 		{/snippet}
 	</PageHeader>

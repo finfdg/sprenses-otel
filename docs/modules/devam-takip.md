@@ -6,6 +6,7 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
 ## Genel Bilgi
 - **Modül kodu:** `hr.attendance` (üst modül: `hr`)
 - **Admin rota:** `/dashboard/ik/devam-takip` · **İzin:** `hr.attendance` (HR rolleriyle aynı)
+- **Mobil:** başlıktaki 5 ikincil aksiyon (Elle Giriş/Kiosk/QR Kartları/İçe Aktar/Ayarlar) `<sm`'de **"Araçlar"** açılır menüsünde toplanır; "Yeni Personel" birincil kalır (taşma yok). Tablolar `<sm`'de az-önemli kolonları gizler + yatay kayar.
 - **Public rotalar (dashboard dışı, auth yok):** `/devam/ekran` (kiosk), `/devam/kur` (kurulum), `/devam` (basış)
 - **Backend prefix:** `/api/attendance`
 

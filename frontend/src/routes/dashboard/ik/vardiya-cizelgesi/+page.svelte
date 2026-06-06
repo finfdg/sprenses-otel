@@ -56,6 +56,8 @@
 	let deptFilter = $state('');
 	// Fırça: null=seçim modu, 'clear'=silgi, number=vardiya id
 	let brush = $state<number | 'clear' | null>(null);
+	// Mobil tek-gün görünümü — haftalık grid yerine seçili günün personel listesi (Pzt=0)
+	let selectedDayIndex = $state((new Date().getDay() + 6) % 7);
 
 	// Tek hücre seçim modalı
 	let showCellModal = $state(false);
@@ -105,6 +107,8 @@
 	});
 	let assignedThisWeek = $derived(assignments.filter((a) => visiblePids.has(a.personnel_id)).length);
 	let coverage = $derived(filteredPersonnel.length > 0 ? Math.round((assignedThisWeek / (filteredPersonnel.length * 7)) * 100) : 0);
+	let selectedDay = $derived(days[selectedDayIndex] ?? days[0]);
+	let selectedDayLabel = $derived(selectedDay ? `${selectedDay.dayName} ${selectedDay.dayNum} ${selectedDay.month}` : '');
 	let brushLabel = $derived(
 		brush === null ? 'Seçim modu' : brush === 'clear' ? 'İzinli / Sil' : (shiftMap.get(brush)?.name ?? 'Vardiya')
 	);
@@ -252,13 +256,13 @@
 				<button onclick={() => gotoWeek(1)} class="p-2 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg cursor-pointer" title="Sonraki hafta" aria-label="Sonraki hafta"><ChevronRight size={18} /></button>
 				<span class="ml-1 text-base font-semibold text-gray-900 tabular-nums">{weekLabel}</span>
 			</div>
-			<div class="flex items-center gap-2 flex-wrap">
-				<div class="relative">
+			<div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+				<div class="relative flex-1 min-w-[140px] sm:flex-none">
 					<Search size={15} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-					<input type="text" bind:value={search} placeholder="Personel ara…" class="w-44 sm:w-56 pl-8 pr-7 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+					<input type="text" bind:value={search} placeholder="Personel ara…" class="w-full sm:w-56 pl-8 pr-7 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
 					{#if search}<button onclick={() => (search = '')} class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer" aria-label="Temizle"><X size={14} /></button>{/if}
 				</div>
-				<select bind:value={deptFilter} class="py-2 px-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer">
+				<select bind:value={deptFilter} class="shrink-0 py-2 px-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer">
 					<option value="">Tüm departmanlar</option>
 					{#each departments as d}<option value={d}>{d}</option>{/each}
 				</select>
@@ -294,7 +298,7 @@
 		{:else if filteredPersonnel.length === 0}
 			<EmptyState icon={Search} title="Eşleşen personel yok" description="Arama veya departman filtresini değiştirin." />
 		{:else}
-			<div class="overflow-auto max-h-[68vh]">
+			<div class="hidden md:block overflow-auto max-h-[68vh]">
 				<table class="w-full border-collapse text-sm">
 					<thead>
 						<tr>
@@ -347,6 +351,43 @@
 						{/each}
 					</tbody>
 				</table>
+			</div>
+			<!-- Mobil: tek-gün liste görünümü (geniş grid yerine; md+ grid kalır) -->
+			<div class="md:hidden">
+				<div class="overflow-x-auto border-b border-gray-100 px-2 py-2">
+					<div class="flex gap-1.5 min-w-max">
+						{#each days as day, i}
+							<button onclick={() => (selectedDayIndex = i)} class="flex flex-col items-center px-3 py-1.5 rounded-lg border shrink-0 cursor-pointer {selectedDayIndex === i ? 'bg-teal-700 text-white border-teal-700' : day.isToday ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-white text-gray-600 border-gray-200'}">
+								<span class="text-xs font-semibold">{day.dayName}</span>
+								<span class="text-[11px] tabular-nums">{day.dayNum} {day.month.slice(0, 3)}</span>
+								<span class="text-[10px] opacity-75 tabular-nums">{dayCounts[day.iso] ?? 0} kişi</span>
+							</button>
+						{/each}
+					</div>
+				</div>
+				{#if canUse}
+					<div class="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100">
+						<span class="text-xs font-medium text-gray-600">{selectedDayLabel}{brush !== null ? ` · fırça: ${brushLabel}` : ''}</span>
+						<button onclick={() => selectedDay && askFillColumn(selectedDay)} class="text-xs font-medium text-teal-700 hover:bg-teal-50 px-2 py-1 rounded cursor-pointer inline-flex items-center gap-1"><Paintbrush size={12} /> Günü doldur</button>
+					</div>
+				{/if}
+				<div class="divide-y divide-gray-100 max-h-[64vh] overflow-y-auto">
+					{#each filteredPersonnel as p (p.id)}
+						{@const a = cellMap.get(`${p.id}|${selectedDay?.iso}`)}
+						{@const sh = a ? shiftMap.get(a.shift_id) : null}
+						<button onclick={() => selectedDay && onCell(p, selectedDay.iso)} disabled={!canUse} class="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left {canUse ? 'active:bg-gray-50 cursor-pointer' : 'cursor-default'}">
+							<span class="min-w-0">
+								<span class="block font-medium text-gray-900 truncate text-sm">{p.full_name}</span>
+								<span class="block text-[11px] text-gray-400 truncate">{p.department || '—'}{p.title ? ` · ${p.title}` : ''}</span>
+							</span>
+							{#if sh}
+								<span class="shrink-0 px-2.5 py-1 rounded-md text-xs font-semibold" style="background:{sh.color};color:{textOn(sh.color)}">{sh.name}</span>
+							{:else}
+								<span class="shrink-0 px-2.5 py-1 rounded-md text-xs text-gray-400 border border-dashed border-gray-300">{canUse ? '+ Ata' : '—'}</span>
+							{/if}
+						</button>
+					{/each}
+				</div>
 			</div>
 		{/if}
 	</div>

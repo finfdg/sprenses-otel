@@ -111,9 +111,13 @@ personele gün gün vardiya atar. Haftalık grid üzerinden planlanır.
 ## Frontend (haftalık grid)
 - **PageHeader** + hafta navigasyonu (‹ Bu Hafta ›) + arama (debounce'suz, in-memory) +
   departman dropdown. Stat kartlar: Personel · Aktif Vardiya · Atanan · **Doluluk %**.
-- **Grid:** sticky personel sütunu + 7 gün; hücre = renkli vardiya çipi (kontrast-bilinçli
+- **Grid (md+):** sticky personel sütunu + 7 gün; hücre = renkli vardiya çipi (kontrast-bilinçli
   metin rengi `textOn`) veya boş `+`. Bugün/haftasonu sütunları vurgulu. Gün başlığında
   "{n} kişi".
+- **Mobil (`<md`):** geniş grid yerine **tek-gün liste görünümü** — üstte yatay kaydırılan gün
+  seçici (Pzt…Paz + kişi sayısı), altında seçili günün personel listesi (ad + vardiya çipi).
+  Satıra dokun → fırça uygula / hücre modalı (grid ile aynı `onCell`). "Günü doldur" kısayolu.
+  Fırça çubuğu mobilde de görünür; arama/departman tam genişlik.
 - **Fırça (boyama) modu:** üstte vardiya çipleri + "Seçim" + "İzinli/Sil". Fırça seçiliyken
   hücreye tıkla → anında uygula (optimistik). Fırça "Seçim"deyse → hücre modalı (vardiya seç).
 - **Toplu doldur:** gün başlığına tıkla → o günü tüm görünür personele uygula (onaylı diyalog);
