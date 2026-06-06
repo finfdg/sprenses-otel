@@ -39,9 +39,24 @@ faturalara uygulanır (doğru muhasebe davranışı).
 ## API
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/sales-invoices/` | view | Liste (FIFO durum + filtre: `customer_type` munferit/agency, `status` paid/partial/open, `start_date`/`end_date`/`search`, paginated) |
-| GET | `/sales-invoices/summary` | view | Özet: toplam faturalanan/tahsil/açık + münferit/acente kırılımı + durum sayıları |
+| GET | `/sales-invoices/` | view | Liste (FIFO durum + `by_advance`/`advance_covered` + filtre: `customer_type`, `status`, `start_date`/`end_date`/`search`, paginated) |
+| GET | `/sales-invoices/summary` | view | Özet: faturalanan/tahsil/açık + münferit/acente kırılımı + durum sayıları + **`advance`** (kullanılmamış net avans + acente sayısı) |
+| GET | `/sales-invoices/advances` | view | **Acente avans bakiyeleri** — net avanslı müşteriler: `total_collected` (yatırılan), `consumed` (faturayla kapanan), `net_advance` (kalan). Sıralı (kalan azalan) |
 | POST | `/sales-invoices/sedna-import` | use | Sedna'dan içe aktar (tekil; merkezi sync da çağırır). Onaydan muaf, audit'li |
+
+## Acente avansları + tahsil-durumu (tarih-sıralı FIFO — `_compute`)
+Acente avansları **ayrı hesapta değil**, doğrudan acentenin 120 hesabına **ALACAK** olarak yazılır; fatura
+(120 Borç) kesildikçe avanstan **mahsup** edilir (netleşir). `_compute` müşteri olaylarını **tarih sırasıyla**
+işler:
+- **Aynı gün önce fatura, sonra tahsilat** → aynı-gün ödeme avans sayılmaz (münferit walk-in = normal tahsilat).
+- Tahsilat geldiğinde en eski açık faturaya **backfill** (sonradan = normal tahsilat). Fatura kesildiğinde
+  önce mevcut **avans havuzundan** karşılanır → fatura `advance_covered` (`by_advance=True` rozeti: "avansla kapandı").
+- Tüm faturalardan **artan tahsilat** = müşterinin **net avans bakiyesi** (`/advances`).
+- Canlı: **839.889 ₺ kullanılmamış avans / 12 acente** (ör. TUANA OPTİK 777K yatırmış, 309K faturayla kapanmış, **467,6K kalan**).
+
+**İlişki — `finance.avanslar` (Alınan Avanslar):** O modül **elle/planlama** (beklenen avans + banka eşleştirme,
+Sedna'sız). Bu modüldeki **Acente Avansları** sekmesi **gerçekleşen** (muhasebe 120) bakiyedir. İki sayfa
+karşılıklı linklidir. Tam otomatik mutabakat (isim/ID eşleştirme) ileride eklenebilir.
 
 İçe aktarma servis fonksiyonu `run_sales_invoice_import(db, user, ip)` — merkezi Sedna sync
 (`sedna_sync.py:_STEPS`) tarafından da çağrılır. Yeni adımlar gibi tek "Sedna" butonuna bağlı.

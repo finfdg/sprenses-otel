@@ -7,11 +7,13 @@ Münferit (120.03.*) ve acente ayrı filtrelenir. Onaydan muaf (operasyonel impo
 import hashlib
 import logging
 import math
+from collections import defaultdict
 from datetime import datetime
 from typing import Optional
 
 import pytz
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -53,35 +55,73 @@ def _hash(*parts) -> str:
     return hashlib.sha256("|".join(str(p) for p in parts).encode("utf-8")).hexdigest()
 
 
-def _status_map(db: Session) -> dict:
-    """Her fatura için FIFO tahsil durumu hesapla → {invoice_id: (collected, status)}.
+def _compute(db: Session):
+    """Tarih-sıralı FIFO. Döner: (inv_map, advance_balance).
 
-    Müşteri bazında: tahsilat havuzu faturalara en eskiden (FIFO) dağıtılır.
+    inv_map[invoice_id] = {"collected", "advance", "status"}
+      - advance = faturanın **kesildiği anda mevcut avansla** karşılanan kısmı (prepaid).
+    advance_balance[customer_code] = kullanılmamış net avans (tüm faturalardan artan tahsilat).
+
+    Müşteri bazında olaylar tarih sırasıyla işlenir. Aynı gün **önce fatura sonra tahsilat**
+    (aynı-gün ödeme avans sayılmaz — münferit walk-in). Tahsilat geldiğinde en eski açık
+    faturaya backfill (sonradan gelen = normal tahsilat); fatura kesildiğinde önce mevcut
+    avans havuzundan karşılanır (prepaid).
     """
-    invoices = (
-        db.query(SalesInvoice)
-        .order_by(SalesInvoice.customer_code, SalesInvoice.invoice_date, SalesInvoice.id)
-        .all()
-    )
-    # müşteri → toplam tahsilat
-    pool: dict = {}
-    for c_code, amt in db.query(SalesCollection.customer_code, SalesCollection.amount).all():
-        pool[c_code] = pool.get(c_code, 0.0) + _f(amt)
+    inv_by: dict = defaultdict(list)
+    col_by: dict = defaultdict(list)
+    for inv in db.query(SalesInvoice).all():
+        inv_by[inv.customer_code].append(inv)
+    for col in db.query(SalesCollection).all():
+        col_by[col.customer_code].append(col)
 
-    result: dict = {}
-    for inv in invoices:
-        avail = pool.get(inv.customer_code, 0.0)
-        amount = _f(inv.amount)
-        applied = min(amount, avail) if avail > 0 else 0.0
-        pool[inv.customer_code] = avail - applied
-        if applied >= amount - _EPS:
-            status = STATUS_PAID
-        elif applied > _EPS:
-            status = STATUS_PARTIAL
-        else:
-            status = STATUS_OPEN
-        result[inv.id] = (round(applied, 2), status)
-    return result
+    inv_map: dict = {}
+    advance_balance: dict = {}
+
+    for code in set(inv_by) | set(col_by):
+        events = [(inv.invoice_date, 0, "inv", inv) for inv in inv_by.get(code, [])]
+        events += [(col.collection_date, 1, "col", col) for col in col_by.get(code, [])]
+        events.sort(key=lambda e: (e[0], e[1]))
+
+        pool = 0.0           # mevcut avans/kredi havuzu
+        open_q: list = []    # açık faturalar FIFO: [(inv, remaining)]
+        state: dict = {}     # inv.id -> [collected, advance_covered]
+        for _d, _t, kind, obj in events:
+            if kind == "col":
+                pool += _f(obj.amount)
+                i = 0
+                while i < len(open_q) and pool > _EPS:
+                    inv, rem = open_q[i]
+                    apply = min(rem, pool)
+                    pool -= apply
+                    rem -= apply
+                    state[inv.id][0] += apply
+                    open_q[i] = (inv, rem)
+                    if rem <= _EPS:
+                        i += 1
+                    else:
+                        break
+                open_q = open_q[i:]
+            else:
+                amount = _f(obj.amount)
+                adv = min(pool, amount) if pool > _EPS else 0.0
+                pool -= adv
+                state[obj.id] = [adv, adv]
+                if amount - adv > _EPS:
+                    open_q.append((obj, amount - adv))
+
+        for inv in inv_by.get(code, []):
+            collected, adv = state.get(inv.id, [0.0, 0.0])
+            amount = _f(inv.amount)
+            if collected >= amount - _EPS:
+                st = STATUS_PAID
+            elif collected > _EPS:
+                st = STATUS_PARTIAL
+            else:
+                st = STATUS_OPEN
+            inv_map[inv.id] = {"collected": round(collected, 2), "advance": round(adv, 2), "status": st}
+        if pool > _EPS:
+            advance_balance[code] = round(pool, 2)
+    return inv_map, advance_balance
 
 
 # ─── İçe aktarma (servis fonksiyonu — merkezi Sedna sync kullanır) ───
@@ -128,7 +168,7 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
             existing_inv.add(h)
             inv_new += 1
 
-        existing_col = {h for (h,) in db.query(SalesCollection.tx_hash).all()}
+        existing_col = {c.tx_hash: c for c in db.query(SalesCollection).all()}
         for r in col_rows:
             code = (r.get("customer_code") or "").strip()
             d = r.get("collection_date")
@@ -136,15 +176,20 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
                 continue
             amt = _f(r.get("amount"))
             fis = r.get("fis_no")
+            name = (r.get("customer_name") or "").strip() or None
             h = _hash("scol", code, d, amt, fis)
-            if h in existing_col:
+            ex = existing_col.get(h)
+            if ex is not None:
+                if name and not (ex.customer_name or "").strip():
+                    ex.customer_name = name   # boş ismi Sedna'dan doldur
                 col_skip += 1
                 continue
-            db.add(SalesCollection(
-                customer_code=code, collection_date=d, amount=amt,
+            col = SalesCollection(
+                customer_code=code, customer_name=name, collection_date=d, amount=amt,
                 description=(r.get("aciklama") or None), tx_hash=h,
-            ))
-            existing_col.add(h)
+            )
+            db.add(col)
+            existing_col[h] = col
             col_new += 1
 
         log_action(
@@ -180,7 +225,7 @@ def list_invoices(
     _: User = Depends(require_permission("finance.sales_invoices", "view")),
 ):
     """Satış faturaları listesi (FIFO tahsil durumu + filtre + sayfalama)."""
-    smap = _status_map(db)
+    smap, _ = _compute(db)
     q = db.query(SalesInvoice)
     if customer_type == "munferit":
         q = q.filter(SalesInvoice.is_munferit.is_(True))
@@ -201,7 +246,8 @@ def list_invoices(
 
     items = []
     for inv in rows:
-        collected, st = smap.get(inv.id, (0.0, STATUS_OPEN))
+        entry = smap.get(inv.id, {"collected": 0.0, "advance": 0.0, "status": STATUS_OPEN})
+        st = entry["status"]
         if status and st != status:
             continue
         amt = _f(inv.amount)
@@ -210,7 +256,8 @@ def list_invoices(
             "is_munferit": inv.is_munferit, "invoice_no": inv.invoice_no,
             "invoice_date": inv.invoice_date.isoformat() if inv.invoice_date else None,
             "amount": amt, "currency": inv.currency,
-            "collected": collected, "remaining": round(amt - collected, 2), "status": st,
+            "collected": entry["collected"], "remaining": round(amt - entry["collected"], 2),
+            "status": st, "advance_covered": entry["advance"], "by_advance": entry["advance"] > _EPS,
             "description": inv.description,
         })
 
@@ -228,8 +275,8 @@ def summary(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("finance.sales_invoices", "view")),
 ):
-    """Satış faturası özeti: toplam faturalanan/tahsil/açık + durum + münferit/acente kırılımı."""
-    smap = _status_map(db)
+    """Satış faturası özeti: toplam faturalanan/tahsil/açık + durum + münferit/acente kırılımı + avans."""
+    smap, adv_bal = _compute(db)
     invoices = db.query(SalesInvoice).all()
     agg = {
         "total": {"invoiced": 0.0, "collected": 0.0, "count": 0},
@@ -238,19 +285,73 @@ def summary(
     }
     status_counts = {STATUS_PAID: 0, STATUS_PARTIAL: 0, STATUS_OPEN: 0}
     for inv in invoices:
-        collected, st = smap.get(inv.id, (0.0, STATUS_OPEN))
+        entry = smap.get(inv.id, {"collected": 0.0, "status": STATUS_OPEN})
         amt = _f(inv.amount)
         bucket = "munferit" if inv.is_munferit else "agency"
         for key in ("total", bucket):
             agg[key]["invoiced"] += amt
-            agg[key]["collected"] += collected
+            agg[key]["collected"] += entry["collected"]
             agg[key]["count"] += 1
-        status_counts[st] += 1
+        status_counts[entry["status"]] += 1
     for key in agg:
         agg[key]["invoiced"] = round(agg[key]["invoiced"], 2)
         agg[key]["collected"] = round(agg[key]["collected"], 2)
         agg[key]["outstanding"] = round(agg[key]["invoiced"] - agg[key]["collected"], 2)
-    return {**agg, "status_counts": status_counts}
+    return {
+        **agg,
+        "status_counts": status_counts,
+        "advance": {  # kullanılmamış net avans (acentelerin yatırıp henüz fatura ile kapatmadığı)
+            "balance": round(sum(adv_bal.values()), 2),
+            "agency_count": len(adv_bal),
+        },
+    }
+
+
+@router.get("/advances")
+def advance_balances(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.sales_invoices", "view")),
+):
+    """Net avans bakiyesi olan müşteriler (acente prepaid) — yatırılan / faturayla kapanan / kalan.
+
+    Avans = müşterinin 120 hesabına yatırdığı, henüz fatura ile mahsup edilmemiş tutar
+    (toplam tahsilat > toplam fatura). Faturalar kesildikçe avans kapanır.
+    """
+    _, adv_bal = _compute(db)
+    if not adv_bal:
+        return {"items": [], "total_balance": 0.0, "count": 0}
+
+    # müşteri adı/tür + toplam fatura (faturalardan) ve tahsilat/ad (tahsilatlardan)
+    info: dict = {}
+    for code, name, ism, inv in (
+        db.query(SalesInvoice.customer_code, func.max(SalesInvoice.customer_name),
+                 func.bool_or(SalesInvoice.is_munferit), func.sum(SalesInvoice.amount))
+        .group_by(SalesInvoice.customer_code).all()
+    ):
+        info[code] = {"name": name, "ism": bool(ism), "invoiced": _f(inv)}
+    col_info: dict = {}
+    for code, name, tot in (
+        db.query(SalesCollection.customer_code, func.max(SalesCollection.customer_name),
+                 func.sum(SalesCollection.amount))
+        .group_by(SalesCollection.customer_code).all()
+    ):
+        col_info[code] = {"name": name, "amount": _f(tot)}
+
+    items = []
+    for code, net in sorted(adv_bal.items(), key=lambda x: -x[1]):
+        inv_meta = info.get(code)
+        col_meta = col_info.get(code, {})
+        name = (inv_meta["name"] if inv_meta else None) or col_meta.get("name") or code
+        ism = inv_meta["ism"] if inv_meta else code.startswith("120.03")
+        invoiced = inv_meta["invoiced"] if inv_meta else 0.0
+        collected = col_meta.get("amount", 0.0)
+        items.append({
+            "customer_code": code, "customer_name": name, "is_munferit": ism,
+            "total_collected": round(collected, 2),          # yatırılan (avans + tahsilat)
+            "consumed": round(min(collected, invoiced), 2),  # faturayla kapanan
+            "net_advance": net,                              # kalan (kullanılmamış avans)
+        })
+    return {"items": items, "total_balance": round(sum(adv_bal.values()), 2), "count": len(items)}
 
 
 @router.post("/sedna-import")

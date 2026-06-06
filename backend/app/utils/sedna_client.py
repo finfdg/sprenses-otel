@@ -116,12 +116,14 @@ ORDER BY o.FicheDate, t.RecId
 _SALES_COLLECTION_QUERY = """
 SELECT
     t.AccountingCode            AS customer_code,
+    COALESCE(acc.Remark, '')    AS customer_name,
     CONVERT(date, o.FicheDate)  AS collection_date,
     t.Credit                    AS amount,
     t.Remark1                   AS aciklama,
     o.Voucher                   AS fis_no
 FROM AccountingTrans t
 JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
+LEFT JOIN Accounting acc ON acc.Code = t.AccountingCode
 WHERE t.AccountingCode LIKE '120%'
   AND t.Credit > 0
   AND t.Deleted = 0 AND o.Deleted = 0 AND o.FicheDate IS NOT NULL

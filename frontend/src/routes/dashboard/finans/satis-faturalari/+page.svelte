@@ -8,7 +8,7 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import { ReceiptText, FileText, CircleCheck, CircleDashed, Search, X } from 'lucide-svelte';
+	import { ReceiptText, FileText, CircleCheck, CircleDashed, Search, X, Wallet } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { paid: 'Tahsil edildi', partial: 'Kısmi', open: 'Açık' };
 	const STATUS_BADGE: Record<string, BadgeType> = { paid: 'success', partial: 'warning', open: 'neutral' };
@@ -20,15 +20,25 @@
 		munferit: { invoiced: number; collected: number; outstanding: number; count: number };
 		agency: { invoiced: number; collected: number; outstanding: number; count: number };
 		status_counts: { paid: number; partial: number; open: number };
+		advance: { balance: number; agency_count: number };
 	};
 	type Invoice = {
 		id: number; customer_code: string; customer_name: string; is_munferit: boolean;
 		invoice_no: string | null; invoice_date: string; amount: number; currency: string;
 		collected: number; remaining: number; status: string;
+		advance_covered: number; by_advance: boolean;
+	};
+	type Advance = {
+		customer_code: string; customer_name: string; is_munferit: boolean;
+		total_collected: number; consumed: number; net_advance: number;
 	};
 
+	let view = $state<'invoices' | 'advances'>('invoices');
 	let summary = $state<Summary | null>(null);
 	let items = $state<Invoice[]>([]);
+	let advances = $state<Advance[]>([]);
+	let advTotal = $state(0);
+	let advLoaded = $state(false);
 	let loading = $state(true);
 	let total = $state(0);
 	let page = $state(1);
@@ -76,6 +86,21 @@
 			loading = false;
 		}
 	}
+	async function loadAdvances() {
+		if (advLoaded) return;
+		try {
+			const r = await api.get<{ items: Advance[]; total_balance: number }>('/finance/sales-invoices/advances');
+			advances = r.items;
+			advTotal = r.total_balance;
+			advLoaded = true;
+		} catch (e) {
+			console.error('Acente avansları alınamadı:', e);
+		}
+	}
+	function setView(v: 'invoices' | 'advances') {
+		view = v;
+		if (v === 'advances') loadAdvances();
+	}
 	function setType(t: typeof typeFilter) { typeFilter = t; page = 1; loadList(); }
 	function setStatus(s: typeof statusFilter) { statusFilter = s; page = 1; loadList(); }
 	function onSearch() {
@@ -102,10 +127,19 @@
 			<StatCard label="Toplam Faturalanan" value={fmt(summary.total.invoiced)} accent="blue" icon={FileText} hint={`${summary.total.count} fatura`} />
 			<StatCard label="Tahsil Edilen" value={fmt(summary.total.collected)} accent="emerald" icon={CircleCheck} hint={`${summary.status_counts.paid} ödendi`} />
 			<StatCard label="Açık (Tahsil Edilmemiş)" value={fmt(summary.total.outstanding)} accent="amber" icon={CircleDashed} hint={`${summary.status_counts.open} açık · ${summary.status_counts.partial} kısmi`} />
-			<StatCard label="Acente / Münferit" value={`${fmt(summary.agency.outstanding)}`} accent="teal" icon={ReceiptText} hint={`Münferit açık: ${fmt(summary.munferit.outstanding)}`} />
+			<button onclick={() => setView('advances')} class="text-left cursor-pointer">
+				<StatCard label="Acente Avansı (kullanılmamış)" value={fmt(summary.advance.balance)} accent="teal" icon={Wallet} hint={`${summary.advance.agency_count} acente prepaid → görüntüle`} />
+			</button>
 		</div>
 	{/if}
 
+	<!-- Görünüm geçişi -->
+	<div class="flex items-center gap-1 mb-3">
+		<button onclick={() => setView('invoices')} class="text-sm font-medium px-3.5 py-1.5 rounded-lg border transition-colors cursor-pointer {view === 'invoices' ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}">Faturalar</button>
+		<button onclick={() => setView('advances')} class="text-sm font-medium px-3.5 py-1.5 rounded-lg border transition-colors cursor-pointer {view === 'advances' ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}">Acente Avansları</button>
+	</div>
+
+	{#if view === 'invoices'}
 	<!-- Filtre barı -->
 	<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-2">
 		<!-- Tür -->
@@ -166,7 +200,12 @@
 							<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(inv.amount)}</td>
 							<td class="px-4 py-2.5 text-right tabular-nums text-emerald-600">{inv.collected ? fmt2(inv.collected) : '—'}</td>
 							<td class="px-4 py-2.5 text-right tabular-nums {inv.remaining > 0.01 ? 'text-amber-700 font-medium' : 'text-gray-400'}">{inv.remaining > 0.01 ? fmt2(inv.remaining) : '—'}</td>
-							<td class="px-4 py-2.5 text-center"><StatusBadge type={STATUS_BADGE[inv.status] ?? 'neutral'}>{STATUS_LABELS[inv.status] ?? inv.status}</StatusBadge></td>
+							<td class="px-4 py-2.5 text-center">
+								<span class="inline-flex items-center gap-1">
+									<StatusBadge type={STATUS_BADGE[inv.status] ?? 'neutral'}>{STATUS_LABELS[inv.status] ?? inv.status}</StatusBadge>
+									{#if inv.by_advance}<span class="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 inline-flex items-center gap-0.5" title="Acente avansından mahsup edildi"><Wallet size={10} /> avans</span>{/if}
+								</span>
+							</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -185,7 +224,7 @@
 						</div>
 						<div class="flex items-center justify-between mt-2 text-xs tabular-nums">
 							<span class="text-gray-500">Tutar: <span class="text-gray-800">{fmt2(inv.amount)} ₺</span></span>
-							{#if inv.remaining > 0.01}<span class="text-amber-700">Kalan: {fmt2(inv.remaining)} ₺</span>{:else}<span class="text-emerald-600">Tahsil edildi</span>{/if}
+							{#if inv.remaining > 0.01}<span class="text-amber-700">Kalan: {fmt2(inv.remaining)} ₺</span>{:else}<span class="text-emerald-600 inline-flex items-center gap-1">Tahsil edildi{#if inv.by_advance}<span class="text-teal-600 text-[10px]">· avans</span>{/if}</span>{/if}
 						</div>
 					</div>
 				{/each}
@@ -196,4 +235,53 @@
 			</div>
 		{/if}
 	</div>
+	{:else}
+		<!-- ═══ ACENTE AVANSLARI ═══ -->
+		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+			<div class="px-4 py-3 border-b border-gray-100 bg-teal-50/40 flex items-center justify-between flex-wrap gap-2">
+				<p class="text-sm text-gray-600 max-w-2xl">Acentelerin yatırıp henüz fatura ile kapatmadığı <strong>kullanılmamış avans</strong> bakiyesi. Yeni faturalar kesildikçe bu avanstan FIFO ile düşülür (mahsup).</p>
+				<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">Toplam: {fmt2(advTotal)} ₺</span>
+			</div>
+			{#if advances.length === 0}
+				<EmptyState icon={Wallet} title="Açık avans yok" message="Net avans bakiyesi olan acente bulunmuyor. Üst bardaki 'Sedna' butonuyla içe aktarın." />
+			{:else}
+				<table class="w-full text-sm hidden md:table">
+					<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+						<tr>
+							<th class="text-left font-medium px-4 py-2.5">Müşteri</th>
+							<th class="text-right font-medium px-4 py-2.5">Yatırılan</th>
+							<th class="text-right font-medium px-4 py-2.5">Faturayla Kapanan</th>
+							<th class="text-right font-medium px-4 py-2.5">Kalan Avans</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-gray-100">
+						{#each advances as a}
+							<tr class="hover:bg-gray-50/60">
+								<td class="px-4 py-2.5 text-gray-700">
+									<span class="inline-flex items-center gap-1.5">
+										<span class="text-[10px] px-1.5 py-0.5 rounded {a.is_munferit ? 'bg-purple-50 text-purple-600' : 'bg-cyan-50 text-cyan-700'}">{a.is_munferit ? 'Münferit' : 'Acente'}</span>
+										<span class="truncate max-w-[24rem]">{a.customer_name}</span>
+									</span>
+								</td>
+								<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(a.total_collected)}</td>
+								<td class="px-4 py-2.5 text-right tabular-nums text-gray-400">{a.consumed > 0.01 ? fmt2(a.consumed) : '—'}</td>
+								<td class="px-4 py-2.5 text-right tabular-nums text-teal-700 font-semibold">{fmt2(a.net_advance)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+				<div class="md:hidden divide-y divide-gray-100">
+					{#each advances as a}
+						<div class="p-3">
+							<div class="flex items-center justify-between gap-2">
+								<p class="text-sm font-medium text-gray-800 truncate">{a.customer_name}</p>
+								<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">{fmt2(a.net_advance)} ₺</span>
+							</div>
+							<p class="text-xs text-gray-500 mt-1 tabular-nums">Yatırılan {fmt2(a.total_collected)} · Kapanan {fmt2(a.consumed)}</p>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
 {/if}

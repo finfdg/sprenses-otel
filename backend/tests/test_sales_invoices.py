@@ -75,6 +75,58 @@ def test_filters_type_and_status(client, auth_headers):
     assert client.get(f"{PREFIX}/?status=paid", headers=auth_headers).json()["total"] == 1
 
 
+FAKE_ADV = {
+    "invoices": [
+        {"customer_code": "120.02.01.0099", "customer_name": "AVANS ACENTE",
+         "invoice_date": date(2026, 2, 1), "invoice_no": "AINV1", "amount": 1000, "aciklama": "a"},
+        {"customer_code": "120.02.01.0099", "customer_name": "AVANS ACENTE",
+         "invoice_date": date(2026, 3, 1), "invoice_no": "AINV2", "amount": 200, "aciklama": "b"},
+    ],
+    "collections": [  # AVANS önce yatırıldı (faturalardan ÖNCE) → faturalar avansla kapanır
+        {"customer_code": "120.02.01.0099", "customer_name": "AVANS ACENTE",
+         "collection_date": date(2026, 1, 1), "amount": 1500, "aciklama": "avans", "fis_no": 1},
+    ],
+}
+
+
+def test_advance_balance_and_by_advance(client, auth_headers):
+    """Avans faturadan ÖNCE yatınca: faturalar 'avansla kapandı' + kalan avans bakiyesi."""
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE_ADV):
+        assert client.post(f"{PREFIX}/sedna-import", headers=auth_headers).status_code == 200
+
+    # faturalar avansla kapandı (FIFO tarih-sıralı: önce avans havuzu)
+    items = {it["invoice_no"]: it for it in client.get(f"{PREFIX}/", headers=auth_headers).json()["items"]}
+    assert items["AINV1"]["status"] == "paid" and items["AINV1"]["by_advance"] is True
+    assert items["AINV2"]["status"] == "paid" and items["AINV2"]["by_advance"] is True
+
+    # avans bakiyesi: 1500 yatırılan - 1200 fatura = 300 kalan
+    adv = client.get(f"{PREFIX}/advances", headers=auth_headers).json()
+    assert adv["count"] == 1 and adv["total_balance"] == 300.0
+    row = adv["items"][0]
+    assert row["customer_code"] == "120.02.01.0099" and row["customer_name"] == "AVANS ACENTE"
+    assert row["total_collected"] == 1500.0 and row["consumed"] == 1200.0 and row["net_advance"] == 300.0
+
+    # özette de avans bakiyesi
+    s = client.get(f"{PREFIX}/summary", headers=auth_headers).json()
+    assert s["advance"]["balance"] == 300.0 and s["advance"]["agency_count"] == 1
+
+
+def test_same_day_payment_not_advance(client, auth_headers):
+    """Aynı gün ödeme (münferit walk-in) avans sayılmaz — by_advance False."""
+    same = {
+        "invoices": [{"customer_code": "120.03.01.0001", "customer_name": "MÜNFERİT GENEL",
+                      "invoice_date": date(2026, 4, 1), "invoice_no": "SD1", "amount": 500, "aciklama": "x"}],
+        "collections": [{"customer_code": "120.03.01.0001", "customer_name": "MÜNFERİT GENEL",
+                         "collection_date": date(2026, 4, 1), "amount": 500, "aciklama": "nakit", "fis_no": 7}],
+    }
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_sales_invoices", return_value=same):
+        client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
+    it = client.get(f"{PREFIX}/?search=SD1", headers=auth_headers).json()["items"][0]
+    assert it["status"] == "paid" and it["by_advance"] is False  # aynı gün = normal tahsilat
+
+
 def test_central_sync_includes_sales(client, auth_headers, db):
     """Merkezi Sedna sync satış faturası adımını da çalıştırır."""
     from app.config import settings

@@ -253,6 +253,13 @@
 		{/snippet}
 	</PageHeader>
 
+	{#if hasPermission('finance.sales_invoices', 'view')}
+		<div class="mb-4 -mt-1 text-xs text-gray-500">
+			Bu modül elle planlanan/beklenen avansları izler.
+			<a href="/dashboard/finans/satis-faturalari" class="text-teal-700 hover:underline font-medium">Muhasebedeki gerçekleşen acente avans bakiyeleri (Sedna) →</a>
+		</div>
+	{/if}
+
 	<!-- Özet kartları (para birimi bazında, doğru) -->
 	{#if !loading && (Object.keys(summary).length > 0)}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">

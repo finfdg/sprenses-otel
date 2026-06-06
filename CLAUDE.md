@@ -392,7 +392,8 @@ TEMPLATE:
 
 ### Finans — Satış Faturaları (Otel oda satışları + tahsilat)
 - `GET /api/finance/sales-invoices/` — Satış faturaları listesi (FIFO tahsil durumu; filtre: `customer_type` munferit/agency, `status` paid/partial/open, `start_date`/`end_date`/`search`, paginated). 120/Alıcılar = cariler'in (320) aynası
-- `GET /api/finance/sales-invoices/summary` — Özet: toplam faturalanan/tahsil/açık + münferit/acente kırılımı + durum sayıları
+- `GET /api/finance/sales-invoices/summary` — Özet: toplam faturalanan/tahsil/açık + münferit/acente kırılımı + durum sayıları + **kullanılmamış net avans** bakiyesi
+- `GET /api/finance/sales-invoices/advances` — **Acente avans bakiyeleri** (acentelerin yatırıp henüz fatura ile kapatmadığı net avans; yatırılan/kapanan/kalan). Acente avansı = 120 hesabına ALACAK, faturalarla (Borç) FIFO mahsup. Liste `by_advance` rozeti taşır
 - `POST /api/finance/sales-invoices/sedna-import` — **Sedna'dan satış faturası + tahsilat içe aktarma** (120 Borç=fatura DocumentType=1, 120 Alacak=tahsilat; FIFO ile fatura bazında ödendi/kısmi/açık). finance.sales_invoices use, audit'li, onaydan muaf. Merkezi Sedna sync'in adımı. Detay: `docs/modules/satis-faturalari.md`
 
 ### Finans — Sedna Senkronizasyonu (Merkezi)

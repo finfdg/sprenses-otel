@@ -56,6 +56,7 @@ class SalesCollection(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     customer_code: Mapped[str] = mapped_column(String(50))
+    customer_name: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     collection_date: Mapped[date_type] = mapped_column(Date)
     amount: Mapped[float] = mapped_column(Numeric(15, 2))
     description: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
