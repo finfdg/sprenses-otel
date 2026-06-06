@@ -6,13 +6,53 @@
 	import { toggleSidebar } from '$lib/stores/ui.svelte';
 	import { notificationSettings, toggleSound } from '$lib/stores/notification.svelte';
 	import NotificationBell from './NotificationBell.svelte';
+	import Modal from './Modal.svelte';
 	import { isPushSupported, getPushPermissionState, subscribeToPush, requestPushPermission, unsubscribeFromPush } from '$lib/utils/push';
 	import { onlinePresence } from '$lib/stores/websocket.svelte';
+	import { api } from '$lib/api';
+	import { showToast } from '$lib/stores/toast.svelte';
+	import { Database, Loader2, CheckCircle2, XCircle, MinusCircle } from 'lucide-svelte';
+
+	type SednaStep = { key: string; label: string; ok?: boolean; skipped?: boolean; summary: string };
 
 	let userMenuOpen = $state(false);
 	let onlinePopoverOpen = $state(false);
 	let pushEnabled = $state(false);
 	let pushSupported = $state(false);
+	// Merkezi Sedna senkronizasyonu (tek butonla tüm içe aktarmalar)
+	let sednaConfigured = $state(false);
+	let sednaAnyAllowed = $state(false);
+	let sednaSyncing = $state(false);
+	let sednaModalOpen = $state(false);
+	let sednaSteps = $state<SednaStep[]>([]);
+
+	async function loadSednaSyncStatus() {
+		try {
+			const r = await api.get<{ configured: boolean; any_allowed: boolean }>('/finance/sedna/status');
+			sednaConfigured = !!r.configured;
+			sednaAnyAllowed = !!r.any_allowed;
+		} catch (e) {
+			console.error('Sedna senkronizasyon durumu alınamadı:', e);
+			sednaConfigured = false;
+		}
+	}
+	async function runSednaSync() {
+		if (sednaSyncing) return;
+		sednaSyncing = true;
+		try {
+			const r = await api.post<{ ok_count: number; total: number; steps: SednaStep[] }>(
+				'/finance/sedna/sync-all', {}
+			);
+			sednaSteps = r.steps;
+			sednaModalOpen = true;
+			showToast(`Sedna: ${r.ok_count}/${r.total} adım tamamlandı`, r.ok_count === r.total ? 'success' : 'info');
+		} catch (err: any) {
+			console.error('Sedna senkronizasyon hatası:', err);
+			showToast(err?.body?.detail || "Sedna'dan veri çekilemedi (SSH tüneli kapalı olabilir)", 'error');
+		} finally {
+			sednaSyncing = false;
+		}
+	}
 
 	onMount(() => {
 		document.addEventListener('click', closeMenu);
@@ -21,6 +61,7 @@
 		if (pushSupported) {
 			pushEnabled = getPushPermissionState() === 'granted';
 		}
+		loadSednaSyncStatus();
 		return () => {
 			document.removeEventListener('click', closeMenu);
 			document.removeEventListener('click', closeOnlinePopover);
@@ -217,6 +258,21 @@
 			{/if}
 		</div>
 	{/if}
+	{#if sednaConfigured && sednaAnyAllowed}
+		<button
+			onclick={runSednaSync}
+			disabled={sednaSyncing}
+			class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-teal-700 hover:bg-teal-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+			title="Sedna muhasebe verilerini çek (cari hareketleri · IBAN · verilen çek)"
+		>
+			{#if sednaSyncing}
+				<Loader2 size={18} class="animate-spin" />
+			{:else}
+				<Database size={18} />
+			{/if}
+			<span class="text-xs font-medium hidden sm:inline">{sednaSyncing ? 'Çekiliyor…' : 'Sedna'}</span>
+		</button>
+	{/if}
 	<NotificationBell />
 	<div class="relative user-menu">
 		<button
@@ -306,3 +362,25 @@
 	</div>
 	</div>
 </header>
+
+<!-- Sedna senkronizasyon sonucu -->
+<Modal bind:show={sednaModalOpen} title="Sedna Senkronizasyonu" maxWidth="max-w-md">
+	<div class="p-4 sm:p-5 space-y-2">
+		<p class="text-xs text-gray-500 mb-1">Muhasebe (Sedna) veritabanından çekilen veriler:</p>
+		{#each sednaSteps as s}
+			<div class="flex items-start gap-2.5 p-2.5 rounded-lg border {s.ok ? 'border-emerald-200 bg-emerald-50' : s.skipped ? 'border-gray-200 bg-gray-50' : 'border-red-200 bg-red-50'}">
+				{#if s.ok}
+					<CheckCircle2 size={18} class="text-emerald-600 shrink-0 mt-0.5" />
+				{:else if s.skipped}
+					<MinusCircle size={18} class="text-gray-400 shrink-0 mt-0.5" />
+				{:else}
+					<XCircle size={18} class="text-red-600 shrink-0 mt-0.5" />
+				{/if}
+				<div class="min-w-0">
+					<p class="text-sm font-medium text-gray-900">{s.label}</p>
+					<p class="text-xs text-gray-600 mt-0.5">{s.summary}</p>
+				</div>
+			</div>
+		{/each}
+	</div>
+</Modal>

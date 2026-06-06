@@ -145,3 +145,24 @@ def require_permission(module_code: str, action: str = "view"):
         return current_user
 
     return dependency
+
+
+def user_can(db: Session, user: User, module_code: str, action: str = "view") -> bool:
+    """Programatik izin kontrolü — require_permission'ın dependency olmayan sürümü.
+
+    Birden çok modülün iznini tek istekte kontrol etmek gerektiğinde kullanılır
+    (ör. merkezi Sedna sync, izni olan adımları çalıştırır)."""
+    module_id = _get_module_id(db, module_code)
+    if module_id is None:
+        return False
+    permission = (
+        db.query(RoleModulePermission)
+        .filter(
+            RoleModulePermission.role_id == user.role_id,
+            RoleModulePermission.module_id == module_id,
+        )
+        .first()
+    )
+    if not permission:
+        return False
+    return bool(permission.can_use if action == "use" else permission.can_view)

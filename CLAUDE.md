@@ -390,6 +390,11 @@ TEMPLATE:
 - `POST /api/finance/cash-flow/unmatch-cc-payment` — Kredi kartı eşleştirme iptali
 - Detaylı bilgi: `docs/modules/nakit-akim.md`
 
+### Finans — Sedna Senkronizasyonu (Merkezi)
+- `POST /api/finance/sedna/sync-all` — **Tek noktadan tüm Sedna içe aktarmaları** (cari hareketleri + cari IBAN'ları + verilen çekler). Topbar'daki tek "Sedna" butonu bunu çağırır. Her adım izin kontrollü (kullanıcının `use` izni olmayan adım "Yetki yok" atlanır), adım-bazlı izole (biri hata verirse diğerleri sürer). Yanıt: `{ok_count, total, steps:[{key,label,ok,skipped,summary}]}`
+- `GET /api/finance/sedna/status` — Merkezi sync etkin mi + kullanıcının çalıştırabileceği adımlar (buton gösterimi)
+- **Genişletme:** Yeni Sedna içe aktarma = `run_xxx_import(db, user, ip)` servis fonksiyonu yaz + `sedna_sync.py:_STEPS`'e ekle → Topbar butonu otomatik kapsar. **Sayfa-içi ayrı Sedna butonu eklenmez** (eski cariler/çekler kutuları kaldırıldı). Tekil endpoint'ler (`/cariler/sedna-import`, `/cariler/sedna-import-ibans`, `/checks/sedna-import`) orchestrator + hedefli kullanım için korunur.
+
 ### Finans — Cariler
 - `POST /api/finance/cariler/upload` — Excel dosya yükleme (response içinde `removal_candidates` döner: kapsamda olup Excel'de bulunmayan kayıtlar)
 - `POST /api/finance/cariler/sedna-import` — **Sedna (muhasebe SQL Server) doğrudan içe aktarma** (ters SSH tüneli `127.0.0.1:11433` üzerinden 320/satıcı cari hareketleri). Excel yükleme ile **aynı upsert + tx_hash dedup** → mükerrer olmaz. Yanıt Excel ile aynı (`removal_candidates` dahil). Tünel kapalıysa 503. finance.cariler use, audit'li, onaydan muaf

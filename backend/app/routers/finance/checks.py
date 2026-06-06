@@ -171,18 +171,13 @@ def sedna_status(_: User = Depends(require_permission("finance.checks", "view"))
     return {"configured": sedna_configured()}
 
 
-@router.post("/sedna-import")
-def sedna_import_checks(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("finance.checks", "use")),
-):
+def run_check_import(db: Session, current_user: User, ip=None) -> dict:
     """Sedna'dan (320) verilen çekleri çek + Excel ile aynı dedup ile içe aktar.
 
     Dedup key Excel ile aynı: (check_no, vendor_code, due_date). Yeni çek eklenir;
     mevcut çek **banka/cari eşleşmesi yoksa** durumu Sedna'dan güncellenir (pending↔paid↔
-    cancelled). Eşleşmiş (kullanıcı yönetimindeki) çeklere dokunulmaz. Onaydan muaf, audit'li.
+    cancelled). Eşleşmiş (kullanıcı yönetimindeki) çeklere dokunulmaz. Sonunda banka
+    eşleştirme çalışır. Servis fonksiyonu (HTTP'siz, broadcast'siz) — endpoint + merkezi sync ortak.
     """
     if not sedna_configured():
         raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
@@ -266,7 +261,7 @@ def sedna_import_checks(
         log_action(
             db, current_user.id, "create", "check_upload", entity_id=upload.id,
             details=f"Sedna çek içe aktarma: {new_count} yeni, {updated_count} durum güncel, {skipped_count} atlandı",
-            ip_address=get_client_ip(request),
+            ip_address=ip,
         )
         db.commit()
     except Exception as e:
@@ -285,8 +280,6 @@ def sedna_import_checks(
         db.rollback()
         logger.error("Sedna çek import sonrası banka eşleştirme hatası: %s", e)
 
-    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "upload")
-
     return {
         "upload_id": upload.id,
         "total_fetched": len(rows),
@@ -295,6 +288,19 @@ def sedna_import_checks(
         "skipped_checks": skipped_count,
         "matched_to_bank": matched,
     }
+
+
+@router.post("/sedna-import")
+def sedna_import_checks(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.checks", "use")),
+):
+    """Sedna verilen çek içe aktarma (tekil)."""
+    result = run_check_import(db, current_user, get_client_ip(request))
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "upload")
+    return result
 
 
 # ─── Yükleme Geçmişi ────────────────────────────────────

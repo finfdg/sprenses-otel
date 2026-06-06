@@ -58,14 +58,12 @@ def sedna_status(_: User = Depends(require_permission("finance.cariler", "view")
     return {"configured": sedna_configured()}
 
 
-@router.post("/sedna-import")
-def sedna_import(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("finance.cariler", "use")),
-):
-    """Sedna'dan (320 satıcılar) cari hareketlerini çek + Excel ile aynı upsert ile içe aktar."""
+def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
+    """Sedna'dan (320 satıcılar) cari hareketlerini çek + Excel ile aynı upsert ile içe aktar.
+
+    Servis fonksiyonu (HTTP'siz, broadcast'siz) — hem /sedna-import endpoint'i hem merkezi
+    Sedna sync ortak kullanır. Hata durumunda HTTPException yükseltir (çağıran yakalar).
+    """
     if not sedna_configured():
         raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
     try:
@@ -189,7 +187,7 @@ def sedna_import(
             details += f", {len(removal_candidates)} silme adayı"
         log_action(
             db, current_user.id, "create", "vendor_upload", entity_id=upload.id,
-            details=details, ip_address=get_client_ip(request),
+            details=details, ip_address=ip,
         )
         db.commit()
         sync_vendor_finance_events(db)
@@ -202,8 +200,6 @@ def sedna_import(
         logger.error("Sedna içe aktarma DB hatası: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="İçe aktarma sırasında veritabanı hatası oluştu.")
 
-    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "upload")
-
     return VendorUploadResult(
         upload_id=upload.id,
         file_name=upload.file_name,
@@ -215,18 +211,12 @@ def sedna_import(
     ).model_dump()
 
 
-@router.post("/sedna-import-ibans")
-def sedna_import_ibans(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("finance.cariler", "use")),
-):
+def run_iban_import(db: Session, current_user: User, ip=None) -> dict:
     """Sedna dbo.Bank'tan cari (320) banka/IBAN'larını çek → vendor_bank_accounts'a upsert.
 
     Dedup (cari + IBAN); caride hiç hesap yoksa ilk IBAN varsayılan olur. Mevcut IBAN'ın
     banka adı boşsa Sedna'dan doldurulur (varsayılan seçimi/elle eklenenler korunur).
-    Yalnız MEVCUT carilere işler (önce hareket import'u). Operasyonel — onaydan muaf, audit'li.
+    Yalnız MEVCUT carilere işler (önce hareket import'u). Servis fonksiyonu (HTTP'siz, broadcast'siz).
     """
     if not sedna_configured():
         raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
@@ -302,15 +292,13 @@ def sedna_import_ibans(
             db, current_user.id, "create", "vendor_bank_account", None,
             f"Sedna IBAN içe aktarma: {new_ibans} yeni, {updated} güncellendi, "
             f"{skipped_no_vendor} carisiz",
-            ip_address=get_client_ip(request),
+            ip_address=ip,
         )
         db.commit()
     except Exception as e:
         db.rollback()
         logger.error("Sedna IBAN içe aktarma DB hatası: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="IBAN içe aktarma sırasında veritabanı hatası oluştu.")
-
-    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "update")
 
     return {
         "total_fetched": len(rows),
@@ -320,3 +308,32 @@ def sedna_import_ibans(
         "skipped_existing": skipped_existing,
         "skipped_no_vendor": skipped_no_vendor,
     }
+
+
+# ─── Tekil endpoint'ler (servis fonksiyonlarının ince HTTP sarmalı) ───
+
+
+@router.post("/sedna-import")
+def sedna_import(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cariler", "use")),
+):
+    """Sedna cari hareketleri içe aktarma (tekil)."""
+    result = run_cari_import(db, current_user, get_client_ip(request))
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "upload")
+    return result
+
+
+@router.post("/sedna-import-ibans")
+def sedna_import_ibans(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cariler", "use")),
+):
+    """Sedna cari IBAN içe aktarma (tekil)."""
+    result = run_iban_import(db, current_user, get_client_ip(request))
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "update")
+    return result

@@ -13,6 +13,7 @@ from .exchange_rates import router as exchange_rates_router
 from .krediler import router as krediler_router
 from .onay import router as onay_router
 from .payment_instructions import router as payment_instructions_router
+from .sedna_sync import router as sedna_sync_router
 from .transaction_tags import router as tags_router
 
 router = APIRouter()
@@ -30,3 +31,4 @@ router.include_router(departmanlar_router)
 router.include_router(onay_router)
 router.include_router(bank_instructions_router)
 router.include_router(payment_instructions_router)
+router.include_router(sedna_sync_router)
