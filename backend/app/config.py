@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     # Travelpayouts (uçak rezervasyon — opsiyonel)
     travelpayouts_token: str = ""
     travelpayouts_marker: str = ""
+    # Sedna SQL Server (cari içe aktarma — ters SSH tüneli üzerinden, opsiyonel)
+    # Bağlantı yalnızca "Sedna'dan İçe Aktar" tetiklenince kurulur; uygulamanın
+    # normal işleyişi bu bağlantıya bağlı DEĞİLDİR (tünel kapalıysa import hata verir).
+    sedna_host: str = "127.0.0.1"
+    sedna_port: int = 11433
+    sedna_database: str = "SednaPrensesMhs2026"
+    sedna_user: str = "prenses\\btadmin"   # domain hesabı → pymssql/FreeTDS NTLM
+    sedna_password: str = ""               # .env: SEDNA_PASSWORD (boşsa import devre dışı)
+    sedna_charset: str = "CP1254"          # Türkçe collation (İ/Ş/ğ doğru okunsun)
+    sedna_account_prefix: str = "320"      # içe aktarılacak cari grubu (satıcılar)
 
     class Config:
         env_file = os.path.join(

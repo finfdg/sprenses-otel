@@ -78,6 +78,8 @@
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | POST | `/cariler/upload` | use | Excel dosya yükleme |
+| POST | `/cariler/sedna-import` | use | **Sedna (muhasebe DB) doğrudan içe aktarma** — Excel ile aynı upsert/dedup |
+| GET | `/cariler/sedna-status` | view | Sedna içe aktarma etkin mi (`{configured}`) |
 | GET | `/cariler/uploads` | view | Yükleme geçmişi |
 | DELETE | `/cariler/uploads/{id}` | use | Yükleme sil (CASCADE) |
 | GET | `/cariler/vendors` | view | Cari listesi (paginated, arama) |
@@ -129,6 +131,47 @@ düzenle, Excel/PDF olarak dışa aktar. Listeler **kalıcıdır** (`finance.car
 **Frontend:**
 - **"Ödeme Talimatı"** sekmesi (`lib/components/finance/PaymentInstructions.svelte`) — liste seç/oluştur/sil, cari ara+ekle, MoneyInput ile tutar düzenle, Excel/PDF indir.
 - **Cari satırından hızlı ekleme:** Cariler tablosunda bakiye yanında (masaüstü hover'da "+" ikonu, mobilde "Talimat" butonu) → modal: mevcut listeye ekle veya yeni liste oluştur. Tutar carinin bakiyesinden otomatik gelir (`openAddToList`/`confirmAddToList`).
+
+## Sedna (Muhasebe DB) Doğrudan İçe Aktarma (2026-06-06)
+
+Cari hareketler Excel'e gerek kalmadan **doğrudan muhasebe programının (Sedna) SQL Server'ından**
+çekilebilir. Excel yükleme aynen korunur — bu **additive** bir kaynaktır.
+
+**Bağlantı (loose coupling):** Sedna ofis LAN'ında (`192.168.2.245`). EC2 oraya **ters SSH
+tüneli** üzerinden erişir (`127.0.0.1:11433` → tünel → Ubuntu → SQL Server). Bağlantı **yalnızca
+import tetiklenince** kurulur; uygulamanın normal işleyişi tünele bağlı **değildir** (tünel
+kapalıysa import 503 verir, gerisi çalışır). `SEDNA_PASSWORD` boşsa özellik kapalı (buton gizli).
+
+**Eşleme (Sedna → vendor_transactions):**
+| Sprenses | Sedna |
+|---|---|
+| hesap_kodu | `AccountingTrans.AccountingCode` (string join) |
+| hesap_adi | `Accounting.Remark` |
+| date | `AccountingOwner.FicheDate` |
+| evrak_no | `AccountingTrans.DocumentNo` |
+| transaction_type | `AccDocumentType.DocumentRemark` (DocumentType lookup) |
+| fis_no | `AccountingOwner.Voucher` |
+| description | `AccountingTrans.Remark1` |
+| borç / alacak | `Debit` / `Credit` |
+| payment_days (yeni cari) | `Accounting.PayDay` (0 ise varsayılan 90) |
+| tx_hash | `compute_vendor_tx_hash(...)` |
+
+- **Filtre:** `AccountingCode LIKE '320%'` (satıcılar — mevcut kapsamla birebir) + `t.Deleted=0
+  AND o.Deleted=0`. Kodlama **`charset='CP1254'`** (Türkçe İ/Ş/ğ doğru okunsun).
+- **Mükerrer yok:** `tx_hash` Excel ile **aynı fonksiyondan** üretilir → Excel'den veya Sedna'dan
+  gelen aynı işlem aynı hash'i alır. Üretimde 2236 hareketin 2077'si mevcut (Excel) ile eşleşip
+  atlandı, 159'u yeni eklendi. Aynı upsert + payment_due + finance_events + **removal_candidates**.
+- **Backend:** `utils/sedna_client.py` (pymssql, salt-okunur, prefix güvenli/parametresiz →
+  `%`-tuzağı yok), `routers/finance/cariler/sedna_import.py` (`POST /sedna-import`, `GET
+  /sedna-status`). Config: `config.py` `sedna_*` + `.env SEDNA_PASSWORD`. Onaydan muaf
+  (operasyonel/içe-aktarma endpoint'i), audit'li, finance.cariler use.
+- **Frontend:** Cariler → "Yükle" sekmesinde **"Sedna'dan İçe Aktar"** kartı (sednaConfigured ise).
+  Sonuç + silme adayları Excel ile **aynı modalı** kullanır.
+- **Test:** `tests/test_cariler_sedna.py` (fetch mock'lu): oluşturma + payment_due + **re-run dedup**
+  (0 yeni) + izin + tünel-kapalı/yapılandırılmamış 503.
+- **Güvenlik:** salt-okunur login (`prenses\btadmin` zaten db_datareader; ideali ayrı `dms_user`).
+  Şifre yalnız `.env` (600, gitignore). Bağlantı kuran ters-SSH anahtarı EC2'de kısıtlı
+  (`permitlisten=127.0.0.1:11433`, kabuk yok).
 
 ## Kaynakta Olmayan Kayıtların Tespiti (Removal Candidates)
 

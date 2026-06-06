@@ -391,6 +391,8 @@ TEMPLATE:
 
 ### Finans — Cariler
 - `POST /api/finance/cariler/upload` — Excel dosya yükleme (response içinde `removal_candidates` döner: kapsamda olup Excel'de bulunmayan kayıtlar)
+- `POST /api/finance/cariler/sedna-import` — **Sedna (muhasebe SQL Server) doğrudan içe aktarma** (ters SSH tüneli `127.0.0.1:11433` üzerinden 320/satıcı cari hareketleri). Excel yükleme ile **aynı upsert + tx_hash dedup** → mükerrer olmaz. Yanıt Excel ile aynı (`removal_candidates` dahil). Tünel kapalıysa 503. finance.cariler use, audit'li, onaydan muaf
+- `GET /api/finance/cariler/sedna-status` — Sedna içe aktarma etkin mi (`{configured}`; buton gösterimi). Detay: `docs/modules/cariler.md`
 - `GET /api/finance/cariler/uploads` — Yükleme geçmişi
 - `DELETE /api/finance/cariler/uploads/{id}` — Yükleme sil
 - `POST /api/finance/cariler/transactions/bulk-delete` — Toplu işlem silme (kaynakta olmayan kayıtlar için; korumalı kayıtlar atlanır)
@@ -695,6 +697,7 @@ TEMPLATE:
 | `CORS_ORIGINS` | İzin verilen origin'ler (virgülle ayrılmış) |
 | `TRAVELPAYOUTS_TOKEN` | Travelpayouts (Aviasales) affiliate API token — uçak rezervasyon arama için (opsiyonel, yoksa mock veri) |
 | `TRAVELPAYOUTS_MARKER` | Travelpayouts affiliate partner ID (komisyon takibi için, opsiyonel) |
+| `SEDNA_PASSWORD` | Sedna SQL Server (muhasebe) cari içe aktarma şifresi — boşsa özellik kapalı. Host/port/db/user/charset/prefix `config.py`'de varsayılan (tünel `127.0.0.1:11433`, db `SednaPrensesMhs2026`, user `prenses\btadmin`, charset `CP1254`, prefix `320`) |
 
 ## Nginx Konfigürasyonu
 

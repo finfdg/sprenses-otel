@@ -15,7 +15,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
-	import { Users } from 'lucide-svelte';
+	import { Users, Database } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 
 	// Generic onay state
@@ -31,6 +31,9 @@
 
 	// Upload
 	let uploading = $state(false);
+	// Sedna (muhasebe DB) doğrudan içe aktarma
+	let sednaConfigured = $state(false);
+	let sednaImporting = $state(false);
 	let uploadResult = $state<VendorUploadResult | null>(null);
 	let showUploadResult = $state(false);
 	let uploads = $state<VendorUpload[]>([]);
@@ -357,6 +360,37 @@
 			showToast(err?.message || 'Dosya yüklenirken hata oluştu', 'error');
 		} finally {
 			uploading = false;
+		}
+	}
+
+	// ─── Sedna (muhasebe DB) içe aktarma ───────────────
+	async function loadSednaStatus() {
+		try {
+			const r = await api.get<{ configured: boolean }>('/finance/cariler/sedna-status');
+			sednaConfigured = !!r.configured;
+		} catch (e) {
+			console.error('Sedna durum sorgulanamadı:', e);
+			sednaConfigured = false;
+		}
+	}
+	async function importFromSedna() {
+		if (sednaImporting) return;
+		sednaImporting = true;
+		try {
+			const result = await api.post<VendorUploadResult>('/finance/cariler/sedna-import', {});
+			uploadResult = result;
+			selectedRemovalIds = new Set(result.removal_candidates.map((c) => c.id));
+			showUploadResult = true;
+			await loadUploads();
+			const removalMsg = result.removal_candidates.length > 0
+				? ` · ${result.removal_candidates.length} kayıt artık kaynakta yok`
+				: '';
+			showToast(`Sedna'dan ${result.new_transactions} yeni işlem aktarıldı${removalMsg}`, 'success');
+		} catch (err: any) {
+			console.error('Sedna içe aktarma hatası:', err);
+			showToast(err?.message || "Sedna'dan içe aktarılamadı (SSH tüneli kapalı olabilir)", 'error');
+		} finally {
+			sednaImporting = false;
 		}
 	}
 
@@ -777,6 +811,7 @@
 	onMount(async () => {
 		loadUploads();
 		loadSummary();
+		loadSednaStatus();
 
 		// URL'den vendor parametresi varsa direkt o cariyi aç
 		const vendorParam = $page.url.searchParams.get('vendor');
@@ -893,6 +928,17 @@
 	<!-- ═══ DOSYA YÜKLE ═══ -->
 	{#if activeView === 'upload'}
 		<div class="space-y-6">
+			<!-- Sedna (muhasebe DB) doğrudan içe aktarma -->
+			{#if canUse && sednaConfigured}
+				<div class="bg-gradient-to-br from-teal-50 to-white border border-teal-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+					<div class="min-w-0">
+						<p class="text-sm font-semibold text-gray-900 inline-flex items-center gap-1.5"><Database size={16} class="text-teal-600" /> Sedna'dan otomatik içe aktar</p>
+						<p class="text-xs text-gray-500 mt-0.5 max-w-md leading-snug">Cari hareketler doğrudan muhasebe (Sedna) veritabanından çekilir — Excel'e gerek yok. Mükerrer kayıt eklenmez; kaynakta olmayanlar "silme adayı" olarak gösterilir.</p>
+					</div>
+					<Button onclick={importFromSedna} loading={sednaImporting} class="shrink-0 w-full sm:w-auto"><Database size={16} /> Sedna'dan İçe Aktar</Button>
+				</div>
+			{/if}
+
 			<!-- Sürükle-Bırak Alan -->
 			{#if canUse}
 				<div class="relative">

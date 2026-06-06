@@ -5,6 +5,27 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Cari — Sedna (Muhasebe SQL Server) Doğrudan İçe Aktarma (2026-06-06)
+
+Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH tüneli
+`127.0.0.1:11433`). Tasarım kararları:
+
+- **Aynı upsert, aynı hash:** `sedna_import.py` Excel yüklemenin (`uploads.py`) upsert mantığını
+  birebir yansıtır ve `compute_vendor_tx_hash` ile **aynı** hash'i üretir → Excel/Sedna **mükerrer
+  yapmaz**. `_compute_removal_candidates` aynen yeniden kullanılır.
+- **Eşleme:** `AccountingTrans` (hareket) + `AccountingOwner` (FicheDate/Voucher) + `Accounting`
+  (Remark=ad, PayDay) + `AccDocumentType` (DocumentRemark=işlem tipi). Join **`AccountingCode`
+  (string)** ile (int `AccCode` boş/0 — kullanma). Filtre `LIKE '320%' AND Deleted=0`.
+- **Türkçe:** pymssql `charset='CP1254'` ŞART (collation cp1254; aksi halde İ→Ý, Ş→Þ bozulur).
+- **pymssql `%`-tuzağı:** `LIKE '320%'` paramla verilemez (pymssql `%`'yi format sanır). Prefix
+  güvenli kılınıp (sadece rakam) sorguya gömülür ve `execute()` **parametresiz** çağrılır.
+- **Loose coupling:** bağlantı yalnızca import'ta; tünel kapalı → `SednaUnavailable` → 503.
+  Uygulamanın geri kalanı etkilenmez. `SEDNA_PASSWORD` boşsa endpoint 503 + buton gizli.
+- **Onaydan muaf** (operasyonel içe-aktarma, dosya yükleme gibi), audit'li, finance.cariler use.
+- **Güvenlik:** salt-okunur login; şifre yalnız `.env` (600). Test: `tests/test_cariler_sedna.py`.
+
+---
+
 ## Banka Ekstresi Yüklemede Yavaşlık — Senkron Push Bildirimleri (2026-06-02 düzeltildi)
 
 **Belirti:** Banka ekstresi yükleme zamanla "çok yavaş" hale geldi. Kod değişikliği
