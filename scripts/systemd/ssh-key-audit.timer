@@ -1,0 +1,10 @@
+[Unit]
+Description=Gunluk SSH anahtar sertlestirme denetimi (heartbeat)
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=ssh-key-audit.service
+
+[Install]
+WantedBy=timers.target

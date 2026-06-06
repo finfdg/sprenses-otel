@@ -1,0 +1,10 @@
+[Unit]
+Description=SSH authorized_keys sertlestirme denetimi (tunel anahtarlari command=+permitopen)
+Documentation=file:///home/ec2-user/otel/scripts/ssh-key-audit.py
+
+[Service]
+Type=oneshot
+User=ec2-user
+Group=ec2-user
+ExecStart=/usr/bin/python3 /home/ec2-user/otel/scripts/ssh-key-audit.py --fix --quiet
+Nice=10

@@ -74,6 +74,7 @@
 - **Logo/Dosya Yükleme — SVG yasak:** Logo yüklemesinde **SVG kabul edilmez** (stored-XSS riski; eski blacklist `onerror=`/`xlink:href` gibi vektörleri kaçırıyordu). Logolar raster (PNG/JPG/WEBP) olmalı ve **magic-byte** ile doğrulanır
 - **Global Exception Handler:** Beklenmeyen hatalar loglanır, kullanıcıya generic mesaj döner
 - **Audit Logging:** Tüm CRUD işlemleri ve giriş/çıkış olayları `audit_logs` tablosuna kaydedilir
+- **SSH Ters Tünel Anahtarı — yalnızca-tünel sertleştirme:** Sedna ters tüneli (`127.0.0.1:11433`) için EC2 `authorized_keys`'teki anahtar **hem `command=` hem `permitopen=`** taşımalıdır. `restrict` **tek başına yetmez** (no-pty kabuğu kapatır ama komut çalıştırmayı engellemez → `ssh -i key host 'cat .env'` ile dosya okunur). `command="..."` keyfi komutu, `permitopen="127.0.0.1:1"` (`-L`/`-D` ölü porta) DB/IMDS pivotunu engeller. **`permitopen="none"` kullanma** — OpenSSH 8.7 anahtarı reddeder. Kalıcı zorlama: `scripts/ssh-key-audit.py` + systemd `ssh-key-audit.path`/`.timer` her yeni tünel anahtarını ~1 sn'de otomatik sertleştirir. Tam-erişimli admin anahtarları Ubuntu LAN makinesinde bulunmamalı. Detay: `docs/modules/ssh-tunel-guvenligi.md`
 
 ### Gerçek Zamanlılık — Polling Yasak
 - **Polling (`setInterval` + HTTP) kesinlikle kullanılmamalıdır** — tüm gerçek zamanlı veri akışı WebSocket event'leri üzerinden yapılır
@@ -826,6 +827,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Yedekleme | `docs/modules/yedekleme.md` |
 | Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
 | Vardiyalar (Shift) | `docs/modules/vardiyalar.md` |
+| SSH Tünel Güvenliği | `docs/modules/ssh-tunel-guvenligi.md` |
 
 ## UI Tasarım Kuralları
 
