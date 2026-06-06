@@ -390,8 +390,13 @@ TEMPLATE:
 - `POST /api/finance/cash-flow/unmatch-cc-payment` — Kredi kartı eşleştirme iptali
 - Detaylı bilgi: `docs/modules/nakit-akim.md`
 
+### Finans — Satış Faturaları (Otel oda satışları + tahsilat)
+- `GET /api/finance/sales-invoices/` — Satış faturaları listesi (FIFO tahsil durumu; filtre: `customer_type` munferit/agency, `status` paid/partial/open, `start_date`/`end_date`/`search`, paginated). 120/Alıcılar = cariler'in (320) aynası
+- `GET /api/finance/sales-invoices/summary` — Özet: toplam faturalanan/tahsil/açık + münferit/acente kırılımı + durum sayıları
+- `POST /api/finance/sales-invoices/sedna-import` — **Sedna'dan satış faturası + tahsilat içe aktarma** (120 Borç=fatura DocumentType=1, 120 Alacak=tahsilat; FIFO ile fatura bazında ödendi/kısmi/açık). finance.sales_invoices use, audit'li, onaydan muaf. Merkezi Sedna sync'in adımı. Detay: `docs/modules/satis-faturalari.md`
+
 ### Finans — Sedna Senkronizasyonu (Merkezi)
-- `POST /api/finance/sedna/sync-all` — **Tek noktadan tüm Sedna içe aktarmaları** (cari hareketleri + cari IBAN'ları + verilen çekler). Topbar'daki tek "Sedna" butonu bunu çağırır. Her adım izin kontrollü (kullanıcının `use` izni olmayan adım "Yetki yok" atlanır), adım-bazlı izole (biri hata verirse diğerleri sürer). Yanıt: `{ok_count, total, steps:[{key,label,ok,skipped,summary}]}`
+- `POST /api/finance/sedna/sync-all` — **Tek noktadan tüm Sedna içe aktarmaları** (cari hareketleri + cari IBAN'ları + verilen çekler + **satış faturaları**). Topbar'daki tek "Sedna" butonu bunu çağırır. Her adım izin kontrollü (kullanıcının `use` izni olmayan adım "Yetki yok" atlanır), adım-bazlı izole (biri hata verirse diğerleri sürer). Yanıt: `{ok_count, total, steps:[{key,label,ok,skipped,summary}]}`
 - `GET /api/finance/sedna/status` — Merkezi sync etkin mi + kullanıcının çalıştırabileceği adımlar (buton gösterimi)
 - **Genişletme:** Yeni Sedna içe aktarma = `run_xxx_import(db, user, ip)` servis fonksiyonu yaz + `sedna_sync.py:_STEPS`'e ekle → Topbar butonu otomatik kapsar. **Sayfa-içi ayrı Sedna butonu eklenmez** (eski cariler/çekler kutuları kaldırıldı). Tekil endpoint'ler (`/cariler/sedna-import`, `/cariler/sedna-import-ibans`, `/checks/sedna-import`) orchestrator + hedefli kullanım için korunur.
 
@@ -666,7 +671,7 @@ TEMPLATE:
 
 - **DB adı:** sprenses
 - **Kullanıcı:** sprenses
-- **Tablolar (57):** personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, vendor_bank_accounts, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
+- **Tablolar (59):** personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, vendor_bank_accounts, sales_invoices, sales_collections, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
 - **Saat dilimi:** Europe/Istanbul (her bağlantıda SET edilir)
 - **Migrations:** `cd backend && source venv/bin/activate && alembic upgrade head`
 
@@ -681,7 +686,7 @@ TEMPLATE:
 **Mevcut modüller:**
 - Panel (dashboard)
 - Mesajlaşma (messaging)
-- Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
+- Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Satış Faturaları (finance.sales_invoices), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
@@ -835,6 +840,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Yedekleme | `docs/modules/yedekleme.md` |
 | Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
 | Vardiyalar (Shift) | `docs/modules/vardiyalar.md` |
+| Satış Faturaları | `docs/modules/satis-faturalari.md` |
 | SSH Tünel Güvenliği | `docs/modules/ssh-tunel-guvenligi.md` |
 
 ## UI Tasarım Kuralları

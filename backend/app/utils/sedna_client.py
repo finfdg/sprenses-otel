@@ -94,6 +94,41 @@ ORDER BY t.DueDate
 """
 
 
+# Otel satış faturaları + tahsilat — 120/Alıcılar (cariler 320'nin aynası).
+# Fatura = 120 Borç hareketi (DocumentType=1 Hizmet Satış Fatura); tahsilat = 120 Alacak hareketi.
+_SALES_INVOICE_QUERY = """
+SELECT
+    t.AccountingCode            AS customer_code,
+    COALESCE(acc.Remark, '')    AS customer_name,
+    CONVERT(date, o.FicheDate)  AS invoice_date,
+    t.DocumentNo                AS invoice_no,
+    t.Debit                     AS amount,
+    t.Remark1                   AS aciklama
+FROM AccountingTrans t
+JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
+LEFT JOIN Accounting acc ON acc.Code = t.AccountingCode
+WHERE t.AccountingCode LIKE '120%'
+  AND t.DocumentType = 1 AND t.Debit > 0
+  AND t.Deleted = 0 AND o.Deleted = 0 AND o.FicheDate IS NOT NULL
+ORDER BY o.FicheDate, t.RecId
+"""
+
+_SALES_COLLECTION_QUERY = """
+SELECT
+    t.AccountingCode            AS customer_code,
+    CONVERT(date, o.FicheDate)  AS collection_date,
+    t.Credit                    AS amount,
+    t.Remark1                   AS aciklama,
+    o.Voucher                   AS fis_no
+FROM AccountingTrans t
+JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
+WHERE t.AccountingCode LIKE '120%'
+  AND t.Credit > 0
+  AND t.Deleted = 0 AND o.Deleted = 0 AND o.FicheDate IS NOT NULL
+ORDER BY o.FicheDate, t.RecId
+"""
+
+
 def sedna_configured() -> bool:
     """SEDNA_PASSWORD tanımlı mı (import özelliği etkin mi)."""
     return bool(settings.sedna_password)
@@ -215,3 +250,42 @@ def fetch_issued_checks() -> List[dict]:
 
     logger.info("Sedna'dan %d verilen çek çekildi (prefix=%s)", len(rows), prefix)
     return rows
+
+
+def fetch_sales_invoices() -> dict:
+    """Sedna'dan otel satış faturalarını (120 Borç) + tahsilatları (120 Alacak) çek.
+
+    Döner: {"invoices": [...], "collections": [...]}.
+    invoice anahtarları: customer_code, customer_name, invoice_date(date), invoice_no, amount, aciklama.
+    collection anahtarları: customer_code, collection_date(date), amount, aciklama, fis_no.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+
+    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
+
+    try:
+        conn = pymssql.connect(
+            server=settings.sedna_host, port=settings.sedna_port,
+            user=settings.sedna_user, password=settings.sedna_password,
+            database=settings.sedna_database, charset=settings.sedna_charset,
+            tds_version="7.4", login_timeout=10, timeout=180,
+        )
+    except Exception as e:
+        logger.warning("Sedna bağlantısı kurulamadı (satış faturası): %s", e)
+        raise SednaUnavailable(
+            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
+            f"({settings.sedna_host}:{settings.sedna_port})."
+        )
+
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_SALES_INVOICE_QUERY)     # PARAMETRESİZ (LIKE '120%' tuzağı)
+        invoices = cur.fetchall()
+        cur.execute(_SALES_COLLECTION_QUERY)
+        collections = cur.fetchall()
+    finally:
+        conn.close()
+
+    logger.info("Sedna'dan %d satış faturası + %d tahsilat çekildi", len(invoices), len(collections))
+    return {"invoices": invoices, "collections": collections}

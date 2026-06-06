@@ -1,0 +1,199 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { api } from '$lib/api';
+	import { hasPermission } from '$lib/stores/auth.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import StatCard from '$lib/components/StatCard.svelte';
+	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import { ReceiptText, FileText, CircleCheck, CircleDashed, Search, X } from 'lucide-svelte';
+
+	const STATUS_LABELS: Record<string, string> = { paid: 'Tahsil edildi', partial: 'Kısmi', open: 'Açık' };
+	const STATUS_BADGE: Record<string, BadgeType> = { paid: 'success', partial: 'warning', open: 'neutral' };
+
+	let canView = $derived(hasPermission('finance.sales_invoices', 'view'));
+
+	type Summary = {
+		total: { invoiced: number; collected: number; outstanding: number; count: number };
+		munferit: { invoiced: number; collected: number; outstanding: number; count: number };
+		agency: { invoiced: number; collected: number; outstanding: number; count: number };
+		status_counts: { paid: number; partial: number; open: number };
+	};
+	type Invoice = {
+		id: number; customer_code: string; customer_name: string; is_munferit: boolean;
+		invoice_no: string | null; invoice_date: string; amount: number; currency: string;
+		collected: number; remaining: number; status: string;
+	};
+
+	let summary = $state<Summary | null>(null);
+	let items = $state<Invoice[]>([]);
+	let loading = $state(true);
+	let total = $state(0);
+	let page = $state(1);
+	let pageSize = $state(50);
+	let pages = $state(1);
+	let typeFilter = $state<'' | 'munferit' | 'agency'>('');
+	let statusFilter = $state<'' | 'open' | 'partial' | 'paid'>('');
+	let search = $state('');
+	let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function fmt(n: number): string {
+		return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0) + ' ₺';
+	}
+	function fmt2(n: number): string {
+		return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+	}
+	function fmtDate(s: string): string {
+		if (!s) return '-';
+		const [y, m, d] = s.split('-');
+		return `${d}.${m}.${y}`;
+	}
+
+	async function loadSummary() {
+		try {
+			summary = await api.get<Summary>('/finance/sales-invoices/summary');
+		} catch (e) {
+			console.error('Satış faturası özeti alınamadı:', e);
+		}
+	}
+	async function loadList() {
+		loading = true;
+		try {
+			const p = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+			if (typeFilter) p.set('customer_type', typeFilter);
+			if (statusFilter) p.set('status', statusFilter);
+			if (search.trim()) p.set('search', search.trim());
+			const r = await api.get<any>(`/finance/sales-invoices/?${p}`);
+			items = r.items;
+			total = r.total;
+			pages = r.pages;
+		} catch (e) {
+			console.error('Satış faturaları alınamadı:', e);
+			items = [];
+		} finally {
+			loading = false;
+		}
+	}
+	function setType(t: typeof typeFilter) { typeFilter = t; page = 1; loadList(); }
+	function setStatus(s: typeof statusFilter) { statusFilter = s; page = 1; loadList(); }
+	function onSearch() {
+		if (searchTimer) clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => { page = 1; loadList(); }, 300);
+	}
+	function clearSearch() { search = ''; page = 1; loadList(); }
+	function changePage(p: number) { page = p; loadList(); }
+	function changePageSize(s: number) { pageSize = s; page = 1; loadList(); }
+
+	onMount(() => { loadSummary(); loadList(); });
+</script>
+
+<svelte:head><title>Satış Faturaları · Sprenses</title></svelte:head>
+
+{#if !canView}
+	<EmptyState icon={ReceiptText} title="Yetkiniz yok" message="Bu sayfayı görüntüleme izniniz bulunmuyor." />
+{:else}
+	<PageHeader title="Satış Faturaları" description="Otel oda/hizmet satış faturaları ve tahsilat durumu (Sedna muhasebeden). Üst bardaki 'Sedna' butonuyla güncellenir." />
+
+	<!-- Özet kartları -->
+	{#if summary}
+		<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+			<StatCard label="Toplam Faturalanan" value={fmt(summary.total.invoiced)} accent="blue" icon={FileText} hint={`${summary.total.count} fatura`} />
+			<StatCard label="Tahsil Edilen" value={fmt(summary.total.collected)} accent="emerald" icon={CircleCheck} hint={`${summary.status_counts.paid} ödendi`} />
+			<StatCard label="Açık (Tahsil Edilmemiş)" value={fmt(summary.total.outstanding)} accent="amber" icon={CircleDashed} hint={`${summary.status_counts.open} açık · ${summary.status_counts.partial} kısmi`} />
+			<StatCard label="Acente / Münferit" value={`${fmt(summary.agency.outstanding)}`} accent="teal" icon={ReceiptText} hint={`Münferit açık: ${fmt(summary.munferit.outstanding)}`} />
+		</div>
+	{/if}
+
+	<!-- Filtre barı -->
+	<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-2">
+		<!-- Tür -->
+		<div class="flex items-center gap-1">
+			{#each [['', 'Tümü'], ['munferit', 'Münferit'], ['agency', 'Acente']] as [val, lbl]}
+				<button onclick={() => setType(val as any)} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer {typeFilter === val ? 'bg-teal-100 text-teal-700 border-teal-300' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}">{lbl}</button>
+			{/each}
+		</div>
+		<span class="w-px h-5 bg-gray-200"></span>
+		<!-- Durum -->
+		<div class="flex items-center gap-1">
+			{#each [['', 'Hepsi'], ['open', 'Açık'], ['partial', 'Kısmi'], ['paid', 'Tahsil']] as [val, lbl]}
+				<button onclick={() => setStatus(val as any)} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer {statusFilter === val ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}">{lbl}</button>
+			{/each}
+		</div>
+		<!-- Arama -->
+		<div class="relative ml-auto">
+			<Search size={15} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+			<input bind:value={search} oninput={onSearch} placeholder="Fatura no / müşteri ara" class="pl-8 pr-7 py-1.5 text-sm border border-gray-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-teal-500/40" />
+			{#if search}
+				<button onclick={clearSearch} class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer" aria-label="Temizle"><X size={14} /></button>
+			{/if}
+		</div>
+		<span class="text-xs text-gray-400 tabular-nums">{total} kayıt</span>
+	</div>
+
+	<!-- İçerik -->
+	<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+		{#if loading}
+			<div class="p-4"><TableSkeleton rows={8} /></div>
+		{:else if items.length === 0}
+			<EmptyState icon={ReceiptText} title="Fatura yok" message="Filtreye uyan satış faturası bulunamadı. Üst bardaki 'Sedna' butonuyla içe aktarın." />
+		{:else}
+			<!-- Masaüstü tablo -->
+			<table class="w-full text-sm hidden md:table">
+				<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+					<tr>
+						<th class="text-left font-medium px-4 py-2.5">Tarih</th>
+						<th class="text-left font-medium px-4 py-2.5">Fatura No</th>
+						<th class="text-left font-medium px-4 py-2.5">Müşteri</th>
+						<th class="text-right font-medium px-4 py-2.5">Tutar</th>
+						<th class="text-right font-medium px-4 py-2.5">Tahsil</th>
+						<th class="text-right font-medium px-4 py-2.5">Kalan</th>
+						<th class="text-center font-medium px-4 py-2.5">Durum</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-gray-100">
+					{#each items as inv}
+						<tr class="hover:bg-gray-50/60">
+							<td class="px-4 py-2.5 text-gray-600 tabular-nums whitespace-nowrap">{fmtDate(inv.invoice_date)}</td>
+							<td class="px-4 py-2.5 text-gray-700 font-medium">{inv.invoice_no ?? '-'}</td>
+							<td class="px-4 py-2.5 text-gray-700">
+								<span class="inline-flex items-center gap-1.5">
+									<span class="text-[10px] px-1.5 py-0.5 rounded {inv.is_munferit ? 'bg-purple-50 text-purple-600' : 'bg-cyan-50 text-cyan-700'}">{inv.is_munferit ? 'Münferit' : 'Acente'}</span>
+									<span class="truncate max-w-[18rem]">{inv.customer_name}</span>
+								</span>
+							</td>
+							<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(inv.amount)}</td>
+							<td class="px-4 py-2.5 text-right tabular-nums text-emerald-600">{inv.collected ? fmt2(inv.collected) : '—'}</td>
+							<td class="px-4 py-2.5 text-right tabular-nums {inv.remaining > 0.01 ? 'text-amber-700 font-medium' : 'text-gray-400'}">{inv.remaining > 0.01 ? fmt2(inv.remaining) : '—'}</td>
+							<td class="px-4 py-2.5 text-center"><StatusBadge type={STATUS_BADGE[inv.status] ?? 'neutral'}>{STATUS_LABELS[inv.status] ?? inv.status}</StatusBadge></td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+
+			<!-- Mobil kart -->
+			<div class="md:hidden divide-y divide-gray-100">
+				{#each items as inv}
+					<div class="p-3">
+						<div class="flex items-start justify-between gap-2">
+							<div class="min-w-0">
+								<p class="text-sm font-medium text-gray-800 truncate">{inv.customer_name}</p>
+								<p class="text-xs text-gray-500 mt-0.5">{inv.invoice_no ?? '-'} · {fmtDate(inv.invoice_date)} · {inv.is_munferit ? 'Münferit' : 'Acente'}</p>
+							</div>
+							<StatusBadge type={STATUS_BADGE[inv.status] ?? 'neutral'}>{STATUS_LABELS[inv.status] ?? inv.status}</StatusBadge>
+						</div>
+						<div class="flex items-center justify-between mt-2 text-xs tabular-nums">
+							<span class="text-gray-500">Tutar: <span class="text-gray-800">{fmt2(inv.amount)} ₺</span></span>
+							{#if inv.remaining > 0.01}<span class="text-amber-700">Kalan: {fmt2(inv.remaining)} ₺</span>{:else}<span class="text-emerald-600">Tahsil edildi</span>{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<div class="px-4 py-3 border-t border-gray-100">
+				<Pagination {page} {pageSize} {total} onPageChange={changePage} onPageSizeChange={changePageSize} />
+			</div>
+		{/if}
+	</div>
+{/if}

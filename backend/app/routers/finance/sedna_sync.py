@@ -27,11 +27,13 @@ from app.utils.sedna_client import sedna_configured
 
 from .cariler.sedna_import import run_cari_import, run_iban_import
 from .checks import run_check_import
+from .sales_invoices import run_sales_invoice_import
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sedna")
 
-# Sedna içe aktarma adımları — sıralı çalışır. Yeni import = buraya bir satır.
+# Sedna içe aktarma adımları — sıralı çalışır. Yeni import = buraya bir satır
+# ("broadcast" None olabilir → o adım WS bildirimi tetiklemez).
 _STEPS = [
     {"key": "cariler", "label": "Cari hareketleri", "module": "finance.cariler",
      "run": run_cari_import, "broadcast": BroadcastModule.CARILER},
@@ -39,6 +41,8 @@ _STEPS = [
      "run": run_iban_import, "broadcast": BroadcastModule.CARILER},
     {"key": "checks", "label": "Verilen çekler", "module": "finance.checks",
      "run": run_check_import, "broadcast": BroadcastModule.CHECKS},
+    {"key": "sales_invoices", "label": "Satış faturaları", "module": "finance.sales_invoices",
+     "run": run_sales_invoice_import, "broadcast": None},
 ]
 
 
@@ -53,6 +57,8 @@ def _summarize(key: str, d: dict) -> str:
         extra = f" · {m} banka eşleşti" if m else ""
         return (f"{d.get('new_checks', 0)} yeni çek · {d.get('updated_checks', 0)} durum güncel"
                 f"{extra}")
+    if key == "sales_invoices":
+        return f"{d.get('invoices_new', 0)} yeni fatura · {d.get('collections_new', 0)} yeni tahsilat"
     return "Tamamlandı"
 
 
@@ -97,7 +103,8 @@ def sedna_sync_all(
         try:
             detail = s["run"](db, current_user, ip)
             results.append({**base, "ok": True, "skipped": False, "summary": _summarize(s["key"], detail)})
-            touched.add(s["broadcast"])
+            if s.get("broadcast"):
+                touched.add(s["broadcast"])
         except HTTPException as e:
             db.rollback()
             results.append({**base, "ok": False, "skipped": False, "summary": str(e.detail)})

@@ -40,7 +40,7 @@ def test_status_admin_all_allowed(client, auth_headers):
         assert r.status_code == 200
         j = r.json()
         assert j["configured"] is True and j["any_allowed"] is True
-        assert {s["key"] for s in j["steps"]} == {"cariler", "ibans", "checks"}
+        assert {s["key"] for s in j["steps"]} == {"cariler", "ibans", "checks", "sales_invoices"}
         assert all(s["allowed"] for s in j["steps"])  # admin hepsini yapabilir
 
 
@@ -53,16 +53,19 @@ def test_sync_all_runs_all_steps(client, auth_headers, db):
     with patch.object(settings, "sedna_password", "testpw"), \
          patch(f"{CARI}.fetch_cari_transactions", return_value=FAKE_CARI), \
          patch(f"{CARI}.fetch_vendor_ibans", return_value=FAKE_IBAN), \
-         patch(f"{CHK}.fetch_issued_checks", return_value=FAKE_CHECK):
+         patch(f"{CHK}.fetch_issued_checks", return_value=FAKE_CHECK), \
+         patch("app.routers.finance.sales_invoices.fetch_sales_invoices",
+               return_value={"invoices": [], "collections": []}):
         r = client.post(f"{PREFIX}/sync-all", headers=auth_headers)
         assert r.status_code == 200, r.text
         j = r.json()
-        assert j["ok_count"] == 3 and j["total"] == 3
+        assert j["ok_count"] == 4 and j["total"] == 4
         by = {s["key"]: s for s in j["steps"]}
-        assert by["cariler"]["ok"] and by["ibans"]["ok"] and by["checks"]["ok"]
+        assert by["cariler"]["ok"] and by["ibans"]["ok"] and by["checks"]["ok"] and by["sales_invoices"]["ok"]
         assert "hareket" in by["cariler"]["summary"]
         assert "IBAN" in by["ibans"]["summary"]
         assert "çek" in by["checks"]["summary"]
+        assert "fatura" in by["sales_invoices"]["summary"]
 
         # DB etkisi: cari + IBAN + çek oluştu (sıralı çalıştı → IBAN cariye bağlandı)
         vid = db.execute(text("SELECT id FROM vendors WHERE hesap_kodu='320.88.01.0001'")).scalar()
