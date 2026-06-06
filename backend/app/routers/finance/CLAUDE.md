@@ -22,6 +22,13 @@ Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH
 - **Loose coupling:** bağlantı yalnızca import'ta; tünel kapalı → `SednaUnavailable` → 503.
   Uygulamanın geri kalanı etkilenmez. `SEDNA_PASSWORD` boşsa endpoint 503 + buton gizli.
 - **Onaydan muaf** (operasyonel içe-aktarma, dosya yükleme gibi), audit'li, finance.cariler use.
+- **Cari IBAN içe aktarımı (2026-06-06) — `POST /sedna-import-ibans`:** Cari banka/IBAN bilgileri
+  Sedna'da **`dbo.Bank`** tablosunda (cari koduna bağlı, firma başına çok IBAN) — `Accounting.BankIbanNo`
+  boş olsa da asıl kaynak burası (canlı: 320'li 763 firma / 821 IBAN). `fetch_vendor_ibans()` çeker,
+  endpoint `vendor_bank_accounts`'a upsert eder: join `Bank.AccountingCode` (virgüllü) →
+  `Accounting.Code` (noktalı) `REPLACE(',','.')`. **Yalnız mevcut carilere** işler (IBAN'ı olup hareketi
+  olmayan firma atlanır); dedup (cari+IBAN); caride hesap yoksa ilki varsayılan; boş banka adı doldurulur;
+  varsayılan/elle eklenenler korunur → idempotent. Onaydan muaf, audit'li. Test: `test_cariler_sedna.py`.
 - **Güvenlik:** salt-okunur login; şifre yalnız `.env` (600). Test: `tests/test_cariler_sedna.py`.
 - **Ters SSH tüneli anahtar sertleştirmesi (2026-06-06 — KRİTİK):** EC2 `~/.ssh/authorized_keys`'teki
   `sedna-reverse-tunnel` anahtarı **yalnız tünel** içindir. `restrict` **tek başına yetmez** —

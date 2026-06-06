@@ -45,6 +45,24 @@ ORDER BY t.AccountingCode, o.FicheDate, t.RecId
 """
 
 
+# Cari (320) banka/IBAN kayıtları — dbo.Bank, cari koduna (AccountingCode) bağlı.
+# AccountingCode VİRGÜLLÜ saklanır (320,01,01,0063); Accounting.Code NOKTALI (320.01.01.0063)
+# → join'de REPLACE ile eşitlenir. Bir firma → 0..N IBAN. {prefix} güvenli (rakam) → gömülü.
+_IBAN_QUERY = """
+SELECT
+    REPLACE(b.AccountingCode, ',', '.') AS hesap_kodu,
+    b.BankName                          AS banka,
+    b.IbanNo                            AS iban,
+    b.Title                             AS unvan,
+    b.Curr                              AS para_birimi
+FROM Bank b
+JOIN Accounting a ON a.Code = REPLACE(b.AccountingCode, ',', '.')
+WHERE b.IbanNo IS NOT NULL AND LTRIM(RTRIM(b.IbanNo)) <> ''
+  AND a.Code LIKE '{prefix}%'
+ORDER BY a.Code, b.RecId
+"""
+
+
 def sedna_configured() -> bool:
     """SEDNA_PASSWORD tanımlı mı (import özelliği etkin mi)."""
     return bool(settings.sedna_password)
@@ -87,4 +105,43 @@ def fetch_cari_transactions() -> List[dict]:
         conn.close()
 
     logger.info("Sedna'dan %d cari hareket çekildi (prefix=%s)", len(rows), prefix)
+    return rows
+
+
+def fetch_vendor_ibans() -> List[dict]:
+    """Sedna'dan cari (varsayılan 320) banka/IBAN kayıtlarını dict listesi olarak çek.
+
+    Anahtarlar: hesap_kodu (noktalı), banka, iban, unvan, para_birimi. Bir firma birden
+    çok IBAN taşıyabilir. Kaynak: dbo.Bank (cari = dbo.Accounting, AccountingCode üzerinden).
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+
+    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
+
+    prefix = "".join(c for c in (settings.sedna_account_prefix or "320") if c.isdigit()) or "320"
+    query = _IBAN_QUERY.format(prefix=prefix)
+
+    try:
+        conn = pymssql.connect(
+            server=settings.sedna_host, port=settings.sedna_port,
+            user=settings.sedna_user, password=settings.sedna_password,
+            database=settings.sedna_database, charset=settings.sedna_charset,
+            tds_version="7.4", login_timeout=10, timeout=60,
+        )
+    except Exception as e:
+        logger.warning("Sedna bağlantısı kurulamadı (IBAN): %s", e)
+        raise SednaUnavailable(
+            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
+            f"({settings.sedna_host}:{settings.sedna_port})."
+        )
+
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query)  # PARAMETRESİZ (bkz. %-tuzağı notu)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    logger.info("Sedna'dan %d cari IBAN kaydı çekildi (prefix=%s)", len(rows), prefix)
     return rows

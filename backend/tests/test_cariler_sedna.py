@@ -70,3 +70,75 @@ def test_sedna_import_tunnel_down_503(client, auth_headers):
 def test_sedna_import_not_configured_503(client, auth_headers):
     with patch(f"{TARGET}.sedna_configured", return_value=False):
         assert client.post(f"{PREFIX}/sedna-import", headers=auth_headers).status_code == 503
+
+
+# --- Sedna IBAN içe aktarma (dbo.Bank → vendor_bank_accounts) ---
+
+FAKE_IBAN_ROWS = [
+    {"hesap_kodu": "320.99.01.0001", "banka": "YAPIKREDİ",
+     "iban": "TR13 0006 7010 0000 0049 3900 33", "unvan": "TEST CARİ A", "para_birimi": None},
+    {"hesap_kodu": "320.99.01.0001", "banka": "GARANTİ",
+     "iban": "TR060006200135900006297945", "unvan": "TEST CARİ A", "para_birimi": None},
+    {"hesap_kodu": "320.99.01.0002", "banka": None,
+     "iban": "TR120001001292910995125001", "unvan": "TEST CARİ B", "para_birimi": None},
+    {"hesap_kodu": "320.99.99.9999", "banka": "X",  # caride YOK → atlanmalı
+     "iban": "TR999999999999999999999999", "unvan": "YOK", "para_birimi": None},
+]
+
+
+def _seed_vendors(db):
+    from app.models.vendor import Vendor
+    for code, name in [("320.99.01.0001", "TEST CARİ A"), ("320.99.01.0002", "TEST CARİ B")]:
+        db.add(Vendor(hesap_kodu=code, hesap_adi=name, payment_days=90))
+    db.flush()
+
+
+def test_sedna_iban_import_requires_use(client, viewer_user_headers):
+    assert client.post(f"{PREFIX}/sedna-import-ibans", headers=viewer_user_headers).status_code == 403
+
+
+def test_sedna_iban_import_creates_dedup_default(client, auth_headers, db):
+    _seed_vendors(db)
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_vendor_ibans", return_value=FAKE_IBAN_ROWS):
+        r = client.post(f"{PREFIX}/sedna-import-ibans", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        j = r.json()
+        assert j["total_fetched"] == 4
+        assert j["new_ibans"] == 3
+        assert j["vendors_matched"] == 2
+        assert j["skipped_no_vendor"] == 1          # carisiz satır atlandı
+
+        # cari A: 2 IBAN, biri varsayılan, IBAN normalize (boşluksuz)
+        rows = db.execute(text(
+            "SELECT vba.iban, vba.bank_name, vba.is_default FROM vendor_bank_accounts vba "
+            "JOIN vendors v ON v.id=vba.vendor_id WHERE v.hesap_kodu='320.99.01.0001' "
+            "ORDER BY vba.is_default DESC, vba.sort_order"
+        )).fetchall()
+        assert len(rows) == 2
+        assert rows[0][0] == "TR130006701000000049390033" and rows[0][2] is True   # ilk = varsayılan, normalize
+        assert rows[1][2] is False                                                  # 2.si varsayılan değil
+        assert {x[1] for x in rows} == {"YAPIKREDİ", "GARANTİ"}
+
+        # RE-RUN → mükerrer yok
+        j2 = client.post(f"{PREFIX}/sedna-import-ibans", headers=auth_headers).json()
+        assert j2["new_ibans"] == 0 and j2["skipped_existing"] == 3
+
+
+def test_sedna_iban_import_fills_empty_bank_name(client, auth_headers, db):
+    from app.models.vendor import Vendor
+    from app.models.vendor_bank_account import VendorBankAccount
+    v = Vendor(hesap_kodu="320.99.01.0001", hesap_adi="TEST CARİ A", payment_days=90)
+    db.add(v)
+    db.flush()
+    # banka adı BOŞ mevcut IBAN (örn. elle eklenmiş)
+    db.add(VendorBankAccount(vendor_id=v.id, bank_name=None,
+                             iban="TR130006701000000049390033", is_default=True, sort_order=0))
+    db.flush()
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_vendor_ibans", return_value=FAKE_IBAN_ROWS[:1]):  # aynı IBAN, banka=YAPIKREDİ
+        j = client.post(f"{PREFIX}/sedna-import-ibans", headers=auth_headers).json()
+        assert j["new_ibans"] == 0 and j["updated"] == 1
+        assert db.execute(text(
+            "SELECT bank_name FROM vendor_bank_accounts WHERE iban='TR130006701000000049390033'"
+        )).scalar() == "YAPIKREDİ"

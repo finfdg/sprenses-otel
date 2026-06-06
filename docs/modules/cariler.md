@@ -122,10 +122,22 @@ düzenle, Excel/PDF olarak dışa aktar. Listeler **kalıcıdır** (`finance.car
 
 ### Cari Banka / IBAN (`vendor_bank_accounts`) — Ödeme Talimatı için (2026-06-06)
 
-Sedna muhasebe DB'sinde cari IBAN'ları **boş** olduğundan IBAN'lar Sprenses'te yönetilir.
+IBAN'lar büyük ölçüde **Sedna'nın `dbo.Bank` tablosundan otomatik çekilir** (aşağıdaki içe aktarım);
+elle ekleme/düzenleme Sedna'da olmayan cariler / düzeltmeler içindir.
 Bir cari → **0..N** banka hesabı (`bank_name`, `iban`, `account_holder`, `is_default`, `sort_order`).
 
-- **CRUD:** `GET/POST/PATCH/DELETE /cariler/vendors/{id}/bank-accounts[/{ba_id}]` (finance.cariler use, audit'li, onaydan muaf — master veri).
+> **Not (2026-06-06 düzeltme):** Önceki tasarım "Sedna'da cari IBAN'ı yok" varsayımına dayanıyordu —
+> bu yanlıştı. `Accounting.BankIbanNo` boş olsa da asıl kaynak **`dbo.Bank`** (cari koduna bağlı,
+> firma başına çok IBAN). Canlı: 320'li **763 firma / 821 IBAN**.
+
+**Sedna IBAN içe aktarımı — `POST /cariler/sedna-import-ibans`** (finance.cariler use, onaydan muaf, audit'li):
+- Kaynak: `dbo.Bank` JOIN `dbo.Accounting` (`AccountingCode` virgüllü → `Code` noktalı, `REPLACE(',','.')`); filtre 320 + IBAN dolu.
+- **Yalnız MEVCUT carilere** işler (önce hareket import'u); `dbo.Bank`'ta IBAN'ı olup bizde hareketi olmayan firmalar atlanır (`skipped_no_vendor`).
+- Dedup (cari + normalize IBAN); caride hiç hesap yoksa **ilk IBAN varsayılan**; mevcut IBAN'ın **banka adı boşsa** Sedna'dan doldurulur (varsayılan/elle eklenenler **korunur**) — idempotent.
+- Yanıt: `{total_fetched, vendors_matched, new_ibans, updated, skipped_existing, skipped_no_vendor}`. İlk canlı: 821 çekildi → 221 cari → 248 yeni IBAN.
+- **Frontend:** Cariler → "Dosya Yükle" sekmesindeki Sedna kutusunda **"IBAN Çek"** butonu.
+
+- **CRUD (elle):** `GET/POST/PATCH/DELETE /cariler/vendors/{id}/bank-accounts[/{ba_id}]` (finance.cariler use, audit'li, onaydan muaf — master veri).
   IBAN **normalize** (büyük harf, boşluksuz), **mükerrer 409**, **ilk hesap otomatik varsayılan**, varsayılan değiştirme, **varsayılan silinince devir**.
 - **Frontend:** Cari detayında "Banka / IBAN" bölümü (listele + ekle + varsayılan ★ + sil).
 - **Ödeme talimatı entegrasyonu:** Cari kalem eklenince **varsayılan banka/IBAN otomatik** gelir; kalemdeki **"Banka / IBAN" sütunundan** carinin IBAN'ları arasında seçim yapılabilir (`PATCH .../items/{id}` `bank_name`+`iban`). **PDF/Excel dökümünde Banka + IBAN sütunları** (IBAN 4'erli gruplu). Tek IBAN → otomatik; çok IBAN → seçim; yok → boş.

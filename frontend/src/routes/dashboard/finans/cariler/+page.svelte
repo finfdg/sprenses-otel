@@ -34,6 +34,7 @@
 	// Sedna (muhasebe DB) doğrudan içe aktarma
 	let sednaConfigured = $state(false);
 	let sednaImporting = $state(false);
+	let sednaIbanImporting = $state(false);
 	let uploadResult = $state<VendorUploadResult | null>(null);
 	let showUploadResult = $state(false);
 	let uploads = $state<VendorUpload[]>([]);
@@ -391,6 +392,28 @@
 			showToast(err?.message || "Sedna'dan içe aktarılamadı (SSH tüneli kapalı olabilir)", 'error');
 		} finally {
 			sednaImporting = false;
+		}
+	}
+	async function importIbansFromSedna() {
+		if (sednaIbanImporting) return;
+		sednaIbanImporting = true;
+		try {
+			const r = await api.post<{
+				total_fetched: number; vendors_matched: number; new_ibans: number;
+				updated: number; skipped_no_vendor: number;
+			}>('/finance/cariler/sedna-import-ibans', {});
+			const extra = r.skipped_no_vendor > 0 ? ` · ${r.skipped_no_vendor} kayıt carisiz atlandı` : '';
+			showToast(
+				`Sedna'dan ${r.new_ibans} yeni IBAN aktarıldı (${r.vendors_matched} cari)${extra}`,
+				'success'
+			);
+			// açık cari detayının IBAN listesini tazele
+			if (expandedVendor) await loadVendorIbans(expandedVendor);
+		} catch (err: any) {
+			console.error('Sedna IBAN içe aktarma hatası:', err);
+			showToast(err?.message || "Sedna'dan IBAN aktarılamadı (SSH tüneli kapalı olabilir)", 'error');
+		} finally {
+			sednaIbanImporting = false;
 		}
 	}
 
@@ -974,9 +997,12 @@
 				<div class="bg-gradient-to-br from-teal-50 to-white border border-teal-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
 					<div class="min-w-0">
 						<p class="text-sm font-semibold text-gray-900 inline-flex items-center gap-1.5"><Database size={16} class="text-teal-600" /> Sedna'dan otomatik içe aktar</p>
-						<p class="text-xs text-gray-500 mt-0.5 max-w-md leading-snug">Cari hareketler doğrudan muhasebe (Sedna) veritabanından çekilir — Excel'e gerek yok. Mükerrer kayıt eklenmez; kaynakta olmayanlar "silme adayı" olarak gösterilir.</p>
+						<p class="text-xs text-gray-500 mt-0.5 max-w-md leading-snug">Cari hareketler doğrudan muhasebe (Sedna) veritabanından çekilir — Excel'e gerek yok. Mükerrer kayıt eklenmez; kaynakta olmayanlar "silme adayı" olarak gösterilir. <strong>IBAN Çek</strong> ile firmaların banka/IBAN bilgileri ödeme talimatları için aktarılır.</p>
 					</div>
-					<Button onclick={importFromSedna} loading={sednaImporting} class="shrink-0 w-full sm:w-auto"><Database size={16} /> Sedna'dan İçe Aktar</Button>
+					<div class="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
+						<Button onclick={importFromSedna} loading={sednaImporting} class="w-full sm:w-auto"><Database size={16} /> Sedna'dan İçe Aktar</Button>
+						<Button onclick={importIbansFromSedna} loading={sednaIbanImporting} variant="secondary" class="w-full sm:w-auto"><Landmark size={16} /> IBAN Çek</Button>
+					</div>
 				</div>
 			{/if}
 

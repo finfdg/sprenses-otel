@@ -20,13 +20,19 @@ from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
 from app.models.vendor import Vendor
+from app.models.vendor_bank_account import VendorBankAccount
 from app.models.vendor_transaction import VendorTransaction
 from app.models.vendor_upload import VendorUpload
 from app.schemas.vendor import VendorUploadResult
 from app.utils.audit import log_action
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
-from app.utils.sedna_client import SednaUnavailable, fetch_cari_transactions, sedna_configured
+from app.utils.sedna_client import (
+    SednaUnavailable,
+    fetch_cari_transactions,
+    fetch_vendor_ibans,
+    sedna_configured,
+)
 from app.utils.sync_vendor_fifo import sync_vendor_finance_events
 from app.utils.vendor_parser import (
     ParsedVendorTransaction,
@@ -34,6 +40,7 @@ from app.utils.vendor_parser import (
     compute_vendor_tx_hash,
 )
 
+from .bank_accounts import _norm_iban  # IBAN normalize (tek kaynak)
 from .uploads import _compute_removal_candidates  # Excel ile aynı silme-adayı mantığı
 
 logger = logging.getLogger(__name__)
@@ -206,3 +213,110 @@ def sedna_import(
         skipped_transactions=skipped,
         removal_candidates=removal_candidates,
     ).model_dump()
+
+
+@router.post("/sedna-import-ibans")
+def sedna_import_ibans(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cariler", "use")),
+):
+    """Sedna dbo.Bank'tan cari (320) banka/IBAN'larını çek → vendor_bank_accounts'a upsert.
+
+    Dedup (cari + IBAN); caride hiç hesap yoksa ilk IBAN varsayılan olur. Mevcut IBAN'ın
+    banka adı boşsa Sedna'dan doldurulur (varsayılan seçimi/elle eklenenler korunur).
+    Yalnız MEVCUT carilere işler (önce hareket import'u). Operasyonel — onaydan muaf, audit'li.
+    """
+    if not sedna_configured():
+        raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
+    try:
+        rows = fetch_vendor_ibans()
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error("Sedna IBAN sorgu hatası: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail="Sedna IBAN verisi alınamadı. Lütfen tekrar deneyin.")
+
+    # normalize + boş ele
+    norm: list = []
+    for r in rows:
+        code = (r.get("hesap_kodu") or "").strip()
+        iban = _norm_iban(r.get("iban"))
+        if not code or not iban:
+            continue
+        norm.append((
+            code, iban,
+            (r.get("banka") or "").strip() or None,
+            (r.get("unvan") or "").strip() or None,
+        ))
+
+    codes = sorted({c for c, _, _, _ in norm})
+    vendors = {
+        v.hesap_kodu: v
+        for v in (db.query(Vendor).filter(Vendor.hesap_kodu.in_(codes)).all() if codes else [])
+    }
+    vids = [v.id for v in vendors.values()]
+
+    existing_by_vendor: dict = {}  # vid → {iban_upper: VendorBankAccount}
+    state: dict = {}               # vid → {"count": n, "sort": max_sort}
+    if vids:
+        for ba in db.query(VendorBankAccount).filter(VendorBankAccount.vendor_id.in_(vids)).all():
+            existing_by_vendor.setdefault(ba.vendor_id, {})[(ba.iban or "").upper()] = ba
+    for vid in vids:
+        accs = existing_by_vendor.get(vid, {})
+        state[vid] = {"count": len(accs), "sort": max((b.sort_order for b in accs.values()), default=-1)}
+
+    new_ibans = updated = skipped_existing = skipped_no_vendor = 0
+    matched_vendors = set()
+    try:
+        for code, iban, banka, unvan in norm:
+            v = vendors.get(code)
+            if not v:
+                skipped_no_vendor += 1
+                continue
+            matched_vendors.add(v.id)
+            existing = existing_by_vendor.setdefault(v.id, {})
+            st = state[v.id]
+            if iban in existing:
+                ba = existing[iban]
+                if banka and not (ba.bank_name or "").strip():  # boş banka adını doldur
+                    ba.bank_name = banka
+                    updated += 1
+                else:
+                    skipped_existing += 1
+                continue
+            is_default = st["count"] == 0  # caride hiç hesap yoksa ilki varsayılan
+            st["sort"] += 1
+            ba = VendorBankAccount(
+                vendor_id=v.id, bank_name=banka, iban=iban,
+                account_holder=unvan, is_default=is_default, sort_order=st["sort"],
+            )
+            db.add(ba)
+            db.flush()
+            existing[iban] = ba
+            st["count"] += 1
+            new_ibans += 1
+
+        log_action(
+            db, current_user.id, "create", "vendor_bank_account", None,
+            f"Sedna IBAN içe aktarma: {new_ibans} yeni, {updated} güncellendi, "
+            f"{skipped_no_vendor} carisiz",
+            ip_address=get_client_ip(request),
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Sedna IBAN içe aktarma DB hatası: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="IBAN içe aktarma sırasında veritabanı hatası oluştu.")
+
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "update")
+
+    return {
+        "total_fetched": len(rows),
+        "vendors_matched": len(matched_vendors),
+        "new_ibans": new_ibans,
+        "updated": updated,
+        "skipped_existing": skipped_existing,
+        "skipped_no_vendor": skipped_no_vendor,
+    }

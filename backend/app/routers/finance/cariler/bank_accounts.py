@@ -1,8 +1,9 @@
 """Cari banka hesapları (IBAN) — ödeme talimatında kullanılır.
 
-Sedna muhasebe DB'sinde cari IBAN'ları boş olduğundan IBAN'lar burada yönetilir.
-Bir cari → 0..N banka hesabı; biri **varsayılan** (ödeme talimatına otomatik gelir).
-Master veri yönetimi — onaydan muaf (vade günü güncelleme gibi), audit'li, finance.cariler use.
+IBAN'lar büyük ölçüde Sedna'nın `dbo.Bank` tablosundan otomatik çekilir (`/sedna-import-ibans`,
+bkz. sedna_import.py); bu CRUD elle ekleme/düzenleme (Sedna'da olmayan cariler veya düzeltmeler)
+ve varsayılan seçimi içindir. Bir cari → 0..N banka hesabı; biri **varsayılan** (ödeme talimatına
+otomatik gelir). Master veri — onaydan muaf (vade günü güncelleme gibi), audit'li, finance.cariler use.
 """
 import logging
 from typing import Optional

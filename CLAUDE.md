@@ -393,6 +393,7 @@ TEMPLATE:
 ### Finans — Cariler
 - `POST /api/finance/cariler/upload` — Excel dosya yükleme (response içinde `removal_candidates` döner: kapsamda olup Excel'de bulunmayan kayıtlar)
 - `POST /api/finance/cariler/sedna-import` — **Sedna (muhasebe SQL Server) doğrudan içe aktarma** (ters SSH tüneli `127.0.0.1:11433` üzerinden 320/satıcı cari hareketleri). Excel yükleme ile **aynı upsert + tx_hash dedup** → mükerrer olmaz. Yanıt Excel ile aynı (`removal_candidates` dahil). Tünel kapalıysa 503. finance.cariler use, audit'li, onaydan muaf
+- `POST /api/finance/cariler/sedna-import-ibans` — **Sedna cari IBAN içe aktarma** (`dbo.Bank` → `vendor_bank_accounts`; cari koduna bağlı, firma başına çok IBAN). Yalnız mevcut carilere işler, dedup + ilk varsayılan + boş banka adını doldurur (idempotent). Ödeme talimatı IBAN'larını besler. finance.cariler use, audit'li, onaydan muaf
 - `GET /api/finance/cariler/sedna-status` — Sedna içe aktarma etkin mi (`{configured}`; buton gösterimi). Detay: `docs/modules/cariler.md`
 - `GET /api/finance/cariler/uploads` — Yükleme geçmişi
 - `DELETE /api/finance/cariler/uploads/{id}` — Yükleme sil
