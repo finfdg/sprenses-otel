@@ -438,9 +438,10 @@ TEMPLATE:
 - `GET/POST/PATCH/DELETE /api/accounting/taxes/` — Vergi tanım CRUD + giriş üretimi
 - `PATCH /api/accounting/taxes/entries/{id}` — Vergi girişi güncelle (tutar, ödendi)
 - `GET /api/accounting/taxes/summary/totals` — Vergi özeti
-- `GET/POST/PATCH/DELETE /api/accounting/recurring/` — Düzenli ödeme CRUD
+- `GET/POST/PATCH/DELETE /api/accounting/recurring/` — Düzenli ödeme CRUD (tanım `vendor_id` ile cariye bağlanabilir)
 - `PATCH /api/accounting/recurring/entries/{id}` — Düzenli ödeme girişi güncelle
 - `GET /api/accounting/recurring/summary/totals` — Düzenli ödeme özeti
+- `POST /api/accounting/recurring/sync-vendors` — **Cari senkronu**: cari-bağlı kalemleri (Elektrik→CK, Su→ASAT) cari gerçek fatura + FIFO ödeme durumuyla senkronla. Faturası gelen ay tahmini→gerçek + recurring FE silinir (çift sayım önleme), gelecek aylar tahmini kalır. Merkezi Sedna butonu da çağırır (`recurring_sync` adımı). Detay: `docs/modules/muhasebe-ik.md`
 - `GET/POST/PATCH/DELETE /api/accounting/rent-income/` — Alınan kira CRUD (gelir, direction=+1)
 - `PATCH /api/accounting/rent-income/entries/{id}` — Alınan kira girişi güncelle
 - `GET /api/accounting/rent-income/summary/totals` — Alınan kira özeti

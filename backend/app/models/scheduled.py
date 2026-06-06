@@ -26,6 +26,7 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.vendor import Vendor
 
 
 class ScheduledDefinition(Base):
@@ -49,6 +50,12 @@ class ScheduledDefinition(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Cari (satıcı) bağlantısı — yalnız "recurring" için anlamlı (ör. Elektrik→CK, Su→ASAT).
+    # Bağlıysa giriş tutarları/ödeme durumu cari gerçek faturadan senkronlanır (bk. recurring_vendor_sync).
+    vendor_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
+
     created_by: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
     )
@@ -64,6 +71,7 @@ class ScheduledDefinition(Base):
         cascade="all, delete-orphan", lazy="dynamic",
     )
     creator: Mapped[Optional["User"]] = relationship("User")
+    vendor: Mapped[Optional["Vendor"]] = relationship("Vendor")
 
 
 class ScheduledEntry(Base):
@@ -90,6 +98,9 @@ class ScheduledEntry(Base):
     is_paid: Mapped[bool] = mapped_column(Boolean, default=False)
     paid_date: Mapped[Optional[date_type]] = mapped_column(Date, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # True → tutar/ödeme durumu cari gerçek faturadan senkronlandı (tahmini değil).
+    # Bu aylarda recurring finance_event'i silinir (cari nakit akımı temsil eder, çift sayım önlenir).
+    synced_from_cari: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(),

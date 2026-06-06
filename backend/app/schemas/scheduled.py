@@ -17,6 +17,7 @@ class DefinitionCreate(BaseModel):
     start_month: int = Field(default=1, ge=1, le=12)
     year: Optional[int] = None
     notes: Optional[str] = None
+    vendor_id: Optional[int] = None  # cari (satıcı) bağlantısı — recurring senkronu için
 
 
 class DefinitionUpdate(BaseModel):
@@ -27,6 +28,7 @@ class DefinitionUpdate(BaseModel):
     payment_day: Optional[int] = Field(None, ge=1, le=28)
     notes: Optional[str] = None
     is_active: Optional[bool] = None
+    vendor_id: Optional[int] = None  # None gönderilirse bağlantı korunur (exclude_unset); 0 → kaldır
 
 
 class DefinitionResponse(BaseModel):
@@ -42,6 +44,8 @@ class DefinitionResponse(BaseModel):
     year: int
     notes: Optional[str] = None
     is_active: bool
+    vendor_id: Optional[int] = None
+    vendor_name: Optional[str] = None  # bağlı cari adı (gösterim)
     created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     entries: Optional[List["EntryResponse"]] = None
@@ -76,6 +80,7 @@ class EntryResponse(BaseModel):
     is_paid: bool
     paid_date: Optional[date] = None
     notes: Optional[str] = None
+    synced_from_cari: bool = False  # tutar/ödeme cari gerçek faturadan mı senkronlandı
 
     class Config:
         from_attributes = True

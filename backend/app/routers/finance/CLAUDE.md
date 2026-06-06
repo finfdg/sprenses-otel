@@ -44,6 +44,10 @@ Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH
   `_summarize()` ile özetlenir, frontend modalında gösterilir. **Yeni import eklemek:** `run_xxx_import`
   yaz + `_STEPS`'e satır + `_summarize`'a özet → buton otomatik kapsar. **Sayfa-içi ayrı Sedna butonu
   YOK** (declutter). Test: `tests/test_sedna_sync.py`.
+  - **`recurring_sync` adımı (2026-06-06):** Sedna'dan ÇEKMEZ — carilerden **türetir** (cari adımından
+    SONRA çalışır). Cari-bağlı düzenli ödemeleri (Elektrik→CK, Su→ASAT) cari gerçek faturayla
+    senkronlar (`run_recurring_vendor_sync`, modül `accounting.recurring`). Detay:
+    `docs/modules/muhasebe-ik.md` (Cari Senkronu).
 - **Güvenlik:** salt-okunur login; şifre yalnız `.env` (600). Test: `tests/test_cariler_sedna.py`.
 - **Ters SSH tüneli anahtar sertleştirmesi (2026-06-06 — KRİTİK):** EC2 `~/.ssh/authorized_keys`'teki
   `sedna-reverse-tunnel` anahtarı **yalnız tünel** içindir. `restrict` **tek başına yetmez** —

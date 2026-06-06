@@ -37,6 +37,7 @@ from app.utils.audit import log_action
 from app.utils.entry_generator import _build_description, generate_entries, regenerate_entries
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 
 
 def _entry_response(e: ScheduledEntry) -> dict:
@@ -53,6 +54,7 @@ def _entry_response(e: ScheduledEntry) -> dict:
         is_paid=e.is_paid,
         paid_date=e.paid_date,
         notes=e.notes,
+        synced_from_cari=e.synced_from_cari,
     ).model_dump()
 
 
@@ -70,6 +72,8 @@ def _defn_response(d: ScheduledDefinition, include_entries: bool = False) -> dic
         year=d.year,
         notes=d.notes,
         is_active=d.is_active,
+        vendor_id=d.vendor_id,
+        vendor_name=d.vendor.hesap_adi if d.vendor_id and d.vendor else None,
         created_by=d.created_by,
         created_at=d.created_at,
     ).model_dump()
@@ -85,10 +89,13 @@ def create_scheduled_router(
     entity_label: str,
     broadcast_module: str = "scheduled",
     direction: int = -1,
+    enable_vendor_sync: bool = False,
 ) -> APIRouter:
     """Verilen source_type için CRUD router oluştur.
 
     direction: -1 (gider) veya +1 (gelir). finance_events'e yazılır.
+    enable_vendor_sync: True → cari-bağlı tanımların girişlerini cari gerçek faturayla
+        senkronlayan ``POST /sync-vendors`` endpoint'i eklenir (yalnız "recurring").
     """
 
     router = APIRouter()
@@ -171,6 +178,7 @@ def create_scheduled_router(
                 start_month=data.start_month,
                 year=current_year,
                 notes=data.notes,
+                vendor_id=data.vendor_id,
                 is_active=False,
                 created_by=current_user.id,
             )
@@ -200,6 +208,7 @@ def create_scheduled_router(
             start_month=data.start_month,
             year=current_year,
             notes=data.notes,
+            vendor_id=data.vendor_id,
             is_active=True,
             created_by=current_user.id,
         )
@@ -251,6 +260,8 @@ def create_scheduled_router(
         changes = {}
         need_regenerate = False
         for field, value in data.model_dump(exclude_unset=True).items():
+            if field == "vendor_id" and not value:
+                value = None  # 0/None → cari bağlantısını kaldır
             old_val = getattr(defn, field)
             if old_val != value:
                 changes[field] = {"old": str(old_val), "new": str(value)}
@@ -405,5 +416,25 @@ def create_scheduled_router(
             "count": count,
             "paid_count": paid_count,
         }
+
+    # ─── CARI SENKRON (yalnız vendor-sync etkin modüller, ör. recurring) ──
+
+    if enable_vendor_sync:
+
+        @router.post("/sync-vendors")
+        def sync_vendors(
+            request: Request,
+            background_tasks: BackgroundTasks,
+            db: Session = Depends(get_db),
+            current_user: User = Depends(require_permission(permission_code, "use")),
+        ):
+            """Cari-bağlı tanımların aylık girişlerini cari gerçek fatura + ödeme durumuyla senkronla.
+
+            Faturası gelen aylar GERÇEK tutara çekilir + ödeme durumu cariden alınır + çift
+            sayım önlemek için recurring finance_event'i silinir. Gelecek aylar tahmini kalır.
+            """
+            result = run_recurring_vendor_sync(db, current_user, get_client_ip(request))
+            broadcast_finance_update(background_tasks, broadcast_module, "update")
+            return result
 
     return router

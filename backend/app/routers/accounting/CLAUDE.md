@@ -39,6 +39,18 @@ taxes_router = create_scheduled_router(
   uygulanır; `_SCHEDULED_SOURCE_MAP` modül kodunu `(SourceType.*, direction)` ile eşler.
 - Yeni planlı modül eklerken: `_SCHEDULED_SOURCE_MAP`'e satır ekle — handler otomatik gelir.
 
+## Cari Senkronu — Düzenli Ödemeler (2026-06-06)
+
+Düzenli Ödemeler (`recurring`) fabrikada `enable_vendor_sync=True` ile üretilir → `POST
+/recurring/sync-vendors` endpoint'i + `scheduled_definitions.vendor_id` cari bağlantısı aktif.
+Cari-bağlı kalemlerin (Elektrik→CK, Su→ASAT) **tahmini** tutarları, carinin **gerçek** aylık
+faturası + FIFO ödeme durumuyla senkronlanır; senkron ayda recurring finance_event silinir
+(cari `vendor_payment` temsil eder → çift sayım yok). Motor: `utils/recurring_vendor_sync.py`
+(`sync_recurring_from_vendors` saf mantık; `run_recurring_vendor_sync` commit+audit sarmalı).
+Tetikleme: merkezi Sedna butonu (`sedna_sync.py:_STEPS` → `recurring_sync` adımı, cari adımından
+sonra) **veya** sayfadaki "Cari ile Senkronize" butonu. Detay: `docs/modules/muhasebe-ik.md`
+(Cari Senkronu bölümü). **Diğer planlı modüller `enable_vendor_sync` almaz** (yalnız recurring).
+
 ## Yeni Planlı Modül Ekleme — Kontrol Listesi
 
 1. `modules` tablosuna kod + izin (ör. `accounting.yeni`).

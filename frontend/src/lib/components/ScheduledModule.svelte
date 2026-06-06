@@ -13,7 +13,8 @@
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import {
 		Plus, Pencil, Trash2, X, Check, Clock, ChevronDown, Search,
-		RotateCcw, FileText, FileClock, CircleCheck, CircleX, CornerUpLeft
+		RotateCcw, FileText, FileClock, CircleCheck, CircleX, CornerUpLeft,
+		RefreshCw, Link2
 	} from 'lucide-svelte';
 
 	interface Props {
@@ -25,6 +26,7 @@
 		categories?: string[];
 		showCategory?: boolean;
 		categoryLabel?: string;
+		enableVendorSync?: boolean;
 	}
 
 	let {
@@ -36,6 +38,7 @@
 		categories = [],
 		showCategory = false,
 		categoryLabel = 'Kategori',
+		enableVendorSync = false,
 	}: Props = $props();
 
 	const FREQ_LABELS: Record<string, string> = {
@@ -54,6 +57,23 @@
 	let loading = $state(true);
 	let total = $state(0);
 	let selectedYear = $state(new Date().getFullYear());
+	let syncingVendors = $state(false);
+
+	// Cari ile senkronize et (yalnız vendor-sync etkin modüller, ör. düzenli ödemeler)
+	async function syncVendors() {
+		syncingVendors = true;
+		try {
+			const res = await api.post<any>(`${apiPrefix}/sync-vendors`, {});
+			const n = res?.entries_synced ?? 0;
+			showToast(n > 0 ? `${n} ay cari gerçek faturayla senkronlandı` : 'Senkron güncel — değişiklik yok', n > 0 ? 'success' : 'info');
+			await loadData();
+		} catch (err: any) {
+			console.error('Cari senkron hatası:', err);
+			showToast(err?.message || 'Senkronizasyon sırasında hata oluştu', 'error');
+		} finally {
+			syncingVendors = false;
+		}
+	}
 
 	// Arama (debounce 300ms)
 	let searchInput = $state('');
@@ -550,6 +570,17 @@
 					<option value={y}>{y}</option>
 				{/each}
 			</select>
+			{#if enableVendorSync && canUse}
+				<button
+					onclick={syncVendors}
+					disabled={syncingVendors}
+					title="Cari-bağlı kalemleri (ör. Elektrik→CK, Su→ASAT) cari gerçek fatura + ödeme durumuyla senkronla"
+					class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-teal-300 text-teal-700 rounded-xl hover:bg-teal-50 transition-colors text-sm font-medium cursor-pointer disabled:opacity-50"
+				>
+					<RefreshCw size={16} class={syncingVendors ? 'animate-spin' : ''} />
+					<span class="hidden sm:inline">{syncingVendors ? 'Senkronlanıyor...' : 'Cari ile Senkronize'}</span>
+				</button>
+			{/if}
 			{#if canUse}
 				<button
 					onclick={openAdd}
@@ -635,6 +666,12 @@
 									<StatusBadge type="info">{defn.category}</StatusBadge>
 								{/if}
 								<StatusBadge type="neutral">{FREQ_LABELS[defn.frequency] || defn.frequency}</StatusBadge>
+								{#if defn.vendor_id && defn.vendor_name}
+									<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 text-teal-700 border border-teal-200" title="Bu kalem cariye bağlı — faturası gelen aylar cari gerçek tutar + ödeme durumuyla senkronlanır">
+										<Link2 size={11} />
+										{defn.vendor_name}
+									</span>
+								{/if}
 							</div>
 							<div class="flex items-center gap-3 mt-1 text-xs {isPendingCreate ? 'text-orange-500' : 'text-gray-500'} flex-wrap">
 								<span>{fmt(defn.amount)} / dönem</span>
@@ -756,7 +793,17 @@
 										{:else}
 											{@const pendingInfo = getPendingInfo(entry.id)}
 											<tr class="border-b border-gray-50 hover:bg-gray-50/50 transition-colors {entry.is_paid ? 'opacity-60' : ''}">
-												<td class="px-4 py-2.5 text-gray-700">{fmtPeriod(entry.period_month, entry.period_year)}</td>
+												<td class="px-4 py-2.5 text-gray-700">
+													<div class="flex items-center gap-2">
+														<span>{fmtPeriod(entry.period_month, entry.period_year)}</span>
+														{#if entry.synced_from_cari}
+															<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 text-teal-700 border border-teal-200" title="Tutar ve ödeme durumu cari gerçek faturadan alındı (tahmini değil)">
+																<Link2 size={10} />
+																gerçek
+															</span>
+														{/if}
+													</div>
+												</td>
 												<td class="px-4 py-2.5 text-right font-medium text-gray-800 whitespace-nowrap">{fmt(entry.amount)}</td>
 												<td class="px-4 py-2.5 text-center">
 													{#if pendingInfo}
@@ -878,6 +925,12 @@
 											<div class="flex-1 min-w-0">
 												<div class="flex items-center gap-2 flex-wrap">
 													<span class="text-sm font-medium text-gray-800">{fmtPeriod(entry.period_month, entry.period_year)}</span>
+													{#if entry.synced_from_cari}
+														<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 text-teal-700 border border-teal-200" title="Cari gerçek faturadan senkronlandı">
+															<Link2 size={10} />
+															gerçek
+														</span>
+													{/if}
 													{#if mPendingInfo}
 														<button
 															onclick={() => openApprovalDetail(entry.id)}

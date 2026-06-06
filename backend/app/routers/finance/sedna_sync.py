@@ -23,6 +23,7 @@ from app.middleware.auth import get_current_user, user_can
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
 from app.utils.finance_broadcast import broadcast_finance_update
+from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 from app.utils.sedna_client import sedna_configured
 
 from .cariler.sedna_import import run_cari_import, run_iban_import
@@ -43,6 +44,10 @@ _STEPS = [
      "run": run_check_import, "broadcast": BroadcastModule.CHECKS},
     {"key": "sales_invoices", "label": "Satış faturaları", "module": "finance.sales_invoices",
      "run": run_sales_invoice_import, "broadcast": None},
+    # Sedna çekmez; carilerden TÜRETİR (cari adımından SONRA çalışmalı). Cari-bağlı düzenli
+    # ödemelerin (Elektrik→CK, Su→ASAT) tahmini tutarlarını cari gerçek faturayla senkronlar.
+    {"key": "recurring_sync", "label": "Düzenli ödeme ↔ cari senkronu", "module": "accounting.recurring",
+     "run": run_recurring_vendor_sync, "broadcast": BroadcastModule.ACCOUNTING},
 ]
 
 
@@ -59,6 +64,8 @@ def _summarize(key: str, d: dict) -> str:
                 f"{extra}")
     if key == "sales_invoices":
         return f"{d.get('invoices_new', 0)} yeni fatura · {d.get('collections_new', 0)} yeni tahsilat"
+    if key == "recurring_sync":
+        return f"{d.get('entries_synced', 0)} ay senkron ({d.get('definitions', 0)} cari-bağlı kalem)"
     return "Tamamlandı"
 
 

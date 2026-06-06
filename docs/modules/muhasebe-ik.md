@@ -43,6 +43,7 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 | year | INTEGER | Yıl |
 | notes | TEXT | Notlar |
 | is_active | BOOLEAN | Aktif mi? |
+| vendor_id | FK vendors (SET NULL) | **Cari (satıcı) bağlantısı** — yalnız `recurring` için anlamlı. Bağlıysa girişler cari gerçek faturayla senkronlanır (ör. Elektrik→CK, Su→ASAT) |
 | created_by | FK users | Oluşturan |
 | created_at, updated_at | TIMESTAMPTZ | |
 
@@ -61,6 +62,7 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 | is_paid | BOOLEAN | Ödendi mi? |
 | paid_date | DATE | Gerçekleşen ödeme tarihi (varsa nakit akım `event_date` olur) |
 | notes | TEXT | |
+| synced_from_cari | BOOLEAN | **True → tutar/ödeme cari gerçek faturadan senkronlandı** (tahmini değil). Bu aylarda recurring FE silinir (çift sayım önleme) |
 
 **Dönem vs Ödeme Tarihi ayrımı:**
 - `period_month/period_year` = "hangi ayın kaydı" (ör. Nisan 2026 maaşı)
@@ -90,6 +92,37 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 - `is_matched = False` → Nakit akımda her zaman görünür
 - Tanım silindiğinde tüm girişlerin finance_event'leri `invalidate()` ile kaldırılır
 
+## Cari Senkronu (Düzenli Ödemeler ↔ Cari) — 2026-06-06
+
+**Sorun:** Düzenli Ödemeler'deki bazı kalemler (elektrik faturaları → **CK AKDENİZ ELEKTRİK**,
+su → **ASAT**) **tahmini** tutarlarla planlanır. Oysa gerçek fatura geldiğinde tutar carinin
+(320 satıcı) o ayki hareketine yazılır ve ödeme oradan yapılınca düşer. İki yer **divergedu**;
+ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **çift sayılıyordu**.
+
+**Çözüm — cari bağlantısı + tek-yönlü senkron (`utils/recurring_vendor_sync.py`):**
+- `scheduled_definitions.vendor_id` ile bir düzenli ödeme bir cariye bağlanır (yalnız `recurring`;
+  `enable_vendor_sync=True` fabrikada). Canlı: "2026 Elektrik"→CK (v707), "2026 Su"→ASAT (v697).
+- `sync_recurring_from_vendors(db)` her bağlı tanımın aylık girişini cari verisiyle eşler
+  (`(period_year, period_month)` = carinin alacak hareketinin takvim ayı):
+  - **Faturası gelen ay** → `entry.amount` = carinin o ay **toplam faturası** (tahminin yerine GERÇEK);
+    `is_paid` = cari **net-borç FIFO**'ya (`calculate_fifo_amounts`) göre o ayın faturaları tamamen
+    kapandıysa True; `synced_from_cari=True`; **recurring finance_event'i `invalidate` edilir** →
+    cari `vendor_payment` zaten nakit akımı temsil ettiğinden çift sayım kalkar.
+  - **Faturası gelmemiş (gelecek) ay** → **tahmini** kalır (FE korunur → nakit akım projeksiyonu).
+  - Daha önce senkronlanmış ay faturasını kaybederse (cari silme) → tahmine geri döner + FE yeniden.
+- **Tetikleme (iki yol):** (a) Topbar'daki merkezi **Sedna** butonu — cari içe aktarımdan SONRA
+  `recurring_sync` adımı otomatik çalışır (`sedna_sync.py:_STEPS`); (b) Düzenli Ödemeler sayfasındaki
+  **"Cari ile Senkronize"** butonu (`POST /accounting/recurring/sync-vendors`). İkisi de idempotent.
+  **Onaydan muaf** (operasyonel; cari verisi zaten muhasebede onaylı — Sedna içe aktarmaları gibi),
+  audit'li (`recurring_vendor_sync`); izin `accounting.recurring` use.
+- **Neden cari görünür kalır, recurring gizlenir:** cari net-borç FIFO'su haftalık **ödeme planını**
+  besler (gerçek vadeler, kısmi ödemeler, roll-over). Recurring yalnız tahmin → senkron ayda gizlenir.
+- **Frontend:** Düzenli Ödemeler'de cari-bağlı kalemde cari adı rozeti (🔗) + senkron girişte
+  "gerçek" rozeti; tanım başlığındaki "… / dönem" tahmin referansı olarak kalır.
+- **Kanıt (canlı):** Elektrik Mayıs 1.500.000 tahmini → **1.404.820** gerçek; Su Mayıs **931.542**,
+  Haziran **1.200.115** (cariye göre ödenmemiş). 3 ayın recurring FE'si silindi (çift sayım giderildi).
+- Test: `tests/test_recurring_vendor_sync.py` (tutar/ödeme/FE-silme/gelecek-tahmini/revert/endpoint izni).
+
 ## API Endpoint'leri
 
 Her alt modül aynı endpoint setini sunar (prefix değişir):
@@ -103,6 +136,7 @@ Her alt modül aynı endpoint setini sunar (prefix değişir):
 | DELETE | `/{prefix}/{id}` | use | Tanım + tüm girişler sil |
 | PATCH | `/{prefix}/entries/{id}` | use | Tek giriş düzenle (tutar, `period_month`, `period_year`, `entry_date` ödeme tarihi, `paid_date` ödendi tarihi, `is_paid`, not) — nakit akım `event_date` = `paid_date` varsa, yoksa `entry_date` (her değişiklikte otomatik senkronize olur) |
 | GET | `/{prefix}/summary/totals` | view | Özet (toplam, ödenen, bekleyen) |
+| POST | `/recurring/sync-vendors` | use | **Yalnız Düzenli Ödemeler** — cari-bağlı kalemleri cari gerçek fatura + ödeme durumuyla senkronla (idempotent). Bk. *Cari Senkronu* bölümü |
 
 ### Prefix'ler
 - Vergiler: `/api/accounting/taxes`

@@ -11,4 +11,5 @@
 	showCategory={true}
 	categoryLabel="Kategori"
 	categories={['Kira', 'Sigorta', 'Abonelik', 'Fatura', 'Bakım', 'Güvenlik', 'Diğer']}
+	enableVendorSync={true}
 />

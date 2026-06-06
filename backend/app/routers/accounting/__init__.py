@@ -15,6 +15,7 @@ recurring_router = create_scheduled_router(
     permission_code="accounting.recurring",
     entity_label="Düzenli Ödeme",
     broadcast_module=BroadcastModule.ACCOUNTING,
+    enable_vendor_sync=True,  # cari-bağlı (Elektrik→CK, Su→ASAT) senkron + /sync-vendors
 )
 
 rent_income_router = create_scheduled_router(
