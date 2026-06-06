@@ -161,3 +161,26 @@ class TestSednaCheckImport:
                 j3 = client.post(f"{PREFIX}/sedna-import", headers=auth_headers).json()
             assert j3["updated_checks"] == 1
             assert db.execute(text("SELECT status FROM checks WHERE check_no='CHK001'")).scalar() == "paid"
+
+    def test_import_auto_matches_existing_bank_tx(self, client, auth_headers, db):
+        """Boşluk kapandı: ekstre ÖNCE yüklenmişse, import edilen çek otomatik eşleşir (paid)."""
+        import uuid
+        from app.models.bank_account import BankAccount
+        from app.models.bank_transaction import BankTransaction
+        acc = BankAccount(bank_name="Halkbank", iban="TR" + uuid.uuid4().hex[:30].upper(), currency="TRY")
+        db.add(acc)
+        db.flush()
+        db.add(BankTransaction(
+            account_id=acc.id, date=date(2026, 5, 12), description="ÇEK : CHKAUTO1 odeme",
+            amount=-5000, type="expense", tx_hash=uuid.uuid4().hex,
+        ))
+        db.flush()
+        row = [{"vendor_code": "320.99.02.0001", "vendor_name": "AUTO CARİ", "check_no": "CHKAUTO1",
+                "bank": "Halkbank", "city": None, "due_date": date(2026, 5, 10),
+                "amount_tl": 5000, "currency": "TL", "amount_currency": 5000, "max_pos": 100}]
+        with patch(f"{TARGET}.sedna_configured", return_value=True), \
+             patch(f"{TARGET}.fetch_issued_checks", return_value=row):
+            j = client.post(f"{PREFIX}/sedna-import", headers=auth_headers).json()
+            assert j["new_checks"] == 1 and j["matched_to_bank"] >= 1
+            r = db.execute(text("SELECT status, bank_transaction_id FROM checks WHERE check_no='CHKAUTO1'")).first()
+            assert r[0] == "paid" and r[1] is not None   # Sedna pending dese de banka kanıtı → paid

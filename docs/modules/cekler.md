@@ -153,6 +153,22 @@ use, onaydan muaf, audit'li).
    - `check.status = "cashed"`
    - `finance_event_svc.match(db, "bank", btx_id, "check", check_id)` çağrılır
 
+### Ne zaman çalışır — boşluk düzeltmesi (2026-06-06)
+
+Eskiden `_match_checks_to_bank` **yalnızca** (1) banka ekstresi yüklemede ve (2) elle
+`POST /checks/match-bank` ile çalışıyordu. Bu yüzden **ekstre önce yüklenip çek sonra**
+eklenirse (Excel veya Sedna) çek eşleşmeden "bekliyor" kalıyordu — fiziksel ödeme bankada
+görünse bile. **Düzeltme:** matcher artık **çek Excel yüklemesi** ve **Sedna içe aktarma**
+sonunda da çağrılır → yeni/güncellenen çekler mevcut banka hareketleriyle anında eşleşir.
+
+- **İkili fayda:** Sedna "Verilen Çek" (pending) dese bile, bankada ödeme kanıtı (örn.
+  `"ÇEK : 4355461"` açıklamalı hareket) varsa çek **paid** olur — Sedna muhasebe gecikmesini de telafi eder.
+- **Eşleşme gücü:** çek no banka açıklamasında geçiyorsa skor 99 (kesin); yoksa tutar+tarih(±10g)+çek-ödeme ifadesi.
+- Sedna import yanıtı `matched_to_bank` sayısını döner; frontend toast'ta gösterilir.
+- **Gerçek vaka:** çek 4355461 (GÜVEN MUTFAK, ₺330.000) Halkbank'tan 01.06.2026'da ödenmiş
+  (`tx#5357 "ÇEK : 4355461 ALİ SAZAN"`) ama çek Excel'den ekstreden sonra geldiği için eşleşmemişti
+  → match-bank ile çözüldü; bu düzeltme tekrarını önler.
+
 ---
 
 ## finance_events Entegrasyonu

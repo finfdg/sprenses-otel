@@ -240,11 +240,12 @@
 		if (sednaImporting) return;
 		sednaImporting = true;
 		try {
-			const r = await api.post<{ new_checks: number; updated_checks: number; skipped_checks: number }>(
+			const r = await api.post<{ new_checks: number; updated_checks: number; skipped_checks: number; matched_to_bank: number }>(
 				'/finance/checks/sedna-import', {}
 			);
+			const m = r.matched_to_bank > 0 ? ` · ${r.matched_to_bank} banka ile eşleşti (ödendi)` : '';
 			showToast(
-				`Sedna'dan ${r.new_checks} yeni çek · ${r.updated_checks} durum güncellendi (${r.skipped_checks} mevcut)`,
+				`Sedna'dan ${r.new_checks} yeni çek · ${r.updated_checks} durum güncellendi${m} (${r.skipped_checks} mevcut)`,
 				'success'
 			);
 			await loadAll();

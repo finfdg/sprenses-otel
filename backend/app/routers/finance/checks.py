@@ -144,6 +144,13 @@ async def upload_checks(
         ip_address=get_client_ip(request),
     )
     db.commit()
+    # Yeni çekleri MEVCUT banka hareketleriyle eşleştir (ekstre daha önce yüklenmiş olabilir)
+    try:
+        _match_checks_to_bank(db)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Çek upload sonrası banka eşleştirme hatası: %s", e)
     broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "upload")
 
     return CheckUploadResult(
@@ -267,6 +274,17 @@ def sedna_import_checks(
         logger.error("Sedna çek içe aktarma DB hatası: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Çek içe aktarma sırasında veritabanı hatası oluştu.")
 
+    # Yeni/güncellenen çekleri MEVCUT banka hareketleriyle eşleştir: ekstre daha önce
+    # yüklenmiş olabilir (matcher yalnız ekstre yüklemede çalışıyordu) — banka kanıtı
+    # varsa çek "ödendi" olur (Sedna ödemeyi henüz işlememiş olsa bile).
+    matched = 0
+    try:
+        matched = _match_checks_to_bank(db).get("matched", 0)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Sedna çek import sonrası banka eşleştirme hatası: %s", e)
+
     broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "upload")
 
     return {
@@ -275,6 +293,7 @@ def sedna_import_checks(
         "new_checks": new_count,
         "updated_checks": updated_count,
         "skipped_checks": skipped_count,
+        "matched_to_bank": matched,
     }
 
 
