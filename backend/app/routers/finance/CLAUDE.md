@@ -23,6 +23,16 @@ Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH
   Uygulamanın geri kalanı etkilenmez. `SEDNA_PASSWORD` boşsa endpoint 503 + buton gizli.
 - **Onaydan muaf** (operasyonel içe-aktarma, dosya yükleme gibi), audit'li, finance.cariler use.
 - **Güvenlik:** salt-okunur login; şifre yalnız `.env` (600). Test: `tests/test_cariler_sedna.py`.
+- **Ters SSH tüneli anahtar sertleştirmesi (2026-06-06 — KRİTİK):** EC2 `~/.ssh/authorized_keys`'teki
+  `sedna-reverse-tunnel` anahtarı **yalnız tünel** içindir. `restrict` **tek başına yetmez** —
+  no-pty etkileşimli kabuğu kapatır ama **komut çalıştırmayı engellemez**: `restrict,port-forwarding,
+  permitlisten=...` anahtarıyla `ssh -i key ec2-user@EC2 'cat .env'` çalışıp **tüm ec2-user dosyalarını
+  (sırlar dahil) okuyabilir**. Sertleştirilmiş satır:
+  `restrict,port-forwarding,permitlisten="127.0.0.1:11433",permitopen="127.0.0.1:1",command="echo tunnel-only-no-shell"`
+  - `command="..."` → forced komut; keyfi komut/kabuk çalışmaz (dosya okuma kapanır). Test edildi: `-R` tünelini **bozmaz** (`-N -R` oturum kanalı açmaz, forced komut çalışmaz).
+  - `permitopen="127.0.0.1:1"` → `-L`/`-D` yalnız ölü porta → DB(5432)/IMDS(169.254.169.254) pivotu kapanır. **`permitopen="none"` OpenSSH 8.7'de anahtarı tümden reddeder — kullanma**, ölü port ver.
+  - `permitlisten="127.0.0.1:11433"` → `-R` yalnız bu bind'e.
+  - Yedek: `~/.ssh/authorized_keys.bak.pre-harden.*`. **Ayrı dikkat:** tam-erişimli admin anahtarları (`otelyeni`, `sprenses-migration@otel-eski`) Ubuntu LAN makinesinde **bulunmamalı** — tünel için yalnız kısıtlı sedna anahtarı yeter.
 
 ---
 
