@@ -184,10 +184,14 @@ def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type
                 continue
             if hasattr(defn, field):
                 setattr(defn, field, value)
-                if field in ("amount", "frequency", "payment_day"):
+                if field in ("amount", "frequency", "payment_day", "start_month"):
                     need_regen = True
         if need_regen:
             regenerate_entries(db, defn, direction=direction)
+            # Cari-bağlı düzenli ödeme → girişler yeniden üretildi, cari gerçek faturayla senkronla
+            if defn.vendor_id:
+                from app.utils.recurring_vendor_sync import sync_recurring_from_vendors
+                sync_recurring_from_vendors(db)
 
     elif action_type == "delete":
         defn = db.query(ScheduledDefinition).filter(

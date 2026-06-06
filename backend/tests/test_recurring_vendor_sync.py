@@ -129,6 +129,28 @@ def test_sync_endpoint_works(client, auth_headers, db):
     assert body["details"][0]["vendor_name"] == "TEST ELEKTRİK A.Ş."
 
 
+def test_start_month_change_regenerates_and_resyncs(client, auth_headers, db):
+    """start_month değişince girişler yeniden üretilir + cari-bağlı ise otomatik yeniden senkronlanır."""
+    defn, _ = _seed(db, invoices=[(date(2026, 1, 5), 1500), (date(2026, 5, 5), 900)],
+                    amount=1000, start_month=5)
+    # Başlangıçta Mayıs–Aralık (8 entry), Ocak yok
+    periods = {(e.period_year, e.period_month) for e in defn.entries.all()}
+    assert (2026, 1) not in periods and len(periods) == 8
+
+    # start_month=1'e çek (API) → regenerate + otomatik cari senkron
+    r = client.patch(f"{PREFIX}/{defn.id}", json={"start_month": 1}, headers=auth_headers)
+    assert r.status_code == 200, r.text
+
+    db.refresh(defn)
+    e = _entries_by_period(defn)
+    assert len(e) == 12  # Ocak–Aralık
+    # Ocak faturası (1500) otomatik senkronlandı (regenerate sonrası auto-sync) + FE silindi
+    assert float(e[(2026, 1)].amount) == 1500.0 and e[(2026, 1)].synced_from_cari is True
+    assert _fe_count(db, e[(2026, 1)].id) == 0
+    # Faturası olmayan ay (Şubat) tahmini kaldı
+    assert float(e[(2026, 2)].amount) == 1000.0 and e[(2026, 2)].synced_from_cari is False
+
+
 def test_other_modules_have_no_sync_endpoint(client, auth_headers):
     """Vendor-sync yalnız recurring'de; vergiler'de POST /sync-vendors YOK.
 

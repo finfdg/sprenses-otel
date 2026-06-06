@@ -26,6 +26,7 @@ class DefinitionUpdate(BaseModel):
     amount: Optional[float] = Field(None, gt=0)
     frequency: Optional[str] = Field(None, pattern="^(monthly|quarterly|yearly)$")
     payment_day: Optional[int] = Field(None, ge=1, le=28)
+    start_month: Optional[int] = Field(None, ge=1, le=12)  # değişirse girişler yeniden üretilir
     notes: Optional[str] = None
     is_active: Optional[bool] = None
     vendor_id: Optional[int] = None  # None gönderilirse bağlantı korunur (exclude_unset); 0 → kaldır

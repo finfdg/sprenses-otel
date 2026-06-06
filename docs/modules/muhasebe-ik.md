@@ -119,9 +119,13 @@ ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **
   besler (gerçek vadeler, kısmi ödemeler, roll-over). Recurring yalnız tahmin → senkron ayda gizlenir.
 - **Frontend:** Düzenli Ödemeler'de cari-bağlı kalemde cari adı rozeti (🔗) + senkron girişte
   "gerçek" rozeti; tanım başlığındaki "… / dönem" tahmin referansı olarak kalır.
-- **Kanıt (canlı):** Elektrik Mayıs 1.500.000 tahmini → **1.404.820** gerçek; Su Mayıs **931.542**,
-  Haziran **1.200.115** (cariye göre ödenmemiş). 3 ayın recurring FE'si silindi (çift sayım giderildi).
-- Test: `tests/test_recurring_vendor_sync.py` (tutar/ödeme/FE-silme/gelecek-tahmini/revert/endpoint izni).
+- **Kanıt (canlı):** "2026 Elektrik" ve "2026 Su" `start_month=1` (Ocak başlangıç) yapıldı → 12 ay.
+  Elektrik **Oca–May gerçek** (Oca 457K + Şub 320K cari FIFO'ya göre **ödendi**; Mar–May açık),
+  Haz–Ara tahmini 1,5M. Su **Oca–Haz gerçek** (Oca–Mar ödendi), Tem–Ara tahmini. Senkron ayların
+  recurring FE'si silindi (çift sayım giderildi); gelecek ayların tahmini FE'si korundu.
+- **start_month düzenlenebilir:** Tanımın başlangıç ayı (`start_month`) PATCH ile değiştirilince
+  girişler yeniden üretilir; cari-bağlıysa otomatik yeniden senkronlanır (fabrika + onay executor).
+- Test: `tests/test_recurring_vendor_sync.py` (tutar/ödeme/FE-silme/gelecek-tahmini/revert/endpoint/start_month).
 
 ## API Endpoint'leri
 
@@ -132,7 +136,7 @@ Her alt modül aynı endpoint setini sunar (prefix değişir):
 | GET | `/{prefix}/` | view | Tanım listesi (yıl filtreli, girişler dahil) |
 | GET | `/{prefix}/{id}` | view | Tanım detayı + girişler |
 | POST | `/{prefix}/` | use | Yeni tanım + otomatik giriş üretimi |
-| PATCH | `/{prefix}/{id}` | use | Tanım güncelle (tutar değişirse girişler yenilenir) |
+| PATCH | `/{prefix}/{id}` | use | Tanım güncelle (`amount`/`frequency`/`payment_day`/**`start_month`** değişirse girişler yeniden üretilir — ödenmemişler silinip yeniden; ödenmişler korunur. Cari-bağlı `recurring` ise regenerate sonrası **otomatik yeniden senkronlanır**) |
 | DELETE | `/{prefix}/{id}` | use | Tanım + tüm girişler sil |
 | PATCH | `/{prefix}/entries/{id}` | use | Tek giriş düzenle (tutar, `period_month`, `period_year`, `entry_date` ödeme tarihi, `paid_date` ödendi tarihi, `is_paid`, not) — nakit akım `event_date` = `paid_date` varsa, yoksa `entry_date` (her değişiklikte otomatik senkronize olur) |
 | GET | `/{prefix}/summary/totals` | view | Özet (toplam, ödenen, bekleyen) |

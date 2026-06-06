@@ -37,7 +37,7 @@ from app.utils.audit import log_action
 from app.utils.entry_generator import _build_description, generate_entries, regenerate_entries
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
-from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
+from app.utils.recurring_vendor_sync import run_recurring_vendor_sync, sync_recurring_from_vendors
 
 
 def _entry_response(e: ScheduledEntry) -> dict:
@@ -266,7 +266,7 @@ def create_scheduled_router(
             if old_val != value:
                 changes[field] = {"old": str(old_val), "new": str(value)}
                 setattr(defn, field, value)
-                if field in ("amount", "frequency", "payment_day"):
+                if field in ("amount", "frequency", "payment_day", "start_month"):
                     need_regenerate = True
 
         if not changes:
@@ -274,6 +274,10 @@ def create_scheduled_router(
 
         if need_regenerate:
             regenerate_entries(db, defn, direction=direction)
+            # Cari-bağlı kalemde girişler yeniden üretildi (tahmini) → cari gerçek faturayla
+            # yeniden senkronla ki ay/tutar değişikliği anında gerçek değerleri yansıtsın.
+            if enable_vendor_sync and defn.vendor_id:
+                sync_recurring_from_vendors(db)
 
         log_action(
             db, current_user.id, "update", source_type, defn.id,
