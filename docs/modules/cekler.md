@@ -74,6 +74,8 @@
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | `POST` | `/checks/upload` | use | Excel çek dosyası yükle |
+| `POST` | `/checks/sedna-import` | use | Sedna'dan verilen çekleri içe aktar (aşağıda) |
+| `GET` | `/checks/sedna-status` | view | Sedna içe aktarma etkin mi (`{configured}`) |
 | `GET` | `/checks/uploads` | view | Yükleme geçmişi |
 | `DELETE` | `/checks/uploads/{id}` | use | Yükleme sil (çekler geri alınır) |
 | `GET` | `/checks/` | view | Çek listesi (paginated, durum/tarih filtresi) |
@@ -89,6 +91,40 @@
 - **Boyut limiti:** Maksimum 10 MB
 - **Uzantı kontrolü:** Yalnızca `.xlsx`, `.xls`
 - **Mükerrer kontrolü:** `(check_no, vendor_code, due_date)` unique üçlüsüyle
+
+---
+
+## Sedna (Muhasebe SQL Server) Doğrudan İçe Aktarma (2026-06-06)
+
+Verilen çekler Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden çekilir (ters SSH tüneli
+`127.0.0.1:11433`) — cariler/IBAN ile aynı altyapı. `POST /checks/sedna-import` (finance.checks
+use, onaydan muaf, audit'li).
+
+- **Kaynak/eşleme:** `AccCheckTrans` (hareket) + `AccCheck` (çek kimliği: `CheckNo`/`Bank`/`City`)
+  + `Accounting` (`Remark`=cari adı). Verilen çek **issuance** satırı = `CheckPosition=100` +
+  `ActionType=2` (cari-tarafı borç, çek başına TEK). Join `AccountingCode` (virgüllü) →
+  `Accounting.Code` (noktalı) `REPLACE(',','.')`. Filtre 320 + `Deleted=0` + `DueDate`/`CheckNo` dolu.
+- **Durum (en kritik karar):** aynı `CheckId`'nin **EN YÜKSEK pozisyonu** (`AccCheckDef` legend'i,
+  100-105 "Verilen Çek" doc grubu) → bizim duruma eşlenir:
+  - `100` Verilen Çek / `104` Protesto / `105` Takipte → **pending**
+  - `101` Bankadan Ödeme / `102` Kasadan Ödeme → **paid**
+  - `103` Geri Al → **cancelled**
+  - `sedna_client.fetch_issued_checks()` `max_pos` döner; `checks.py:_check_status_from_pos()` eşler.
+- **Dedup + senkron:** Excel ile **aynı** key `(check_no, vendor_code, due_date)`. Yeni çek **eklenir**;
+  mevcut çek **banka/cari eşleşmesi YOKSA** (`bank_transaction_id IS NULL AND match_number IS NULL`)
+  durumu Sedna'dan **güncellenir** (pending↔paid↔cancelled + `upsert_check` ile FE tazelenir);
+  eşleşmiş (kullanıcı yönetimindeki) çeklere **dokunulmaz**. İdempotent.
+- **Alan eşleme:** `amount_tl`=Debit (TL); EUR çekte `currency`=EUR + `amount_currency`=CurrDebit;
+  `description`=banka adı (ayrı banka kolonu yok); `transaction_type`="Verilen Çek".
+- **finance_events:** `upsert_check` `status`'a göre `is_realized` (paid→True) ayarlar → nakit akımda
+  doğru görünür. Banka eşleşmesi sonradan `match()` ile çift sayımı engeller.
+- **İptal çek düzeltmesi (2026-06-06):** `upsert_check` artık **cancelled** çekte FE **invalidate**
+  eder (oluşturmaz) → iptal çek nakit akım listesinde **hayalet bekleyen gider** olarak görünmez.
+  Tüm yolları kapsar (Excel/PATCH/Sedna). Önceki davranışta iptal çekler `is_realized=False` FE ile
+  listede görünüyordu; düzeltme + mevcut iptal-çek FE'lerinin tek seferlik temizliği yapıldı.
+- **Frontend:** Çekler sayfasında Sedna kutusu + **"Sedna'dan Çek Çek"** butonu (sedna-status ile gösterilir).
+- **İlk canlı:** 135 verilen çek çekildi → 6 yeni, 1 durum güncel, 128 mevcut (Excel ile çakışmadan).
+- **Test:** `tests/test_checks.py::TestSednaCheckImport` (durum eşleme + dedup + durum senkron + izin/503).
 
 ---
 

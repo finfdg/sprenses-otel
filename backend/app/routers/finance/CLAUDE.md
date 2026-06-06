@@ -29,6 +29,11 @@ Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH
   `Accounting.Code` (noktalı) `REPLACE(',','.')`. **Yalnız mevcut carilere** işler (IBAN'ı olup hareketi
   olmayan firma atlanır); dedup (cari+IBAN); caride hesap yoksa ilki varsayılan; boş banka adı doldurulur;
   varsayılan/elle eklenenler korunur → idempotent. Onaydan muaf, audit'li. Test: `test_cariler_sedna.py`.
+- **Verilen çek içe aktarımı (2026-06-06) — `POST /checks/sedna-import`:** Aynı Sedna altyapısı
+  (`fetch_issued_checks()` → `checks` tablosu). Kaynak `AccCheckTrans`+`AccCheck`; issuance =
+  `CheckPosition=100, ActionType=2`; **durum** çekin EN YÜKSEK pozisyonundan (101/102→paid, 103→
+  cancelled, gerisi→pending; `_check_status_from_pos`). Dedup Excel ile aynı `(check_no, vendor_code,
+  due_date)`; eşleşmemiş çeklerde durum senkronize edilir. Detay: `docs/modules/cekler.md`.
 - **Güvenlik:** salt-okunur login; şifre yalnız `.env` (600). Test: `tests/test_cariler_sedna.py`.
 - **Ters SSH tüneli anahtar sertleştirmesi (2026-06-06 — KRİTİK):** EC2 `~/.ssh/authorized_keys`'teki
   `sedna-reverse-tunnel` anahtarı **yalnız tünel** içindir. `restrict` **tek başına yetmez** —

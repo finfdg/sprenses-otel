@@ -128,8 +128,16 @@ class FinanceEventService:
             return None
 
     def upsert_check(self, db: Session, check, bank_tx=None) -> Optional[FinanceEvent]:
-        """Check → FinanceEvent. Banka eşleşmesi varsa is_matched=True."""
+        """Check → FinanceEvent. Banka eşleşmesi varsa is_matched=True.
+
+        İptal (cancelled) çek gerçek bir yükümlülük değildir → FE **invalidate** edilir
+        (nakit akım listesinde hayalet bekleyen gider olarak görünmesin). Tüm yolları
+        kapsar: Excel yükleme, PATCH durum, Sedna içe aktarma.
+        """
         try:
+            if getattr(check, "status", None) == "cancelled":
+                self.invalidate(db, SOURCE_CHECK, check.id)
+                return None
             display_date = bank_tx.date if bank_tx else check.due_date
             is_matched   = bank_tx is not None
 

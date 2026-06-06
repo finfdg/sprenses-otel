@@ -63,6 +63,37 @@ ORDER BY a.Code, b.RecId
 """
 
 
+# Verilen çekler — AccCheckTrans (hareket) + AccCheck (çek kimliği: no/banka) + Accounting (ad).
+# "Verilen Çek" issuance = CheckPosition=100, ActionType=2 (cari-tarafı borç satırı, çek başına TEK).
+# Güncel durum: aynı CheckId'nin EN YÜKSEK pozisyonu (100-105) → 101/102 ödendi, 103 iptal, gerisi bekliyor.
+# {prefix} güvenli (rakam) → gömülü; execute() PARAMETRESİZ (LIKE '%' tuzağı).
+_ISSUED_CHECK_QUERY = """
+SELECT
+    REPLACE(t.AccountingCode, ',', '.') AS vendor_code,
+    COALESCE(a.Remark, '')              AS vendor_name,
+    ck.CheckNo                          AS check_no,
+    ck.Bank                             AS bank,
+    ck.City                             AS city,
+    CONVERT(date, t.DueDate)            AS due_date,
+    t.Debit                             AS amount_tl,
+    t.Curr                              AS currency,
+    t.CurrDebit                         AS amount_currency,
+    mp.maxpos                           AS max_pos
+FROM AccCheckTrans t
+LEFT JOIN AccCheck ck ON ck.RecId = t.CheckId
+LEFT JOIN Accounting a ON a.Code = REPLACE(t.AccountingCode, ',', '.')
+CROSS APPLY (
+    SELECT MAX(t2.CheckPosition) AS maxpos
+    FROM AccCheckTrans t2
+    WHERE t2.CheckId = t.CheckId AND t2.Deleted = 0 AND t2.CheckPosition BETWEEN 100 AND 105
+) mp
+WHERE t.Deleted = 0 AND t.AccountingCode LIKE '{prefix}%'
+  AND t.CheckPosition = 100 AND t.ActionType = 2
+  AND t.DueDate IS NOT NULL AND ck.CheckNo IS NOT NULL
+ORDER BY t.DueDate
+"""
+
+
 def sedna_configured() -> bool:
     """SEDNA_PASSWORD tanımlı mı (import özelliği etkin mi)."""
     return bool(settings.sedna_password)
@@ -144,4 +175,43 @@ def fetch_vendor_ibans() -> List[dict]:
         conn.close()
 
     logger.info("Sedna'dan %d cari IBAN kaydı çekildi (prefix=%s)", len(rows), prefix)
+    return rows
+
+
+def fetch_issued_checks() -> List[dict]:
+    """Sedna'dan cari (varsayılan 320) **verilen çek** kayıtlarını dict listesi olarak çek.
+
+    Anahtarlar: vendor_code (noktalı), vendor_name, check_no, bank, city, due_date(date),
+    amount_tl, currency, amount_currency, max_pos (güncel pozisyon → durum eşlemesi çağıranda).
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+
+    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
+
+    prefix = "".join(c for c in (settings.sedna_account_prefix or "320") if c.isdigit()) or "320"
+    query = _ISSUED_CHECK_QUERY.format(prefix=prefix)
+
+    try:
+        conn = pymssql.connect(
+            server=settings.sedna_host, port=settings.sedna_port,
+            user=settings.sedna_user, password=settings.sedna_password,
+            database=settings.sedna_database, charset=settings.sedna_charset,
+            tds_version="7.4", login_timeout=10, timeout=120,
+        )
+    except Exception as e:
+        logger.warning("Sedna bağlantısı kurulamadı (çek): %s", e)
+        raise SednaUnavailable(
+            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
+            f"({settings.sedna_host}:{settings.sedna_port})."
+        )
+
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query)  # PARAMETRESİZ (bkz. %-tuzağı notu)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    logger.info("Sedna'dan %d verilen çek çekildi (prefix=%s)", len(rows), prefix)
     return rows

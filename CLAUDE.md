@@ -511,6 +511,8 @@ TEMPLATE:
 ### Finans — Çekler
 - `GET /api/finance/checks/` — Çek listesi (paginated, filtrelenebilir)
 - `POST /api/finance/checks/upload` — Çek Excel yükleme
+- `POST /api/finance/checks/sedna-import` — **Sedna (muhasebe SQL Server) verilen çek içe aktarma** (ters SSH tüneli; `AccCheckTrans`+`AccCheck` → 320/satıcı verilen çekleri). Excel ile **aynı dedup** (check_no+vendor_code+due_date) → mükerrer olmaz. Durum Sedna pozisyonundan: Verilen Çek=bekliyor, Bankadan/Kasadan Ödeme=ödendi, Geri Al=iptal — eşleşmemiş çeklerde **durum senkronize edilir**. finance.checks use, audit'li, onaydan muaf
+- `GET /api/finance/checks/sedna-status` — Sedna çek içe aktarma etkin mi (`{configured}`; buton gösterimi)
 - `GET /api/finance/checks/uploads` — Yükleme geçmişi
 - `DELETE /api/finance/checks/uploads/{id}` — Yükleme sil
 - `PATCH /api/finance/checks/{id}/status` — Çek durumu güncelle

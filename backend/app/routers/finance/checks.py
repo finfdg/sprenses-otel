@@ -3,8 +3,10 @@ import logging
 import math
 import os
 import uuid
+from datetime import datetime
 from typing import Optional
 
+import pytz
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
@@ -23,10 +25,22 @@ from app.utils.file_validation import validate_upload_file
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.utils.sedna_client import SednaUnavailable, fetch_issued_checks, sedna_configured
 
 logger = logging.getLogger(__name__)
+TZ = pytz.timezone("Europe/Istanbul")
 
 router = APIRouter(prefix="/checks")
+
+
+def _check_status_from_pos(max_pos: Optional[int]) -> str:
+    """Sedna çek pozisyonu → bizim durum. 101/102 Bankadan/Kasadan Ödeme=paid,
+    103 Geri Al=cancelled, gerisi (100 Verilen, 104 Protesto, 105 Takipte)=pending."""
+    if max_pos in (101, 102):
+        return "paid"
+    if max_pos == 103:
+        return "cancelled"
+    return "pending"
 
 UPLOAD_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
@@ -139,6 +153,129 @@ async def upload_checks(
         new_checks=new_count,
         skipped_checks=skipped_count,
     ).model_dump()
+
+
+# ─── Sedna (muhasebe DB) doğrudan içe aktarma ───────────
+
+
+@router.get("/sedna-status")
+def sedna_status(_: User = Depends(require_permission("finance.checks", "view"))):
+    """Sedna çek içe aktarma etkin mi (buton gösterimi için)."""
+    return {"configured": sedna_configured()}
+
+
+@router.post("/sedna-import")
+def sedna_import_checks(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.checks", "use")),
+):
+    """Sedna'dan (320) verilen çekleri çek + Excel ile aynı dedup ile içe aktar.
+
+    Dedup key Excel ile aynı: (check_no, vendor_code, due_date). Yeni çek eklenir;
+    mevcut çek **banka/cari eşleşmesi yoksa** durumu Sedna'dan güncellenir (pending↔paid↔
+    cancelled). Eşleşmiş (kullanıcı yönetimindeki) çeklere dokunulmaz. Onaydan muaf, audit'li.
+    """
+    if not sedna_configured():
+        raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
+    try:
+        rows = fetch_issued_checks()
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error("Sedna çek sorgu hatası: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail="Sedna çek verisi alınamadı. Lütfen tekrar deneyin.")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="Sedna'dan verilen çek alınamadı (0 satır).")
+
+    upload = CheckUpload(
+        file_name=f"Sedna çek içe aktarma · {datetime.now(TZ).strftime('%d.%m.%Y %H:%M')}",
+        file_url="sedna://import",
+        uploaded_by=current_user.id,
+    )
+    db.add(upload)
+    db.flush()
+
+    # Mevcut çekler (key → Check) — dedup + durum güncelleme için
+    existing = {
+        (c.check_no, c.vendor_code, c.due_date): c
+        for c in db.query(Check).all()
+    }
+
+    new_count = updated_count = skipped_count = 0
+    try:
+        for r in rows:
+            check_no = (str(r.get("check_no")) or "").strip()[:50]
+            vendor_code = (r.get("vendor_code") or "").strip() or None
+            due_date = r.get("due_date")
+            if not check_no or not due_date:
+                skipped_count += 1
+                continue
+            curr = (r.get("currency") or "TL").strip() or "TL"
+            amount_tl = float(r.get("amount_tl") or 0)
+            cur_amt = float(r.get("amount_currency") or 0)
+            amount_currency = cur_amt if (curr != "TL" and cur_amt) else amount_tl
+            new_status = _check_status_from_pos(r.get("max_pos"))
+            bank = (r.get("bank") or "").strip() or None
+            key = (check_no, vendor_code, due_date)
+
+            ex = existing.get(key)
+            if ex is not None:
+                # mevcut: eşleşmemişse durumu Sedna'dan senkronize et; eşleşmişse dokunma
+                if ex.bank_transaction_id is None and ex.match_number is None and ex.status != new_status:
+                    ex.status = new_status
+                    finance_event_svc.upsert_check(db, ex)
+                    updated_count += 1
+                else:
+                    skipped_count += 1
+                continue
+
+            chk = Check(
+                upload_id=upload.id,
+                check_type=None,
+                check_no=check_no,
+                vendor_code=vendor_code,
+                vendor_name=(r.get("vendor_name") or "").strip() or check_no,
+                description=bank,                 # banka adı (ayrı kolon yok)
+                city=(r.get("city") or "").strip() or None,
+                due_date=due_date,
+                amount_tl=amount_tl,
+                currency=curr,
+                amount_currency=amount_currency,
+                transaction_type="Verilen Çek",
+                status=new_status,
+            )
+            db.add(chk)
+            db.flush()
+            finance_event_svc.upsert_check(db, chk)
+            existing[key] = chk
+            new_count += 1
+
+        upload.total_checks = len(rows)
+        upload.new_checks = new_count
+        upload.skipped_checks = skipped_count
+        log_action(
+            db, current_user.id, "create", "check_upload", entity_id=upload.id,
+            details=f"Sedna çek içe aktarma: {new_count} yeni, {updated_count} durum güncel, {skipped_count} atlandı",
+            ip_address=get_client_ip(request),
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Sedna çek içe aktarma DB hatası: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Çek içe aktarma sırasında veritabanı hatası oluştu.")
+
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "upload")
+
+    return {
+        "upload_id": upload.id,
+        "total_fetched": len(rows),
+        "new_checks": new_count,
+        "updated_checks": updated_count,
+        "skipped_checks": skipped_count,
+    }
 
 
 # ─── Yükleme Geçmişi ────────────────────────────────────

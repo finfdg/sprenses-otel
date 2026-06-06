@@ -11,7 +11,8 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
-	import { ReceiptText, Landmark, FileText, Clock, CalendarX } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
+	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Database } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { pending: 'Bekliyor', paid: 'Ödendi', cancelled: 'İptal' };
 	const STATUS_BADGE: Record<string, BadgeType> = { pending: 'warning', paid: 'success', cancelled: 'neutral' };
@@ -75,6 +76,8 @@
 	let summary = $state<Summary | null>(null);
 	let loading = $state(true);
 	let uploading = $state(false);
+	let sednaConfigured = $state(false);
+	let sednaImporting = $state(false);
 	let statusFilter = $state<string | null>(null);
 	let search = $state('');
 	let matching = $state(false);
@@ -224,6 +227,35 @@
 		if (files.length > 0) uploadFile(files[0]);
 	}
 
+	async function loadSednaStatus() {
+		try {
+			const r = await api.get<{ configured: boolean }>('/finance/checks/sedna-status');
+			sednaConfigured = !!r.configured;
+		} catch (e) {
+			console.error('Sedna durum sorgulanamadı:', e);
+			sednaConfigured = false;
+		}
+	}
+	async function importChecksFromSedna() {
+		if (sednaImporting) return;
+		sednaImporting = true;
+		try {
+			const r = await api.post<{ new_checks: number; updated_checks: number; skipped_checks: number }>(
+				'/finance/checks/sedna-import', {}
+			);
+			showToast(
+				`Sedna'dan ${r.new_checks} yeni çek · ${r.updated_checks} durum güncellendi (${r.skipped_checks} mevcut)`,
+				'success'
+			);
+			await loadAll();
+		} catch (err: any) {
+			console.error('Sedna çek içe aktarma hatası:', err);
+			showToast(err?.body?.detail || "Sedna'dan çek aktarılamadı (SSH tüneli kapalı olabilir)", 'error');
+		} finally {
+			sednaImporting = false;
+		}
+	}
+
 	function handleDropError(errors: string[]) {
 		for (const err of errors) showToast(err, 'error', 4000);
 	}
@@ -263,6 +295,7 @@
 
 	onMount(() => {
 		loadAll();
+		loadSednaStatus();
 		unsubFinance = onWsEvent('finance_updated', () => {
 			loadAll();
 		});
@@ -307,6 +340,17 @@
 			icon={CalendarX}
 			hint={`₺${formatCurrency(summary.overdue_amount)}`}
 		/>
+	</div>
+{/if}
+
+<!-- Sedna (muhasebe DB) doğrudan içe aktarma -->
+{#if canUse && sednaConfigured}
+	<div class="bg-gradient-to-br from-teal-50 to-white border border-teal-200 rounded-xl p-4 mb-4 flex items-center justify-between gap-3 flex-wrap">
+		<div class="min-w-0">
+			<p class="text-sm font-semibold text-gray-900 inline-flex items-center gap-1.5"><Database size={16} class="text-teal-600" /> Sedna'dan verilen çekleri içe aktar</p>
+			<p class="text-xs text-gray-500 mt-0.5 max-w-md leading-snug">Verilen çekler doğrudan muhasebe (Sedna) veritabanından çekilir — Excel'e gerek yok. Mükerrer eklenmez; durum (ödendi / bekliyor / iptal) Sedna'dan senkronize edilir.</p>
+		</div>
+		<Button onclick={importChecksFromSedna} loading={sednaImporting} class="shrink-0 w-full sm:w-auto"><Database size={16} /> Sedna'dan Çek Çek</Button>
 	</div>
 {/if}
 
