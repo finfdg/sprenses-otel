@@ -503,3 +503,22 @@ SELECT pg_catalog.setval('public.transaction_categories_id_seq', 242, true);
 
 \unrestrict WOjhTk44TCHXDysHDKM5YjxhfpHGe4zfcQpsn1p1e1UZBm8ES80PvfmKiRuUbvW
 
+--
+-- Stok / Depo Maliyet modülü (Sedna) — RBAC modülleri + Admin izinleri (idempotent)
+--
+INSERT INTO public.modules (id, name, code, description, icon, parent_id, sort_order, is_active, created_at) VALUES
+  (904, 'Stok', 'stok', 'Stok / depo maliyet — Sedna muhasebeden', 'package', NULL, 65, true, now()),
+  (905, 'Maliyet Analizi', 'stok.maliyet', 'Departman tüketim + alım/tüketim trendi + tedarikçi', NULL, 904, 10, true, now()),
+  (906, 'Ürünler & Stok', 'stok.urunler', 'Ürün kartları + anlık stok değeri', NULL, 904, 20, true, now()),
+  (907, 'Hareketler', 'stok.hareketler', 'Stok giriş/çıkış/tüketim hareketleri', NULL, 904, 30, true, now()),
+  (908, 'Depolar', 'stok.depolar', 'Depo/departman tanımları', NULL, 904, 40, true, now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.role_module_permissions (role_id, module_id, can_view, can_use, created_at)
+SELECT 1, m.id, true, true, now() FROM public.modules m
+WHERE m.code LIKE 'stok%'
+  AND NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id = 1 AND p.module_id = m.id);
+
+SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 908), true);
+SELECT pg_catalog.setval('public.role_module_permissions_id_seq', GREATEST((SELECT max(id) FROM public.role_module_permissions), 9101), true);
+

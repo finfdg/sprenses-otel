@@ -134,6 +134,15 @@ export const NAV_GROUPS: NavGroup[] = [
 		],
 	},
 	{
+		key: 'stock', label: 'Stok', prefix: '/dashboard/stok', icon: [I.cube],
+		items: [
+			{ code: 'stok.maliyet', label: 'Maliyet Analizi', href: '/dashboard/stok/maliyet', icon: [I.chart] },
+			{ code: 'stok.urunler', label: 'Ürünler & Stok', href: '/dashboard/stok/urunler', icon: [I.cube] },
+			{ code: 'stok.hareketler', label: 'Hareketler', href: '/dashboard/stok/hareketler', icon: [I.refresh] },
+			{ code: 'stok.depolar', label: 'Depolar', href: '/dashboard/stok/depolar', icon: [I.building] },
+		],
+	},
+	{
 		key: 'system', label: 'Sistem', prefix: '/dashboard/sistem', icon: [I.gear1, I.gear2],
 		items: [
 			{ code: 'system.users', label: 'Kullanıcılar', href: '/dashboard/sistem/kullanicilar', icon: [I.userSingle] },

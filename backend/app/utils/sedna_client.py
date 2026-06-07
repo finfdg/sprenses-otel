@@ -346,3 +346,107 @@ def fetch_sales_invoices() -> dict:
 
     logger.info("Sedna'dan %d satış faturası + %d tahsilat çekildi", len(invoices), len(collections))
     return {"invoices": invoices, "collections": collections}
+
+
+# ─── STOK / DEPO (Stok Maliyet modülü) ──────────────────────────────────────
+# Kaynak: Store (depo/departman) + Product (ürün kartı) + StockOwner/StockTrans
+# (hareket başlığı+satırı) + Accounting (tedarikçi). Type: 12=Alış, 29=Tüketim, 20=Çıkış…
+
+def _stock_connect(timeout: int = 120):
+    """Stok sorguları için Sedna bağlantısı (salt-okunur). Tünel kapalıysa SednaUnavailable."""
+    import pymssql
+    try:
+        return pymssql.connect(
+            server=settings.sedna_host, port=settings.sedna_port,
+            user=settings.sedna_user, password=settings.sedna_password,
+            database=settings.sedna_database, charset=settings.sedna_charset,
+            tds_version="7.4", login_timeout=10, timeout=timeout,
+        )
+    except Exception as e:
+        logger.warning("Sedna bağlantısı kurulamadı (stok): %s", e)
+        raise SednaUnavailable(
+            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
+            f"({settings.sedna_host}:{settings.sedna_port})."
+        )
+
+
+_STOCK_DEPOT_QUERY = """
+SELECT StoreCode AS code, Remark AS name,
+       ISNULL(NoConsumption,0) AS no_consumption, ISNULL(Expense,0) AS is_expense
+FROM Store WHERE StoreCode IS NOT NULL AND Remark IS NOT NULL
+"""
+
+# Ürün kartı + anlık stok (son hareketin yürüyen bakiyesi StockQuantity) + son birim maliyet
+_STOCK_PRODUCT_QUERY = """
+SELECT p.RecId AS sedna_id, p.Code AS code, p.Remark AS name,
+       p.CurrencyCode AS currency, p.StockType AS stock_type,
+       s.qty AS current_stock, s.cost AS last_cost
+FROM Product p
+LEFT JOIN (
+  SELECT st.CardId, st.StockQuantity AS qty, st.Cost AS cost
+  FROM StockTrans st
+  JOIN (SELECT CardId, MAX(RecId) mx FROM StockTrans GROUP BY CardId) m
+    ON st.CardId = m.CardId AND st.RecId = m.mx
+) s ON p.RecId = s.CardId
+WHERE p.Remark IS NOT NULL
+"""
+
+# Tüm stok hareketleri (denormalize: ürün adı, depo kodları, tedarikçi). DB yıl-bazlı (Mhs2026).
+_STOCK_MOVEMENT_QUERY = """
+SELECT so.RecId AS owner_id, st.RecId AS line_id, so.Type AS type_code, so.Dates AS date,
+       so.DocumNo AS doc_no, so.ConsumptionDepot AS cons_depot,
+       sup.Code AS supplier_code, sup.Remark AS supplier_name,
+       st.CardId AS product_id, p.Code AS product_code, p.Remark AS product_name,
+       st.EntryingDepot AS entry_depot, st.ExitingDepot AS exit_depot,
+       st.Quantity AS quantity, st.Cost AS unit_cost, st.NetAmount AS net_amount
+FROM StockTrans st
+JOIN StockOwner so ON st.StockOwnerId = so.RecId
+LEFT JOIN Product p ON st.CardId = p.RecId
+LEFT JOIN Accounting sup ON so.CurrentId = sup.RecId
+WHERE so.Status = 1 AND so.Dates IS NOT NULL
+"""
+
+
+def fetch_stock_depots() -> List[dict]:
+    """Sedna Store → depo/departman tanımları (code, name, no_consumption, is_expense)."""
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _stock_connect(60)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_STOCK_DEPOT_QUERY)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d depo çekildi", len(rows))
+    return rows
+
+
+def fetch_stock_products() -> List[dict]:
+    """Sedna Product → ürün kartları + anlık stok (son StockQuantity) + son maliyet."""
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _stock_connect(120)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_STOCK_PRODUCT_QUERY)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d ürün çekildi", len(rows))
+    return rows
+
+
+def fetch_stock_movements() -> List[dict]:
+    """Sedna StockOwner+StockTrans → tüm stok hareketleri (alış/tüketim/çıkış), denormalize."""
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _stock_connect(180)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_STOCK_MOVEMENT_QUERY)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d stok hareketi çekildi", len(rows))
+    return rows

@@ -37,6 +37,7 @@ from app.models.quality_template_section import QualityTemplateSection
 from app.models.role import Role
 from app.models.role_module_permission import RoleModulePermission
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
+from app.models.stock import StockDepot, StockMovement, StockProduct
 from app.models.transaction_category import TransactionCategory
 from app.models.payment_instruction import PaymentInstructionItem, PaymentInstructionList
 from app.models.attendance_setting import AttendanceSetting
@@ -75,4 +76,5 @@ __all__ = [
     "ApprovalRequest", "ApprovalRequestLog",
     "PaymentInstructionList", "PaymentInstructionItem",
     "AttendanceSetting", "ShiftDefinition", "ShiftAssignment",
+    "StockDepot", "StockProduct", "StockMovement",
 ]
