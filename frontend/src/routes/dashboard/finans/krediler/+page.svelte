@@ -195,7 +195,8 @@
 			.sort((a, b) => b.totalEur - a.totalEur);
 	});
 
-	// Vade yakınlığına göre çizgi stili (vadeye yaklaştıkça daha kalın + kontrast)
+	// Vade yakınlığına göre çizgi stili (vadeye yaklaştıkça daha kalın + kontrast).
+	// TRY kredileri: teal→amber→turuncu→kırmızı rampa. EUR kredileri: mavi rampa (döviz ayrımı).
 	const TIER_FILL: Record<string, string> = {
 		ok: 'bg-teal-400 h-[3px]',
 		soon: 'bg-amber-400 h-[5px]',
@@ -207,6 +208,19 @@
 	};
 	const TIER_TEXT: Record<string, string> = {
 		ok: 'text-teal-600', soon: 'text-amber-600', urgent: 'text-orange-600', overdue: 'text-red-700',
+	};
+	// EUR kredileri mavi gösterilir (kalınlık yine aciliyete göre artar)
+	const TIER_FILL_EUR: Record<string, string> = {
+		ok: 'bg-blue-400 h-[3px]',
+		soon: 'bg-blue-500 h-[5px]',
+		urgent: 'bg-blue-600 h-[7px]',
+		overdue: 'bg-blue-700 h-[8px]',
+	};
+	const TIER_DOT_EUR: Record<string, string> = {
+		ok: 'bg-blue-500', soon: 'bg-blue-600', urgent: 'bg-blue-700', overdue: 'bg-blue-800',
+	};
+	const TIER_TEXT_EUR: Record<string, string> = {
+		ok: 'text-blue-600', soon: 'text-blue-600', urgent: 'text-blue-700', overdue: 'text-blue-800',
 	};
 
 	/** Kredinin açılış→vade zaman çizgisi: ilerleme oranı (bugüne kadar) + vadeye kalan gün + aciliyet kademesi. */
@@ -795,27 +809,28 @@
 						<div class="space-y-2">
 							{#each group.items as p (p.id)}
 								{@const tl = creditTimeline(p)}
+								{@const isEur = p.currency === 'EUR'}
 								<button
 									onclick={() => scrollToCredit(p.id, p.type)}
-									class="w-full text-left rounded-lg px-2 py-1.5 transition-colors cursor-pointer {expandedId === p.id ? 'bg-teal-50 ring-1 ring-teal-200' : 'hover:bg-gray-50'}"
+									class="w-full text-left rounded-lg px-2 py-1.5 transition-colors cursor-pointer {expandedId === p.id ? (isEur ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-teal-50 ring-1 ring-teal-200') : (isEur ? 'bg-blue-50/40 hover:bg-blue-50' : 'hover:bg-gray-50')}"
 									title="{p.name} — {fmt(p.remaining_amount, p.currency)}{p._eur != null && p.currency !== 'EUR' ? ` (≈ ${fmt(p._eur, 'EUR')})` : ''}"
 								>
 									<div class="flex items-center justify-between gap-2">
 										<span class="text-xs font-medium text-gray-700 truncate">{p.name}</span>
-										<span class="text-xs font-semibold text-gray-800 whitespace-nowrap">{fmtCompact(p.remaining_amount, p.currency)}</span>
+										<span class="text-xs font-semibold whitespace-nowrap {isEur ? 'text-blue-700' : 'text-gray-800'}">{fmtCompact(p.remaining_amount, p.currency)}</span>
 									</div>
 									{#if tl.hasVade}
 										<div class="flex items-center gap-1.5 mt-1.5">
 											<span class="text-[9px] text-gray-400 tabular-nums w-[54px] shrink-0">{fmtDate(p.start_date)}</span>
 											<div class="relative flex-1 h-2 flex items-center">
 												<div class="absolute inset-x-0 h-px bg-gray-200 rounded-full"></div>
-												<div class="absolute left-0 rounded-full transition-all {TIER_FILL[tl.tier]}" style="width: {tl.progress * 100}%"></div>
-												<div class="absolute w-2 h-2 rounded-full border border-white shadow-sm {TIER_DOT[tl.tier]} -translate-x-1/2" style="left: {tl.progress * 100}%"></div>
+												<div class="absolute left-0 rounded-full transition-all {(isEur ? TIER_FILL_EUR : TIER_FILL)[tl.tier]}" style="width: {tl.progress * 100}%"></div>
+												<div class="absolute w-2 h-2 rounded-full border border-white shadow-sm {(isEur ? TIER_DOT_EUR : TIER_DOT)[tl.tier]} -translate-x-1/2" style="left: {tl.progress * 100}%"></div>
 											</div>
 											<span class="text-[9px] text-gray-400 tabular-nums w-[54px] shrink-0 text-right">{fmtDate(p.end_date)}</span>
 										</div>
 										<div class="text-right mt-0.5">
-											<span class="text-[9px] font-semibold {TIER_TEXT[tl.tier]}">{tl.tier === 'overdue' ? 'Vadesi geçti' : `${tl.daysToDue} gün kaldı`}</span>
+											<span class="text-[9px] font-semibold {(isEur ? TIER_TEXT_EUR : TIER_TEXT)[tl.tier]}">{tl.tier === 'overdue' ? 'Vadesi geçti' : `${tl.daysToDue} gün kaldı`}</span>
 										</div>
 									{:else}
 										<div class="mt-1 text-[9px] text-gray-400">Vadesiz · rotatif</div>

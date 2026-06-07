@@ -200,8 +200,10 @@ Sayfa üstündeki "Banka Bazlı Kredi Dağılımı" artık **donut grafik değil
 kredileri **zaman çizgisi** olarak gösterir (`creditTimeline()` + `TIER_*` map'leri, +page.svelte):
 - **Sol = açılış (`start_date`), sağ = vade (`end_date`)**; arada ilerleme çubuğu.
 - **İlerleme** = `(bugün − açılış) / (vade − açılış)` → çubuk **vadeye yaklaştıkça uzar**.
-- **Aciliyet kademesi** (`daysToDue`): >90g teal ince (`h-3px`) · ≤90g amber · ≤30g turuncu · vadesi
-  geçti kırmızı kalın (`h-8px`) → **yaklaştıkça daha kalın + kontrast**. "Bugün" işareti = noktacık.
+- **Aciliyet kademesi** (`daysToDue`): >90g ince (`h-3px`) · ≤90g · ≤30g · vadesi geçti kalın (`h-8px`)
+  → **yaklaştıkça daha kalın + kontrast**. "Bugün" işareti = noktacık.
+- **Döviz ayrımı:** **TRY** kredileri teal→amber→turuncu→kırmızı (aciliyet) rampası; **EUR** kredileri
+  **mavi** rampa (`TIER_*_EUR`) + mavi tutar + hafif mavi arka plan → döviz kredileri bir bakışta ayrışır.
 - **Sıralama:** vadesi yaklaşan kredi **en üstte** (`end_date` artan; vadesizler/KMH-kredi kartı en sonda).
 - **Tıklama** → `scrollToCredit()` ile kredinin **ödeme planı** alttaki detayda açılır + oraya kaydırılır.
 - Kart başlığında banka adı + kredi sayısı + **toplam (EUR)**; vadesiz (rotatif) krediler "Vadesiz · rotatif".
