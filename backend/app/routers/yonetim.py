@@ -77,7 +77,9 @@ def dashboard(
         "revenue": {"room_invoiced_try": round(room_invoiced, 2), "room_collected_try": round(room_collected, 2)},
         "finance": {"supplier_debt_try": supplier_debt, "agency_advance_by_currency": adv_by_cur},
         "gop_approx_try": gop_approx,
-        "food_cost_pct": None,  # PMS reçete+POS erişimi açılınca (Faz 2)
+        # All-inclusive'de F&B geliri pakete gömülü (ayrı F&B geliri yok) → klasik Food Cost %
+        # uygulanmaz; doğru metrik kişi başı F&B maliyeti (cost). Alan geri uyum için None bırakıldı.
+        "food_cost_pct": None,
     }
 
 

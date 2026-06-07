@@ -85,11 +85,29 @@ def test_operational_kpi_unmatched_month_excluded(db, client, auth_headers):
 
 
 def test_price_variance(db, client, auth_headers):
-    """Son alış vs ortalama: 100, 150 → ort 125, son 150, sapma %20."""
+    """Son alış vs medyan: 100, 150 → medyan 125, son 150, sapma %20 (gerçek hareket)."""
     _seed_purchases(db, 7001, [(date(2026, 1, 5), 100), (date(2026, 3, 5), 150)])
     j = client.get(f"{PREFIX}/price-variance", headers=auth_headers).json()
     item = next(x for x in j["items"] if x["product_id"] == 7001)
     assert item["avg_cost"] == 125.0 and item["last_cost"] == 150.0 and item["variance_pct"] == 20.0
+    assert item["category"] == "price"
+
+
+def test_price_anomaly_split(db, client, auth_headers):
+    """Medyandan >3× sapan son alış → 'anomalies' (birim/miktar hatası), 'items'a GİRMEZ.
+
+    Medyan aykırı girişe dayanıklı: 4 normal + 1 dev alış → medyan normal kalır.
+    """
+    _seed_purchases(db, 7002, [
+        (date(2026, 1, 5), 38), (date(2026, 1, 10), 40), (date(2026, 2, 1), 39),
+        (date(2026, 2, 10), 41), (date(2026, 3, 1), 2100),  # son alış: çuval-adedi hatası gibi
+    ])
+    j = client.get(f"{PREFIX}/price-variance", headers=auth_headers).json()
+    assert 7002 not in {x["product_id"] for x in j["items"]}        # gerçek harekete girmez
+    anom = {x["product_id"]: x for x in j["anomalies"]}
+    assert 7002 in anom                                             # anomali olarak işaretlenir
+    a = anom[7002]
+    assert a["median_cost"] == 40.0 and a["last_cost"] == 2100.0 and a["category"] == "entry"
 
 
 def test_yonetim_dashboard(db, client, auth_headers):
@@ -99,7 +117,7 @@ def test_yonetim_dashboard(db, client, auth_headers):
     j = client.get(f"{YPREFIX}/dashboard", headers=auth_headers).json()
     assert "occupancy" in j and "cost" in j and "finance" in j and "gop_approx_try" in j
     assert j["cost"]["cost_per_guest_night_try"] == 100.0
-    assert j["food_cost_pct"] is None  # PMS bekleniyor
+    assert j["food_cost_pct"] is None  # all-inclusive: ayrı F&B geliri yok → kavramsal olarak N/A
 
 
 def test_yonetim_alerts_and_classification(db, client, auth_headers):

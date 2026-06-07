@@ -5,7 +5,7 @@
 	import StatCard from '$lib/components/StatCard.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
-	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Lock } from 'lucide-svelte';
+	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const periodLabel = (p: string) => { const [y, m] = (p || '').split('-'); return `${AY[Number(m)] || m} ${y}`; };
@@ -19,6 +19,7 @@
 	let summary = $state<any>({});
 	let suppliers = $state<any[]>([]);
 	let variance = $state<any[]>([]);
+	let anomalies = $state<any[]>([]);
 
 	let kpi = $derived(op.kpi || {});
 	let occ = $derived(op.occupancy || {});
@@ -37,7 +38,7 @@
 				api.get<any>('/stok/by-supplier?limit=10'),
 				api.get<any>('/stok/price-variance?limit=8'),
 			]);
-			op = o; summary = s; suppliers = sup.items || []; variance = v.items || [];
+			op = o; summary = s; suppliers = sup.items || []; variance = v.items || []; anomalies = v.anomalies || [];
 		} catch (e) {
 			console.error('Maliyet kontrol yüklenemedi:', e);
 		} finally {
@@ -113,9 +114,10 @@
 				</div>
 			</div>
 
-			<!-- Satın alma fiyat sapması -->
+			<!-- Satın alma fiyat sapması (medyan bazlı) + birim/miktar anomalileri -->
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
-				<div class="flex items-center gap-2 mb-4"><TrendingUp size={18} class="text-red-500" /><h3 class="text-sm font-semibold text-gray-800">Satın Alma Fiyat Sapması</h3></div>
+				<div class="flex items-center gap-2 mb-1"><TrendingUp size={18} class="text-red-500" /><h3 class="text-sm font-semibold text-gray-800">Satın Alma Fiyat Hareketi</h3></div>
+				<p class="text-[11px] text-gray-400 mb-3">Son alış ↔ <span class="font-medium text-gray-500">medyan</span> (aykırı girişe dayanıklı) — gerçek fiyat hareketi</p>
 				{#if variance.length === 0}
 					<p class="text-sm text-gray-400">Veri yok</p>
 				{:else}
@@ -123,11 +125,28 @@
 						{#each variance as v (v.product_id)}
 							<div class="flex items-center justify-between gap-2 text-sm">
 								<span class="text-gray-700 truncate flex-1" title={v.name}>{v.name}</span>
-								<span class="tabular-nums text-xs text-gray-500 whitespace-nowrap">{v.avg_cost} → {v.last_cost} <span class="font-semibold {v.variance_pct > 0 ? 'text-red-600' : 'text-emerald-600'}">%{v.variance_pct}</span></span>
+								<span class="tabular-nums text-xs text-gray-500 whitespace-nowrap">{v.median_cost ?? v.avg_cost} → {v.last_cost} <span class="font-semibold {v.variance_pct > 0 ? 'text-red-600' : 'text-emerald-600'}">%{v.variance_pct}</span></span>
 							</div>
 						{/each}
 					</div>
-					<p class="text-[11px] text-gray-400 mt-3">Yüksek sapma fiyat artışı veya birim/paket farkını işaret eder — incelenmeli.</p>
+				{/if}
+
+				{#if anomalies.length}
+					<div class="mt-4 pt-3 border-t border-gray-100">
+						<div class="flex items-center gap-1.5 mb-2">
+							<TriangleAlert size={14} class="text-amber-500" />
+							<span class="text-xs font-semibold text-gray-600">Olası birim/miktar tutarsızlığı ({anomalies.length})</span>
+						</div>
+						<div class="space-y-1">
+							{#each anomalies as v (v.product_id)}
+								<div class="flex items-center justify-between gap-2 text-xs">
+									<span class="text-gray-500 truncate flex-1" title={v.name}>{v.name}</span>
+									<span class="tabular-nums text-gray-400 whitespace-nowrap">medyan {v.median_cost ?? v.avg_cost} → son <span class="font-semibold text-amber-600">{v.last_cost}</span></span>
+								</div>
+							{/each}
+						</div>
+						<p class="text-[11px] text-gray-400 mt-2">Net tutar doğru, <span class="font-medium">miktar paydası</span> Sedna'da tutarsız (kg yerine çuval/koli adedi) — fiyat artışı değil, giriş kalitesi.</p>
+					</div>
 				{/if}
 			</div>
 
@@ -152,12 +171,15 @@
 			</div>
 		</div>
 
-		<!-- Bloke KPI (PMS) -->
-		<div class="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4 flex items-start gap-3">
-			<Lock size={18} class="text-gray-400 mt-0.5 shrink-0" />
-			<div class="text-sm text-gray-500">
-				<span class="font-medium text-gray-700">Food Cost % · Beverage Cost % · Reçete Sapması · Milliyet Bazlı Tüketim</span> —
-				reçete (Standart Reçete) ve POS satış verisi gerektirir. Sedna PMS/F&B veritabanına salt-okuma erişimi açılınca eklenecek (Faz 2).
+		<!-- All-inclusive maliyet yaklaşımı (bilgi) -->
+		<div class="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
+			<Info size={18} class="text-blue-400 mt-0.5 shrink-0" />
+			<div class="text-sm text-gray-600">
+				<span class="font-medium text-gray-800">All-inclusive maliyet yaklaşımı:</span>
+				Bu resort all-inclusive olduğundan F&B geliri oda/paket fiyatına gömülüdür — ayrı bir F&B geliri yoktur.
+				Bu nedenle klasik <span class="font-medium">Food Cost %</span> (F&B maliyeti ÷ F&B geliri) uygulanmaz; doğru metrik
+				yukarıdaki <span class="font-medium text-amber-700">kişi başı F&B maliyetidir</span>.
+				Reçete sapması / teorik maliyet ise POS ürün-satış kaydı gerektirir — Sedna önbüroda (DailyProductSaleTrans) tutulmuyor.
 			</div>
 		</div>
 	{/if}

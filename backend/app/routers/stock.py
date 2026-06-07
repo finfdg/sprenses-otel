@@ -349,35 +349,72 @@ def operational_kpi(
     return compute_operational_kpi(db)
 
 
-def compute_price_variance(db: Session, limit: int = 20) -> list:
-    """Satın alma fiyat sapması: ürünün son alış birim maliyeti vs ortalama (≥2 alış)."""
-    avg_rows = (
-        db.query(StockMovement.product_sedna_id, func.max(StockMovement.product_name).label("name"),
-                 func.avg(StockMovement.unit_cost).label("avg"), func.count().label("n"))
-        .filter(StockMovement.direction == "in", StockMovement.unit_cost > 0,
-                StockMovement.product_sedna_id.isnot(None))
-        .group_by(StockMovement.product_sedna_id).having(func.count() >= 2).all()
-    )
-    last_map = {
-        r[0]: float(r[1] or 0)
-        for r in db.execute(text(
-            "SELECT DISTINCT ON (product_sedna_id) product_sedna_id, unit_cost "
-            "FROM stock_movements WHERE direction='in' AND unit_cost>0 AND product_sedna_id IS NOT NULL "
-            "ORDER BY product_sedna_id, date DESC NULLS LAST"
-        )).fetchall()
-    }
-    items = []
-    for pid, name, avg, n in avg_rows:
-        a = float(avg or 0)
-        last = last_map.get(pid, a)
-        if a <= 0:
+# Son alış MEDYANIN bu kat ÜstÜnde/altında ise → "gerçek fiyat hareketi" değil, olası
+# birim/miktar tutarsızlığı (Sedna'da Birim hep "Kg" ama miktar bazen çuval/koli adedi →
+# birim maliyet net_amount/quantity ile uçar). Net tutar daima doğru; sapan yalnız payda.
+_PRICE_ANOMALY_RATIO = 3.0
+
+
+def _price_variance_rows(db: Session) -> list:
+    """Ürün başına satın alma birim-maliyet sapması — MEDYAN bazlı (aykırı girişe dayanıklı).
+
+    Ortalama yerine medyan: tek bir hatalı giriş (ör. 38→2100) baz çizgisini kaydırmaz. Son
+    alış medyanın `_PRICE_ANOMALY_RATIO` katından sapıyorsa `category="entry"` (olası birim/miktar
+    hatası), aksi halde `category="price"` (gerçek fiyat hareketi).
+    """
+    rows = db.execute(text("""
+        WITH agg AS (
+            SELECT product_sedna_id AS pid,
+                   MAX(product_name) AS name,
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_cost) AS median,
+                   COUNT(*) AS n
+            FROM stock_movements
+            WHERE direction='in' AND unit_cost > 0 AND product_sedna_id IS NOT NULL
+            GROUP BY product_sedna_id
+            HAVING COUNT(*) >= 2
+        ),
+        last AS (
+            SELECT DISTINCT ON (product_sedna_id) product_sedna_id AS pid, unit_cost AS last_cost
+            FROM stock_movements
+            WHERE direction='in' AND unit_cost > 0 AND product_sedna_id IS NOT NULL
+            ORDER BY product_sedna_id, date DESC NULLS LAST
+        )
+        SELECT a.pid, a.name, a.median, a.n, l.last_cost
+        FROM agg a JOIN last l ON l.pid = a.pid
+        WHERE a.median > 0
+    """)).fetchall()
+    out = []
+    for r in rows:
+        median = float(r.median or 0)
+        last = float(r.last_cost or 0)
+        if median <= 0 or last <= 0:
             continue
-        items.append({
-            "product_id": pid, "name": name, "avg_cost": round(a, 2), "last_cost": round(last, 2),
-            "variance_pct": round((last - a) / a * 100, 1), "purchase_count": n,
+        ratio = last / median
+        is_entry = ratio > _PRICE_ANOMALY_RATIO or ratio < (1.0 / _PRICE_ANOMALY_RATIO)
+        out.append({
+            "product_id": r.pid, "name": r.name,
+            "avg_cost": round(median, 2),     # geri uyum (artık medyan değeri)
+            "median_cost": round(median, 2),
+            "last_cost": round(last, 2),
+            "variance_pct": round((last - median) / median * 100, 1),
+            "purchase_count": int(r.n or 0),
+            "category": "entry" if is_entry else "price",
         })
-    items.sort(key=lambda x: -abs(x["variance_pct"]))
-    return items[:limit]
+    return out
+
+
+def compute_price_variance(db: Session, limit: int = 20) -> list:
+    """Gerçek satın alma fiyat hareketleri (medyan bazlı; birim/miktar anomalileri HARİÇ)."""
+    rows = [r for r in _price_variance_rows(db) if r["category"] == "price"]
+    rows.sort(key=lambda x: -abs(x["variance_pct"]))
+    return rows[:limit]
+
+
+def compute_price_anomalies(db: Session, limit: int = 20) -> list:
+    """Olası birim/miktar tutarsızlıkları (medyandan >3× sapan son alış) — Sedna giriş kalitesi."""
+    rows = [r for r in _price_variance_rows(db) if r["category"] == "entry"]
+    rows.sort(key=lambda x: -abs(x["variance_pct"]))
+    return rows[:limit]
 
 
 @router.get("/price-variance")
@@ -386,8 +423,11 @@ def price_variance(
     _: User = Depends(require_permission("stok.maliyet", "view")),
     limit: int = Query(20, ge=1, le=100),
 ):
-    """Satın alma fiyat sapması listesi — bk. compute_price_variance."""
-    return {"items": compute_price_variance(db, limit)}
+    """Fiyat sapması: gerçek hareketler (`items`) + olası birim/miktar anomalileri (`anomalies`)."""
+    return {
+        "items": compute_price_variance(db, limit),
+        "anomalies": compute_price_anomalies(db, limit),
+    }
 
 
 # ─── Ürünler + Hareketler + Depolar (liste) ─────────────────────────────────

@@ -6,7 +6,7 @@
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
 	import {
 		Landmark, BedDouble, TrendingUp, Flame, PiggyBank, Repeat, Receipt, Truck,
-		FileWarning, CreditCard, TriangleAlert, ArrowUpRight, Wallet, Percent
+		FileWarning, CreditCard, TriangleAlert, ArrowUpRight, Wallet, Coins
 	} from 'lucide-svelte';
 
 	let loading = $state(true);
@@ -66,7 +66,7 @@
 			<StatCard label="Stok Devir Hızı" value={`${dash.cost?.inventory_turnover ?? 0}x`} accent="gray" icon={Repeat} hint="Tüketim / stok değeri" />
 			<StatCard label="Oda Geliri" value={fmtTry(dash.revenue?.room_invoiced_try || 0)} accent="emerald" icon={Receipt} hint={`Tahsil ${fmtTry(dash.revenue?.room_collected_try || 0)}`} />
 			<StatCard label="Tedarikçi Borcu" value={fmtTry(dash.finance?.supplier_debt_try || 0)} accent="red" icon={Truck} hint="Net cari borç" />
-			<StatCard label="Food Cost %" value="—" accent="gray" icon={Percent} hint="PMS reçete erişimi bekleniyor" />
+			<StatCard label="Kişi Başı (€)" value={`${dash.cost?.cost_per_guest_night_eur ?? '–'} €`} accent="amber" icon={Coins} hint="All-inclusive F&B / gece" />
 		</div>
 
 		<!-- Uyarılar + Sınıflama -->
