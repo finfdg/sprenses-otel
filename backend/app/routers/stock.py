@@ -4,21 +4,32 @@ Veri Sedna muhasebeden çekilir (Store/Product/StockOwner/StockTrans). Maliyet o
 departman tüketimi, aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri.
 İçe aktarma merkezi "Sedna" butonuna bağlıdır (sedna_sync.py:_STEPS).
 """
+import calendar
 import json
 import math
 from datetime import date, datetime
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from sqlalchemy import desc, func, or_
+from sqlalchemy import desc, func, or_, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth import get_current_user, require_permission
 from app.middleware.rate_limit import get_client_ip
-from app.models.stock import StockDepot, StockMovement, StockProduct, type_direction, type_label
+from app.models.exchange_rate import ExchangeRate
+from app.models.stock import (
+    COST_GROUP_LABELS,
+    StockDepot,
+    StockMovement,
+    StockProduct,
+    depot_cost_group,
+    type_direction,
+    type_label,
+)
 from app.models.user import User
 from app.utils.audit import log_action
+from app.utils.occupancy import guest_nights_by_period, occupancy_metrics
 from app.utils.sedna_client import (
     SednaUnavailable,
     fetch_stock_depots,
@@ -51,10 +62,11 @@ def run_stock_import(db: Session, current_user: User, ip: Optional[str] = None) 
         d = existing_d.get(code)
         if d:
             d.name = r["name"]
+            d.cost_group = depot_cost_group(code)
             d.no_consumption = bool(r["no_consumption"])
             d.is_expense = bool(r["is_expense"])
         else:
-            db.add(StockDepot(code=code, name=r["name"],
+            db.add(StockDepot(code=code, name=r["name"], cost_group=depot_cost_group(code),
                               no_consumption=bool(r["no_consumption"]), is_expense=bool(r["is_expense"])))
             d_new += 1
     db.flush()
@@ -187,6 +199,7 @@ def cost_by_department(
         db.query(
             StockMovement.cons_depot.label("code"),
             func.max(StockDepot.name).label("name"),
+            func.max(StockDepot.cost_group).label("cost_group"),
             func.sum(StockMovement.net_amount).label("total"),
             func.count(StockMovement.id).label("n"),
         )
@@ -196,7 +209,8 @@ def cost_by_department(
     if period:
         q = q.filter(StockMovement.period == period)
     rows = q.group_by(StockMovement.cons_depot).order_by(desc("total")).all()
-    return {"items": [{"code": r.code, "name": r.name or r.code,
+    return {"items": [{"code": r.code, "name": r.name or r.code, "cost_group": r.cost_group,
+                       "group_label": COST_GROUP_LABELS.get(r.cost_group, r.cost_group),
                        "total": float(r.total or 0), "count": r.n} for r in rows]}
 
 
@@ -234,6 +248,146 @@ def by_supplier(
     )
     return {"items": [{"code": r.code, "name": r.name or r.code,
                        "total": float(r.total or 0), "count": r.n} for r in rows]}
+
+
+# ─── Operasyonel maliyet KPI (doluluk füzyonu) ──────────────────────────────
+
+def compute_operational_kpi(db: Session) -> dict:
+    """Operasyonel KPI: kişi başı F&B maliyeti, CPOR, zayiat %, stok devir hızı.
+
+    Tüketim (Sedna stok, TRY) doluluğa (geceleme/oda-gece, rezervasyon) bölünür. **Yalnız
+    tüketimi işlenmiş aylar** (fb>0 & geceleme>0) headline'a girer — tüketim ay-sonu sayımla
+    geç post edildiğinden açık aylar dilüsyon yapmaz. Yönetim Paneli de bu fonksiyonu çağırır.
+    """
+    # Tüketim: (period, cost_group) → tutar
+    cons: dict = {}
+    group_totals: dict = {}
+    for period, group, t in (
+        db.query(StockMovement.period, StockDepot.cost_group, func.sum(StockMovement.net_amount))
+        .join(StockDepot, StockMovement.cons_depot == StockDepot.code)
+        .filter(StockMovement.direction == "consume", StockMovement.period.isnot(None))
+        .group_by(StockMovement.period, StockDepot.cost_group).all()
+    ):
+        g = group or "overhead"
+        cons.setdefault(period, {})[g] = float(t or 0)
+        group_totals[g] = round(group_totals.get(g, 0.0) + float(t or 0), 2)
+    total_consumption = round(sum(group_totals.values()), 2)
+    periods = sorted(cons.keys())
+    if not periods:
+        return {"kpi": {}, "monthly": [], "by_group": [], "occupancy": {}, "consumption": {}}
+
+    # Stok dönem aralığı → doluluk
+    y0, m0 = map(int, periods[0].split("-"))
+    y1, m1 = map(int, periods[-1].split("-"))
+    start = date(y0, m0, 1)
+    end = date(y1, m1, calendar.monthrange(y1, m1)[1])
+    occ_by = guest_nights_by_period(db, start, end)
+    occ_total = occupancy_metrics(db, start, end)
+    capacity = occ_total["capacity"] or 0
+
+    stock_value = float(db.query(func.coalesce(func.sum(StockProduct.current_value), 0)).scalar() or 0)
+    rate_row = (db.query(ExchangeRate.forex_selling).filter(ExchangeRate.currency_code == "EUR")
+                .order_by(ExchangeRate.date.desc()).first())
+    eur_rate = float(rate_row[0]) if rate_row and rate_row[0] else None
+
+    # Aylık + eşleşen aylar
+    monthly = []
+    m_fb = m_gn = m_rooms = m_rn = 0.0
+    for p in periods:
+        fb = cons.get(p, {}).get("fb", 0.0)
+        rooms = cons.get(p, {}).get("rooms", 0.0)
+        gn = occ_by.get(p, {}).get("guest_nights", 0)
+        rn = occ_by.get(p, {}).get("room_nights", 0)
+        yy, mm = map(int, p.split("-"))
+        cap_nights = capacity * calendar.monthrange(yy, mm)[1]
+        occ_pct = round(rn / cap_nights * 100, 1) if cap_nights else 0.0
+        matched = fb > 0 and gn > 0
+        if matched:
+            m_fb += fb; m_gn += gn; m_rooms += rooms; m_rn += rn
+        monthly.append({
+            "period": p, "fb_consumption": round(fb, 2), "guest_nights": gn, "room_nights": rn,
+            "occupancy_pct": occ_pct,
+            "cost_per_guest_night": round(fb / gn, 1) if gn else 0.0, "matched": matched,
+        })
+
+    cpgn_try = round(m_fb / m_gn, 2) if m_gn else 0.0
+    cpor_try = round(m_rooms / m_rn, 2) if m_rn else 0.0
+    waste = group_totals.get("waste", 0.0)
+
+    return {
+        "range": {"start": occ_total["start"], "end": occ_total["end"]},
+        "occupancy": {
+            "occupancy_pct": occ_total["occupancy_pct"], "room_nights": occ_total["room_nights"],
+            "guest_nights": occ_total["guest_nights"], "capacity": capacity,
+            "adr_eur": occ_total["adr_eur"], "revpar_eur": occ_total["revpar_eur"],
+        },
+        "consumption": {"total": total_consumption, "fb": group_totals.get("fb", 0.0),
+                        "rooms": group_totals.get("rooms", 0.0), "staff": group_totals.get("staff", 0.0),
+                        "technical": group_totals.get("technical", 0.0), "waste": waste},
+        "kpi": {
+            "cost_per_guest_night_try": cpgn_try,
+            "cost_per_guest_night_eur": round(cpgn_try / eur_rate, 2) if eur_rate else None,
+            "cpor_try": cpor_try,
+            "staff_meal_total": group_totals.get("staff", 0.0),
+            "waste_pct": round(waste / total_consumption * 100, 2) if total_consumption else 0.0,
+            "inventory_turnover": round(total_consumption / stock_value, 2) if stock_value else 0.0,
+            "matched_periods": [m["period"] for m in monthly if m["matched"]],
+            "eur_rate": eur_rate,
+        },
+        "by_group": [{"group": g, "label": COST_GROUP_LABELS.get(g, g), "total": v}
+                     for g, v in sorted(group_totals.items(), key=lambda x: -x[1])],
+        "monthly": monthly,
+    }
+
+
+@router.get("/operational-kpi")
+def operational_kpi(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("stok.maliyet", "view")),
+):
+    """Operasyonel maliyet KPI'ları (doluluk füzyonu) — bk. compute_operational_kpi."""
+    return compute_operational_kpi(db)
+
+
+def compute_price_variance(db: Session, limit: int = 20) -> list:
+    """Satın alma fiyat sapması: ürünün son alış birim maliyeti vs ortalama (≥2 alış)."""
+    avg_rows = (
+        db.query(StockMovement.product_sedna_id, func.max(StockMovement.product_name).label("name"),
+                 func.avg(StockMovement.unit_cost).label("avg"), func.count().label("n"))
+        .filter(StockMovement.direction == "in", StockMovement.unit_cost > 0,
+                StockMovement.product_sedna_id.isnot(None))
+        .group_by(StockMovement.product_sedna_id).having(func.count() >= 2).all()
+    )
+    last_map = {
+        r[0]: float(r[1] or 0)
+        for r in db.execute(text(
+            "SELECT DISTINCT ON (product_sedna_id) product_sedna_id, unit_cost "
+            "FROM stock_movements WHERE direction='in' AND unit_cost>0 AND product_sedna_id IS NOT NULL "
+            "ORDER BY product_sedna_id, date DESC NULLS LAST"
+        )).fetchall()
+    }
+    items = []
+    for pid, name, avg, n in avg_rows:
+        a = float(avg or 0)
+        last = last_map.get(pid, a)
+        if a <= 0:
+            continue
+        items.append({
+            "product_id": pid, "name": name, "avg_cost": round(a, 2), "last_cost": round(last, 2),
+            "variance_pct": round((last - a) / a * 100, 1), "purchase_count": n,
+        })
+    items.sort(key=lambda x: -abs(x["variance_pct"]))
+    return items[:limit]
+
+
+@router.get("/price-variance")
+def price_variance(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("stok.maliyet", "view")),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Satın alma fiyat sapması listesi — bk. compute_price_variance."""
+    return {"items": compute_price_variance(db, limit)}
 
 
 # ─── Ürünler + Hareketler + Depolar (liste) ─────────────────────────────────

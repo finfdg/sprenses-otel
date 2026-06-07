@@ -35,6 +35,35 @@ def type_direction(code: Optional[int]) -> str:
     return TYPE_MAP.get(code or 0, ("Diğer", "other"))[1]
 
 
+# Depo (Store) kodu → maliyet grubu. Kişi başı F&B maliyeti, CPOR, zayiat % hesabı için.
+# fb=misafir F&B · staff=personel · rooms=oda bölümü · technical · waste · capex · main · overhead
+_DEPOT_GROUP = {
+    "002": "fb", "003": "fb", "006": "fb", "010": "fb",
+    "004": "staff", "020": "staff",
+    "005": "rooms", "007": "rooms", "117": "rooms",
+    "008": "technical", "009": "technical", "021": "technical", "023": "technical", "033": "technical",
+    "030": "waste",
+    "001": "main",
+}
+COST_GROUP_LABELS = {
+    "fb": "Misafir F&B", "staff": "Personel", "rooms": "Oda Bölümü",
+    "technical": "Teknik / Operasyon", "waste": "Zayiat", "capex": "Demirbaş",
+    "main": "Ana Depo", "overhead": "Genel Gider",
+}
+
+
+def depot_cost_group(code: Optional[str]) -> str:
+    """Depo kodundan maliyet grubunu türet (117=rooms önce; 100-116=capex; gerisi overhead)."""
+    if not code:
+        return "overhead"
+    code = code.strip()
+    if code in _DEPOT_GROUP:
+        return _DEPOT_GROUP[code]
+    if len(code) == 3 and code.startswith("1"):  # 100-116 demirbaş (117 yukarıda rooms)
+        return "capex"
+    return "overhead"
+
+
 class StockDepot(Base):
     """Depo / departman tanımı (Sedna Store) — maliyet merkezi."""
     __tablename__ = "stock_depots"
@@ -42,6 +71,7 @@ class StockDepot(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20), unique=True, index=True)  # '001', '002'...
     name: Mapped[str] = mapped_column(String(200))                          # 'ANA MUTFAK'
+    cost_group: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # fb/staff/rooms/...
     no_consumption: Mapped[bool] = mapped_column(Boolean, default=False)
     is_expense: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_at: Mapped[datetime] = mapped_column(

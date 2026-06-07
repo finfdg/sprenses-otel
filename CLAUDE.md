@@ -695,7 +695,8 @@ TEMPLATE:
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
 - Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Oda Tipleri (sales.room_types)
-- Stok (stok) → Maliyet Analizi (stok.maliyet), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
+- Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
+- Yönetim Paneli (yonetim) → Panel (yonetim.panel — GM/Finans 10 KPI + uyarılar)
 
 ## Giriş Bilgileri
 
@@ -846,6 +847,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Vardiyalar (Shift) | `docs/modules/vardiyalar.md` |
 | Satış Faturaları | `docs/modules/satis-faturalari.md` |
 | Stok / Depo Maliyet | `docs/modules/stok.md` |
+| Yönetim Paneli + Maliyet Kontrol | `docs/modules/yonetim-paneli.md` |
 | SSH Tünel Güvenliği | `docs/modules/ssh-tunel-guvenligi.md` |
 
 ## UI Tasarım Kuralları

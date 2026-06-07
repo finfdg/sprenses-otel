@@ -27,6 +27,7 @@ from app.routers import (
     shift_schedule,
     shifts,
     stock,
+    yonetim,
     system_backup,
     system_modules,
     system_roles,
@@ -194,6 +195,7 @@ app.include_router(shift_schedule.router, prefix="/api/hr", tags=["hr-shift-sche
 app.include_router(attendance.router, prefix="/api", tags=["attendance"])
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
 app.include_router(stock.router, prefix="/api/stok", tags=["stock"])
+app.include_router(yonetim.router, prefix="/api/yonetim", tags=["yonetim"])
 app.include_router(files.router, tags=["files"])
 app.include_router(internal.router, tags=["internal"])
 

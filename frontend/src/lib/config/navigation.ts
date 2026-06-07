@@ -165,6 +165,7 @@ export const NAV_GROUPS: NavGroup[] = [
 export function requiredModuleForPath(pathname: string): string | null {
 	const routes: Array<{ href: string; code: string }> = [
 		{ href: '/dashboard/mesajlasma', code: 'messaging' },
+		{ href: '/dashboard/yonetim', code: 'yonetim.panel' },
 	];
 	for (const g of NAV_GROUPS) {
 		for (const it of g.items) routes.push({ href: it.href, code: it.code });
