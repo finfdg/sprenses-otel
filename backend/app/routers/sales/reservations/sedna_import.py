@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import get_current_user, require_permission
 from app.middleware.rate_limit import get_client_ip
+from app.models.exchange_rate import ExchangeRate
 from app.models.reservation import Reservation
 from app.models.user import User
 from app.utils.audit import log_action
@@ -33,6 +34,34 @@ logger = logging.getLogger(__name__)
 _STATUS_LABELS = {1: "Reservation", 2: "InHouse", 3: "CheckOut"}
 
 router = APIRouter()
+
+
+def _currency_to_eur_factors(db: Session) -> Optional[dict]:
+    """Para birimi → 1 birimi kaç EUR (son TCMB forex_selling). {'EUR':1.0,'TL':1/eur_try,...}.
+
+    RoomPrice sözleşme para biriminde (`Contrack.Currency`: EUR/TL/USD). NET CİRO'yu EUR'da
+    tutmak için TL/USD tutarları çevrilir — aksi halde TL sözleşmeler (yerli/WEBRES) ciroyu ~50×
+    şişirir. EUR kuru yoksa None döner (çağıran yalnız EUR'yu olduğu gibi alır, gerisini 0'lar).
+    """
+    rows = (
+        db.query(ExchangeRate.currency_code, ExchangeRate.forex_selling, ExchangeRate.unit)
+        .filter(ExchangeRate.currency_code.in_(["EUR", "USD", "GBP"]),
+                ExchangeRate.forex_selling.isnot(None))
+        .order_by(ExchangeRate.currency_code, ExchangeRate.date.desc())
+        .all()
+    )
+    try_per = {}  # para birimi → TRY (1 birim için)
+    for code, fs, unit in rows:
+        if code not in try_per and fs:  # ilk = en güncel (date desc)
+            try_per[code] = float(fs) / (unit or 1)
+    eur_try = try_per.get("EUR")
+    if not eur_try:
+        return None
+    factors = {"EUR": 1.0, "TL": 1.0 / eur_try, "TRY": 1.0 / eur_try}
+    for c in ("USD", "GBP"):
+        if try_per.get(c):
+            factors[c] = try_per[c] / eur_try
+    return factors
 
 
 def _window_start() -> date:
@@ -62,6 +91,8 @@ def run_reservation_import(db: Session, current_user: User, ip: Optional[str] = 
         for r in db.query(Reservation).filter(Reservation.checkin_date >= start).all()
     }
 
+    factors = _currency_to_eur_factors(db)  # para birimi → EUR çevrim katsayıları
+
     new_count = 0
     updated = 0
     for r in active:
@@ -71,7 +102,12 @@ def run_reservation_import(db: Session, current_user: User, ip: Optional[str] = 
             continue  # check-in/out olmadan doluluk hesaplanamaz — atla
         nights = (co - ci).days
         adult = int(r["adult"] or 0)
-        eur_total = float(r["room_price"] or 0)
+        cur_code = ((r.get("currency") or "EUR").strip().upper()) or "EUR"
+        amount = float(r["room_price"] or 0)  # sözleşme para biriminde
+        if factors:
+            eur_total = round(amount * factors.get(cur_code, 1.0), 2)  # bilinmeyen → EUR varsay
+        else:
+            eur_total = round(amount, 2) if cur_code == "EUR" else 0.0  # kur yoksa yalnız EUR
         per_adult = round(eur_total / adult, 2) if adult else None
         fields = {
             "agency": ((r["agency"] or "").strip()[:50] or None),
@@ -90,10 +126,10 @@ def run_reservation_import(db: Session, current_user: User, ip: Optional[str] = 
             "child_free": int(r["child_free"] or 0),
             "baby": int(r["baby"] or 0),
             "nation": ((r["nation"] or "").strip()[:10] or None),
-            "net_amount": (eur_total or None),
-            "currency": "EUR",
-            "eur_total": eur_total,
-            "per_room": (round(eur_total, 2) if eur_total else None),
+            "net_amount": (round(amount, 2) or None),  # sözleşme para birimindeki ham tutar
+            "currency": cur_code[:5],
+            "eur_total": eur_total,                     # EUR'ya normalize (TL/USD çevrildi)
+            "per_room": (eur_total or None),
             "per_adult": per_adult,
             "rez_status": "Definite",
             "status": _STATUS_LABELS.get(r["status_code"]),

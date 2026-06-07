@@ -43,8 +43,16 @@ dosya yüklemeden** hep güncel kalır.
   | `adult` / `child_paid` / `child_free` / `baby` | `Pax` / `PaidChild` / `FreeChild` / `Baby` |
   | `rooms` | sabit **1** (Sedna'da her Reservation satırı = 1 oda) |
   | `nights` | `CheckOutDate − CheckinDate` (checkout exclusive) |
-  | `eur_total` / `net_amount` | `RoomPrice`; `currency` = **EUR** (RoomCon boş; baskın pazar) |
+  | `net_amount` / `currency` | `RoomPrice` (sözleşme para biriminde) / **`Contrack.Currency`** (EUR/TL/USD) |
+  | `eur_total` | `RoomPrice` → **EUR'ya çevrilir** (TL/USD son TCMB `forex_selling` ile) |
   | `status` | `Status` 1→Reservation, 2→InHouse, 3→CheckOut |
+
+- **Para birimi (kritik — ciro hatası düzeltmesi, 7 Haz 2026):** `RoomPrice` sözleşmenin para
+  biriminde tutulur ve bu **milliyet değil `Contrack.Currency`** ile belirlenir (yerli/WEBRES
+  rezervasyonları **TL** sözleşmeli; `RoomCon` ve `DailyRoomLocalPrice` güvenilmez — boş/0). İlk
+  sürüm hepsini EUR sayıyordu → 331 TL sözleşme (₺5,9M) ciroyu **~2× şişiriyordu** (€11,4M görünüyordu,
+  gerçek ~€5,6M). Düzeltme: `Contrack` join + `_currency_to_eur_factors()` ile TL/USD → EUR (TCMB
+  `forex_selling`, `unit` dikkate alınır). EUR kuru yoksa yalnız EUR sözleşmeler sayılır (şişme yok).
 
 - **Pencere:** `checkin_date >= cari yıl 1 Ocak` (geçmiş yıllar XLS'ten dokunulmadan kalır;
   cari yıl + ileri rezervasyonlar senkronlanır).
@@ -55,7 +63,8 @@ dosya yüklemeden** hep güncel kalır.
   `removal_candidates` akışı yedek olarak korunur.
 - **Test:** `tests/test_reservation_sedna.py` (8 test — upsert + iptal silme + süpürme + pencere +
   uçtan uca occupancy_metrics gecelemesi). Orchestrator: `tests/test_sedna_sync.py`.
-- **Canlı (7 Haz 2026, 2026+):** 5.788 aktif rezervasyon · 48.651 oda-gece · 105.210 geceleme · €11,4M.
+- **Canlı (7 Haz 2026, 2026+):** 5.788 aktif rezervasyon · 48.651 oda-gece · 105.210 geceleme ·
+  net ciro **€5,6M** (EUR 5.456 rez €5,5M + TL 331 rez ₺5,9M→€111K + USD 2) · ADR €116.
 
 ## İptal Tespiti — Kapsam Dışı Orphan Temizliği (26 Mayıs 2026)
 

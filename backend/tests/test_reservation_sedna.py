@@ -7,6 +7,7 @@ veri `occupancy_metrics`'i besler (kişi başı maliyet KPI'sının paydası).
 from datetime import date, timedelta
 from unittest.mock import patch
 
+from app.models.exchange_rate import ExchangeRate
 from app.models.reservation import Reservation
 from app.models.room_type import RoomType
 from app.routers.sales.reservations.sedna_import import _window_start
@@ -21,7 +22,7 @@ CO = date(WS.year, 3, 4)            # 2 gece (checkout exclusive)
 
 
 def _row(rec_id, ci=CI, co=CO, agency="ALLTOURS D", nation="DEU", adult=2, child_paid=0,
-         child_free=0, baby=0, room_price=300, status_code=1, cancel_date=None,
+         child_free=0, baby=0, room_price=300, currency="EUR", status_code=1, cancel_date=None,
          room_type="STD DNZ", voucher="V1", guests="Mr X,Mrs Y", board="AI", vip_type="Normal"):
     """Sedna `fetch_reservations` satırını taklit eder (sorgu kolon anahtarlarıyla)."""
     return {
@@ -29,7 +30,7 @@ def _row(rec_id, ci=CI, co=CO, agency="ALLTOURS D", nation="DEU", adult=2, child
         "guests": guests, "checkin_date": ci, "checkout_date": co, "record_date": ci,
         "board": board, "vip_type": vip_type, "adult": adult, "child_paid": child_paid,
         "child_free": child_free, "baby": baby, "nation": nation, "room_price": room_price,
-        "status_code": status_code, "cancel_date": cancel_date,
+        "currency": currency, "status_code": status_code, "cancel_date": cancel_date,
     }
 
 
@@ -95,6 +96,25 @@ def test_out_of_window_preserved(client, auth_headers, db):
     db.flush()
     _import(client, auth_headers, [_row(900001)])
     assert db.query(Reservation).filter_by(rec_id=900099).first() is not None
+
+
+def test_currency_conversion_tl_to_eur(client, auth_headers, db):
+    """TL sözleşmeli rezervasyon EUR'ya çevrilir (ciro şişmesin); EUR olduğu gibi kalır.
+
+    Regresyon: önceki sürüm RoomPrice'ı hep EUR sayıyordu → TL sözleşmeler (yerli/WEBRES)
+    2026 cirosunu ~2× şişiriyordu (₺5,9M = €5,9M gibi).
+    """
+    db.add(ExchangeRate(date=date(WS.year, 1, 2), currency_code="EUR", forex_selling=50.0, unit=1))
+    db.flush()
+    _import(client, auth_headers, [
+        _row(900010, currency="EUR", room_price=300),     # EUR → 300 €
+        _row(900011, currency="TL", room_price=15000),    # TL 15.000 ÷ 50 = 300 €
+    ])
+    eur = db.query(Reservation).filter_by(rec_id=900010).first()
+    tl = db.query(Reservation).filter_by(rec_id=900011).first()
+    assert float(eur.eur_total) == 300.0 and eur.currency == "EUR"
+    assert float(tl.eur_total) == 300.0 and tl.currency == "TL"   # çevrildi (15000≠300)
+    assert float(tl.net_amount) == 15000.0                        # ham TL tutarı korunur
 
 
 def test_synced_data_feeds_occupancy(client, auth_headers, db):

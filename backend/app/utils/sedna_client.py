@@ -474,10 +474,11 @@ def _pms_connect(timeout: int = 120):
         )
 
 
-# Rezervasyon (doluluk) — Reservation + Agency (acente adı). pax = Pax(yetişkin) +
-# PaidChild + FreeChild + Baby. nation = NationalityMarketCode (DEU/RUS/GBR — 3 harf,
-# Excel ile aynı). Para birimi sözleşmede yok (RoomCon boş) → EUR varsayılır (baskın pazar):
-# RoomPrice = konaklamanın toplam EUR tutarı. Status -1 = iptal (içe aktarmada silinir).
+# Rezervasyon (doluluk) — Reservation + Agency (acente adı) + Contrack (para birimi). pax =
+# Pax(yetişkin) + PaidChild + FreeChild + Baby. nation = NationalityMarketCode (DEU/RUS/GBR —
+# 3 harf, Excel ile aynı). **Para birimi `Contrack.Currency`** (EUR/TL/USD) — RoomCon boş, milliyet
+# değil sözleşme belirler (yerli/WEBRES = TL). RoomPrice o para biriminde; içe aktarmada EUR'ya
+# çevrilir. Status -1 = iptal (içe aktarmada silinir).
 # {start} güvenli (ISO tarih, yalnız rakam/tire) → gömülü; execute() PARAMETRESİZ (pymssql %-tuzağı).
 _RESERVATION_QUERY = """
 SELECT
@@ -497,10 +498,12 @@ SELECT
     r.Baby                         AS baby,
     r.NationalityMarketCode        AS nation,
     r.RoomPrice                    AS room_price,
+    c.Currency                     AS currency,
     r.Status                       AS status_code,
     CONVERT(date, r.CancelDate)    AS cancel_date
 FROM Reservation r
 LEFT JOIN Agency a ON a.RecId = r.AgencyId
+LEFT JOIN Contrack c ON c.RecId = r.ContrackId
 WHERE r.CheckinDate >= '{start}'
 ORDER BY r.CheckinDate, r.RecId
 """
