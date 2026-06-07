@@ -40,15 +40,6 @@
 	};
 	const PRODUCT_TYPES = Object.keys(TYPE_LABELS);
 
-	const SEGMENT_COLORS = [
-		'#0ea5e9', '#14b8a6', '#a855f7', '#f59e0b', '#ef4444',
-		'#10b981', '#ec4899', '#6366f1', '#84cc16', '#f43f5e',
-		'#06b6d4', '#eab308', '#8b5cf6', '#f97316', '#22c55e',
-	];
-	function segmentColor(i: number): string {
-		return SEGMENT_COLORS[i % SEGMENT_COLORS.length];
-	}
-
 	let canUse = $derived(hasPermission('finance.krediler', 'use'));
 
 	// State
@@ -189,7 +180,13 @@
 				const totalEur = enriched.reduce((s, it) => s + (it._eur || 0), 0);
 				return {
 					bank,
-					items: enriched.sort((a, b) => (b._eur || 0) - (a._eur || 0)),
+					// Vadesi yaklaşan en üstte (end_date artan); vadesizler (kredi kartı/rotatif) en sonda, tutara göre
+					items: enriched.sort((a, b) => {
+						const ae = a.end_date || '9999-12-31';
+						const be = b.end_date || '9999-12-31';
+						if (ae !== be) return ae < be ? -1 : 1;
+						return (b._eur || 0) - (a._eur || 0);
+					}),
 					totalEur,
 					hasMissingRate: enriched.some(it => it._eur == null),
 				};
@@ -198,25 +195,31 @@
 			.sort((a, b) => b.totalEur - a.totalEur);
 	});
 
-	function computeSegments(items: any[], totalEur: number) {
-		const r = 45;
-		const circ = 2 * Math.PI * r;
-		let cursor = 0;
-		return items.map((p, i) => {
-			const eur = p._eur || 0;
-			const pct = totalEur > 0 ? eur / totalEur : 0;
-			const len = pct * circ;
-			const seg = {
-				product: p,
-				len,
-				circ,
-				offset: cursor,
-				color: segmentColor(i),
-				pct,
-			};
-			cursor += len;
-			return seg;
-		});
+	// Vade yakınlığına göre çizgi stili (vadeye yaklaştıkça daha kalın + kontrast)
+	const TIER_FILL: Record<string, string> = {
+		ok: 'bg-teal-400 h-[3px]',
+		soon: 'bg-amber-400 h-[5px]',
+		urgent: 'bg-orange-500 h-[7px]',
+		overdue: 'bg-red-600 h-[8px]',
+	};
+	const TIER_DOT: Record<string, string> = {
+		ok: 'bg-teal-500', soon: 'bg-amber-500', urgent: 'bg-orange-600', overdue: 'bg-red-700',
+	};
+	const TIER_TEXT: Record<string, string> = {
+		ok: 'text-teal-600', soon: 'text-amber-600', urgent: 'text-orange-600', overdue: 'text-red-700',
+	};
+
+	/** Kredinin açılış→vade zaman çizgisi: ilerleme oranı (bugüne kadar) + vadeye kalan gün + aciliyet kademesi. */
+	function creditTimeline(p: any) {
+		if (!p.end_date) return { hasVade: false, progress: 0, daysToDue: 0, tier: 'ok' };
+		const end = new Date(p.end_date + 'T00:00:00');
+		const today = new Date(); today.setHours(0, 0, 0, 0);
+		const start = p.start_date ? new Date(p.start_date + 'T00:00:00') : new Date(end.getTime() - 365 * 864e5);
+		const total = Math.max(end.getTime() - start.getTime(), 1);
+		const progress = Math.min(Math.max((today.getTime() - start.getTime()) / total, 0), 1);
+		const daysToDue = Math.round((end.getTime() - today.getTime()) / 864e5);
+		const tier = daysToDue <= 0 ? 'overdue' : daysToDue <= 30 ? 'urgent' : daysToDue <= 90 ? 'soon' : 'ok';
+		return { hasVade: true, progress, daysToDue, tier };
 	}
 
 	async function scrollToCredit(id: number, type: string) {
@@ -774,9 +777,8 @@
 			</div>
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
 				{#each bankGroups as group (group.bank)}
-					{@const segments = computeSegments(group.items, group.totalEur)}
 					<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-						<div class="flex items-center justify-between mb-3 gap-2">
+						<div class="flex items-start justify-between mb-3 gap-2">
 							<div class="min-w-0 flex-1">
 								<h4 class="text-sm font-semibold text-gray-800 truncate" title={group.bank}>{group.bank}</h4>
 								<span class="text-[10px] text-gray-500">
@@ -784,51 +786,42 @@
 									{#if group.hasMissingRate}· <span class="text-amber-500">bazı kurlar eksik</span>{/if}
 								</span>
 							</div>
+							<div class="text-right shrink-0">
+								<div class="text-[10px] text-gray-400 leading-none">Toplam</div>
+								<div class="text-sm font-bold text-gray-800 mt-0.5 whitespace-nowrap">{fmtCompact(group.totalEur, 'EUR')}</div>
+							</div>
 						</div>
-						<div class="flex items-center gap-3">
-							<!-- Simit (Donut) SVG -->
-							<div class="relative shrink-0">
-								<svg viewBox="0 0 120 120" class="w-24 h-24 sm:w-28 sm:h-28 -rotate-90">
-									{#each segments as seg (seg.product.id)}
-										<!-- svelte-ignore a11y_click_events_have_key_events -->
-										<!-- svelte-ignore a11y_no_static_element_interactions -->
-										<circle
-											cx="60"
-											cy="60"
-											r="45"
-											fill="transparent"
-											stroke={seg.color}
-											stroke-width="18"
-											stroke-dasharray={`${seg.len} ${seg.circ}`}
-											stroke-dashoffset={-seg.offset}
-											class="cursor-pointer hover:opacity-80 transition-opacity"
-											onclick={() => scrollToCredit(seg.product.id, seg.product.type)}
-										>
-											<title>{seg.product.name} — {fmt(seg.product.remaining_amount, seg.product.currency)}{seg.product._eur != null && seg.product.currency !== 'EUR' ? ` (≈ ${fmt(seg.product._eur, 'EUR')})` : ''}</title>
-										</circle>
-									{/each}
-								</svg>
-								<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-									<div class="text-center">
-										<div class="text-[10px] text-gray-500 leading-tight">Toplam</div>
-										<div class="text-[11px] sm:text-xs font-bold text-gray-800 leading-tight mt-0.5">{fmtCompact(group.totalEur, 'EUR')}</div>
+						<!-- Kredi zaman çizgileri: sol açılış · sağ vade · vadeye yaklaştıkça kalın/kontrast dolgu · vadesi yaklaşan üstte · tıkla → ödeme planı -->
+						<div class="space-y-2">
+							{#each group.items as p (p.id)}
+								{@const tl = creditTimeline(p)}
+								<button
+									onclick={() => scrollToCredit(p.id, p.type)}
+									class="w-full text-left rounded-lg px-2 py-1.5 transition-colors cursor-pointer {expandedId === p.id ? 'bg-teal-50 ring-1 ring-teal-200' : 'hover:bg-gray-50'}"
+									title="{p.name} — {fmt(p.remaining_amount, p.currency)}{p._eur != null && p.currency !== 'EUR' ? ` (≈ ${fmt(p._eur, 'EUR')})` : ''}"
+								>
+									<div class="flex items-center justify-between gap-2">
+										<span class="text-xs font-medium text-gray-700 truncate">{p.name}</span>
+										<span class="text-xs font-semibold text-gray-800 whitespace-nowrap">{fmtCompact(p.remaining_amount, p.currency)}</span>
 									</div>
-								</div>
-							</div>
-							<!-- Legend (tıklanabilir liste) -->
-							<div class="flex-1 min-w-0 space-y-1">
-								{#each group.items as p, i (p.id)}
-									<button
-										onclick={() => scrollToCredit(p.id, p.type)}
-										class="w-full flex items-center gap-1.5 text-left hover:bg-gray-50 rounded px-1 py-0.5 cursor-pointer {expandedId === p.id ? 'bg-gray-100' : ''}"
-										title="{p.name} — {fmt(p.remaining_amount, p.currency)}{p._eur != null && p.currency !== 'EUR' ? ` (≈ ${fmt(p._eur, 'EUR')})` : ''}"
-									>
-										<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {segmentColor(i)}"></span>
-										<span class="text-[10px] text-gray-600 truncate flex-1">{p.name}</span>
-										<span class="text-[10px] font-semibold text-gray-700 whitespace-nowrap">{fmtCompact(p.remaining_amount, p.currency)}</span>
-									</button>
-								{/each}
-							</div>
+									{#if tl.hasVade}
+										<div class="flex items-center gap-1.5 mt-1.5">
+											<span class="text-[9px] text-gray-400 tabular-nums w-[54px] shrink-0">{fmtDate(p.start_date)}</span>
+											<div class="relative flex-1 h-2 flex items-center">
+												<div class="absolute inset-x-0 h-px bg-gray-200 rounded-full"></div>
+												<div class="absolute left-0 rounded-full transition-all {TIER_FILL[tl.tier]}" style="width: {tl.progress * 100}%"></div>
+												<div class="absolute w-2 h-2 rounded-full border border-white shadow-sm {TIER_DOT[tl.tier]} -translate-x-1/2" style="left: {tl.progress * 100}%"></div>
+											</div>
+											<span class="text-[9px] text-gray-400 tabular-nums w-[54px] shrink-0 text-right">{fmtDate(p.end_date)}</span>
+										</div>
+										<div class="text-right mt-0.5">
+											<span class="text-[9px] font-semibold {TIER_TEXT[tl.tier]}">{tl.tier === 'overdue' ? 'Vadesi geçti' : `${tl.daysToDue} gün kaldı`}</span>
+										</div>
+									{:else}
+										<div class="mt-1 text-[9px] text-gray-400">Vadesiz · rotatif</div>
+									{/if}
+								</button>
+							{/each}
 						</div>
 					</div>
 				{/each}

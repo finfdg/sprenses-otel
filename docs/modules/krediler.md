@@ -194,6 +194,19 @@ finance_event_svc.upsert_cc_statement(db, statement, product)
 
 ---
 
+## Banka Bazlı Görünüm — Kredi Zaman Çizgileri (2026-06-07)
+
+Sayfa üstündeki "Banka Bazlı Kredi Dağılımı" artık **donut grafik değil**, her bankanın kartında
+kredileri **zaman çizgisi** olarak gösterir (`creditTimeline()` + `TIER_*` map'leri, +page.svelte):
+- **Sol = açılış (`start_date`), sağ = vade (`end_date`)**; arada ilerleme çubuğu.
+- **İlerleme** = `(bugün − açılış) / (vade − açılış)` → çubuk **vadeye yaklaştıkça uzar**.
+- **Aciliyet kademesi** (`daysToDue`): >90g teal ince (`h-3px`) · ≤90g amber · ≤30g turuncu · vadesi
+  geçti kırmızı kalın (`h-8px`) → **yaklaştıkça daha kalın + kontrast**. "Bugün" işareti = noktacık.
+- **Sıralama:** vadesi yaklaşan kredi **en üstte** (`end_date` artan; vadesizler/KMH-kredi kartı en sonda).
+- **Tıklama** → `scrollToCredit()` ile kredinin **ödeme planı** alttaki detayda açılır + oraya kaydırılır.
+- Kart başlığında banka adı + kredi sayısı + **toplam (EUR)**; vadesiz (rotatif) krediler "Vadesiz · rotatif".
+- Eski donut/`segmentColor`/`computeSegments` kaldırıldı. Salt-frontend değişiklik (backend/test etkilenmez).
+
 ## Banka Eşleştirme (Krediler)
 
 `_match_credits_to_bank(db)` (krediler.py):
