@@ -74,6 +74,7 @@ def _defn_response(d: ScheduledDefinition, include_entries: bool = False) -> dic
         is_active=d.is_active,
         vendor_id=d.vendor_id,
         vendor_name=d.vendor.hesap_adi if d.vendor_id and d.vendor else None,
+        billing_offset_months=d.billing_offset_months,
         created_by=d.created_by,
         created_at=d.created_at,
     ).model_dump()
@@ -179,6 +180,7 @@ def create_scheduled_router(
                 year=current_year,
                 notes=data.notes,
                 vendor_id=data.vendor_id,
+                billing_offset_months=data.billing_offset_months,
                 is_active=False,
                 created_by=current_user.id,
             )
@@ -209,6 +211,7 @@ def create_scheduled_router(
             year=current_year,
             notes=data.notes,
             vendor_id=data.vendor_id,
+            billing_offset_months=data.billing_offset_months,
             is_active=True,
             created_by=current_user.id,
         )
@@ -217,6 +220,9 @@ def create_scheduled_router(
 
         # Girişleri oluştur
         entries = generate_entries(db, defn, direction=direction)
+        # Cari-bağlı oluşturulduysa hemen cari gerçek faturayla senkronla
+        if enable_vendor_sync and defn.vendor_id:
+            sync_recurring_from_vendors(db)
 
         log_action(
             db, current_user.id, "create", source_type, defn.id,
@@ -274,10 +280,10 @@ def create_scheduled_router(
 
         if need_regenerate:
             regenerate_entries(db, defn, direction=direction)
-            # Cari-bağlı kalemde girişler yeniden üretildi (tahmini) → cari gerçek faturayla
-            # yeniden senkronla ki ay/tutar değişikliği anında gerçek değerleri yansıtsın.
-            if enable_vendor_sync and defn.vendor_id:
-                sync_recurring_from_vendors(db)
+        # Cari-bağlı recurring → herhangi bir değişiklikten sonra cari gerçek faturayla yeniden
+        # senkronla (regenerate, başlangıç ayı, fatura gecikmesi vb. tutar/dönem eşleşmesini değiştirir).
+        if enable_vendor_sync and defn.vendor_id:
+            sync_recurring_from_vendors(db)
 
         log_action(
             db, current_user.id, "update", source_type, defn.id,

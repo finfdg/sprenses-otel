@@ -44,6 +44,7 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 | notes | TEXT | Notlar |
 | is_active | BOOLEAN | Aktif mi? |
 | vendor_id | FK vendors (SET NULL) | **Cari (satıcı) bağlantısı** — yalnız `recurring` için anlamlı. Bağlıysa girişler cari gerçek faturayla senkronlanır (ör. Elektrik→CK, Su→ASAT) |
+| billing_offset_months | INTEGER (0) | **Fatura gecikmesi (ay)** — fatura tüketim ayından sonra kesiliyorsa kaç ay geri kaydırılır. Su (ASAT) ay başı = önceki ay → **1**; elektrik (CK) ay sonu = aynı ay → **0** |
 | created_by | FK users | Oluşturan |
 | created_at, updated_at | TIMESTAMPTZ | |
 
@@ -102,8 +103,13 @@ ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **
 **Çözüm — cari bağlantısı + tek-yönlü senkron (`utils/recurring_vendor_sync.py`):**
 - `scheduled_definitions.vendor_id` ile bir düzenli ödeme bir cariye bağlanır (yalnız `recurring`;
   `enable_vendor_sync=True` fabrikada). Canlı: "2026 Elektrik"→CK (v707), "2026 Su"→ASAT (v697).
+- **Fatura gecikmesi (`billing_offset_months`) — tüketim ayı ≠ fatura tarihi:** Bazı abonelikler
+  tüketim ayından SONRA faturalanır. **Su (ASAT)** faturası ay başında gelir = **önceki ay** tüketimi
+  (3 Haz faturası = Mayıs su) → offset **1**. **Elektrik (CK)** ay sonunda faturalanır = aynı ay
+  (31 May = Mayıs) → offset **0**. Sync, faturayı `tarih − offset` ay'a (tüketim dönemine) atar
+  (`_shift_period`). Tanım/edit modalinde "Fatura gecikmesi (ay)" alanından ayarlanır.
 - `sync_recurring_from_vendors(db)` her bağlı tanımın aylık girişini cari verisiyle eşler
-  (`(period_year, period_month)` = carinin alacak hareketinin takvim ayı):
+  (tüketim dönemi = carinin alacak hareketinin tarihi − `billing_offset_months`):
   - **Faturası gelen ay** → `entry.amount` = carinin o ay **toplam faturası** (tahminin yerine GERÇEK);
     `is_paid` = cari **net-borç FIFO**'ya (`calculate_fifo_amounts`) göre o ayın faturaları tamamen
     kapandıysa True; `synced_from_cari=True`; **recurring finance_event'i `invalidate` edilir** →
@@ -123,9 +129,11 @@ ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **
   Elektrik **Oca–May gerçek** (Oca 457K + Şub 320K cari FIFO'ya göre **ödendi**; Mar–May açık),
   Haz–Ara tahmini 1,5M. Su **Oca–Haz gerçek** (Oca–Mar ödendi), Tem–Ara tahmini. Senkron ayların
   recurring FE'si silindi (çift sayım giderildi); gelecek ayların tahmini FE'si korundu.
+  Su (offset=1): Oca 222K · Şub 167K · Mar 1,27M · Nis 932K · **May 1,20M** (3 Haz faturası) — kayma
+  düzeltildi (eskiden tarih ayına göre eşlenince 1 ay kayıktı).
 - **start_month düzenlenebilir:** Tanımın başlangıç ayı (`start_month`) PATCH ile değiştirilince
   girişler yeniden üretilir; cari-bağlıysa otomatik yeniden senkronlanır (fabrika + onay executor).
-- Test: `tests/test_recurring_vendor_sync.py` (tutar/ödeme/FE-silme/gelecek-tahmini/revert/endpoint/start_month).
+- Test: `tests/test_recurring_vendor_sync.py` (tutar/ödeme/FE-silme/gelecek-tahmini/revert/endpoint/start_month/**fatura-gecikmesi**).
 
 ## API Endpoint'leri
 

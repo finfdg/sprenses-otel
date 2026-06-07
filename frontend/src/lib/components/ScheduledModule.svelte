@@ -117,6 +117,7 @@
 		start_month: number;
 		year: number;
 		notes: string;
+		billing_offset_months: number;
 	}>({
 		name: '',
 		category: '',
@@ -127,6 +128,7 @@
 		start_month: new Date().getMonth() + 1,
 		year: new Date().getFullYear(),
 		notes: '',
+		billing_offset_months: 0,
 	});
 	let saving = $state(false);
 	let formError = $state('');
@@ -404,6 +406,7 @@
 			name: '', category: '', amount: null, currency: 'TRY',
 			frequency: 'monthly', payment_day: 1,
 			start_month: now.getMonth() + 1, year: selectedYear, notes: '',
+			billing_offset_months: 0,
 		};
 		formError = '';
 		showModal = true;
@@ -416,6 +419,7 @@
 			amount: d.amount, currency: d.currency,
 			frequency: d.frequency, payment_day: d.payment_day,
 			start_month: d.start_month, year: d.year, notes: d.notes || '',
+			billing_offset_months: d.billing_offset_months ?? 0,
 		};
 		formError = '';
 		showModal = true;
@@ -1052,6 +1056,19 @@
 				<input id="payment_day" type="number" min="1" max="28" bind:value={form.payment_day} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
 			</div>
 		</div>
+
+		{#if enableVendorSync}
+			<div>
+				<label for="billing_offset" class="block text-sm font-medium text-gray-700 mb-1">Fatura gecikmesi (ay)</label>
+				<select id="billing_offset" bind:value={form.billing_offset_months} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+					<option value={0}>0 — fatura tüketim ayında kesilir (ör. elektrik, ay sonu)</option>
+					<option value={1}>1 — fatura sonraki ay kesilir (ör. su, ay başı)</option>
+					<option value={2}>2 ay</option>
+					<option value={3}>3 ay</option>
+				</select>
+				<p class="text-[11px] text-gray-500 mt-1">Cari-bağlı kalemlerde, faturanın hangi tüketim ayına ait olduğunu belirler. Su faturası ay başında gelir (önceki ay tüketimi) → 1.</p>
+			</div>
+		{/if}
 
 		<div>
 			<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">Notlar</label>

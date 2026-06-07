@@ -55,6 +55,9 @@ class ScheduledDefinition(Base):
     vendor_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True,
     )
+    # Cari fatura gecikmesi (ay): fatura tüketim ayından sonra kesiliyorsa kaç ay geri kaydırılır.
+    # Su (ASAT) faturası ay başında gelir = önceki ay tüketimi → 1. Elektrik (CK) ay sonu = aynı ay → 0.
+    billing_offset_months: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     created_by: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,

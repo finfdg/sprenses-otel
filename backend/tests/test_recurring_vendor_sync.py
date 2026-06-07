@@ -18,7 +18,7 @@ from app.utils.recurring_vendor_sync import sync_recurring_from_vendors
 PREFIX = "/api/accounting/recurring"
 
 
-def _seed(db, *, invoices, payments=None, amount=1000.0, start_month=1, year=2026, link=True):
+def _seed(db, *, invoices, payments=None, amount=1000.0, start_month=1, year=2026, link=True, offset=0):
     """Cari + (opsiyonel bağlı) recurring tanım yarat. invoices/payments = [(date, tutar)]."""
     upload = VendorUpload(file_name="t.xlsx", file_url="/t")
     db.add(upload)
@@ -36,7 +36,7 @@ def _seed(db, *, invoices, payments=None, amount=1000.0, start_month=1, year=202
         source_type="recurring", name="Test Elektrik", category="Fatura",
         amount=amount, currency="TRY", frequency="monthly", payment_day=10,
         start_month=start_month, year=year, is_active=True,
-        vendor_id=vendor.id if link else None,
+        vendor_id=vendor.id if link else None, billing_offset_months=offset,
     )
     db.add(defn)
     db.flush()
@@ -127,6 +127,29 @@ def test_sync_endpoint_works(client, auth_headers, db):
     body = r.json()
     assert body["entries_synced"] >= 1 and body["definitions"] == 1
     assert body["details"][0]["vendor_name"] == "TEST ELEKTRİK A.Ş."
+
+
+def test_billing_offset_shifts_invoice_to_consumption_month(db):
+    """offset=1 → ay başı faturası önceki ay tüketimine atanır (su: Haz faturası → May entry)."""
+    # Haziran-3 faturası 1200 (su: Mayıs tüketimi), Mayıs-4 faturası 900 (Nisan tüketimi)
+    defn, _ = _seed(db, invoices=[(date(2026, 5, 4), 900), (date(2026, 6, 3), 1200)],
+                    amount=1000, offset=1)
+    sync_recurring_from_vendors(db)
+    e = _entries_by_period(defn)
+    # Haziran faturası → MAYIS entry (offset 1)
+    assert float(e[(2026, 5)].amount) == 1200.0 and e[(2026, 5)].synced_from_cari is True
+    # Mayıs faturası → NİSAN entry
+    assert float(e[(2026, 4)].amount) == 900.0 and e[(2026, 4)].synced_from_cari is True
+    # Haziran entry faturasız (Temmuz faturası gelmedi) → tahmini
+    assert float(e[(2026, 6)].amount) == 1000.0 and e[(2026, 6)].synced_from_cari is False
+
+
+def test_offset_zero_same_month(db):
+    """offset=0 (elektrik) → fatura kendi ayına atanır (kayma yok)."""
+    defn, _ = _seed(db, invoices=[(date(2026, 5, 31), 1500)], amount=1000, offset=0)
+    sync_recurring_from_vendors(db)
+    e = _entries_by_period(defn)
+    assert float(e[(2026, 5)].amount) == 1500.0 and e[(2026, 5)].synced_from_cari is True
 
 
 def test_start_month_change_regenerates_and_resyncs(client, auth_headers, db):

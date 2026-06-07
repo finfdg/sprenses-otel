@@ -31,6 +31,16 @@ logger = logging.getLogger(__name__)
 _EPS = 0.01
 
 
+def _shift_period(d, offset_months: int):
+    """Fatura tarihini `offset_months` ay GERİYE kaydırıp (yıl, ay) döner.
+
+    Tüketim ayı = fatura ayı − gecikme. Su faturası ay başında gelir (önceki ay tüketimi) → offset=1:
+    3 Haz faturası → (2026, 5) Mayıs. Elektrik ay sonu faturalanır → offset=0: aynı ay.
+    """
+    idx = d.year * 12 + (d.month - 1) - (offset_months or 0)
+    return (idx // 12, idx % 12 + 1)
+
+
 def sync_recurring_from_vendors(db: Session, source_type: str = "recurring") -> dict:
     """Cari-bağlı düzenli ödeme girişlerini cari gerçek fatura + ödeme durumuyla senkronla.
 
@@ -64,9 +74,11 @@ def sync_recurring_from_vendors(db: Session, source_type: str = "recurring") -> 
             )
             .all()
         )
-        month_map = {}  # (year, month) → {"total": fatura, "unpaid": ödenmemiş}
+        # Fatura → TÜKETİM ayı (gecikme kadar geri kaydır). Su: ay başı faturası = önceki ay tüketimi.
+        offset = defn.billing_offset_months or 0
+        month_map = {}  # (year, month) tüketim dönemi → {"total": fatura, "unpaid": ödenmemiş}
         for vtx_id, dt, alacak in rows:
-            key = (dt.year, dt.month)
+            key = _shift_period(dt, offset)
             m = month_map.setdefault(key, {"total": 0.0, "unpaid": 0.0})
             m["total"] += float(alacak or 0)
             m["unpaid"] += float(fifo_unpaid.get(vtx_id, 0.0))
