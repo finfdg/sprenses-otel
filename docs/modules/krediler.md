@@ -205,7 +205,10 @@ kredileri **zaman çizgisi** olarak gösterir (`creditTimeline()` + `TIER_*` map
 - **Döviz ayrımı:** **TRY** kredileri teal→amber→turuncu→kırmızı (aciliyet) rampası; **EUR** kredileri
   **mavi** rampa (`TIER_*_EUR`) + mavi tutar + hafif mavi arka plan → döviz kredileri bir bakışta ayrışır.
 - **Sıralama:** vadesi yaklaşan kredi **en üstte** (`end_date` artan; vadesizler/KMH-kredi kartı en sonda).
-- **Tıklama** → `scrollToCredit()` ile kredinin **ödeme planı** alttaki detayda açılır + oraya kaydırılır.
+- **Tıklama** → kredinin **ödeme planı popup (Modal)** olarak açılır (`openPlanModal`): başlık (ad/banka/kalan)
+  + **sade taksit listesi** — her satır yalnız **tarih · tutar · durum** (Ödendi/Gecikmiş/Bekliyor). Yetkili
+  kullanıcı durumu tıklayarak ödendi/ödenmedi yapar (`togglePaymentInModal` → kalan borç tazelenir). Taksit
+  kırılımı (anapara/faiz/vergi) ve ay-akordiyonu yok — yalın gösterim.
 - Kart başlığında banka adı + kredi sayısı + **toplam (EUR)**; vadesiz (rotatif) krediler "Vadesiz · rotatif".
 - Eski donut/`segmentColor`/`computeSegments` kaldırıldı. Salt-frontend değişiklik (backend/test etkilenmez).
 

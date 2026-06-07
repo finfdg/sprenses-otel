@@ -5,6 +5,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import MoneyInput from '$lib/components/MoneyInput.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
@@ -51,6 +52,11 @@
 	let expandedId = $state<number | null>(null);
 	let expandedPayments = $state<any[]>([]);
 	let expandedMonths = $state<Set<string>>(new Set());  // Ödeme planı akordiyonunda açık aylar (YYYY-MM)
+
+	// Ödeme planı popup (banka kartından krediye tıklanınca açılır)
+	let planModal = $state<{ show: boolean; product: any | null; payments: any[]; loading: boolean }>({
+		show: false, product: null, payments: [], loading: false,
+	});
 	let typeFilter = $state('');
 	let statusFilter = $state('active');
 	let pdfLoading = $state(false);
@@ -236,14 +242,30 @@
 		return { hasVade: true, progress, daysToDue, tier };
 	}
 
-	async function scrollToCredit(id: number, type: string) {
-		if (expandedId !== id) {
-			await toggleExpand(id, type);
+	// Banka kartındaki krediye tıklanınca ödeme planını popup olarak aç
+	async function openPlanModal(p: any) {
+		planModal.product = p;
+		planModal.payments = [];
+		planModal.loading = true;
+		planModal.show = true;
+		try {
+			const res = await api.get<{ payments?: any[] }>(`/finance/krediler/${p.id}`);
+			planModal.payments = (res.payments || []).slice()
+				.sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+		} catch (e) {
+			console.error('Ödeme planı yüklenemedi:', e);
+			showToast('Ödeme planı yüklenemedi', 'error');
+		} finally {
+			planModal.loading = false;
 		}
-		setTimeout(() => {
-			const el = document.getElementById(`credit-${id}`);
-			if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-		}, 100);
+	}
+
+	// Popup içinde taksiti ödendi/ödenmedi olarak işaretle (kalan borcu da tazeler)
+	async function togglePaymentInModal(pay: any) {
+		if (!canUse) return;
+		await togglePaid(pay);
+		const fresh = products.find((pr: any) => pr.id === planModal.product?.id);
+		if (fresh) planModal.product = { ...planModal.product, remaining_amount: fresh.remaining_amount };
 	}
 
 	async function loadData() {
@@ -811,9 +833,9 @@
 								{@const tl = creditTimeline(p)}
 								{@const isEur = p.currency === 'EUR'}
 								<button
-									onclick={() => scrollToCredit(p.id, p.type)}
-									class="w-full text-left rounded-lg px-2 py-1.5 transition-colors cursor-pointer {expandedId === p.id ? (isEur ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-teal-50 ring-1 ring-teal-200') : (isEur ? 'bg-blue-50/40 hover:bg-blue-50' : 'hover:bg-gray-50')}"
-									title="{p.name} — {fmt(p.remaining_amount, p.currency)}{p._eur != null && p.currency !== 'EUR' ? ` (≈ ${fmt(p._eur, 'EUR')})` : ''}"
+									onclick={() => openPlanModal(p)}
+									class="w-full text-left rounded-lg px-2 py-1.5 transition-colors cursor-pointer {isEur ? 'bg-blue-50/40 hover:bg-blue-50' : 'hover:bg-gray-50'}"
+									title="{p.name} — ödeme planını aç"
 								>
 									<div class="flex items-center justify-between gap-2">
 										<span class="text-xs font-medium text-gray-700 truncate">{p.name}</span>
@@ -1548,4 +1570,59 @@
 			</button>
 		</div>
 	</div>
+</Modal>
+
+<!-- Ödeme Planı Popup (banka kartından krediye tıklanınca) — sade: tarih · tutar · ödendi/ödenmedi -->
+<Modal bind:show={planModal.show} title="Ödeme Planı" maxWidth="max-w-md">
+	{#if planModal.product}
+		{@const cur = planModal.product.currency}
+		{@const isEurP = cur === 'EUR'}
+		<div class="space-y-3">
+			<div class="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
+				<div class="min-w-0">
+					<h3 class="font-semibold text-gray-800 leading-tight truncate">{planModal.product.name}</h3>
+					<p class="text-xs text-gray-500 mt-0.5">{planModal.product.bank_name || planModal.product.company || ''}</p>
+				</div>
+				<div class="text-right shrink-0">
+					<div class="text-[10px] text-gray-400 uppercase tracking-wide">Kalan</div>
+					<div class="text-sm font-bold {isEurP ? 'text-blue-700' : 'text-gray-800'}">{fmt(planModal.product.remaining_amount, cur)}</div>
+				</div>
+			</div>
+
+			{#if planModal.loading}
+				<div class="py-10 text-center text-gray-400 text-sm">Yükleniyor…</div>
+			{:else if planModal.payments.length === 0}
+				<div class="py-10 text-center text-gray-400 text-sm">Bu kredi için taksit planı bulunmuyor.</div>
+			{:else}
+				{@const todayS = new Date().toISOString().split('T')[0]}
+				{@const paidCount = planModal.payments.filter((p: any) => p.is_paid).length}
+				<div class="flex items-center justify-between text-xs text-gray-500">
+					<span>{planModal.payments.length} taksit</span>
+					<span><span class="text-emerald-600 font-medium">{paidCount} ödendi</span> · {planModal.payments.length - paidCount} kalan</span>
+				</div>
+				<div class="max-h-[55vh] overflow-y-auto divide-y divide-gray-100 border border-gray-100 rounded-lg">
+					{#each planModal.payments as pay (pay.id)}
+						{@const overdue = !pay.is_paid && (pay.due_date || '') < todayS}
+						<div class="flex items-center gap-3 px-3 py-2 {pay.is_paid ? 'bg-gray-50/40' : ''}">
+							<span class="text-sm text-gray-600 tabular-nums w-[88px] shrink-0">{fmtDate(pay.due_date)}</span>
+							<span class="text-sm font-semibold text-gray-800 tabular-nums flex-1 text-right">{fmt(pay.amount, cur)}</span>
+							<div class="shrink-0 w-[84px] flex justify-end">
+								{#if canUse}
+									<button onclick={() => togglePaymentInModal(pay)} class="cursor-pointer" title={pay.is_paid ? 'Ödenmedi olarak işaretle' : 'Ödendi olarak işaretle'}>
+										{#if pay.is_paid}<StatusBadge type="success">Ödendi</StatusBadge>{:else if overdue}<StatusBadge type="error">Gecikmiş</StatusBadge>{:else}<StatusBadge type="warning">Bekliyor</StatusBadge>{/if}
+									</button>
+								{:else if pay.is_paid}
+									<StatusBadge type="success">Ödendi</StatusBadge>
+								{:else if overdue}
+									<StatusBadge type="error">Gecikmiş</StatusBadge>
+								{:else}
+									<StatusBadge type="warning">Bekliyor</StatusBadge>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
 </Modal>
