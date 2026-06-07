@@ -397,7 +397,7 @@ TEMPLATE:
 - `POST /api/finance/sales-invoices/sedna-import` — **Sedna'dan satış faturası + tahsilat içe aktarma** (120 Borç=fatura DocumentType=1, 120 Alacak=tahsilat; FIFO ile fatura bazında ödendi/kısmi/açık). finance.sales_invoices use, audit'li, onaydan muaf. Merkezi Sedna sync'in adımı. Detay: `docs/modules/satis-faturalari.md`
 
 ### Finans — Sedna Senkronizasyonu (Merkezi)
-- `POST /api/finance/sedna/sync-all` — **Tek noktadan tüm Sedna içe aktarmaları** (cari hareketleri + cari IBAN'ları + verilen çekler + **satış faturaları** + **stok/depo** + düzenli ödeme cari senkronu). Topbar'daki tek "Sedna" butonu bunu çağırır. Her adım izin kontrollü (kullanıcının `use` izni olmayan adım "Yetki yok" atlanır), adım-bazlı izole (biri hata verirse diğerleri sürer). Yanıt: `{ok_count, total, steps:[{key,label,ok,skipped,summary}]}`
+- `POST /api/finance/sedna/sync-all` — **Tek noktadan tüm Sedna içe aktarmaları** (cari hareketleri + cari IBAN'ları + verilen çekler + **satış faturaları** + **stok/depo** + **otel rezervasyonları** + düzenli ödeme cari senkronu). Topbar'daki tek "Sedna" butonu bunu çağırır. Her adım izin kontrollü (kullanıcının `use` izni olmayan adım "Yetki yok" atlanır), adım-bazlı izole (biri hata verirse diğerleri sürer). Yanıt: `{ok_count, total, steps:[{key,label,ok,skipped,summary}]}`
 - `GET /api/finance/sedna/status` — Merkezi sync etkin mi + kullanıcının çalıştırabileceği adımlar (buton gösterimi)
 - **Genişletme:** Yeni Sedna içe aktarma = `run_xxx_import(db, user, ip)` servis fonksiyonu yaz + `sedna_sync.py:_STEPS`'e ekle → Topbar butonu otomatik kapsar. **Sayfa-içi ayrı Sedna butonu eklenmez** (eski cariler/çekler kutuları kaldırıldı). Tekil endpoint'ler (`/cariler/sedna-import`, `/cariler/sedna-import-ibans`, `/checks/sedna-import`) orchestrator + hedefli kullanım için korunur.
 
@@ -600,6 +600,8 @@ TEMPLATE:
 - `GET /api/sales/reservations/uploads` — Yükleme geçmişi
 - `DELETE /api/sales/reservations/uploads/{id}` — Yüklemeyi sil (rezervasyon satırları korunur, FK SET NULL)
 - `POST /api/sales/reservations/bulk-delete` — `removal_candidates` listesinden seçilen ID'leri toplu sil (max 5000, audit loglu)
+- `POST /api/sales/reservations/sedna-import` — **SednaPrenses önbüro/PMS DB'sinden canlı rezervasyon senkronu** (XLS'siz doluluk). `Reservation` join `Agency`; `RecId` aynı ID uzayı → mükerrer yapmaz. Pencere=cari yıl+; aktif (Status≠−1) upsert, iptal/silinmiş süpürülür → tablo Sedna aktif rezervasyonlarının aynası (`occupancy_metrics` aktif-yalnız değişmezliği). Merkezi Sedna sync'in adımı. sales.hotel_reservation use, audit'li, onaydan muaf. Detay: `docs/modules/otel-rezervasyon.md`
+- `GET /api/sales/reservations/sedna-status` — Sedna rezervasyon senkronu etkin mi (`{configured}`)
 - `GET /api/sales/reservations/` — Paginated liste (start_date, end_date, agency, nation, room_type, rez_status, search)
 - `GET /api/sales/reservations/summary` — Dashboard KPI + dağılımlar + **doluluk metrikleri** (total_capacity, occupancy_pct, aylık/tip başına doluluk)
 - `GET /api/sales/reservations/daily-occupancy?month=YYYY-MM` — Aylık drill-down: günlük doluluk + check-in/out sayıları (takvim heatmap için)

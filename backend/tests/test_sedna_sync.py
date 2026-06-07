@@ -40,7 +40,8 @@ def test_status_admin_all_allowed(client, auth_headers):
         assert r.status_code == 200
         j = r.json()
         assert j["configured"] is True and j["any_allowed"] is True
-        assert {s["key"] for s in j["steps"]} == {"cariler", "ibans", "checks", "sales_invoices", "recurring_sync", "stock"}
+        assert {s["key"] for s in j["steps"]} == {"cariler", "ibans", "checks", "sales_invoices",
+                                                   "recurring_sync", "stock", "reservations"}
         assert all(s["allowed"] for s in j["steps"])  # admin hepsini yapabilir
 
 
@@ -58,21 +59,24 @@ def test_sync_all_runs_all_steps(client, auth_headers, db):
                return_value={"invoices": [], "collections": []}), \
          patch("app.routers.stock.fetch_stock_depots", return_value=[]), \
          patch("app.routers.stock.fetch_stock_products", return_value=[]), \
-         patch("app.routers.stock.fetch_stock_movements", return_value=[]):
+         patch("app.routers.stock.fetch_stock_movements", return_value=[]), \
+         patch("app.routers.sales.reservations.sedna_import.fetch_reservations", return_value=[]):
         r = client.post(f"{PREFIX}/sync-all", headers=auth_headers)
         assert r.status_code == 200, r.text
         j = r.json()
-        assert j["ok_count"] == 6 and j["total"] == 6
+        assert j["ok_count"] == 7 and j["total"] == 7
         by = {s["key"]: s for s in j["steps"]}
         assert by["cariler"]["ok"] and by["ibans"]["ok"] and by["checks"]["ok"] and by["sales_invoices"]["ok"]
         assert by["recurring_sync"]["ok"]  # cari adımından sonra türetilen senkron
         assert by["stock"]["ok"]            # stok içe aktarma adımı
+        assert by["reservations"]["ok"]     # önbüro rezervasyon içe aktarma adımı
         assert "hareket" in by["cariler"]["summary"]
         assert "IBAN" in by["ibans"]["summary"]
         assert "çek" in by["checks"]["summary"]
         assert "fatura" in by["sales_invoices"]["summary"]
         assert "senkron" in by["recurring_sync"]["summary"]
         assert "depo" in by["stock"]["summary"]
+        assert "yeni" in by["reservations"]["summary"]
 
         # DB etkisi: cari + IBAN + çek oluştu (sıralı çalıştı → IBAN cariye bağlandı)
         vid = db.execute(text("SELECT id FROM vendors WHERE hesap_kodu='320.88.01.0001'")).scalar()

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     sedna_host: str = "127.0.0.1"
     sedna_port: int = 11433
     sedna_database: str = "SednaPrensesMhs2026"
+    sedna_pms_database: str = "SednaPrenses"  # önbüro/PMS DB (rezervasyon/doluluk)
     sedna_user: str = "prenses\\btadmin"   # domain hesabı → pymssql/FreeTDS NTLM
     sedna_password: str = ""               # .env: SEDNA_PASSWORD (boşsa import devre dışı)
     sedna_charset: str = "CP1254"          # Türkçe collation (İ/Ş/ğ doğru okunsun)

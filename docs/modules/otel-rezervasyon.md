@@ -13,11 +13,49 @@ Backend router'ı 4 alt dosyaya bölündü (önceki tek dosya 1030 satıra ulaş
 app/routers/sales/reservations/
 ├── __init__.py         # Alt router'ları birleştirir (prefix="/reservations")
 ├── uploads.py          # POST /upload, GET /uploads, DELETE /uploads/{id}, POST /bulk-delete + _compute_removal_candidates
+├── sedna_import.py     # POST /sedna-import, GET /sedna-status + run_reservation_import (SednaPrenses önbüro senkronu)
 ├── listing.py          # GET / (sayfalanmış liste)
 ├── summary.py          # GET /summary (KPI + dağılımlar + doluluk metrikleri)
 ├── occupancy.py        # GET /daily-occupancy?month=YYYY-MM (aylık drill-down)
 └── _helpers.py         # _apply_filters, _parse_date, _resolve_date_range, _month_days_in_range, UPLOAD_DIR
 ```
+
+## Canlı Doluluk Senkronu — SednaPrenses Önbüro DB'si (7 Haziran 2026)
+
+Rezervasyonlar artık XLS yüklemeye ek olarak **doğrudan SednaPrenses önbüro/PMS DB'sinden**
+canlı çekilir (ters SSH tüneli `127.0.0.1:11433`; muhasebe DB'sinden `SednaPrensesMhs2026`
+**ayrı** bir DB, aynı `prenses\btadmin` login'i ikisini de okur — `config.py:sedna_pms_database`).
+Böylece kişi başı maliyet / CPOR / doluluk KPI'ları (Maliyet Kontrol + Yönetim Paneli) **elle
+dosya yüklemeden** hep güncel kalır.
+
+- **Endpoint:** `POST /reservations/sedna-import` (finance.* gibi tekil; merkezi Sedna butonu da
+  çağırır) + `GET /reservations/sedna-status`. İzin: `sales.hotel_reservation` use, audit'li,
+  onaydan muaf. Tünel kapalıysa 503.
+- **Merkezi sync adımı:** `sedna_sync.py:_STEPS` → `reservations` (`run_reservation_import`).
+  Topbar'daki tek "Sedna" butonu otomatik kapsar — **sayfa-içi ayrı buton yok**.
+- **Eşleme (`utils/sedna_client.py:fetch_reservations` + `Reservation` join `Agency`):**
+  | Bizim alan | Sedna kaynağı |
+  |---|---|
+  | `rec_id` | `Reservation.RecId` (XLS ile **aynı ID uzayı** → mükerrer yapmaz) |
+  | `agency` | `Agency.Name` (AgencyId join) |
+  | `nation` | `NationalityMarketCode` (DEU/RUS/GBR — XLS ile aynı 3-harf) |
+  | `guests` | `Reservation.Guests` (XLS ile aynı "Mr AD,Mrs AD" formatı) |
+  | `adult` / `child_paid` / `child_free` / `baby` | `Pax` / `PaidChild` / `FreeChild` / `Baby` |
+  | `rooms` | sabit **1** (Sedna'da her Reservation satırı = 1 oda) |
+  | `nights` | `CheckOutDate − CheckinDate` (checkout exclusive) |
+  | `eur_total` / `net_amount` | `RoomPrice`; `currency` = **EUR** (RoomCon boş; baskın pazar) |
+  | `status` | `Status` 1→Reservation, 2→InHouse, 3→CheckOut |
+
+- **Pencere:** `checkin_date >= cari yıl 1 Ocak` (geçmiş yıllar XLS'ten dokunulmadan kalır;
+  cari yıl + ileri rezervasyonlar senkronlanır).
+- **Aktif-yalnız değişmezliği (kritik):** `occupancy_metrics` rez_status'a **bakmaz** — tablodaki
+  HER kaydı sayar. Senkron bu değişmezliği korur: pencere içinde **aktif rezervasyonları upsert**
+  (Status≠−1, CancelDate boş), **aktif-olmayan her kaydı siler** (iptal Status=−1 **veya** kaynakta
+  silinmiş = fetch'te yok) → tablo Sedna aktif rezervasyonlarının **birebir aynası** olur. XLS'in
+  `removal_candidates` akışı yedek olarak korunur.
+- **Test:** `tests/test_reservation_sedna.py` (8 test — upsert + iptal silme + süpürme + pencere +
+  uçtan uca occupancy_metrics gecelemesi). Orchestrator: `tests/test_sedna_sync.py`.
+- **Canlı (7 Haz 2026, 2026+):** 5.788 aktif rezervasyon · 48.651 oda-gece · 105.210 geceleme · €11,4M.
 
 ## İptal Tespiti — Kapsam Dışı Orphan Temizliği (26 Mayıs 2026)
 

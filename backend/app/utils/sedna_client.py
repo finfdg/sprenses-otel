@@ -450,3 +450,75 @@ def fetch_stock_movements() -> List[dict]:
         conn.close()
     logger.info("Sedna'dan %d stok hareketi çekildi", len(rows))
     return rows
+
+
+# ─── Önbüro/PMS (SednaPrenses) — rezervasyon/doluluk ────────────────────────
+# Stok/cari muhasebe DB'sinden (SednaPrensesMhs2026) AYRI bir DB (SednaPrenses) — aynı
+# btadmin login'i ikisini de okur. Doluluk (geceleme/pax) maliyet KPI'larını besler.
+
+def _pms_connect(timeout: int = 120):
+    """Önbüro (SednaPrenses) bağlantısı — salt-okunur. Tünel kapalıysa SednaUnavailable."""
+    import pymssql
+    try:
+        return pymssql.connect(
+            server=settings.sedna_host, port=settings.sedna_port,
+            user=settings.sedna_user, password=settings.sedna_password,
+            database=settings.sedna_pms_database, charset=settings.sedna_charset,
+            tds_version="7.4", login_timeout=10, timeout=timeout,
+        )
+    except Exception as e:
+        logger.warning("Sedna bağlantısı kurulamadı (önbüro): %s", e)
+        raise SednaUnavailable(
+            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
+            f"({settings.sedna_host}:{settings.sedna_port})."
+        )
+
+
+# Rezervasyon (doluluk) — Reservation + Agency (acente adı). pax = Pax(yetişkin) +
+# PaidChild + FreeChild + Baby. nation = NationalityMarketCode (DEU/RUS/GBR — 3 harf,
+# Excel ile aynı). Para birimi sözleşmede yok (RoomCon boş) → EUR varsayılır (baskın pazar):
+# RoomPrice = konaklamanın toplam EUR tutarı. Status -1 = iptal (içe aktarmada silinir).
+# {start} güvenli (ISO tarih, yalnız rakam/tire) → gömülü; execute() PARAMETRESİZ (pymssql %-tuzağı).
+_RESERVATION_QUERY = """
+SELECT
+    r.RecId                        AS rec_id,
+    a.Name                         AS agency,
+    r.RoomType                     AS room_type,
+    r.Voucher                      AS voucher,
+    r.Guests                       AS guests,
+    CONVERT(date, r.CheckinDate)   AS checkin_date,
+    CONVERT(date, r.CheckOutDate)  AS checkout_date,
+    CONVERT(date, r.RecordDate)    AS record_date,
+    r.Board                        AS board,
+    r.VipTypeCode                  AS vip_type,
+    r.Pax                          AS adult,
+    r.PaidChild                    AS child_paid,
+    r.FreeChild                    AS child_free,
+    r.Baby                         AS baby,
+    r.NationalityMarketCode        AS nation,
+    r.RoomPrice                    AS room_price,
+    r.Status                       AS status_code,
+    CONVERT(date, r.CancelDate)    AS cancel_date
+FROM Reservation r
+LEFT JOIN Agency a ON a.RecId = r.AgencyId
+WHERE r.CheckinDate >= '{start}'
+ORDER BY r.CheckinDate, r.RecId
+"""
+
+
+def fetch_reservations(start: str) -> List[dict]:
+    """SednaPrenses Reservation → check-in >= start olan tüm rezervasyonlar (iptaller dahil).
+
+    `start` ISO tarih (YYYY-MM-DD) — yalnız rakam/tire olduğu çağıran tarafça garanti edilir.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _pms_connect(180)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_RESERVATION_QUERY.format(start=start))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna önbürodan %d rezervasyon çekildi (check-in>=%s)", len(rows), start)
+    return rows

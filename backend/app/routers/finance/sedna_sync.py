@@ -23,6 +23,7 @@ from app.middleware.auth import get_current_user, user_can
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
 from app.utils.finance_broadcast import broadcast_finance_update
+from app.routers.sales.reservations.sedna_import import run_reservation_import
 from app.routers.stock import run_stock_import
 from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 from app.utils.sedna_client import sedna_configured
@@ -47,6 +48,8 @@ _STEPS = [
      "run": run_sales_invoice_import, "broadcast": None},
     {"key": "stock", "label": "Stok / depo", "module": "stok.maliyet",
      "run": run_stock_import, "broadcast": None},
+    {"key": "reservations", "label": "Otel rezervasyonları", "module": "sales.hotel_reservation",
+     "run": run_reservation_import, "broadcast": None},
     # Sedna çekmez; carilerden TÜRETİR (cari adımından SONRA çalışmalı). Cari-bağlı düzenli
     # ödemelerin (Elektrik→CK, Su→ASAT) tahmini tutarlarını cari gerçek faturayla senkronlar.
     {"key": "recurring_sync", "label": "Düzenli ödeme ↔ cari senkronu", "module": "accounting.recurring",
@@ -72,6 +75,9 @@ def _summarize(key: str, d: dict) -> str:
     if key == "stock":
         return (f"{d.get('movements_new', 0)} yeni hareket · {d.get('products', 0)} ürün · "
                 f"{d.get('depots', 0)} depo")
+    if key == "reservations":
+        return (f"{d.get('reservations_new', 0)} yeni · {d.get('reservations_updated', 0)} güncel · "
+                f"{d.get('removed', 0)} iptal/kaldırılan")
     return "Tamamlandı"
 
 
