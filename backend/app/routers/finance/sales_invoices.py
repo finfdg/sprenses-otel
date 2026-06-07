@@ -416,7 +416,9 @@ def _merged_advances(db: Session):
         if t and any(len(t & n) >= 1 for n in tok_340):
             continue
         merged.append(it)
-    merged.sort(key=lambda x: -x["remaining"])
+    # Döviz-bazlı sırala: önce yabancı para grupları (EUR vb.), sonra TL — her grup içinde kalan azalan.
+    # Ham `remaining` ile sıralamak farklı para birimlerini (4M € vs 3M ₺) yanlış kıyaslardı.
+    merged.sort(key=lambda x: (x["currency"] == "TL", x["currency"], -x["remaining"]))
 
     total_by_cur: dict = {}
     for x in merged:

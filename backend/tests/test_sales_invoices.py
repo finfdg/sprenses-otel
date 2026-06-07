@@ -160,6 +160,28 @@ def test_advances_merge_340_and_120_with_dedup(client, auth_headers):
     assert tuana and tuana[0]["source"] == "120" and tuana[0]["remaining"] == 500.0
 
 
+def test_advances_sorted_by_currency_group(client, auth_headers):
+    """Avans listesi döviz-bazlı gruplanır: önce yabancı para (EUR, azalan), sonra TL (azalan).
+
+    Ham `remaining` ile sıralasaydı büyük TL tutarı (5000) küçük EUR'ların (2000/1000) üstüne
+    çıkardı; döviz farklı olduğu için yanlış olurdu.
+    """
+    accounts = [
+        {"code": "340.01.01.0001", "name": "BIG TL ACENTE", "currency": "TL", "received": 5000, "consumed": 0},
+        {"code": "340.02.01.0001", "name": "EUR KUCUK", "currency": "EUR", "received": 1000, "consumed": 0},
+        {"code": "340.02.01.0002", "name": "EUR BUYUK", "currency": "EUR", "received": 2000, "consumed": 0},
+    ]
+    _import(client, auth_headers, {"invoices": [], "collections": []}, accounts=accounts)
+    items = client.get(f"{PREFIX}/advances", headers=auth_headers).json()["items"]
+    seq = [(x["customer_name"], x["currency"]) for x in items]
+    # EUR grubu önce (azalan): BUYUK(2000) → KUCUK(1000); sonra TL: BIG TL(5000)
+    assert seq == [("EUR BUYUK", "EUR"), ("EUR KUCUK", "EUR"), ("BIG TL ACENTE", "TL")]
+    # tüm EUR satırları tüm TL satırlarından önce gelir (ham sayı 5000 > 2000 olsa bile)
+    fx_idx = [i for i, x in enumerate(items) if x["currency"] != "TL"]
+    tl_idx = [i for i, x in enumerate(items) if x["currency"] == "TL"]
+    assert max(fx_idx) < min(tl_idx)
+
+
 def test_same_day_payment_not_advance(client, auth_headers):
     """Aynı gün ödeme (münferit walk-in) avans sayılmaz — by_advance False."""
     same = {

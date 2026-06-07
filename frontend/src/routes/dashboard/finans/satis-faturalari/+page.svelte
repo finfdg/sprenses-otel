@@ -264,8 +264,9 @@
 					</thead>
 					<tbody class="divide-y divide-gray-100">
 						{#each advances as a}
-							<tr class="hover:bg-gray-50/60">
-								<td class="px-4 py-2.5 text-gray-700">
+							{@const isFx = a.currency !== 'TL'}
+							<tr class="{isFx ? 'bg-blue-50/50 hover:bg-blue-50' : 'hover:bg-gray-50/60'}">
+								<td class="px-4 py-2.5 text-gray-700 {isFx ? 'border-l-2 border-blue-400' : ''}">
 									<span class="inline-flex items-center gap-1.5">
 										<span class="text-[10px] px-1.5 py-0.5 rounded {a.source === '340' ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}" title={a.source === '340' ? 'Sedna 340 Alınan Avanslar hesabı' : '120 cari net alacak (faturaya mahsup edilecek)'}>{a.source === '340' ? 'Avans hesabı' : 'Cari net'}</span>
 										<span class="truncate max-w-[24rem]">{a.customer_name}</span>
@@ -273,17 +274,18 @@
 								</td>
 								<td class="px-4 py-2.5 text-right tabular-nums text-gray-800">{fmt2(a.received)}</td>
 								<td class="px-4 py-2.5 text-right tabular-nums text-gray-400">{a.consumed > 0.01 ? fmt2(a.consumed) : '—'}</td>
-								<td class="px-4 py-2.5 text-right tabular-nums text-teal-700 font-semibold whitespace-nowrap">{fmtCur(a.remaining, a.currency)}</td>
+								<td class="px-4 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap {isFx ? 'text-blue-700' : 'text-teal-700'}">{fmtCur(a.remaining, a.currency)}</td>
 							</tr>
 						{/each}
 					</tbody>
 				</table>
 				<div class="md:hidden divide-y divide-gray-100">
 					{#each advances as a}
-						<div class="p-3">
+						{@const isFx = a.currency !== 'TL'}
+						<div class="p-3 {isFx ? 'bg-blue-50/50 border-l-2 border-blue-400' : ''}">
 							<div class="flex items-center justify-between gap-2">
 								<p class="text-sm font-medium text-gray-800 truncate">{a.customer_name}</p>
-								<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">{fmtCur(a.remaining, a.currency)}</span>
+								<span class="text-sm font-semibold tabular-nums whitespace-nowrap {isFx ? 'text-blue-700' : 'text-teal-700'}">{fmtCur(a.remaining, a.currency)}</span>
 							</div>
 							<p class="text-xs text-gray-500 mt-1 tabular-nums"><span class="px-1 rounded {a.source === '340' ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}">{a.source === '340' ? 'avans hesabı' : 'cari net'}</span> · Yatırılan {fmt2(a.received)} · Kapanan {fmt2(a.consumed)}</p>
 						</div>
