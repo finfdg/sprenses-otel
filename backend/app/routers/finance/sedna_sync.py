@@ -65,8 +65,10 @@ def _summarize(key: str, d: dict) -> str:
         return f"{d.get('new_ibans', 0)} yeni IBAN ({d.get('vendors_matched', 0)} cari)"
     if key == "checks":
         m = d.get("matched_to_bank", 0)
+        rd = d.get("removed_dupes", 0)
         extra = f" · {m} banka eşleşti" if m else ""
-        return (f"{d.get('new_checks', 0)} yeni çek · {d.get('updated_checks', 0)} durum güncel"
+        extra += f" · {rd} mükerrer temizlendi" if rd else ""
+        return (f"{d.get('new_checks', 0)} yeni çek · {d.get('updated_checks', 0)} güncel"
                 f"{extra}")
     if key == "sales_invoices":
         return f"{d.get('invoices_new', 0)} yeni fatura · {d.get('collections_new', 0)} yeni tahsilat"

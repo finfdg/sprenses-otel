@@ -32,8 +32,22 @@ Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH
 - **Verilen çek içe aktarımı (2026-06-06) — `POST /checks/sedna-import`:** Aynı Sedna altyapısı
   (`fetch_issued_checks()` → `checks` tablosu). Kaynak `AccCheckTrans`+`AccCheck`; issuance =
   `CheckPosition=100, ActionType=2`; **durum** çekin EN YÜKSEK pozisyonundan (101/102→paid, 103→
-  cancelled, gerisi→pending; `_check_status_from_pos`). Dedup Excel ile aynı `(check_no, vendor_code,
-  due_date)`; eşleşmemiş çeklerde durum senkronize edilir. Detay: `docs/modules/cekler.md`.
+  cancelled, gerisi→pending; `_check_status_from_pos`). Eşleşmemiş çeklerde vade + durum senkronize edilir.
+  - **Dedup anahtarı — vade DEĞİL, tutar (2026-06-08 düzeltildi — KRİTİK):** `_check_dedup_key()` =
+    `(check_no, vendor_code, currency, NATIVE tutar)`. **`due_date` ANAHTARDA YOK.** Eski anahtar
+    `(check_no, vendor_code, due_date)` idi; Sedna'da çekin vadesi değişince (yeniden vadelendirme)
+    yeni anahtar → **mükerrer kayıt** (eski vade "GEÇMİŞ" olarak hayalet kalıyordu, ör. çek 9498648
+    02.06→31.07). Yeni anahtarda vade yok → vade değişince mevcut kayıt **GÜNCELLENİR**.
+  - **NATIVE tutar (kur-bağımsız):** TL çek → `amount_tl`; **döviz çek → `amount_currency`** (EUR/USD
+    yüz değeri). `amount_tl` döviz çekte TL **değerlemesidir ve kurla değişir** → anahtarda kullanılırsa
+    her kur hareketinde "yeni çek" sanılır (PEKSAN 30.000 € çeki bunu tetikledi). Tutar aynı no'lu
+    **farklı** çekleri de ayırır (ör. 4149098: 900K vs 969K — ikisi de gerçek, ayrı banka ödemesine eşli).
+  - **Mükerrer temizliği + dayanıklılık:** Yükleme başında vade-değişiminden kalan **eşleşmemiş**
+    mükerrerler tespit edilip silinir (eşleşmiş çeklere DOKUNULMAZ). Her satır kendi `db.begin_nested()`
+    SAVEPOINT'inde işlenir → `UNIQUE(check_no,vendor_code,due_date)` çakışması (eski hatalı-tutarlı
+    kayıtlar) tüm içe aktarmayı düşürmez, yalnız o satır atlanır. Excel yükleme de aynı `_check_dedup_key`.
+  - Test: `test_checks.py::TestSednaCheckImport` (vade güncelleme≠mükerrer, farklı-tutar ayrı, mükerrer
+    iyileştirme, kısıt çakışması atla-çökme). Detay: `docs/modules/cekler.md`.
 - **Merkezi sync orchestrator (2026-06-06) — `sedna_sync.py`:** Tüm Sedna içe aktarmaları TEK
   endpoint'ten çalışır: `POST /finance/sedna/sync-all` (Topbar'daki tek "Sedna" butonu). Her import
   bir **servis fonksiyonu** (`run_cari_import` / `run_iban_import` — `cariler/sedna_import.py`;

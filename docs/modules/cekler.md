@@ -90,7 +90,8 @@
 - **MIME doğrulaması:** `app/utils/file_validation.py` ile magic bytes kontrolü
 - **Boyut limiti:** Maksimum 10 MB
 - **Uzantı kontrolü:** Yalnızca `.xlsx`, `.xls`
-- **Mükerrer kontrolü:** `(check_no, vendor_code, due_date)` unique üçlüsüyle
+- **Mükerrer kontrolü:** `_check_dedup_key()` = `(check_no, vendor_code, currency, native tutar)` —
+  vade anahtarda değil (vade değişimi mükerrer üretmez); döviz çekte kur-bağımsız yüz değer kullanılır
 
 ---
 
@@ -110,10 +111,21 @@ use, onaydan muaf, audit'li).
   - `101` Bankadan Ödeme / `102` Kasadan Ödeme → **paid**
   - `103` Geri Al → **cancelled**
   - `sedna_client.fetch_issued_checks()` `max_pos` döner; `checks.py:_check_status_from_pos()` eşler.
-- **Dedup + senkron:** Excel ile **aynı** key `(check_no, vendor_code, due_date)`. Yeni çek **eklenir**;
-  mevcut çek **banka/cari eşleşmesi YOKSA** (`bank_transaction_id IS NULL AND match_number IS NULL`)
-  durumu Sedna'dan **güncellenir** (pending↔paid↔cancelled + `upsert_check` ile FE tazelenir);
-  eşleşmiş (kullanıcı yönetimindeki) çeklere **dokunulmaz**. İdempotent.
+- **Dedup + senkron (2026-06-08 düzeltildi — vade DEĞİL tutar):** `_check_dedup_key()` =
+  `(check_no, vendor_code, currency, NATIVE tutar)` — Excel ile aynı. **`due_date` ANAHTARDA YOK.**
+  Eşleşmemiş çek (`bank_transaction_id IS NULL AND match_number IS NULL`) için **vade + durum** Sedna'dan
+  güncellenir; eşleşmişe **dokunulmaz**. İdempotent.
+  - **Neden vade anahtardan çıktı:** Eski key `(…, due_date)` idi; Sedna'da çekin vadesi değişince
+    (yeniden vadelendirme) yeni key → **mükerrer kayıt** — eski vade tablo'da "GEÇMİŞ" hayalet kalıyordu
+    (canlı örnek: çek 9498648 ERSA, 02.06→31.07; eski 02.06 kaydı silinmeden duruyordu). Vade anahtarda
+    olmayınca vade değişince **mevcut kayıt güncellenir**, mükerrer olmaz.
+  - **NATIVE tutar (kur-bağımsız):** TL çek → `amount_tl`; döviz çek → **`amount_currency`** (EUR/USD yüz
+    değeri). `amount_tl` döviz çekte TL değerlemesidir, **kurla değişir** → anahtarda olursa her kur
+    hareketinde "yeni çek" sanılır. Tutar, aynı no'lu **farklı** çekleri de ayırır (4149098: 900K vs 969K).
+  - **Mükerrer temizliği:** Yükleme başında vade-değişiminden kalan **eşleşmemiş** mükerrerler silinir
+    (eşleşmiş çeklere dokunulmaz; FE de invalidate). Sonuç `removed_dupes` döner.
+  - **Dayanıklılık:** Her satır kendi `begin_nested()` SAVEPOINT'inde → eski hatalı-tutarlı kayıtların
+    `UNIQUE(check_no,vendor_code,due_date)` çakışması tüm içe aktarmayı düşürmez, o satır atlanır.
 - **Alan eşleme:** `amount_tl`=Debit (TL); EUR çekte `currency`=EUR + `amount_currency`=CurrDebit;
   `description`=banka adı (ayrı banka kolonu yok); `transaction_type`="Verilen Çek".
 - **finance_events:** `upsert_check` `status`'a göre `is_realized` (paid→True) ayarlar → nakit akımda

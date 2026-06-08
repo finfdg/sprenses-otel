@@ -9,6 +9,7 @@ from typing import Optional
 import pytz
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import desc, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -41,6 +42,20 @@ def _check_status_from_pos(max_pos: Optional[int]) -> str:
     if max_pos == 103:
         return "cancelled"
     return "pending"
+
+
+def _check_dedup_key(check_no, vendor_code, currency, amount_tl, amount_currency):
+    """Çek dedup anahtarı: (check_no, vendor_code, currency, NATIVE tutar).
+
+    `due_date` ANAHTARDA YOK → vade değişimi mükerrer üretmez. Tutar olarak **para birimi cinsi
+    yüz değer** kullanılır: TL çek → `amount_tl` (sabit); döviz çek → `amount_currency` (EUR/USD
+    yüz değeri, sabit). `amount_tl` döviz çekte TL değerlemesidir ve KUR ile değişir → anahtarda
+    kullanılamaz (her kur hareketinde "yeni" çek sanılır)."""
+    curr = (currency or "TL").strip().upper()
+    if curr in ("TL", "TRY", ""):
+        return (check_no, vendor_code, "TL", round(float(amount_tl or 0), 2))
+    return (check_no, vendor_code, curr, round(float(amount_currency or amount_tl or 0), 2))
+
 
 UPLOAD_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
@@ -97,17 +112,19 @@ async def upload_checks(
     db.add(upload)
     db.flush()
 
-    # Mevcut çek numaralarını al (mükerrer kontrolü)
+    # Mevcut çek anahtarlarını al — Sedna import'uyla AYNI dedup (_check_dedup_key): vade değişen
+    # çek Excel yüklemede de mükerrer üretmez; döviz çekte kur-bağımsız yüz değer kullanılır.
     existing_keys = set(
-        (row[0], row[1], row[2]) for row in
-        db.query(Check.check_no, Check.vendor_code, Check.due_date).all()
+        _check_dedup_key(row[0], row[1], row[2], row[3], row[4]) for row in
+        db.query(Check.check_no, Check.vendor_code, Check.currency,
+                 Check.amount_tl, Check.amount_currency).all()
     )
 
     new_count = 0
     skipped_count = 0
 
     for c in parsed.checks:
-        key = (c.check_no, c.vendor_code, c.due_date)
+        key = _check_dedup_key(c.check_no, c.vendor_code, c.currency, c.amount_tl, c.amount_currency)
         if key in existing_keys:
             skipped_count += 1
             continue
@@ -172,11 +189,13 @@ def sedna_status(_: User = Depends(require_permission("finance.checks", "view"))
 
 
 def run_check_import(db: Session, current_user: User, ip=None) -> dict:
-    """Sedna'dan (320) verilen çekleri çek + Excel ile aynı dedup ile içe aktar.
+    """Sedna'dan (320) verilen çekleri çek + dedup ile içe aktar.
 
-    Dedup key Excel ile aynı: (check_no, vendor_code, due_date). Yeni çek eklenir;
-    mevcut çek **banka/cari eşleşmesi yoksa** durumu Sedna'dan güncellenir (pending↔paid↔
-    cancelled). Eşleşmiş (kullanıcı yönetimindeki) çeklere dokunulmaz. Sonunda banka
+    **Dedup key: (check_no, vendor_code, amount_tl)** — `due_date` ANAHTARDA YOK. Sedna'da çekin
+    vadesi değişince (yeniden vadelendirme) yeni kayıt değil **mevcut kaydın güncellenmesi** gerekir;
+    tutar yeniden vadelendirmede sabittir ama aynı no'lu farklı çekleri ayırır. Mevcut çek **banka/cari
+    eşleşmesi yoksa** vade + durum Sedna'dan güncellenir; eşleşmişe dokunulmaz. Vade değişiminden kalan
+    eşleşmemiş mükerrerler temizlenir (geçmiş kayıtların hayalet gösterimi engellenir). Sonunda banka
     eşleştirme çalışır. Servis fonksiyonu (HTTP'siz, broadcast'siz) — endpoint + merkezi sync ortak.
     """
     if not sedna_configured():
@@ -200,14 +219,37 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
     db.add(upload)
     db.flush()
 
-    # Mevcut çekler (key → Check) — dedup + durum güncelleme için
-    existing = {
-        (c.check_no, c.vendor_code, c.due_date): c
-        for c in db.query(Check).all()
-    }
+    # Mevcut çekler + vade değişiminden kalan eşleşmemiş mükerrerleri tespit et (temizlik için).
+    # Dedup anahtarı: (check_no, vendor_code, currency, NATIVE tutar) — bk. _check_dedup_key.
+    existing = {}
+    stale_dupes = []
+    for c in db.query(Check).order_by(Check.id).all():
+        k = _check_dedup_key(c.check_no, c.vendor_code, c.currency, c.amount_tl, c.amount_currency)
+        prev = existing.get(k)
+        if prev is None:
+            existing[k] = c
+            continue
+        c_matched = bool(c.bank_transaction_id or c.match_number)
+        prev_matched = bool(prev.bank_transaction_id or prev.match_number)
+        if prev_matched and not c_matched:
+            stale_dupes.append(c)                       # eşleşmiş prev korunur
+        elif c_matched and not prev_matched:
+            stale_dupes.append(prev); existing[k] = c   # eşleşmiş c korunur
+        elif not c_matched and not prev_matched:
+            stale_dupes.append(prev); existing[k] = c   # ikisi de eşleşmemiş → yeni (c) tut, eskiyi sil
+        # else: ikisi de eşleşmiş → gerçek ayrı ödemeler olabilir, DOKUNMA
 
-    new_count = updated_count = skipped_count = 0
+    new_count = updated_count = skipped_count = removed_dupes = 0
     try:
+        # Vade değişiminden kalan eşleşmemiş mükerrerleri ÖNCE temizle — güncelleme döngüsünde
+        # mevcut kaydı yeni vadeye çekerken UNIQUE(check_no,vendor_code,due_date) çakışmasını önler.
+        for d in stale_dupes:
+            finance_event_svc.invalidate(db, "check", d.id)
+            db.delete(d)
+            removed_dupes += 1
+        if removed_dupes:
+            db.flush()
+
         for r in rows:
             check_no = (str(r.get("check_no")) or "").strip()[:50]
             vendor_code = (r.get("vendor_code") or "").strip() or None
@@ -221,46 +263,61 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
             amount_currency = cur_amt if (curr != "TL" and cur_amt) else amount_tl
             new_status = _check_status_from_pos(r.get("max_pos"))
             bank = (r.get("bank") or "").strip() or None
-            key = (check_no, vendor_code, due_date)
+            key = _check_dedup_key(check_no, vendor_code, curr, amount_tl, amount_currency)
 
-            ex = existing.get(key)
-            if ex is not None:
-                # mevcut: eşleşmemişse durumu Sedna'dan senkronize et; eşleşmişse dokunma
-                if ex.bank_transaction_id is None and ex.match_number is None and ex.status != new_status:
-                    ex.status = new_status
-                    finance_event_svc.upsert_check(db, ex)
-                    updated_count += 1
-                else:
-                    skipped_count += 1
-                continue
-
-            chk = Check(
-                upload_id=upload.id,
-                check_type=None,
-                check_no=check_no,
-                vendor_code=vendor_code,
-                vendor_name=(r.get("vendor_name") or "").strip() or check_no,
-                description=bank,                 # banka adı (ayrı kolon yok)
-                city=(r.get("city") or "").strip() or None,
-                due_date=due_date,
-                amount_tl=amount_tl,
-                currency=curr,
-                amount_currency=amount_currency,
-                transaction_type="Verilen Çek",
-                status=new_status,
-            )
-            db.add(chk)
-            db.flush()
-            finance_event_svc.upsert_check(db, chk)
-            existing[key] = chk
-            new_count += 1
+            # Her satır kendi SAVEPOINT'inde — bir kısıt çakışması tüm içe aktarmayı düşürmesin.
+            try:
+                with db.begin_nested():
+                    ex = existing.get(key)
+                    if ex is not None:
+                        # eşleşmemiş çek → Sedna güncel durumunu yansıt (VADE + durum); eşleşmişe dokunma
+                        if ex.bank_transaction_id is None and ex.match_number is None:
+                            if ex.due_date != due_date or ex.status != new_status:
+                                ex.due_date = due_date
+                                ex.status = new_status
+                                ex.amount_currency = amount_currency
+                                ex.currency = curr
+                                if bank:
+                                    ex.description = bank
+                                finance_event_svc.upsert_check(db, ex)
+                                updated_count += 1
+                            else:
+                                skipped_count += 1
+                        else:
+                            skipped_count += 1
+                    else:
+                        chk = Check(
+                            upload_id=upload.id,
+                            check_type=None,
+                            check_no=check_no,
+                            vendor_code=vendor_code,
+                            vendor_name=(r.get("vendor_name") or "").strip() or check_no,
+                            description=bank,                 # banka adı (ayrı kolon yok)
+                            city=(r.get("city") or "").strip() or None,
+                            due_date=due_date,
+                            amount_tl=amount_tl,
+                            currency=curr,
+                            amount_currency=amount_currency,
+                            transaction_type="Verilen Çek",
+                            status=new_status,
+                        )
+                        db.add(chk)
+                        db.flush()
+                        finance_event_svc.upsert_check(db, chk)
+                        existing[key] = chk
+                        new_count += 1
+            except IntegrityError:
+                skipped_count += 1
+                logger.warning("Çek kısıt çakışması, atlandı: no=%s vendor=%s vade=%s tutar=%s %s",
+                               check_no, vendor_code, due_date, amount_tl, curr)
 
         upload.total_checks = len(rows)
         upload.new_checks = new_count
         upload.skipped_checks = skipped_count
         log_action(
             db, current_user.id, "create", "check_upload", entity_id=upload.id,
-            details=f"Sedna çek içe aktarma: {new_count} yeni, {updated_count} durum güncel, {skipped_count} atlandı",
+            details=f"Sedna çek içe aktarma: {new_count} yeni, {updated_count} güncel (vade/durum), "
+                    f"{removed_dupes} mükerrer temizlendi, {skipped_count} atlandı",
             ip_address=ip,
         )
         db.commit()
@@ -285,6 +342,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         "total_fetched": len(rows),
         "new_checks": new_count,
         "updated_checks": updated_count,
+        "removed_dupes": removed_dupes,
         "skipped_checks": skipped_count,
         "matched_to_bank": matched,
     }

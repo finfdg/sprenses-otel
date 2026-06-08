@@ -184,3 +184,83 @@ class TestSednaCheckImport:
             assert j["new_checks"] == 1 and j["matched_to_bank"] >= 1
             r = db.execute(text("SELECT status, bank_transaction_id FROM checks WHERE check_no='CHKAUTO1'")).first()
             assert r[0] == "paid" and r[1] is not None   # Sedna pending dese de banka kanıtı → paid
+
+    def test_reschedule_updates_not_duplicates(self, client, auth_headers, db):
+        """Vade değişen çek (aynı no+cari+tutar) → YENİ kayıt değil GÜNCELLEME (mükerrer olmaz)."""
+        base = {"vendor_code": "320.77.01.0001", "vendor_name": "RESC CARİ", "check_no": "RESCHK1",
+                "bank": "YAPI KREDI", "city": None, "amount_tl": 92000, "currency": "TL",
+                "amount_currency": 92000, "max_pos": 100}
+        with patch(f"{TARGET}.sedna_configured", return_value=True):
+            with patch(f"{TARGET}.fetch_issued_checks", return_value=[dict(base, due_date=date(2026, 6, 2))]):
+                j1 = client.post(f"{PREFIX}/sedna-import", headers=auth_headers).json()
+            assert j1["new_checks"] == 1
+            # Sedna'da vade 02.06 → 31.07 değişti
+            with patch(f"{TARGET}.fetch_issued_checks", return_value=[dict(base, due_date=date(2026, 7, 31))]):
+                j2 = client.post(f"{PREFIX}/sedna-import", headers=auth_headers).json()
+            assert j2["new_checks"] == 0 and j2["updated_checks"] == 1
+        rows = db.execute(text("SELECT due_date FROM checks WHERE check_no='RESCHK1'")).fetchall()
+        assert len(rows) == 1 and str(rows[0][0]) == "2026-07-31"   # tek kayıt, güncel vade
+
+    def test_same_number_different_amount_kept_separate(self, client, auth_headers, db):
+        """Aynı çek no + cari ama FARKLI tutar → iki ayrı gerçek çek (birleştirilmez)."""
+        rows = [
+            {"vendor_code": "320.77.02.0001", "vendor_name": "X", "check_no": "DUPNO1", "bank": None,
+             "city": None, "due_date": date(2026, 4, 30), "amount_tl": 900000, "currency": "TL",
+             "amount_currency": 900000, "max_pos": 100},
+            {"vendor_code": "320.77.02.0001", "vendor_name": "X", "check_no": "DUPNO1", "bank": None,
+             "city": None, "due_date": date(2026, 5, 30), "amount_tl": 969000, "currency": "TL",
+             "amount_currency": 969000, "max_pos": 100},
+        ]
+        with patch(f"{TARGET}.sedna_configured", return_value=True), \
+             patch(f"{TARGET}.fetch_issued_checks", return_value=rows):
+            j = client.post(f"{PREFIX}/sedna-import", headers=auth_headers).json()
+        assert j["new_checks"] == 2
+        assert db.execute(text("SELECT count(*) FROM checks WHERE check_no='DUPNO1'")).scalar() == 2
+
+    def test_heals_existing_unmatched_dupe(self, client, auth_headers, db):
+        """Önceden (vade değişiminden) oluşmuş eşleşmemiş mükerrer → import temizler, tek kayıt kalır."""
+        from app.models.check import Check, CheckUpload
+        up = CheckUpload(file_name="seed", file_url="x")
+        db.add(up)
+        db.flush()
+        for dd in (date(2026, 6, 2), date(2026, 7, 31)):
+            db.add(Check(upload_id=up.id, check_no="HEALCHK", vendor_code="320.77.03.0001",
+                         vendor_name="H", due_date=dd, amount_tl=50000, currency="TL",
+                         amount_currency=50000, transaction_type="Verilen Çek", status="pending"))
+        db.flush()
+        row = [{"vendor_code": "320.77.03.0001", "vendor_name": "H", "check_no": "HEALCHK", "bank": None,
+                "city": None, "due_date": date(2026, 7, 31), "amount_tl": 50000, "currency": "TL",
+                "amount_currency": 50000, "max_pos": 100}]
+        with patch(f"{TARGET}.sedna_configured", return_value=True), \
+             patch(f"{TARGET}.fetch_issued_checks", return_value=row):
+            j = client.post(f"{PREFIX}/sedna-import", headers=auth_headers).json()
+        assert j["removed_dupes"] == 1
+        rows = db.execute(text("SELECT due_date FROM checks WHERE check_no='HEALCHK'")).fetchall()
+        assert len(rows) == 1 and str(rows[0][0]) == "2026-07-31"
+
+    def test_constraint_collision_skipped_not_crash(self, client, auth_headers, db):
+        """Aynı (no,cari,vade) farklı tutar → UNIQUE çakışır; o satır SAVEPOINT'le atlanır, import çökmez."""
+        from app.models.check import Check, CheckUpload
+        up = CheckUpload(file_name="seed", file_url="x")
+        db.add(up)
+        db.flush()
+        db.add(Check(upload_id=up.id, check_no="COLCHK", vendor_code="320.88.01.0001", vendor_name="C",
+                     due_date=date(2026, 7, 31), amount_tl=100000, currency="TL", amount_currency=100000,
+                     transaction_type="Verilen Çek", status="pending"))
+        db.flush()
+        rows = [
+            {"vendor_code": "320.88.01.0001", "vendor_name": "C", "check_no": "COLCHK", "bank": None,
+             "city": None, "due_date": date(2026, 7, 31), "amount_tl": 200000, "currency": "TL",
+             "amount_currency": 200000, "max_pos": 100},   # (COLCHK,vendor,07-31) çakışır → atlanır
+            {"vendor_code": "320.88.01.0002", "vendor_name": "D", "check_no": "OKCHK", "bank": None,
+             "city": None, "due_date": date(2026, 8, 1), "amount_tl": 5000, "currency": "TL",
+             "amount_currency": 5000, "max_pos": 100},     # sorunsuz → eklenir
+        ]
+        with patch(f"{TARGET}.sedna_configured", return_value=True), \
+             patch(f"{TARGET}.fetch_issued_checks", return_value=rows):
+            r = client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
+            assert r.status_code == 200, r.text          # çökmedi
+            j = r.json()
+        assert j["new_checks"] == 1                       # yalnız OKCHK
+        assert db.execute(text("SELECT count(*) FROM checks WHERE check_no='OKCHK'")).scalar() == 1
+        assert db.execute(text("SELECT count(*) FROM checks WHERE check_no='COLCHK'")).scalar() == 1
