@@ -420,8 +420,9 @@ TEMPLATE:
 - `GET/PATCH/DELETE /api/finance/payment-instructions/{id}` — Liste detay/güncelle/sil
 - `POST /api/finance/payment-instructions/{id}/items` — Cari kalem(ler) ekle (tutar bakiyeden gelir, mükerrer vendor atlanır; **carinin varsayılan banka/IBAN'ı otomatik gelir**, kalemde override edilebilir). Kalem `bank_name`+`iban` snapshot'ı taşır; PDF/Excel dökümünde **Banka + IBAN sütunları** yer alır
 - `PATCH/DELETE /api/finance/payment-instructions/{id}/items/{item_id}` — Kalem tutarı güncelle / çıkar
-- `GET /api/finance/payment-instructions/{id}/export/excel` — Excel dökümü
+- `GET /api/finance/payment-instructions/{id}/export/excel` — Excel dökümü (okunur liste)
 - `GET /api/finance/payment-instructions/{id}/export/pdf` — PDF dökümü
+- `GET /api/finance/payment-instructions/{id}/export/ykb-excel?debtor_account=` — **Yapı Kredi toplu ödeme** Excel'i (bankanın yükleme şablonu birebir: sayfa `ykb excel`, 11 kolon, IBAN boşluksuz, TUTAR düz ondalık, DÖVİZ=TL; BORÇLU HESAP = `debtor_account` param)
 - Frontend: Cariler sayfasında "Ödeme Talimatı" sekmesi · İzin: `finance.cariler`
 - Detaylı bilgi: `docs/modules/cariler.md` (Ödeme Talimat Listeleri bölümü)
 

@@ -6,10 +6,10 @@ Excel/PDF olarak dışa aktarılabilir (export_instruction.py).
 """
 
 import io
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.orm import Session, selectinload
 
@@ -450,6 +450,64 @@ def export_excel(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=odeme-talimati-{list_id}.xlsx"},
+    )
+
+
+# Yapı Kredi toplu ödeme yükleme şablonu — kolonlar bankanın "ykbexcelislemyukleme" formatından
+# birebir (başlık metinleri dahil, "ALICI SUBE KODU" Ş'siz aynen). IBAN verilince banka/şube kodu
+# (C/D) gerekmez; VKN/TCKN (J) ve ödeme türü (K) opsiyonel boş.
+_YKB_HEADERS = [
+    "İŞLEM TARİHİ", "BORÇLU HESAP", "ALICI BANKA KODU", "ALICI SUBE KODU",
+    "ALICI HESAP/IBAN", "ALICI ADI", "TUTAR", "DÖVİZ", "AÇIKLAMA", "VKN/TCKN", "ÖDEME TÜRÜ",
+]
+
+
+@router.get("/{list_id}/export/ykb-excel")
+def export_ykb_excel(
+    list_id: int,
+    debtor_account: str = Query("", description="BORÇLU HESAP — ödeme yapılan YKB hesap no"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.cariler", "view")),
+):
+    """Ödeme talimatını **Yapı Kredi toplu ödeme** Excel formatında indir (banka portalına yüklenir)."""
+    from openpyxl import Workbook
+
+    pl = _get_list_or_404(db, list_id)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "ykb excel"
+
+    for col, h in enumerate(_YKB_HEADERS, start=1):
+        ws.cell(row=1, column=col, value=h)
+
+    today = date.today()
+    deb = (debtor_account or "").strip()
+    r = 2
+    for it in pl.items:
+        a = ws.cell(row=r, column=1, value=today)
+        a.number_format = "DD.MM.YYYY"                                            # İŞLEM TARİHİ
+        ws.cell(row=r, column=2, value=deb)                                       # BORÇLU HESAP
+        # C ALICI BANKA KODU / D ALICI SUBE KODU → boş (IBAN yeterli)
+        ws.cell(row=r, column=5, value=_norm_iban(it.iban) or "")                 # ALICI HESAP/IBAN (boşluksuz)
+        ws.cell(row=r, column=6, value=(it.hesap_adi or "").strip())              # ALICI ADI
+        g = ws.cell(row=r, column=7, value=round(float(it.amount or 0), 2))
+        g.number_format = "0.00"                                                  # TUTAR (düz ondalık)
+        ws.cell(row=r, column=8, value="TL")                                      # DÖVİZ
+        ws.cell(row=r, column=9, value=(it.notes or "").strip() or "Cari ödeme")  # AÇIKLAMA
+        # J VKN/TCKN / K ÖDEME TÜRÜ → boş
+        r += 1
+
+    widths = [13, 16, 16, 16, 28, 34, 14, 8, 28, 14, 14]
+    for col, w in enumerate(widths, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = w
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=ykb-toplu-odeme-{list_id}.xlsx"},
     )
 
 

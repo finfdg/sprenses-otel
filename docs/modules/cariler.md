@@ -113,8 +113,24 @@ düzenle, Excel/PDF olarak dışa aktar. Listeler **kalıcıdır** (`finance.car
 | POST | `/payment-instructions/{id}/items` | use | Cari kalem(ler) ekle (mükerrer vendor atlanır) |
 | PATCH | `/payment-instructions/{id}/items/{item_id}` | use | Kalem tutarı/notu güncelle |
 | DELETE | `/payment-instructions/{id}/items/{item_id}` | use | Kalemi çıkar |
-| GET | `/payment-instructions/{id}/export/excel` | view | Excel dökümü (teal başlık + toplam) |
+| GET | `/payment-instructions/{id}/export/excel` | view | Excel dökümü (okunur liste, teal başlık + toplam) |
 | GET | `/payment-instructions/{id}/export/pdf` | view | PDF dökümü (reportlab + Vera font) |
+| GET | `/payment-instructions/{id}/export/ykb-excel?debtor_account=` | view | **Yapı Kredi toplu ödeme** Excel'i (banka portalına yüklenir) |
+
+### Banka-Özel Toplu Ödeme Excel'i — Yapı Kredi (2026-06-09)
+
+Bankaların toplu ödeme yükleme şablonu okunur listeden **farklıdır** (sabit kolon sırası, başlık/toplam
+satırı yok, IBAN boşluksuz, tutar düz ondalık). Yapı Kredi için (`export_ykb_excel`, `_YKB_HEADERS`):
+- **Sayfa adı `ykb excel`** · 1. satır = bankanın 11 başlığı **birebir** (metinler dahil; "ALICI SUBE
+  KODU" Ş'siz aynen) · 2. satırdan veri (başlık/toplam satırı yok).
+- **Kolonlar:** A İŞLEM TARİHİ (bugün, DD.MM.YYYY) · B BORÇLU HESAP (`debtor_account` param = ödenen YKB
+  hesap no) · C/D boş (IBAN varsa banka/şube kodu gereksiz) · E ALICI HESAP/IBAN (**boşluksuz**, `_norm_iban`)
+  · F ALICI ADI · G TUTAR (**`0.00` düz ondalık, binlik ayraç yok**) · H DÖVİZ=TL · I AÇIKLAMA (kalem notu
+  veya "Cari ödeme") · J VKN/TCKN + K ÖDEME TÜRÜ boş (cari VKN saklanmıyor; opsiyonel).
+- **Frontend:** Ödeme Talimatı'nda **"Excel (Yapı Kredi)"** butonu → BORÇLU HESAP soran modal (localStorage'da
+  hatırlanır) → indirir. Mevcut okunur Excel + PDF korunur.
+- **Genişletme:** Başka banka = yeni `_XXX_HEADERS` + `export_xxx_excel` + frontend buton. Her bankanın
+  şablonu paylaşılınca eklenir. Test: `tests/test_payment_instructions.py::test_ykb_export_format`.
 
 **Veritabanı:**
 - `payment_instruction_lists` — başlık (ad, açıklama, status=draft/completed, created_by)

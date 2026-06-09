@@ -262,17 +262,24 @@
 	}
 
 	// ───── Dışa aktarma ───────────────────────────────────
-	async function download(kind: 'excel' | 'pdf') {
+	async function download(kind: 'excel' | 'pdf' | 'ykb-excel', debtorAccount = '') {
 		if (!activeList) return;
 		busy = true;
 		try {
-			const res = await api.fetchRaw(`/finance/payment-instructions/${activeList.id}/export/${kind}`);
+			const path =
+				kind === 'ykb-excel'
+					? `/finance/payment-instructions/${activeList.id}/export/ykb-excel?debtor_account=${encodeURIComponent(debtorAccount)}`
+					: `/finance/payment-instructions/${activeList.id}/export/${kind}`;
+			const res = await api.fetchRaw(path);
 			if (!res.ok) throw new Error('İndirme başarısız');
 			const blob = await res.blob();
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `odeme-talimati-${activeList.id}.${kind === 'excel' ? 'xlsx' : 'pdf'}`;
+			a.download =
+				kind === 'ykb-excel'
+					? `ykb-toplu-odeme-${activeList.id}.xlsx`
+					: `odeme-talimati-${activeList.id}.${kind === 'excel' ? 'xlsx' : 'pdf'}`;
 			document.body.appendChild(a);
 			a.click();
 			document.body.removeChild(a);
@@ -283,6 +290,31 @@
 		} finally {
 			busy = false;
 		}
+	}
+
+	// ───── Yapı Kredi toplu ödeme export'u ────────────────
+	let ykbModalOpen = $state(false);
+	let ykbDebtor = $state('');
+
+	function openYkbExport() {
+		try {
+			ykbDebtor = localStorage.getItem('ykb_debtor_account') || '';
+		} catch (e) {
+			console.error('localStorage okunamadı:', e);
+			ykbDebtor = '';
+		}
+		ykbModalOpen = true;
+	}
+
+	async function confirmYkbExport() {
+		const deb = ykbDebtor.trim();
+		try {
+			localStorage.setItem('ykb_debtor_account', deb);
+		} catch (e) {
+			console.error('localStorage yazılamadı:', e);
+		}
+		ykbModalOpen = false;
+		await download('ykb-excel', deb);
 	}
 
 	// İlk yükleme
@@ -349,6 +381,11 @@
 					<button onclick={() => download('excel')} disabled={busy || activeList.items.length === 0}
 						class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 text-xs font-medium disabled:opacity-50">
 						<Download size={14} /> Excel
+					</button>
+					<button onclick={openYkbExport} disabled={busy || activeList.items.length === 0}
+						title="Yapı Kredi toplu ödeme yükleme formatı"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 text-xs font-medium disabled:opacity-50">
+						<Download size={14} /> Excel (Yapı Kredi)
 					</button>
 					<button onclick={() => download('pdf')} disabled={busy || activeList.items.length === 0}
 						class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 text-xs font-medium disabled:opacity-50">
@@ -503,6 +540,27 @@
 		<div class="flex items-center justify-end gap-2">
 			<button type="button" onclick={() => (showNewModal = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
 			<button type="submit" disabled={busy} class="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium disabled:opacity-50">Oluştur</button>
+		</div>
+	</form>
+</Modal>
+
+<Modal bind:show={ykbModalOpen} title="Yapı Kredi Toplu Ödeme Excel'i" maxWidth="max-w-md">
+	<form onsubmit={(e) => { e.preventDefault(); confirmYkbExport(); }} class="space-y-4">
+		<p class="text-sm text-gray-600">
+			Yapı Kredi internet bankacılığına yüklenecek formatta indirir. <span class="font-medium">IBAN, alıcı adı, tutar (TL)</span> ve açıklama listeden otomatik gelir.
+		</p>
+		<div>
+			<label for="ykb-debtor" class="text-xs text-gray-500 mb-1 block">Borçlu Hesap (ödemenin yapılacağı YKB hesap no)</label>
+			<input id="ykb-debtor" bind:value={ykbDebtor} inputmode="numeric"
+				class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 tabular-nums"
+				placeholder="ör: 65610029" />
+			<p class="text-[11px] text-gray-400 mt-1">Bir kez girin — tarayıcıda hatırlanır, sonraki seferde otomatik gelir. Boş bırakırsanız bankada seçersiniz.</p>
+		</div>
+		<div class="flex items-center justify-end gap-2">
+			<button type="button" onclick={() => (ykbModalOpen = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
+			<button type="submit" disabled={busy} class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">
+				<Download size={15} /> İndir
+			</button>
 		</div>
 	</form>
 </Modal>
