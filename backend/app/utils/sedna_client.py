@@ -492,7 +492,11 @@ def fetch_voucher_summary(start: str, end: str, granularity: str = "month",
 def fetch_user_vouchers(user_code: str, start: str, end: str, date_field: str = "record") -> List[dict]:
     """Bir kullanıcının (RecordUser) bir aralıkta kestiği fişler (drill-down). end EXCLUSIVE.
 
-    LIKE yok → pymssql parametreli execute (user_code/start/end güvenli bağlanır). datecol whitelist.
+    **RecordUser SQL'de FİLTRELENMEZ:** Türkçe karakterli kullanıcı kodu (TUĞÇE/Şule/İlker) SQL
+    karşılaştırmasında eşleşmez — FreeTDS sorgu metnindeki Ğ/Ş/İ'yi CP1254'e kodlamaz (param da, literal
+    de), ama sonuçları CP1254 ile DOĞRU decode eder. Bu yüzden aralık çekilir ve **Python'da** decode
+    edilmiş `RecordUser` ile filtrelenir (string eşitliği güvenli). datecol whitelist; date'ler ISO-güvenli
+    gömülü → parametresiz execute (pymssql %-tuzağı yok).
     """
     if not sedna_configured():
         raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
@@ -500,21 +504,22 @@ def fetch_user_vouchers(user_code: str, start: str, end: str, date_field: str = 
     query = (
         "SELECT o.RecId AS rec_id, o.Voucher AS voucher, "
         "CONVERT(date, o.FicheDate) AS fiche_date, CONVERT(date, o.RecordDate) AS record_date, "
-        "o.Remark AS remark, o.Total AS total "
+        "o.Remark AS remark, o.Total AS total, o.RecordUser AS record_user "
         "FROM AccountingOwner o "
-        "WHERE o.Deleted = 0 AND o.RecordUser = %s "
-        f"AND o.{datecol} >= %s AND o.{datecol} < %s "
+        f"WHERE o.Deleted = 0 AND o.{datecol} >= '{start}' AND o.{datecol} < '{end}' "
         f"ORDER BY o.{datecol}, o.Voucher"
     )
     conn = _stock_connect(120)
     try:
         cur = conn.cursor(as_dict=True)
-        cur.execute(query, (user_code, start, end))
+        cur.execute(query)
         rows = cur.fetchall()
     finally:
         conn.close()
-    logger.info("Sedna fiş listesi: %s → %d fiş (%s..%s)", user_code, len(rows), start, end)
-    return rows
+    uc = (user_code or "").strip()
+    filtered = [r for r in rows if (r.get("record_user") or "").strip() == uc]
+    logger.info("Sedna fiş listesi: %s → %d/%d fiş (%s..%s)", uc, len(filtered), len(rows), start, end)
+    return filtered
 
 
 def fetch_voucher_detail(rec_id: int) -> dict:

@@ -62,6 +62,15 @@ en fazla **400 gün** (günlük görünümde sütun/sorgu patlamasını önler).
 - **Fiş tarihi (`fiche`):** Muhasebe dönemi (`FicheDate`). Aynı fiş farklı güne düşebilir
   (ör. PEKSAN çekleri fiş 31.03 ama kayıt 08.06 = o gün girilmiş).
 
+## Türkçe Kullanıcı Kodu — SQL'de Filtrelenemez (drill-down, KRİTİK)
+`AccountingOwner.RecordUser` Türkçe karakterli olabilir (TUĞÇE, Şule, İlker). **SQL `WHERE
+RecordUser = 'TUĞÇE'` 0 döner** (param da, literal de): FreeTDS sorgu METNİNDEKİ Ğ/Ş/İ'yi CP1254'e
+kodlamaz (Ç/Ö/Ü gibi Latin-1'de olanlar tutar, Ğ/Ş/İ tutmaz; `LIKE 'TU_ÇE'` çalışır ama hatalı eşleşir).
+Sonuçlar CP1254 ile DOĞRU decode edilir → `GROUP BY RecordUser` (summary) sorunsuz. Bu yüzden
+`fetch_user_vouchers` RecordUser'ı **SQL'de filtrelemez**: aralığı çeker, **Python'da** decode edilmiş
+`record_user == user_code` ile filtreler. (Aynı sebeple cari/çek importları da Türkçe değerleri SQL'de
+karşılaştırmaz.) TUĞÇE vs TUĞÇEÖZEN tam ayrışır (prefix değil tam eşitlik).
+
 ## Tasarım Kararları
 - **Canlı sorgu, import yok:** Rapor niteliğinde + Sedna source-of-truth → yerel model/migration/
   sync adımı eklenmedi (avans-Sedna mutabakatı gibi). Her sayfa yüklemesi Sedna'ya gider (~7 bin
