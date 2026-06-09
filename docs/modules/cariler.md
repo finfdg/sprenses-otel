@@ -219,6 +219,25 @@ Yanlış/eksik Excel yükleme tek bir hareketle kalıcı veri kaybına yol açab
 **Neden vendor + tarih scope (genel scope değil)?**
 Kullanıcı tek bir cariyi yüklediğinde başka carilerin geçmiş kayıtlarına dokunulmaz. Excel kapsamı dışındaki dönemlerin (ör. Excel sadece son 3 ay) eski kayıtları korunur.
 
+## Bakiye Mutabakatı — Excel-Kaynaklı Hayalet Kayıtlar (2026-06-09)
+
+**Bulgu:** Eski cari **Excel** yüklemeleri (`cariler.xls`), `tx_hash` dedup'unun **yakalayamadığı**
+bozuk kayıtlar bırakabiliyor — çünkü hash `(tarih, evrak, tutar, açıklama)`'dan üretilir; aynı işlem
+**farklı tarih/işaret/açıklama** ile tekrar girilince hash farklı olur → ikinci kez eklenir. Tespit:
+**cari bazında DB bakiyesi ↔ Sedna bakiyesi** karşılaştırması (borç tarafı genelde birebir tutar, fark
+**alacak**ta birikir). Canlı tarama (293 cari): 5 cari sapmalı, ~4,13M ₺ hayalet bakiye temizlendi:
+- **PEKSAN** (P033): aynı verilen çek (7146592/7146593) **iki kez** (gerçek 31.03/20.04 + Excel kopyası
+  13.05) → 3,65M fazla. Bakiye -6,68M → **-3,03M**.
+- **SALİM DALGIÇ** (B091): voucher 1164 hem Alacak (Excel upload 36) hem Borç (upload 54); Sedna'da Borç →
+  yanlış-işaretli Alacak silindi. -237K → **-118,8K**.
+- **GÜVEN MUTFAK** (G057) + **ALİ ÇITIR** (A228): Sedna'da **hiç olmayan** tekil Excel muhasebe fişleri
+  (330K + 32K) → stale, silindi (kullanıcı onayıyla).
+- **METEK** (M157): sapma değil — Sedna'da o gün girilen hareket henüz çekilmemiş (sonraki sync'te gelir).
+
+**Önlem:** Cariler artık **doğrudan Sedna sync** ile besleniyor (Excel'e gerek yok) → yeni hayalet kayıt
+birikmez. Mevcut sapmalar `finance_event_svc.invalidate` + `db.delete` + audit ile temizlendi (bakiye
+Sedna ile birebir). İleride periyodik DB↔Sedna bakiye mutabakatı bu sınıf hatayı tek bakışta yakalar.
+
 ## Ödeme Hesaplama Mantığı
 
 1. Fatura tipi işlemler tespit edilir (`transaction_type` içinde "Fatura" geçenler)
