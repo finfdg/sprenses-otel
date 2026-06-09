@@ -887,7 +887,7 @@ Yeni veya yeniden tasarlanan **her frontend sayfası** tasarım sistemini kullan
 - **Kontrast:** Tüm metin/buton WCAG AA (≥4.5:1). teal **600 değil 700** (beyaz üzerinde 600 ≈ 3.8:1 → AA-fail).
 - Bileşen API'leri + detay: `docs/ui-kurallari.md`.
 
-### Modüller Arası Tutarlılık Standardı (Tasarımcı Denetimi — 2026-06-02)
+### Modüller Arası Tutarlılık Standardı (Tasarımcı Denetimi — 2026-06-02, güncelleme 2026-06-09)
 
 Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen, aynı sırada** olmasını şart koşar. Yeni modüller de bu standarda uyar. **Kanonik sayfa anatomisi (liste/CRUD sayfası), yukarıdan aşağıya değişmez sıra:**
 
@@ -912,8 +912,30 @@ Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen
 | **Loading** | Skeleton (`TableSkeleton`/`FormSkeleton`) | Spinner / "Yükleniyor..." metni **yok** |
 | **Tehlikeli aksiyon** | `Button variant="danger"` (dolu kırmızı) veya `ConfirmDialog` | Ham kırmızı-outline buton **yok** (hata-loglar "Tümünü Temizle") |
 | **Para değeri** | `tabular-nums` + taşmaya karşı yeterli kolon/kart genişliği; uzun TRY tutarı kırpılmaz | Sabit dar stat kartında uzun tutar taşması **yok** (cariler) |
+| **Silme/onay diyaloğu** | `ConfirmDialog.svelte` | Native `confirm()` **kesinlikle yok** (bütçe:286, otel-rezervasyon:460'ta yakalandı) |
+| **Focus ring** | `focus:ring-teal-500` (tüm input/select/checkbox; checkbox `accent-teal-700`) | `focus:ring-blue-*` / `focus:ring-cyan-*` **yok** (bankalar, bütçe'de yakalandı) |
+| **İkincil metin / hint** | En açık ton **`text-gray-500`**; tablo başlığı `text-gray-600` | `text-gray-400`/`text-gray-300` gövde metni **yok** (AA-fail; maliyet, yönetim, mizan'da yakalandı) |
+| **Teal tonu** | Dolu zemin + beyaz metin = **teal-700** (Button.svelte tek kaynak) | `bg-teal-600` inline buton/sayfa göstergesi **yok** (EmptyState/Pagination/FileDropzone/MessageInput dahil paylaşılan bileşenlerde bile yakalandı — bileşen içinde de teal-700) |
+| **Sayısal oran/yüzde girişi** | Para → `MoneyInput`; oran/yüzde (faiz, BSMV, komisyon) → MoneyInput `decimals` ile veya TR-formatlı kontrollü input | `<input type="number" step="0.01">` ile ondalık/para girişi **yok** (krediler, cariler'de yakalandı) |
+| **Inline spinner** | Veri yükleme = `TableSkeleton`/`FormSkeleton`; buton-içi bekleme = `Button loading` (Loader2) | Elle `animate-spin` div/SVG + "Yükleniyor..." **yok** (nakit-akım, cariler, krediler, çekler, onay-akışı, devam-takip'te yakalandı) |
+| **Sessiz hata** | Her `catch` → `console.error` + `showToast('... yüklenemedi', 'error')` | `.catch(() => {})` **yok** (dashboard panelinde 6 adet yakalandı); yalnız-`console.error` da yetmez — kullanıcıya toast |
+| **Form hata gösterimi** | `fieldErrors: Record<string,string>` + `aria-invalid`/`aria-describedby` (referans: avanslar) | Tek `formError` string'iyle alan hatası gömme **yok** (devam-takip, vardiyalar) |
 
-**Bilerek istisna olan sayfalar (kanonik iskelete uymaz, normaldir):** Mesajlaşma (iki-panel sohbet), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli + grafik), Panel/Dashboard (karşılama + özet — kendi başlığı), Nakit Akım iç accordion'u. Bunlar yine de **Button/Lucide/AA/StatCard** ilkelerine uyar.
+**Açık sapma envanteri (2026-06-09 denetimi — yeni sayfa bu listeye madde EKLETMEZ, kapatırken listeden düşülür):**
+1. `confirm()` → ConfirmDialog: `finans/butce` (~286), `satis/otel-rezervasyon` (~460)
+2. PageHeader eksik / elle `<h1>`: bankalar, bankalar/talimatlar, cariler, bütçe, döviz, krediler, otel-rezervasyon, oda-tipleri (kısmi), ucak-rezervasyon, kalite/sablonlar, kalite/formlar, sistem/onay-akisi, sistem/sunucu, ScheduledModule (inline header)
+3. ScheduledModule (7 muhasebe+İK sayfasının omurgası): iskelet sırası ters (filtre→özet), custom özet kartlar (StatCard değil), "+ Ekle" filtre barında, tablo başlığı `text-gray-500`, sessiz catch'ler — **tek dosya düzeltmesi 7 sayfayı birden düzeltir, en yüksek kaldıraç**
+4. Inline `animate-spin` spinner: nakit-akım, cariler, krediler, çekler, bankalar, sistem/onay-akisi, sistem/roller, sistem/moduller, devam-takip, devam/kur
+5. `bg-teal-600` (teal-700 olmalı): `EmptyState.svelte:35`, `Pagination.svelte:93`, `FileDropzone.svelte:123`, `MessageInput.svelte` + mesajlaşma bileşenleri (~20 yer)
+6. Elle stillenmiş aksiyon butonları (Button.svelte olmalı): finans/onay (onayla/reddet), krediler (yön seçimi), sistem/onay-akisi (Onayla/Reddet/İade + tab'lar), sistem/roller (Tümünü seç/Temizle), oda-tipleri ve otel-rezervasyon satır aksiyonları
+7. `type="number"` ile ondalık giriş: krediler (~1458-1466 faiz/BSMV/komisyon), cariler (~1115), kalite/sablonlar (~480, 493)
+8. Mobilde tablo→kart eksik: devam-takip (personel/log tabloları yatay kaydırıyor; referans çözüm: vardiya-cizelgesi)
+9. AA kontrast: devam-takip tab `border-teal-600`, devam/ekran `text-teal-200/50`, stok/depolar `bg-amber-400` bar, stok/hareketler amber badge, otel-rezervasyon manuel pagination `bg-teal-600`
+10. Manuel pagination (Pagination.svelte olmalı): otel-rezervasyon, sistem/onay-akisi (3 kopya), oda-tipleri, kalite sayfaları
+11. EmptyState eksik (düz metin boş durum): otel-rezervasyon, sistem/roller, sistem/moduller
+12. Modal.svelte yerine inline modal markup: sistem/hata-loglar (detay modali)
+
+**Bilerek istisna olan sayfalar (kanonik iskelete uymaz, normaldir):** Mesajlaşma (iki-panel sohbet), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli + grafik), Panel/Dashboard (karşılama + özet — kendi başlığı), Nakit Akım iç accordion'u, public `/devam` sayfaları (kiosk/kurulum/basış — dashboard iskeleti yok; kiosk'ta sınırlı polling WS'siz public sayfa olduğu için kabul). Bunlar yine de **Button/Lucide/AA/StatCard/hata yönetimi** ilkelerine uyar.
 
 **Yeni modül "tasarımcı" kontrol listesi** (10 boyut — her yeni sayfa için):
 1. **Kullanılabilirlik** — arama+filtre+CTA çalışıyor mu, aksiyonlar keşfedilebilir mi?
