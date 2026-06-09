@@ -15,8 +15,9 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
-	import { Users, Landmark, Star, Trash2, Plus } from 'lucide-svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2 } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	// Generic onay state
 	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({
@@ -856,12 +857,7 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 	<!-- Başlık -->
-	<div class="flex items-center justify-between">
-		<div>
-			<h1 class="text-2xl font-semibold text-gray-900">Cariler</h1>
-			<p class="mt-1 text-sm text-gray-500">Cari hesap yönetimi ve ödeme planı</p>
-		</div>
-	</div>
+	<PageHeader title="Cariler" description="Cari hesap yönetimi ve ödeme planı" />
 
 	<!-- Özet Kartları -->
 	{#if summary}
@@ -942,8 +938,8 @@
 				<div class="relative">
 					{#if uploading}
 						<div class="absolute inset-0 z-10 bg-white/80 rounded-xl flex items-center justify-center">
-							<div class="flex items-center gap-2 text-teal-600">
-								<div class="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+							<div class="flex items-center gap-2 text-teal-700">
+								<Loader2 size={20} class="animate-spin" />
 								<span class="text-sm font-medium">Yükleniyor...</span>
 							</div>
 						</div>
@@ -1012,9 +1008,7 @@
 			<!-- Arama + Filtre -->
 			<div class="flex items-center gap-3 flex-wrap">
 				<div class="relative flex-1 max-w-md">
-					<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-					</svg>
+					<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
 					<input
 						type="text"
 						bind:value={vendorSearch}
@@ -1240,8 +1234,8 @@
 						{#if expandedVendor === vendor.id}
 							<div class="bg-gray-50 border-b border-gray-200">
 								{#if vtxLoading}
-									<div class="flex items-center justify-center py-8">
-										<div class="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+									<div class="flex items-center justify-center py-8 text-teal-700">
+										<Loader2 size={20} class="animate-spin" />
 									</div>
 								{:else}
 									<div class="px-3 sm:px-5 py-3 sm:py-4">
@@ -1634,9 +1628,7 @@
 	{#if activeView === 'schedule'}
 		<div class="space-y-4">
 			{#if scheduleLoading}
-				<div class="flex items-center justify-center py-12">
-					<div class="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-				</div>
+				<TableSkeleton rows={6} columns={4} />
 			{:else if schedule.length === 0}
 				<div class="text-center py-12 text-gray-500">
 					<p class="text-sm">Henüz ödeme planı bulunmuyor</p>
@@ -1802,8 +1794,8 @@
 
 		<!-- Çek listesi -->
 		{#if checksLoading}
-			<div class="flex items-center justify-center py-8">
-				<div class="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+			<div class="flex items-center justify-center py-8 text-teal-700">
+				<Loader2 size={24} class="animate-spin" />
 			</div>
 		{:else if filteredChecks().length === 0}
 			<div class="text-center py-8 text-gray-500">

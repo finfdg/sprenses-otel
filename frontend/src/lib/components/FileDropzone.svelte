@@ -120,7 +120,7 @@
 			type="button"
 			onclick={() => inputEl?.click()}
 			{disabled}
-			class="mt-1 px-4 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+			class="mt-1 px-4 py-1.5 text-xs font-medium text-white bg-teal-700 rounded-lg hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
 		>
 			Göz at
 		</button>

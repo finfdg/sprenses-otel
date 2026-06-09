@@ -11,8 +11,9 @@
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { CreditCard, ChevronRight, FileDown, Plus } from 'lucide-svelte';
+	import { CreditCard, ChevronRight, FileDown, Plus, Loader2, CheckCircle2 } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import type { LatestRates } from '$lib/types/exchange-rate';
 
 	// Generic silme onayı state
@@ -360,6 +361,7 @@
 	async function uploadCCStatement(productId: number, file: File) {
 		if (!file.name.toLowerCase().endsWith('.pdf')) {
 			ccUploadError = 'Sadece PDF dosyaları yüklenebilir';
+			showToast(ccUploadError, 'error');
 			return;
 		}
 		ccUploading = true;
@@ -370,12 +372,14 @@
 			formData.append('file', file);
 			const res: any = await api.upload('/finance/krediler/kart/auto-upload', formData);
 			ccUploadSuccess = `${res.card_name || 'Kart'} — ${res.kesim_tarihi} dönemi yüklendi (${res.transaction_count} işlem)`;
+			showToast(ccUploadSuccess, 'success');
 			// İlgili kartın ekstrelerini yenile
 			if (expandedId) await loadCCStatements(expandedId);
 			await loadData();
 		} catch (e: any) {
 			console.error('Ekstre yükleme hatası:', e);
 			ccUploadError = e?.message || 'Ekstre yüklenirken bir hata oluştu';
+			showToast(ccUploadError, 'error');
 		}
 		ccUploading = false;
 	}
@@ -770,16 +774,17 @@
 
 <div class="max-w-7xl mx-auto px-1 sm:px-0">
 	<!-- Başlık -->
-	<div class="flex items-center justify-between mb-4 sm:mb-6 gap-2">
-		<h1 class="text-2xl font-semibold text-gray-900">Krediler</h1>
-		<div class="flex items-center gap-2 shrink-0">
-			<Button variant="secondary" onclick={downloadPdf} disabled={pdfLoading} title="Kredileri PDF rapor olarak indir (açılış + vade tarihleri dahil)">
-				<FileDown size={16} /> <span class="hidden sm:inline">{pdfLoading ? 'Hazırlanıyor…' : 'PDF Rapor'}</span>
-			</Button>
-			{#if canUse}
-				<Button onclick={openAdd}><Plus size={16} /> <span class="hidden sm:inline">Yeni</span> Ürün</Button>
-			{/if}
-		</div>
+	<div class="mb-4 sm:mb-6">
+		<PageHeader title="Krediler" description="Kredi ürünleri, taksit takvimi ve kredi kartı ekstreleri">
+			{#snippet actions()}
+				<Button variant="secondary" onclick={downloadPdf} disabled={pdfLoading} title="Kredileri PDF rapor olarak indir (açılış + vade tarihleri dahil)">
+					<FileDown size={16} /> <span class="hidden sm:inline">{pdfLoading ? 'Hazırlanıyor…' : 'PDF Rapor'}</span>
+				</Button>
+				{#if canUse}
+					<Button onclick={openAdd}><Plus size={16} /> <span class="hidden sm:inline">Yeni</span> Ürün</Button>
+				{/if}
+			{/snippet}
+		</PageHeader>
 	</div>
 
 	<!-- Özet Kartları -->
@@ -886,8 +891,8 @@
 		<div class="relative mb-4">
 			{#if ccUploading}
 				<div class="absolute inset-0 z-10 bg-white/80 rounded-xl flex items-center justify-center">
-					<div class="flex items-center gap-2 text-teal-600">
-						<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+					<div class="flex items-center gap-2 text-teal-700">
+						<Loader2 size={20} class="animate-spin" />
 						<span class="text-sm font-medium">Ekstre yükleniyor...</span>
 					</div>
 				</div>
@@ -906,7 +911,7 @@
 				<p class="text-xs text-red-600 mt-2">{ccUploadError}</p>
 			{/if}
 			{#if ccUploadSuccess}
-				<p class="text-xs text-teal-600 mt-2">✅ {ccUploadSuccess}</p>
+				<p class="inline-flex items-center gap-1 text-xs text-teal-700 mt-2"><CheckCircle2 size={14} /> {ccUploadSuccess}</p>
 			{/if}
 		</div>
 	{/if}
@@ -1455,15 +1460,15 @@
 			</div>
 			<div>
 				<label for="k-interest" class="text-xs text-gray-500 mb-1 block">Faiz Oranı (%)</label>
-				<input id="k-interest" type="number" step="0.01" bind:value={form.interest_rate} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="ör: 2.45" />
+				<MoneyInput id="k-interest" bind:value={form.interest_rate} decimals={2} min={0} placeholder="ör: 2,45" />
 			</div>
 			<div>
 				<label for="k-bsmv" class="text-xs text-gray-500 mb-1 block">BSMV Oranı (%)</label>
-				<input id="k-bsmv" type="number" step="0.01" bind:value={form.bsmv_rate} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="ör: 5" />
+				<MoneyInput id="k-bsmv" bind:value={form.bsmv_rate} decimals={2} min={0} placeholder="ör: 5" />
 			</div>
 			<div>
 				<label for="k-commission" class="text-xs text-gray-500 mb-1 block">Komisyon Oranı (%)</label>
-				<input id="k-commission" type="number" step="0.01" bind:value={form.commission_rate} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="ör: 1" />
+				<MoneyInput id="k-commission" bind:value={form.commission_rate} decimals={2} min={0} placeholder="ör: 1" />
 			</div>
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">

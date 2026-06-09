@@ -6,9 +6,11 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { validateRequired } from '$lib/utils/validation';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+	import { Plus, Pencil, Trash2, Shield } from 'lucide-svelte';
 
 	const canUse = hasPermission('system.roles', 'use');
 
@@ -230,11 +232,15 @@
 	</div>
 
 	{#if loading}
-		<p class="text-gray-500">Yükleniyor...</p>
+		<TableSkeleton rows={4} columns={3} />
 	{:else if roles.length === 0}
-		<div class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-500 shadow-sm">
-			Henüz rol yok.
-		</div>
+		<EmptyState
+			icon={Shield}
+			title="Henüz rol yok"
+			description={canUse ? "İlk rolü eklemek için 'Yeni Rol' butonunu kullanın." : 'Görüntülenecek rol bulunmuyor.'}
+			ctaText={canUse ? 'Yeni Rol' : ''}
+			onCta={canUse ? openCreate : null}
+		/>
 	{:else}
 		<div class="grid gap-3">
 			{#each roles as r}
@@ -266,25 +272,25 @@
 
 	<div class="space-y-4">
 		<div>
-			<label for="r-name" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Rol Adı</label>
+			<label for="r-name" class="block text-sm font-medium text-gray-700 mb-1">Rol Adı <span class="text-red-600">*</span></label>
 			<input id="r-name" bind:value={formName} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 			{#if fieldErrors.name}
 				<p class="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
 			{/if}
 		</div>
 		<div>
-			<label for="r-desc" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Açıklama</label>
+			<label for="r-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama</label>
 			<input id="r-desc" bind:value={formDesc} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 		</div>
 
 		<!-- Permission Matrix -->
 		<div>
 			<div class="flex items-center justify-between mb-2 gap-2 flex-wrap">
-				<span class="text-gray-500 text-xs font-medium uppercase tracking-wider">İzinler</span>
+				<span class="block text-sm font-medium text-gray-700">İzinler</span>
 				<div class="flex gap-1.5 shrink-0">
-					<button type="button" onclick={() => setAllPerms(true, true)} class="px-2.5 py-1 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-md hover:bg-teal-100 transition-colors cursor-pointer">Tümünü seç</button>
-					<button type="button" onclick={() => setAllPerms(true, false)} class="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors cursor-pointer">Sadece görme</button>
-					<button type="button" onclick={() => setAllPerms(false, false)} class="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors cursor-pointer">Temizle</button>
+					<Button variant="ghost" size="sm" onclick={() => setAllPerms(true, true)}>Tümünü seç</Button>
+					<Button variant="ghost" size="sm" onclick={() => setAllPerms(true, false)}>Sadece görme</Button>
+					<Button variant="ghost" size="sm" onclick={() => setAllPerms(false, false)}>Temizle</Button>
 				</div>
 			</div>
 			<div class="border border-gray-200 rounded-xl overflow-x-auto">
@@ -307,10 +313,10 @@
 									{/if}
 								</td>
 								<td class="text-center px-3 md:px-4 py-2.5">
-									<input type="checkbox" checked={groupState(group, 'view') === 'all'} indeterminate={groupState(group, 'view') === 'some'} onchange={(e) => toggleGroupView(group, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
+									<input type="checkbox" checked={groupState(group, 'view') === 'all'} indeterminate={groupState(group, 'view') === 'some'} onchange={(e) => toggleGroupView(group, e.currentTarget.checked)} class="accent-teal-700 w-4 h-4 cursor-pointer" />
 								</td>
 								<td class="text-center px-3 md:px-4 py-2.5">
-									<input type="checkbox" checked={groupState(group, 'use') === 'all'} indeterminate={groupState(group, 'use') === 'some'} onchange={(e) => toggleGroupUse(group, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
+									<input type="checkbox" checked={groupState(group, 'use') === 'all'} indeterminate={groupState(group, 'use') === 'some'} onchange={(e) => toggleGroupUse(group, e.currentTarget.checked)} class="accent-teal-700 w-4 h-4 cursor-pointer" />
 								</td>
 							</tr>
 							<!-- Alt modül satırları -->
@@ -320,10 +326,10 @@
 										<span class="text-gray-500 mr-1.5">└</span>{child.name}
 									</td>
 									<td class="text-center px-3 md:px-4 py-2">
-										<input type="checkbox" checked={formPerms[child.id].view} onchange={(e) => toggleView(child.id, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
+										<input type="checkbox" checked={formPerms[child.id].view} onchange={(e) => toggleView(child.id, e.currentTarget.checked)} class="accent-teal-700 w-4 h-4 cursor-pointer" />
 									</td>
 									<td class="text-center px-3 md:px-4 py-2">
-										<input type="checkbox" checked={formPerms[child.id].use} onchange={(e) => toggleUse(child.id, e.currentTarget.checked)} class="accent-teal-600 w-4 h-4 cursor-pointer" />
+										<input type="checkbox" checked={formPerms[child.id].use} onchange={(e) => toggleUse(child.id, e.currentTarget.checked)} class="accent-teal-700 w-4 h-4 cursor-pointer" />
 									</td>
 								</tr>
 							{/each}

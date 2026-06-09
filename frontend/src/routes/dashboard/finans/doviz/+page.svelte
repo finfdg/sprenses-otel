@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import type {
 		LatestRates, ExchangeRate, ChartDataPoint, ParityDataPoint, CurrencyCode
 	} from '$lib/types/exchange-rate';
@@ -239,10 +240,7 @@
 <div class="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
 
 	<!-- ─── Başlık ─── -->
-	<div>
-		<h1 class="text-2xl font-semibold text-gray-900">Döviz Kurları</h1>
-		<p class="text-xs sm:text-sm text-gray-500 mt-1">TCMB Merkez Bankası günlük kur verileri</p>
-	</div>
+	<PageHeader title="Döviz Kurları" description="TCMB Merkez Bankası günlük kur verileri" />
 
 	{#if loading}
 		<div class="flex items-center justify-center py-24">

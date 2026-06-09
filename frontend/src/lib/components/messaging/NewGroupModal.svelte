@@ -127,7 +127,7 @@
 
 			<div class="px-4 py-3 border-t border-gray-100 flex gap-2">
 				<button onclick={() => show = false} class="flex-1 py-2.5 text-sm text-gray-500 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">İptal</button>
-				<button onclick={createGroup} disabled={!newGroupName.trim() || selectedMembers.size === 0} class="flex-1 py-2.5 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-40 font-medium">Oluştur</button>
+				<button onclick={createGroup} disabled={!newGroupName.trim() || selectedMembers.size === 0} class="flex-1 py-2.5 text-sm text-white bg-teal-700 rounded-lg hover:bg-teal-800 transition-colors cursor-pointer disabled:opacity-40 font-medium">Oluştur</button>
 			</div>
 		</div>
 	</div>

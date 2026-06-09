@@ -5,9 +5,11 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import { Building2 } from 'lucide-svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { Building2, Pencil, Trash2, Loader2, Settings, ChevronRight, ChevronLeft, Plus } from 'lucide-svelte';
 
 	// ── Türkçe ay isimleri ──
 	const MONTH_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
@@ -282,15 +284,27 @@
 		}
 	}
 
-	async function deleteCat(catId: number) {
-		if (!confirm('Bu kategoriyi silmek istediğinizden emin misiniz?')) return;
+	// Kategori silme onayı (ConfirmDialog)
+	let confirmDeleteCat = $state<{ id: number; name: string } | null>(null);
+	let showDeleteCatConfirm = $state(false);
+
+	function openDeleteCat(cat: any) {
+		confirmDeleteCat = { id: cat.id, name: cat.name };
+		showDeleteCatConfirm = true;
+	}
+
+	async function deleteCat() {
+		if (!confirmDeleteCat) return;
+		const item = confirmDeleteCat;
 		try {
-			await api.delete(`/finance/butce/kategoriler/${catId}`);
+			await api.delete(`/finance/butce/kategoriler/${item.id}`);
 			showToast('Kategori silindi', 'success');
 			await loadCategories();
 		} catch (err: any) {
 			console.error('Kategori silme hatası:', err);
 			showToast(err?.message || 'Kategori silinemedi', 'error');
+		} finally {
+			confirmDeleteCat = null;
 		}
 	}
 
@@ -335,61 +349,51 @@
 </svelte:head>
 
 <!-- Başlık -->
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-	<div>
-		<h1 class="text-2xl font-semibold text-gray-900">Bütçe Yönetimi</h1>
-		<p class="text-sm text-gray-500 mt-0.5">Departman bazlı bütçe planlama ve takip</p>
-	</div>
+<div class="mb-6">
+	<PageHeader title="Bütçe Yönetimi" description="Departman bazlı bütçe planlama ve takip">
+		{#snippet actions()}
+			<!-- Kaydetme göstergesi -->
+			{#if saving}
+				<span class="text-xs text-teal-700 flex items-center gap-1">
+					<Loader2 size={14} class="animate-spin" />
+					Kaydediliyor...
+				</span>
+			{/if}
 
-	<div class="flex items-center gap-2 flex-wrap">
-		<!-- Kaydetme göstergesi -->
-		{#if saving}
-			<span class="text-xs text-cyan-600 flex items-center gap-1">
-				<svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-				</svg>
-				Kaydediliyor...
-			</span>
-		{/if}
+			<!-- Yıl seçici -->
+			<select
+				bind:value={selectedYear}
+				class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+			>
+				{#each yearOptions as year}
+					<option value={year}>{year}</option>
+				{/each}
+			</select>
 
-		<!-- Yıl seçici -->
-		<select
-			bind:value={selectedYear}
-			class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
-		>
-			{#each yearOptions as year}
-				<option value={year}>{year}</option>
-			{/each}
-		</select>
+			<!-- Departman seçici -->
+			<select
+				bind:value={selectedDeptId}
+				class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none min-w-[160px]"
+			>
+				<option value={null}>Tüm Departmanlar</option>
+				{#each departments as dept}
+					<option value={dept.id}>{dept.name}</option>
+				{/each}
+			</select>
 
-		<!-- Departman seçici -->
-		<select
-			bind:value={selectedDeptId}
-			class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none min-w-[160px]"
-		>
-			<option value={null}>Tüm Departmanlar</option>
-			{#each departments as dept}
-				<option value={dept.id}>{dept.name}</option>
-			{/each}
-		</select>
-
-		<!-- Ayarlar butonu -->
-		{#if canUse}
-			<div class="relative">
+			<!-- Ayarlar butonu -->
+			{#if canUse}
 				<button
 					onclick={() => showDeptModal = true}
 					class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
 					title="Departman & Kategori Yönetimi"
+					aria-label="Departman ve kategori yönetimi"
 				>
-					<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
-						<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-					</svg>
+					<Settings size={20} />
 				</button>
-			</div>
-		{/if}
-	</div>
+			{/if}
+		{/snippet}
+	</PageHeader>
 </div>
 
 {#if loading}
@@ -407,13 +411,11 @@
 				{@const netActual = (dept.total_actual_income ?? 0) - (dept.total_actual_expense ?? 0)}
 				<button
 					onclick={() => selectedDeptId = dept.department_id}
-					class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 text-left hover:border-cyan-300 hover:shadow-md transition-all cursor-pointer"
+					class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 text-left hover:border-teal-300 hover:shadow-md transition-all cursor-pointer"
 				>
 					<div class="flex items-center justify-between mb-4">
 						<h3 class="text-sm font-bold text-gray-800">{dept.department_name}</h3>
-						<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-						</svg>
+						<ChevronRight size={16} class="text-gray-500" />
 					</div>
 
 					<!-- Gelir -->
@@ -476,9 +478,7 @@
 			onclick={() => selectedDeptId = null}
 			class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
 		>
-			<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-			</svg>
+			<ChevronLeft size={16} />
 			Tüm Departmanlar
 		</button>
 	</div>
@@ -540,11 +540,9 @@
 			{#if canUse}
 				<button
 					onclick={() => { catForm.type = activeTab; showCatModal = true; }}
-					class="mt-3 inline-flex items-center gap-1.5 text-sm text-cyan-600 hover:text-cyan-700 font-medium cursor-pointer"
+					class="mt-3 inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium cursor-pointer"
 				>
-					<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-					</svg>
+					<Plus size={16} />
 					Kategori Ekle
 				</button>
 			{/if}
@@ -635,7 +633,7 @@
 												value={cell.planned || ''}
 												onchange={(e) => handleCellChange(cat.id, m, (e.target as HTMLInputElement).value)}
 												onkeydown={(e) => handleCellKeydown(e, cat.id, m)}
-												class="w-full text-center text-xs px-1 py-1 border border-transparent rounded focus:border-cyan-400 focus:outline-none focus:bg-white bg-transparent hover:bg-gray-50 transition-colors"
+												class="w-full text-center text-xs px-1 py-1 border border-transparent rounded focus:border-teal-500 focus:outline-none focus:bg-white bg-transparent hover:bg-gray-50 transition-colors"
 												placeholder="0"
 											/>
 										{:else}
@@ -730,18 +728,16 @@
 							<input
 								type="text"
 								bind:value={deptForm.name}
-								class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+								class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 								onkeydown={(e) => { if (e.key === 'Enter') saveDept(); if (e.key === 'Escape') cancelEditDept(); }}
 							/>
-							<button onclick={saveDept} class="text-xs text-cyan-600 hover:text-cyan-700 font-medium cursor-pointer">Kaydet</button>
+							<button onclick={saveDept} class="text-xs text-teal-700 hover:text-teal-800 font-medium cursor-pointer">Kaydet</button>
 							<button onclick={cancelEditDept} class="text-xs text-gray-500 hover:text-gray-700 cursor-pointer">İptal</button>
 						{:else}
 							<span class="flex-1 text-sm text-gray-700">{dept.name}</span>
 							{#if canUse}
-								<button onclick={() => startEditDept(dept)} class="text-xs text-gray-500 hover:text-cyan-600 cursor-pointer" title="Düzenle">
-									<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-									</svg>
+								<button onclick={() => startEditDept(dept)} class="text-xs text-gray-500 hover:text-teal-700 cursor-pointer" title="Düzenle" aria-label="Düzenle">
+									<Pencil size={16} />
 								</button>
 							{/if}
 						{/if}
@@ -754,7 +750,7 @@
 						type="text"
 						bind:value={deptForm.name}
 						placeholder="Yeni departman adı"
-						class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+						class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 						onkeydown={(e) => { if (e.key === 'Enter' && !editingDeptId) saveDept(); }}
 						disabled={editingDeptId !== null}
 					/>
@@ -776,7 +772,7 @@
 				{#if canUse}
 					<button
 						onclick={() => showCatModal = true}
-						class="text-xs text-cyan-600 hover:text-cyan-700 font-medium cursor-pointer"
+						class="text-xs text-teal-700 hover:text-teal-800 font-medium cursor-pointer"
 					>
 						+ Yeni Kategori
 					</button>
@@ -793,23 +789,19 @@
 								<input
 									type="text"
 									bind:value={catForm.name}
-									class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+									class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 									onkeydown={(e) => { if (e.key === 'Enter') saveCat(); if (e.key === 'Escape') cancelEditCat(); }}
 								/>
-								<button onclick={saveCat} class="text-xs text-cyan-600 hover:text-cyan-700 font-medium cursor-pointer">Kaydet</button>
+								<button onclick={saveCat} class="text-xs text-teal-700 hover:text-teal-800 font-medium cursor-pointer">Kaydet</button>
 								<button onclick={cancelEditCat} class="text-xs text-gray-500 hover:text-gray-700 cursor-pointer">İptal</button>
 							{:else}
 								<span class="flex-1 text-sm text-gray-700">{cat.name}</span>
 								{#if canUse}
-									<button onclick={() => startEditCat(cat)} class="text-xs text-gray-500 hover:text-cyan-600 cursor-pointer" title="Düzenle">
-										<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-										</svg>
+									<button onclick={() => startEditCat(cat)} class="text-xs text-gray-500 hover:text-teal-700 cursor-pointer" title="Düzenle" aria-label="Düzenle">
+										<Pencil size={14} />
 									</button>
-									<button onclick={() => deleteCat(cat.id)} class="text-xs text-gray-500 hover:text-red-600 cursor-pointer" title="Sil">
-										<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-										</svg>
+									<button onclick={() => openDeleteCat(cat)} class="text-xs text-gray-500 hover:text-red-600 cursor-pointer" title="Sil" aria-label="Sil">
+										<Trash2 size={14} />
 									</button>
 								{/if}
 							{/if}
@@ -828,23 +820,19 @@
 								<input
 									type="text"
 									bind:value={catForm.name}
-									class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+									class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 									onkeydown={(e) => { if (e.key === 'Enter') saveCat(); if (e.key === 'Escape') cancelEditCat(); }}
 								/>
-								<button onclick={saveCat} class="text-xs text-cyan-600 hover:text-cyan-700 font-medium cursor-pointer">Kaydet</button>
+								<button onclick={saveCat} class="text-xs text-teal-700 hover:text-teal-800 font-medium cursor-pointer">Kaydet</button>
 								<button onclick={cancelEditCat} class="text-xs text-gray-500 hover:text-gray-700 cursor-pointer">İptal</button>
 							{:else}
 								<span class="flex-1 text-sm text-gray-700">{cat.name}</span>
 								{#if canUse}
-									<button onclick={() => startEditCat(cat)} class="text-xs text-gray-500 hover:text-cyan-600 cursor-pointer" title="Düzenle">
-										<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-										</svg>
+									<button onclick={() => startEditCat(cat)} class="text-xs text-gray-500 hover:text-teal-700 cursor-pointer" title="Düzenle" aria-label="Düzenle">
+										<Pencil size={14} />
 									</button>
-									<button onclick={() => deleteCat(cat.id)} class="text-xs text-gray-500 hover:text-red-600 cursor-pointer" title="Sil">
-										<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-										</svg>
+									<button onclick={() => openDeleteCat(cat)} class="text-xs text-gray-500 hover:text-red-600 cursor-pointer" title="Sil" aria-label="Sil">
+										<Trash2 size={14} />
 									</button>
 								{/if}
 							{/if}
@@ -866,7 +854,7 @@
 				type="text"
 				bind:value={catForm.name}
 				placeholder="Kategori adı girin"
-				class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none"
+				class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 				required
 			/>
 		</div>
@@ -874,11 +862,11 @@
 			<span class="block text-sm font-medium text-gray-700 mb-1">Tür</span>
 			<div class="flex items-center gap-3">
 				<label class="flex items-center gap-1.5 cursor-pointer">
-					<input type="radio" bind:group={catForm.type} value="expense" class="text-cyan-600" />
+					<input type="radio" bind:group={catForm.type} value="expense" class="text-teal-700" />
 					<span class="text-sm text-gray-700">Gider</span>
 				</label>
 				<label class="flex items-center gap-1.5 cursor-pointer">
-					<input type="radio" bind:group={catForm.type} value="income" class="text-cyan-600" />
+					<input type="radio" bind:group={catForm.type} value="income" class="text-teal-700" />
 					<span class="text-sm text-gray-700">Gelir</span>
 				</label>
 			</div>
@@ -901,3 +889,14 @@
 		</div>
 	</form>
 </Modal>
+
+<!-- ═══ Kategori Silme Onayı ═══ -->
+<ConfirmDialog
+	bind:show={showDeleteCatConfirm}
+	title="Kategoriyi Sil"
+	message={confirmDeleteCat ? `"${confirmDeleteCat.name}" kategorisini silmek istediğinizden emin misiniz?` : ''}
+	confirmText="Sil"
+	cancelText="Vazgeç"
+	danger
+	onConfirm={deleteCat}
+/>

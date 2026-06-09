@@ -151,7 +151,7 @@
 	<PageHeader title="Mizan" description="Sedna muhasebe hesaplarının dönem borç / alacak / bakiye özeti — ana hesaptan alt hesaba ve hareketlere kadar." />
 
 	{#if !configured}
-		<EmptyState icon={Scale} title="Sedna bağlantısı yok" message="Mizan canlı Sedna muhasebe verisinden gelir; bağlantı (SEDNA_PASSWORD) yapılandırılmamış." />
+		<EmptyState icon={Scale} title="Sedna bağlantısı yok" description="Mizan canlı Sedna muhasebe verisinden gelir; bağlantı (SEDNA_PASSWORD) yapılandırılmamış." />
 	{:else}
 		<!-- Filtre barı -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3 sm:p-4 flex flex-wrap items-center gap-3">
@@ -207,7 +207,7 @@
 			{#if loading}
 				<div class="py-12 text-center text-gray-400 text-sm"><Loader2 class="animate-spin inline" size={18} /> Yükleniyor…</div>
 			{:else if rows.length === 0}
-				<EmptyState icon={Scale} title={searchMode ? 'Sonuç yok' : 'Kayıt yok'} message={searchMode ? 'Aramanıza uyan hesap bulunamadı.' : 'Seçilen dönemde muhasebe hareketi yok.'} />
+				<EmptyState icon={Scale} title={searchMode ? 'Sonuç yok' : 'Kayıt yok'} description={searchMode ? 'Aramanıza uyan hesap bulunamadı.' : 'Seçilen dönemde muhasebe hareketi yok.'} />
 			{:else}
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm border-collapse">

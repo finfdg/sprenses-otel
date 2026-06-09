@@ -341,7 +341,7 @@
 		{#if canUse}
 			<button
 				onclick={openNewModal}
-				class="inline-flex items-center gap-1.5 px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium"
+				class="inline-flex items-center gap-1.5 px-3 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm font-medium"
 			>
 				<Plus size={16} /> Yeni Liste
 			</button>
@@ -539,7 +539,7 @@
 		</div>
 		<div class="flex items-center justify-end gap-2">
 			<button type="button" onclick={() => (showNewModal = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
-			<button type="submit" disabled={busy} class="px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium disabled:opacity-50">Oluştur</button>
+			<button type="submit" disabled={busy} class="px-4 py-2 text-sm bg-teal-700 text-white rounded-lg hover:bg-teal-800 font-medium disabled:opacity-50">Oluştur</button>
 		</div>
 	</form>
 </Modal>

@@ -318,7 +318,7 @@
 					value={vendorSearch}
 					oninput={(e) => handleVendorSearch(e.currentTarget.value)}
 					placeholder="Cari adı veya kodu ara..."
-					class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-cyan-400"
+					class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-teal-500"
 				/>
 				{#if vendorSearching}
 					<div class="absolute right-2 top-1/2 -translate-y-1/2">
@@ -513,7 +513,7 @@
 					type="text"
 					bind:value={note}
 					placeholder="ör: ABC İnşaat"
-					class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-blue-400"
+					class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-teal-500"
 					onkeydown={(e) => { if (e.key === 'Enter' && selectedCatId) selectCategory(selectedCatId); }}
 				/>
 			{/if}

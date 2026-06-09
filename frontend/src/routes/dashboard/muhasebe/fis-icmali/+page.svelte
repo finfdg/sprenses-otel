@@ -155,7 +155,7 @@
 	<PageHeader title="Kullanıcı Fiş İcmali" description="Sedna muhasebe fişlerini kim, ne zaman, ne kadar kesmiş — gün/ay bazında kullanıcı icmali." />
 
 	{#if !configured}
-		<EmptyState icon={FileText} title="Sedna bağlantısı yok" message="Fiş icmali canlı Sedna muhasebe verisinden gelir; bağlantı (SEDNA_PASSWORD) yapılandırılmamış." />
+		<EmptyState icon={FileText} title="Sedna bağlantısı yok" description="Fiş icmali canlı Sedna muhasebe verisinden gelir; bağlantı (SEDNA_PASSWORD) yapılandırılmamış." />
 	{:else}
 		<!-- Filtre barı -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3 sm:p-4 flex flex-wrap items-center gap-3">
@@ -216,7 +216,7 @@
 			{#if loading}
 				<div class="py-12 text-center text-gray-400 text-sm">Yükleniyor…</div>
 			{:else if data.users.length === 0}
-				<EmptyState icon={FileText} title="Kayıt yok" message="Seçilen dönemde fiş kesilmemiş." />
+				<EmptyState icon={FileText} title="Kayıt yok" description="Seçilen dönemde fiş kesilmemiş." />
 			{:else}
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm border-collapse">

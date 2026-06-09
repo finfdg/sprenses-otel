@@ -148,7 +148,7 @@
 				<button
 					onclick={addMembers}
 					disabled={selectedIds.size === 0 || adding}
-					class="flex-1 py-2.5 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-40 font-medium"
+					class="flex-1 py-2.5 text-sm text-white bg-teal-700 rounded-lg hover:bg-teal-800 transition-colors cursor-pointer disabled:opacity-40 font-medium"
 				>
 					{#if adding}Ekleniyor...{:else}Ekle ({selectedIds.size}){/if}
 				</button>

@@ -5,10 +5,13 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import { FileText } from 'lucide-svelte';
+	import { CalendarCheck, FileText, X } from 'lucide-svelte';
 
 	interface FormItem {
 		id: number;
@@ -38,7 +41,7 @@
 	let currentPage = $state(1);
 	let totalItems = $state(0);
 	let totalPages = $state(1);
-	const pageSize = 25;
+	let pageSize = $state(25);
 
 	// Filtreler
 	let statusFilter = $state('');
@@ -120,6 +123,12 @@
 		loadData();
 	}
 
+	function changePageSize(s: number) {
+		pageSize = s;
+		currentPage = 1;
+		loadData();
+	}
+
 	// Silme
 	let showDeleteConfirm = $state(false);
 	let deleteTargetId = $state<number | null>(null);
@@ -178,21 +187,15 @@
 
 <div class="max-w-6xl mx-auto">
 	<!-- Başlık -->
-	<div class="flex justify-end gap-2 mb-6">
-		<button
-			onclick={filterToday}
-			class="text-xs px-3 py-2 sm:py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer"
-		>
-			Bugün
-		</button>
-		{#if hasActiveFilter}
-			<button
-				onclick={clearFilters}
-				class="text-xs px-3 py-2 sm:py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-			>
-				Filtreleri Temizle
-			</button>
-		{/if}
+	<div class="mb-6">
+		<PageHeader title="Kalite Formları" description="Doldurulmuş denetim ve kontrol formları — durum takibi ve onay süreci">
+			{#snippet actions()}
+				<Button variant="secondary" size="sm" onclick={filterToday}><CalendarCheck size={14} /> Bugün</Button>
+				{#if hasActiveFilter}
+					<Button variant="secondary" size="sm" onclick={clearFilters}><X size={14} /> Filtreleri Temizle</Button>
+				{/if}
+			{/snippet}
+		</PageHeader>
 	</div>
 
 	<!-- Filtreler -->
@@ -347,43 +350,9 @@
 		</div>
 
 		<!-- Sayfalama -->
-		{#if totalPages > 1}
-			<div class="flex items-center justify-between mt-4 bg-white border border-gray-200 rounded-xl px-4 py-3">
-				<span class="text-xs text-gray-500">
-					Toplam {totalItems} form
-				</span>
-				<div class="flex items-center gap-1">
-					<button
-						onclick={() => goToPage(currentPage - 1)}
-						disabled={currentPage <= 1}
-						class="px-2.5 py-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						←
-					</button>
-					{#each Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1) as p, idx}
-						{@const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(pp => pp === 1 || pp === totalPages || Math.abs(pp - currentPage) <= 1)}
-						{#if idx > 0 && p - pages[idx - 1] > 1}
-							<span class="px-1 text-xs text-gray-500">...</span>
-						{/if}
-						<button
-							onclick={() => goToPage(p)}
-							class="px-2.5 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer {
-								p === currentPage
-									? 'bg-teal-600 text-white border-teal-600'
-									: 'text-gray-600 bg-gray-50 border-gray-200 hover:bg-gray-100'
-							}"
-						>
-							{p}
-						</button>
-					{/each}
-					<button
-						onclick={() => goToPage(currentPage + 1)}
-						disabled={currentPage >= totalPages}
-						class="px-2.5 py-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						→
-					</button>
-				</div>
+		{#if totalItems > pageSize || currentPage > 1}
+			<div class="mt-4 bg-white border border-gray-200 rounded-xl px-4">
+				<Pagination page={currentPage} {pageSize} total={totalItems} onPageChange={goToPage} onPageSizeChange={changePageSize} />
 			</div>
 		{/if}
 	{/if}

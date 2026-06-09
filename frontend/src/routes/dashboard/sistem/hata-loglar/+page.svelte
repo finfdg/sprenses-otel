@@ -4,8 +4,9 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import ListPage from '$lib/components/ListPage.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { onMount } from 'svelte';
-	import { CheckCircle2 } from 'lucide-svelte';
+	import { CheckCircle2, Trash2 } from 'lucide-svelte';
 
 	interface ErrorLog {
 		id: number;
@@ -31,7 +32,13 @@
 	let filterSearch = $state('');
 
 	let selectedLog = $state<ErrorLog | null>(null);
+	let showDetailModal = $state(false);
 	let showClearConfirm = $state(false);
+
+	function openDetail(log: ErrorLog) {
+		selectedLog = log;
+		showDetailModal = true;
+	}
 
 	const canUse = hasPermission('system.error_logs', 'use');
 
@@ -80,6 +87,7 @@
 			logs = logs.filter(l => l.id !== id);
 			total--;
 			selectedLog = null;
+			showDetailModal = false;
 			showToast('Hata kaydı silindi', 'success');
 		} catch (err) {
 			console.error('Silme hatası:', err);
@@ -128,12 +136,7 @@
 >
 	{#snippet actions()}
 		{#if canUse && total > 0}
-			<button
-				onclick={() => showClearConfirm = true}
-				class="px-3 py-2 text-xs sm:text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
-			>
-				Tümünü Temizle
-			</button>
+			<Button variant="danger" onclick={() => showClearConfirm = true}><Trash2 size={16} /> Tümünü Temizle</Button>
 		{/if}
 	{/snippet}
 
@@ -153,7 +156,7 @@
 		{#each logs as log}
 			<button
 				class="w-full text-left p-3 sm:p-4 hover:bg-red-50/30 transition-colors cursor-pointer"
-				onclick={() => selectedLog = log}
+				onclick={() => openDetail(log)}
 			>
 				<div class="flex items-start justify-between gap-3">
 					<div class="flex-1 min-w-0">
@@ -176,92 +179,63 @@
 </ListPage>
 
 <!-- Detay Modalı -->
-{#if selectedLog}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-		onclick={() => selectedLog = null}
-		onkeydown={(e) => { if (e.key === 'Escape') selectedLog = null; }}
-		role="dialog"
-		tabindex="-1"
-	>
-		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-		<div
-			class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
-			onclick={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="p-5 border-b border-gray-100 flex items-center justify-between">
-				<div class="flex items-center gap-2">
-					<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border {LEVEL_COLORS[selectedLog.level] || 'bg-gray-50 text-gray-600 border-gray-200'}">
-						{selectedLog.level}
-					</span>
-					<h3 class="text-lg font-bold text-gray-800">Hata Detayı</h3>
-				</div>
-				<div class="flex items-center gap-2">
-					{#if canUse}
-						<button
-							onclick={() => deleteLog(selectedLog!.id)}
-							class="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
-						>Sil</button>
-					{/if}
-					<button onclick={() => selectedLog = null} class="p-1 text-gray-500 hover:text-gray-600 cursor-pointer" aria-label="Detayı kapat">
-						<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-					</button>
-				</div>
+<Modal bind:show={showDetailModal} title="Hata Detayı" maxWidth="max-w-2xl" onclose={() => selectedLog = null}>
+	{#if selectedLog}
+		<div class="space-y-4">
+			<div class="flex items-center justify-between gap-2">
+				<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border {LEVEL_COLORS[selectedLog.level] || 'bg-gray-50 text-gray-600 border-gray-200'}">
+					{selectedLog.level}
+				</span>
+				{#if canUse}
+					<Button variant="danger" size="sm" onclick={() => deleteLog(selectedLog!.id)}><Trash2 size={14} /> Sil</Button>
+				{/if}
 			</div>
-			<div class="p-5 space-y-4">
-				<div class="grid grid-cols-2 gap-3">
-					<div>
-						<span class="text-xs text-gray-500 block">Tarih</span>
-						<span class="text-sm font-medium text-gray-800">{formatDate(selectedLog.created_at)}</span>
-					</div>
-					<div>
-						<span class="text-xs text-gray-500 block">Kaynak</span>
-						<span class="text-sm font-mono text-gray-700">{selectedLog.source}</span>
-					</div>
-					{#if selectedLog.method && selectedLog.path}
-						<div class="col-span-2">
-							<span class="text-xs text-gray-500 block">İstek</span>
-							<span class="text-sm font-mono text-gray-700">{selectedLog.method} {selectedLog.path}</span>
-						</div>
-					{/if}
-					{#if selectedLog.ip_address}
-						<div>
-							<span class="text-xs text-gray-500 block">IP Adresi</span>
-							<span class="text-sm font-mono text-gray-600">{selectedLog.ip_address}</span>
-						</div>
-					{/if}
-				</div>
 
+			<div class="grid grid-cols-2 gap-3">
 				<div>
-					<span class="text-xs text-gray-500 block mb-1">Hata Mesajı</span>
-					<div class="bg-red-50 rounded-lg p-3 text-sm text-red-800 font-mono break-words">{selectedLog.message}</div>
+					<span class="text-xs text-gray-500 block">Tarih</span>
+					<span class="text-sm font-medium text-gray-800">{formatDate(selectedLog.created_at)}</span>
 				</div>
-
-				{#if selectedLog.traceback}
+				<div>
+					<span class="text-xs text-gray-500 block">Kaynak</span>
+					<span class="text-sm font-mono text-gray-700">{selectedLog.source}</span>
+				</div>
+				{#if selectedLog.method && selectedLog.path}
+					<div class="col-span-2">
+						<span class="text-xs text-gray-500 block">İstek</span>
+						<span class="text-sm font-mono text-gray-700">{selectedLog.method} {selectedLog.path}</span>
+					</div>
+				{/if}
+				{#if selectedLog.ip_address}
 					<div>
-						<span class="text-xs text-gray-500 block mb-1">Traceback</span>
-						<pre class="bg-gray-900 text-green-400 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">{selectedLog.traceback}</pre>
+						<span class="text-xs text-gray-500 block">IP Adresi</span>
+						<span class="text-sm font-mono text-gray-600">{selectedLog.ip_address}</span>
 					</div>
 				{/if}
 			</div>
+
+			<div>
+				<span class="text-xs text-gray-500 block mb-1">Hata Mesajı</span>
+				<div class="bg-red-50 rounded-lg p-3 text-sm text-red-800 font-mono break-words">{selectedLog.message}</div>
+			</div>
+
+			{#if selectedLog.traceback}
+				<div>
+					<span class="text-xs text-gray-500 block mb-1">Traceback</span>
+					<pre class="bg-gray-900 text-green-400 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">{selectedLog.traceback}</pre>
+				</div>
+			{/if}
 		</div>
-	</div>
-{/if}
+	{/if}
+</Modal>
 
 <!-- Temizleme Onayı -->
 <Modal bind:show={showClearConfirm} title="Tüm Hata Loglarını Temizle" maxWidth="max-w-sm">
 	<div class="space-y-4">
 		<p class="text-sm text-gray-600">Tüm hata kayıtları kalıcı olarak silinecektir. Bu işlem geri alınamaz.</p>
 		<div class="flex items-center justify-end gap-3">
-			<button
-				onclick={() => showClearConfirm = false}
-				class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 cursor-pointer"
-			>İptal</button>
-			<button
-				onclick={clearAll}
-				class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 cursor-pointer"
-			>Tümünü Sil</button>
+			<Button variant="secondary" onclick={() => showClearConfirm = false}>İptal</Button>
+			<Button variant="danger" onclick={clearAll}><Trash2 size={16} /> Tümünü Sil</Button>
 		</div>
 	</div>
 </Modal>

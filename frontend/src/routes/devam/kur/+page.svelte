@@ -7,6 +7,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import jsQR from 'jsqr';
+	import { Loader2 } from 'lucide-svelte';
 
 	type View = 'loading' | 'ready' | 'scanning' | 'result' | 'error';
 	let view = $state<View>('loading');
@@ -210,7 +211,7 @@
 <div class="min-h-screen flex items-center justify-center p-5 bg-gray-50">
 	<div class="max-w-sm w-full">
 		{#if view === 'loading'}
-			<div class="text-center py-16"><div class="w-12 h-12 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mx-auto"></div></div>
+			<div class="flex justify-center py-16" role="status" aria-label="Yükleniyor"><Loader2 size={48} class="animate-spin text-teal-700" /></div>
 
 		{:else if view === 'ready'}
 			<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center space-y-4">

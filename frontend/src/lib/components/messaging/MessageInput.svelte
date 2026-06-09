@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { Check, Pencil, X } from 'lucide-svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatFileSize, getFileIcon } from '$lib/types/messaging';
 	import EmojiPicker from '$lib/components/EmojiPicker.svelte';
@@ -162,8 +163,8 @@
 				<input type="text" bind:value={fileCaption} onkeydown={handleKeyDown} placeholder="Açıklama ekle..." class="mt-1 w-full px-2 py-1 bg-gray-100 rounded text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-1 focus:ring-teal-100" />
 			</div>
 			<div class="flex items-center gap-1 shrink-0">
-				<button onclick={clearPendingFile} class="w-8 h-8 rounded-full text-gray-500 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer" title="İptal">✕</button>
-				<button onclick={handleSendFile} disabled={uploadingFile} class="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-40 shrink-0" title="Gönder">
+				<button onclick={clearPendingFile} class="w-8 h-8 rounded-full text-gray-500 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center cursor-pointer" title="İptal"><X class="w-4 h-4" /></button>
+				<button onclick={handleSendFile} disabled={uploadingFile} class="w-10 h-10 rounded-full bg-teal-700 text-white flex items-center justify-center hover:bg-teal-800 transition-colors cursor-pointer disabled:opacity-40 shrink-0" title="Gönder">
 					{#if uploadingFile}<div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
 					{:else}<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>{/if}
 				</button>
@@ -176,12 +177,12 @@
 {#if editingMsgId}
 	<div class="bg-white border-t border-gray-200 shrink-0">
 		<div class="px-3 py-1.5 bg-teal-50 border-b border-teal-100 flex items-center justify-between">
-			<span class="text-xs text-teal-700 font-medium">✏️ Mesaj düzenleniyor</span>
-			<button onclick={onCancelEdit} class="text-gray-500 hover:text-gray-600 cursor-pointer p-0.5">✕</button>
+			<span class="text-xs text-teal-700 font-medium inline-flex items-center gap-1"><Pencil class="w-3 h-3" /> Mesaj düzenleniyor</span>
+			<button onclick={onCancelEdit} class="text-gray-500 hover:text-gray-600 cursor-pointer p-0.5" title="Vazgeç"><X class="w-4 h-4" /></button>
 		</div>
 		<div class="p-2 md:p-3 flex items-center gap-2">
 			<input bind:this={editInputEl} type="text" bind:value={editContent} onkeydown={handleKeyDown} placeholder="Mesajı düzenle..." class="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 focus:bg-white transition-all" />
-			<button onclick={onSaveEdit} disabled={!editContent.trim()} class="w-10 h-10 rounded-full bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-40 shrink-0" title="Kaydet">✓</button>
+			<button onclick={onSaveEdit} disabled={!editContent.trim()} class="w-10 h-10 rounded-full bg-teal-700 text-white flex items-center justify-center hover:bg-teal-800 transition-colors cursor-pointer disabled:opacity-40 shrink-0" title="Kaydet"><Check class="w-5 h-5" /></button>
 		</div>
 	</div>
 {:else if !pendingFile}
@@ -217,7 +218,7 @@
 		<!-- Mesaj textarea -->
 		<textarea bind:this={messageInputEl} bind:value={messageInput} onkeydown={handleKeyDown} oninput={() => { onTypingInput(); autoResizeTextarea(); onDraftSave(); }} placeholder="Mesajınızı yazın..." rows="1" class="flex-1 min-w-0 bg-gray-100 rounded-2xl px-4 py-2 text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 focus:bg-white transition-all resize-none leading-snug max-h-[120px] overflow-y-auto"></textarea>
 		<!-- Gönder -->
-		<button onclick={onSendMessage} disabled={sendingMessage || !messageInput.trim()} class="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center hover:bg-teal-700 transition-colors cursor-pointer disabled:opacity-40 shrink-0" title="Gönder">
+		<button onclick={onSendMessage} disabled={sendingMessage || !messageInput.trim()} class="w-9 h-9 rounded-full bg-teal-700 text-white flex items-center justify-center hover:bg-teal-800 transition-colors cursor-pointer disabled:opacity-40 shrink-0" title="Gönder">
 			<svg class="w-4.5 h-4.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
 		</button>
 	</div>

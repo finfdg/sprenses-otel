@@ -8,6 +8,7 @@
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { Filter, AlertTriangle, Receipt } from 'lucide-svelte';
 	import {
 		cashFlowCache,
@@ -379,6 +380,11 @@
 	<title>Nakit Akım - Sprenses</title>
 </svelte:head>
 
+<!-- Başlık -->
+<div class="mb-5">
+	<PageHeader title="Nakit Akım" description="Banka hareketleri, gelir/gider takibi ve işlem eşleştirme" />
+</div>
+
 {#if matchMode}
 	<div class="bg-amber-50 border border-amber-300 rounded-2xl p-4 mb-4 flex items-center gap-3 flex-wrap">
 		<div class="flex-1 min-w-0">
@@ -468,7 +474,7 @@
 				id="cf-start"
 				type="date"
 				bind:value={filterStartDate}
-				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none"
+				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 outline-none"
 			/>
 		</div>
 		<div class="flex flex-col gap-1">
@@ -477,7 +483,7 @@
 				id="cf-end"
 				type="date"
 				bind:value={filterEndDate}
-				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none"
+				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 outline-none"
 			/>
 		</div>
 		<div class="flex flex-col gap-1 flex-1 min-w-[200px]">
@@ -488,7 +494,7 @@
 				placeholder="Açıklama, banka, cari kodu..."
 				bind:value={filterSearch}
 				oninput={handleSearchInput}
-				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 outline-none"
+				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 outline-none"
 			/>
 		</div>
 		<button

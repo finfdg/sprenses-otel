@@ -6,8 +6,10 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { validateRequired, validateModuleCode } from '$lib/utils/validation';
-	import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+	import { Plus, Pencil, Trash2, LayoutGrid } from 'lucide-svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 
 	const canUse = hasPermission('system.modules', 'use');
@@ -165,11 +167,15 @@
 	</div>
 
 	{#if loading}
-		<p class="text-gray-500">Yükleniyor...</p>
+		<TableSkeleton rows={4} columns={3} />
 	{:else if modules.length === 0}
-		<div class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-500 shadow-sm">
-			Henüz modül yok.
-		</div>
+		<EmptyState
+			icon={LayoutGrid}
+			title="Henüz modül yok"
+			description={canUse ? "İlk modülü eklemek için 'Yeni Modül' butonunu kullanın." : 'Görüntülenecek modül bulunmuyor.'}
+			ctaText={canUse ? 'Yeni Modül' : ''}
+			onCta={canUse ? openCreate : null}
+		/>
 	{:else}
 		<div class="grid gap-3">
 			{#each modules as m}
@@ -229,26 +235,26 @@
 
 	<div class="space-y-4">
 		<div>
-			<label for="m-name" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Modül Adı</label>
+			<label for="m-name" class="block text-sm font-medium text-gray-700 mb-1">Modül Adı <span class="text-red-600">*</span></label>
 			<input id="m-name" bind:value={formName} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 			{#if fieldErrors.name}
 				<p class="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
 			{/if}
 		</div>
 		<div>
-			<label for="m-code" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Kod</label>
+			<label for="m-code" class="block text-sm font-medium text-gray-700 mb-1">Kod <span class="text-red-600">*</span></label>
 			<input id="m-code" bind:value={formCode} placeholder="system.newmodule" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm font-mono outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 			{#if fieldErrors.code}
 				<p class="text-red-600 text-xs mt-1">{fieldErrors.code}</p>
 			{/if}
 		</div>
 		<div>
-			<label for="m-desc" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Açıklama</label>
+			<label for="m-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama</label>
 			<input id="m-desc" bind:value={formDesc} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
-				<label for="m-parent" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Üst Modül</label>
+				<label for="m-parent" class="block text-sm font-medium text-gray-700 mb-1">Üst Modül</label>
 				<select id="m-parent" bind:value={formParentId} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all">
 					<option value={null}>Yok (Ana modül)</option>
 					{#each getParentOptions() as p}
@@ -257,12 +263,12 @@
 				</select>
 			</div>
 			<div>
-				<label for="m-sort" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Sıra</label>
+				<label for="m-sort" class="block text-sm font-medium text-gray-700 mb-1">Sıra</label>
 				<input id="m-sort" type="number" bind:value={formSortOrder} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
 			</div>
 		</div>
 		<div class="flex items-center gap-2">
-			<input type="checkbox" id="modActive" bind:checked={formActive} class="accent-teal-600" />
+			<input type="checkbox" id="modActive" bind:checked={formActive} class="accent-teal-700 w-4 h-4" />
 			<label for="modActive" class="text-sm text-gray-600">Aktif</label>
 		</div>
 	</div>

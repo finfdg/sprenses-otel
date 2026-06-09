@@ -7,17 +7,28 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
+	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { ClipboardCheck, Inbox, Plus } from 'lucide-svelte';
+	import { ClipboardCheck, Inbox, Plus, Check, X, Undo2, Send, History } from 'lucide-svelte';
 
 	// ── Sabitler ──────────────────────────────────────────────
-	const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string }> = {
-		pending: { label: 'Bekliyor', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-		approved: { label: 'Onaylandı', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-		rejected: { label: 'Reddedildi', bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' },
-		returned: { label: 'İade Edildi', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-		cancelled: { label: 'İptal Edildi', bg: 'bg-gray-100', text: 'text-gray-500', border: 'border-gray-200' },
+	const STATUS_MAP: Record<string, { label: string; type: BadgeType }> = {
+		pending: { label: 'Bekliyor', type: 'warning' },
+		approved: { label: 'Onaylandı', type: 'success' },
+		rejected: { label: 'Reddedildi', type: 'error' },
+		returned: { label: 'İade Edildi', type: 'info' },
+		cancelled: { label: 'İptal Edildi', type: 'neutral' },
 	};
+
+	const ACTION_TYPE_BADGES: Record<string, BadgeType> = {
+		create: 'info',
+		update: 'warning',
+		delete: 'error',
+	};
+
+	const PAGE_SIZES = [20, 50, 100, 200];
 
 	const ACTION_TYPE_LABELS: Record<string, string> = {
 		create: 'Oluşturma',
@@ -127,7 +138,8 @@
 	let pendingLoading = $state(true);
 	let pendingCount = $state(0);
 	let pendingPage = $state(1);
-	let pendingPages = $state(1);
+	let pendingPageSize = $state(20);
+	let pendingTotal = $state(0);
 
 	// Onay/Red/İade modal
 	let showActionModal = $state(false);
@@ -140,7 +152,8 @@
 	let mySubmissions = $state<ApprovalRequest[]>([]);
 	let submissionsLoading = $state(true);
 	let submissionsPage = $state(1);
-	let submissionsPages = $state(1);
+	let submissionsPageSize = $state(20);
+	let submissionsTotal = $state(0);
 	let cancellingId = $state<number | null>(null);
 	let resubmittingId = $state<number | null>(null);
 
@@ -148,7 +161,8 @@
 	let historyRequests = $state<ApprovalRequest[]>([]);
 	let historyLoading = $state(true);
 	let historyPage = $state(1);
-	let historyPages = $state(1);
+	let historyPageSize = $state(20);
+	let historyTotal = $state(0);
 	let historyStatusFilter = $state<string>('');
 
 	// Detay modal
@@ -252,11 +266,11 @@
 		pendingLoading = true;
 		try {
 			const [data, countData] = await Promise.all([
-				api.get<any>(`/system/approval/requests/pending?page=${pendingPage}&page_size=20`),
+				api.get<any>(`/system/approval/requests/pending?page=${pendingPage}&page_size=${pendingPageSize}`),
 				api.get<any>('/system/approval/requests/pending/count'),
 			]);
 			pendingRequests = data.items ?? [];
-			pendingPages = data.pages ?? 1;
+			pendingTotal = data.total ?? 0;
 			pendingCount = countData.count ?? 0;
 		} catch (err) {
 			console.error('Bekleyen onaylar yüklenemedi:', err);
@@ -269,9 +283,9 @@
 	async function loadSubmissions() {
 		submissionsLoading = true;
 		try {
-			const data = await api.get<any>(`/system/approval/requests/my-submissions?page=${submissionsPage}&page_size=20`);
+			const data = await api.get<any>(`/system/approval/requests/my-submissions?page=${submissionsPage}&page_size=${submissionsPageSize}`);
 			mySubmissions = data.items ?? [];
-			submissionsPages = data.pages ?? 1;
+			submissionsTotal = data.total ?? 0;
 		} catch (err) {
 			console.error('Gönderilen talepler yüklenemedi:', err);
 			showToast('Gönderilen talepler yüklenemedi', 'error');
@@ -283,11 +297,11 @@
 	async function loadHistory() {
 		historyLoading = true;
 		try {
-			let url = `/system/approval/requests/history?page=${historyPage}&page_size=20`;
+			let url = `/system/approval/requests/history?page=${historyPage}&page_size=${historyPageSize}`;
 			if (historyStatusFilter) url += `&status_filter=${historyStatusFilter}`;
 			const data = await api.get<any>(url);
 			historyRequests = data.items ?? [];
-			historyPages = data.pages ?? 1;
+			historyTotal = data.total ?? 0;
 		} catch (err) {
 			console.error('Onay geçmişi yüklenemedi:', err);
 			showToast('Onay geçmişi yüklenemedi', 'error');
@@ -554,8 +568,7 @@
 <div class="max-w-6xl mx-auto px-4 py-6">
 	<!-- Sayfa Başlığı -->
 	<div class="mb-6">
-		<h1 class="text-2xl font-semibold text-gray-900">Onay Akışı</h1>
-		<p class="text-sm text-gray-500 mt-1">Onay tanımları, bekleyen onaylar ve gönderilen talepler</p>
+		<PageHeader title="Onay Akışı" description="Onay tanımları, bekleyen onaylar ve gönderilen talepler" />
 	</div>
 
 	<!-- Tab Bar -->
@@ -564,7 +577,7 @@
 			onclick={() => switchTab('definitions')}
 			class="px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer
 				{activeTab === 'definitions'
-					? 'text-teal-700 border-b-2 border-teal-600'
+					? 'text-teal-700 border-b-2 border-teal-700'
 					: 'text-gray-500 hover:text-gray-700'}"
 		>
 			Tanımlar
@@ -573,7 +586,7 @@
 			onclick={() => switchTab('pending')}
 			class="px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer inline-flex items-center gap-2
 				{activeTab === 'pending'
-					? 'text-teal-700 border-b-2 border-teal-600'
+					? 'text-teal-700 border-b-2 border-teal-700'
 					: 'text-gray-500 hover:text-gray-700'}"
 		>
 			Bekleyen Onaylar
@@ -587,7 +600,7 @@
 			onclick={() => switchTab('submissions')}
 			class="px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer
 				{activeTab === 'submissions'
-					? 'text-teal-700 border-b-2 border-teal-600'
+					? 'text-teal-700 border-b-2 border-teal-700'
 					: 'text-gray-500 hover:text-gray-700'}"
 		>
 			Gönderdiklerim
@@ -596,7 +609,7 @@
 			onclick={() => switchTab('history')}
 			class="px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors cursor-pointer
 				{activeTab === 'history'
-					? 'text-teal-700 border-b-2 border-teal-600'
+					? 'text-teal-700 border-b-2 border-teal-700'
 					: 'text-gray-500 hover:text-gray-700'}"
 		>
 			Geçmiş
@@ -629,9 +642,9 @@
 								<div class="flex items-center gap-2 mb-1">
 									<h3 class="text-base font-bold text-gray-800 truncate">{wf.name}</h3>
 									{#if wf.is_active}
-										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">Aktif</span>
+										<StatusBadge type="success">Aktif</StatusBadge>
 									{:else}
-										<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">Pasif</span>
+										<StatusBadge type="neutral">Pasif</StatusBadge>
 									{/if}
 								</div>
 								<div class="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-2">
@@ -718,13 +731,9 @@
 								<h3 class="text-base font-bold text-gray-800 truncate">{req.entity_summary}</h3>
 								<div class="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-500">
 									{#if req.action_type}
-										<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-											{req.action_type === 'create' ? 'bg-blue-50 text-blue-700 border border-blue-200' : ''}
-											{req.action_type === 'update' ? 'bg-amber-50 text-amber-700 border border-amber-200' : ''}
-											{req.action_type === 'delete' ? 'bg-red-50 text-red-600 border border-red-200' : ''}
-										">
+										<StatusBadge type={ACTION_TYPE_BADGES[req.action_type] ?? 'neutral'}>
 											{ACTION_TYPE_LABELS[req.action_type] ?? req.action_type}
-										</span>
+										</StatusBadge>
 									{/if}
 									<span>{req.workflow_name}</span>
 								</div>
@@ -750,74 +759,37 @@
 
 						<!-- Eylem Butonları -->
 						<div class="flex items-center gap-3 pt-3 border-t border-gray-100">
-							<button
-								onclick={() => openAction('approve', req)}
-								class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-green-600 text-white hover:bg-green-700 active:scale-95 transition-all cursor-pointer"
-							>
-								<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-								</svg>
-								Onayla
-							</button>
-							<button
-								onclick={() => openAction('reject', req)}
-								class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 active:scale-95 transition-all cursor-pointer"
-							>
-								<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-								</svg>
-								Reddet
-							</button>
-							<button
-								onclick={() => openAction('return', req)}
-								class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 active:scale-95 transition-all cursor-pointer"
-							>
-								<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-								</svg>
-								İade Et
-							</button>
+							<Button onclick={() => openAction('approve', req)}><Check size={16} /> Onayla</Button>
+							<Button variant="danger" onclick={() => openAction('reject', req)}><X size={16} /> Reddet</Button>
+							<Button variant="secondary" onclick={() => openAction('return', req)}><Undo2 size={16} /> İade Et</Button>
 						</div>
 					</div>
 				{/each}
 			</div>
 
 			<!-- Sayfalama -->
-			{#if pendingPages > 1}
-				<div class="flex items-center justify-center gap-2 mt-6">
-					<button
-						onclick={() => { pendingPage = Math.max(1, pendingPage - 1); loadPending(); }}
-						disabled={pendingPage <= 1}
-						class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						Önceki
-					</button>
-					<span class="text-sm text-gray-500">{pendingPage} / {pendingPages}</span>
-					<button
-						onclick={() => { pendingPage = Math.min(pendingPages, pendingPage + 1); loadPending(); }}
-						disabled={pendingPage >= pendingPages}
-						class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						Sonraki
-					</button>
-				</div>
+			{#if pendingTotal > 0}
+				<Pagination
+					page={pendingPage}
+					pageSize={pendingPageSize}
+					total={pendingTotal}
+					pageSizes={PAGE_SIZES}
+					onPageChange={(p) => { pendingPage = p; loadPending(); }}
+					onPageSizeChange={(s) => { pendingPageSize = s; pendingPage = 1; loadPending(); }}
+				/>
 			{/if}
 		{/if}
 
 	<!-- ═══════════════════ TAB 3: GÖNDERDİKLERİM ═══════════════════ -->
 	{:else if activeTab === 'submissions'}
 		{#if submissionsLoading}
-			<div class="flex justify-center py-16">
-				<div class="w-8 h-8 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
-			</div>
+			<TableSkeleton rows={4} columns={5} />
 		{:else if mySubmissions.length === 0}
-			<div class="flex flex-col items-center justify-center py-16 text-gray-500">
-				<svg class="w-16 h-16 mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-				</svg>
-				<p class="text-lg font-medium text-gray-500">Henüz talep göndermediniz</p>
-				<p class="text-sm text-gray-500 mt-1">Gönderdiğiniz onay talepleri burada listelenir</p>
-			</div>
+			<EmptyState
+				icon={Send}
+				title="Henüz talep göndermediniz"
+				description="Gönderdiğiniz onay talepleri burada listelenir"
+			/>
 		{:else}
 			<!-- Mobil: Kart görünümü -->
 			<div class="sm:hidden space-y-3">
@@ -829,9 +801,7 @@
 								<h3 class="text-sm font-bold text-gray-800 truncate">{req.entity_summary}</h3>
 								<p class="text-xs text-gray-500 mt-0.5">{req.workflow_name}</p>
 							</button>
-							<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 {si.bg} {si.text} {si.border}">
-								{si.label}
-							</span>
+							<StatusBadge type={si.type}>{si.label}</StatusBadge>
 						</div>
 						<div class="flex items-center gap-2 text-xs text-gray-500 mb-2">
 							<span>{formatRelative(req.requested_at)}</span>
@@ -886,9 +856,7 @@
 								</td>
 								<td class="py-3 pr-4 text-gray-500">{req.workflow_name}</td>
 								<td class="py-3 pr-4">
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border {si.bg} {si.text} {si.border}">
-										{si.label}
-									</span>
+									<StatusBadge type={si.type}>{si.label}</StatusBadge>
 								</td>
 								<td class="py-3 pr-4 text-gray-500">{formatRelative(req.requested_at)}</td>
 								<td class="py-3 text-right">
@@ -920,24 +888,15 @@
 			</div>
 
 			<!-- Sayfalama -->
-			{#if submissionsPages > 1}
-				<div class="flex items-center justify-center gap-2 mt-6">
-					<button
-						onclick={() => { submissionsPage = Math.max(1, submissionsPage - 1); loadSubmissions(); }}
-						disabled={submissionsPage <= 1}
-						class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						Önceki
-					</button>
-					<span class="text-sm text-gray-500">{submissionsPage} / {submissionsPages}</span>
-					<button
-						onclick={() => { submissionsPage = Math.min(submissionsPages, submissionsPage + 1); loadSubmissions(); }}
-						disabled={submissionsPage >= submissionsPages}
-						class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						Sonraki
-					</button>
-				</div>
+			{#if submissionsTotal > 0}
+				<Pagination
+					page={submissionsPage}
+					pageSize={submissionsPageSize}
+					total={submissionsTotal}
+					pageSizes={PAGE_SIZES}
+					onPageChange={(p) => { submissionsPage = p; loadSubmissions(); }}
+					onPageSizeChange={(s) => { submissionsPageSize = s; submissionsPage = 1; loadSubmissions(); }}
+				/>
 			{/if}
 		{/if}
 
@@ -958,16 +917,13 @@
 		</div>
 
 		{#if historyLoading}
-			<div class="flex justify-center py-16">
-				<div class="w-8 h-8 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
-			</div>
+			<TableSkeleton rows={5} columns={7} />
 		{:else if historyRequests.length === 0}
-			<div class="flex flex-col items-center justify-center py-16 text-gray-500">
-				<svg class="w-16 h-16 mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-				</svg>
-				<p class="text-lg font-medium text-gray-500">Geçmiş kayıt bulunamadı</p>
-			</div>
+			<EmptyState
+				icon={History}
+				title="Geçmiş kayıt bulunamadı"
+				description="Tamamlanan onay talepleri burada listelenir"
+			/>
 		{:else}
 			<!-- Tablo -->
 			<div class="overflow-x-auto">
@@ -992,18 +948,14 @@
 								</td>
 								<td class="py-3 pr-4 text-gray-500">{req.workflow_name}</td>
 								<td class="py-3 pr-4">
-									{#if req.action_type === 'create'}
-										<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Oluşturma</span>
-									{:else if req.action_type === 'update'}
-										<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">Güncelleme</span>
-									{:else if req.action_type === 'delete'}
-										<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">Silme</span>
+									{#if req.action_type && ACTION_TYPE_LABELS[req.action_type]}
+										<StatusBadge type={ACTION_TYPE_BADGES[req.action_type] ?? 'neutral'}>
+											{ACTION_TYPE_LABELS[req.action_type]}
+										</StatusBadge>
 									{/if}
 								</td>
 								<td class="py-3 pr-4">
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border {si.bg} {si.text} {si.border}">
-										{si.label}
-									</span>
+									<StatusBadge type={si.type}>{si.label}</StatusBadge>
 								</td>
 								<td class="py-3 pr-4 text-gray-500">{req.requested_by_name}</td>
 								<td class="py-3 pr-4 text-gray-500">{req.completed_by_name ?? '—'}</td>
@@ -1015,24 +967,15 @@
 			</div>
 
 			<!-- Sayfalama -->
-			{#if historyPages > 1}
-				<div class="flex items-center justify-center gap-2 mt-6">
-					<button
-						onclick={() => { historyPage = Math.max(1, historyPage - 1); loadHistory(); }}
-						disabled={historyPage <= 1}
-						class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						Önceki
-					</button>
-					<span class="text-sm text-gray-500">{historyPage} / {historyPages}</span>
-					<button
-						onclick={() => { historyPage = Math.min(historyPages, historyPage + 1); loadHistory(); }}
-						disabled={historyPage >= historyPages}
-						class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						Sonraki
-					</button>
-				</div>
+			{#if historyTotal > 0}
+				<Pagination
+					page={historyPage}
+					pageSize={historyPageSize}
+					total={historyTotal}
+					pageSizes={PAGE_SIZES}
+					onPageChange={(p) => { historyPage = p; loadHistory(); }}
+					onPageSizeChange={(s) => { historyPageSize = s; historyPage = 1; loadHistory(); }}
+				/>
 			{/if}
 		{/if}
 	{/if}
@@ -1095,7 +1038,7 @@
 								type="checkbox"
 								checked={wfRequestorRoleIds.includes(role.id)}
 								onchange={() => { wfRequestorRoleIds = toggleRoleId(wfRequestorRoleIds, role.id); }}
-								class="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+								class="rounded text-teal-700 focus:ring-teal-500 cursor-pointer"
 							/>
 							<span class="text-sm text-gray-700 font-medium">{role.name}</span>
 						</label>
@@ -1172,26 +1115,8 @@
 				<span class="font-semibold text-gray-800">"{deletingWorkflow.name}"</span> onay tanımını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
 			</p>
 			<div class="flex items-center justify-end gap-3 pt-2">
-				<button
-					onclick={() => { showDeleteConfirm = false; deletingWorkflow = null; }}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-				>
-					Vazgeç
-				</button>
-				<button
-					onclick={deleteWorkflow}
-					disabled={deleting}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-				>
-					{#if deleting}
-						<span class="inline-flex items-center gap-2">
-							<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-							Siliniyor...
-						</span>
-					{:else}
-						Sil
-					{/if}
-				</button>
+				<Button variant="secondary" onclick={() => { showDeleteConfirm = false; deletingWorkflow = null; }}>Vazgeç</Button>
+				<Button variant="danger" loading={deleting} onclick={deleteWorkflow}>Sil</Button>
 			</div>
 		</div>
 	{/if}
@@ -1230,29 +1155,16 @@
 				{/if}
 			</div>
 			<div class="flex items-center justify-end gap-3 pt-2">
-				<button
-					onclick={() => { showActionModal = false; actionRequest = null; }}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-				>
-					Vazgeç
-				</button>
-				<button
+				<Button variant="secondary" onclick={() => { showActionModal = false; actionRequest = null; }}>Vazgeç</Button>
+				<Button
+					variant={actionType === 'reject' ? 'danger' : actionType === 'return' ? 'secondary' : 'primary'}
+					loading={actionProcessing}
+					disabled={(actionType === 'reject' || actionType === 'return') && !actionNote.trim()}
 					onclick={executeAction}
-					disabled={actionProcessing || ((actionType === 'reject' || actionType === 'return') && !actionNote.trim())}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer
-						{actionType === 'approve' ? 'bg-green-600 hover:bg-green-700' : ''}
-						{actionType === 'reject' ? 'bg-red-600 hover:bg-red-700' : ''}
-						{actionType === 'return' ? 'bg-amber-600 hover:bg-amber-700' : ''}"
 				>
-					{#if actionProcessing}
-						<span class="inline-flex items-center gap-2">
-							<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-							İşleniyor...
-						</span>
-					{:else}
-						{actionTitle()}
-					{/if}
-				</button>
+					{#if actionType === 'approve'}<Check size={16} />{:else if actionType === 'reject'}<X size={16} />{:else}<Undo2 size={16} />{/if}
+					{actionTitle()}
+				</Button>
 			</div>
 		</div>
 	{/if}
@@ -1267,9 +1179,7 @@
 			<div class="bg-gray-50 rounded-lg p-4">
 				<div class="flex items-start justify-between gap-2 mb-2">
 					<h3 class="text-base font-bold text-gray-800">{detailRequest.entity_summary}</h3>
-					<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border shrink-0 {si.bg} {si.text} {si.border}">
-						{si.label}
-					</span>
+					<StatusBadge type={si.type}>{si.label}</StatusBadge>
 				</div>
 				<div class="grid grid-cols-2 gap-2 text-sm">
 					{#if detailRequest.action_type}
@@ -1357,9 +1267,7 @@
 							{@const logSi = statusInfo(logStatus)}
 							<div class="flex items-start gap-3 text-sm bg-gray-50 rounded-lg p-2.5">
 								<div class="shrink-0 mt-0.5">
-									<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border {logSi.bg} {logSi.text} {logSi.border}">
-										{logSi.label}
-									</span>
+									<StatusBadge type={logSi.type}>{logSi.label}</StatusBadge>
 								</div>
 								<div class="min-w-0 flex-1">
 									<p class="text-gray-800">
@@ -1381,12 +1289,7 @@
 
 			<!-- Kapat -->
 			<div class="flex justify-end pt-2">
-				<button
-					onclick={() => { showDetailModal = false; detailRequest = null; }}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-				>
-					Kapat
-				</button>
+				<Button variant="secondary" onclick={() => { showDetailModal = false; detailRequest = null; }}>Kapat</Button>
 			</div>
 		</div>
 	{/if}

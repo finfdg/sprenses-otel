@@ -7,6 +7,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { ChevronDown, Send, Printer, Download, X } from 'lucide-svelte';
 
 	// ─── Types ───────────────────────────────────────────
@@ -433,8 +434,7 @@
 			{ label: 'Bankalar', href: '/dashboard/finans/bankalar' },
 			{ label: 'Talimatlar' }
 		]} />
-		<h1 class="text-2xl font-semibold text-gray-900">Banka Talimatları</h1>
-		<p class="mt-1 text-sm text-gray-500">EFT/Havale ve döviz bozma talimatı oluşturun</p>
+		<PageHeader title="Banka Talimatları" description="EFT/Havale ve döviz bozma talimatı oluşturun" />
 	</div>
 
 	<!-- Tab Bar -->
@@ -454,9 +454,7 @@
 	</div>
 
 	{#if loading}
-		<div class="flex items-center justify-center py-12">
-			<div class="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-		</div>
+		<TableSkeleton rows={6} columns={2} showHeader={false} />
 	{:else}
 		<!-- ═══ EFT / HAVALE ═══ -->
 		{#if activeTab === 'transfer'}

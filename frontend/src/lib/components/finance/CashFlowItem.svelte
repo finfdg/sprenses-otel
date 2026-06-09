@@ -236,7 +236,7 @@
 					{#if matchMode && item.source === 'bank' && onMatchSelect}
 						<button
 							onclick={(e) => { e.stopPropagation(); onMatchSelect?.(item.id); }}
-							class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 transition-colors cursor-pointer whitespace-nowrap"
+							class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-teal-700 text-white hover:bg-teal-800 active:bg-teal-900 transition-colors cursor-pointer whitespace-nowrap"
 						>
 							Eşleştir
 						</button>

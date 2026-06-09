@@ -10,6 +10,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { Plus, Pencil, Trash2, Clock, CalendarClock } from 'lucide-svelte';
 
 	type Shift = {
@@ -134,9 +135,7 @@
 	</div>
 
 	{#if loading}
-		<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-			{#each Array(3) as _}<div class="h-32 bg-gray-100 rounded-xl animate-pulse"></div>{/each}
-		</div>
+		<TableSkeleton rows={4} columns={3} />
 	{:else if shifts.length === 0}
 		<EmptyState icon={CalendarClock} title="Henüz vardiya yok" description="Otel vardiyalarını tanımlayın" ctaText={canUse ? 'Yeni Vardiya' : ''} onCta={canUse ? openCreate : null} />
 	{:else}

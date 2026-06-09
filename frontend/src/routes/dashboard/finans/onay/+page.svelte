@@ -6,7 +6,8 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { CheckCircle2 } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
+	import { CheckCircle2, Check, X } from 'lucide-svelte';
 
 	interface PendingItem {
 		id: number;
@@ -229,24 +230,12 @@
 
 					<!-- Action Buttons -->
 					<div class="flex items-center gap-3 pt-3 border-t border-gray-100">
-						<button
-							onclick={() => openApproveModal(invoice)}
-							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-green-600 text-white hover:bg-green-700 active:scale-95 transition-all cursor-pointer"
-						>
-							<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-							</svg>
-							Onayla
-						</button>
-						<button
-							onclick={() => openRejectModal(invoice)}
-							class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 active:scale-95 transition-all cursor-pointer"
-						>
-							<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-							</svg>
-							Reddet
-						</button>
+						<Button onclick={() => openApproveModal(invoice)}>
+							<Check size={16} /> Onayla
+						</Button>
+						<Button variant="danger" onclick={() => openRejectModal(invoice)}>
+							<X size={16} /> Reddet
+						</Button>
 					</div>
 				</div>
 			{/each}

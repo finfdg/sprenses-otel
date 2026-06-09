@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
-	import { Plane, Info } from 'lucide-svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { Info } from 'lucide-svelte';
 
 	const canView = hasPermission('sales.flight', 'view');
 
@@ -59,15 +60,10 @@
 {:else}
 	<div class="space-y-6">
 		<!-- Başlık -->
-		<div class="flex items-center gap-3">
-			<Plane class="w-7 h-7 text-teal-600" />
-			<div>
-				<h1 class="text-2xl font-bold text-gray-800">Uçak Rezervasyon</h1>
-				<p class="text-xs text-gray-500 mt-0.5">
-					Aviasales arama motoru — gerçek zamanlı uçuş ve fiyat bilgisi
-				</p>
-			</div>
-		</div>
+		<PageHeader
+			title="Uçak Rezervasyon"
+			description="Aviasales arama motoru — gerçek zamanlı uçuş ve fiyat bilgisi"
+		/>
 
 		<!-- Bilgi notu -->
 		<div class="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-3 text-xs flex items-start gap-2">

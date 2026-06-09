@@ -35,7 +35,7 @@
 	{#if loading}
 		<TableSkeleton rows={8} columns={3} />
 	{:else if items.length === 0}
-		<EmptyState icon={Building2} title="Depo bulunamadı" message="Üst bardaki 'Sedna' butonuyla içe aktarın." />
+		<EmptyState icon={Building2} title="Depo bulunamadı" description="Üst bardaki 'Sedna' butonuyla içe aktarın." />
 	{:else}
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			<table class="w-full text-sm">
@@ -59,7 +59,7 @@
 										</div>
 										<span class="w-28 text-right text-xs font-semibold text-gray-800 tabular-nums">{formatCurrency(d.consumption_total, 'TRY')}</span>
 									{:else}
-										<span class="text-xs text-gray-400">—</span>
+										<span class="text-xs text-gray-500">—</span>
 									{/if}
 								</div>
 							</td>

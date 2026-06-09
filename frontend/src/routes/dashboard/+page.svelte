@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { authState, hasPermission } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
+	import { showToast } from '$lib/stores/toast.svelte';
 	import { onMount } from 'svelte';
 
 	// Dashboard özet verileri
@@ -36,6 +37,15 @@
 		return n.toFixed(0);
 	}
 
+	// Kart bazlı veri hatası: konsola logla, sayfa sonunda tek toast göster (kart başına toast spam'i yok)
+	let failedCards = 0;
+	function cardError(label: string) {
+		return (err: unknown) => {
+			console.error(`Panel kartı yüklenemedi (${label}):`, err);
+			failedCards++;
+		};
+	}
+
 	onMount(async () => {
 		try {
 			const promises: Promise<void>[] = [];
@@ -69,7 +79,7 @@
 
 						if (eurSelling) eurRate = Number(eurSelling).toFixed(4);
 						if (eurSelling && usdSelling && usdSelling > 0) eurUsdParity = (eurSelling / usdSelling).toFixed(4);
-					}).catch(() => {})
+					}).catch(cardError('Bankalar'))
 				);
 			}
 
@@ -80,7 +90,7 @@
 						checksAmount = data.pending_amount_eur != null ? `€${fmt(data.pending_amount_eur)}` : `₺${fmt(data.pending_amount ?? 0)}`;
 						checksSublabel = `${data.pending_count ?? 0} bekleyen`;
 						checksDetail = data.overdue_count > 0 ? `${data.overdue_count} vadesi geçmiş` : '';
-					}).catch(() => {})
+					}).catch(cardError('Çekler'))
 				);
 			}
 
@@ -98,7 +108,7 @@
 						}
 						creditSublabel = `${totalCount} ürün`;
 						creditDetail = 'kalan borç';
-					}).catch(() => {})
+					}).catch(cardError('Krediler'))
 				);
 			}
 
@@ -111,7 +121,7 @@
 						const eurSelling = rates.find((r: any) => r.currency_code === 'EUR')?.forex_selling;
 						if (eurSelling) eurRate = Number(eurSelling).toFixed(4);
 						if (eurSelling && usdSelling && usdSelling > 0) eurUsdParity = (eurSelling / usdSelling).toFixed(4);
-					}).catch(() => {})
+					}).catch(cardError('Döviz'))
 				);
 			}
 
@@ -125,7 +135,7 @@
 							vendorAmount = `₺${fmt(Math.abs(data.negative_total ?? 0))}`;
 						}
 						vendorSublabel = `${data.negative_count ?? 0} borçlu cari`;
-					}).catch(() => {})
+					}).catch(cardError('Cariler'))
 				);
 			}
 
@@ -158,11 +168,12 @@
 						advancesAmount = `€${fmt(receivedEur)}`;
 						advancesSublabel = `€${fmt(pendingEur)} alındı`;
 						advancesDetail = `${pendingCount} bekleyen`;
-					}).catch(() => {})
+					}).catch(cardError('Avanslar'))
 				);
 			}
 
 			await Promise.allSettled(promises);
+			if (failedCards > 0) showToast('Bazı panel verileri yüklenemedi', 'error');
 		} finally {
 			loading = false;
 		}

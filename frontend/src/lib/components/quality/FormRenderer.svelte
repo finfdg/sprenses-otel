@@ -340,7 +340,7 @@
 														value="Uygun"
 														checked={currentVal === 'Uygun' || currentVal === 'Evet'}
 														onchange={() => handleInput(field.id, 'Uygun')}
-														class="accent-teal-600 w-4 h-4"
+														class="accent-teal-700 w-4 h-4"
 													/>
 													<span class="text-sm text-green-700">Uygun</span>
 												</label>

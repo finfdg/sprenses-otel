@@ -8,7 +8,8 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import Button from '$lib/components/Button.svelte';
-	import { Server, RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock } from 'lucide-svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock } from 'lucide-svelte';
 
 	interface ServiceInfo {
 		name: string;
@@ -147,23 +148,19 @@
 {:else}
 	<div class="space-y-6">
 		<!-- Başlık + Yenile -->
-		<div class="flex items-center justify-between">
-			<div class="flex items-center gap-3">
-				<Server class="w-7 h-7 text-teal-600" />
-				<div>
-					<h1 class="text-2xl font-bold text-gray-800">Sunucu</h1>
-					{#if info}
-						<p class="text-xs text-gray-500 mt-0.5">
-							Son güncelleme: {new Date(info.fetched_at).toLocaleTimeString('tr-TR')} · 30 sn'de bir otomatik yenilenir
-						</p>
-					{/if}
-				</div>
-			</div>
-			<Button onclick={loadInfo} disabled={refreshing}>
-				<RefreshCw size={16} class={refreshing ? 'animate-spin' : ''} />
-				Yenile
-			</Button>
-		</div>
+		<PageHeader
+			title="Sunucu"
+			description={info
+				? `Son güncelleme: ${new Date(info.fetched_at).toLocaleTimeString('tr-TR')} · 30 sn'de bir otomatik yenilenir`
+				: "Sistem metrikleri 30 sn'de bir otomatik yenilenir"}
+		>
+			{#snippet actions()}
+				<Button onclick={loadInfo} disabled={refreshing}>
+					<RefreshCw size={16} class={refreshing ? 'animate-spin' : ''} />
+					Yenile
+				</Button>
+			{/snippet}
+		</PageHeader>
 
 		{#if loading}
 			<div class="text-center py-20 text-gray-500">Yükleniyor…</div>

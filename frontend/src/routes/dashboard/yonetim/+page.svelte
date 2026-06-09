@@ -53,7 +53,7 @@
 	<PageHeader title="Yönetim Paneli" description="GM / Finans üst düzey göstergeler — doluluk, operasyonel maliyet, nakit ve uyarılar tek bakışta." />
 
 	{#if loading}
-		<div class="py-12 text-center text-gray-400 text-sm">Yükleniyor…</div>
+		<div class="py-12 text-center text-gray-500 text-sm">Yükleniyor…</div>
 	{:else}
 		<!-- 10 KPI hero -->
 		<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -116,7 +116,7 @@
 			<!-- Sabit / Değişken -->
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
 				<h3 class="text-sm font-semibold text-gray-800 mb-1">Maliyet Yapısı ({classification.year})</h3>
-				<p class="text-[11px] text-gray-400 mb-3">Sabit / değişken / yarı-değişken gösterge (yıllık TRY)</p>
+				<p class="text-[11px] text-gray-500 mb-3">Sabit / değişken / yarı-değişken gösterge (yıllık TRY)</p>
 				<div class="space-y-3">
 					{#each classification.items || [] as it (it.key)}
 						<div>

@@ -131,7 +131,7 @@
 			<button
 				type="button"
 				onclick={addSection}
-				class="text-xs px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors cursor-pointer"
+				class="text-xs px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 transition-colors cursor-pointer"
 			>
 				+ Bölüm Ekle
 			</button>
@@ -225,7 +225,7 @@
 										<div class="flex items-center justify-between sm:col-span-4">
 											<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
 												<label class="flex items-center gap-1.5 text-xs cursor-pointer">
-													<input type="checkbox" checked={field.is_required} onchange={(e) => updateField(sIdx, fIdx, 'is_required', e.currentTarget.checked)} class="accent-teal-600 w-4 h-4" />
+													<input type="checkbox" checked={field.is_required} onchange={(e) => updateField(sIdx, fIdx, 'is_required', e.currentTarget.checked)} class="accent-teal-700 w-4 h-4" />
 													<span>Zorunlu</span>
 												</label>
 												{#if field.field_type === 'number'}

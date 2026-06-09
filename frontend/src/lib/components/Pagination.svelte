@@ -90,7 +90,7 @@
 					aria-current={n === page ? 'page' : undefined}
 					aria-label={`Sayfa ${n}`}
 					class="min-w-[2rem] h-8 px-2 rounded-lg text-sm cursor-pointer transition-colors {n === page
-						? 'bg-teal-600 text-white font-medium'
+						? 'bg-teal-700 text-white font-medium'
 						: 'text-gray-600 hover:bg-gray-100'}"
 				>
 					{n}

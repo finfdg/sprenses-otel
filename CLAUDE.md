@@ -921,19 +921,9 @@ Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen
 | **Sessiz hata** | Her `catch` → `console.error` + `showToast('... yüklenemedi', 'error')` | `.catch(() => {})` **yok** (dashboard panelinde 6 adet yakalandı); yalnız-`console.error` da yetmez — kullanıcıya toast |
 | **Form hata gösterimi** | `fieldErrors: Record<string,string>` + `aria-invalid`/`aria-describedby` (referans: avanslar) | Tek `formError` string'iyle alan hatası gömme **yok** (devam-takip, vardiyalar) |
 
-**Açık sapma envanteri (2026-06-09 denetimi — yeni sayfa bu listeye madde EKLETMEZ, kapatırken listeden düşülür):**
-1. `confirm()` → ConfirmDialog: `finans/butce` (~286), `satis/otel-rezervasyon` (~460)
-2. PageHeader eksik / elle `<h1>`: bankalar, bankalar/talimatlar, cariler, bütçe, döviz, krediler, otel-rezervasyon, oda-tipleri (kısmi), ucak-rezervasyon, kalite/sablonlar, kalite/formlar, sistem/onay-akisi, sistem/sunucu, ScheduledModule (inline header)
-3. ScheduledModule (7 muhasebe+İK sayfasının omurgası): iskelet sırası ters (filtre→özet), custom özet kartlar (StatCard değil), "+ Ekle" filtre barında, tablo başlığı `text-gray-500`, sessiz catch'ler — **tek dosya düzeltmesi 7 sayfayı birden düzeltir, en yüksek kaldıraç**
-4. Inline `animate-spin` spinner: nakit-akım, cariler, krediler, çekler, bankalar, sistem/onay-akisi, sistem/roller, sistem/moduller, devam-takip, devam/kur
-5. `bg-teal-600` (teal-700 olmalı): `EmptyState.svelte:35`, `Pagination.svelte:93`, `FileDropzone.svelte:123`, `MessageInput.svelte` + mesajlaşma bileşenleri (~20 yer)
-6. Elle stillenmiş aksiyon butonları (Button.svelte olmalı): finans/onay (onayla/reddet), krediler (yön seçimi), sistem/onay-akisi (Onayla/Reddet/İade + tab'lar), sistem/roller (Tümünü seç/Temizle), oda-tipleri ve otel-rezervasyon satır aksiyonları
-7. `type="number"` ile ondalık giriş: krediler (~1458-1466 faiz/BSMV/komisyon), cariler (~1115), kalite/sablonlar (~480, 493)
-8. Mobilde tablo→kart eksik: devam-takip (personel/log tabloları yatay kaydırıyor; referans çözüm: vardiya-cizelgesi)
-9. AA kontrast: devam-takip tab `border-teal-600`, devam/ekran `text-teal-200/50`, stok/depolar `bg-amber-400` bar, stok/hareketler amber badge, otel-rezervasyon manuel pagination `bg-teal-600`
-10. Manuel pagination (Pagination.svelte olmalı): otel-rezervasyon, sistem/onay-akisi (3 kopya), oda-tipleri, kalite sayfaları
-11. EmptyState eksik (düz metin boş durum): otel-rezervasyon, sistem/roller, sistem/moduller
-12. Modal.svelte yerine inline modal markup: sistem/hata-loglar (detay modali)
+**Sapma envanteri (2026-06-09 denetimi): 12 maddenin TAMAMI aynı gün kapatıldı.** Yeni sayfa bu listeye madde ekletmez; yeni sapma bulunursa buraya tarihli madde olarak yazılır, kapatılınca düşülür. Kapatma kapsamı: 2× native `confirm()` → ConfirmDialog; ~14 sayfaya PageHeader; ScheduledModule tam standardizasyon (PageHeader+StatCard+iskelet sırası+Button+toast, 7 sayfayı birden düzeltti); tüm inline spinner'lar → TableSkeleton/`Loader2`; paylaşılan bileşenlerdeki `bg-teal-600` → teal-700 (EmptyState/Pagination/FileDropzone/mesajlaşma); elle aksiyon butonları → Button; krediler oran girişleri → MoneyInput; devam-takip mobil tablo→kart; AA kontrast düzeltmeleri (gray-400→500, amber rozet, teal-600 tab/heatmap→700, kiosk metni); manuel pagination'lar → Pagination; eksik EmptyState'ler; hata-loglar inline modal → Modal; cyan/blue focus ring'ler → teal-500; `EmptyState message=` prop hatası → `description=` (3 dosya).
+
+**Bilinçli bırakılanlar (sapma DEĞİL):** döviz grafik lejantındaki `bg-teal-600` renk çizgisi (dekoratif, grafik rengiyle eşleşir); yoğun tablo satır-aksiyonları ikon-only (istisna); kalite şablon eşiği ve cariler vade günü `type="number"` (para değil — yüzde puanı/gün sayısı); stok/depolar bar'ı `bg-amber-400` (salt dekoratif, üzerinde metin yok); kiosk polling'i (public WS'siz sayfa).
 
 **Bilerek istisna olan sayfalar (kanonik iskelete uymaz, normaldir):** Mesajlaşma (iki-panel sohbet), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli + grafik), Panel/Dashboard (karşılama + özet — kendi başlığı), Nakit Akım iç accordion'u, public `/devam` sayfaları (kiosk/kurulum/basış — dashboard iskeleti yok; kiosk'ta sınırlı polling WS'siz public sayfa olduğu için kabul). Bunlar yine de **Button/Lucide/AA/StatCard/hata yönetimi** ilkelerine uyar.
 

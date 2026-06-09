@@ -152,7 +152,7 @@
 					<div class="flex-1 flex items-center justify-center text-teal-100/50 text-lg">Henüz hareket yok</div>
 				{/if}
 
-				<p class="text-teal-200/50 text-xs mt-4 pt-3 border-t border-white/10">Kod güvenlik için sürekli yenilenir</p>
+				<p class="text-teal-100 text-xs mt-4 pt-3 border-t border-white/10">Kod güvenlik için sürekli yenilenir</p>
 			</div>
 		</div>
 	{/if}

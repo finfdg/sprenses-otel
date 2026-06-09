@@ -67,7 +67,7 @@
 	{#if loading}
 		<TableSkeleton rows={8} columns={5} />
 	{:else if items.length === 0}
-		<EmptyState icon={Boxes} title="Ürün bulunamadı" message="Arama/filtre kriterine uygun ürün yok." />
+		<EmptyState icon={Boxes} title="Ürün bulunamadı" description="Arama/filtre kriterine uygun ürün yok." />
 	{:else}
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			<table class="w-full text-sm">

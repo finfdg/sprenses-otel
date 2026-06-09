@@ -10,11 +10,14 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import StatCard from '$lib/components/StatCard.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import {
 		Plus, Pencil, Trash2, X, Check, Clock, ChevronDown, Search,
 		RotateCcw, FileText, FileClock, CircleCheck, CircleX, CornerUpLeft,
-		RefreshCw, Link2
+		RefreshCw, Link2, Loader2
 	} from 'lucide-svelte';
 
 	interface Props {
@@ -318,6 +321,7 @@
 			await loadPendingApprovals();
 		} catch (err) {
 			console.error('Veri yüklenemedi:', err);
+			showToast('Veriler yüklenemedi', 'error');
 		} finally {
 			loading = false;
 		}
@@ -343,6 +347,7 @@
 			pendingApprovals = result.pending ?? {};
 		} catch (e) {
 			console.error('Bekleyen onaylar yüklenemedi:', e);
+			showToast('Bekleyen onaylar yüklenemedi', 'error');
 			pendingApprovals = {};
 		}
 	}
@@ -527,23 +532,42 @@
 </script>
 
 <div class="space-y-4 sm:space-y-6">
-	<!-- Header -->
-	<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-		<div>
-			<div class="flex items-center gap-2.5 flex-wrap">
-				<h1 class="text-2xl font-semibold text-gray-900">{title}</h1>
-				{#if totalPendingCount > 0}
-					<StatusBadge type="warning">
-						<Clock size={12} />
-						{totalPendingCount} onay bekliyor
-					</StatusBadge>
-				{/if}
-			</div>
-			<p class="text-xs sm:text-sm text-gray-500 mt-1">{subtitle}</p>
-		</div>
-	</div>
+	<!-- Başlık -->
+	<PageHeader {title} description={subtitle}>
+		{#snippet actions()}
+			{#if totalPendingCount > 0}
+				<StatusBadge type="warning">
+					<Clock size={12} />
+					{totalPendingCount} onay bekliyor
+				</StatusBadge>
+			{/if}
+			{#if enableVendorSync && canUse}
+				<Button
+					variant="secondary"
+					loading={syncingVendors}
+					onclick={syncVendors}
+					title="Cari-bağlı kalemleri (ör. Elektrik→CK, Su→ASAT) cari gerçek fatura + ödeme durumuyla senkronla"
+				>
+					{#if !syncingVendors}<RefreshCw size={16} />{/if}
+					{syncingVendors ? 'Senkronlanıyor...' : 'Cari ile Senkronize'}
+				</Button>
+			{/if}
+			{#if canUse}
+				<Button onclick={openAdd}><Plus size={16} /> Ekle</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
-	<!-- Filtre barı: Arama (sol) + Yıl seçici + Ekle (sağ) -->
+	<!-- Özet kartları -->
+	{#if summary.total}
+		<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+			<StatCard label="Toplam" value={fmt(summary.total)} accent="teal" icon={FileText} hint="{summary.count || 0} giriş" />
+			<StatCard label="Ödenen" value={fmt(summary.paid)} accent="emerald" icon={CircleCheck} hint="{summary.paid_count || 0} giriş" />
+			<StatCard label="Bekleyen" value={fmt(summary.pending)} accent="amber" icon={Clock} hint="{(summary.count || 0) - (summary.paid_count || 0)} giriş" />
+		</div>
+	{/if}
+
+	<!-- Filtre barı: Arama (sol) + Yıl seçici (sağ) -->
 	<div class="flex flex-col sm:flex-row sm:items-center gap-3">
 		<div class="relative flex-1 max-w-md">
 			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -574,49 +598,8 @@
 					<option value={y}>{y}</option>
 				{/each}
 			</select>
-			{#if enableVendorSync && canUse}
-				<button
-					onclick={syncVendors}
-					disabled={syncingVendors}
-					title="Cari-bağlı kalemleri (ör. Elektrik→CK, Su→ASAT) cari gerçek fatura + ödeme durumuyla senkronla"
-					class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-teal-300 text-teal-700 rounded-xl hover:bg-teal-50 transition-colors text-sm font-medium cursor-pointer disabled:opacity-50"
-				>
-					<RefreshCw size={16} class={syncingVendors ? 'animate-spin' : ''} />
-					<span class="hidden sm:inline">{syncingVendors ? 'Senkronlanıyor...' : 'Cari ile Senkronize'}</span>
-				</button>
-			{/if}
-			{#if canUse}
-				<button
-					onclick={openAdd}
-					class="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors text-sm font-medium cursor-pointer"
-				>
-					<Plus size={16} />
-					Ekle
-				</button>
-			{/if}
 		</div>
 	</div>
-
-	<!-- Summary Cards -->
-	{#if summary.total}
-		<div class="flex flex-wrap gap-2 sm:gap-4">
-			<div class="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm flex-1 min-w-[140px]">
-				<div class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Toplam</div>
-				<div class="mt-1 text-base sm:text-xl font-bold text-gray-800">{fmt(summary.total)}</div>
-				<div class="text-[10px] sm:text-xs text-gray-500 mt-1">{summary.count || 0} giriş</div>
-			</div>
-			<div class="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm flex-1 min-w-[140px]">
-				<div class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Ödenen</div>
-				<div class="mt-1 text-base sm:text-xl font-bold text-emerald-700">{fmt(summary.paid)}</div>
-				<div class="text-[10px] sm:text-xs text-gray-500 mt-1">{summary.paid_count || 0} giriş</div>
-			</div>
-			<div class="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm flex-1 min-w-[140px]">
-				<div class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Bekleyen</div>
-				<div class="mt-1 text-base sm:text-xl font-bold text-amber-700">{fmt(summary.pending)}</div>
-				<div class="text-[10px] sm:text-xs text-gray-500 mt-1">{(summary.count || 0) - (summary.paid_count || 0)} giriş</div>
-			</div>
-		</div>
-	{/if}
 
 	<!-- Definitions List -->
 	<div class="space-y-3">
@@ -627,8 +610,8 @@
 				icon={FileText}
 				title="Henüz kayıt yok"
 				description="İlk kaydı eklemek için sağ üstteki 'Ekle' butonunu kullanın"
-				ctaText={canUse ? 'Yeni Ekle' : ''}
-				onCta={canUse ? openAdd : null}
+				ctaText={canUse && !searchInput.trim() ? 'Yeni Ekle' : ''}
+				onCta={canUse && !searchInput.trim() ? openAdd : null}
 			/>
 		{:else if filteredDefinitions.length === 0}
 			<EmptyState
@@ -683,10 +666,10 @@
 									<span>{paidCount}/{entries.length} ödendi</span>
 								{/if}
 								{#if pendingEntryCount > 0 && !isPendingCreate}
-									<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700 border border-orange-200">
+									<StatusBadge type="warning">
 										<Clock size={12} />
 										{pendingEntryCount} giriş onayda
-									</span>
+									</StatusBadge>
 								{/if}
 							</div>
 						</div>
@@ -744,13 +727,13 @@
 							<table class="w-full text-sm hidden md:table">
 								<thead>
 									<tr class="bg-gray-50/50 border-b border-gray-100">
-										<th class="text-left px-4 py-2 font-medium text-gray-500 text-xs">Dönem</th>
-										<th class="text-right px-4 py-2 font-medium text-gray-500 text-xs">Tutar</th>
-										<th class="text-center px-4 py-2 font-medium text-gray-500 text-xs">Durum</th>
-										<th class="text-left px-4 py-2 font-medium text-gray-500 text-xs">Ödeme Tarihi</th>
-										<th class="text-left px-4 py-2 font-medium text-gray-500 text-xs">Not</th>
+										<th class="text-left px-4 py-2 font-medium text-gray-600 text-xs">Dönem</th>
+										<th class="text-right px-4 py-2 font-medium text-gray-600 text-xs">Tutar</th>
+										<th class="text-center px-4 py-2 font-medium text-gray-600 text-xs">Durum</th>
+										<th class="text-left px-4 py-2 font-medium text-gray-600 text-xs">Ödeme Tarihi</th>
+										<th class="text-left px-4 py-2 font-medium text-gray-600 text-xs">Not</th>
 										{#if canUse}
-											<th class="text-center px-4 py-2 font-medium text-gray-500 text-xs w-24">İşlem</th>
+											<th class="text-center px-4 py-2 font-medium text-gray-600 text-xs w-24">İşlem</th>
 										{/if}
 									</tr>
 								</thead>
@@ -1076,10 +1059,10 @@
 		</div>
 
 		<div class="flex justify-end gap-3 pt-2">
-			<button type="button" onclick={() => showModal = false} class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 cursor-pointer">İptal</button>
-			<button type="submit" disabled={saving} class="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50 cursor-pointer">
+			<Button variant="secondary" onclick={() => showModal = false}>İptal</Button>
+			<Button type="submit" loading={saving}>
 				{saving ? 'Kaydediliyor...' : (editItem ? 'Güncelle' : 'Kaydet')}
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>
@@ -1088,7 +1071,7 @@
 <Modal bind:show={showApprovalDetail} title="Onay Talebi Detayı" maxWidth="max-w-lg">
 	{#if approvalDetailLoading}
 		<div class="flex items-center justify-center py-8">
-			<div class="animate-spin h-6 w-6 border-4 border-teal-200 border-t-teal-600 rounded-full"></div>
+			<Loader2 size={24} class="animate-spin text-teal-600" aria-label="Yükleniyor" />
 		</div>
 	{:else if approvalDetail}
 		{@const payload = parsePayload(approvalDetail.payload_json)}

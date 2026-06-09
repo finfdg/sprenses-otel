@@ -11,7 +11,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
-	import { ReceiptText, Landmark, FileText, Clock, CalendarX } from 'lucide-svelte';
+	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Loader2 } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { pending: 'Bekliyor', paid: 'Ödendi', cancelled: 'İptal' };
 	const STATUS_BADGE: Record<string, BadgeType> = { pending: 'warning', paid: 'success', cancelled: 'neutral' };
@@ -317,11 +317,8 @@
 	<div class="mb-4 relative">
 		{#if uploading}
 			<div class="absolute inset-0 z-10 bg-white/80 rounded-xl flex items-center justify-center">
-				<div class="flex items-center gap-2 text-teal-600">
-					<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-					</svg>
+				<div class="flex items-center gap-2 text-teal-700">
+					<Loader2 size={20} class="animate-spin" />
 					<span class="text-sm font-medium">Yükleniyor...</span>
 				</div>
 			</div>

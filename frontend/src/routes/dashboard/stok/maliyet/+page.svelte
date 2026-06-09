@@ -54,7 +54,7 @@
 	<PageHeader title="Maliyet Kontrol" description="Operasyonel maliyet ↔ doluluk füzyonu: kişi başı F&B maliyeti, CPOR, fiyat sapması, departman tüketimi (Sedna stok + rezervasyon)." />
 
 	{#if loading}
-		<div class="py-12 text-center text-gray-400 text-sm">Yükleniyor…</div>
+		<div class="py-12 text-center text-gray-500 text-sm">Yükleniyor…</div>
 	{:else}
 		<!-- Operasyonel KPI kartları -->
 		<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -67,7 +67,7 @@
 		</div>
 
 		{#if kpi.matched_periods?.length}
-			<p class="text-[11px] text-gray-400 -mt-2">Kişi başı maliyet yalnız tüketimi işlenmiş aylar üzerinden: {kpi.matched_periods.map(periodLabel).join(', ')} (tüketim ay-sonu sayımla post edilir).</p>
+			<p class="text-[11px] text-gray-500 -mt-2">Kişi başı maliyet yalnız tüketimi işlenmiş aylar üzerinden: {kpi.matched_periods.map(periodLabel).join(', ')} (tüketim ay-sonu sayımla post edilir).</p>
 		{/if}
 
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -75,7 +75,7 @@
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
 				<h3 class="text-sm font-semibold text-gray-800 mb-4">Maliyet Grubu Bazında Tüketim</h3>
 				{#if byGroup.length === 0}
-					<EmptyState icon={Flame} title="Tüketim verisi yok" message="Üst bardaki 'Sedna' butonuyla içe aktarın." />
+					<EmptyState icon={Flame} title="Tüketim verisi yok" description="Üst bardaki 'Sedna' butonuyla içe aktarın." />
 				{:else}
 					<div class="space-y-2.5">
 						{#each byGroup as g (g.group)}
@@ -117,9 +117,9 @@
 			<!-- Satın alma fiyat sapması (medyan bazlı) + birim/miktar anomalileri -->
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
 				<div class="flex items-center gap-2 mb-1"><TrendingUp size={18} class="text-red-500" /><h3 class="text-sm font-semibold text-gray-800">Satın Alma Fiyat Hareketi</h3></div>
-				<p class="text-[11px] text-gray-400 mb-3">Son alış ↔ <span class="font-medium text-gray-500">medyan</span> (aykırı girişe dayanıklı) — gerçek fiyat hareketi</p>
+				<p class="text-[11px] text-gray-500 mb-3">Son alış ↔ <span class="font-medium text-gray-600">medyan</span> (aykırı girişe dayanıklı) — gerçek fiyat hareketi</p>
 				{#if variance.length === 0}
-					<p class="text-sm text-gray-400">Veri yok</p>
+					<p class="text-sm text-gray-500">Veri yok</p>
 				{:else}
 					<div class="space-y-1.5">
 						{#each variance as v (v.product_id)}
@@ -141,11 +141,11 @@
 							{#each anomalies as v (v.product_id)}
 								<div class="flex items-center justify-between gap-2 text-xs">
 									<span class="text-gray-500 truncate flex-1" title={v.name}>{v.name}</span>
-									<span class="tabular-nums text-gray-400 whitespace-nowrap">medyan {v.median_cost ?? v.avg_cost} → son <span class="font-semibold text-amber-600">{v.last_cost}</span></span>
+									<span class="tabular-nums text-gray-500 whitespace-nowrap">medyan {v.median_cost ?? v.avg_cost} → son <span class="font-semibold text-amber-600">{v.last_cost}</span></span>
 								</div>
 							{/each}
 						</div>
-						<p class="text-[11px] text-gray-400 mt-2">Net tutar doğru, <span class="font-medium">miktar paydası</span> Sedna'da tutarsız (kg yerine çuval/koli adedi) — fiyat artışı değil, giriş kalitesi.</p>
+						<p class="text-[11px] text-gray-500 mt-2">Net tutar doğru, <span class="font-medium">miktar paydası</span> Sedna'da tutarsız (kg yerine çuval/koli adedi) — fiyat artışı değil, giriş kalitesi.</p>
 					</div>
 				{/if}
 			</div>
@@ -154,7 +154,7 @@
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
 				<div class="flex items-center gap-2 mb-4"><Truck size={18} class="text-blue-600" /><h3 class="text-sm font-semibold text-gray-800">Tedarikçi Bazında Alım</h3></div>
 				{#if suppliers.length === 0}
-					<p class="text-sm text-gray-400">Veri yok</p>
+					<p class="text-sm text-gray-500">Veri yok</p>
 				{:else}
 					<div class="space-y-2">
 						{#each suppliers as s (s.code)}

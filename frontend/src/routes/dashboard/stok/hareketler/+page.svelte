@@ -11,7 +11,7 @@
 	const DIR_LABEL: Record<string, string> = { in: 'Alış', out: 'Çıkış', consume: 'Tüketim', count: 'Sayım', other: 'Diğer' };
 	const DIR_CLASS: Record<string, string> = {
 		in: 'bg-blue-50 text-blue-700', out: 'bg-gray-100 text-gray-600',
-		consume: 'bg-amber-50 text-amber-700', count: 'bg-violet-50 text-violet-700', other: 'bg-gray-100 text-gray-500',
+		consume: 'bg-amber-50 text-amber-800 border border-amber-200', count: 'bg-violet-50 text-violet-700', other: 'bg-gray-100 text-gray-600',
 	};
 
 	let loading = $state(true);
@@ -83,7 +83,7 @@
 	{#if loading}
 		<TableSkeleton rows={8} columns={6} />
 	{:else if items.length === 0}
-		<EmptyState icon={ArrowRightLeft} title="Hareket bulunamadı" message="Filtre kriterine uygun stok hareketi yok." />
+		<EmptyState icon={ArrowRightLeft} title="Hareket bulunamadı" description="Filtre kriterine uygun stok hareketi yok." />
 	{:else}
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
 			<table class="w-full text-sm">

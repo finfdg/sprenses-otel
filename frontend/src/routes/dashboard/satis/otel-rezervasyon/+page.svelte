@@ -2,14 +2,12 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import {
+		ArrowUpDown,
 		Building2,
 		Calendar,
 		Coins,
-		Download,
 		FileSpreadsheet,
-		Filter,
 		Globe2,
-		Hotel,
 		Loader2,
 		PieChart,
 		GripVertical,
@@ -26,8 +24,11 @@
 
 	import { api, ApiError } from '$lib/api';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
@@ -456,8 +457,18 @@
 		}
 	}
 
-	async function gmDelete(g: ApiGroup) {
-		if (!confirm(`"${g.name}" grubunu silmek istediğinize emin misiniz?`)) return;
+	// Grup silme onayı (ConfirmDialog — native confirm() kullanılmaz)
+	let gmDeleteTarget = $state<ApiGroup | null>(null);
+	let showGmDeleteConfirm = $state(false);
+
+	function askGmDelete(g: ApiGroup) {
+		gmDeleteTarget = g;
+		showGmDeleteConfirm = true;
+	}
+
+	async function gmDeleteConfirmed() {
+		const g = gmDeleteTarget;
+		if (!g) return;
 		try {
 			await api.delete(`/sales/agency-groups/${g.id}`);
 			agencyGroups = await api.get('/sales/agency-groups/');
@@ -465,6 +476,8 @@
 		} catch (e) {
 			console.error('Grup silme hatası:', e);
 			showToast('Silme hatası', 'error');
+		} finally {
+			gmDeleteTarget = null;
 		}
 	}
 
@@ -849,7 +862,7 @@
 		// Heatmap renkleri — doluluk %'sine göre
 		if (pct >= 100) return 'bg-rose-500 text-white';        // overbooking
 		if (pct >= 90) return 'bg-teal-700 text-white';
-		if (pct >= 75) return 'bg-teal-600 text-white';
+		if (pct >= 75) return 'bg-teal-700 text-white';
 		if (pct >= 60) return 'bg-teal-500 text-white';
 		if (pct >= 45) return 'bg-teal-400 text-teal-900';
 		if (pct >= 30) return 'bg-teal-200 text-teal-900';
@@ -906,23 +919,14 @@
 {:else}
 	<div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
 		<!-- ── Başlık + Yıl Filtresi ── -->
-		<div class="flex flex-wrap items-center gap-3">
-			<div class="flex items-center gap-3 mr-auto">
-				<div class="w-11 h-11 rounded-xl bg-teal-50 flex items-center justify-center">
-					<Hotel size={22} class="text-teal-600" />
-				</div>
-				<div>
-					<h1 class="text-xl sm:text-2xl font-bold text-gray-900">Otel Rezervasyon</h1>
-					<p class="text-xs text-gray-500">XLS yükle → KPI ve dağılımları gör</p>
-				</div>
-			</div>
-
-			<div class="flex items-center gap-2 flex-wrap">
+		<PageHeader title="Otel Rezervasyon" description="XLS yükle → KPI ve dağılımları gör">
+			{#snippet actions()}
 				{#if availableYears.length > 0}
 					<select
 						bind:value={filters.year}
 						onchange={() => applyYearFilter(filters.year)}
-						class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:border-gray-300 focus:outline-none focus:border-teal-400"
+						aria-label="Yıl filtresi"
+						class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:border-gray-300 focus:outline-none focus:border-teal-400 cursor-pointer"
 					>
 						<option value="all">Tüm Yıllar</option>
 						{#each availableYears as y}
@@ -932,17 +936,15 @@
 				{/if}
 
 				<!-- Karşılaştır toggle (önceki yıl verisi varsa aktif) -->
-				<button
+				<Button
+					variant="secondary"
 					onclick={toggleCompareMode}
 					disabled={!canCompare}
 					title={canCompare
 						? (compareMode ? `Karşılaştırma kapalı (${previousYearLabel} ile)` : `${previousYearLabel} ile karşılaştır`)
 						: 'Karşılaştırma için bir önceki yılın verisi yüklü olmalı'}
-					class="px-3 py-2 text-sm rounded-lg border flex items-center gap-1.5 transition-colors {compareMode && canCompare ? 'bg-teal-50 border-teal-300 text-teal-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'} disabled:opacity-40 disabled:cursor-not-allowed"
 				>
-					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-					</svg>
+					<ArrowUpDown size={16} />
 					<span class="hidden sm:inline">
 						{#if compareMode && canCompare && previousYearLabel !== null}
 							{filters.year} ↔ {previousYearLabel}
@@ -950,28 +952,26 @@
 							Karşılaştır
 						{/if}
 					</span>
-				</button>
+				</Button>
 
 				<button
 					onclick={refreshAll}
 					disabled={loading}
-					class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 disabled:opacity-50"
+					class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 disabled:opacity-50 cursor-pointer"
 					title="Yenile"
+					aria-label="Yenile"
 				>
 					<RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
 				</button>
 
 				{#if uploads.length > 0}
-					<button
-						onclick={() => (showUploadsModal = true)}
-						class="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 flex items-center gap-2"
-					>
+					<Button variant="secondary" onclick={() => (showUploadsModal = true)}>
 						<FileSpreadsheet size={16} />
 						<span class="hidden sm:inline">Yüklemeler ({uploads.length})</span>
-					</button>
+					</Button>
 				{/if}
-			</div>
-		</div>
+			{/snippet}
+		</PageHeader>
 
 		<!-- ── Dropzone ── -->
 		{#if canUse}
@@ -998,16 +998,15 @@
 
 		<!-- ── İçerik ── -->
 		{#if loading && !summary}
-			<div class="py-16 text-center text-gray-500">
-				<Loader2 size={28} class="mx-auto animate-spin text-teal-500" />
-				<p class="mt-3 text-sm">Veriler yükleniyor...</p>
-			</div>
+			<TableSkeleton rows={8} columns={5} />
 		{:else if summary && summary.kpi.total_rez === 0}
-			<div class="py-16 text-center">
-				<Upload size={32} class="mx-auto text-gray-500" />
-				<p class="mt-3 text-sm text-gray-500">Henüz veri yüklenmedi.</p>
-				<p class="text-xs text-gray-500 mt-1">XLS dosyasını sürükleyerek başlayın.</p>
-			</div>
+			<EmptyState
+				icon={Upload}
+				title={filters.year !== 'all' ? 'Bu dönemde rezervasyon bulunamadı' : 'Henüz veri yüklenmedi'}
+				description={filters.year !== 'all'
+					? `${filters.year} yılı için rezervasyon kaydı yok — farklı bir yıl seçin veya XLS yükleyin.`
+					: 'XLS dosyasını sürükleyerek başlayın.'}
+			/>
 		{:else if summary}
 			<!-- KPI Kartları -->
 			{@const prev = compareMode ? previousYearSummary : null}
@@ -1638,13 +1637,13 @@
 							<button
 								onclick={() => agencyViewMode = 'individual'}
 								class="px-3 py-1.5 transition-colors {agencyViewMode === 'individual'
-									? 'bg-teal-500 text-white'
+									? 'bg-teal-700 text-white'
 									: 'bg-white text-gray-500 hover:bg-gray-50'}"
 							>Bireysel</button>
 							<button
 								onclick={() => agencyViewMode = 'grouped'}
 								class="px-3 py-1.5 transition-colors border-l border-gray-200 {agencyViewMode === 'grouped'
-									? 'bg-teal-500 text-white'
+									? 'bg-teal-700 text-white'
 									: 'bg-white text-gray-500 hover:bg-gray-50'}"
 							>Gruplu</button>
 						</div>
@@ -2223,7 +2222,7 @@
 							class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer" title="Düzenle">
 							<Settings2 size={15} />
 						</button>
-						<button onclick={() => gmDelete(g)}
+						<button onclick={() => askGmDelete(g)}
 							class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer" title="Sil">
 							<Trash2 size={15} />
 						</button>
@@ -2301,3 +2300,15 @@
 		</div>
 	{/if}
 </Modal>
+
+<!-- ── Grup Silme Onayı ── -->
+<ConfirmDialog
+	bind:show={showGmDeleteConfirm}
+	title="Grubu Sil"
+	message={gmDeleteTarget ? `"${gmDeleteTarget.name}" grubunu silmek istediğinize emin misiniz? Üye acenteler bireysel görünüme döner.` : ''}
+	confirmText="Sil"
+	cancelText="Vazgeç"
+	danger
+	onConfirm={gmDeleteConfirmed}
+	onCancel={() => (gmDeleteTarget = null)}
+/>

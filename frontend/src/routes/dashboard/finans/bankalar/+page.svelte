@@ -13,8 +13,9 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import {
-		Upload, Plus, Pencil, Trash2, Check, ChevronRight, Building2, FileText, FileSpreadsheet
+		Upload, Plus, Pencil, Trash2, Check, ChevronRight, Building2, FileText, FileSpreadsheet, Loader2
 	} from 'lucide-svelte';
 
 	// ─── Logo haritası ──────────────────────────────────────
@@ -494,13 +495,24 @@
 
 <div class="p-4 md:p-6 max-w-7xl mx-auto">
 
+	<!-- ─── Başlık ──────────────────────────────────────────── -->
+	<div class="mb-6">
+		<PageHeader title="Bankalar" description="Banka hesaplarınızı yönetin, ekstre yükleyin ve hareketleri takip edin">
+			{#snippet actions()}
+				{#if canUse}
+					<Button onclick={() => openAccountForm()}><Plus size={16} /> Yeni Hesap</Button>
+				{/if}
+			{/snippet}
+		</PageHeader>
+	</div>
+
 	<!-- ─── Sürükle & Bırak Yükleme Alanı ───────────────── -->
 	{#if canUse}
 		<div class="relative mb-6">
 			{#if uploading}
 				<div class="absolute inset-0 z-10 bg-white/80 rounded-xl flex items-center justify-center">
-					<div class="flex items-center gap-2 text-teal-600">
-						<div class="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+					<div class="flex items-center gap-2 text-teal-700">
+						<Loader2 size={20} class="animate-spin" />
 						<span class="text-sm font-medium">Yükleniyor...</span>
 					</div>
 				</div>
@@ -533,15 +545,6 @@
 				</span>
 			{/if}
 		</div>
-		{#if canUse}
-			<button
-				onclick={() => openAccountForm()}
-				class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors cursor-pointer"
-			>
-				<Plus size={14} />
-				Yeni Hesap
-			</button>
-		{/if}
 	</div>
 
 	<!-- ─── Banka Akordiyon ─────────────────────────────────── -->
@@ -566,7 +569,7 @@
 						onclick={() => toggleBank(group.bankName)}
 						class="w-full flex items-center gap-3 px-4 py-3.5 transition-all cursor-pointer
 							{isOpen
-								? 'bg-teal-600 text-white rounded-t-xl'
+								? 'bg-teal-700 text-white rounded-t-xl'
 								: group.hasUploadToday
 									? 'bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm rounded-xl'
 									: 'bg-gray-200 border border-gray-300 hover:border-gray-400 hover:shadow-sm rounded-xl'}"
@@ -722,8 +725,8 @@
 											{#if activeTab === 'transactions'}
 												<!-- İşlemler -->
 												{#if txLoading}
-													<div class="flex justify-center py-8">
-														<div class="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+													<div class="p-2">
+														<TableSkeleton rows={5} columns={5} />
 													</div>
 												{:else if transactions.length === 0}
 													<div class="text-center py-8 text-gray-500">
@@ -914,7 +917,7 @@
 				<select
 					id="ba-bank"
 					bind:value={formBankSelect}
-					class="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white"
+					class="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500 bg-white"
 				>
 					<option value="" disabled>Banka seçin...</option>
 					{#each allBankNames as bank}
@@ -928,7 +931,7 @@
 					type="text"
 					bind:value={formBankCustom}
 					placeholder="Banka adını yazın..."
-					class="w-full mt-2 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+					class="w-full mt-2 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
 				/>
 			{/if}
 		</div>
@@ -941,7 +944,7 @@
 					type="text"
 					bind:value={formIban}
 					placeholder="TR..."
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-mono"
+					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500 font-mono"
 				/>
 			</div>
 			<div>
@@ -949,7 +952,7 @@
 				<select
 					id="ba-currency"
 					bind:value={formCurrency}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 bg-white"
+					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500 bg-white"
 				>
 					<option value="TRY">TRY (Türk Lirası)</option>
 					<option value="EUR">EUR (Euro)</option>
@@ -965,7 +968,7 @@
 					id="ba-branch"
 					type="text"
 					bind:value={formBranchName}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
 				/>
 			</div>
 			<div>
@@ -974,7 +977,7 @@
 					id="ba-accno"
 					type="text"
 					bind:value={formAccountNo}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
 				/>
 			</div>
 		</div>
@@ -986,7 +989,7 @@
 					id="ba-holder"
 					type="text"
 					bind:value={formHolderName}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
 				/>
 			</div>
 			<div>
@@ -1023,8 +1026,8 @@
 			<div>
 				<span class="block text-sm font-medium text-gray-700 mb-1">Yön <span class="text-red-500">*</span></span>
 				<div class="grid grid-cols-2 gap-2">
-					<button type="button" onclick={() => (manualForm.direction = 'out')} class="px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer {manualForm.direction === 'out' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}">Çıkış (−)</button>
-					<button type="button" onclick={() => (manualForm.direction = 'in')} class="px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer {manualForm.direction === 'in' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}">Giriş (+)</button>
+					<button type="button" onclick={() => (manualForm.direction = 'out')} class="px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer transition-colors {manualForm.direction === 'out' ? 'bg-rose-700 text-white border-rose-700' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}">Çıkış (−)</button>
+					<button type="button" onclick={() => (manualForm.direction = 'in')} class="px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer transition-colors {manualForm.direction === 'in' ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}">Giriş (+)</button>
 				</div>
 			</div>
 			<div>

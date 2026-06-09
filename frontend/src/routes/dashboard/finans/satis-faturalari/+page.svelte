@@ -125,7 +125,7 @@
 <svelte:head><title>Satış Faturaları · Sprenses</title></svelte:head>
 
 {#if !canView}
-	<EmptyState icon={ReceiptText} title="Yetkiniz yok" message="Bu sayfayı görüntüleme izniniz bulunmuyor." />
+	<EmptyState icon={ReceiptText} title="Yetkiniz yok" description="Bu sayfayı görüntüleme izniniz bulunmuyor." />
 {:else}
 	<PageHeader title="Satış Faturaları" description="Otel oda/hizmet satış faturaları ve tahsilat durumu (Sedna muhasebeden). Üst bardaki 'Sedna' butonuyla güncellenir." />
 
@@ -179,7 +179,7 @@
 		{#if loading}
 			<div class="p-4"><TableSkeleton rows={8} /></div>
 		{:else if items.length === 0}
-			<EmptyState icon={ReceiptText} title="Fatura yok" message="Filtreye uyan satış faturası bulunamadı. Üst bardaki 'Sedna' butonuyla içe aktarın." />
+			<EmptyState icon={ReceiptText} title="Fatura yok" description="Filtreye uyan satış faturası bulunamadı. Üst bardaki 'Sedna' butonuyla içe aktarın." />
 		{:else}
 			<!-- Masaüstü tablo -->
 			<table class="w-full text-sm hidden md:table">
@@ -251,7 +251,7 @@
 				<span class="text-sm font-semibold text-teal-700 tabular-nums whitespace-nowrap">Toplam: {fmtCurMap(advByCur)}</span>
 			</div>
 			{#if advances.length === 0}
-				<EmptyState icon={Wallet} title="Açık avans yok" message="Net avans bakiyesi olan acente bulunmuyor. Üst bardaki 'Sedna' butonuyla içe aktarın." />
+				<EmptyState icon={Wallet} title="Açık avans yok" description="Net avans bakiyesi olan acente bulunmuyor. Üst bardaki 'Sedna' butonuyla içe aktarın." />
 			{:else}
 				<table class="w-full text-sm hidden md:table">
 					<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
