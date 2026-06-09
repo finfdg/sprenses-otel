@@ -166,6 +166,25 @@ def test_ykb_export_requires_auth(client):
     assert client.get(f"{PREFIX}/1/export/ykb-excel").status_code in (401, 403)
 
 
+def test_ykb_export_default_debtor_from_account(client, auth_headers, db):
+    """debtor_account boşsa BORÇLU HESAP kayıtlı YKB TL hesabının no'sundan gelir."""
+    import io
+    import uuid
+
+    import openpyxl
+
+    from app.models.bank_account import BankAccount
+
+    db.add(BankAccount(bank_name="Yapı Kredi", currency="TRY", account_no="72821701",
+                       iban="TR" + uuid.uuid4().hex[:24].upper(), is_active=True))
+    db.flush()
+    lid = _create_list(client, auth_headers, items=[{"hesap_adi": "C", "amount": 100}]).json()["id"]
+    res = client.get(f"{PREFIX}/{lid}/export/ykb-excel", headers=auth_headers)  # debtor_account YOK
+    assert res.status_code == 200, res.text
+    wb = openpyxl.load_workbook(io.BytesIO(res.content))
+    assert wb.active.cell(2, 2).value == "72821701"  # fallback hesap no
+
+
 def test_create_with_nonexistent_vendor_id_no_500(client, auth_headers):
     """REGRESYON: var olmayan vendor_id ile liste oluşturma 500 (FK ihlali) vermemeli;
     kalem vendor_id=None ile (snapshot korunarak) eklenmeli. (Üretimde görülen hata.)"""

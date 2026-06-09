@@ -554,7 +554,7 @@
 			<input id="ykb-debtor" bind:value={ykbDebtor} inputmode="numeric"
 				class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 tabular-nums"
 				placeholder="ör: 65610029" />
-			<p class="text-[11px] text-gray-400 mt-1">Bir kez girin — tarayıcıda hatırlanır, sonraki seferde otomatik gelir. Boş bırakırsanız bankada seçersiniz.</p>
+			<p class="text-[11px] text-gray-400 mt-1">Boş bırakırsanız kayıtlı Yapı Kredi TL hesabınız otomatik gelir. Girerseniz tarayıcıda da hatırlanır.</p>
 		</div>
 		<div class="flex items-center justify-end gap-2">
 			<button type="button" onclick={() => (ykbModalOpen = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>

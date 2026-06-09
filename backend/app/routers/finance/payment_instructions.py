@@ -462,6 +462,24 @@ _YKB_HEADERS = [
 ]
 
 
+def _default_ykb_debtor(db: Session) -> str:
+    """Param boşsa BORÇLU HESAP fallback: kayıtlı aktif Yapı Kredi TL hesabının numarası."""
+    from app.models.bank_account import BankAccount
+    row = (
+        db.query(BankAccount.account_no)
+        .filter(
+            BankAccount.bank_name.ilike("%yap%"),
+            BankAccount.currency == "TRY",
+            BankAccount.is_active.is_(True),
+            BankAccount.account_no.isnot(None),
+            BankAccount.account_no != "",
+        )
+        .order_by(BankAccount.id)
+        .first()
+    )
+    return str(row[0]).strip() if row and row[0] else ""
+
+
 @router.get("/{list_id}/export/ykb-excel")
 def export_ykb_excel(
     list_id: int,
@@ -481,7 +499,7 @@ def export_ykb_excel(
         ws.cell(row=1, column=col, value=h)
 
     today = date.today()
-    deb = (debtor_account or "").strip()
+    deb = (debtor_account or "").strip() or _default_ykb_debtor(db)  # boşsa kayıtlı YKB TL hesap no
     r = 2
     for it in pl.items:
         a = ws.cell(row=r, column=1, value=today)
