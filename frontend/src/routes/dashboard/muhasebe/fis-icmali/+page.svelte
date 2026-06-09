@@ -4,7 +4,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
-	import { FileText, Users, Trophy, Sigma, RefreshCw, Calendar } from 'lucide-svelte';
+	import { FileText, Users, Trophy, Sigma, RefreshCw, Calendar, ChevronLeft, ChevronRight } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const now = new Date();
@@ -21,7 +21,7 @@
 	let data = $state<any>({ periods: [], users: [], period_totals: {}, grand_total: 0, user_count: 0 });
 
 	// Türetilmiş
-	let years = $derived(Array.from({ length: 5 }, (_, i) => now.getFullYear() - i));
+	let years = $derived([...new Set([year, ...Array.from({ length: 5 }, (_, i) => now.getFullYear() - i)])].sort((a, b) => b - a));
 	let maxCell = $derived(Math.max(1, ...data.users.flatMap((u: any) => Object.values(u.by_period || {}) as number[])));
 	let topUser = $derived(data.users[0]);
 	let avgPerUser = $derived(data.user_count ? Math.round(data.grand_total / data.user_count) : 0);
@@ -63,6 +63,17 @@
 	function setGranularity(g: 'month' | 'day') { if (granularity !== g) { granularity = g; load(); } }
 	function setDateField(d: 'record' | 'fiche') { if (dateField !== d) { dateField = d; load(); } }
 
+	function shiftPeriod(delta: number) {
+		if (granularity === 'month') {
+			year += delta;
+		} else {
+			const [y, m] = month.split('-').map(Number);
+			const d = new Date(y, m - 1 + delta, 1);
+			month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+		}
+		load();
+	}
+
 	onMount(load);
 </script>
 
@@ -82,20 +93,32 @@
 				<button onclick={() => setGranularity('day')} class="px-3 py-1.5 font-medium border-l border-gray-200 {granularity === 'day' ? 'bg-teal-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Günlük</button>
 			</div>
 
-			<!-- Dönem seçici -->
-			{#if granularity === 'month'}
-				<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-					<Calendar size={15} class="text-gray-400" />
-					<select bind:value={year} onchange={load} class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
-						{#each years as y}<option value={y}>{y}</option>{/each}
-					</select>
-				</label>
-			{:else}
-				<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-					<Calendar size={15} class="text-gray-400" />
-					<input type="month" bind:value={month} onchange={load} class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
-				</label>
-			{/if}
+			<!-- Dönem seçici (◀ önceki / sonraki ▶) -->
+			<div class="inline-flex items-center gap-1">
+				<button onclick={() => shiftPeriod(-1)} aria-label="Önceki dönem"
+					title={granularity === 'month' ? 'Önceki yıl' : 'Önceki ay'}
+					class="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-teal-700">
+					<ChevronLeft size={16} />
+				</button>
+				{#if granularity === 'month'}
+					<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+						<Calendar size={15} class="text-gray-400" />
+						<select bind:value={year} onchange={load} class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+							{#each years as y}<option value={y}>{y}</option>{/each}
+						</select>
+					</label>
+				{:else}
+					<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+						<Calendar size={15} class="text-gray-400" />
+						<input type="month" bind:value={month} onchange={load} class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
+					</label>
+				{/if}
+				<button onclick={() => shiftPeriod(1)} aria-label="Sonraki dönem"
+					title={granularity === 'month' ? 'Sonraki yıl' : 'Sonraki ay'}
+					class="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-teal-700">
+					<ChevronRight size={16} />
+				</button>
+			</div>
 
 			<!-- Tarih ekseni -->
 			<div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">

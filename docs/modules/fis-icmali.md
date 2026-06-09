@@ -42,8 +42,9 @@ en fazla **400 gün** (günlük görünümde sütun/sorgu patlamasını önler).
 `users` toplama göre azalan sıralı. `_build_pivot()` (router) Sedna satırlarını pivotlar.
 
 ## Frontend
-- **Filtre barı:** Granularite (Aylık/Günlük) · dönem seçici (yıl dropdown / ay picker) ·
-  tarih ekseni (Kayıt Tarihi / Fiş Tarihi) · Yenile.
+- **Filtre barı:** Granularite (Aylık/Günlük) · dönem seçici (yıl dropdown / ay picker) **+ ◀ ▶
+  önceki/sonraki butonları** (`shiftPeriod`: aylıkta yıl±1, günlükte ay±1; yıl listesi seçili yılı
+  her zaman içerir) · tarih ekseni (Kayıt Tarihi / Fiş Tarihi) · Yenile.
 - **Özet kartlar:** Toplam Fiş · Kullanıcı · En Aktif (ad + sayı) · Ø Kullanıcı Başı.
 - **Pivot tablo:** satır=kullanıcı (azalan), sütun=dönem, hücre=fiş sayısı (**ısı gölgeleme**:
   koyu = yoğun); yapışkan kullanıcı sütunu + satır/sütun toplamları (tfoot TOPLAM).
