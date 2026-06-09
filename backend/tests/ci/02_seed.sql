@@ -530,6 +530,15 @@ SELECT 1, m.id, true, true, now() FROM public.modules m
 WHERE m.code LIKE 'yonetim%'
   AND NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id = 1 AND p.module_id = m.id);
 
-SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 910), true);
+-- Kullanıcı Fiş İcmali (Muhasebe altı, Sedna canlı fiş icmali) — idempotent
+INSERT INTO public.modules (id, name, code, description, icon, parent_id, sort_order, is_active, created_at) VALUES
+  (912, 'Kullanıcı Fiş İcmali', 'accounting.fis_icmali', 'Kim ne zaman ne kadar fiş kesmiş (Sedna canlı)', 'chart', 249, 60, true, now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.role_module_permissions (role_id, module_id, can_view, can_use, created_at)
+SELECT 1, 912, true, true, now()
+WHERE NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id = 1 AND p.module_id = 912);
+
+SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 912), true);
 SELECT pg_catalog.setval('public.role_module_permissions_id_seq', GREATEST((SELECT max(id) FROM public.role_module_permissions), 9101), true);
 

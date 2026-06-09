@@ -112,6 +112,7 @@ export const NAV_GROUPS: NavGroup[] = [
 			{ code: 'accounting.rent_income', label: 'Alınan Kiralar', href: '/dashboard/muhasebe/alinan-kiralar', icon: [I.home] },
 			{ code: 'accounting.rent_expense', label: 'Verilen Kiralar', href: '/dashboard/muhasebe/verilen-kiralar', icon: [I.homeModern] },
 			{ code: 'accounting.dividend', label: 'Temettü', href: '/dashboard/muhasebe/temettu', icon: [I.currency] },
+			{ code: 'accounting.fis_icmali', label: 'Kullanıcı Fiş İcmali', href: '/dashboard/muhasebe/fis-icmali', icon: [I.chart] },
 		],
 	},
 	{

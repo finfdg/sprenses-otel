@@ -452,6 +452,43 @@ def fetch_stock_movements() -> List[dict]:
     return rows
 
 
+# Kullanıcı fiş icmali — AccountingOwner (fiş başlığı) kesen kullanıcı (RecordUser) + Users (ad).
+# Her AccountingOwner = bir fiş; kullanıcı × dönem (gün/ay) sayımı. Tarih: RecordDate (ne zaman
+# girdi = üretkenlik) veya FicheDate (muhasebe tarihi). {datecol}/{plen} whitelist, {start}/{end}
+# çağıranca doğrulanmış ISO → güvenli gömülü, execute() PARAMETRESİZ (pymssql %-tuzağı yok).
+_VOUCHER_SUMMARY_QUERY = """
+SELECT COALESCE(NULLIF(o.RecordUser, ''), '(boş)') AS user_code,
+       MAX(u.UserName)                             AS user_name,
+       CONVERT(varchar({plen}), o.{datecol}, 120)  AS period,
+       COUNT(*)                                    AS cnt
+FROM AccountingOwner o
+LEFT JOIN Users u ON u.UserCode = o.RecordUser
+WHERE o.Deleted = 0 AND o.{datecol} >= '{start}' AND o.{datecol} < '{end}'
+GROUP BY COALESCE(NULLIF(o.RecordUser, ''), '(boş)'), CONVERT(varchar({plen}), o.{datecol}, 120)
+"""
+
+
+def fetch_voucher_summary(start: str, end: str, granularity: str = "month",
+                          date_field: str = "record") -> List[dict]:
+    """Muhasebe fişlerini kesen kullanıcıya göre dönem (gün/ay) bazında say.
+
+    `start`/`end` ISO tarih (end EXCLUSIVE); whitelist dışı granularity/date_field reddedilir.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    datecol = "RecordDate" if date_field == "record" else "FicheDate"
+    plen = 7 if granularity == "month" else 10  # YYYY-MM | YYYY-MM-DD
+    conn = _stock_connect(120)  # fişler muhasebe DB'sinde (settings.sedna_database)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_VOUCHER_SUMMARY_QUERY.format(plen=plen, datecol=datecol, start=start, end=end))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna fiş icmali: %d satır (%s..%s, %s/%s)", len(rows), start, end, granularity, date_field)
+    return rows
+
+
 # ─── Önbüro/PMS (SednaPrenses) — rezervasyon/doluluk ────────────────────────
 # Stok/cari muhasebe DB'sinden (SednaPrensesMhs2026) AYRI bir DB (SednaPrenses) — aynı
 # btadmin login'i ikisini de okur. Doluluk (geceleme/pax) maliyet KPI'larını besler.

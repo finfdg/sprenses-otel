@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.constants import BroadcastModule, SourceType
+from app.routers.accounting.fis_icmali import router as fis_icmali_router
 from app.routers.scheduled_base import create_scheduled_router
 
 taxes_router = create_scheduled_router(
@@ -48,3 +49,4 @@ router.include_router(recurring_router, prefix="/recurring")
 router.include_router(rent_income_router, prefix="/rent-income")
 router.include_router(rent_expense_router, prefix="/rent-expense")
 router.include_router(dividend_router, prefix="/dividend")
+router.include_router(fis_icmali_router, prefix="/fis-icmali")  # kullanıcı fiş icmali (canlı Sedna)

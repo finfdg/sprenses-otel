@@ -453,6 +453,11 @@ TEMPLATE:
 - `GET /api/accounting/dividend/summary/totals` — Temettü özeti
 - Detaylı bilgi: `docs/modules/muhasebe-ik.md`
 
+### Muhasebe — Kullanıcı Fiş İcmali (Sedna canlı)
+- `GET /api/accounting/fis-icmali/summary?start_date&end_date&granularity&date_field` — **Sedna muhasebe fişlerini KESEN kullanıcıya göre gün/ay icmali** (kim ne zaman ne kadar fiş kesmiş). `AccountingOwner.RecordUser` + `Users` (ad); kullanıcı × dönem pivot. `granularity`=month|day, `date_field`=record (kayıt tarihi)|fiche (fiş tarihi). Canlı sorgu (model/import yok); ≤400 gün; tünel kapalı→503. accounting.fis_icmali view
+- `GET /api/accounting/fis-icmali/status` — Sedna etkin mi (`{configured}`)
+- Detaylı bilgi: `docs/modules/fis-icmali.md`
+
 ### İnsan Kaynakları — Maaş & Stopaj
 - `GET/POST/PATCH/DELETE /api/hr/salary/` — Maaş tanım CRUD + giriş üretimi
 - `PATCH /api/hr/salary/entries/{id}` — Maaş girişi güncelle
@@ -692,7 +697,7 @@ TEMPLATE:
 - Panel (dashboard)
 - Mesajlaşma (messaging)
 - Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Satış Faturaları (finance.sales_invoices), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
-- Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend)
+- Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
@@ -831,6 +836,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Onay | `docs/modules/onay.md` |
 | İşlem Etiketleme | `docs/modules/transaction-tags.md` |
 | Muhasebe & İK | `docs/modules/muhasebe-ik.md` |
+| Kullanıcı Fiş İcmali | `docs/modules/fis-icmali.md` |
 | Kimlik Doğrulama | `docs/modules/auth.md` |
 | Sistem — Kullanıcılar | `docs/modules/sistem-kullanicilar.md` |
 | Sistem — Roller | `docs/modules/sistem-roller.md` |
