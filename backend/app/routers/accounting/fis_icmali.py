@@ -12,7 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.middleware.auth import get_current_user, require_permission
 from app.models.user import User
-from app.utils.sedna_client import SednaUnavailable, fetch_voucher_summary, sedna_configured
+from app.utils.sedna_client import (
+    SednaUnavailable,
+    fetch_user_vouchers,
+    fetch_voucher_detail,
+    fetch_voucher_summary,
+    sedna_configured,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -87,3 +93,73 @@ def fis_icmali_summary(
     except SednaUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
     return _build_pivot(rows, granularity, date_field, sd.isoformat(), ed.isoformat())
+
+
+def _d(value) -> str:
+    return value.isoformat() if value is not None else None
+
+
+@router.get("/vouchers")
+def fis_icmali_vouchers(
+    user_code: str = Query(..., min_length=1, max_length=50),
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+    date_field: str = Query("record", pattern="^(record|fiche)$"),
+    _: User = Depends(require_permission("accounting.fis_icmali", "view")),
+):
+    """Drill-down: bir kullanıcının aralıkta kestiği fişler (tarih/no/tutar/açıklama)."""
+    if not sedna_configured():
+        raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
+    sd = _parse_iso(start_date, "start_date")
+    ed = _parse_iso(end_date, "end_date")
+    if ed < sd:
+        raise HTTPException(status_code=422, detail="Bitiş tarihi başlangıçtan önce olamaz.")
+    if (ed - sd).days > _MAX_RANGE_DAYS:
+        raise HTTPException(status_code=422, detail=f"Tarih aralığı en fazla {_MAX_RANGE_DAYS} gün olabilir.")
+    end_excl = (ed + timedelta(days=1)).isoformat()
+    try:
+        rows = fetch_user_vouchers(user_code, sd.isoformat(), end_excl, date_field)
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    vouchers = [
+        {"rec_id": r["rec_id"], "voucher": r["voucher"], "fiche_date": _d(r["fiche_date"]),
+         "record_date": _d(r["record_date"]), "remark": r["remark"], "total": float(r["total"] or 0)}
+        for r in rows
+    ]
+    return {
+        "user_code": user_code,
+        "count": len(vouchers),
+        "total": round(sum(v["total"] for v in vouchers), 2),
+        "vouchers": vouchers,
+    }
+
+
+@router.get("/voucher-detail")
+def fis_icmali_voucher_detail(
+    rec_id: int = Query(..., ge=1),
+    _: User = Depends(require_permission("accounting.fis_icmali", "view")),
+):
+    """Drill-down: tek fişin muhasebe satırları (hesap kodu/adı, borç, alacak)."""
+    if not sedna_configured():
+        raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
+    try:
+        data = fetch_voucher_detail(rec_id)
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    h = data.get("header")
+    if not h:
+        raise HTTPException(status_code=404, detail="Fiş bulunamadı.")
+    lines = [
+        {"code": l["code"], "account_name": l["account_name"],
+         "debit": float(l["debit"] or 0), "credit": float(l["credit"] or 0), "remark": l["remark"]}
+        for l in data.get("lines", [])
+    ]
+    return {
+        "rec_id": h["rec_id"], "voucher": h["voucher"],
+        "fiche_date": _d(h["fiche_date"]), "record_date": _d(h["record_date"]),
+        "remark": h["remark"], "total": float(h["total"] or 0),
+        "record_user": h["record_user"], "change_user": h["change_user"],
+        "lines": lines,
+        "total_debit": round(sum(x["debit"] for x in lines), 2),
+        "total_credit": round(sum(x["credit"] for x in lines), 2),
+    }

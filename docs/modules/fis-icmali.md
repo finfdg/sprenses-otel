@@ -25,6 +25,8 @@ Sedna'da kesilen muhasebe fişlerini **kesen kullanıcıya göre** gün/ay bazı
 |---|---|---|---|
 | GET | `/accounting/fis-icmali/status` | login | Sedna etkin mi (`{configured}`) |
 | GET | `/accounting/fis-icmali/summary` | accounting.fis_icmali view | Kullanıcı × dönem pivot |
+| GET | `/accounting/fis-icmali/vouchers` | accounting.fis_icmali view | **Drill-down:** kullanıcının aralıktaki fişleri (rec_id/no/tarih/tutar/açıklama) |
+| GET | `/accounting/fis-icmali/voucher-detail` | accounting.fis_icmali view | **Drill-down:** tek fişin muhasebe satırları (hesap, borç, alacak) |
 
 **`/summary` parametreleri:** `start_date`, `end_date` (YYYY-AA-GG, **dahil**), `granularity`
 (`month`\|`day`), `date_field` (`record`=kayıt tarihi varsayılan \| `fiche`=fiş tarihi). Aralık
@@ -48,6 +50,10 @@ en fazla **400 gün** (günlük görünümde sütun/sorgu patlamasını önler).
 - **Özet kartlar:** Toplam Fiş · Kullanıcı · En Aktif (ad + sayı) · Ø Kullanıcı Başı.
 - **Pivot tablo:** satır=kullanıcı (azalan), sütun=dönem, hücre=fiş sayısı (**ısı gölgeleme**:
   koyu = yoğun); yapışkan kullanıcı sütunu + satır/sütun toplamları (tfoot TOPLAM).
+- **Drill-down (modal):** hücreye tıkla → o kullanıcının o dönemdeki **fişleri** (tarih/no/tutar/açıklama);
+  kullanıcı adı/toplamına tıkla → tüm dönem fişleri. Fişe tıkla → **muhasebe satırları** açılır
+  (hesap kodu/adı, borç, alacak + TOPLAM, fiş tarihi + kesen/değiştiren). `/vouchers` + `/voucher-detail`
+  endpoint'leri (canlı Sedna; rec_id = `AccountingOwner.RecId`).
 - Tasarım sistemi: PageHeader, StatCard, EmptyState, Lucide. Günlük görünümde tablo yatay kayar.
 
 ## Tarih Ekseni — Kayıt vs Fiş Tarihi

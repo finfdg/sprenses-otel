@@ -456,6 +456,8 @@ TEMPLATE:
 
 ### Muhasebe — Kullanıcı Fiş İcmali (Sedna canlı)
 - `GET /api/accounting/fis-icmali/summary?start_date&end_date&granularity&date_field` — **Sedna muhasebe fişlerini KESEN kullanıcıya göre gün/ay icmali** (kim ne zaman ne kadar fiş kesmiş). `AccountingOwner.RecordUser` + `Users` (ad); kullanıcı × dönem pivot. `granularity`=month|day, `date_field`=record (kayıt tarihi)|fiche (fiş tarihi). Canlı sorgu (model/import yok); ≤400 gün; tünel kapalı→503. accounting.fis_icmali view
+- `GET /api/accounting/fis-icmali/vouchers?user_code&start_date&end_date&date_field` — **Drill-down:** bir kullanıcının aralıkta kestiği fişler (rec_id/no/tarih/tutar/açıklama)
+- `GET /api/accounting/fis-icmali/voucher-detail?rec_id` — **Drill-down:** tek fişin muhasebe satırları (hesap kodu/adı, borç, alacak, toplam, kesen/değiştiren)
 - `GET /api/accounting/fis-icmali/status` — Sedna etkin mi (`{configured}`)
 - Detaylı bilgi: `docs/modules/fis-icmali.md`
 

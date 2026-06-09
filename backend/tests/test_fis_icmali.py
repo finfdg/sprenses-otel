@@ -1,4 +1,5 @@
-"""Kullanıcı Fiş İcmali — Sedna fiş icmali endpoint (fetch_voucher_summary mock'lanır)."""
+"""Kullanıcı Fiş İcmali — Sedna fiş icmali + drill-down endpoint'leri (fetch_* mock'lanır)."""
+from datetime import date
 from unittest.mock import patch
 
 PREFIX = "/api/accounting/fis-icmali"
@@ -68,3 +69,54 @@ def test_bad_granularity_422(client, auth_headers):
     with patch(f"{TARGET}.sedna_configured", return_value=True):
         r = client.get(f"{PREFIX}/summary?start_date=2026-01-01&end_date=2026-12-31&granularity=week", headers=auth_headers)
         assert r.status_code == 422
+
+
+# ─── Drill-down: fiş listesi + fiş detayı ───────────────
+
+FAKE_VOUCHERS = [
+    {"rec_id": 6895, "voucher": "6722", "fiche_date": date(2026, 5, 26), "record_date": date(2026, 6, 1),
+     "remark": "AHMET FERİT MAYIS AVANS", "total": 140000},
+    {"rec_id": 6896, "voucher": "6723", "fiche_date": date(2026, 5, 26), "record_date": date(2026, 6, 1),
+     "remark": "VAKIF EFT", "total": 2901.55},
+]
+FAKE_DETAIL = {
+    "header": {"rec_id": 6895, "voucher": "6722", "fiche_date": date(2026, 5, 26),
+               "record_date": date(2026, 6, 1), "remark": "AHMET FERİT MAYIS AVANS", "total": 140000,
+               "record_user": "YASEMIN", "change_user": "TUĞÇE"},
+    "lines": [
+        {"code": "335.01.01.0018", "account_name": "AHMET FERİT ÇEVLİK", "debit": 70000, "credit": 0, "remark": "x"},
+        {"code": "102.01.13.0001", "account_name": "VAKIFBANK", "debit": 0, "credit": 70000, "remark": "x"},
+    ],
+}
+
+
+def test_vouchers_drilldown(client, auth_headers):
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_user_vouchers", return_value=FAKE_VOUCHERS):
+        j = client.get(f"{PREFIX}/vouchers?user_code=YASEMIN&start_date=2026-05-14&end_date=2026-06-09",
+                       headers=auth_headers).json()
+    assert j["count"] == 2 and j["total"] == 142901.55
+    v0 = j["vouchers"][0]
+    assert v0["voucher"] == "6722" and v0["rec_id"] == 6895 and v0["record_date"] == "2026-06-01"
+
+
+def test_vouchers_requires_view(client, no_perm_user_headers):
+    r = client.get(f"{PREFIX}/vouchers?user_code=X&start_date=2026-01-01&end_date=2026-01-31",
+                   headers=no_perm_user_headers)
+    assert r.status_code == 403
+
+
+def test_voucher_detail(client, auth_headers):
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_voucher_detail", return_value=FAKE_DETAIL):
+        j = client.get(f"{PREFIX}/voucher-detail?rec_id=6895", headers=auth_headers).json()
+    assert j["voucher"] == "6722" and len(j["lines"]) == 2
+    assert j["total_debit"] == 70000.0 and j["total_credit"] == 70000.0
+    assert j["lines"][0]["account_name"] == "AHMET FERİT ÇEVLİK"
+    assert j["record_user"] == "YASEMIN"
+
+
+def test_voucher_detail_404(client, auth_headers):
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_voucher_detail", return_value={"header": None, "lines": []}):
+        assert client.get(f"{PREFIX}/voucher-detail?rec_id=999", headers=auth_headers).status_code == 404

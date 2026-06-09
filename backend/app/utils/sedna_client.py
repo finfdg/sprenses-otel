@@ -489,6 +489,62 @@ def fetch_voucher_summary(start: str, end: str, granularity: str = "month",
     return rows
 
 
+def fetch_user_vouchers(user_code: str, start: str, end: str, date_field: str = "record") -> List[dict]:
+    """Bir kullanıcının (RecordUser) bir aralıkta kestiği fişler (drill-down). end EXCLUSIVE.
+
+    LIKE yok → pymssql parametreli execute (user_code/start/end güvenli bağlanır). datecol whitelist.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    datecol = "RecordDate" if date_field == "record" else "FicheDate"
+    query = (
+        "SELECT o.RecId AS rec_id, o.Voucher AS voucher, "
+        "CONVERT(date, o.FicheDate) AS fiche_date, CONVERT(date, o.RecordDate) AS record_date, "
+        "o.Remark AS remark, o.Total AS total "
+        "FROM AccountingOwner o "
+        "WHERE o.Deleted = 0 AND o.RecordUser = %s "
+        f"AND o.{datecol} >= %s AND o.{datecol} < %s "
+        f"ORDER BY o.{datecol}, o.Voucher"
+    )
+    conn = _stock_connect(120)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query, (user_code, start, end))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna fiş listesi: %s → %d fiş (%s..%s)", user_code, len(rows), start, end)
+    return rows
+
+
+def fetch_voucher_detail(rec_id: int) -> dict:
+    """Tek fişin (AccountingOwner.RecId) başlığı + muhasebe satırları (AccountingTrans + hesap adı)."""
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _stock_connect(60)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(
+            "SELECT o.RecId AS rec_id, o.Voucher AS voucher, CONVERT(date, o.FicheDate) AS fiche_date, "
+            "CONVERT(date, o.RecordDate) AS record_date, o.Remark AS remark, o.Total AS total, "
+            "o.RecordUser AS record_user, o.ChangeUser AS change_user "
+            "FROM AccountingOwner o WHERE o.RecId = %s AND o.Deleted = 0",
+            (rec_id,),
+        )
+        header = cur.fetchone()
+        cur.execute(
+            "SELECT t.AccountingCode AS code, acc.Remark AS account_name, t.Debit AS debit, "
+            "t.Credit AS credit, t.Remark1 AS remark "
+            "FROM AccountingTrans t LEFT JOIN Accounting acc ON acc.Code = t.AccountingCode "
+            "WHERE t.AccOwnerId = %s AND t.Deleted = 0 ORDER BY t.RecId",
+            (rec_id,),
+        )
+        lines = cur.fetchall()
+    finally:
+        conn.close()
+    return {"header": header, "lines": lines}
+
+
 # ─── Önbüro/PMS (SednaPrenses) — rezervasyon/doluluk ────────────────────────
 # Stok/cari muhasebe DB'sinden (SednaPrensesMhs2026) AYRI bir DB (SednaPrenses) — aynı
 # btadmin login'i ikisini de okur. Doluluk (geceleme/pax) maliyet KPI'larını besler.
