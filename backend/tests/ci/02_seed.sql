@@ -542,3 +542,14 @@ WHERE NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id
 SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 912), true);
 SELECT pg_catalog.setval('public.role_module_permissions_id_seq', GREATEST((SELECT max(id) FROM public.role_module_permissions), 9101), true);
 
+-- Mizan (Muhasebe altı, Sedna canlı geçici mizan / trial balance) — idempotent
+INSERT INTO public.modules (id, name, code, description, icon, parent_id, sort_order, is_active, created_at) VALUES
+  (913, 'Mizan', 'accounting.mizan', 'Hesap bazında dönem borç/alacak/bakiye (Sedna canlı)', 'scale', 249, 70, true, now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.role_module_permissions (role_id, module_id, can_view, can_use, created_at)
+SELECT 1, 913, true, true, now()
+WHERE NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id = 1 AND p.module_id = 913);
+
+SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 913), true);
+

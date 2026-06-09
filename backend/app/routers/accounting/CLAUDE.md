@@ -61,3 +61,20 @@ sonra) **veya** sayfadaki "Cari ile Senkronize" butonu. Detay: `docs/modules/muh
 6. `docs/modules/muhasebe-ik.md` güncelle.
 
 Detay: `docs/modules/muhasebe-ik.md`, `docs/modulerlik-iyilestirmeleri.md`.
+
+## Canlı Sedna Modülleri — Fabrika Dışı (salt-okunur)
+
+`fis_icmali` (Kullanıcı Fiş İcmali) ve `mizan` (Geçici Mizan) planlı-gider fabrikasının **parçası
+değildir** — `create_scheduled_router` kullanmazlar. İkisi de **canlı Sedna muhasebe sorgusu**
+(yerel model/migration/finance_event/onay/audit YOK; salt-okunur rapor). `__init__.py`'de kendi
+`router`'ları ayrı `include_router` ile bağlanır (`/fis-icmali`, `/mizan`).
+
+- **fis_icmali:** `AccountingOwner.RecordUser` → kim ne zaman fiş kesmiş (üretkenlik). Detay:
+  `docs/modules/fis-icmali.md`.
+- **mizan:** `AccountingTrans` borç/alacak → hesap kademe bazında dönem mizanı + drill-down (alt
+  hesap → defter). 60sn TTL cache; Türkçe-duyarsız arama (`_search_norm`); `code`/`parent`
+  `[A-Za-z0-9.]` doğrulanır (SQL gömme güvenliği). Detay: `docs/modules/mizan.md`.
+
+**Yeni canlı-Sedna rapor modülü** eklerken bu deseni izle (fabrika değil): `sedna_client.py`'ye
+`fetch_*` + ayrı router + RBAC modülü + `tests/ci/02_seed.sql` + `navigation.ts`. `require_permission`
+ile korunur; mutasyon olmadığından onay/audit gerekmez.

@@ -559,6 +559,91 @@ def fetch_voucher_detail(rec_id: int) -> dict:
     return {"header": header, "lines": lines}
 
 
+# ─── Mizan (geçici mizan / trial balance) ───────────────────────────────────
+# AccountingTrans (Debit/Credit, AccountingCode NOKTALI = leaf hesap) + AccountingOwner (FicheDate).
+# Mizan = hesap bazında SUM(Debit)/SUM(Credit). Leaf bazında çekilir; KADEME (ana/alt hesap) aggregasyonu
+# router'da Python'da yapılır → tek sorgu tüm kademeleri besler. Çift taraflı kayıt → toplam borç=alacak
+# (denge kontrolü). {start}/{end} çağıranca doğrulanmış ISO (end EXCLUSIVE) → gömülü, execute PARAMETRESİZ.
+_MIZAN_QUERY = """
+SELECT
+    t.AccountingCode AS code,
+    SUM(t.Debit)     AS borc,
+    SUM(t.Credit)    AS alacak
+FROM AccountingTrans t
+JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
+WHERE t.Deleted = 0 AND o.Deleted = 0
+  AND o.FicheDate >= '{start}' AND o.FicheDate < '{end}'
+GROUP BY t.AccountingCode
+"""
+
+
+def fetch_mizan(start: str, end: str) -> List[dict]:
+    """Dönem mizanı: leaf hesap bazında borç/alacak toplamı (FicheDate aralığı, end EXCLUSIVE).
+
+    Kademe (ana hesap / alt hesap) aggregasyonu router'da. `start`/`end` ISO-doğrulanmış (çağıran).
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _stock_connect(120)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_MIZAN_QUERY.format(start=start, end=end))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna mizan: %d leaf hesap (%s..%s)", len(rows), start, end)
+    return rows
+
+
+def fetch_account_names() -> dict:
+    """Hesap planı ad haritası {Code: Remark} — mizan kademesindeki prefix'lerin adını çözmek için.
+
+    Ana + alt + leaf tüm hesapları içerir (canlı ~9.5K). Yalnız server-side lookup; tümü frontend'e
+    gönderilmez (yalnız mizan satırlarına ad eklenir).
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _stock_connect(60)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute("SELECT Code, Remark FROM Accounting WHERE Code IS NOT NULL")
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    return {(r["Code"] or "").strip(): (r["Remark"] or "").strip() for r in rows}
+
+
+def fetch_account_transactions(code: str, start: str, end: str, limit: int = 1000) -> List[dict]:
+    """Bir hesabın (ve alt hesaplarının) dönem hareketleri (mizan drill-down → defter).
+
+    `code` = tam leaf (`320.01.01.P033`) veya prefix (`320` → tüm 320.* alt hesapları). Çağıran
+    `code`'u `[A-Za-z0-9.]` ile doğrular → güvenli gömülü (pymssql %-tuzağı: LIKE % + parametresiz execute).
+    En fazla `limit` satır (FicheDate sıralı). `start`/`end` ISO-doğrulanmış.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    top = max(1, min(int(limit), 5000))
+    query = (
+        f"SELECT TOP {top} CONVERT(date, o.FicheDate) AS fiche_date, o.Voucher AS voucher, "
+        "t.AccountingCode AS code, t.Remark1 AS remark, t.Debit AS debit, t.Credit AS credit, "
+        "o.RecId AS rec_id "
+        "FROM AccountingTrans t JOIN AccountingOwner o ON o.RecId = t.AccOwnerId "
+        "WHERE t.Deleted = 0 AND o.Deleted = 0 "
+        f"AND o.FicheDate >= '{start}' AND o.FicheDate < '{end}' "
+        f"AND (t.AccountingCode = '{code}' OR t.AccountingCode LIKE '{code}.%') "
+        "ORDER BY o.FicheDate, o.Voucher, t.RecId"
+    )
+    conn = _stock_connect(120)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna mizan hareket: %s → %d satır (%s..%s)", code, len(rows), start, end)
+    return rows
+
+
 # ─── Önbüro/PMS (SednaPrenses) — rezervasyon/doluluk ────────────────────────
 # Stok/cari muhasebe DB'sinden (SednaPrensesMhs2026) AYRI bir DB (SednaPrenses) — aynı
 # btadmin login'i ikisini de okur. Doluluk (geceleme/pax) maliyet KPI'larını besler.

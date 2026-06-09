@@ -461,6 +461,12 @@ TEMPLATE:
 - `GET /api/accounting/fis-icmali/status` — Sedna etkin mi (`{configured}`)
 - Detaylı bilgi: `docs/modules/fis-icmali.md`
 
+### Muhasebe — Mizan (Geçici Mizan / Sedna canlı)
+- `GET /api/accounting/mizan/summary?start_date&end_date&level&parent&search` — **Sedna hesaplarının dönem borç/alacak/bakiye mizanı** (kademe bazında: 1=ana hesap → alt hesap). `AccountingTrans` (borç/alacak) + `Accounting` (ad); leaf bazında çekilip kademe Python'da toplanır. `level`=kademe, `parent`=drill (alt hesaplar), `search`=Türkçe-duyarsız kod/ad. Yanıt `grand_total_borc/alacak` + `balanced` (denge: borç=alacak). Canlı sorgu (model/import yok); ≤800 gün; 60sn TTL cache; tünel kapalı→503. accounting.mizan view
+- `GET /api/accounting/mizan/transactions?code&start_date&end_date` — **Drill-down:** hesabın (+ alt hesapları) hareketleri (defter) + yürüyen bakiye (ilk 1000)
+- `GET /api/accounting/mizan/status` — Sedna etkin mi (`{configured}`)
+- Detaylı bilgi: `docs/modules/mizan.md`
+
 ### İnsan Kaynakları — Maaş & Stopaj
 - `GET/POST/PATCH/DELETE /api/hr/salary/` — Maaş tanım CRUD + giriş üretimi
 - `PATCH /api/hr/salary/entries/{id}` — Maaş girişi güncelle
@@ -700,7 +706,7 @@ TEMPLATE:
 - Panel (dashboard)
 - Mesajlaşma (messaging)
 - Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Satış Faturaları (finance.sales_invoices), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
-- Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali)
+- Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali), Mizan (accounting.mizan)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
@@ -840,6 +846,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | İşlem Etiketleme | `docs/modules/transaction-tags.md` |
 | Muhasebe & İK | `docs/modules/muhasebe-ik.md` |
 | Kullanıcı Fiş İcmali | `docs/modules/fis-icmali.md` |
+| Mizan (Geçici Mizan) | `docs/modules/mizan.md` |
 | Kimlik Doğrulama | `docs/modules/auth.md` |
 | Sistem — Kullanıcılar | `docs/modules/sistem-kullanicilar.md` |
 | Sistem — Roller | `docs/modules/sistem-roller.md` |
