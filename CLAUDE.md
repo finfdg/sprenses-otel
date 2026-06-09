@@ -531,7 +531,7 @@ TEMPLATE:
 ### Finans — Çekler
 - `GET /api/finance/checks/` — Çek listesi (paginated, filtrelenebilir)
 - `POST /api/finance/checks/upload` — Çek Excel yükleme
-- `POST /api/finance/checks/sedna-import` — **Sedna (muhasebe SQL Server) verilen çek içe aktarma** (ters SSH tüneli; `AccCheckTrans`+`AccCheck` → 320/satıcı verilen çekleri). Excel ile **aynı dedup** (check_no+vendor_code+due_date) → mükerrer olmaz. Durum Sedna pozisyonundan: Verilen Çek=bekliyor, Bankadan/Kasadan Ödeme=ödendi, Geri Al=iptal — eşleşmemiş çeklerde **durum senkronize edilir**. finance.checks use, audit'li, onaydan muaf
+- `POST /api/finance/checks/sedna-import` — **Sedna (muhasebe SQL Server) verilen çek içe aktarma** (ters SSH tüneli; `AccCheckTrans`+`AccCheck` → **320 satıcı + 159 avans + 335 personel/ortak** verilen çekleri). Excel ile **aynı dedup** (check_no+vendor_code+currency+native tutar) → mükerrer olmaz. Durum Sedna pozisyonundan: Verilen Çek=bekliyor, Bankadan/Kasadan Ödeme=ödendi, Geri Al=iptal — eşleşmemiş çeklerde **durum + vade senkronize edilir**. **Tutar-kayması heal:** aynı (no,cari,vade) UNIQUE'inde tutarı bozuk eşleşmemiş kayıt Sedna'ya hizalanır (eşleşmişe dokunulmaz). finance.checks use, audit'li, onaydan muaf
 - `GET /api/finance/checks/sedna-status` — Sedna çek içe aktarma etkin mi (`{configured}`; buton gösterimi)
 - `GET /api/finance/checks/uploads` — Yükleme geçmişi
 - `DELETE /api/finance/checks/uploads/{id}` — Yükleme sil

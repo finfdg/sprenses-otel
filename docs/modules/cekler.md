@@ -104,7 +104,15 @@ use, onaydan muaf, audit'li).
 - **Kaynak/eşleme:** `AccCheckTrans` (hareket) + `AccCheck` (çek kimliği: `CheckNo`/`Bank`/`City`)
   + `Accounting` (`Remark`=cari adı). Verilen çek **issuance** satırı = `CheckPosition=100` +
   `ActionType=2` (cari-tarafı borç, çek başına TEK). Join `AccountingCode` (virgüllü) →
-  `Accounting.Code` (noktalı) `REPLACE(',','.')`. Filtre 320 + `Deleted=0` + `DueDate`/`CheckNo` dolu.
+  `Accounting.Code` (noktalı) `REPLACE(',','.')`. Filtre `Deleted=0` + `DueDate`/`CheckNo` dolu.
+- **Kapsanan hesaplar — 320 + 159 + 335 (2026-06-09 genişletildi):** Verilen çek karşı-tarafı yalnız
+  satıcı değildir. Üç prefix de "verilen çek"tir ve senkronlanır: **320** satıcı (`sedna_account_prefix`,
+  config), **159** verilen sipariş avansı, **335** personel/ortak. `sedna_client._ISSUED_CHECK_PREFIXES_EXTRA
+  = ("159","335")` → WHERE `(AccountingCode LIKE '320%' OR '159%' OR '335%')` (prefix'ler rakam → gömülü,
+  `execute` parametresiz; pymssql %-tuzağı). **Neden:** 320-only import 159/335 çeklerini hiç güncellemiyordu
+  → Sedna'da iptal/ödenir/vade değişse bile bizde "bekliyor" kalıyordu (canlı: çek 0353815 Necip Özden
+  arazi avansı 159, Sedna'da pos=103 iptal ama bizde vadesi-geçen pending görünüyordu). İlk genişletmede
+  Sedna'da 320=137 + 159=17 + 335=5 = **159 verilen çek**.
 - **Durum (en kritik karar):** aynı `CheckId`'nin **EN YÜKSEK pozisyonu** (`AccCheckDef` legend'i,
   100-105 "Verilen Çek" doc grubu) → bizim duruma eşlenir:
   - `100` Verilen Çek / `104` Protesto / `105` Takipte → **pending**
@@ -126,6 +134,13 @@ use, onaydan muaf, audit'li).
     (eşleşmiş çeklere dokunulmaz; FE de invalidate). Sonuç `removed_dupes` döner.
   - **Dayanıklılık:** Her satır kendi `begin_nested()` SAVEPOINT'inde → eski hatalı-tutarlı kayıtların
     `UNIQUE(check_no,vendor_code,due_date)` çakışması tüm içe aktarmayı düşürmez, o satır atlanır.
+  - **Tutar-kayması iyileştirmesi (2026-06-09):** Dedup-key bulunamayıp aynı `(check_no, vendor_code,
+    due_date)` UNIQUE üçlüsünde **eşleşmemiş** bir kayıt varsa (tutar/para birimi bizde bozuk), import
+    INSERT yerine kaydı **Sedna'ya hizalar** (UPDATE: `amount_tl`/`amount_currency`/`currency`/`status` +
+    `upsert_check`). Eskiden bu satır UNIQUE çakışıp **sessizce atlanıyor, yanlış tutar kalıcı oluyordu**
+    → nakit akım eksik. Canlı örnek: **PEKSAN 0353816** bizde 30.000 TL / 563,65 € sanılmış, Sedna'da
+    **30.000 € = 1.596.726 TL** (1,56M TL eksik borç) → import bunu otomatik düzeltti. **Eşleşmiş** kayda
+    (banka kanıtı) DOKUNULMAZ — mutabık verimiz korunur (ör. 714659 paid+banka-eşleşmiş EUR/TL etiketi atlanır).
 - **Alan eşleme:** `amount_tl`=Debit (TL); EUR çekte `currency`=EUR + `amount_currency`=CurrDebit;
   `description`=banka adı (ayrı banka kolonu yok); `transaction_type`="Verilen Çek".
 - **finance_events:** `upsert_check` `status`'a göre `is_realized` (paid→True) ayarlar → nakit akımda
@@ -135,8 +150,14 @@ use, onaydan muaf, audit'li).
   Tüm yolları kapsar (Excel/PATCH/Sedna). Önceki davranışta iptal çekler `is_realized=False` FE ile
   listede görünüyordu; düzeltme + mevcut iptal-çek FE'lerinin tek seferlik temizliği yapıldı.
 - **Frontend:** Çekler sayfasında Sedna kutusu + **"Sedna'dan Çek Çek"** butonu (sedna-status ile gösterilir).
-- **İlk canlı:** 135 verilen çek çekildi → 6 yeni, 1 durum güncel, 128 mevcut (Excel ile çakışmadan).
-- **Test:** `tests/test_checks.py::TestSednaCheckImport` (durum eşleme + dedup + durum senkron + izin/503).
+- **İlk canlı (320):** 135 verilen çek çekildi → 6 yeni, 1 durum güncel, 128 mevcut (Excel ile çakışmadan).
+- **159/335 genişletme canlı (2026-06-09):** 159 verilen çek (320=137+159=17+335=5). Bir veri düzeltmesi
+  gerekti: çekler 7146590-93 Excel'de yanlışlıkla **159 PEKSAN (0089)**'a yazılmış; Sedna issuance'ı
+  **159 HANYAPIT (0088)** → 4 çek yeniden etiketlendi (banka eşleşmesi korunarak), sonra import temiz
+  senkron oldu (0 mükerrer). PEKSAN 0353816 tutar-kayması da iyileşti (yukarı).
+- **Test:** `tests/test_checks.py::TestSednaCheckImport` (durum eşleme + dedup + durum senkron + vade≠mükerrer +
+  aynı-no-farklı-tutar + mükerrer iyileştirme + **tutar-kayması heal (eşleşmemiş) / matched-skip** +
+  **159/335 prefix import** + **fetch SQL 320+159+335 kapsamı** + izin/503).
 
 ---
 

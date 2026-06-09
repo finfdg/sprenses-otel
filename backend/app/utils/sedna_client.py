@@ -66,7 +66,12 @@ ORDER BY a.Code, b.RecId
 # Verilen çekler — AccCheckTrans (hareket) + AccCheck (çek kimliği: no/banka) + Accounting (ad).
 # "Verilen Çek" issuance = CheckPosition=100, ActionType=2 (cari-tarafı borç satırı, çek başına TEK).
 # Güncel durum: aynı CheckId'nin EN YÜKSEK pozisyonu (100-105) → 101/102 ödendi, 103 iptal, gerisi bekliyor.
-# {prefix} güvenli (rakam) → gömülü; execute() PARAMETRESİZ (LIKE '%' tuzağı).
+# Karşı-taraf hesapları: ana satıcı (320, config'ten) + avans (159, verilen sipariş avansı) +
+# personel/ortak (335). Üçü de "verilen çek"tir → senkronlanır ki durum/vade güncel kalsın. 159/335
+# çekleri 320-only import'ta hiç güncellenmiyordu → Sedna'da iptal edilse bile bizde "bekliyor" kalıyordu
+# (ör. çek 0353815 Sedna'da pos=103 iptal ama bizde vadesi-geçen pending görünüyordu).
+# {prefix_clause} güvenli (yalnızca rakam prefix'leri) → gömülü; execute() PARAMETRESİZ (LIKE '%' tuzağı).
+_ISSUED_CHECK_PREFIXES_EXTRA = ("159", "335")  # ana 320'ye eklenen verilen-çek karşı-taraf hesapları
 _ISSUED_CHECK_QUERY = """
 SELECT
     REPLACE(t.AccountingCode, ',', '.') AS vendor_code,
@@ -87,7 +92,7 @@ CROSS APPLY (
     FROM AccCheckTrans t2
     WHERE t2.CheckId = t.CheckId AND t2.Deleted = 0 AND t2.CheckPosition BETWEEN 100 AND 105
 ) mp
-WHERE t.Deleted = 0 AND t.AccountingCode LIKE '{prefix}%'
+WHERE t.Deleted = 0 AND ({prefix_clause})
   AND t.CheckPosition = 100 AND t.ActionType = 2
   AND t.DueDate IS NOT NULL AND ck.CheckNo IS NOT NULL
 ORDER BY t.DueDate
@@ -271,7 +276,7 @@ def fetch_vendor_ibans() -> List[dict]:
 
 
 def fetch_issued_checks() -> List[dict]:
-    """Sedna'dan cari (varsayılan 320) **verilen çek** kayıtlarını dict listesi olarak çek.
+    """Sedna'dan **verilen çek** kayıtlarını dict listesi olarak çek (320 satıcı + 159 avans + 335 personel/ortak).
 
     Anahtarlar: vendor_code (noktalı), vendor_name, check_no, bank, city, due_date(date),
     amount_tl, currency, amount_currency, max_pos (güncel pozisyon → durum eşlemesi çağıranda).
@@ -282,7 +287,11 @@ def fetch_issued_checks() -> List[dict]:
     import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
 
     prefix = "".join(c for c in (settings.sedna_account_prefix or "320") if c.isdigit()) or "320"
-    query = _ISSUED_CHECK_QUERY.format(prefix=prefix)
+    # Ana satıcı (320) + avans (159) + personel/ortak (335) — üçü de verilen çek. Prefix'ler rakam →
+    # gömülü (pymssql %-tuzağı için execute parametresiz). EXTRA'dan ana prefix'i çıkar (mükerrer OR olmasın).
+    prefixes = [prefix] + [p for p in _ISSUED_CHECK_PREFIXES_EXTRA if p != prefix]
+    prefix_clause = " OR ".join("t.AccountingCode LIKE '{}%'".format(p) for p in prefixes)
+    query = _ISSUED_CHECK_QUERY.format(prefix_clause=prefix_clause)
 
     try:
         conn = pymssql.connect(
@@ -305,7 +314,7 @@ def fetch_issued_checks() -> List[dict]:
     finally:
         conn.close()
 
-    logger.info("Sedna'dan %d verilen çek çekildi (prefix=%s)", len(rows), prefix)
+    logger.info("Sedna'dan %d verilen çek çekildi (prefix'ler=%s)", len(rows), ",".join(prefixes))
     return rows
 
 

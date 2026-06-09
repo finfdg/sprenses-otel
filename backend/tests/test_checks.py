@@ -238,29 +238,106 @@ class TestSednaCheckImport:
         rows = db.execute(text("SELECT due_date FROM checks WHERE check_no='HEALCHK'")).fetchall()
         assert len(rows) == 1 and str(rows[0][0]) == "2026-07-31"
 
-    def test_constraint_collision_skipped_not_crash(self, client, auth_headers, db):
-        """Aynı (no,cari,vade) farklı tutar → UNIQUE çakışır; o satır SAVEPOINT'le atlanır, import çökmez."""
+    def test_amount_drift_unmatched_heals(self, client, auth_headers, db):
+        """Aynı (no,cari,vade) ama bizde tutar/para BOZUK + EŞLEŞMEMİŞ → import Sedna'ya HİZALAR (INSERT
+        değil UPDATE). Eskiden UNIQUE çakışıp sessizce atlanıyor, yanlış tutar kalıcı oluyordu — gerçek
+        olay: PEKSAN 0353816 bizde 30.000 TL / 563,65 € sanılmış, Sedna'da 30.000 € = 1.596.726 TL."""
         from app.models.check import Check, CheckUpload
         up = CheckUpload(file_name="seed", file_url="x")
         db.add(up)
         db.flush()
-        db.add(Check(upload_id=up.id, check_no="COLCHK", vendor_code="320.88.01.0001", vendor_name="C",
-                     due_date=date(2026, 7, 31), amount_tl=100000, currency="TL", amount_currency=100000,
+        db.add(Check(upload_id=up.id, check_no="DRIFTCHK", vendor_code="320.88.01.0001", vendor_name="C",
+                     due_date=date(2026, 7, 31), amount_tl=30000, currency="EUR", amount_currency=563.65,
                      transaction_type="Verilen Çek", status="pending"))
         db.flush()
-        rows = [
-            {"vendor_code": "320.88.01.0001", "vendor_name": "C", "check_no": "COLCHK", "bank": None,
-             "city": None, "due_date": date(2026, 7, 31), "amount_tl": 200000, "currency": "TL",
-             "amount_currency": 200000, "max_pos": 100},   # (COLCHK,vendor,07-31) çakışır → atlanır
-            {"vendor_code": "320.88.01.0002", "vendor_name": "D", "check_no": "OKCHK", "bank": None,
-             "city": None, "due_date": date(2026, 8, 1), "amount_tl": 5000, "currency": "TL",
-             "amount_currency": 5000, "max_pos": 100},     # sorunsuz → eklenir
-        ]
+        row = [{"vendor_code": "320.88.01.0001", "vendor_name": "C", "check_no": "DRIFTCHK", "bank": None,
+                "city": None, "due_date": date(2026, 7, 31), "amount_tl": 1596726, "currency": "EUR",
+                "amount_currency": 30000, "max_pos": 100}]   # Sedna doğru native tutar
         with patch(f"{TARGET}.sedna_configured", return_value=True), \
-             patch(f"{TARGET}.fetch_issued_checks", return_value=rows):
+             patch(f"{TARGET}.fetch_issued_checks", return_value=row):
             r = client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
             assert r.status_code == 200, r.text          # çökmedi
             j = r.json()
-        assert j["new_checks"] == 1                       # yalnız OKCHK
-        assert db.execute(text("SELECT count(*) FROM checks WHERE check_no='OKCHK'")).scalar() == 1
-        assert db.execute(text("SELECT count(*) FROM checks WHERE check_no='COLCHK'")).scalar() == 1
+        assert j["new_checks"] == 0 and j["updated_checks"] == 1   # INSERT değil, hizalandı
+        rows = db.execute(text("SELECT amount_tl, amount_currency FROM checks WHERE check_no='DRIFTCHK'")).fetchall()
+        assert len(rows) == 1                              # mükerrer yok
+        assert float(rows[0][0]) == 1596726.0 and float(rows[0][1]) == 30000.0   # Sedna tutarı
+
+    def test_amount_drift_matched_check_untouched(self, client, auth_headers, db):
+        """Aynı (no,cari,vade) tutar farklı ama çek EŞLEŞMİŞ (banka kanıtı) → DOKUNULMAZ, çökmez
+        (mutabık verimiz korunur, ör. 714659 paid+banka-eşleşmiş EUR/TL etiketi)."""
+        import uuid
+        from app.models.check import Check, CheckUpload
+        from app.models.bank_account import BankAccount
+        from app.models.bank_transaction import BankTransaction
+        acc = BankAccount(bank_name="TEB", iban="TR" + uuid.uuid4().hex[:30].upper(), currency="TRY")
+        db.add(acc)
+        db.flush()
+        btx = BankTransaction(account_id=acc.id, date=date(2026, 1, 31), description="x",
+                              amount=-249222.76, type="expense", tx_hash=uuid.uuid4().hex)
+        db.add(btx)
+        db.flush()
+        up = CheckUpload(file_name="seed", file_url="x")
+        db.add(up)
+        db.flush()
+        db.add(Check(upload_id=up.id, check_no="MATCHDRIFT", vendor_code="320.88.02.0001", vendor_name="M",
+                     due_date=date(2026, 1, 31), amount_tl=249222.76, currency="EUR", amount_currency=4966.14,
+                     transaction_type="Verilen Çek", status="paid", bank_transaction_id=btx.id))
+        db.flush()
+        row = [{"vendor_code": "320.88.02.0001", "vendor_name": "M", "check_no": "MATCHDRIFT", "bank": None,
+                "city": None, "due_date": date(2026, 1, 31), "amount_tl": 249222.76, "currency": "TL",
+                "amount_currency": 249222.76, "max_pos": 101}]   # Sedna TL etiketi, farklı native
+        with patch(f"{TARGET}.sedna_configured", return_value=True), \
+             patch(f"{TARGET}.fetch_issued_checks", return_value=row):
+            r = client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
+            assert r.status_code == 200, r.text          # çökmedi
+            j = r.json()
+        assert j["new_checks"] == 0 and j["updated_checks"] == 0   # eşleşmiş → dokunulmadı
+        rr = db.execute(text("SELECT currency, amount_currency FROM checks WHERE check_no='MATCHDRIFT'")).first()
+        assert rr[0] == "EUR" and float(rr[1]) == 4966.14          # mutabık verimiz korundu
+
+    def test_non_320_prefix_checks_import(self, client, auth_headers, db):
+        """159 (avans) + 335 (personel/ortak) verilen çekleri 320 gibi içe aktarılır (fetch sonrası
+        import mantığı prefix-bağımsız)."""
+        rows = [
+            {"vendor_code": "159.01.01.0088", "vendor_name": "HANYAPIT", "check_no": "AVNSCHK", "bank": "TEB",
+             "city": None, "due_date": date(2026, 9, 30), "amount_tl": 37400, "currency": "EUR",
+             "amount_currency": 37400, "max_pos": 100},
+            {"vendor_code": "335.01.05.0001", "vendor_name": "ORTAK X", "check_no": "ORTKCHK", "bank": None,
+             "city": None, "due_date": date(2026, 10, 15), "amount_tl": 80000, "currency": "TL",
+             "amount_currency": 80000, "max_pos": 100},
+        ]
+        with patch(f"{TARGET}.sedna_configured", return_value=True), \
+             patch(f"{TARGET}.fetch_issued_checks", return_value=rows):
+            j = client.post(f"{PREFIX}/sedna-import", headers=auth_headers).json()
+        assert j["new_checks"] == 2
+        codes = {x[0]: x[1] for x in db.execute(text(
+            "SELECT check_no, vendor_code FROM checks WHERE check_no IN ('AVNSCHK','ORTKCHK')")).fetchall()}
+        assert codes["AVNSCHK"] == "159.01.01.0088" and codes["ORTKCHK"] == "335.01.05.0001"
+
+    def test_fetch_issued_checks_query_covers_320_159_335(self, monkeypatch):
+        """fetch_issued_checks SQL'i 320 (satıcı) + 159 (avans) + 335 (personel/ortak) prefix'lerini kapsar."""
+        import sys
+        import types
+        from app.utils import sedna_client
+        captured = {}
+
+        class _Cur:
+            def execute(self, q):
+                captured["q"] = q
+            def fetchall(self):
+                return []
+            def close(self):
+                pass
+
+        class _Conn:
+            def cursor(self, as_dict=False):
+                return _Cur()
+            def close(self):
+                pass
+
+        monkeypatch.setitem(sys.modules, "pymssql", types.SimpleNamespace(connect=lambda **kw: _Conn()))
+        monkeypatch.setattr(sedna_client, "sedna_configured", lambda: True)
+        assert sedna_client.fetch_issued_checks() == []
+        q = captured["q"]
+        assert "LIKE '320%'" in q and "LIKE '159%'" in q and "LIKE '335%'" in q

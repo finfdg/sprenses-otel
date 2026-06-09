@@ -33,6 +33,11 @@ Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH
   (`fetch_issued_checks()` → `checks` tablosu). Kaynak `AccCheckTrans`+`AccCheck`; issuance =
   `CheckPosition=100, ActionType=2`; **durum** çekin EN YÜKSEK pozisyonundan (101/102→paid, 103→
   cancelled, gerisi→pending; `_check_status_from_pos`). Eşleşmemiş çeklerde vade + durum senkronize edilir.
+  - **Kapsanan hesaplar — 320+159+335 (2026-06-09):** Yalnız satıcı (320) değil; **159** verilen sipariş
+    avansı + **335** personel/ortak verilen çekleri de senkronlanır (`_ISSUED_CHECK_PREFIXES_EXTRA`). Eskiden
+    320-only → 159/335 çekleri hiç güncellenmiyor, Sedna'da iptal/ödenir/vade-değişse bile bizde "bekliyor"
+    kalıyordu (canlı: çek 0353815 159 avans, Sedna pos=103 iptal ama bizde vadesi-geçen pending). Prefix'ler
+    rakam → WHERE'e gömülü, `execute` parametresiz (pymssql %-tuzağı).
   - **Dedup anahtarı — vade DEĞİL, tutar (2026-06-08 düzeltildi — KRİTİK):** `_check_dedup_key()` =
     `(check_no, vendor_code, currency, NATIVE tutar)`. **`due_date` ANAHTARDA YOK.** Eski anahtar
     `(check_no, vendor_code, due_date)` idi; Sedna'da çekin vadesi değişince (yeniden vadelendirme)
@@ -46,8 +51,13 @@ Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH
     mükerrerler tespit edilip silinir (eşleşmiş çeklere DOKUNULMAZ). Her satır kendi `db.begin_nested()`
     SAVEPOINT'inde işlenir → `UNIQUE(check_no,vendor_code,due_date)` çakışması (eski hatalı-tutarlı
     kayıtlar) tüm içe aktarmayı düşürmez, yalnız o satır atlanır. Excel yükleme de aynı `_check_dedup_key`.
+  - **Tutar-kayması heal (2026-06-09):** Dedup-key yok ama aynı `(check_no, vendor_code, due_date)` UNIQUE
+    üçlüsünde **eşleşmemiş** kayıt varsa (tutar/para bizde bozuk), INSERT yerine **Sedna'ya hizalanır**
+    (UPDATE). Eskiden UNIQUE çakışıp sessizce atlanıyor, yanlış tutar kalıcı oluyordu (canlı: PEKSAN 0353816
+    bizde 30.000 TL, Sedna'da 30.000 €=1.596.726 TL → 1,56M TL eksik borç, otomatik düzeldi). **Eşleşmiş**
+    kayda dokunulmaz (mutabık veri korunur, ör. 714659 paid+banka-eşleşmiş).
   - Test: `test_checks.py::TestSednaCheckImport` (vade güncelleme≠mükerrer, farklı-tutar ayrı, mükerrer
-    iyileştirme, kısıt çakışması atla-çökme). Detay: `docs/modules/cekler.md`.
+    iyileştirme, tutar-kayması heal/matched-skip, 159/335 prefix, fetch SQL 320+159+335). Detay: `docs/modules/cekler.md`.
 - **Merkezi sync orchestrator (2026-06-06) — `sedna_sync.py`:** Tüm Sedna içe aktarmaları TEK
   endpoint'ten çalışır: `POST /finance/sedna/sync-all` (Topbar'daki tek "Sedna" butonu). Her import
   bir **servis fonksiyonu** (`run_cari_import` / `run_iban_import` — `cariler/sedna_import.py`;

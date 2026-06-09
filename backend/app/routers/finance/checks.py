@@ -189,14 +189,20 @@ def sedna_status(_: User = Depends(require_permission("finance.checks", "view"))
 
 
 def run_check_import(db: Session, current_user: User, ip=None) -> dict:
-    """Sedna'dan (320) verilen çekleri çek + dedup ile içe aktar.
+    """Sedna'dan verilen çekleri çek (320 satıcı + 159 avans + 335 personel/ortak) + dedup ile içe aktar.
 
-    **Dedup key: (check_no, vendor_code, amount_tl)** — `due_date` ANAHTARDA YOK. Sedna'da çekin
-    vadesi değişince (yeniden vadelendirme) yeni kayıt değil **mevcut kaydın güncellenmesi** gerekir;
+    **Dedup key: (check_no, vendor_code, currency, NATIVE tutar)** — `due_date` ANAHTARDA YOK. Sedna'da
+    çekin vadesi değişince (yeniden vadelendirme) yeni kayıt değil **mevcut kaydın güncellenmesi** gerekir;
     tutar yeniden vadelendirmede sabittir ama aynı no'lu farklı çekleri ayırır. Mevcut çek **banka/cari
     eşleşmesi yoksa** vade + durum Sedna'dan güncellenir; eşleşmişe dokunulmaz. Vade değişiminden kalan
-    eşleşmemiş mükerrerler temizlenir (geçmiş kayıtların hayalet gösterimi engellenir). Sonunda banka
-    eşleştirme çalışır. Servis fonksiyonu (HTTP'siz, broadcast'siz) — endpoint + merkezi sync ortak.
+    eşleşmemiş mükerrerler temizlenir (geçmiş kayıtların hayalet gösterimi engellenir).
+
+    **Tutar-kayması iyileştirmesi:** dedup-key bulunamayıp aynı `(check_no, vendor_code, due_date)` UNIQUE
+    üçlüsünde EŞLEŞMEMİŞ bir kayıt varsa (tutar/para birimi bizde bozuk), INSERT yerine Sedna'ya hizalanır
+    — aksi halde UNIQUE çakışıp sessizce atlanır ve yanlış tutar kalıcı olurdu (ör. PEKSAN 0353816 bizde
+    30.000 TL sanılmış, Sedna'da 30.000 EUR=1.596.726 TL). Eşleşmiş kayda dokunulmaz (mutabık veri korunur).
+
+    Sonunda banka eşleştirme çalışır. Servis fonksiyonu (HTTP'siz, broadcast'siz) — endpoint + merkezi sync ortak.
     """
     if not sedna_configured():
         raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
@@ -286,26 +292,50 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
                         else:
                             skipped_count += 1
                     else:
-                        chk = Check(
-                            upload_id=upload.id,
-                            check_type=None,
-                            check_no=check_no,
-                            vendor_code=vendor_code,
-                            vendor_name=(r.get("vendor_name") or "").strip() or check_no,
-                            description=bank,                 # banka adı (ayrı kolon yok)
-                            city=(r.get("city") or "").strip() or None,
-                            due_date=due_date,
-                            amount_tl=amount_tl,
-                            currency=curr,
-                            amount_currency=amount_currency,
-                            transaction_type="Verilen Çek",
-                            status=new_status,
-                        )
-                        db.add(chk)
-                        db.flush()
-                        finance_event_svc.upsert_check(db, chk)
-                        existing[key] = chk
-                        new_count += 1
+                        # Bu dedup-key (no,vendor,para,tutar) yok. Ama AYNI (no,vendor,vade) UNIQUE
+                        # üçlüsünde bir kayıt olabilir → tutar/para BİRİMİ kaymış (ör. PEKSAN 0353816
+                        # bizde 30.000 TL sanılmış, Sedna'da 30.000 EUR = 1.596.726 TL). Eşleşmemişse
+                        # Sedna'ya HİZALA (INSERT yerine UPDATE) — aksi halde UNIQUE çakışıp sessizce
+                        # atlanır ve yanlış tutar kalıcı olur (nakit akım eksik). Eşleşmişe DOKUNMA
+                        # (mutabık verimiz korunur, ör. 714659 paid+banka-eşleşmiş EUR/TL etiketi).
+                        drift = db.query(Check).filter(
+                            Check.check_no == check_no,
+                            Check.vendor_code == vendor_code,
+                            Check.due_date == due_date,
+                        ).first()
+                        if drift is not None and drift.bank_transaction_id is None and drift.match_number is None:
+                            drift.amount_tl = amount_tl
+                            drift.amount_currency = amount_currency
+                            drift.currency = curr
+                            drift.status = new_status
+                            if bank:
+                                drift.description = bank
+                            finance_event_svc.upsert_check(db, drift)
+                            existing[key] = drift
+                            updated_count += 1
+                        elif drift is not None:
+                            skipped_count += 1               # eşleşmiş çek → dokunma (benign)
+                        else:
+                            chk = Check(
+                                upload_id=upload.id,
+                                check_type=None,
+                                check_no=check_no,
+                                vendor_code=vendor_code,
+                                vendor_name=(r.get("vendor_name") or "").strip() or check_no,
+                                description=bank,                 # banka adı (ayrı kolon yok)
+                                city=(r.get("city") or "").strip() or None,
+                                due_date=due_date,
+                                amount_tl=amount_tl,
+                                currency=curr,
+                                amount_currency=amount_currency,
+                                transaction_type="Verilen Çek",
+                                status=new_status,
+                            )
+                            db.add(chk)
+                            db.flush()
+                            finance_event_svc.upsert_check(db, chk)
+                            existing[key] = chk
+                            new_count += 1
             except IntegrityError:
                 skipped_count += 1
                 logger.warning("Çek kısıt çakışması, atlandı: no=%s vendor=%s vade=%s tutar=%s %s",
