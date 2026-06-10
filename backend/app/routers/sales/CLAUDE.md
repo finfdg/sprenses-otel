@@ -1,13 +1,18 @@
 # Satış Modülü — Geliştirici Rehberi
 
-Satış alt modülleri: `reservations/` (otel rezervasyon), `room_types`, `agency_groups`,
-`flights` (uçak — widget tabanlı, yedek API client). Bu dosya satış modülüne katkı
-kurallarını içerir.
+Satış alt modülleri: `reservations/` (otel rezervasyon + günlük hareketler), `room_types`,
+`agency_groups`, `flights` (uçak — widget tabanlı, yedek API client). Bu dosya satış
+modülüne katkı kurallarını içerir.
 
 ## Yapı
 
 - `reservations/` paketi: `uploads` (XLS yükleme + RecId upsert + `removal_candidates`),
-  `listing`, `summary` (KPI + doluluk), `occupancy` (günlük drill-down).
+  `listing`, `summary` (KPI + doluluk), `occupancy` (günlük drill-down),
+  `daily_activity` (**Günlük Hareketler** — `sales/__init__.py`'de AYRI prefix
+  `/daily-activity` ve ayrı izin koduyla (`sales.daily_reservations`) bağlanır;
+  Sedna CANLI gelen/iptal akışı, yerel tablo yok — iptal tarihçesi senkronda silindiğinden
+  yerel veriyle cevaplanamaz. EUR çevrimi `sedna_import._currency_to_eur_factors` ile ORTAK.
+  Salt-okunur → onay/broadcast kapsam dışı. Detay: `docs/modules/gunluk-hareketler.md`).
 - `room_types`, `agency_groups`: oda tipi ve acente gruplama CRUD.
 - `flights`: Travelpayouts/Aviasales — **frontend widget** embed kullanılır; backend
   client (`utils/travelpayouts_client.py`) yedekte tutulur (detay: `docs/modules/ucak-rezervasyon.md`).

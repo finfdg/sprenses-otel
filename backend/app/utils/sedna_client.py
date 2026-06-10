@@ -717,3 +717,56 @@ def fetch_reservations(start: str) -> List[dict]:
         conn.close()
     logger.info("Sedna önbürodan %d rezervasyon çekildi (check-in>=%s)", len(rows), start)
     return rows
+
+
+# Günlük hareket — RecordDate (gelen) / CancelDate (iptal) eksenli. RecordDate/CancelDate
+# datetime olduğundan gün sınırı yarı açık aralıkla [start, end_next) güvenli kesilir.
+# {start}/{end_next} güvenli (ISO tarih) → gömülü; execute() PARAMETRESİZ (pymssql %-tuzağı).
+_RESERVATION_ACTIVITY_QUERY = """
+SELECT
+    r.RecId                        AS rec_id,
+    a.Name                         AS agency,
+    r.RoomType                     AS room_type,
+    r.Voucher                      AS voucher,
+    r.Guests                       AS guests,
+    CONVERT(date, r.CheckinDate)   AS checkin_date,
+    CONVERT(date, r.CheckOutDate)  AS checkout_date,
+    CONVERT(date, r.RecordDate)    AS record_date,
+    r.Board                        AS board,
+    r.Pax                          AS adult,
+    r.PaidChild                    AS child_paid,
+    r.FreeChild                    AS child_free,
+    r.Baby                         AS baby,
+    r.NationalityMarketCode        AS nation,
+    r.RoomPrice                    AS room_price,
+    c.Currency                     AS currency,
+    r.Status                       AS status_code,
+    CONVERT(date, r.CancelDate)    AS cancel_date
+FROM Reservation r
+LEFT JOIN Agency a ON a.RecId = r.AgencyId
+LEFT JOIN Contrack c ON c.RecId = r.ContrackId
+WHERE (r.RecordDate >= '{start}' AND r.RecordDate < '{end_next}')
+   OR (r.CancelDate >= '{start}' AND r.CancelDate < '{end_next}')
+ORDER BY r.RecordDate, r.RecId
+"""
+
+
+def fetch_reservation_activity(start: str, end_next: str) -> List[dict]:
+    """SednaPrenses Reservation → kayıt (RecordDate) VEYA iptal (CancelDate) tarihi
+    [start, end_next) aralığına düşen rezervasyonlar — günlük gelen/iptal akışı için.
+
+    `start`/`end_next` ISO tarih (YYYY-MM-DD) — yalnız rakam/tire olduğu çağıran tarafça
+    garanti edilir. Bir satır hem gelen (record_date) hem iptal (cancel_date) olarak
+    görünebilir; ayrıştırma çağıran taraftadır.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _pms_connect(120)
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_RESERVATION_ACTIVITY_QUERY.format(start=start, end_next=end_next))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna önbürodan %d günlük-hareket satırı çekildi (%s → %s)", len(rows), start, end_next)
+    return rows

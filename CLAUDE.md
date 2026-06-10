@@ -621,6 +621,12 @@ TEMPLATE:
 - `GET /api/sales/reservations/daily-occupancy?month=YYYY-MM` — Aylık drill-down: günlük doluluk + check-in/out sayıları (takvim heatmap için)
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md`
 
+### Satış — Günlük Hareketler (gelen rezervasyon / iptal akışı)
+- `GET /api/sales/daily-activity/summary?start_date&end_date` — **Gün gün gelen rezervasyon + iptal özeti** (adet/gece/misafir/EUR ciro, net, `cancel_rate`; hareketsiz günler 0'larla, en yeni üstte; ≤92 gün). **Sedna canlı** (Mizan/Fiş İcmali kalıbı): yerel tabloda iptal tarihçesi yoktur (senkron iptalleri siler) — `RecordDate` ekseni=gelen, `CancelDate` ekseni=iptal. 60sn TTL cache. sales.daily_reservations view
+- `GET /api/sales/daily-activity/details?activity_date&type=new|cancelled` — **Drill-down:** günün rezervasyon satırları (voucher/acente/misafir/oda/konaklama/pax/EUR; gelenlerde sonradan-iptal `is_cancelled` rozeti, iptallerde kayıt tarihi)
+- `GET /api/sales/daily-activity/status` — Sedna etkin mi (`{configured}`); tünel kapalı→503
+- Salt-okunur (yalnız GET) → onay akışı kapsam dışı. Detaylı bilgi: `docs/modules/gunluk-hareketler.md`
+
 ### Satış — Oda Tipleri
 - `GET /api/sales/room-types/` — Oda tipi listesi + toplam kapasite (`total_capacity`)
 - `GET /api/sales/room-types/{id}` — Tek kayıt
@@ -710,7 +716,7 @@ TEMPLATE:
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
-- Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Oda Tipleri (sales.room_types)
+- Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Oda Tipleri (sales.room_types)
 - Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
 - Yönetim Paneli (yonetim) → Panel (yonetim.panel — GM/Finans 10 KPI + uyarılar)
 
@@ -859,6 +865,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | WebSocket Altyapısı | `docs/modules/websocket.md` |
 | Uçak Rezervasyon | `docs/modules/ucak-rezervasyon.md` |
 | Otel Rezervasyon | `docs/modules/otel-rezervasyon.md` |
+| Günlük Hareketler (rezervasyon/iptal) | `docs/modules/gunluk-hareketler.md` |
 | Oda Tipleri | `docs/modules/oda-tipleri.md` |
 | Yedekleme | `docs/modules/yedekleme.md` |
 | Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
