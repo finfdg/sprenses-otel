@@ -623,7 +623,7 @@ TEMPLATE:
 
 ### Satış — Günlük Hareketler (gelen rezervasyon / iptal akışı)
 - `GET /api/sales/daily-activity/summary?start_date&end_date` — **Gün gün gelen rezervasyon + iptal özeti** (adet/gece/misafir/EUR ciro, net, `cancel_rate`; hareketsiz günler 0'larla, en yeni üstte; ≤92 gün). **Sedna canlı** (Mizan/Fiş İcmali kalıbı): yerel tabloda iptal tarihçesi yoktur (senkron iptalleri siler) — `RecordDate` ekseni=gelen, `CancelDate` ekseni=iptal. 60sn TTL cache. sales.daily_reservations view
-- `GET /api/sales/daily-activity/details?activity_date&type=new|cancelled` — **Drill-down:** günün rezervasyon satırları (voucher/acente/misafir/oda/konaklama/pax/EUR; gelenlerde sonradan-iptal `is_cancelled` rozeti, iptallerde kayıt tarihi)
+- `GET /api/sales/daily-activity/details?activity_date&type=new|cancelled` — **Drill-down:** günün rezervasyon satırları (voucher/acente/ülke/oda/konaklama/pax/EUR; gelenlerde sonradan-iptal `is_cancelled` rozeti, iptallerde kayıt tarihi). **Misafir adı bilinçli yer almaz** (kişisel veri — Sedna sorgusu `Guests` kolonunu çekmez)
 - `GET /api/sales/daily-activity/status` — Sedna etkin mi (`{configured}`); tünel kapalı→503
 - Salt-okunur (yalnız GET) → onay akışı kapsam dışı. Detaylı bilgi: `docs/modules/gunluk-hareketler.md`
 

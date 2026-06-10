@@ -402,7 +402,7 @@
 					<tr class="text-gray-600 border-b border-gray-200 bg-gray-50 sticky top-0">
 						<th class="text-left font-medium px-2 py-2">Voucher</th>
 						<th class="text-left font-medium px-2 py-2">Acente</th>
-						<th class="text-left font-medium px-2 py-2">Misafir</th>
+						<th class="text-left font-medium px-2 py-2">Ülke</th>
 						<th class="text-left font-medium px-2 py-2">Oda</th>
 						<th class="text-left font-medium px-2 py-2">Pansiyon</th>
 						<th class="text-left font-medium px-2 py-2 whitespace-nowrap">Konaklama</th>
@@ -414,14 +414,13 @@
 					{#each detailItems as it (it.rec_id)}
 						<tr class="border-b border-gray-100 align-top {detailTab === 'new' && it.is_cancelled ? 'opacity-60' : ''}">
 							<td class="px-2 py-2 tabular-nums text-gray-600 whitespace-nowrap">{it.voucher || '—'}</td>
-							<td class="px-2 py-2 text-gray-800 font-medium max-w-[140px] truncate" title={it.agency}>{it.agency || '—'}</td>
-							<td class="px-2 py-2 text-gray-700 max-w-[160px]">
-								<span class="block truncate" title={it.guests}>{it.guests || '—'}</span>
-								{#if it.nation}<span class="text-[10px] text-gray-500">{it.nation}</span>{/if}
+							<td class="px-2 py-2 text-gray-800 font-medium max-w-[180px]">
+								<span class="block truncate" title={it.agency}>{it.agency || '—'}</span>
 								{#if detailTab === 'new' && it.is_cancelled}
 									<span class="block mt-0.5"><span class="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full px-1.5 py-0.5">Sonradan iptal</span></span>
 								{/if}
 							</td>
+							<td class="px-2 py-2 text-gray-600">{it.nation || '—'}</td>
 							<td class="px-2 py-2 text-gray-600 whitespace-nowrap">{it.room_type || '—'}</td>
 							<td class="px-2 py-2 text-gray-600">{it.board || '—'}</td>
 							<td class="px-2 py-2 text-gray-700 whitespace-nowrap tabular-nums">

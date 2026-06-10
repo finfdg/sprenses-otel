@@ -11,8 +11,12 @@
 | **İzin kodu** | `sales.daily_reservations` (tüm endpoint'ler `view`) |
 | **Veri kaynağı** | **Sedna önbüro (canlı)** — yerel tablo YOK |
 
-Gün gün **gelen yeni rezervasyonlar** ve **iptaller**: adet, geceleme, misafir, EUR ciro +
-rezervasyon bazında drill-down (voucher, acente, misafir, konaklama, tutar).
+Gün gün **gelen yeni rezervasyonlar** ve **iptaller**: adet, geceleme, misafir sayısı, EUR ciro +
+rezervasyon bazında drill-down (voucher, acente, ülke, konaklama, tutar).
+
+> **Kişisel veri kararı:** Misafir **isimleri** modülde YER ALMAZ — Sedna sorgusu `Guests`
+> kolonunu hiç çekmez, API yanıtında alan yoktur, arayüzde kolon yoktur. Misafir *sayısı*
+> (pax) gösterilir. Bu alan ileride eklenecekse bilinçli bir karar olarak buradan kaldırılmalıdır.
 
 ## Neden Canlı Sorgu? (mimari karar)
 
@@ -57,7 +61,7 @@ sorgu pymssql %-tuzağına karşı parametresiz `format()` ile kurulur (diğer S
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/api/sales/daily-activity/summary?start_date&end_date` | view | Gün gün gelen/iptal özeti (count, nights, pax, eur) + dönem toplamları + `cancel_rate`. Hareketsiz günler 0'larla döner, en yeni gün üstte. Aralık ≤ 92 gün. |
-| GET | `/api/sales/daily-activity/details?activity_date&type=new\|cancelled` | view | Drill-down: günün rezervasyon satırları. `new`'de `is_cancelled` sonradan-iptal işareti; `cancelled`'da `record_date` ile "girişe X gün kala iptal" hesaplanabilir. |
+| GET | `/api/sales/daily-activity/details?activity_date&type=new\|cancelled` | view | Drill-down: günün rezervasyon satırları (misafir adı YOK — bkz. kişisel veri kararı). `new`'de `is_cancelled` sonradan-iptal işareti; `cancelled`'da `record_date` ile "girişe X gün kala iptal" hesaplanabilir. |
 | GET | `/api/sales/daily-activity/status` | login | `{configured}` — Sedna etkin mi (sayfa gösterimi) |
 
 - Tünel kapalı / `SEDNA_PASSWORD` boş → **503** (frontend EmptyState gösterir).
@@ -80,8 +84,9 @@ Kanonik liste iskeleti (tasarım sistemi): PageHeader → StatCard×4 → filtre
   tıklanır → drill-down modal. Bugün satırı `bg-teal-50/40` + "Bugün" rozeti. tfoot dönem toplamı.
 - **Mobil (`<md`):** tablo → günlük kartlar (yalnız hareketli günler); Gelen/İptal kutuları tıklanır
 - **Drill-down modal** (`max-w-4xl`): "Gelenler (n)" / "İptaller (m)" sekme toggle'ı; tablo:
-  Voucher · Acente · Misafir(+ülke) · Oda · Pansiyon · Konaklama (giriş→çıkış, gece; iptallerde
-  "Kayıt: … · girişe X gün kala iptal") · Pax · Tutar € (EUR-dışı ham tutar alt satırda)
+  Voucher · Acente (sonradan-iptal rozeti burada) · Ülke · Oda · Pansiyon · Konaklama
+  (giriş→çıkış, gece; iptallerde "Kayıt: … · girişe X gün kala iptal") · Pax · Tutar €
+  (EUR-dışı ham tutar alt satırda) — misafir adı kolonu bilinçli olarak yoktur
 - **Durumlar:** loading `TableSkeleton` · Sedna yok / hareket yok `EmptyState` · hata `console.error` + toast
 - Tutar formatı: tabloda `Intl` EUR 0 hane (`tabular-nums`), modalda 2 hane
 
@@ -95,5 +100,7 @@ Kanonik liste iskeleti (tasarım sistemi): PageHeader → StatCard×4 → filtre
    frontend modal tablosu birlikte güncellenir.
 4. EUR çevrimi rezervasyon senkronuyla ortak (`sedna_import._currency_to_eur_factors`) —
    ayrı katsayı mantığı YAZILMAZ (iki modül farklı ciro gösterir).
+5. **Misafir adı eklenmez** — `Guests` kolonu kişisel veri olduğundan sorgudan/yanıttan/UI'dan
+   bilinçli çıkarıldı (2026-06-10); `test_details_no_guest_names` bunu korur.
 5. Polling yok: sayfa yüklemede fetch + elle Yenile. (Veri Sedna'da değiştiği için WS event'i
    da yok; kullanıcı tazeliği Yenile ile alır, backend cache 60sn.)

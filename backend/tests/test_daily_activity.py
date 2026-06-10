@@ -14,11 +14,11 @@ FACTORS = {"EUR": 1.0, "TL": 0.02, "TRY": 0.02}
 def _row(rec_id, record_date, cancel_date=None, status_code=1, *, checkin=date(2026, 7, 1),
          checkout=date(2026, 7, 8), adult=2, child_paid=1, child_free=0, baby=1,
          room_price=700.0, currency="EUR", agency="ALLTOURS", voucher="V1",
-         guests="MUSTERMANN MAX", nation="DEU", room_type="STD DNZ", board="AI"):
-    """fetch_reservation_activity'nin döndürdüğü ham Sedna satırı."""
+         nation="DEU", room_type="STD DNZ", board="AI"):
+    """fetch_reservation_activity'nin döndürdüğü ham Sedna satırı (misafir adı çekilmez)."""
     return {
         "rec_id": rec_id, "agency": agency, "room_type": room_type, "voucher": voucher,
-        "guests": guests, "checkin_date": checkin, "checkout_date": checkout,
+        "checkin_date": checkin, "checkout_date": checkout,
         "record_date": record_date, "board": board, "adult": adult,
         "child_paid": child_paid, "child_free": child_free, "baby": baby,
         "nation": nation, "room_price": room_price, "currency": currency,
@@ -139,6 +139,12 @@ def test_details_new(client, auth_headers):
     assert by_voucher["V2"]["is_cancelled"] is True  # sonradan iptal işareti
     assert by_voucher["V2"]["cancel_date"] == "2026-06-10"
     assert by_voucher["V1"]["nights"] == 7 and by_voucher["V1"]["pax"] == 3
+
+
+def test_details_no_guest_names(client, auth_headers):
+    """Misafir adı (kişisel veri) yanıtta YER ALMAZ — bilinçli tasarım kararı."""
+    j = _get(client, auth_headers, "/details?activity_date=2026-06-09&type=new").json()
+    assert all("guests" not in item for item in j["items"])
 
 
 def test_details_cancelled(client, auth_headers):

@@ -81,11 +81,11 @@ def _fetch_rows(db: Session, sd: date, ed: date) -> list:
             eur = round(amount * factors.get(cur_code, 1.0), 2)  # bilinmeyen → EUR varsay
         else:
             eur = round(amount, 2) if cur_code == "EUR" else 0.0  # kur yoksa yalnız EUR
+        # Misafir adı (guests) bilinçli olarak yer almaz — kişisel veri, modülde gösterilmez.
         rows.append({
             "rec_id": r["rec_id"],
             "voucher": ((r["voucher"] or "").strip() or None),
             "agency": ((r["agency"] or "").strip() or None),
-            "guests": ((r["guests"] or "").strip() or None),
             "nation": ((r["nation"] or "").strip() or None),
             "room_type": ((r["room_type"] or "").strip() or None),
             "board": ((r["board"] or "").strip() or None),

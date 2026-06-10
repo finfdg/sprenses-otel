@@ -721,6 +721,7 @@ def fetch_reservations(start: str) -> List[dict]:
 
 # Günlük hareket — RecordDate (gelen) / CancelDate (iptal) eksenli. RecordDate/CancelDate
 # datetime olduğundan gün sınırı yarı açık aralıkla [start, end_next) güvenli kesilir.
+# Misafir adı (Guests) BİLEREK çekilmez — kişisel veri, modülde gösterilmez.
 # {start}/{end_next} güvenli (ISO tarih) → gömülü; execute() PARAMETRESİZ (pymssql %-tuzağı).
 _RESERVATION_ACTIVITY_QUERY = """
 SELECT
@@ -728,7 +729,6 @@ SELECT
     a.Name                         AS agency,
     r.RoomType                     AS room_type,
     r.Voucher                      AS voucher,
-    r.Guests                       AS guests,
     CONVERT(date, r.CheckinDate)   AS checkin_date,
     CONVERT(date, r.CheckOutDate)  AS checkout_date,
     CONVERT(date, r.RecordDate)    AS record_date,
