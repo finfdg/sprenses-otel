@@ -353,14 +353,20 @@ TEMPLATE:
 
 Projeye özel, git'te takip edilen (ekiple paylaşılan) Claude Code otomasyonları. Yeni komut/agent eklendiğinde Claude Code oturumunun yeniden başlatılması (reload) gerekir.
 
-- **Hook — `.claude/settings.json`:** `Stop` hook'u her tur sonunda `git add -A` + commit `"Otomatik yedek: <tarih>"` + GitHub push yapar (async). Repodaki tüm `Otomatik yedek:` commit'lerinin kaynağı budur.
+- **Hook'lar — `.claude/settings.json`:**
+  - `Stop`: her tur sonunda `git add -A` + commit `"Otomatik yedek: <tarih>"` + GitHub push (async). Repodaki tüm `Otomatik yedek:` commit'lerinin kaynağı budur.
+  - `PreToolUse(Bash)`: `scripts/claude-guard-secrets.sh` — `git add -f/--force` ile `.env/.pem/.key/secret` dosyalarının `.gitignore`'u atlayıp GitHub yedeğine sızmasını engeller (exit 2). Komut o deseni içermiyorsa exit 0 (normal komutlar etkilenmez). Not: desen komut string'inde geçerse (echo içinde bile) eşleşir — bilinçli, güvenli tarafa düşer.
 - **Slash komutları — `.claude/commands/`:**
   - `/test [backend|frontend|all] [pytest filtre]` — testleri **doğru test DB** ile çalıştırır (şifre `.env`'den runtime'da, `_test` DB zorunlu).
   - `/deploy [backend|frontend|all]` — zorunlu deploy akışı (backend=restart, frontend=`deploy-frontend.sh` build+restart) + health doğrulama.
   - `/durum` — servisler + sağlık + Sedna tüneli (11433) + dinlenen portlar + git yedek durumu.
+  - `/sedna-sync` — Sedna ters tünel + bağlantı teşhisi (içe-aktarma neden 503; gerçek sync UI'dan).
+  - `/migration "<açıklama>"` — alembic revize üret → **gözden geçir** (autogenerate yanlış DROP üretebilir) → uygula.
+  - `/yeni-modul "<code> <Ad>"` — CLAUDE.md kontrol-listesiyle yeni modül iskeleti (model→schema→router[izin+onay+audit]→executor handler→migration→RBAC→frontend→test→doküman).
 - **Subagent — `.claude/agents/`:**
-  - `modul-denetci` — yeni/değişen modülü CLAUDE.md kurallarına göre salt-okunur denetler (izin, onay akışı + executor handler, audit, Türkçe karakter, Python 3.9, merkezi sabitler, finance_events, UI tasarım sistemi, doküman, test). Kanıtlı (`dosya:satır`) bulgu döner; kod yazmaz.
+  - `modul-denetci` — yeni/değişen modülü CLAUDE.md kurallarına göre salt-okunur denetler (izin, onay akışı + executor handler, audit, Türkçe karakter, Python 3.9, merkezi sabitler, finance_events, UI tasarım sistemi, doküman, test). Kanıtlı (`dosya:satır`) bulgu döner; kod yazmaz. (İlk testte `sales.room_types`'ın eksik executor handler'ını yakaladı — aşağıya bakın.)
 - **İzinler — `.claude/settings.local.json`** (gitignore'da, paylaşılmaz): izin-sorma azaltan komut allowlist'i.
+- **Reload:** yeni komut/agent dosyaları Claude Code oturumu **yeniden başlatılınca** görünür; `settings.json` hook'ları dinamik yüklenir.
 
 ## API Endpoints
 
