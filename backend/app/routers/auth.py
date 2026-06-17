@@ -157,8 +157,8 @@ def change_password(
     """Kullanıcının kendi şifresini değiştirmesi."""
     if not verify_password(data.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Mevcut şifre hatalı")
-    if not data.new_password or len(data.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Yeni şifre en az 6 karakter olmalıdır")
+    if not data.new_password or len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Yeni şifre en az 8 karakter olmalıdır")
     current_user.hashed_password = hash_password(data.new_password)
 
     # Yeni oturum kimliği — eski token'lar geçersiz olur

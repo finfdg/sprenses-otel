@@ -548,6 +548,88 @@ class TestApprovalExecutor:
         assert rt.total_rooms == 10
         assert rt.max_occupancy == 3
 
+    def test_check_status_via_approval_regression(self, db):
+        """REGRESYON: _handle_finance_checks payload {"new_status"} ile model alanı "status"'u
+        uyuşturmuyordu → onaylı çek durumu SESSİZCE değişmiyordu (2026-06-17 tarama bulgusu)."""
+        from datetime import date as _date
+
+        from app.models.check import Check, CheckUpload
+
+        _, req_role, req_client = _make_actor(db, {
+            "finance.checks": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.checks", req_role, app_role)
+
+        up = CheckUpload(file_name="seed", file_url="x")
+        db.add(up)
+        db.flush()
+        chk = Check(upload_id=up.id, check_no=f"CHK{uuid4().hex[:5]}", vendor_name="Test Cari",
+                    due_date=_date(2026, 9, 1), amount_tl=1000, amount_currency=1000, status="pending")
+        db.add(chk)
+        db.commit()
+        chk_id = chk.id
+
+        r = req_client.patch(f"/api/finance/checks/{chk_id}/status?new_status=paid")
+        assert r.status_code == 202, f"onaya düşmeli: {r.text}"
+        req_id = r.json()["request_id"]
+
+        db.expire_all()
+        assert db.get(Check, chk_id).status == "pending"  # onaydan önce değişmedi
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"handler bug: {ap.text}"
+        db.expire_all()
+        assert db.get(Check, chk_id).status == "paid"  # ARTIK uygulanıyor (eskiden sessiz no-op)
+
+    def test_quality_template_via_approval_regression(self, db):
+        """REGRESYON: _save_template_assignees zorunlu assignment_type'ı atlıyordu (NOT NULL → 500) +
+        _save_template_sections alan bayraklarını/birimi düşürüyordu (2026-06-17 tarama bulgusu)."""
+        from app.models.quality_template import QualityTemplate
+        from app.models.quality_template_assignee import QualityTemplateAssignee
+        from app.models.quality_template_field import QualityTemplateField
+        from app.models.quality_template_section import QualityTemplateSection
+
+        _, req_role, req_client = _make_actor(db, {
+            "quality.templates": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "quality.templates", req_role, app_role)
+
+        name = f"Şablon {uuid4().hex[:6]}"
+        r = req_client.post("/api/quality/templates/", json={
+            "name": name, "frequency": "daily",
+            "sections": [{"name": "Bölüm", "sort_order": 0, "fields": [
+                {"label": "Elektrik", "field_type": "number", "unit": "kWh",
+                 "is_resource": True, "is_meter": True, "sort_order": 0},
+            ]}],
+            "assignees": [{"assignment_type": "filler", "role_id": req_role}],
+        })
+        assert r.status_code == 202, f"onaya düşmeli: {r.text}"
+        req_id = r.json()["request_id"]
+
+        db.expire_all()
+        assert db.query(QualityTemplate).filter(QualityTemplate.name == name).first() is None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"eksik assignment_type → 500 verirdi: {ap.text}"
+
+        db.expire_all()
+        tpl = db.query(QualityTemplate).filter(QualityTemplate.name == name).first()
+        assert tpl is not None, "Onay sonrası şablon oluşmalı"
+        sec = db.query(QualityTemplateSection).filter(
+            QualityTemplateSection.template_id == tpl.id).first()
+        fld = db.query(QualityTemplateField).filter(
+            QualityTemplateField.section_id == sec.id).first()
+        # Alan bayrakları/birim korunmalı (eski handler düşürüyordu)
+        assert fld.is_resource is True and fld.is_meter is True and fld.unit == "kWh"
+        # Assignee assignment_type + role_id set edilmeli (eskiden NOT NULL/CHECK crash)
+        asg = db.query(QualityTemplateAssignee).filter(
+            QualityTemplateAssignee.template_id == tpl.id).first()
+        assert asg.assignment_type == "filler" and asg.role_id == req_role
+
 
 # ─────────────────── Liste / durum endpoint'leri ───────────────────
 

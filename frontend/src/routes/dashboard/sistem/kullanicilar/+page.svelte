@@ -164,7 +164,7 @@
 	}
 
 	async function handleResetPassword() {
-		if (!resetPassword || resetPassword.length < 6) { resetError = 'Şifre en az 6 karakter olmalıdır'; return; }
+		if (!resetPassword || resetPassword.length < 8) { resetError = 'Şifre en az 8 karakter olmalıdır'; return; }
 		resetting = true; resetError = '';
 		try {
 			await api.post(`/system/users/${resetUserId}/reset-password`, { new_password: resetPassword });

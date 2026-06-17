@@ -122,7 +122,7 @@ _SCHEDULED_SOURCE_MAP = {
 def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type, direction):
     """Planlı gider/gelir modülleri handler'ı."""
     from app.models.scheduled import ScheduledDefinition, ScheduledEntry
-    from app.utils.entry_generator import generate_entries, regenerate_entries
+    from app.utils.entry_generator import _build_description, generate_entries, regenerate_entries
     from app.utils.finance_event_service import finance_event_svc
 
     target = payload.pop("_target", "definition")
@@ -135,6 +135,13 @@ def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type
         _apply_fields(entry, payload, exclude={"_target"})
         if payload.get("is_paid") and not entry.paid_date:
             entry.paid_date = date.today()
+        # Dönem değiştiyse açıklamayı yeniden üret (router update_entry ile birebir) — aksi halde
+        # nakit akımda (finance_event.description) bayat ay etiketi kalır.
+        if "period_month" in payload or "period_year" in payload:
+            entry.description = _build_description(
+                entry.source_type, entry.definition.name, entry.definition.category,
+                entry.period_month, entry.period_year,
+            )
         finance_event_svc.upsert_scheduled_entry(db, entry, direction=direction)
         return
 
@@ -321,6 +328,11 @@ def _handle_system_modules(db, action_type, entity_id, payload, actor_id):
         module = db.query(Module).filter(Module.id == entity_id).first()
         if module:
             module.is_active = False
+
+    # Modül kodu→id cache'ini tazele: create/update/delete code veya is_active'i değiştirebilir;
+    # bayat cache pasif modüle hâlâ izin verir (bkz. _get_module_id is_active filtresi).
+    from app.middleware.auth import invalidate_module_cache
+    invalidate_module_cache()
 
 
 # ── Finans modülleri ──────────────────────────────────────────
@@ -536,13 +548,47 @@ def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):
 
 
 def _handle_finance_checks(db, action_type, entity_id, payload, actor_id):
+    from app.models.bank_transaction import BankTransaction
     from app.models.check import Check
+    from app.models.vendor_transaction import VendorTransaction
+    from app.utils.finance_event_service import finance_event_svc
 
     if action_type == "update":
         check = db.query(Check).filter(Check.id == entity_id).first()
         if not check:
             raise ValueError(f"Çek bulunamadı: {entity_id}")
-        _apply_fields(check, payload)
+        # Router update_check_status payload'ı {"new_status": ...} taşır (model alanı "status").
+        # Eski handler _apply_fields ile "new_status"'u arıyordu → hiç eşleşmiyordu (sessiz no-op).
+        new_status = payload.get("new_status", payload.get("status"))
+        if new_status:
+            # İptal → cari + banka eşleşmesini kaldır (router ile birebir)
+            if new_status == "cancelled":
+                if check.match_number:
+                    mvtx = db.query(VendorTransaction).filter(
+                        VendorTransaction.match_number == check.match_number
+                    ).first()
+                    if mvtx:
+                        mvtx.match_number = None
+                        mvtx.payment_method = None
+                    check.match_number = None
+                    check.matched_vendor_id = None
+                if check.bank_transaction_id:
+                    btx = db.query(BankTransaction).filter(
+                        BankTransaction.id == check.bank_transaction_id
+                    ).first()
+                    if btx:
+                        btx.match_number = None
+                    check.bank_transaction_id = None
+            check.status = new_status
+        else:
+            _apply_fields(check, payload)  # durum dışı alanlar (savunmacı)
+        # finance_events güncelle (router ile birebir)
+        bank_tx = None
+        if check.bank_transaction_id:
+            bank_tx = db.query(BankTransaction).filter(
+                BankTransaction.id == check.bank_transaction_id
+            ).first()
+        finance_event_svc.upsert_check(db, check, bank_tx)
 
 
 def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):
@@ -553,6 +599,29 @@ def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):
         if not vendor:
             raise ValueError(f"Cari bulunamadı: {entity_id}")
         _apply_fields(vendor, payload)
+        # Router update_vendor_payment_days/status ile birebir: vade değişince işlem tarihlerini
+        # yeniden hesapla + nakit akımı senkronla. Aksi halde onaylı vade/durum değişimi nakit akıma
+        # yansımıyordu (bayat vade, yasaklı cari kayıt kalıntısı). sync içinde commit yok → güvenli.
+        from app.models.vendor_transaction import VendorTransaction
+        from app.utils.finance_event_service import finance_event_svc
+        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        from app.utils.vendor_parser import calculate_payment_friday
+
+        if "payment_days" in payload:
+            invoice_txs = (
+                db.query(VendorTransaction)
+                .filter(
+                    VendorTransaction.vendor_id == entity_id,
+                    VendorTransaction.alacak > 0,
+                    VendorTransaction.date.isnot(None),
+                )
+                .all()
+            )
+            for tx in invoice_txs:
+                tx.payment_due_date = calculate_payment_friday(tx.date, vendor.payment_days)
+                finance_event_svc.upsert_vendor_tx(db, tx, vendor, float(tx.alacak))
+        db.flush()
+        sync_vendor_finance_events(db)
 
 
 # ── Kalite modülleri ──────────────────────────────────────────
@@ -624,8 +693,15 @@ def _save_template_sections(db, template_id, sections_data):
                 section_id=section.id,
                 label=fld.get("label", ""),
                 field_type=fld.get("field_type", "text"),
-                options=json.dumps(fld.get("options")) if fld.get("options") else None,
+                unit=fld.get("unit"),
+                # options payload'da zaten JSON string (şema: Optional[str]) — tekrar dumps ETME
+                # (eski handler çift-serileştiriyordu → select seçenekleri parse edilemiyordu).
+                options=fld.get("options"),
                 is_required=fld.get("is_required", False),
+                is_resource=fld.get("is_resource", False),
+                is_guest_count=fld.get("is_guest_count", False),
+                is_meter=fld.get("is_meter", False),
+                is_month_end_only=fld.get("is_month_end_only", False),
                 sort_order=fld.get("sort_order", j),
             )
             db.add(field)
@@ -636,9 +712,13 @@ def _save_template_assignees(db, template_id, assignees_data):
     from app.models.quality_template_assignee import QualityTemplateAssignee
 
     for a in assignees_data:
+        # assignment_type ZORUNLU (NOT NULL, default yok) — atlanırsa IntegrityError → onay 500.
+        # role_id de taşınmalı (yoksa rol-bazlı atamada user_id+role_id ikisi de NULL → CHECK ihlali).
         assignee = QualityTemplateAssignee(
             template_id=template_id,
+            assignment_type=a.get("assignment_type"),
             user_id=a.get("user_id"),
+            role_id=a.get("role_id"),
         )
         db.add(assignee)
 

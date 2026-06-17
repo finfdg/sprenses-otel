@@ -25,7 +25,13 @@ def _get_module_id(db: Session, module_code: str) -> Optional[int]:
     if module_code in _module_code_cache:
         return _module_code_cache[module_code]
 
-    module = db.query(Module.id).filter(Module.code == module_code).first()
+    # is_active filtresi: pasif (ör. onayla soft-delete) modül izin vermemeli. Yalnız aktif
+    # modüller cache'lenir; soft-delete sonrası handler invalidate_module_cache() çağırır.
+    module = (
+        db.query(Module.id)
+        .filter(Module.code == module_code, Module.is_active.is_(True))
+        .first()
+    )
     if module:
         with _module_cache_lock:
             _module_code_cache[module_code] = module.id
@@ -86,6 +92,15 @@ def get_current_user(
     )
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Kullanıcı bulunamadı")
+
+    # Rol pasifleştirilmişse (ör. onayla soft-delete) erişim kaldırılır. Eskiden izin kontrolü
+    # Role.is_active'e bakmadığından, "silinmiş" rolün kullanıcıları tüm izinleri kullanmaya
+    # devam ediyordu (güvenlik açığı). role_rel zaten joinedload ile yüklü — ek sorgu yok.
+    if user.role_rel is not None and not user.role_rel.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Rolünüz pasifleştirilmiş, erişiminiz kaldırıldı",
+        )
 
     # Tek oturum kontrolü: JWT'deki session_id, DB'deki active_session_id ile eşleşmeli
     # active_session_id None ise kullanıcı çıkış yapmış demektir — erişim reddedilmeli
