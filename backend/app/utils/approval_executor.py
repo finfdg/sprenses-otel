@@ -841,6 +841,50 @@ def _handle_shift_schedule(db, action_type, entity_id, payload, actor_id):
             db.delete(a)
 
 
+def _handle_sales_room_types(db, action_type, entity_id, payload, actor_id):
+    """Oda tipi (sales.room_types) onayı — router CRUD'unu birebir yansıtır.
+
+    Delete'te router'daki rezervasyon koruması da uygulanır (rezervasyon varsa silinmez —
+    `Reservation.room_type` koda string-bağlı, FK yok; orphan referansı engeller).
+    """
+    from app.models.room_type import RoomType
+
+    if action_type == "create":
+        rt = RoomType(
+            code=payload.get("code", ""),
+            name=payload.get("name", ""),
+            total_rooms=payload.get("total_rooms", 0),
+            max_occupancy=payload.get("max_occupancy", 2),
+            sort_order=payload.get("sort_order", 0),
+            is_active=payload.get("is_active", True),
+            description=payload.get("description"),
+        )
+        db.add(rt)
+
+    elif action_type == "update":
+        rt = db.query(RoomType).filter(RoomType.id == entity_id).first()
+        if not rt:
+            raise ValueError(f"Oda tipi bulunamadı: {entity_id}")
+        _apply_fields(rt, payload)
+
+    elif action_type == "delete":
+        from sqlalchemy import func
+        from app.models.reservation import Reservation
+        rt = db.query(RoomType).filter(RoomType.id == entity_id).first()
+        if not rt:
+            return
+        rez_count = (
+            db.query(func.count(Reservation.id))
+            .filter(Reservation.room_type == rt.code)
+            .scalar()
+        )
+        if rez_count and rez_count > 0:
+            raise ValueError(
+                f"Bu oda tipine ait {rez_count} rezervasyon olduğu için silinemez (pasif yapın)."
+            )
+        db.delete(rt)
+
+
 # ── Handler kayıt tablosu ────────────────────────────────────
 
 _HANDLERS = {
@@ -865,6 +909,8 @@ _HANDLERS = {
     "hr.shifts": _handle_shifts,
     # İK — Vardiya çizelgesi (rota)
     "hr.shift_schedule": _handle_shift_schedule,
+    # Satış
+    "sales.room_types": _handle_sales_room_types,
 }
 
 # Scheduled modüller (8 adet)

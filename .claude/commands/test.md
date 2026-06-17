@@ -11,7 +11,9 @@ Bu projenin testlerini çalıştır. Argüman: `$ARGUMENTS` (boşsa hedef = **al
 ### Backend (hedef `backend` veya `all`)
 ```bash
 cd /home/ec2-user/otel/backend && source venv/bin/activate
-PASS=$(grep -E "^DATABASE_URL" .env | sed -E 's#postgresql://[^:]+:([^@]+)@.*#\1#')
+# Şifreyi .env'den çıkar — `^DATABASE_URL=` ANCHOR'lı (öneki de eşleşmeye dahil edip siler;
+# anchorsuz sed öneki bırakır → PASS="DATABASE_URL=..." → auth hatası).
+PASS=$(grep -E "^DATABASE_URL=" .env | sed -E 's#^DATABASE_URL=postgresql://[^:]+:([^@]+)@.*#\1#')
 export DATABASE_URL="postgresql://sprenses:${PASS}@127.0.0.1:5432/sprenses_test"
 python -m pytest tests/ -q
 ```

@@ -515,6 +515,39 @@ class TestApprovalExecutor:
         assert dept is not None, "Onay sonrası departman oluşturulmalıydı"
         assert dept.code == code
 
+    def test_create_room_type_via_approval_regression(self, db):
+        """REGRESYON: sales.room_types executor handler'ı EKSİKTİ → onaylar 500 veriyordu
+        (modül-denetci subagent yakaladı, 2026-06-17). Handler eklendikten sonra onaylanınca
+        oda tipi gerçekten oluşmalı."""
+        from app.models.room_type import RoomType
+
+        _, req_role, req_client = _make_actor(db, {
+            "sales.room_types": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "sales.room_types", req_role, app_role)
+
+        code = f"RT{uuid4().hex[:5].upper()}"
+        resp = req_client.post("/api/sales/room-types/", json={
+            "code": code, "name": "Test Oda", "total_rooms": 10, "max_occupancy": 3,
+        })
+        assert resp.status_code == 202, f"onaya düşmeli: {resp.text}"
+        req_id = resp.json()["request_id"]
+
+        db.expire_all()
+        assert db.query(RoomType).filter(RoomType.code == code).first() is None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"handler eksikse 500 verir: {ap.text}"
+        assert ap.json()["status"] == STATUS_APPROVED
+
+        db.expire_all()
+        rt = db.query(RoomType).filter(RoomType.code == code).first()
+        assert rt is not None, "Onay sonrası oda tipi oluşturulmalıydı"
+        assert rt.total_rooms == 10
+        assert rt.max_occupancy == 3
+
 
 # ─────────────────── Liste / durum endpoint'leri ───────────────────
 
@@ -828,3 +861,39 @@ class TestExecutorImportIntegrity:
                     if kw.arg and kw.arg not in valid:
                         problems.append(f"satır {node.lineno}: {node.func.id}({kw.arg}=...) — modelde yok")
         assert not problems, "Executor'da geçersiz model alanı kullanımı:\n" + "\n".join(problems)
+
+    def test_all_approval_callers_have_executor_handler(self):
+        """`check_approval(db, "module.code", ...)` çağıran HER modülün executor'da handler'ı olmalı.
+
+        Eksikse o modüle onay workflow'u tanımlanınca son onayda handler bulunamaz →
+        `db.rollback()` + HTTP 500 (kayıt asla uygulanamaz). Bu hata sınıfı, autouse
+        `_disable_admin_approval_workflows` fixture'ı testlerde onayı kapattığı için
+        diğer testlerde GÖRÜNMEZ — bu yüzden statik (AST) doğrulanır.
+
+        Modül kodu DEĞİŞKEN ise (scheduled fabrikası `check_approval(db, module_code, ...)`)
+        statik çözülemez → atlanır; o modüller `_SCHEDULED_SOURCE_MAP` üzerinden zaten kapsanır.
+        Regresyon: `sales.room_types` handler'ı eksikti (modül-denetci yakaladı, 2026-06-17)."""
+        import ast
+        import pathlib
+
+        from app.utils.approval_executor import _HANDLERS
+
+        routers_dir = pathlib.Path(__file__).resolve().parent.parent / "app" / "routers"
+        literal_module_codes = {}
+        for py in routers_dir.rglob("*.py"):
+            tree = ast.parse(py.read_text(encoding="utf-8"), filename=str(py))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Name)
+                        and node.func.id == "check_approval"
+                        and len(node.args) >= 2
+                        and isinstance(node.args[1], ast.Constant)
+                        and isinstance(node.args[1].value, str)):
+                    literal_module_codes.setdefault(node.args[1].value, py.name)
+
+        missing = sorted(mc for mc in literal_module_codes if mc not in _HANDLERS)
+        assert not missing, (
+            "check_approval çağıran ama approval_executor._HANDLERS'te handler'ı OLMAYAN "
+            "modüller (onay tanımlanırsa 500 verir): "
+            + ", ".join(f"{mc} ({literal_module_codes[mc]})" for mc in missing)
+        )
