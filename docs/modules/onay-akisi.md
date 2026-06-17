@@ -324,3 +324,22 @@ Onay sürecinin her aşamasında ilgili kullanıcılara bildirim gönderilir (DB
 - Değişiklikler onaylanana kadar `payload_json`'da bekletilir
 - Onay talebi onaylandığında `execute_approved_payload()` otomatik çağrılır
 - Yeni modül için `approval_executor.py`'ye handler eklenmeli
+
+## Okuma Yetkilendirmesi ve Yük Gizliliği (Güvenlik — 2026-06-17)
+
+**Sorun (kapatıldı):** Onay talebi *okuma* endpoint'leri yalnızca `system.approval:view` izniyle korunuyordu; sahiplik/onaycı kontrolü yoktu. Düşük yetkili bir kullanıcı `GET /requests/{id}`'i ID enumerate ederek **herhangi bir talebin `payload_json`'ını** okuyabiliyordu. `system.users` için aktif bir workflow varsa yük **düz-metin şifre** (`UserCreate.password`) içerdiğinden bu kritik bir sızıntıydı (IDOR/BOLA).
+
+**Çözüm — iki katman:**
+
+1. **Hassas-alan redaksiyonu (her zaman):** `_build_request_response()` artık `payload_json`'u `_redact_payload()` üzerinden geçirir. Anahtar adı `password/secret/token/pwd/hash/api_key` içeren tüm alanlar (özyinelemeli) `***` ile maskelenir. **Yürütmeyi etkilemez** — `execute_approved_payload()` yükü doğrudan DB kolonundan okur, redaksiyon yalnızca API yanıtına uygulanır.
+2. **Sahip/onaycı kapsamlaması:** Tüm okuma endpoint'leri artık yalnızca **ilgili kullanıcıya** açık (`_user_can_view_request()` = talep sahibi **VEYA** loglarda işlem yapmış **VEYA** mevcut adım onaycısı):
+   - `GET /requests/{id}` → ilgili değilse **403**
+   - `GET /status/{entity_type}/{entity_id}` → ilgili değilse `status` döner ama `request` (yük) **null**
+   - `GET /requests/history` → SQL-tarafı filtre ile yalnız sahip/işlem-yapan talepler (ölçeklenebilir, fetch-all yok; `ix_arl_actor` indeksli `actor_id` alt-sorgusu)
+   - `/requests/pending` ve `/requests/my-submissions` zaten kapsamlıydı (değişmedi)
+
+**Bilinçli tasarım kararı:** `history` artık **organizasyon-geneli denetim görünümü değil**, kişiye özel ("ilgili olduğum talepler"). Bu, mevcut `pending`/`my-submissions` kapsamlama desenine hizalıdır. İleride admin-geneli denetim görünümü istenirse ayrı bir yetki (ör. `system.approval` `can_use` veya özel "tümünü gör" bayrağı) ile additive olarak eklenmelidir — varsayılan güvenli kapsam korunmalı.
+
+**Testler:** `tests/test_approval_system.py::TestApprovalReadAuthorization` (5 test) — yabancının detay 403'ü, geçmiş dışlaması, status yük gizliliği, kullanıcı-oluşturma şifre redaksiyonu (uçtan uca) ve `_redact_payload` birim testi. Regresyon: sahip+onaycı erişimi korunur.
+
+**Not (altyapı doğrulaması):** Backend `--host 127.0.0.1` ile bağlıdır (port 8001 yalnız localhost dinler) → `X-Real-IP` rate-limit atlatma yüzeyi OS seviyesinde kapalı; backend portuna dışarıdan doğrudan erişilemez.

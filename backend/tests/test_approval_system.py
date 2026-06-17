@@ -36,6 +36,7 @@ from app.models.role import Role
 from app.models.role_module_permission import RoleModulePermission
 from app.models.scheduled import ScheduledDefinition
 from app.models.user import User
+from app.routers.approval.requests import _redact_payload
 from app.utils.approval_service import (
     _evaluate_conditions,
     check_and_trigger_approval,
@@ -552,6 +553,96 @@ class TestApprovalListEndpoints:
         _, req_id = _create_advance_request(req_client)
         assert app_client.get(f"{API}/requests/{req_id}").status_code == 200
         assert app_client.get(f"{API}/requests/99999999").status_code == 404
+
+
+# ─────── P0 güvenlik: onay-okuma yetkilendirmesi (IDOR / payload sızıntısı) ───────
+
+class TestApprovalReadAuthorization:
+    """system.approval:view TEK BAŞINA başkasının talebini/yükünü görmeye yetmemeli."""
+
+    @staticmethod
+    def _outsider(db):
+        """system.approval:view'li ama hiçbir talebin sahibi/onaycısı OLMAYAN 3. kişi."""
+        _, _, client = _make_actor(db, {"system.approval": {"view": True, "use": False}})
+        return client
+
+    def test_outsider_cannot_read_request_detail(self, db):
+        """IDOR: yabancı başkasının talep detayını GÖREMEZ (403); sahip+onaycı görebilir."""
+        req_client, app_client, _, _ = _setup_avans_flow(db)
+        _, req_id = _create_advance_request(req_client)
+        outsider = self._outsider(db)
+        assert outsider.get(f"{API}/requests/{req_id}").status_code == 403
+        # Regresyon: meşru taraflar hâlâ görebilmeli
+        assert req_client.get(f"{API}/requests/{req_id}").status_code == 200
+        assert app_client.get(f"{API}/requests/{req_id}").status_code == 200
+
+    def test_outsider_history_excludes_others(self, db):
+        """IDOR: yabancının geçmişi başkalarının taleplerini içermez."""
+        req_client, app_client, _, _ = _setup_avans_flow(db)
+        _, req_id = _create_advance_request(req_client)
+        app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        outsider = self._outsider(db)
+        resp = outsider.get(f"{API}/requests/history")
+        assert resp.status_code == 200
+        assert all(it["id"] != req_id for it in resp.json()["items"])
+        # Regresyon: işlem yapan onaycı kendi geçmişinde görebilmeli
+        own = app_client.get(f"{API}/requests/history")
+        assert any(it["id"] == req_id for it in own.json()["items"])
+
+    def test_outsider_entity_status_hides_payload(self, db):
+        """Yabancı durumu görebilir ama yük (payload) gizli; onaycı tam yükü görür."""
+        req_client, app_client, _, _ = _setup_avans_flow(db)
+        _create_advance_request(req_client)
+        outsider = self._outsider(db)
+        body = outsider.get(f"{API}/status/finance.avanslar/0").json()
+        assert body["has_approval"] is True
+        assert body.get("request") is None
+        app_body = app_client.get(f"{API}/status/finance.avanslar/0").json()
+        assert app_body.get("request") is not None
+
+    def test_user_create_password_redacted_e2e(self, db):
+        """Uçtan uca: kullanıcı oluşturma onayının yükünde düz-metin şifre API'den DÖNMEZ."""
+        _, req_role, req_client = _make_actor(db, {
+            "system.users": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "system.users", req_role, app_role)
+        target_role = _mk_role(db)
+        db.commit()
+
+        uid = uuid4().hex[:6]
+        secret = "CokGizliSifre12345"
+        resp = req_client.post("/api/system/users/", json={
+            "username": f"yeni_{uid}", "email": f"yeni_{uid}@test.local",
+            "password": secret, "first_name": "Yeni", "last_name": "Kullanici",
+            "role_id": target_role,
+        })
+        assert resp.status_code == 202, f"onaya düşmeli: {resp.text}"
+        req_id = resp.json()["request_id"]
+
+        detail = app_client.get(f"{API}/requests/{req_id}").json()
+        assert secret not in (detail["payload_json"] or ""), "düz-metin şifre sızdı!"
+        payload = json.loads(detail["payload_json"])
+        assert payload["password"] == "***"
+        assert payload["username"] == f"yeni_{uid}"  # şifre dışı alanlar korunur
+
+    def test_redact_payload_unit(self):
+        """_redact_payload: özyinelemeli hassas-alan maskeleme + bozuk/boş giriş."""
+        raw = json.dumps({
+            "username": "ali", "password": "x", "role_id": 5,
+            "nested": {"api_token": "t", "name": "y"},
+            "items": [{"secret_key": "s"}],
+        })
+        out = json.loads(_redact_payload(raw))
+        assert out["password"] == "***"
+        assert out["username"] == "ali"
+        assert out["role_id"] == 5
+        assert out["nested"]["api_token"] == "***"
+        assert out["nested"]["name"] == "y"
+        assert out["items"][0]["secret_key"] == "***"
+        assert _redact_payload(None) is None
+        assert _redact_payload("not-json") is None  # parse edilemeyen yük dışarı verilmez
 
 
 # ─────── Executor — ek modül handler'ları (scheduled + system.roles) ───────

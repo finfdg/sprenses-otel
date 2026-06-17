@@ -1,8 +1,10 @@
 """Onay Akışı — onay talebi endpoint'leri (gönderme, onaylama, reddetme, iade, iptal)."""
 
+import json
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -17,6 +19,7 @@ from app.models.approval import (
     STATUS_PENDING,
     STATUS_RETURNED,
     ApprovalRequest,
+    ApprovalRequestLog,
 )
 from app.models.user import User
 from app.schemas.approval import (
@@ -67,6 +70,54 @@ async def _broadcast_approval_update(module_code: Optional[str] = None) -> None:
 
 # --- Yardımcı fonksiyonlar ---
 
+# payload_json içinde maskelenmesi gereken hassas alan adı parçaları
+_SENSITIVE_KEY_PARTS = ("password", "secret", "token", "pwd", "hash", "api_key")
+
+
+def _redact_sensitive(obj):
+    """payload içindeki şifre/sır benzeri alanları '***' ile maskeler (özyinelemeli)."""
+    if isinstance(obj, dict):
+        return {
+            k: ("***" if isinstance(k, str) and any(p in k.lower() for p in _SENSITIVE_KEY_PARTS)
+                else _redact_sensitive(v))
+            for k, v in obj.items()
+        }
+    if isinstance(obj, list):
+        return [_redact_sensitive(v) for v in obj]
+    return obj
+
+
+def _redact_payload(payload_json: Optional[str]) -> Optional[str]:
+    """payload_json'u parse edip hassas alanları maskeleyerek geri serileştirir.
+
+    Onay yükü (ör. kullanıcı oluşturma) düz-metin şifre içerebilir; API yanıtında
+    asla dışarı verilmemeli. Yürütme (execute_approved_payload) yükü doğrudan DB
+    kolonundan okuduğu için bu maskeleme onayın UYGULANMASINI etkilemez — yalnızca
+    serileştirilen yanıtı temizler.
+    """
+    if not payload_json:
+        return payload_json
+    try:
+        data = json.loads(payload_json)
+    except (ValueError, TypeError):
+        return None  # parse edilemeyen yükü dışarı verme
+    return json.dumps(_redact_sensitive(data), ensure_ascii=False, default=str)
+
+
+def _user_can_view_request(db: Session, user_id: int, req: ApprovalRequest) -> bool:
+    """Kullanıcı bu talebi görüntüleyebilir mi? (IDOR koruması)
+
+    Yalnızca (a) talep sahibi, (b) talebe daha önce işlem yapmış (loglarda actor),
+    veya (c) mevcut adımın onaycısı görebilir. system.approval:view izni TEK BAŞINA
+    başkasının talebinin yükünü (payload) görmeye yetmez.
+    """
+    if req.requested_by == user_id:
+        return True
+    if any(log.actor_id == user_id for log in (req.logs or [])):
+        return True
+    return is_user_approver(db, user_id, req)
+
+
 def _build_request_response(req: ApprovalRequest, user_map: dict, step_map: Optional[dict] = None) -> dict:
     """ApprovalRequestResponse dict oluştur."""
     requester_name = user_map.get(req.requested_by) if req.requested_by else None
@@ -114,7 +165,7 @@ def _build_request_response(req: ApprovalRequest, user_map: dict, step_map: Opti
         "entity_summary": " ".join(summary_parts),
         "module_code": req.module_code,
         "action_type": req.action_type,
-        "payload_json": req.payload_json,
+        "payload_json": _redact_payload(req.payload_json),
         "status": req.status,
         "current_step": req.current_step,
         "total_steps": req.total_steps,
@@ -228,7 +279,12 @@ def list_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("system.approval", "view")),
 ):
-    """Tüm onay geçmişi (tamamlananlar)."""
+    """Kullanıcının ilgili olduğu onay geçmişi (gönderdiği veya işlem yaptığı tamamlanan talepler).
+
+    IDOR koruması: system.approval:view tek başına TÜM organizasyonun yükünü görmeye
+    yetmez. Yalnızca talep sahibi olunan veya loglarda işlem yapılan (onay/ret/iade)
+    talepler döner — SQL-tarafı filtre ile (ölçeklenebilir, fetch-all yok).
+    """
     query = db.query(ApprovalRequest).filter(
         ApprovalRequest.status.notin_([STATUS_PENDING, STATUS_RETURNED])
     )
@@ -236,6 +292,17 @@ def list_history(
         query = query.filter(ApprovalRequest.entity_type == entity_type)
     if status_filter:
         query = query.filter(ApprovalRequest.status == status_filter)
+
+    # Yalnızca kullanıcının ilgili olduğu talepler (sahip VEYA loglarda actor)
+    acted_request_ids = db.query(ApprovalRequestLog.request_id).filter(
+        ApprovalRequestLog.actor_id == current_user.id
+    )
+    query = query.filter(
+        or_(
+            ApprovalRequest.requested_by == current_user.id,
+            ApprovalRequest.id.in_(acted_request_ids),
+        )
+    )
 
     total = query.count()
     requests = (
@@ -263,10 +330,12 @@ def get_request_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("system.approval", "view")),
 ):
-    """Tek bir onay talebi detayı."""
+    """Tek bir onay talebi detayı (yalnızca sahip / işlem yapan / mevcut onaycı)."""
     req = db.query(ApprovalRequest).filter(ApprovalRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Onay talebi bulunamadı")
+    if not _user_can_view_request(db, current_user.id, req):
+        raise HTTPException(status_code=403, detail="Bu talebi görüntüleme yetkiniz yok")
 
     user_map = _collect_user_map(db)
     return _build_request_response(req, user_map)
@@ -605,8 +674,13 @@ def get_entity_approval_status(
     if not req:
         return {"has_approval": False, "status": None}
 
+    # IDOR koruması: durum görünür ama yük (payload) yalnızca ilgili kullanıcıya açılır
+    if not _user_can_view_request(db, current_user.id, req):
+        return {"has_approval": True, "status": req.status, "request": None}
+
     user_map = _collect_user_map(db)
     return {
         "has_approval": True,
+        "status": req.status,
         "request": _build_request_response(req, user_map),
     }
