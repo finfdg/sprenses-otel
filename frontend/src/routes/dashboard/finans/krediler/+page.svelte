@@ -1036,15 +1036,15 @@
 								<div class="flex gap-1.5 sm:gap-2 flex-wrap">
 									{#if canUse}
 										{#if p.type !== 'kredi_karti' && p.type !== 'kmh'}
-											<button onclick={() => openPaymentModal(p.id)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-teal-700 text-white rounded-lg hover:bg-teal-800 cursor-pointer">+ Taksit</button>
+											<button onclick={() => openPaymentModal(p.id)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-teal-700 text-white rounded-lg hover:bg-teal-800 cursor-pointer">+ Taksit</button>
 										{/if}
-										<button onclick={() => openEdit(p)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 cursor-pointer">Düzenle</button>
+										<button onclick={() => openEdit(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 cursor-pointer">Düzenle</button>
 										{#if p.status === 'closed'}
-											<button onclick={() => reopenProduct(p)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 cursor-pointer">Yeniden Aç</button>
+											<button onclick={() => reopenProduct(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 cursor-pointer">Yeniden Aç</button>
 										{:else if p.type !== 'kredi_karti'}
-											<button onclick={() => openCloseModal(p)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 cursor-pointer">Kapat</button>
+											<button onclick={() => openCloseModal(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 cursor-pointer">Kapat</button>
 										{/if}
-										<button onclick={() => deleteProduct(p.id)} class="text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 cursor-pointer">Sil</button>
+										<button onclick={() => deleteProduct(p.id)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 cursor-pointer">Sil</button>
 									{/if}
 								</div>
 							</div>
