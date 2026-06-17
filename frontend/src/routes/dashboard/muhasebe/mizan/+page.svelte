@@ -4,6 +4,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import {
 		Scale, ArrowDownUp, CheckCircle2, AlertTriangle, Hash, RefreshCw, Calendar,
@@ -205,7 +206,7 @@
 		<!-- Mizan tablosu (ağaç) -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			{#if loading}
-				<div class="py-12 text-center text-gray-500 text-sm"><Loader2 class="animate-spin inline" size={18} /> Yükleniyor…</div>
+				<TableSkeleton rows={8} columns={6} />
 			{:else if rows.length === 0}
 				<EmptyState icon={Scale} title={searchMode ? 'Sonuç yok' : 'Kayıt yok'} description={searchMode ? 'Aramanıza uyan hesap bulunamadı.' : 'Seçilen dönemde muhasebe hareketi yok.'} />
 			{:else}

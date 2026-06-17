@@ -4,6 +4,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import { FileText, Users, Trophy, Sigma, RefreshCw, Calendar, ChevronLeft, ChevronRight, Loader2, ChevronDown } from 'lucide-svelte';
 
@@ -214,7 +215,7 @@
 		<!-- Pivot tablo -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			{#if loading}
-				<div class="py-12 text-center text-gray-500 text-sm">Yükleniyor…</div>
+				<TableSkeleton rows={8} columns={6} />
 			{:else if data.users.length === 0}
 				<EmptyState icon={FileText} title="Kayıt yok" description="Seçilen dönemde fiş kesilmemiş." />
 			{:else}

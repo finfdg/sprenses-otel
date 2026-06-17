@@ -7,7 +7,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import jsQR from 'jsqr';
-	import { Loader2 } from 'lucide-svelte';
+	import { Loader2, Lightbulb } from 'lucide-svelte';
 
 	type View = 'loading' | 'ready' | 'scanning' | 'result' | 'error';
 	let view = $state<View>('loading');
@@ -232,7 +232,7 @@
 				</button>
 				<p class="text-xs text-gray-400 leading-snug">Girişteki ekranın karekoduna telefonu tut.</p>
 				<div class="bg-teal-50 border border-teal-200 rounded-lg p-2.5 text-[11px] text-teal-800 leading-snug text-left">
-					💡 <strong>Ana ekrana ekle</strong> — her gün tek dokunuşla aç:<br>
+					<Lightbulb size={13} class="inline align-text-bottom" /> <strong>Ana ekrana ekle</strong> — her gün tek dokunuşla aç:<br>
 					• iPhone: <strong>Paylaş ⬆️ → "Ana Ekrana Ekle"</strong><br>
 					• Android: <strong>⋮ → "Ana ekrana ekle"</strong><br>
 					İkon doğrudan <strong>seni</strong> açar; tarayıcı geçmişini silsen bile çalışır.

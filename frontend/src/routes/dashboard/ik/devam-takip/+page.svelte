@@ -17,6 +17,7 @@
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
 		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload, RotateCcw, MoreHorizontal, Loader2,
+		AlertTriangle,
 	} from 'lucide-svelte';
 
 	type Personnel = {
@@ -893,7 +894,7 @@
 			bir karekod gösterir; personel kendi telefonuyla bunu okutarak giriş/çıkış yapar.
 		</p>
 		<div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-900 leading-snug">
-			⚠️ Bu link gizli bir anahtar içerir — yalnızca giriş cihazında açın, paylaşmayın.
+			<AlertTriangle size={14} class="inline align-text-bottom" /> Bu link gizli bir anahtar içerir — yalnızca giriş cihazında açın, paylaşmayın.
 		</div>
 		<div class="flex items-center gap-2">
 			<input readonly value={kioskUrl} class="flex-1 text-xs font-mono border border-gray-200 rounded-lg px-2 py-2 bg-gray-50 truncate" />
@@ -920,7 +921,7 @@
 			<input type="checkbox" bind:checked={replaceExisting} class="mt-0.5 rounded border-gray-300 text-teal-700 focus:ring-teal-500" />
 			<span class="text-xs text-gray-700 leading-snug">
 				İçe aktarmadan önce <strong>mevcut tüm personeli sil</strong>
-				<span class="block text-red-600 mt-0.5">⚠️ Tüm personel + giriş/çıkış geçmişi silinir (geri alınamaz). Temiz sicil listesi için işaretle.</span>
+				<span class="block text-red-600 mt-0.5"><AlertTriangle size={13} class="inline align-text-bottom" /> Tüm personel + giriş/çıkış geçmişi silinir (geri alınamaz). Temiz sicil listesi için işaretle.</span>
 			</span>
 		</label>
 		{#if importError}

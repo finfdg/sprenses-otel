@@ -1595,7 +1595,7 @@
 			</div>
 
 			{#if planModal.loading}
-				<div class="py-10 text-center text-gray-400 text-sm">Yükleniyor…</div>
+				<TableSkeleton rows={5} columns={4} showHeader={false} />
 			{:else if planModal.payments.length === 0}
 				<div class="py-10 text-center text-gray-400 text-sm">Bu kredi için taksit planı bulunmuyor.</div>
 			{:else}

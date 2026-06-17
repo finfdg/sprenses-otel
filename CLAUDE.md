@@ -712,6 +712,26 @@ Projeye özel, git'te takip edilen (ekiple paylaşılan) Claude Code otomasyonla
 - **TURSAB gerekmez:** Widget bilet satmıyor, sadece arama gösteriyor; tıklayan misafir Aviasales'te satın alıyor (biz affiliate)
 - Detaylı bilgi: `docs/modules/ucak-rezervasyon.md`
 
+### Stok / Depo (Maliyet Kontrol) — prefix `/api/stok`
+- `GET /sedna-status` — Sedna stok içe aktarma etkin mi (`{configured}`)
+- `POST /sedna-import` — **Sedna depo/stok hareketleri içe aktarma** (ürün + depo + hareket; stok.maliyet use, audit'li, onaydan muaf — Sedna import)
+- `GET /summary` — Stok özeti (ürün/depo/hareket sayıları, toplam değer)
+- `GET /cost-by-department` — Departman bazlı tüketim maliyeti
+- `GET /monthly-trend` — Aylık tüketim trendi
+- `GET /by-supplier` — Tedarikçi bazlı kırılım
+- `GET /operational-kpi` — Operasyonel KPI (kişi başı maliyet, CPOR, devir hızı, fire % — doluluk füzyonu)
+- `GET /price-variance` — Fiyat sapması (son alımlar vs ortalama)
+- `GET /products` — Ürün listesi (anlık stok)
+- `GET /movements` — Stok hareketleri (filtreli)
+- `GET /depots` — Depolar
+- Salt-okuma GET'ler + tek Sedna-import mutasyonu → onay akışı kapsam dışı. Detay: `docs/modules/stok.md`
+
+### Yönetim Paneli (GM/Finans) — prefix `/api/yonetim`
+- `GET /dashboard` — Üst düzey KPI: doluluk + operasyonel maliyet + oda geliri + tedarikçi borcu + acente avansı + GOP yaklaşığı
+- `GET /cost-classification` — Sabit / yarı-değişken / değişken maliyet sınıflama (başabaş göstergesi, yıllık TRY)
+- `GET /alerts` — Yönetim uyarıları: fiyat sapması, en yüksek tedarikçi borçları, kritik stok
+- Salt-okuma (mevcut modüllerin verisini birleştirir, yeni hesap yok) → onay akışı kapsam dışı. İzin: `yonetim.panel` view. Detay: `docs/modules/yonetim-paneli.md`
+
 ## Veritabanı
 
 - **DB adı:** sprenses
@@ -827,7 +847,7 @@ PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --data-only \
 cd frontend && npx vitest run
 ```
 
-**Test dosyaları (267 test, 21 dosya):**
+**Test dosyaları (274 test, 22 dosya):**
 - `src/lib/api.test.ts` — API wrapper (GET/POST/PATCH/DELETE, upload, hata yönetimi, 401/403, signal, fetchRaw) (22 test)
 - `src/lib/utils/finance.test.ts` — formatCurrency, formatCompact, groupByMonth, getTodayKeys, transfer hariç tutma (23 test)
 - `src/lib/utils/paymentMethods.test.ts` — PAYMENT_METHODS, SELECTABLE, CATEGORIES, getPaymentMethod fallback (16 test)

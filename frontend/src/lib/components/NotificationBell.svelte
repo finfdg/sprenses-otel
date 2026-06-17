@@ -24,7 +24,7 @@
 	$effect(() => {
 		api.get<{ count: number }>('/notifications/unread-count')
 			.then(data => { unreadCount = data.count; })
-			.catch(() => {});
+			.catch((err) => console.error('Okunmamış bildirim sayısı alınamadı:', err));
 	});
 
 	// Gerçek zamanlı bildirim dinle

@@ -163,6 +163,31 @@ def sedna_configured() -> bool:
     return bool(settings.sedna_password)
 
 
+def _connect(timeout: int = 60, database=None, context: str = ""):
+    """Sedna SQL Server bağlantısı (ters tünel) — TÜM fetch fonksiyonlarının ortak bağlantısı.
+
+    Aynı server/port/user/password/charset/tds; yalnız `timeout` ve (opsiyonel) `database`
+    değişir (varsayılan muhasebe DB; önbüro için `sedna_pms_database` geçilir). Tünel kapalı →
+    SednaUnavailable. Eskiden bu blok ~7 fetch fonksiyonunda birebir kopyalanıyordu.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
+    try:
+        return pymssql.connect(
+            server=settings.sedna_host, port=settings.sedna_port,
+            user=settings.sedna_user, password=settings.sedna_password,
+            database=database or settings.sedna_database, charset=settings.sedna_charset,
+            tds_version="7.4", login_timeout=10, timeout=timeout,
+        )
+    except Exception as e:
+        logger.warning("Sedna bağlantısı kurulamadı%s: %s", f" ({context})" if context else "", e)
+        raise SednaUnavailable(
+            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
+            f"({settings.sedna_host}:{settings.sedna_port})."
+        )
+
+
 def fetch_advance_accounts() -> List[dict]:
     """Sedna'dan 340 'Alınan Avanslar' hesaplarını çek (acente bazında alınan/mahsup, döviz).
 
@@ -171,21 +196,7 @@ def fetch_advance_accounts() -> List[dict]:
     if not sedna_configured():
         raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
 
-    import pymssql  # yerel import
-
-    try:
-        conn = pymssql.connect(
-            server=settings.sedna_host, port=settings.sedna_port,
-            user=settings.sedna_user, password=settings.sedna_password,
-            database=settings.sedna_database, charset=settings.sedna_charset,
-            tds_version="7.4", login_timeout=10, timeout=60,
-        )
-    except Exception as e:
-        logger.warning("Sedna bağlantısı kurulamadı (avans mutabakat): %s", e)
-        raise SednaUnavailable(
-            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
-            f"({settings.sedna_host}:{settings.sedna_port})."
-        )
+    conn = _connect(timeout=60, context="avans mutabakat")
     try:
         cur = conn.cursor(as_dict=True)
         cur.execute(_ADVANCE_ACCOUNT_QUERY)
@@ -205,25 +216,11 @@ def fetch_cari_transactions() -> List[dict]:
     if not sedna_configured():
         raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
 
-    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
-
     # Prefix'i güvenli kıl (yalnızca rakam) → injection yok, sorguya gömülebilir
     prefix = "".join(c for c in (settings.sedna_account_prefix or "320") if c.isdigit()) or "320"
     query = _CARI_QUERY.format(prefix=prefix)
 
-    try:
-        conn = pymssql.connect(
-            server=settings.sedna_host, port=settings.sedna_port,
-            user=settings.sedna_user, password=settings.sedna_password,
-            database=settings.sedna_database, charset=settings.sedna_charset,
-            tds_version="7.4", login_timeout=10, timeout=180,
-        )
-    except Exception as e:
-        logger.warning("Sedna bağlantısı kurulamadı: %s", e)
-        raise SednaUnavailable(
-            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
-            f"({settings.sedna_host}:{settings.sedna_port})."
-        )
+    conn = _connect(timeout=180, context="cari")
 
     try:
         cur = conn.cursor(as_dict=True)
@@ -245,24 +242,10 @@ def fetch_vendor_ibans() -> List[dict]:
     if not sedna_configured():
         raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
 
-    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
-
     prefix = "".join(c for c in (settings.sedna_account_prefix or "320") if c.isdigit()) or "320"
     query = _IBAN_QUERY.format(prefix=prefix)
 
-    try:
-        conn = pymssql.connect(
-            server=settings.sedna_host, port=settings.sedna_port,
-            user=settings.sedna_user, password=settings.sedna_password,
-            database=settings.sedna_database, charset=settings.sedna_charset,
-            tds_version="7.4", login_timeout=10, timeout=60,
-        )
-    except Exception as e:
-        logger.warning("Sedna bağlantısı kurulamadı (IBAN): %s", e)
-        raise SednaUnavailable(
-            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
-            f"({settings.sedna_host}:{settings.sedna_port})."
-        )
+    conn = _connect(timeout=60, context="IBAN")
 
     try:
         cur = conn.cursor(as_dict=True)
@@ -284,8 +267,6 @@ def fetch_issued_checks() -> List[dict]:
     if not sedna_configured():
         raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
 
-    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
-
     prefix = "".join(c for c in (settings.sedna_account_prefix or "320") if c.isdigit()) or "320"
     # Ana satıcı (320) + avans (159) + personel/ortak (335) — üçü de verilen çek. Prefix'ler rakam →
     # gömülü (pymssql %-tuzağı için execute parametresiz). EXTRA'dan ana prefix'i çıkar (mükerrer OR olmasın).
@@ -293,19 +274,7 @@ def fetch_issued_checks() -> List[dict]:
     prefix_clause = " OR ".join("t.AccountingCode LIKE '{}%'".format(p) for p in prefixes)
     query = _ISSUED_CHECK_QUERY.format(prefix_clause=prefix_clause)
 
-    try:
-        conn = pymssql.connect(
-            server=settings.sedna_host, port=settings.sedna_port,
-            user=settings.sedna_user, password=settings.sedna_password,
-            database=settings.sedna_database, charset=settings.sedna_charset,
-            tds_version="7.4", login_timeout=10, timeout=120,
-        )
-    except Exception as e:
-        logger.warning("Sedna bağlantısı kurulamadı (çek): %s", e)
-        raise SednaUnavailable(
-            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
-            f"({settings.sedna_host}:{settings.sedna_port})."
-        )
+    conn = _connect(timeout=120, context="çek")
 
     try:
         cur = conn.cursor(as_dict=True)
@@ -328,21 +297,7 @@ def fetch_sales_invoices() -> dict:
     if not sedna_configured():
         raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
 
-    import pymssql  # yerel import — uygulama başlatımı pymssql'e bağlı olmasın
-
-    try:
-        conn = pymssql.connect(
-            server=settings.sedna_host, port=settings.sedna_port,
-            user=settings.sedna_user, password=settings.sedna_password,
-            database=settings.sedna_database, charset=settings.sedna_charset,
-            tds_version="7.4", login_timeout=10, timeout=180,
-        )
-    except Exception as e:
-        logger.warning("Sedna bağlantısı kurulamadı (satış faturası): %s", e)
-        raise SednaUnavailable(
-            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
-            f"({settings.sedna_host}:{settings.sedna_port})."
-        )
+    conn = _connect(timeout=180, context="satış faturası")
 
     try:
         cur = conn.cursor(as_dict=True)
@@ -363,20 +318,7 @@ def fetch_sales_invoices() -> dict:
 
 def _stock_connect(timeout: int = 120):
     """Stok sorguları için Sedna bağlantısı (salt-okunur). Tünel kapalıysa SednaUnavailable."""
-    import pymssql
-    try:
-        return pymssql.connect(
-            server=settings.sedna_host, port=settings.sedna_port,
-            user=settings.sedna_user, password=settings.sedna_password,
-            database=settings.sedna_database, charset=settings.sedna_charset,
-            tds_version="7.4", login_timeout=10, timeout=timeout,
-        )
-    except Exception as e:
-        logger.warning("Sedna bağlantısı kurulamadı (stok): %s", e)
-        raise SednaUnavailable(
-            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
-            f"({settings.sedna_host}:{settings.sedna_port})."
-        )
+    return _connect(timeout=timeout, context="stok")
 
 
 _STOCK_DEPOT_QUERY = """
@@ -650,20 +592,7 @@ def fetch_account_transactions(code: str, start: str, end: str, limit: int = 100
 
 def _pms_connect(timeout: int = 120):
     """Önbüro (SednaPrenses) bağlantısı — salt-okunur. Tünel kapalıysa SednaUnavailable."""
-    import pymssql
-    try:
-        return pymssql.connect(
-            server=settings.sedna_host, port=settings.sedna_port,
-            user=settings.sedna_user, password=settings.sedna_password,
-            database=settings.sedna_pms_database, charset=settings.sedna_charset,
-            tds_version="7.4", login_timeout=10, timeout=timeout,
-        )
-    except Exception as e:
-        logger.warning("Sedna bağlantısı kurulamadı (önbüro): %s", e)
-        raise SednaUnavailable(
-            f"Sedna'ya bağlanılamadı — SSH tüneli kapalı olabilir "
-            f"({settings.sedna_host}:{settings.sedna_port})."
-        )
+    return _connect(timeout=timeout, database=settings.sedna_pms_database, context="önbüro")
 
 
 # Rezervasyon (doluluk) — Reservation + Agency (acente adı) + Contrack (para birimi). pax =
