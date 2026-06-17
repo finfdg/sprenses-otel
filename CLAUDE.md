@@ -47,8 +47,9 @@
       return approval_resp
   ```
 - Onaylanan talepler `approval_executor.py`'deki handler ile uygulanır — yeni modül için handler eklenmeli
-  - **Handler model alanları gerçek kolonlarla birebir olmalı.** Handler'lar yalnızca onay onaylanınca çalıştığı için yanlış import yolu / yanlış model alanı sessizce kalır (kapsam düşük). `tests/test_approval_system.py::TestExecutorImportIntegrity` iki AST testiyle (her `from app...import` ve her `Model(kwarg=...)` çağrısı) bu hata sınıfını **otomatik yakalar** — yeni handler bu testlerden geçmeli
-  - Tüm onay motoru (workflow + talep + executor) `tests/test_approval_system.py` ile test edilir (49 test, uçtan-uca onay→uygula dahil)
+  - **Handler, router endpoint'inin davranışını BİREBİR yansıtmalı** (yalnız model alanları değil): payload anahtarları model kolonlarıyla aynı olmalı, zorunlu kolonlar set edilmeli, ve router'ın yan etkileri (finance_events upsert, eşleşme kaldırma, FIFO/sync, açıklama yeniden üretimi) handler'da da uygulanmalı. Handler yalnız onay onaylanınca çalıştığından sapmalar sessiz kalır.
+  - **Test katmanları (2026-06-17 genişletildi):** `tests/test_approval_system.py::TestExecutorImportIntegrity` üç AST testi — (a) `from app...import` çözümü, (b) `Model(kwarg=...)` alan geçerliliği, (c) **`check_approval` çağıran HER modülün handler'ı var** (`test_all_approval_callers_have_executor_handler`). **AMA** AST testleri payload-anahtar uyuşmazlığını, eksik-zorunlu-kolonu, çift-serileştirmeyi ve eksik yan-etkiyi YAKALAYAMAZ → yeni handler için **modül-bazlı uçtan-uca onay regresyon testi** de eklenmeli (örnekler: `test_create_room_type_via_approval_regression`, `test_check_status_via_approval_regression`, `test_quality_template_via_approval_regression`). Bu hata sınıfı tarama denetiminde finance.checks/quality.templates/sales.room_types'ta bulundu (2026-06-17).
+  - Tüm onay motoru (workflow + talep + executor) `tests/test_approval_system.py` ile test edilir (uçtan-uca onay→uygula + modül regresyonları dahil)
 - Detaylı bilgi: `docs/modules/onay-akisi.md`
 
 ### Python 3.9 Uyumluluğu

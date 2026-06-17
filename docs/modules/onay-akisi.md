@@ -343,3 +343,25 @@ Onay sürecinin her aşamasında ilgili kullanıcılara bildirim gönderilir (DB
 **Testler:** `tests/test_approval_system.py::TestApprovalReadAuthorization` (5 test) — yabancının detay 403'ü, geçmiş dışlaması, status yük gizliliği, kullanıcı-oluşturma şifre redaksiyonu (uçtan uca) ve `_redact_payload` birim testi. Regresyon: sahip+onaycı erişimi korunur.
 
 **Not (altyapı doğrulaması):** Backend `--host 127.0.0.1` ile bağlıdır (port 8001 yalnız localhost dinler) → `X-Real-IP` rate-limit atlatma yüzeyi OS seviyesinde kapalı; backend portuna dışarıdan doğrudan erişilemez.
+
+## Executor Handler ↔ Router Sapması (Sistematik Tarama Bulguları — 2026-06-17)
+
+`modul-denetci` ve sistematik tarama, executor handler'larının router endpoint davranışını **eksik/yanlış yansıttığı** bir bug sınıfı ortaya çıkardı. Handler yalnız onay onaylanınca çalıştığı için, onay workflow'u tanımlı bir modülde sapma **sessiz** kalır. Bulunan ve düzeltilenler:
+
+| Modül | Sapma | Sonuç | Düzeltme |
+|---|---|---|---|
+| `sales.room_types` | Handler **hiç yoktu** | Onayda 500 (kayıt asla uygulanmaz) | `_handle_sales_room_types` eklendi (create/update/delete + rezervasyon koruması) |
+| `finance.checks` | Payload `{"new_status"}` ↔ model alanı `status` uyuşmuyordu (`_apply_fields` no-op) | Çek durumu sessizce değişmiyor + iptal-eşleşme temizliği çalışmıyor | Handler `new_status`'u `status`'a uygular + iptal→unmatch + `upsert_check` |
+| `quality.templates` | `assignment_type` (NOT NULL) atlanıyor; alan bayrakları (`is_resource`/`is_meter`/`unit`...) düşüyor; `options` çift-serileştiriliyor | Onaylı şablon create 500 + KPI alanları kaybı | Handler tüm alanları + `role_id` set eder, `options` tek serileştirme |
+| Planlı (`accounting.*`/`hr.*` entry) | Dönem değişince `description` yeniden üretilmiyor | Nakit akımda bayat ay etiketi | Handler `_build_description` çağırır |
+| `finance.cariler` | Onaylı vade/durum değişiminde `sync_vendor_finance_events` çağrılmıyor | Nakit akımda bayat vade, yasaklı cari kalıntısı | Handler vade→tarih yeniden hesap + sync |
+
+**Kalıcı koruma:** her birine modül-bazlı uçtan-uca onay regresyon testi (`*_via_approval_regression`) + `test_all_approval_callers_have_executor_handler` (handler-varlık sigortası). Bkz. kök CLAUDE.md "Onay Akışı Entegrasyonu".
+
+## Soft-Delete Rol/Modül İzin Sızıntısı (Güvenlik — 2026-06-17)
+
+**Sorun:** Onay handler'ı rol/modül silmede **soft-delete** (`is_active=False`) yapıyordu, ama `require_permission`/`user_can` `Role.is_active`/`Module.is_active`'e **hiç bakmıyordu** → "silinmiş" rolün kullanıcıları tüm izinleri kullanmaya devam ediyordu.
+
+**Çözüm (defense-in-depth, `middleware/auth.py`):**
+- `get_current_user`: rol pasifse 401 (`role_rel` zaten joinedload — ek sorgu yok).
+- `_get_module_id`: yalnız `is_active=True` modülü çözer; `_handle_system_modules` soft-delete sonrası `invalidate_module_cache()` çağırır (bayat cache pasif modüle izin vermesin).
