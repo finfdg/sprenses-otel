@@ -349,6 +349,19 @@ TEMPLATE:
 - **CI:** `.github/workflows/ci.yml` her push/PR'da backend (pytest) + frontend (vitest) çalıştırır. Postgres service container + `tests/ci/` bootstrap ile sıfırdan test DB kurulur.
 - **Test DB bootstrap (`backend/tests/ci/`):** Şema doğrudan migration zincirinden kurulur — `alembic upgrade head` (zincir prod ile birebir) → `reset_data.sql` (migration'ın eklediği veriyi temizle) → `02_seed.sql` (RBAC referans verisi) → `seed_admin.py` (admin kullanıcısı). Ayrı şema dump'ı (`01_schema.sql`) artık yok. Yerelde: `scripts/setup-test-db.sh`. Detay ve migration-zinciri doğrulaması: `backend/tests/ci/README.md`.
 
+### Claude Code Ajan Akışları (`.claude/`)
+
+Projeye özel, git'te takip edilen (ekiple paylaşılan) Claude Code otomasyonları. Yeni komut/agent eklendiğinde Claude Code oturumunun yeniden başlatılması (reload) gerekir.
+
+- **Hook — `.claude/settings.json`:** `Stop` hook'u her tur sonunda `git add -A` + commit `"Otomatik yedek: <tarih>"` + GitHub push yapar (async). Repodaki tüm `Otomatik yedek:` commit'lerinin kaynağı budur.
+- **Slash komutları — `.claude/commands/`:**
+  - `/test [backend|frontend|all] [pytest filtre]` — testleri **doğru test DB** ile çalıştırır (şifre `.env`'den runtime'da, `_test` DB zorunlu).
+  - `/deploy [backend|frontend|all]` — zorunlu deploy akışı (backend=restart, frontend=`deploy-frontend.sh` build+restart) + health doğrulama.
+  - `/durum` — servisler + sağlık + Sedna tüneli (11433) + dinlenen portlar + git yedek durumu.
+- **Subagent — `.claude/agents/`:**
+  - `modul-denetci` — yeni/değişen modülü CLAUDE.md kurallarına göre salt-okunur denetler (izin, onay akışı + executor handler, audit, Türkçe karakter, Python 3.9, merkezi sabitler, finance_events, UI tasarım sistemi, doküman, test). Kanıtlı (`dosya:satır`) bulgu döner; kod yazmaz.
+- **İzinler — `.claude/settings.local.json`** (gitignore'da, paylaşılmaz): izin-sorma azaltan komut allowlist'i.
+
 ## API Endpoints
 
 ### Kimlik Doğrulama
