@@ -205,7 +205,7 @@
 		<!-- Mizan tablosu (ağaç) -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			{#if loading}
-				<div class="py-12 text-center text-gray-400 text-sm"><Loader2 class="animate-spin inline" size={18} /> Yükleniyor…</div>
+				<div class="py-12 text-center text-gray-500 text-sm"><Loader2 class="animate-spin inline" size={18} /> Yükleniyor…</div>
 			{:else if rows.length === 0}
 				<EmptyState icon={Scale} title={searchMode ? 'Sonuç yok' : 'Kayıt yok'} description={searchMode ? 'Aramanıza uyan hesap bulunamadı.' : 'Seçilen dönemde muhasebe hareketi yok.'} />
 			{:else}
@@ -264,9 +264,9 @@
 			{/if}
 		</div>
 
-		<p class="text-[11px] text-gray-400">
+		<p class="text-[11px] text-gray-500">
 			Kaynak: Sedna muhasebe (canlı, fiş tarihine göre) · <span class="font-medium">Ana hesabın yanındaki ›'ye tıkla → alt hesaplar açılır;
-			📖 ikonu → hesabın hareketleri (defter).</span> Toplam borç = toplam alacak olmalı (çift taraflı kayıt dengesi).
+			defter ikonu → hesabın hareketleri.</span> Toplam borç = toplam alacak olmalı (çift taraflı kayıt dengesi).
 		</p>
 	{/if}
 </div>
@@ -274,7 +274,7 @@
 <!-- Drill-down: hesap hareketleri (defter) -->
 <Modal bind:show={txOpen} title={txTitle} maxWidth="max-w-3xl">
 	{#if txLoading}
-		<div class="py-10 text-center text-gray-400 text-sm"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
+		<div class="py-10 text-center text-gray-500 text-sm"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
 	{:else if !txData || txData.count === 0}
 		<p class="py-8 text-center text-gray-400 text-sm">Bu dönemde hareket yok.</p>
 	{:else}

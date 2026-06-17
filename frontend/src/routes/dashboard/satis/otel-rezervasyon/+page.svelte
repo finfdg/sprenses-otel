@@ -1352,7 +1352,7 @@
 																<div class="flex items-center justify-between px-2 text-[10px] text-gray-500 -mt-0.5">
 																	<span>
 																		<span class="font-semibold text-gray-600">{prevDay.date.slice(0, 7)}:</span>
-																		{formatInt(prevDay.room_nights)} dolu · %{prevDay.occupancy_pct.toFixed(0)} · 👥 {formatInt(prevDay.pax)}
+																		{formatInt(prevDay.room_nights)} dolu · %{prevDay.occupancy_pct.toFixed(0)} · <Users size={11} class="inline align-text-bottom" /> {formatInt(prevDay.pax)}
 																	</span>
 																	<span class="font-semibold text-gray-600">{formatEurCompact(prevDay.eur)}</span>
 																</div>
@@ -1361,7 +1361,7 @@
 														<!-- Sağ: O gün otelde bulunan kişi sayısı (pax) + YoY rozeti -->
 														<div class="hidden md:flex w-20 shrink-0 items-center gap-1.5 text-[11px] justify-end pt-0.5">
 															<span class="text-gray-700 font-semibold" title="O gün otelde konaklayan kişi sayısı">
-																👥 {formatInt(day.pax)}
+																<Users size={12} class="inline align-text-bottom" /> {formatInt(day.pax)}
 															</span>
 															{#if prevDay && prevDay.pax > 0}
 																{@const pct = yoyPct(day.pax, prevDay.pax)}

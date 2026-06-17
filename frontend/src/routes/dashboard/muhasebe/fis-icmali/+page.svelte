@@ -214,7 +214,7 @@
 		<!-- Pivot tablo -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			{#if loading}
-				<div class="py-12 text-center text-gray-400 text-sm">Yükleniyor…</div>
+				<div class="py-12 text-center text-gray-500 text-sm">Yükleniyor…</div>
 			{:else if data.users.length === 0}
 				<EmptyState icon={FileText} title="Kayıt yok" description="Seçilen dönemde fiş kesilmemiş." />
 			{:else}
@@ -265,7 +265,7 @@
 			{/if}
 		</div>
 
-		<p class="text-[11px] text-gray-400">
+		<p class="text-[11px] text-gray-500">
 			Kaynak: Sedna muhasebe (canlı) · <span class="font-medium">{dateField === 'record' ? 'Kayıt tarihi' : 'Fiş tarihi'}</span> ekseni ·
 			koyuluk fiş yoğunluğunu gösterir. <span class="font-medium">Hücreye veya kullanıcıya tıkla → fişleri, fişe tıkla → muhasebe satırlarını gör.</span>
 		</p>
@@ -275,9 +275,9 @@
 <!-- Drill-down: fiş listesi + fiş satırları -->
 <Modal bind:show={drillOpen} title={drillLabel} maxWidth="max-w-2xl">
 	{#if drillLoading}
-		<div class="py-10 text-center text-gray-400 text-sm"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
+		<div class="py-10 text-center text-gray-500 text-sm"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
 	{:else if drillVouchers.length === 0}
-		<p class="py-8 text-center text-gray-400 text-sm">Bu dönemde fiş yok.</p>
+		<p class="py-8 text-center text-gray-500 text-sm">Bu dönemde fiş yok.</p>
 	{:else}
 		<div class="text-xs text-gray-500 mb-2">{drillCount} fiş · toplam ₺{drillTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
 		<div class="max-h-[60vh] overflow-y-auto -mx-1">

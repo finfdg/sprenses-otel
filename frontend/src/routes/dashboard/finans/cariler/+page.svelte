@@ -15,7 +15,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
-	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2 } from 'lucide-svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
@@ -1339,15 +1339,15 @@
 																			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
 																				#{tx.match_number}
 																				{#if tx.payment_method === 'havale_eft'}
-																					<span class="text-blue-500">🏦</span>
+																					<Landmark size={11} class="text-blue-500" />
 																				{:else if tx.payment_method === 'kredi_karti'}
-																					<span class="text-pink-500">💳</span>
+																					<CreditCard size={11} class="text-pink-500" />
 																				{:else if tx.payment_method === 'nakit'}
-																					<span class="text-emerald-500">💵</span>
+																					<Banknote size={11} class="text-emerald-500" />
 																				{:else if tx.payment_method === 'cek'}
-																					<span class="text-orange-500">📄</span>
+																					<FileText size={11} class="text-orange-500" />
 																				{:else if tx.payment_method === 'senet'}
-																					<span class="text-rose-500">📜</span>
+																					<Scroll size={11} class="text-rose-500" />
 																				{/if}
 																			</span>
 																			{#if canUse}
@@ -1507,15 +1507,15 @@
 																<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
 																	#{tx.match_number}
 																	{#if tx.payment_method === 'havale_eft'}
-																		<span>🏦</span>
+																		<Landmark size={11} class="text-blue-500" />
 																	{:else if tx.payment_method === 'kredi_karti'}
-																		<span>💳</span>
+																		<CreditCard size={11} class="text-pink-500" />
 																	{:else if tx.payment_method === 'nakit'}
-																		<span>💵</span>
+																		<Banknote size={11} class="text-emerald-500" />
 																	{:else if tx.payment_method === 'cek'}
-																		<span>📄</span>
+																		<FileText size={11} class="text-orange-500" />
 																	{:else if tx.payment_method === 'senet'}
-																		<span>📜</span>
+																		<Scroll size={11} class="text-rose-500" />
 																	{/if}
 																</span>
 																{#if canUse}
