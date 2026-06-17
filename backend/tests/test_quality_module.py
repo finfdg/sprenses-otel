@@ -459,6 +459,85 @@ class TestFormWorkflow:
         db.commit()
 
 
+# ==================== REOPEN YETKİ TESTLERİ (P1 güvenlik) ====================
+
+
+class TestReopenAuthorization:
+    """reopen yalnız formun doldurucusu veya onaylayanına açık olmalı.
+
+    Eskiden tek kapı `quality.forms:use` idi → atanmamış herhangi bir kullanıcı
+    reddedilmiş formu yeniden açıp review alanlarını (reviewed_by/at/comment) silebiliyordu.
+    """
+
+    @staticmethod
+    def _quality_user(db):
+        """quality.forms:use izinli yeni kullanıcı → (user_id, login olmuş client)."""
+        from uuid import uuid4
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.middleware.rate_limit import login_limiter
+        from app.models.module import Module
+        from app.models.role import Role
+        from app.models.role_module_permission import RoleModulePermission
+        from app.models.user import User
+        from app.utils.security import hash_password
+
+        uid = uuid4().hex[:8]
+        role = Role(name=f"qrole_{uid}", description="kalite test", is_active=True)
+        db.add(role)
+        db.flush()
+        mod = db.query(Module).filter(Module.code == "quality.forms").first()
+        db.add(RoleModulePermission(role_id=role.id, module_id=mod.id, can_view=True, can_use=True))
+        user = User(
+            username=f"qu_{uid}", email=f"qu_{uid}@test.local",
+            first_name="Kalite", last_name=uid[:6],
+            hashed_password=hash_password("Test1234!"), role_id=role.id, is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        login_limiter._requests.clear()
+        c = TestClient(app)
+        r = c.post("/api/auth/login", json={"username": user.username, "password": "Test1234!"})
+        assert r.status_code == 200, r.text
+        return user.id, c
+
+    def test_unassigned_user_cannot_reopen(self, db):
+        """Atanmamış quality.forms:use kullanıcısı reddedilmiş formu yeniden açamaz (403)."""
+        from app.models.quality_template_assignee import QualityTemplateAssignee
+
+        filler_id, filler_client = self._quality_user(db)
+        outsider_id, outsider_client = self._quality_user(db)
+
+        # Atamalı şablon: hem filler hem approver = filler_id → outsider hiçbiri değil
+        t = QualityTemplate(name="Yetki Test", description="—", frequency="daily",
+                            is_active=True, created_by=filler_id)
+        db.add(t)
+        db.flush()
+        sec = QualityTemplateSection(template_id=t.id, name="Bölüm", sort_order=0)
+        db.add(sec)
+        db.add(QualityTemplateAssignee(template_id=t.id, assignment_type="filler", user_id=filler_id))
+        db.add(QualityTemplateAssignee(template_id=t.id, assignment_type="approver", user_id=filler_id))
+        form = QualityForm(template_id=t.id, period_date=date.today(), status="rejected",
+                           reviewed_by=filler_id, review_comment="Düzeltilmeli")
+        db.add(form)
+        db.commit()
+        form_id = form.id
+
+        # Atanmamış kullanıcı → 403, form durumu/review alanları KORUNUR
+        r = outsider_client.post(f"/api/quality/forms/{form_id}/reopen")
+        assert r.status_code == 403, f"atanmamış kullanıcı reopen yapamamalı: {r.status_code} {r.text}"
+        db.expire_all()
+        assert db.get(QualityForm, form_id).status == "rejected"
+        assert db.get(QualityForm, form_id).review_comment == "Düzeltilmeli"
+
+        # Doldurucu → 200, taslağa döner + review alanları temizlenir
+        r2 = filler_client.post(f"/api/quality/forms/{form_id}/reopen")
+        assert r2.status_code == 200, r2.text
+        assert r2.json()["status"] == "draft"
+        db.expire_all()
+        assert db.get(QualityForm, form_id).reviewed_by is None
+
+
 # ==================== ZAMANLAYICI TESTLERİ ====================
 
 

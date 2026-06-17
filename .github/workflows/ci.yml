@@ -63,8 +63,9 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/ci/02_seed.sql
           PYTHONPATH=. python tests/ci/seed_admin.py
 
-      - name: pytest
-        run: python -m pytest tests/ -q
+      - name: pytest (+ kapsam eşiği)
+        # Satır kapsamı %60 altına düşerse CI kırmızı (yerel ölçüm: %66). Regresyonu görünür kılar.
+        run: python -m pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=60
 
   frontend:
     name: Frontend (vitest)

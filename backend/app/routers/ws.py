@@ -63,16 +63,21 @@ def _sync_verify_user_active(user_id: int) -> bool:
 
 
 def _sync_verify_user_session(user_id: int, session_id: Optional[str]) -> bool:
-    """Kullanıcının aktif oturum kimliğini doğrula."""
+    """Kullanıcının aktif oturum kimliğini doğrula (HTTP get_current_user ile birebir).
+
+    active_session_id None ise kullanıcı çıkış yapmış demektir → reddedilir.
+    (Eskiden WS yolu None'ı 'kabul et' sayıyordu; HTTP yolu reddediyordu — bu tutarsızlık
+    çıkış yapmış bir kullanıcının süresi dolmamış JWT'siyle WS'e yeniden bağlanmasına izin
+    veriyordu. Artık iki yol da aynı.)
+    """
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:
             return False
-        # Henüz yeni kodla giriş yapmadıysa (active_session_id None), kabul et
-        if user.active_session_id is None:
-            return True
-        return session_id == user.active_session_id
+        if user.active_session_id is None or session_id != user.active_session_id:
+            return False
+        return True
     finally:
         db.close()
 

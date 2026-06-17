@@ -293,6 +293,13 @@ def reopen_form(
             detail="Sadece reddedilmiş formlar yeniden açılabilir",
         )
 
+    # Yetki: yalnızca formun doldurucusu veya onaylayanı yeniden açabilir.
+    # (Kardeş fill/submit → _check_filler, review → _check_approver; reopen ikisine de açık.)
+    # Aksi halde herhangi bir quality.forms:use kullanıcısı review alanlarını silebilirdi.
+    if not (_check_filler(db, form.template_id, current_user)
+            or _check_approver(db, form.template_id, current_user)):
+        raise HTTPException(status_code=403, detail="Bu formu yeniden açma yetkiniz yok")
+
     form.status = "draft"
     form.reviewed_by = None
     form.reviewed_at = None

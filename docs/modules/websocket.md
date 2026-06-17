@@ -55,6 +55,10 @@ await manager.broadcast({"type": "announcement", "data": {...}})
 ## Geliştirme Kuralları
 - **Polling yasak** — tüm gerçek zamanlı veri WS üzerinden (CLAUDE.md kuralı)
 - **Auth:** Cookie preferred; eski client'lar için `{ type: "auth", token: "..." }` mesajı da kabul edilir
+- **Tek-oturum tutarlılığı (P1 güvenlik, 2026-06-17):** `ws.py:_sync_verify_user_session` artık HTTP yolu
+  (`middleware/auth.py:get_current_user`) ile **birebir** — `active_session_id is None` → reddedilir.
+  Eskiden WS yolu None'ı "kabul et" sayıyordu; bu, çıkış yapmış bir kullanıcının süresi dolmamış JWT'siyle
+  WS'e yeniden bağlanmasına izin veriyordu (HTTP reddederken). İki yol artık aynı oturum kuralını uygular.
 - **Hata yönetimi:** Send sırasında `WebSocketDisconnect` → bağlantı manager'dan temizlenir
 - **Event tipi yeni eklerken:** 
   1. Backend `manager.send_to_user(...)` ile gönder

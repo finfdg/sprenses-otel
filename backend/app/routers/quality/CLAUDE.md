@@ -109,6 +109,11 @@ draft → submitted → approved
 - Dolduran/onaylayan atamaları kullanıcı (`user_id`) veya rol (`role_id`) bazlı yapılabilir
 - Atama yoksa herkes o işlemi yapabilir
 - CHECK constraint ile user_id XOR role_id zorunlu
+- **Endpoint-bazlı yetki kontrolü:** `fill`/`submit` → `_check_filler`, `review` → `_check_approver`,
+  `reopen` → **`_check_filler` VEYA `_check_approver`** (P1 güvenlik düzeltmesi, 2026-06-17). Eskiden
+  `reopen`'ın tek kapısı `quality.forms:use` idi → atanmamış herhangi bir kullanıcı reddedilmiş formu
+  yeniden açıp `reviewed_by/reviewed_at/review_comment` alanlarını silebiliyordu. Artık yalnız formun
+  doldurucusu/onaylayanı yeniden açabilir. Test: `test_quality_module.py::TestReopenAuthorization`.
 
 ## Frontend Sayfaları
 
