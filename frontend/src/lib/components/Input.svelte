@@ -11,7 +11,7 @@
 		<Input type="text" bind:value={form.name} placeholder="Ad girin" />
 		<Input type="date" bind:value={form.date} invalid={!!err} aria-describedby="date-error" />
 		<Input type="search" icon={Search} clearable bind:value={searchInput} placeholder="Ara…" />
-		<Input size="sm" fullWidth={false} class="w-40" bind:value={x} />   <!-- filtre barı -->
+		<Input size="sm" fullWidth={false} class="w-40" bind:value={x} />   (filtre barı)
 
 	value tipi: string | number | null. type="number" → number|null, diğerleri string.
 	Not: type dinamik olduğundan native bind:value yerine kontrollü value+oninput kullanılır.
