@@ -26,8 +26,10 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
@@ -922,17 +924,18 @@
 		<PageHeader title="Otel Rezervasyon" description="XLS yükle → KPI ve dağılımları gör">
 			{#snippet actions()}
 				{#if availableYears.length > 0}
-					<select
+					<Select
 						bind:value={filters.year}
 						onchange={() => applyYearFilter(filters.year)}
 						aria-label="Yıl filtresi"
-						class="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white hover:border-gray-300 focus:outline-none focus:border-teal-400 cursor-pointer"
+						size="sm"
+						fullWidth={false}
 					>
 						<option value="all">Tüm Yıllar</option>
 						{#each availableYears as y}
 							<option value={y}>{y}</option>
 						{/each}
-					</select>
+					</Select>
 				{/if}
 
 				<!-- Karşılaştır toggle (önceki yıl verisi varsa aktif) -->
@@ -2245,12 +2248,12 @@
 				<label for="gm-name" class="block text-sm font-medium text-gray-700 mb-1">
 					Grup Adı <span class="text-red-600">*</span>
 				</label>
-				<input
+				<Input
 					id="gm-name"
 					type="text"
+					size="sm"
 					bind:value={gmNewName}
 					placeholder="örn: ALLTOURS"
-					class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
 					oninput={(e) => { gmNewName = (e.target as HTMLInputElement).value.toUpperCase(); }}
 				/>
 			</div>
@@ -2270,11 +2273,11 @@
 					{/if}
 				</div>
 				<div class="relative">
-					<input
+					<Input
 						type="text"
+						size="sm"
 						bind:value={gmSearch}
 						placeholder="Acente adı ara ve ekle…"
-						class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
 					/>
 					{#if gmSuggestions.length > 0}
 						<div class="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">

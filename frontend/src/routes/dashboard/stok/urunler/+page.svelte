@@ -5,8 +5,9 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import { formatCurrency } from '$lib/utils/finance';
-	import { Boxes, Search, X } from 'lucide-svelte';
+	import { Boxes, Search } from 'lucide-svelte';
 
 	let loading = $state(true);
 	let items = $state<any[]>([]);
@@ -49,14 +50,8 @@
 
 	<!-- Filtre barı -->
 	<div class="flex flex-col sm:flex-row sm:items-center gap-3">
-		<div class="relative flex-1 max-w-md">
-			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-			<input type="text" bind:value={searchInput} placeholder="Ürün adı veya koduna göre ara..."
-				class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-			{#if searchInput}
-				<button onclick={() => (searchInput = '')} aria-label="Temizle" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 cursor-pointer"><X size={14} /></button>
-			{/if}
-		</div>
+		<Input type="search" icon={Search} clearable bind:value={searchInput} placeholder="Ürün adı veya koduna göre ara..."
+			size="sm" fullWidth={false} class="flex-1 max-w-md" />
 		<label class="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer sm:ml-auto">
 			<input type="checkbox" bind:checked={inStock} class="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer" />
 			Sadece stokta olanlar

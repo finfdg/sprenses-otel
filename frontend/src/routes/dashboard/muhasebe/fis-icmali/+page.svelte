@@ -6,6 +6,8 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { FileText, Users, Trophy, Sigma, RefreshCw, Calendar, ChevronLeft, ChevronRight, Loader2, ChevronDown } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
@@ -176,14 +178,14 @@
 				{#if granularity === 'month'}
 					<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
 						<Calendar size={15} class="text-gray-400" />
-						<select bind:value={year} onchange={load} class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+						<Select size="sm" fullWidth={false} bind:value={year} onchange={load}>
 							{#each years as y}<option value={y}>{y}</option>{/each}
-						</select>
+						</Select>
 					</label>
 				{:else}
 					<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
 						<Calendar size={15} class="text-gray-400" />
-						<input type="month" bind:value={month} onchange={load} class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
+						<Input type="month" size="sm" fullWidth={false} bind:value={month} onchange={load} />
 					</label>
 				{/if}
 				<button onclick={() => shiftPeriod(1)} aria-label="Sonraki dönem"

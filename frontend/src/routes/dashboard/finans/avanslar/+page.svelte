@@ -11,6 +11,10 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import MoneyInput from '$lib/components/MoneyInput.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
+	import Field from '$lib/components/Field.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
@@ -358,31 +362,26 @@
 
 	<!-- Filtreler -->
 	<div class="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-		<div class="relative w-full sm:w-72">
-			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" aria-hidden="true" />
-			<input
-				type="search"
-				placeholder="Acente/Operatör ara…"
-				bind:value={searchInput}
-				aria-label="Acente veya operatör ara"
-				class="w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-			/>
-			{#if searchInput}
-				<button onclick={() => searchInput = ''} aria-label="Aramayı temizle" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer">
-					<X size={16} />
-				</button>
-			{/if}
-		</div>
-		<select bind:value={statusFilter} aria-label="Duruma göre filtrele" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer flex-1 sm:flex-none">
+		<Input
+			type="search"
+			size="sm"
+			icon={Search}
+			clearable
+			bind:value={searchInput}
+			aria-label="Acente veya operatör ara"
+			placeholder="Acente/Operatör ara…"
+			class="sm:w-72"
+		/>
+		<Select size="sm" fullWidth={false} class="flex-1 sm:flex-none" bind:value={statusFilter} aria-label="Duruma göre filtrele">
 			<option value="">Tüm Durumlar</option>
 			<option value="pending">Bekliyor</option>
 			<option value="received">Alındı</option>
 			<option value="cancelled">İptal</option>
-		</select>
-		<select bind:value={currencyFilter} aria-label="Para birimine göre filtrele" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer flex-1 sm:flex-none">
+		</Select>
+		<Select size="sm" fullWidth={false} class="flex-1 sm:flex-none" bind:value={currencyFilter} aria-label="Para birimine göre filtrele">
 			<option value="">Tüm Para Birimleri</option>
 			{#each CURRENCIES as cur (cur)}<option value={cur}>{cur}</option>{/each}
-		</select>
+		</Select>
 		<span class="text-sm text-gray-500 sm:ml-auto">{total} kayıt</span>
 	</div>
 
@@ -528,51 +527,38 @@
 			<div class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" role="alert">{formError}</div>
 		{/if}
 
-		<div>
-			<label for="agency_name" class="block text-sm font-medium text-gray-700 mb-1">Acente/Operatör Adı <span class="text-red-600">*</span></label>
-			<input
-				id="agency_name"
-				type="text"
-				bind:value={form.agency_name}
-				aria-invalid={!!fieldErrors.agency_name}
-				aria-describedby={fieldErrors.agency_name ? 'agency_name-error' : undefined}
-				placeholder="Acente veya operatör adını girin"
-				class="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.agency_name ? 'border-red-400' : 'border-gray-300'}"
-			/>
-			{#if fieldErrors.agency_name}<p id="agency_name-error" class="text-xs text-red-600 mt-1">{fieldErrors.agency_name}</p>{/if}
-		</div>
+		<Field label="Acente/Operatör Adı" required for="agency_name" error={fieldErrors.agency_name}>
+			{#snippet children({ id, invalid, describedby })}
+				<Input {id} {invalid} aria-describedby={describedby} bind:value={form.agency_name} placeholder="Acente veya operatör adını girin" />
+			{/snippet}
+		</Field>
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-			<div>
-				<label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Tutar <span class="text-red-600">*</span></label>
-				<MoneyInput id="amount" bind:value={form.amount} currency={form.currency} min={0} placeholder="0,00" ariaInvalid={!!fieldErrors.amount} ariaDescribedby={fieldErrors.amount ? 'amount-error' : undefined} />
-				{#if fieldErrors.amount}<p id="amount-error" class="text-xs text-red-600 mt-1">{fieldErrors.amount}</p>{/if}
-			</div>
-			<div>
-				<label for="currency" class="block text-sm font-medium text-gray-700 mb-1">Para Birimi</label>
-				<select id="currency" bind:value={form.currency} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
-					{#each CURRENCIES as cur (cur)}<option value={cur}>{cur} ({CURRENCY_SYMBOLS[cur]})</option>{/each}
-				</select>
-			</div>
+			<Field label="Tutar" required for="amount" error={fieldErrors.amount}>
+				{#snippet children({ id, invalid, describedby })}
+					<MoneyInput {id} ariaInvalid={invalid} ariaDescribedby={describedby} bind:value={form.amount} currency={form.currency} min={0} placeholder="0,00" />
+				{/snippet}
+			</Field>
+			<Field label="Para Birimi" for="currency">
+				{#snippet children({ id })}
+					<Select {id} bind:value={form.currency}>
+						{#each CURRENCIES as cur (cur)}<option value={cur}>{cur} ({CURRENCY_SYMBOLS[cur]})</option>{/each}
+					</Select>
+				{/snippet}
+			</Field>
 		</div>
 
-		<div>
-			<label for="advance_date" class="block text-sm font-medium text-gray-700 mb-1">Avans Tarihi <span class="text-red-600">*</span></label>
-			<input
-				id="advance_date"
-				type="date"
-				bind:value={form.advance_date}
-				aria-invalid={!!fieldErrors.advance_date}
-				aria-describedby={fieldErrors.advance_date ? 'advance_date-error' : undefined}
-				class="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.advance_date ? 'border-red-400' : 'border-gray-300'}"
-			/>
-			{#if fieldErrors.advance_date}<p id="advance_date-error" class="text-xs text-red-600 mt-1">{fieldErrors.advance_date}</p>{/if}
-		</div>
+		<Field label="Avans Tarihi" required for="advance_date" error={fieldErrors.advance_date}>
+			{#snippet children({ id, invalid, describedby })}
+				<Input {id} {invalid} type="date" aria-describedby={describedby} bind:value={form.advance_date} />
+			{/snippet}
+		</Field>
 
-		<div>
-			<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">Notlar</label>
-			<textarea id="notes" bind:value={form.notes} rows="3" placeholder="İsteğe bağlı notlar" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"></textarea>
-		</div>
+		<Field label="Notlar" for="notes">
+			{#snippet children({ id })}
+				<Textarea {id} bind:value={form.notes} rows={3} placeholder="İsteğe bağlı notlar" />
+			{/snippet}
+		</Field>
 
 		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="secondary" onclick={() => showModal = false}>İptal</Button>
@@ -590,14 +576,16 @@
 				<div class="text-gray-500 mt-1">Beklenen: {fmt(matchItem.amount, matchItem.currency)}</div>
 			</div>
 		{/if}
-		<div>
-			<label for="received_date" class="block text-sm font-medium text-gray-700 mb-1">Alınma Tarihi <span class="text-red-600">*</span></label>
-			<input id="received_date" type="date" bind:value={matchForm.received_date} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-		</div>
-		<div>
-			<label for="received_amount" class="block text-sm font-medium text-gray-700 mb-1">Alınan Tutar <span class="text-red-600">*</span></label>
-			<MoneyInput id="received_amount" bind:value={matchForm.received_amount} currency={matchItem?.currency} min={0} placeholder="0,00" />
-		</div>
+		<Field label="Alınma Tarihi" required for="received_date">
+			{#snippet children({ id })}
+				<Input {id} type="date" bind:value={matchForm.received_date} />
+			{/snippet}
+		</Field>
+		<Field label="Alınan Tutar" required for="received_amount">
+			{#snippet children({ id })}
+				<MoneyInput {id} bind:value={matchForm.received_amount} currency={matchItem?.currency} min={0} placeholder="0,00" />
+			{/snippet}
+		</Field>
 		<div class="flex justify-end gap-2 pt-2">
 			<Button variant="secondary" onclick={() => showMatchModal = false}>İptal</Button>
 			<Button type="submit" loading={matchSaving}><Check size={16} /> Alındı İşaretle</Button>

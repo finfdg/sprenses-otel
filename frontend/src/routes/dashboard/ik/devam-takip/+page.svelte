@@ -13,6 +13,8 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import SortableHeader, { type SortOrder } from '$lib/components/SortableHeader.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
@@ -802,7 +804,7 @@
 			{:else if tab === 'summary'}
 				<div class="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
 					<label for="ay" class="text-xs text-gray-500">Ay:</label>
-					<input id="ay" type="month" bind:value={summaryMonth} onchange={loadSummary} class="text-sm border border-gray-200 rounded-lg px-2 py-1" />
+					<Input id="ay" type="month" size="sm" fullWidth={false} bind:value={summaryMonth} onchange={loadSummary} />
 				</div>
 				{#if summary.length === 0}
 					<EmptyState icon={History} title="Bu ay kayıt yok" />
@@ -840,25 +842,25 @@
 	<form onsubmit={(e) => { e.preventDefault(); savePersonnel(); }} class="space-y-4">
 		<div>
 			<label for="pf-name" class="block text-sm font-medium text-gray-700 mb-1">Ad Soyad <span class="text-red-600">*</span></label>
-			<input id="pf-name" type="text" bind:value={form.full_name} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+			<Input id="pf-name" size="sm" bind:value={form.full_name} />
 		</div>
 		<div class="grid grid-cols-2 gap-3">
 			<div>
 				<label for="pf-code" class="block text-sm font-medium text-gray-700 mb-1">Sicil No <span class="text-red-600">*</span></label>
-				<input id="pf-code" type="text" bind:value={form.employee_code} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-teal-500 outline-none" />
+				<Input id="pf-code" size="sm" bind:value={form.employee_code} class="font-mono" />
 			</div>
 			<div>
 				<label for="pf-dept" class="block text-sm font-medium text-gray-700 mb-1">Departman</label>
-				<input id="pf-dept" type="text" bind:value={form.department} placeholder="Mutfak, Kat, Resepsiyon…" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+				<Input id="pf-dept" size="sm" bind:value={form.department} placeholder="Mutfak, Kat, Resepsiyon…" />
 			</div>
 		</div>
 		<div>
 			<label for="pf-title" class="block text-sm font-medium text-gray-700 mb-1">Görev</label>
-			<input id="pf-title" type="text" bind:value={form.title} placeholder="Elektrikçi, Teknik Müdür…" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+			<Input id="pf-title" size="sm" bind:value={form.title} placeholder="Elektrikçi, Teknik Müdür…" />
 		</div>
 		<div>
 			<label for="pf-phone" class="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
-			<input id="pf-phone" type="text" bind:value={form.phone} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+			<Input id="pf-phone" size="sm" bind:value={form.phone} />
 		</div>
 		{#if formError}<div class="px-3 py-2 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">{formError}</div>{/if}
 		<div class="flex justify-end gap-2 pt-2">
@@ -897,7 +899,7 @@
 			<AlertTriangle size={14} class="inline align-text-bottom" /> Bu link gizli bir anahtar içerir — yalnızca giriş cihazında açın, paylaşmayın.
 		</div>
 		<div class="flex items-center gap-2">
-			<input readonly value={kioskUrl} class="flex-1 text-xs font-mono border border-gray-200 rounded-lg px-2 py-2 bg-gray-50 truncate" />
+			<Input readonly value={kioskUrl} fullWidth={false} class="flex-1 text-xs font-mono truncate" />
 			<Button variant="secondary" onclick={copyKiosk}><Copy size={14} /> Kopyala</Button>
 		</div>
 	</div>
@@ -950,14 +952,15 @@
 			<label for="set-refresh" class="block text-sm font-medium text-gray-700 mb-1">
 				QR yenileme süresi (saniye) <span class="text-red-500">*</span>
 			</label>
-			<input
+			<Input
 				id="set-refresh"
 				type="number"
+				size="sm"
 				min={settingsMeta.min}
 				max={settingsMeta.max}
 				step="1"
 				bind:value={settingsForm.refresh_sec}
-				class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+				class="tabular-nums"
 			/>
 			<p class="text-xs text-gray-400 mt-1">{settingsMeta.min}-{settingsMeta.max} sn arası · öneri: 10-15 sn (sakin), 5-7 sn (güvenli)</p>
 		</div>
@@ -981,9 +984,9 @@
 		<p class="text-xs text-gray-500 leading-snug">Telefonu olmayan / unutan personel için yöneticinin manuel kaydı.</p>
 		<div>
 			<label for="mf-p" class="block text-sm font-medium text-gray-700 mb-1">Personel</label>
-			<select id="mf-p" bind:value={manualForm.personnel_id} onchange={() => (manualForm.type = defaultTypeFor(manualForm.personnel_id))} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+			<Select id="mf-p" size="sm" bind:value={manualForm.personnel_id} onchange={() => (manualForm.type = defaultTypeFor(manualForm.personnel_id))}>
 				{#each personnel as p (p.id)}<option value={p.id}>{p.full_name} ({p.employee_code})</option>{/each}
-			</select>
+			</Select>
 		</div>
 		<div>
 			<span class="block text-sm font-medium text-gray-700 mb-1">Hareket</span>
@@ -994,12 +997,12 @@
 		</div>
 		<div>
 			<label for="mf-time" class="block text-sm font-medium text-gray-700 mb-1">Zaman</label>
-			<input id="mf-time" type="datetime-local" bind:value={manualForm.punched_at} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums" />
+			<Input id="mf-time" type="datetime-local" size="sm" bind:value={manualForm.punched_at} class="tabular-nums" />
 			<p class="text-xs text-gray-400 mt-1">Varsayılan: şimdi. Geçmiş bir an için değiştirebilirsiniz.</p>
 		</div>
 		<div>
 			<label for="mf-note" class="block text-sm font-medium text-gray-700 mb-1">Not (opsiyonel)</label>
-			<input id="mf-note" type="text" bind:value={manualForm.note} placeholder="ör. telefonu yoktu" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+			<Input id="mf-note" size="sm" bind:value={manualForm.note} placeholder="ör. telefonu yoktu" />
 		</div>
 		<div class="flex justify-end gap-2 pt-1">
 			<Button type="button" variant="secondary" onclick={() => (showManual = false)}>İptal</Button>
@@ -1021,11 +1024,11 @@
 		</div>
 		<div>
 			<label for="ef-time" class="block text-sm font-medium text-gray-700 mb-1">Zaman</label>
-			<input id="ef-time" type="datetime-local" bind:value={editForm.punched_at} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums" />
+			<Input id="ef-time" type="datetime-local" size="sm" bind:value={editForm.punched_at} class="tabular-nums" />
 		</div>
 		<div>
 			<label for="ef-note" class="block text-sm font-medium text-gray-700 mb-1">Not (opsiyonel)</label>
-			<input id="ef-note" type="text" bind:value={editForm.note} placeholder="ör. düzeltme nedeni" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+			<Input id="ef-note" size="sm" bind:value={editForm.note} placeholder="ör. düzeltme nedeni" />
 		</div>
 		<div class="flex justify-end gap-2 pt-1">
 			<Button type="button" variant="secondary" onclick={() => (showEditLog = false)}>İptal</Button>

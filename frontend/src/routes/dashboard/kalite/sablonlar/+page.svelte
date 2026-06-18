@@ -11,6 +11,9 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import TemplateBuilder from '$lib/components/quality/TemplateBuilder.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 	import { ClipboardList, Plus, Pencil, Trash2 } from 'lucide-svelte';
 
 	interface TemplateItem {
@@ -393,25 +396,23 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="qt-name" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Şablon Adı *</label>
-				<input
+				<Input
 					id="qt-name"
 					bind:value={formName}
 					placeholder="Örn: Teknik Servis Günlük Kontrol Çizelgesi"
-					class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 				/>
 			</div>
 			<div class="flex gap-4">
 				<div class="flex-1">
 					<label for="qt-freq" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Sıklık</label>
-					<select
+					<Select
 						id="qt-freq"
 						bind:value={formFrequency}
-						class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 					>
 						<option value="daily">Günlük</option>
 						<option value="weekly">Haftalık</option>
 						<option value="monthly">Aylık</option>
-					</select>
+					</Select>
 				</div>
 				<div class="flex items-end pb-1">
 					<label class="flex items-center gap-2 cursor-pointer">
@@ -424,22 +425,20 @@
 
 		<div>
 			<label for="qt-desc" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Açıklama</label>
-			<textarea
+			<Textarea
 				id="qt-desc"
 				bind:value={formDescription}
 				placeholder="Şablon açıklaması..."
-				rows="2"
-				class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all resize-none"
-			></textarea>
+				rows={2}
+			/>
 		</div>
 
 		<div>
 			<label for="qt-footer" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">PDF Altbilgi</label>
-			<input
+			<Input
 				id="qt-footer"
 				bind:value={formFooterText}
 				placeholder="PDF raporunun her sayfasında görünecek altbilgi metni..."
-				class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 			/>
 			<p class="text-xs text-gray-500 mt-0.5">Bu metin PDF çıktısının her sayfasının alt kısmında görünür</p>
 		</div>
@@ -448,27 +447,25 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="qt-inc" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Artış Uyarı Eşiği (%)</label>
-				<input
+				<Input
 					id="qt-inc"
 					type="number"
 					step="1"
 					min="0"
 					max="100"
 					bind:value={formIncreaseThreshold}
-					class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 				/>
 				<p class="text-xs text-gray-500 mt-0.5">Bu yüzdeyi aşan artışlar kırmızı uyarı olarak gösterilir</p>
 			</div>
 			<div>
 				<label for="qt-dec" class="block text-gray-500 text-xs font-medium mb-1 uppercase tracking-wider">Azalış Uyarı Eşiği (%)</label>
-				<input
+				<Input
 					id="qt-dec"
 					type="number"
 					step="1"
 					min="0"
 					max="100"
 					bind:value={formDecreaseThreshold}
-					class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
 				/>
 				<p class="text-xs text-gray-500 mt-0.5">Bu yüzdeyi aşan azalışlar yeşil uyarı olarak gösterilir</p>
 			</div>

@@ -1,5 +1,8 @@
 <script lang="ts">
 	import ThresholdIndicator from './ThresholdIndicator.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 
 	interface Field {
 		id: number;
@@ -259,11 +262,10 @@
 										{#if readonly}
 											<span class="text-sm text-gray-900">{currentVal || '—'}</span>
 										{:else}
-											<input
+											<Input
 												type="text"
 												value={currentVal}
-												oninput={(e) => handleInput(field.id, e.currentTarget.value)}
-												class="w-full px-3 py-2.5 sm:py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
+												oninput={(e) => handleInput(field.id, (e.currentTarget as HTMLInputElement).value)}
 											/>
 										{/if}
 
@@ -273,13 +275,13 @@
 												{#if readonly}
 													<span class="text-sm text-gray-900">{currentVal || '—'}</span>
 												{:else}
-													<input
+													<Input
 														type="number"
 														step="any"
 														inputmode="decimal"
 														value={currentVal}
-														oninput={(e) => handleInput(field.id, e.currentTarget.value)}
-														class="w-full sm:max-w-[180px] px-3 py-2.5 sm:py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
+														oninput={(e) => handleInput(field.id, (e.currentTarget as HTMLInputElement).value)}
+														class="sm:max-w-[180px]"
 													/>
 												{/if}
 
@@ -362,16 +364,16 @@
 										{#if readonly}
 											<span class="text-sm text-gray-900">{currentVal || '—'}</span>
 										{:else}
-											<select
+											<Select
 												value={currentVal}
 												onchange={(e) => handleInput(field.id, e.currentTarget.value)}
-												class="w-full sm:max-w-[250px] px-3 py-2.5 sm:py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all"
+												class="sm:max-w-[250px]"
 											>
 												<option value="">Seçiniz</option>
 												{#each parseOptions(field.options) as opt}
 													<option value={opt}>{opt}</option>
 												{/each}
-											</select>
+											</Select>
 										{/if}
 									{/if}
 								</div>
@@ -388,14 +390,13 @@
 										{#if readonly}
 											<p class="text-sm text-red-900">{fieldVal?.corrective_action || '—'}</p>
 										{:else}
-											<textarea
+											<Textarea
 												id="fr-corrective-{field.id}"
 												value={fieldVal?.corrective_action || ''}
-												oninput={(e) => handleCorrective(field.id, e.currentTarget.value)}
+												oninput={(e) => handleCorrective(field.id, (e.currentTarget as HTMLTextAreaElement).value)}
 												placeholder="Uygunsuzluğun açıklamasını yazınız..."
-												rows="2"
-												class="w-full px-3 py-2 bg-white border border-red-200 rounded-lg text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 transition-all resize-none"
-											></textarea>
+												rows={2}
+											/>
 										{/if}
 									</div>
 									<!-- Yapılan Düzeltme -->
@@ -406,14 +407,13 @@
 										{#if readonly}
 											<p class="text-sm text-amber-900">{fieldVal?.correction_note || '—'}</p>
 										{:else}
-											<textarea
+											<Textarea
 												id="fr-correction-{field.id}"
 												value={fieldVal?.correction_note || ''}
-												oninput={(e) => handleCorrectionNote(field.id, e.currentTarget.value)}
+												oninput={(e) => handleCorrectionNote(field.id, (e.currentTarget as HTMLTextAreaElement).value)}
 												placeholder="Yapılan düzeltme işlemini yazınız..."
-												rows="2"
-												class="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all resize-none"
-											></textarea>
+												rows={2}
+											/>
 										{/if}
 									</div>
 								</div>

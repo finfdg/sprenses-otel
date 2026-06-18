@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import Input from '$lib/components/Input.svelte';
 	import type { TransactionCategory } from '$lib/types/finance';
 	import { categoryColorMap, availableColors as colorOptions, getColor } from '$lib/utils/colorMap';
 	import { SELECTABLE_PAYMENT_METHODS, CATEGORIES_WITH_PAYMENT_METHOD } from '$lib/utils/paymentMethods';
@@ -313,12 +314,13 @@
 		<div class="mt-2 border-t border-gray-100 pt-2">
 			<div class="text-[10px] font-semibold text-gray-500 uppercase mb-1 px-1">Cari Seç</div>
 			<div class="relative">
-				<input
+				<Input
 					type="text"
+					size="sm"
 					value={vendorSearch}
-					oninput={(e) => handleVendorSearch(e.currentTarget.value)}
+					oninput={(e) => handleVendorSearch((e.currentTarget as HTMLInputElement).value)}
 					placeholder="Cari adı veya kodu ara..."
-					class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-teal-500"
+					class="!text-xs"
 				/>
 				{#if vendorSearching}
 					<div class="absolute right-2 top-1/2 -translate-y-1/2">
@@ -461,11 +463,12 @@
 			</button>
 		{:else}
 			<div class="space-y-1.5">
-				<input
+				<Input
 					type="text"
+					size="sm"
 					bind:value={newCategoryName}
 					placeholder="Etiket adı"
-					class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-400"
+					class="!text-xs"
 					onkeydown={(e) => { if (e.key === 'Enter') handleCreateCategory(); }}
 				/>
 				<!-- Renk seçici -->
@@ -509,11 +512,12 @@
 					+ Açıklama ekle
 				</button>
 			{:else}
-				<input
+				<Input
 					type="text"
+					size="sm"
 					bind:value={note}
 					placeholder="ör: ABC İnşaat"
-					class="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-teal-500"
+					class="!text-xs"
 					onkeydown={(e) => { if (e.key === 'Enter' && selectedCatId) selectCategory(selectedCatId); }}
 				/>
 			{/if}

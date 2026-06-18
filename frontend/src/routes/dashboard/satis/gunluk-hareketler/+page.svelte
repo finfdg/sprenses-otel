@@ -7,6 +7,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { CalendarDays, CalendarPlus, CalendarX, Sigma, TrendingUp, RefreshCw, Loader2 } from 'lucide-svelte';
 
@@ -206,18 +207,20 @@
 				{/each}
 			</div>
 			<div class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-				<input
+				<Input
 					type="date"
+					size="sm"
+					fullWidth={false}
 					bind:value={startDate}
 					onchange={customDateChanged}
-					class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
 				/>
 				<span class="text-gray-500">→</span>
-				<input
+				<Input
 					type="date"
+					size="sm"
+					fullWidth={false}
 					bind:value={endDate}
 					onchange={customDateChanged}
-					class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
 				/>
 			</div>
 			{#if totals}

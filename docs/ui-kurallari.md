@@ -16,6 +16,10 @@ Tüm frontend sayfalar bu dokümandaki şablona ve bileşen API'lerine uyar. Yen
 | `Pagination.svelte` | Sayfalama | Sayfa numaraları + boyut seçici + `aria-current`. Inline "Önceki/Sonraki" yazma. |
 | `ConfirmDialog.svelte` | Silme/onay | Native `confirm()` **yasak**. |
 | `MoneyInput.svelte` | Para girişi | `<input type=number/text>` para için yasak. Form hatası için `ariaInvalid`/`ariaDescribedby`. |
+| `Input.svelte` | Metin/tarih/sayı/arama girişi | Tüm `<input>` (text/date/month/number/search/email/password) **tek kaynağı**. `size` (sm/md), `invalid`, `fullWidth`, `icon` (Lucide, arama), `clearable`. `class` **yalnızca layout** (genişlik/boşluk). Elle `border rounded-lg … focus:ring-teal-500` yazma. Para → MoneyInput, dosya → FileDropzone, checkbox/radio hariç. |
+| `Select.svelte` | Açılır liste | Tüm `<select>` tek kaynağı. `<option>`'lar children. `size`/`invalid`/`fullWidth`/`class` + native attrs (`onchange`). |
+| `Textarea.svelte` | Çok satırlı metin | Tüm `<textarea>` tek kaynağı. `rows`, `resize` (varsayılan kapalı), `invalid`. |
+| `Field.svelte` | Form alanı sarmalayıcı | label + zorunlu `*` + hata/ipucu + `aria-invalid`/`aria-describedby` kablolaması. `children` snippet'i `{ id, invalid, describedby }` verir → kontrol bunları kullanır. Referans: `finans/avanslar`. |
 
 **Erişilebilirlik tabanı:** İkincil metin `text-gray-500` (gray-400/300 değil — AA kontrast). Form alan hataları `aria-invalid` + `aria-describedby` ile bağlanır. İkon-only butonlar `aria-label` taşır. Select'lere `aria-label`. `app.css` `prefers-reduced-motion` destekler.
 
@@ -175,15 +179,19 @@ Modül tipine göre seçilir ama modül içinde tutarlı kalır:
   ```
 
 ### Form Field Pattern
-- Label **üstte**, input'un hemen üzerinde
-- Zorunlu alanda label sonuna kırmızı yıldız:
+- **Kontroller primitive'dir:** metin/tarih/sayı/arama → `Input.svelte`, açılır liste → `Select.svelte`, çok satırlı → `Textarea.svelte`, para → `MoneyInput.svelte`. Elle `<input>/<select>/<textarea>` + sınıf dizisi **yazılmaz** (checkbox/radio/file istisna — primitive yok). `Input`/`Select`/`Textarea` `svelte/elements` HTML attribute tipleriyle tiplenir → `onkeydown`/`onchange` gibi olay parametreleri otomatik tiplidir (`(e) =>` implicit-any vermez).
+- Label **üstte**, kontrolün hemen üzerinde; zorunlu alanda label sonuna kırmızı yıldız.
+- **Tercih edilen kalıp — `Field.svelte` sarmalayıcı** (label + `*` + hata + ARIA tek yerde):
   ```svelte
-  <label>Ad <span class="text-red-500">*</span></label>
+  <Field label="Acente Adı" required for="agency_name" error={fieldErrors.agency_name}>
+    {#snippet children({ id, invalid, describedby })}
+      <Input {id} {invalid} aria-describedby={describedby} bind:value={form.agency_name} />
+    {/snippet}
+  </Field>
   ```
-- Hata durumu:
-  - Input'a `border-red-500` class'ı eklenir
-  - Input'un altında kırmızı metin: `<p class="text-sm text-red-500">{error}</p>`
-- Helper: `$lib/utils/validation.ts` + form state'inde field-level error nesnesi
+  Hata varken `Field` `invalid={true}` geçer → `Input`/`Select`/`Textarea` `border-red-400` + `aria-invalid` uygular; hata metni `role="alert"` ile `aria-describedby`'ye bağlanır. Para alanında snippet içinde `MoneyInput` (`ariaInvalid`/`ariaDescribedby`).
+- Filtre barı kontrolleri: `size="sm" fullWidth={false}` + genişlik `class`'ta (ör. `class="flex-1 sm:flex-none"`).
+- Helper: `$lib/utils/validation.ts` + form state'inde `fieldErrors: Record<string,string>`. Referans uygulama: `finans/avanslar`.
 
 ### Uzun Formları Tab'lara Böl
 - 3+ alan grubu olan form'lar tab'lara bölünür
@@ -259,6 +267,10 @@ Modül tipine göre seçilir ama modül içinde tutarlı kalır:
 |---|---|---|
 | `Modal.svelte` | ✅ mevcut | `md` varsayılan modal |
 | `MoneyInput.svelte` | ✅ mevcut | TR para formatı |
+| `Input.svelte` | ✅ mevcut | Metin/tarih/sayı/arama girişi tek kaynağı (`size`/`invalid`/`fullWidth`/`icon`/`clearable`); `svelte/elements` ile tipli |
+| `Select.svelte` | ✅ mevcut | Açılır liste tek kaynağı (`<option>` children); `svelte/elements` ile tipli |
+| `Textarea.svelte` | ✅ mevcut | Çok satırlı metin tek kaynağı (`rows`/`resize`/`invalid`) |
+| `Field.svelte` | ✅ mevcut | Form alanı sarmalayıcı: label + `*` + hata + ARIA; `children({id,invalid,describedby})` |
 | `StatCard.svelte` | ✅ mevcut | Dashboard istatistik kartı |
 | `Sidebar.svelte` | ✅ mevcut | Sol menü |
 | `Topbar.svelte` | ✅ mevcut | Üst bar + geri butonu |

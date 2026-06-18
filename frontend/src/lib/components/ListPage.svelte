@@ -34,6 +34,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import Input from '$lib/components/Input.svelte';
 
 	let {
 		title,
@@ -134,12 +135,12 @@
 					<div class="flex-1 min-w-[180px]">
 						<div class="relative">
 							<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-							<input
+							<Input
 								type="text"
 								value={search}
 								oninput={onSearchInput}
 								placeholder={searchPlaceholder}
-								class="w-full text-sm border border-gray-200 rounded-lg pl-9 pr-9 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/40"
+								class="!pl-9 !pr-9"
 							/>
 							{#if search}
 								<button

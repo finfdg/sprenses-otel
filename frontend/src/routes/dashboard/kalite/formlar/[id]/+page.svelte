@@ -10,6 +10,8 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import FormSkeleton from '$lib/components/FormSkeleton.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 	import { FileText } from 'lucide-svelte';
 
 	const canUse = hasPermission('quality.forms', 'use');
@@ -361,13 +363,12 @@
 			{#if isReadonly}
 				<p class="text-sm text-gray-900">{notes || '—'}</p>
 			{:else}
-				<textarea
+				<Textarea
 					id="qfd-notes"
 					bind:value={notes}
 					placeholder="Günlük açıklama / özel durumlar..."
-					rows="3"
-					class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all resize-none"
-				></textarea>
+					rows={3}
+				/>
 			{/if}
 		</div>
 
@@ -383,11 +384,10 @@
 			{#if canReview}
 				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 space-y-3">
 					<label for="qfd-review" class="block text-sm font-medium text-gray-700">İnceleme</label>
-					<input
+					<Input
 						id="qfd-review"
 						bind:value={reviewComment}
 						placeholder="Yorum (opsiyonel)..."
-						class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400"
 					/>
 					<div class="flex flex-col sm:flex-row gap-2">
 						<button

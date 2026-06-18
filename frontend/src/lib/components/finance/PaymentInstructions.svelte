@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { api, ApiError } from '$lib/api';
 	import MoneyInput from '$lib/components/MoneyInput.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
@@ -324,20 +326,22 @@
 <div class="space-y-4">
 	<!-- Üst bar: liste seçimi + yeni -->
 	<div class="flex items-center gap-2 flex-wrap">
-		<select
+		<Select
 			value={activeList?.id ?? ''}
 			onchange={(e) => {
 				const v = (e.target as HTMLSelectElement).value;
 				if (v) openList(Number(v));
 				else activeList = null;
 			}}
-			class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 sm:flex-none sm:min-w-[280px]"
+			size="sm"
+			fullWidth={false}
+			class="flex-1 sm:flex-none sm:min-w-[280px]"
 		>
 			<option value="">— Liste seçin —</option>
 			{#each lists as l (l.id)}
 				<option value={l.id}>{l.name} ({l.item_count} cari · ₺{fmt(l.total_amount)})</option>
 			{/each}
-		</select>
+		</Select>
 		{#if canUse}
 			<button
 				onclick={openNewModal}
@@ -398,15 +402,17 @@
 			{#if canUse}
 				<div class="px-4 py-3 border-b border-gray-100 relative">
 					<div class="relative">
-						<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-						<input
+						<Input
+							type="search"
+							icon={Search}
+							size="sm"
 							bind:value={searchTerm}
 							oninput={onSearchInput}
 							placeholder="Cari ekle — hesap kodu veya ad ara…"
-							class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
+							style="padding-right:2.25rem"
 						/>
 						{#if searchTerm}
-							<button onclick={() => { searchTerm = ''; searchResults = []; }} class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600">
+							<button onclick={() => { searchTerm = ''; searchResults = []; }} class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 z-10">
 								<X size={16} />
 							</button>
 						{/if}
@@ -535,7 +541,7 @@
 	<form onsubmit={(e) => { e.preventDefault(); createList(); }} class="space-y-4">
 		<div>
 			<label for="pi-name" class="text-xs text-gray-500 mb-1 block">Liste Adı <span class="text-rose-500">*</span></label>
-			<input id="pi-name" bind:value={newName} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="ör: Haftalık Ödeme 26.05" required />
+			<Input id="pi-name" size="sm" bind:value={newName} placeholder="ör: Haftalık Ödeme 26.05" required />
 		</div>
 		<div class="flex items-center justify-end gap-2">
 			<button type="button" onclick={() => (showNewModal = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
@@ -551,8 +557,8 @@
 		</p>
 		<div>
 			<label for="ykb-debtor" class="text-xs text-gray-500 mb-1 block">Borçlu Hesap (ödemenin yapılacağı YKB hesap no)</label>
-			<input id="ykb-debtor" bind:value={ykbDebtor} inputmode="numeric"
-				class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 tabular-nums"
+			<Input id="ykb-debtor" size="sm" bind:value={ykbDebtor} inputmode="numeric"
+				class="tabular-nums"
 				placeholder="ör: 65610029" />
 			<p class="text-[11px] text-gray-400 mt-1">Boş bırakırsanız kayıtlı Yapı Kredi TL hesabınız otomatik gelir. Girerseniz tarayıcıda da hatırlanır.</p>
 		</div>

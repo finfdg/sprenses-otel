@@ -8,6 +8,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import { validateRequired } from '$lib/utils/validation';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { Plus, Pencil, Trash2, Shield } from 'lucide-svelte';
@@ -273,14 +274,14 @@
 	<div class="space-y-4">
 		<div>
 			<label for="r-name" class="block text-sm font-medium text-gray-700 mb-1">Rol Adı <span class="text-red-600">*</span></label>
-			<input id="r-name" bind:value={formName} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+			<Input id="r-name" bind:value={formName} invalid={!!fieldErrors.name} />
 			{#if fieldErrors.name}
 				<p class="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
 			{/if}
 		</div>
 		<div>
 			<label for="r-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama</label>
-			<input id="r-desc" bind:value={formDesc} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+			<Input id="r-desc" bind:value={formDesc} />
 		</div>
 
 		<!-- Permission Matrix -->

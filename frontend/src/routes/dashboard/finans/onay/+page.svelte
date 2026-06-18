@@ -7,6 +7,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 	import { CheckCircle2, Check, X } from 'lucide-svelte';
 
 	interface PendingItem {
@@ -254,13 +255,12 @@
 			</div>
 			<div>
 				<label for="approval-note" class="block text-sm font-medium text-gray-700 mb-1">Not (opsiyonel)</label>
-				<textarea
+				<Textarea
 					id="approval-note"
 					bind:value={approvalNote}
-					rows="3"
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none resize-none"
+					rows={3}
 					placeholder="Onay notu ekleyin..."
-				></textarea>
+				/>
 			</div>
 			<div class="flex items-center justify-end gap-3 pt-2">
 				<button
@@ -300,13 +300,12 @@
 			</div>
 			<div>
 				<label for="rejection-note" class="block text-sm font-medium text-gray-700 mb-1">Red gerekçesi (zorunlu)</label>
-				<textarea
+				<Textarea
 					id="rejection-note"
 					bind:value={rejectionNote}
-					rows="3"
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none resize-none"
+					rows={3}
 					placeholder="Red gerekçesini yazın..."
-				></textarea>
+				/>
 				{#if rejectionNote !== '' && !rejectionNote.trim()}
 					<p class="text-xs text-red-600 mt-1">Red gerekçesi boş bırakılamaz</p>
 				{/if}

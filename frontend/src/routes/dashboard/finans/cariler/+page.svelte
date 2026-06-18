@@ -18,6 +18,8 @@
 	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 
 	// Generic onay state
 	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({
@@ -1007,16 +1009,15 @@
 		<div class="space-y-4">
 			<!-- Arama + Filtre -->
 			<div class="flex items-center gap-3 flex-wrap">
-				<div class="relative flex-1 max-w-md">
-					<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-					<input
-						type="text"
-						bind:value={vendorSearch}
-						oninput={onSearchInput}
-						placeholder="Hesap kodu veya cari adı ara..."
-						class="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-					/>
-				</div>
+				<Input
+					type="search"
+					icon={Search}
+					bind:value={vendorSearch}
+					oninput={onSearchInput}
+					placeholder="Hesap kodu veya cari adı ara..."
+					fullWidth={false}
+					class="flex-1 max-w-md"
+				/>
 				<button
 					onclick={toggleHideZero}
 					class="flex items-center gap-2 px-3 py-2.5 text-sm border rounded-xl transition-colors
@@ -1105,14 +1106,16 @@
 							<div class="col-span-1 flex items-center justify-center">
 								{#if editingPaymentDays === vendor.id}
 									<div class="flex items-center gap-1">
-										<input
+										<Input
 											type="number"
+											size="sm"
+											fullWidth={false}
 											bind:value={paymentDaysValue}
 											min="0"
 											max="365"
 											onclick={(e) => e.stopPropagation()}
 											onkeydown={(e) => { if (e.key === 'Enter') savePaymentDays(vendor.id); if (e.key === 'Escape') cancelEditPaymentDays(); }}
-											class="w-14 px-1.5 py-0.5 text-xs text-center border border-teal-300 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500"
+											class="w-14 text-center"
 										/>
 										<button
 											onclick={(e) => { e.stopPropagation(); savePaymentDays(vendor.id); }}
@@ -1263,8 +1266,8 @@
 													<p class="text-xs text-gray-400 mb-2">Kayıtlı IBAN yok. Ödeme talimatında banka/IBAN göstermek için ekleyin.</p>
 												{/if}
 												<div class="flex flex-col sm:flex-row gap-2">
-													<input bind:value={ibanForm.bank_name} placeholder="Banka (ör. Yapı Kredi)" class="sm:w-44 px-2 py-1.5 text-xs border border-gray-300 rounded outline-none focus:ring-1 focus:ring-teal-500" />
-													<input bind:value={ibanForm.iban} placeholder="TR.. IBAN" class="flex-1 px-2 py-1.5 text-xs font-mono border border-gray-300 rounded outline-none focus:ring-1 focus:ring-teal-500" />
+													<Input size="sm" fullWidth={false} bind:value={ibanForm.bank_name} placeholder="Banka (ör. Yapı Kredi)" class="sm:w-44" />
+													<Input size="sm" fullWidth={false} bind:value={ibanForm.iban} placeholder="TR.. IBAN" class="flex-1 font-mono" />
 													<button onclick={() => addVendorIban(vendor.id)} disabled={ibanSaving} class="shrink-0 px-3 py-1.5 text-xs font-medium rounded bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-1"><Plus size={13} /> Ekle</button>
 												</div>
 											</div>
@@ -1785,11 +1788,13 @@
 		</div>
 
 		<!-- Arama -->
-		<input
-			type="text"
+		<Input
+			type="search"
+			size="sm"
+			icon={Search}
+			clearable
 			bind:value={checkSearch}
 			placeholder="Çek no, firma adı veya açıklama ile ara..."
-			class="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
 		/>
 
 		<!-- Çek listesi -->
@@ -1973,30 +1978,22 @@
 
 		<div>
 			<label for="dept-select" class="block text-sm font-medium text-gray-700 mb-1">Departman</label>
-			<select
-				id="dept-select"
-				bind:value={selectedDeptId}
-				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none"
-			>
+			<Select id="dept-select" size="sm" bind:value={selectedDeptId}>
 				<option value={null}>Seçiniz...</option>
 				{#each departments.filter(d => d.manager_name) as dept}
 					<option value={dept.id}>{dept.name} — {dept.manager_name}</option>
 				{/each}
-			</select>
+			</Select>
 		</div>
 
 		<div>
 			<label for="cat-select" class="block text-sm font-medium text-gray-700 mb-1">Bütçe Kategorisi (opsiyonel)</label>
-			<select
-				id="cat-select"
-				bind:value={selectedCatId}
-				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none"
-			>
+			<Select id="cat-select" size="sm" bind:value={selectedCatId}>
 				<option value={null}>Seçiniz...</option>
 				{#each budgetCategories.filter(c => c.type === 'expense') as cat}
 					<option value={cat.id}>{cat.name}</option>
 				{/each}
-			</select>
+			</Select>
 		</div>
 
 		<div class="flex items-center justify-end gap-3 pt-2">
@@ -2053,18 +2050,18 @@
 			{#if piLists.length > 0}
 				<div>
 					<label for="pi-list-select" class="text-xs text-gray-500 mb-1 block">Mevcut Listeye Ekle</label>
-					<select id="pi-list-select" bind:value={piSelectedListId} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50">
+					<Select id="pi-list-select" size="sm" bind:value={piSelectedListId}>
 						{#each piLists as l (l.id)}
 							<option value={l.id}>{l.name} ({l.item_count} cari)</option>
 						{/each}
-					</select>
+					</Select>
 				</div>
 				<div class="text-center text-xs text-gray-500">— veya —</div>
 			{/if}
 
 			<div>
 				<label for="pi-new-name" class="text-xs text-gray-500 mb-1 block">Yeni Liste Oluştur</label>
-				<input id="pi-new-name" bind:value={piNewListName} placeholder="ör: Haftalık Ödeme 26.05" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" />
+				<Input id="pi-new-name" size="sm" bind:value={piNewListName} placeholder="ör: Haftalık Ödeme 26.05" />
 				<p class="text-[11px] text-gray-500 mt-1">Ad girerseniz yeni liste oluşturulur, aksi halde seçili listeye eklenir.</p>
 			</div>
 

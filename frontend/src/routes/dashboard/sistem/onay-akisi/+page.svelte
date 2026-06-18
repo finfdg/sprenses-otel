@@ -7,6 +7,9 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
@@ -904,16 +907,17 @@
 	{:else if activeTab === 'history'}
 		<!-- Filtreler -->
 		<div class="flex items-center gap-3 mb-4">
-			<select
+			<Select
+				size="sm"
+				fullWidth={false}
 				bind:value={historyStatusFilter}
 				onchange={() => { historyPage = 1; loadHistory(); }}
-				class="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white cursor-pointer focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none"
 			>
 				<option value="">Tüm durumlar</option>
 				<option value="approved">Onaylanan</option>
 				<option value="rejected">Reddedilen</option>
 				<option value="cancelled">İptal edilen</option>
-			</select>
+			</Select>
 		</div>
 
 		{#if historyLoading}
@@ -989,11 +993,11 @@
 		<!-- Onay Adı -->
 		<div>
 			<label for="wf-name" class="block text-sm font-medium text-gray-700 mb-1">Onay Adı <span class="text-red-600">*</span></label>
-			<input
+			<Input
 				id="wf-name"
 				type="text"
+				size="sm"
 				bind:value={wfName}
-				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none"
 				placeholder="Örn: Cari ödeme onayı"
 			/>
 		</div>
@@ -1001,11 +1005,11 @@
 		<!-- Modül Seçimi -->
 		<div>
 			<label for="wf-module" class="block text-sm font-medium text-gray-700 mb-1">Modül <span class="text-red-600">*</span></label>
-			<select
+			<Select
 				id="wf-module"
+				size="sm"
 				bind:value={wfModuleId}
 				onchange={() => { wfRequestorRoleIds = []; wfApproverRoleIds = []; }}
-				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none bg-white cursor-pointer"
 			>
 				<option value={null}>Modül seçin...</option>
 				{#each groupedModules as group}
@@ -1018,7 +1022,7 @@
 						{/each}
 					</optgroup>
 				{/each}
-			</select>
+			</Select>
 		</div>
 
 		<!-- Talep Eden Roller -->
@@ -1078,25 +1082,24 @@
 		<!-- Açıklama -->
 		<div>
 			<label for="wf-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama</label>
-			<textarea
+			<Textarea
 				id="wf-desc"
 				bind:value={wfDescription}
-				rows="2"
-				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none resize-none"
+				rows={2}
 				placeholder="Onay tanımı hakkında kısa açıklama..."
-			></textarea>
+			/>
 		</div>
 
 		<!-- Koşullar JSON -->
 		<div>
 			<label for="wf-conditions" class="block text-sm font-medium text-gray-700 mb-1">Koşullar (JSON, opsiyonel)</label>
-			<textarea
+			<Textarea
 				id="wf-conditions"
 				bind:value={wfConditions}
-				rows="2"
-				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none resize-none"
+				rows={2}
+				class="font-mono"
 				placeholder={`{"min_amount": 10000}`}
-			></textarea>
+			/>
 		</div>
 
 		<!-- Butonlar -->
@@ -1140,16 +1143,12 @@
 						İade gerekçesi (zorunlu)
 					{/if}
 				</label>
-				<textarea
+				<Textarea
 					id="action-note"
 					bind:value={actionNote}
-					rows="3"
-					class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none resize-none
-						{actionType === 'approve' ? 'focus:border-green-500 focus:ring-1 focus:ring-green-500' : ''}
-						{actionType === 'reject' ? 'focus:border-red-500 focus:ring-1 focus:ring-red-500' : ''}
-						{actionType === 'return' ? 'focus:border-amber-500 focus:ring-1 focus:ring-amber-500' : ''}"
-					placeholder="{actionType === 'approve' ? 'Onay notu ekleyin...' : actionType === 'reject' ? 'Red gerekçesini yazın...' : 'İade gerekçesini yazın...'}"
-				></textarea>
+					rows={3}
+					placeholder={actionType === 'approve' ? 'Onay notu ekleyin...' : actionType === 'reject' ? 'Red gerekçesini yazın...' : 'İade gerekçesini yazın...'}
+				/>
 				{#if (actionType === 'reject' || actionType === 'return') && actionNote !== '' && !actionNote.trim()}
 					<p class="text-xs text-red-600 mt-1">Gerekçe boş bırakılamaz</p>
 				{/if}

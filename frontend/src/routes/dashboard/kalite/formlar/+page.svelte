@@ -8,8 +8,10 @@
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { CalendarCheck, FileText, X } from 'lucide-svelte';
 
@@ -206,54 +208,56 @@
 			<div class="flex gap-2 sm:contents">
 				<div class="w-1/2 sm:w-auto">
 					<label for="qf-status" class="block text-xs text-gray-500 mb-1">Durum</label>
-					<select
+					<Select
 						id="qf-status"
+						size="sm"
 						bind:value={statusFilter}
 						onchange={handleFilterChange}
-						class="w-full px-2 sm:px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400"
 					>
 						<option value="">Tümü</option>
 						<option value="draft">Taslak</option>
 						<option value="submitted">Gönderildi</option>
 						<option value="approved">Onaylandı</option>
 						<option value="rejected">Reddedildi</option>
-					</select>
+					</Select>
 				</div>
 				<div class="w-1/2 sm:w-auto">
 					<label for="qf-template" class="block text-xs text-gray-500 mb-1">Şablon</label>
-					<select
+					<Select
 						id="qf-template"
+						size="sm"
 						bind:value={templateFilter}
 						onchange={handleFilterChange}
-						class="w-full px-2 sm:px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400"
 					>
 						<option value="">Tümü</option>
 						{#each templateOptions as t}
 							<option value={String(t.id)}>{t.name}</option>
 						{/each}
-					</select>
+					</Select>
 				</div>
 			</div>
 			<!-- Başlangıç + Bitiş -->
 			<div class="flex gap-2 sm:contents">
 				<div class="w-1/2 sm:w-auto">
 					<label for="qf-from" class="block text-xs text-gray-500 mb-1">Başlangıç</label>
-					<input
+					<Input
 						id="qf-from"
 						type="date"
+						size="sm"
 						bind:value={dateFrom}
 						onchange={handleFilterChange}
-						class="date-filter-input w-full px-2 sm:px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400"
+						class="date-filter-input"
 					/>
 				</div>
 				<div class="w-1/2 sm:w-auto">
 					<label for="qf-to" class="block text-xs text-gray-500 mb-1">Bitiş</label>
-					<input
+					<Input
 						id="qf-to"
 						type="date"
+						size="sm"
 						bind:value={dateTo}
 						onchange={handleFilterChange}
-						class="date-filter-input w-full px-2 sm:px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:border-teal-400"
+						class="date-filter-input"
 					/>
 				</div>
 			</div>

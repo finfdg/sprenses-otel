@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Input from '$lib/components/Input.svelte';
+
 	let { onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void } = $props();
 
 	let searchQuery = $state('');
@@ -396,12 +398,7 @@
 	<div class="absolute bottom-16 left-2 right-2 md:left-auto md:right-auto md:w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50">
 		<!-- Arama -->
 		<div class="p-2 border-b border-gray-100">
-			<input
-				type="text"
-				bind:value={searchQuery}
-				placeholder="Emoji ara..."
-				class="w-full px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 transition-all"
-			/>
+			<Input type="text" size="sm" bind:value={searchQuery} placeholder="Emoji ara..." />
 		</div>
 
 		<!-- Kategoriler -->

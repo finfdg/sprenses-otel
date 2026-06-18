@@ -8,6 +8,8 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { ChevronDown, Send, Printer, Download, X } from 'lucide-svelte';
 
 	// ─── Types ───────────────────────────────────────────
@@ -534,25 +536,14 @@
 					</div>
 					<div>
 						<label for="transfer-date" class="block text-sm font-medium text-gray-700 mb-1">Tarih</label>
-						<input
-							id="transfer-date"
-							type="date"
-							bind:value={transferForm.instruction_date}
-							class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-						/>
+						<Input id="transfer-date" type="date" bind:value={transferForm.instruction_date} />
 					</div>
 				</div>
 
 				<!-- Açıklama -->
 				<div>
 					<label for="transfer-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-gray-500 font-normal">(opsiyonel)</span></label>
-					<input
-						id="transfer-desc"
-						type="text"
-						bind:value={transferForm.description}
-						placeholder="Ör: Personel maaş ödemesi"
-						class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-					/>
+					<Input id="transfer-desc" type="text" bind:value={transferForm.description} placeholder="Ör: Personel maaş ödemesi" />
 				</div>
 
 				<!-- Sol İmza (Sağ imza her zaman İsmail ÖZDEN) -->
@@ -622,16 +613,12 @@
 				<!-- Hedef Para Birimi -->
 				<div>
 					<label for="exch-target-cur" class="block text-sm font-medium text-gray-700 mb-1">Hedef Para Birimi <span class="text-red-600">*</span></label>
-					<select
-						id="exch-target-cur"
-						bind:value={exchangeForm.target_currency}
-						class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-					>
+					<Select id="exch-target-cur" bind:value={exchangeForm.target_currency}>
 						<option value="">Seçin...</option>
 						{#each availableTargetCurrencies as cur}
 							<option value={cur}>{CURRENCY_LABELS[cur] || cur} ({cur})</option>
 						{/each}
-					</select>
+					</Select>
 				</div>
 
 				<!-- Tutar + Tarih -->
@@ -648,12 +635,7 @@
 					</div>
 					<div>
 						<label for="exch-date" class="block text-sm font-medium text-gray-700 mb-1">Tarih</label>
-						<input
-							id="exch-date"
-							type="date"
-							bind:value={exchangeForm.instruction_date}
-							class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-						/>
+						<Input id="exch-date" type="date" bind:value={exchangeForm.instruction_date} />
 					</div>
 				</div>
 
@@ -675,12 +657,7 @@
 				<!-- Açıklama -->
 				<div>
 					<label for="exch-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-gray-500 font-normal">(opsiyonel)</span></label>
-					<input
-						id="exch-desc"
-						type="text"
-						bind:value={exchangeForm.description}
-						class="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-400"
-					/>
+					<Input id="exch-desc" type="text" bind:value={exchangeForm.description} />
 				</div>
 
 				<!-- Sol İmza (Sağ imza her zaman İsmail ÖZDEN) -->

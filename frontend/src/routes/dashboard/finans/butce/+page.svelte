@@ -9,6 +9,8 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { Building2, Pencil, Trash2, Loader2, Settings, ChevronRight, ChevronLeft, Plus } from 'lucide-svelte';
 
 	// ── Türkçe ay isimleri ──
@@ -361,25 +363,19 @@
 			{/if}
 
 			<!-- Yıl seçici -->
-			<select
-				bind:value={selectedYear}
-				class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-			>
+			<Select size="sm" fullWidth={false} bind:value={selectedYear}>
 				{#each yearOptions as year}
 					<option value={year}>{year}</option>
 				{/each}
-			</select>
+			</Select>
 
 			<!-- Departman seçici -->
-			<select
-				bind:value={selectedDeptId}
-				class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none min-w-[160px]"
-			>
+			<Select size="sm" fullWidth={false} class="min-w-[160px]" bind:value={selectedDeptId}>
 				<option value={null}>Tüm Departmanlar</option>
 				{#each departments as dept}
 					<option value={dept.id}>{dept.name}</option>
 				{/each}
-			</select>
+			</Select>
 
 			<!-- Ayarlar butonu -->
 			{#if canUse}
@@ -628,12 +624,12 @@
 									{@const isUnderBudget = activeTab === 'expense' ? cell.actual <= cell.planned && cell.planned > 0 : cell.actual >= cell.planned && cell.planned > 0}
 									<td class="px-1 py-1.5 text-center {isOverBudget ? 'bg-red-50' : isUnderBudget ? 'bg-green-50' : ''}">
 										{#if canUse}
-											<input
+											<Input
 												type="text"
 												value={cell.planned || ''}
 												onchange={(e) => handleCellChange(cat.id, m, (e.target as HTMLInputElement).value)}
 												onkeydown={(e) => handleCellKeydown(e, cat.id, m)}
-												class="w-full text-center text-xs px-1 py-1 border border-transparent rounded focus:border-teal-500 focus:outline-none focus:bg-white bg-transparent hover:bg-gray-50 transition-colors"
+												class="text-center !px-1 !py-1 !border-transparent !rounded focus:!bg-white !bg-transparent hover:!bg-gray-50 transition-colors"
 												placeholder="0"
 											/>
 										{:else}
@@ -725,10 +721,12 @@
 				{#each departments as dept}
 					<div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
 						{#if editingDeptId === dept.id}
-							<input
+							<Input
 								type="text"
+								size="sm"
+								fullWidth={false}
+								class="flex-1"
 								bind:value={deptForm.name}
-								class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 								onkeydown={(e) => { if (e.key === 'Enter') saveDept(); if (e.key === 'Escape') cancelEditDept(); }}
 							/>
 							<button onclick={saveDept} class="text-xs text-teal-700 hover:text-teal-800 font-medium cursor-pointer">Kaydet</button>
@@ -746,11 +744,13 @@
 			</div>
 			{#if canUse}
 				<div class="flex items-center gap-2">
-					<input
+					<Input
 						type="text"
+						size="sm"
+						fullWidth={false}
+						class="flex-1"
 						bind:value={deptForm.name}
 						placeholder="Yeni departman adı"
-						class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 						onkeydown={(e) => { if (e.key === 'Enter' && !editingDeptId) saveDept(); }}
 						disabled={editingDeptId !== null}
 					/>
@@ -786,10 +786,12 @@
 					{#each categories.filter(c => c.type === 'expense') as cat}
 						<div class="flex items-center gap-2 p-2 bg-red-50/50 rounded-lg">
 							{#if editingCatId === cat.id}
-								<input
+								<Input
 									type="text"
+									size="sm"
+									fullWidth={false}
+									class="flex-1"
 									bind:value={catForm.name}
-									class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 									onkeydown={(e) => { if (e.key === 'Enter') saveCat(); if (e.key === 'Escape') cancelEditCat(); }}
 								/>
 								<button onclick={saveCat} class="text-xs text-teal-700 hover:text-teal-800 font-medium cursor-pointer">Kaydet</button>
@@ -817,10 +819,12 @@
 					{#each categories.filter(c => c.type === 'income') as cat}
 						<div class="flex items-center gap-2 p-2 bg-green-50/50 rounded-lg">
 							{#if editingCatId === cat.id}
-								<input
+								<Input
 									type="text"
+									size="sm"
+									fullWidth={false}
+									class="flex-1"
 									bind:value={catForm.name}
-									class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
 									onkeydown={(e) => { if (e.key === 'Enter') saveCat(); if (e.key === 'Escape') cancelEditCat(); }}
 								/>
 								<button onclick={saveCat} class="text-xs text-teal-700 hover:text-teal-800 font-medium cursor-pointer">Kaydet</button>
@@ -849,14 +853,7 @@
 	<form onsubmit={(e) => { e.preventDefault(); saveCat(); }} class="space-y-4">
 		<div>
 			<label for="cat-name" class="block text-sm font-medium text-gray-700 mb-1">Kategori Adı</label>
-			<input
-				id="cat-name"
-				type="text"
-				bind:value={catForm.name}
-				placeholder="Kategori adı girin"
-				class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-				required
-			/>
+			<Input id="cat-name" type="text" size="sm" bind:value={catForm.name} placeholder="Kategori adı girin" required />
 		</div>
 		<div>
 			<span class="block text-sm font-medium text-gray-700 mb-1">Tür</span>

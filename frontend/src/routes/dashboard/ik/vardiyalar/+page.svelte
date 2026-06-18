@@ -11,6 +11,7 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import { Plus, Pencil, Trash2, Clock, CalendarClock } from 'lucide-svelte';
 
 	type Shift = {
@@ -179,7 +180,7 @@
 	<div class="space-y-4">
 		<div>
 			<label for="sf-name" class="block text-sm font-medium text-gray-700 mb-1">Vardiya Adı <span class="text-red-500">*</span></label>
-			<input id="sf-name" type="text" bind:value={form.name} placeholder="Sabah, Akşam, Gece…" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+			<Input id="sf-name" size="sm" bind:value={form.name} placeholder="Sabah, Akşam, Gece…" />
 		</div>
 		<div>
 			<span class="block text-sm font-medium text-gray-700 mb-1">Renk</span>
@@ -192,11 +193,11 @@
 		<div class="grid grid-cols-2 gap-3">
 			<div>
 				<label for="sf-start" class="block text-sm font-medium text-gray-700 mb-1">Başlangıç <span class="text-red-500">*</span></label>
-				<input id="sf-start" type="time" bind:value={form.start_time} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-teal-500 outline-none" />
+				<Input id="sf-start" type="time" size="sm" bind:value={form.start_time} class="tabular-nums" />
 			</div>
 			<div>
 				<label for="sf-end" class="block text-sm font-medium text-gray-700 mb-1">Bitiş <span class="text-red-500">*</span></label>
-				<input id="sf-end" type="time" bind:value={form.end_time} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-teal-500 outline-none" />
+				<Input id="sf-end" type="time" size="sm" bind:value={form.end_time} class="tabular-nums" />
 			</div>
 		</div>
 		<p class="text-xs text-gray-400 -mt-2">Bitiş, başlangıçtan küçük/eşitse vardiya gece yarısını geçer (ör. 23:00–07:00).</p>
@@ -209,18 +210,18 @@
 			<div class="grid grid-cols-2 gap-3 pl-1 border-l-2 border-amber-200">
 				<div>
 					<label for="sf-start2" class="block text-xs font-medium text-gray-600 mb-1">2. Başlangıç</label>
-					<input id="sf-start2" type="time" bind:value={form.start_time2} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-teal-500 outline-none" />
+					<Input id="sf-start2" type="time" size="sm" bind:value={form.start_time2} class="tabular-nums" />
 				</div>
 				<div>
 					<label for="sf-end2" class="block text-xs font-medium text-gray-600 mb-1">2. Bitiş</label>
-					<input id="sf-end2" type="time" bind:value={form.end_time2} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-teal-500 outline-none" />
+					<Input id="sf-end2" type="time" size="sm" bind:value={form.end_time2} class="tabular-nums" />
 				</div>
 			</div>
 		{/if}
 
 		<div>
 			<label for="sf-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama (opsiyonel)</label>
-			<input id="sf-desc" type="text" bind:value={form.description} placeholder="Hangi departman/görev…" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+			<Input id="sf-desc" size="sm" bind:value={form.description} placeholder="Hangi departman/görev…" />
 		</div>
 		<label class="flex items-center gap-2 cursor-pointer">
 			<input type="checkbox" bind:checked={form.is_active} class="rounded border-gray-300 text-teal-700 focus:ring-teal-500" />

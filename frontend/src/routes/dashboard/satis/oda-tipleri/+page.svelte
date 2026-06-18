@@ -13,8 +13,10 @@
 	import { api, ApiError } from '$lib/api';
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import ListPage from '$lib/components/ListPage.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { validateRequired } from '$lib/utils/validation';
@@ -363,12 +365,14 @@
 				<label for="rt-code" class="block text-sm font-medium text-gray-700 mb-1">
 					Kod <span class="text-red-600">*</span>
 				</label>
-				<input
+				<Input
 					id="rt-code"
 					type="text"
+					size="sm"
 					bind:value={form.code}
+					invalid={!!fieldErrors.code}
 					placeholder="STD KARA"
-					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono uppercase {fieldErrors.code ? 'border-red-300' : 'border-gray-300'}"
+					class="font-mono uppercase"
 				/>
 				{#if fieldErrors.code}
 					<p class="text-xs text-red-600 mt-1">{fieldErrors.code}</p>
@@ -380,12 +384,13 @@
 				<label for="rt-name" class="block text-sm font-medium text-gray-700 mb-1">
 					Adı <span class="text-red-600">*</span>
 				</label>
-				<input
+				<Input
 					id="rt-name"
 					type="text"
+					size="sm"
 					bind:value={form.name}
+					invalid={!!fieldErrors.name}
 					placeholder="Standart Kara Manzaralı"
-					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.name ? 'border-red-300' : 'border-gray-300'}"
 				/>
 				{#if fieldErrors.name}
 					<p class="text-xs text-red-600 mt-1">{fieldErrors.name}</p>
@@ -398,12 +403,13 @@
 				<label for="rt-total" class="block text-sm font-medium text-gray-700 mb-1">
 					Oda Sayısı <span class="text-red-600">*</span>
 				</label>
-				<input
+				<Input
 					id="rt-total"
 					type="number"
+					size="sm"
 					bind:value={form.total_rooms}
+					invalid={!!fieldErrors.total_rooms}
 					min="0"
-					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.total_rooms ? 'border-red-300' : 'border-gray-300'}"
 				/>
 				{#if fieldErrors.total_rooms}
 					<p class="text-xs text-red-600 mt-1">{fieldErrors.total_rooms}</p>
@@ -413,13 +419,14 @@
 				<label for="rt-max" class="block text-sm font-medium text-gray-700 mb-1">
 					Maks. Kişi
 				</label>
-				<input
+				<Input
 					id="rt-max"
 					type="number"
+					size="sm"
 					bind:value={form.max_occupancy}
+					invalid={!!fieldErrors.max_occupancy}
 					min="1"
 					max="20"
-					class="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.max_occupancy ? 'border-red-300' : 'border-gray-300'}"
 				/>
 				{#if fieldErrors.max_occupancy}
 					<p class="text-xs text-red-600 mt-1">{fieldErrors.max_occupancy}</p>
@@ -429,12 +436,12 @@
 				<label for="rt-sort" class="block text-sm font-medium text-gray-700 mb-1">
 					Sıra
 				</label>
-				<input
+				<Input
 					id="rt-sort"
 					type="number"
+					size="sm"
 					bind:value={form.sort_order}
 					min="0"
-					class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
 				/>
 			</div>
 		</div>
@@ -443,13 +450,12 @@
 			<label for="rt-desc" class="block text-sm font-medium text-gray-700 mb-1">
 				Açıklama
 			</label>
-			<textarea
+			<Textarea
 				id="rt-desc"
 				bind:value={form.description}
-				rows="2"
+				rows={2}
 				placeholder="Notlar veya özellikler"
-				class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-			></textarea>
+			/>
 		</div>
 
 		<div class="flex items-center gap-3">

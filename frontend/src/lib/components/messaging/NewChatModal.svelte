@@ -2,6 +2,8 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { focusTrap } from '$lib/utils/focus-trap';
+	import Input from '$lib/components/Input.svelte';
+	import { Search } from 'lucide-svelte';
 	import type { ChatUser } from '$lib/types/messaging';
 
 	let {
@@ -63,12 +65,13 @@
 			</div>
 
 			<div class="px-4 py-3 border-b border-gray-100">
-				<input
-					type="text"
+				<Input
+					type="search"
+					icon={Search}
+					size="sm"
 					bind:value={userSearchQuery}
 					oninput={handleSearchInput}
 					placeholder="Kullanıcı ara..."
-					class="w-full px-3 py-2 bg-gray-100 rounded-lg text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 transition-all"
 				/>
 			</div>
 

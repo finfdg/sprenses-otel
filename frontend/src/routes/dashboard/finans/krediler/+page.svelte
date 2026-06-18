@@ -14,6 +14,9 @@
 	import { CreditCard, ChevronRight, FileDown, Plus, Loader2, CheckCircle2 } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 	import type { LatestRates } from '$lib/types/exchange-rate';
 
 	// Generic silme onayı state
@@ -873,17 +876,17 @@
 
 	<!-- Filtreler -->
 	<div class="flex flex-wrap gap-2 mb-3 sm:mb-4">
-		<select bind:value={typeFilter} onchange={loadData} class="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 sm:px-3 py-1.5 bg-white flex-1 sm:flex-none">
+		<Select size="sm" fullWidth={false} bind:value={typeFilter} onchange={loadData} class="flex-1 sm:flex-none">
 			<option value="">Tüm Tipler</option>
 			{#each PRODUCT_TYPES as t}
 				<option value={t}>{TYPE_LABELS[t]}</option>
 			{/each}
-		</select>
-		<select bind:value={statusFilter} onchange={loadData} class="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 sm:px-3 py-1.5 bg-white flex-1 sm:flex-none">
+		</Select>
+		<Select size="sm" fullWidth={false} bind:value={statusFilter} onchange={loadData} class="flex-1 sm:flex-none">
 			<option value="active">Aktif</option>
 			<option value="closed">Kapalı</option>
 			<option value="">Tümü</option>
-		</select>
+		</Select>
 	</div>
 
 	<!-- Kredi Kartı Ekstre Sürükle-Bırak (ortak) -->
@@ -1418,34 +1421,34 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 			<div>
 				<label for="k-type" class="text-xs text-gray-500 mb-1 block">Tip</label>
-				<select id="k-type" bind:value={form.type} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" disabled={!!editProduct}>
+				<Select id="k-type" bind:value={form.type} size="sm" disabled={!!editProduct}>
 					{#each PRODUCT_TYPES as t}
 						<option value={t}>{TYPE_LABELS[t]}</option>
 					{/each}
-				</select>
+				</Select>
 			</div>
 			<div>
 				<label for="k-currency" class="text-xs text-gray-500 mb-1 block">Para Birimi</label>
-				<select id="k-currency" bind:value={form.currency} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50">
+				<Select id="k-currency" bind:value={form.currency} size="sm">
 					<option value="TRY">TRY</option>
 					<option value="USD">USD</option>
 					<option value="EUR">EUR</option>
-				</select>
+				</Select>
 			</div>
 		</div>
 		<div>
 			<label for="k-name" class="text-xs text-gray-500 mb-1 block">Ürün Adı</label>
-			<input id="k-name" bind:value={form.name} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="ör: Ziraat TL Taksitli Kredi" required />
+			<Input id="k-name" bind:value={form.name} size="sm" placeholder="ör: Ziraat TL Taksitli Kredi" required />
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 			<div>
 				<label for="k-bank" class="text-xs text-gray-500 mb-1 block">Banka</label>
-				<input id="k-bank" bind:value={form.bank_name} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="Banka adı" />
+				<Input id="k-bank" bind:value={form.bank_name} size="sm" placeholder="Banka adı" />
 			</div>
 			{#if form.type === 'leasing'}
 				<div>
 					<label for="k-company" class="text-xs text-gray-500 mb-1 block">Kurum</label>
-					<input id="k-company" bind:value={form.company} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" placeholder="Leasing şirketi" />
+					<Input id="k-company" bind:value={form.company} size="sm" placeholder="Leasing şirketi" />
 				</div>
 			{/if}
 		</div>
@@ -1474,16 +1477,16 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 			<div>
 				<label for="k-start" class="text-xs text-gray-500 mb-1 block">Başlangıç</label>
-				<input id="k-start" type="date" bind:value={form.start_date} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" />
+				<Input id="k-start" type="date" bind:value={form.start_date} size="sm" />
 			</div>
 			<div>
 				<label for="k-end" class="text-xs text-gray-500 mb-1 block">Bitiş / Vade</label>
-				<input id="k-end" type="date" bind:value={form.end_date} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" />
+				<Input id="k-end" type="date" bind:value={form.end_date} size="sm" />
 			</div>
 		</div>
 		<div>
 			<label for="k-notes" class="text-xs text-gray-500 mb-1 block">Notlar</label>
-			<textarea id="k-notes" bind:value={form.notes} rows="2" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 resize-none" placeholder="Opsiyonel notlar"></textarea>
+			<Textarea id="k-notes" bind:value={form.notes} rows={2} placeholder="Opsiyonel notlar" />
 		</div>
 		<div class="flex justify-end gap-2 pt-2">
 			<Button type="button" variant="secondary" onclick={() => showAddModal = false}>İptal</Button>
@@ -1498,11 +1501,11 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 			<div>
 				<label for="kp-count" class="text-xs text-gray-500 mb-1 block">Taksit Sayısı</label>
-				<input id="kp-count" type="number" min="1" max="120" bind:value={paymentForm.count} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" required />
+				<Input id="kp-count" type="number" min="1" max="120" bind:value={paymentForm.count} size="sm" required />
 			</div>
 			<div>
 				<label for="kp-start" class="text-xs text-gray-500 mb-1 block">İlk Taksit Tarihi</label>
-				<input id="kp-start" type="date" bind:value={paymentForm.start_date} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50" required />
+				<Input id="kp-start" type="date" bind:value={paymentForm.start_date} size="sm" required />
 			</div>
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1553,11 +1556,11 @@
 		</div>
 		<div>
 			<label for="close-date" class="text-xs text-gray-500 mb-1 block">Kapanış Tarihi</label>
-			<input
+			<Input
 				id="close-date"
 				type="date"
 				bind:value={closeModal.closedDate}
-				class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50"
+				size="sm"
 			/>
 		</div>
 		<div class="flex items-center justify-end gap-2 pt-2">

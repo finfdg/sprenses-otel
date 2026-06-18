@@ -5,6 +5,7 @@
 	import ListPage from '$lib/components/ListPage.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { onMount } from 'svelte';
 	import { CheckCircle2, Trash2 } from 'lucide-svelte';
 
@@ -143,12 +144,12 @@
 	{#snippet filters()}
 		<div class="min-w-[120px]">
 			<label for="hl-level" class="block text-xs font-medium text-gray-500 mb-1">Seviye</label>
-			<select id="hl-level" bind:value={filterLevel} onchange={applyFilter} class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
+			<Select id="hl-level" size="sm" bind:value={filterLevel} onchange={applyFilter}>
 				<option value="">Tümü</option>
 				<option value="ERROR">ERROR</option>
 				<option value="CRITICAL">CRITICAL</option>
 				<option value="WARNING">WARNING</option>
-			</select>
+			</Select>
 		</div>
 	{/snippet}
 

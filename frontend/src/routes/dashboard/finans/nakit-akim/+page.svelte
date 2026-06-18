@@ -9,6 +9,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import { Filter, AlertTriangle, Receipt } from 'lucide-svelte';
 	import {
 		cashFlowCache,
@@ -470,31 +471,31 @@
 	<div class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-3 flex items-end gap-3 flex-wrap">
 		<div class="flex flex-col gap-1">
 			<label class="text-xs text-gray-500 font-medium" for="cf-start">Başlangıç</label>
-			<input
+			<Input
 				id="cf-start"
 				type="date"
+				size="sm"
 				bind:value={filterStartDate}
-				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 outline-none"
 			/>
 		</div>
 		<div class="flex flex-col gap-1">
 			<label class="text-xs text-gray-500 font-medium" for="cf-end">Bitiş</label>
-			<input
+			<Input
 				id="cf-end"
 				type="date"
+				size="sm"
 				bind:value={filterEndDate}
-				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 outline-none"
 			/>
 		</div>
 		<div class="flex flex-col gap-1 flex-1 min-w-[200px]">
 			<label class="text-xs text-gray-500 font-medium" for="cf-search">Arama</label>
-			<input
+			<Input
 				id="cf-search"
 				type="text"
+				size="sm"
 				placeholder="Açıklama, banka, cari kodu..."
 				bind:value={filterSearch}
 				oninput={handleSearchInput}
-				class="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 outline-none"
 			/>
 		</div>
 		<button

@@ -8,6 +8,7 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import { ReceiptText, FileText, CircleCheck, CircleDashed, Search, X, Wallet } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { paid: 'Tahsil edildi', partial: 'Kısmi', open: 'Açık' };
@@ -166,7 +167,7 @@
 		<!-- Arama -->
 		<div class="relative ml-auto">
 			<Search size={15} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-			<input bind:value={search} oninput={onSearch} placeholder="Fatura no / müşteri ara" class="pl-8 pr-7 py-1.5 text-sm border border-gray-200 rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-teal-500/40" />
+			<Input size="sm" fullWidth={false} bind:value={search} oninput={onSearch} placeholder="Fatura no / müşteri ara" class="pl-8 pr-7 w-56" />
 			{#if search}
 				<button onclick={clearSearch} class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer" aria-label="Temizle"><X size={14} /></button>
 			{/if}

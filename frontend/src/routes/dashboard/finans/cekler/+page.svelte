@@ -11,6 +11,8 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Loader2 } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { pending: 'Bekliyor', paid: 'Ödendi', cancelled: 'İptal' };
@@ -351,11 +353,13 @@
 			<span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> İptal
 		</button>
 		<div class="flex-1"></div>
-		<input
+		<Input
 			type="text"
+			size="sm"
+			fullWidth={false}
 			placeholder="Çek no, cari adı ara..."
 			bind:value={search}
-			class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-teal-400 w-full sm:w-48"
+			class="w-full sm:w-48"
 		/>
 	</div>
 </div>
@@ -552,16 +556,18 @@
 <!-- Çek durumu — açık seçim (eski "gizli 3-döngülü toggle" yerine güvenli) -->
 {#snippet statusControl(check: Check)}
 	{#if canUse}
-		<select
+		<Select
+			size="sm"
+			fullWidth={false}
 			value={check.status}
 			onchange={(e) => updateStatus(check.id, e.currentTarget.value)}
 			aria-label="Çek durumu"
-			class="text-xs font-medium px-2 py-1 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500 {statusSelectClass(check.status)}"
+			class="font-medium {statusSelectClass(check.status)}"
 		>
 			<option value="pending">Bekliyor</option>
 			<option value="paid">Ödendi</option>
 			<option value="cancelled">İptal</option>
-		</select>
+		</Select>
 	{:else}
 		<StatusBadge type={STATUS_BADGE[check.status] ?? 'neutral'}>{STATUS_LABELS[check.status] ?? check.status}</StatusBadge>
 	{/if}

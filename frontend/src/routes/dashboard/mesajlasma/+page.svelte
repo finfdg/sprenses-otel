@@ -36,6 +36,8 @@
 	import NewGroupModal from '$lib/components/messaging/NewGroupModal.svelte';
 	import AddMemberModal from '$lib/components/messaging/AddMemberModal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import { Search } from 'lucide-svelte';
 	import { formatMsgTime, formatDateSeparator, shouldShowDateSeparator } from '$lib/types/messaging';
 
 	// ─── Derived ──────────────────────────────────────────────────────
@@ -176,9 +178,8 @@
 			{#if msg.showMessageSearch}
 				<div class="bg-white border-b border-gray-200 px-3 py-2 shrink-0">
 					<div class="relative">
-						<input type="text" bind:value={msg.messageSearchQuery} oninput={handleMessageSearchInput} placeholder="Mesajlarda ara..." class="w-full pl-9 pr-8 py-2 bg-gray-100 rounded-lg text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 focus:bg-white transition-all" />
-						<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-						<button onclick={() => { msg.showMessageSearch = false; msg.messageSearchQuery = ''; msg.messageSearchResults = []; }} class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer" aria-label="Mesaj aramayı kapat">
+						<Input type="search" icon={Search} size="sm" bind:value={msg.messageSearchQuery} oninput={handleMessageSearchInput} placeholder="Mesajlarda ara..." style="padding-right:2rem" />
+						<button onclick={() => { msg.showMessageSearch = false; msg.messageSearchQuery = ''; msg.messageSearchResults = []; }} class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer z-10" aria-label="Mesaj aramayı kapat">
 							<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
 						</button>
 					</div>

@@ -2,6 +2,7 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Input from '$lib/components/Input.svelte';
 	import type { GroupMember } from '$lib/types/messaging';
 
 	let {
@@ -119,11 +120,13 @@
 				<p class="text-xs text-gray-500 mb-1">Grup Adı</p>
 				{#if editingName}
 					<div class="flex items-center gap-2">
-						<input
+						<Input
 							type="text"
+							size="sm"
+							fullWidth={false}
 							bind:value={editNameValue}
 							onkeydown={(e) => { if (e.key === 'Enter') saveGroupName(); if (e.key === 'Escape') editingName = false; }}
-							class="flex-1 text-sm px-2 py-1 bg-gray-100 rounded-lg text-gray-900 outline-none focus:ring-2 focus:ring-teal-100"
+							class="flex-1"
 						/>
 						<button onclick={saveGroupName} class="text-xs text-teal-600 hover:text-teal-700 cursor-pointer font-medium">Kaydet</button>
 						<button onclick={() => editingName = false} class="text-xs text-gray-500 hover:text-gray-600 cursor-pointer">İptal</button>

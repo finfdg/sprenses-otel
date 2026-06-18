@@ -6,6 +6,8 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import {
 		Scale, ArrowDownUp, CheckCircle2, AlertTriangle, Hash, RefreshCw, Calendar,
 		ChevronLeft, ChevronRight, Loader2, Search, X, BookOpen
@@ -164,9 +166,9 @@
 				</button>
 				<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
 					<Calendar size={15} class="text-gray-400" />
-					<select bind:value={year} onchange={onYearChange} class="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+					<Select size="sm" fullWidth={false} bind:value={year} onchange={onYearChange}>
 						{#each years as y}<option value={y}>{y}</option>{/each}
-					</select>
+					</Select>
 				</label>
 				<button onclick={() => shiftYear(1)} aria-label="Sonraki yıl" title="Sonraki yıl"
 					class="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-teal-700">
@@ -177,9 +179,9 @@
 			<!-- Arama -->
 			<div class="relative flex-1 min-w-[180px] max-w-xs">
 				<Search size={15} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-				<input
-					bind:value={search} oninput={onSearch} placeholder="Hesap kodu / adı ara…"
-					class="w-full border border-gray-200 rounded-lg pl-8 pr-8 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
+				<Input
+					size="sm" fullWidth={false} bind:value={search} oninput={onSearch} placeholder="Hesap kodu / adı ara…"
+					class="w-full pl-8 pr-8" />
 				{#if search}
 					<button onclick={clearSearch} aria-label="Temizle" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={14} /></button>
 				{/if}

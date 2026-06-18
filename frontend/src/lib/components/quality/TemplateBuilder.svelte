@@ -1,4 +1,7 @@
 <script lang="ts">
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
+
 	interface FieldDraft {
 		label: string;
 		field_type: string;
@@ -150,11 +153,13 @@
 							<button type="button" onclick={() => moveSection(sIdx, -1)} class="text-gray-500 hover:text-gray-600 text-xs cursor-pointer p-1" title="Yukarı">▲</button>
 							<button type="button" onclick={() => moveSection(sIdx, 1)} class="text-gray-500 hover:text-gray-600 text-xs cursor-pointer p-1" title="Aşağı">▼</button>
 						</div>
-						<input
+						<Input
 							type="text"
+							size="sm"
+							fullWidth={false}
 							bind:value={section.name}
 							placeholder="Bölüm adı..."
-							class="flex-1 min-w-0 px-2 py-1.5 bg-white border border-gray-200 rounded text-sm outline-none focus:border-teal-400"
+							class="flex-1 min-w-0"
 						/>
 						<button
 							type="button"
@@ -183,12 +188,12 @@
 										<!-- Etiket -->
 										<div class="sm:col-span-4">
 											<span class="block text-xs text-gray-500 mb-1 sm:hidden">Etiket</span>
-											<input
+											<Input
 												type="text"
+												size="sm"
 												value={field.label}
-												oninput={(e) => updateField(sIdx, fIdx, 'label', e.currentTarget.value)}
+												oninput={(e) => updateField(sIdx, fIdx, 'label', (e.currentTarget as HTMLInputElement).value)}
 												placeholder="Alan etiketi..."
-												class="w-full px-2 py-2 sm:py-1.5 bg-gray-50 border border-gray-200 rounded text-sm outline-none focus:border-teal-400"
 											/>
 										</div>
 
@@ -196,26 +201,27 @@
 										<div class="flex gap-2 sm:contents">
 											<div class="flex-1 sm:col-span-2">
 												<span class="block text-xs text-gray-500 mb-1 sm:hidden">Tip</span>
-												<select
+												<Select
+													size="sm"
 													value={field.field_type}
 													onchange={(e) => updateField(sIdx, fIdx, 'field_type', e.currentTarget.value)}
-													class="w-full px-2 py-2 sm:py-1.5 bg-gray-50 border border-gray-200 rounded text-sm outline-none focus:border-teal-400"
 												>
 													{#each fieldTypes as ft}
 														<option value={ft.value}>{ft.label}</option>
 													{/each}
-												</select>
+												</Select>
 											</div>
 
 											<div class="flex-1 sm:col-span-2">
 												{#if field.field_type === 'number'}
 													<span class="block text-xs text-gray-500 mb-1 sm:hidden">Birim</span>
-													<input
+													<Input
 														type="text"
+														size="sm"
 														value={field.unit}
-														oninput={(e) => updateField(sIdx, fIdx, 'unit', e.currentTarget.value)}
+														oninput={(e) => updateField(sIdx, fIdx, 'unit', (e.currentTarget as HTMLInputElement).value)}
 														placeholder="kWh, m³..."
-														class="w-full px-2 py-2 sm:py-1.5 bg-gray-50 border border-gray-200 rounded text-xs outline-none focus:border-teal-400"
+														class="!text-xs"
 													/>
 												{/if}
 											</div>
@@ -262,12 +268,13 @@
 									<!-- Select seçenekleri -->
 									{#if field.field_type === 'select'}
 										<div>
-											<input
+											<Input
 												type="text"
+												size="sm"
 												value={field.options}
-												oninput={(e) => updateField(sIdx, fIdx, 'options', e.currentTarget.value)}
+												oninput={(e) => updateField(sIdx, fIdx, 'options', (e.currentTarget as HTMLInputElement).value)}
 												placeholder='Seçenekler: ["Seçenek A","Seçenek B","Seçenek C"]'
-												class="w-full px-2 py-2 sm:py-1.5 bg-gray-50 border border-gray-200 rounded text-xs outline-none focus:border-teal-400"
+												class="!text-xs"
 											/>
 											<p class="text-xs text-gray-500 mt-0.5">JSON formatında: ["A","B","C"]</p>
 										</div>
@@ -304,14 +311,16 @@
 				{#each assignees as a, idx}
 					{#if a.assignment_type === 'filler'}
 						<div class="flex items-center gap-2">
-							<select
+							<Select
+								size="sm"
+								fullWidth={false}
 								value={a.user_id ? `u-${a.user_id}` : a.role_id ? `r-${a.role_id}` : ''}
 								onchange={(e) => {
 									const v = e.currentTarget.value;
 									if (v.startsWith('u-')) setAssigneeUser(idx, parseInt(v.slice(2)));
 									else if (v.startsWith('r-')) setAssigneeRole(idx, parseInt(v.slice(2)));
 								}}
-								class="flex-1 min-w-0 px-2 py-2 sm:py-1.5 bg-gray-50 border border-gray-200 rounded text-sm outline-none focus:border-teal-400"
+								class="flex-1 min-w-0"
 							>
 								<option value="">Seçiniz</option>
 								<optgroup label="Kullanıcılar">
@@ -324,7 +333,7 @@
 										<option value="r-{r.id}">{r.name}</option>
 									{/each}
 								</optgroup>
-							</select>
+							</Select>
 							<button type="button" onclick={() => removeAssignee(idx)} class="text-red-400 hover:text-red-600 text-sm cursor-pointer p-1.5">✕</button>
 						</div>
 					{/if}
@@ -351,14 +360,16 @@
 				{#each assignees as a, idx}
 					{#if a.assignment_type === 'approver'}
 						<div class="flex items-center gap-2">
-							<select
+							<Select
+								size="sm"
+								fullWidth={false}
 								value={a.user_id ? `u-${a.user_id}` : a.role_id ? `r-${a.role_id}` : ''}
 								onchange={(e) => {
 									const v = e.currentTarget.value;
 									if (v.startsWith('u-')) setAssigneeUser(idx, parseInt(v.slice(2)));
 									else if (v.startsWith('r-')) setAssigneeRole(idx, parseInt(v.slice(2)));
 								}}
-								class="flex-1 min-w-0 px-2 py-2 sm:py-1.5 bg-gray-50 border border-gray-200 rounded text-sm outline-none focus:border-teal-400"
+								class="flex-1 min-w-0"
 							>
 								<option value="">Seçiniz</option>
 								<optgroup label="Kullanıcılar">
@@ -371,7 +382,7 @@
 										<option value="r-{r.id}">{r.name}</option>
 									{/each}
 								</optgroup>
-							</select>
+							</Select>
 							<button type="button" onclick={() => removeAssignee(idx)} class="text-red-400 hover:text-red-600 text-sm cursor-pointer p-1.5">✕</button>
 						</div>
 					{/if}

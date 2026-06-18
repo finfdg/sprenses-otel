@@ -8,6 +8,8 @@
 	import Button from '$lib/components/Button.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { validateRequired, validateModuleCode } from '$lib/utils/validation';
 	import { Plus, Pencil, Trash2, LayoutGrid } from 'lucide-svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
@@ -236,35 +238,35 @@
 	<div class="space-y-4">
 		<div>
 			<label for="m-name" class="block text-sm font-medium text-gray-700 mb-1">Modül Adı <span class="text-red-600">*</span></label>
-			<input id="m-name" bind:value={formName} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+			<Input id="m-name" bind:value={formName} invalid={!!fieldErrors.name} />
 			{#if fieldErrors.name}
 				<p class="text-red-600 text-xs mt-1">{fieldErrors.name}</p>
 			{/if}
 		</div>
 		<div>
 			<label for="m-code" class="block text-sm font-medium text-gray-700 mb-1">Kod <span class="text-red-600">*</span></label>
-			<input id="m-code" bind:value={formCode} placeholder="system.newmodule" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm font-mono outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+			<Input id="m-code" bind:value={formCode} placeholder="system.newmodule" invalid={!!fieldErrors.code} class="font-mono" />
 			{#if fieldErrors.code}
 				<p class="text-red-600 text-xs mt-1">{fieldErrors.code}</p>
 			{/if}
 		</div>
 		<div>
 			<label for="m-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama</label>
-			<input id="m-desc" bind:value={formDesc} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+			<Input id="m-desc" bind:value={formDesc} />
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="m-parent" class="block text-sm font-medium text-gray-700 mb-1">Üst Modül</label>
-				<select id="m-parent" bind:value={formParentId} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all">
+				<Select id="m-parent" bind:value={formParentId}>
 					<option value={null}>Yok (Ana modül)</option>
 					{#each getParentOptions() as p}
 						<option value={p.id}>{p.name}</option>
 					{/each}
-				</select>
+				</Select>
 			</div>
 			<div>
 				<label for="m-sort" class="block text-sm font-medium text-gray-700 mb-1">Sıra</label>
-				<input id="m-sort" type="number" bind:value={formSortOrder} class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 transition-all" />
+				<Input id="m-sort" type="number" bind:value={formSortOrder} />
 			</div>
 		</div>
 		<div class="flex items-center gap-2">

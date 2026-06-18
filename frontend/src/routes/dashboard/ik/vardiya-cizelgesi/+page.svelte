@@ -11,9 +11,11 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import {
 		CalendarDays, ChevronLeft, ChevronRight, Search, Copy, Users,
-		CalendarCheck, Gauge, Paintbrush, Eraser, MousePointerClick, X
+		CalendarCheck, Gauge, Paintbrush, Eraser, MousePointerClick
 	} from 'lucide-svelte';
 
 	type Shift = {
@@ -257,15 +259,13 @@
 				<span class="ml-1 text-base font-semibold text-gray-900 tabular-nums">{weekLabel}</span>
 			</div>
 			<div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-				<div class="relative flex-1 min-w-[140px] sm:flex-none">
-					<Search size={15} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-					<input type="text" bind:value={search} placeholder="Personel ara…" class="w-full sm:w-56 pl-8 pr-7 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-					{#if search}<button onclick={() => (search = '')} class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer" aria-label="Temizle"><X size={14} /></button>{/if}
+				<div class="flex-1 min-w-[140px] sm:flex-none">
+					<Input type="search" size="sm" icon={Search} clearable bind:value={search} placeholder="Personel ara…" class="w-full sm:w-56" />
 				</div>
-				<select bind:value={deptFilter} class="shrink-0 py-2 px-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-teal-500 outline-none cursor-pointer">
+				<Select size="sm" fullWidth={false} class="shrink-0" bind:value={deptFilter}>
 					<option value="">Tüm departmanlar</option>
 					{#each departments as d}<option value={d}>{d}</option>{/each}
-				</select>
+				</Select>
 			</div>
 		</div>
 

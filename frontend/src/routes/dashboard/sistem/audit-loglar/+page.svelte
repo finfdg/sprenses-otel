@@ -2,6 +2,7 @@
 	import { api } from '$lib/api';
 	import { onMount } from 'svelte';
 	import ListPage from '$lib/components/ListPage.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { ClipboardList } from 'lucide-svelte';
 
 	interface AuditLog {
@@ -123,16 +124,16 @@
 	{#snippet filters()}
 		<div class="flex-1 min-w-[120px]">
 			<label for="au-action" class="block text-xs font-medium text-gray-500 mb-1">Eylem</label>
-			<select id="au-action" bind:value={filterAction} onchange={applyFilter} class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
+			<Select id="au-action" size="sm" bind:value={filterAction} onchange={applyFilter}>
 				<option value="">Tümü</option>
 				{#each Object.entries(ACTION_LABELS) as [key, label]}
 					<option value={key}>{label}</option>
 				{/each}
-			</select>
+			</Select>
 		</div>
 		<div class="flex-1 min-w-[120px]">
 			<label for="au-entity" class="block text-xs font-medium text-gray-500 mb-1">Varlık Tipi</label>
-			<select id="au-entity" bind:value={filterEntity} onchange={applyFilter} class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white">
+			<Select id="au-entity" size="sm" bind:value={filterEntity} onchange={applyFilter}>
 				<option value="">Tümü</option>
 				<option value="auth">Kimlik Doğrulama</option>
 				<option value="user">Kullanıcı</option>
@@ -145,7 +146,7 @@
 				<option value="vendor">Cari</option>
 				<option value="department">Departman</option>
 				<option value="budget">Bütçe</option>
-			</select>
+			</Select>
 		</div>
 		<button
 			onclick={resetFilters}

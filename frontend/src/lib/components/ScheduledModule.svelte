@@ -13,6 +13,9 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
+	import Textarea from '$lib/components/Textarea.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import {
 		Plus, Pencil, Trash2, X, Check, Clock, ChevronDown, Search,
@@ -569,35 +572,28 @@
 
 	<!-- Filtre barı: Arama (sol) + Yıl seçici (sağ) -->
 	<div class="flex flex-col sm:flex-row sm:items-center gap-3">
-		<div class="relative flex-1 max-w-md">
-			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-			<input
-				type="text"
-				bind:value={searchInput}
-				placeholder="Ad, kategori veya nota göre ara..."
-				class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-			/>
-			{#if searchInput}
-				<button
-					onclick={() => (searchInput = '')}
-					aria-label="Aramayı temizle"
-					class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-600 rounded cursor-pointer"
-				>
-					<X size={14} />
-				</button>
-			{/if}
-		</div>
+		<Input
+			type="search"
+			icon={Search}
+			clearable
+			size="sm"
+			bind:value={searchInput}
+			placeholder="Ad, kategori veya nota göre ara..."
+			fullWidth={false}
+			class="flex-1 max-w-md"
+		/>
 		<div class="flex items-center gap-3 sm:ml-auto">
-			<select
+			<Select
 				bind:value={selectedYear}
 				onchange={() => loadData()}
 				aria-label="Yıl seçici"
-				class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+				size="sm"
+				fullWidth={false}
 			>
 				{#each [2025, 2026, 2027] as y (y)}
 					<option value={y}>{y}</option>
 				{/each}
-			</select>
+			</Select>
 		</div>
 	</div>
 
@@ -743,11 +739,11 @@
 										{#if isEditing && canUse}
 											<tr class="border-b border-gray-50 bg-teal-50/30">
 												<td class="px-4 py-2.5">
-													<select bind:value={entryForm.period_month} class="w-28 px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+													<Select bind:value={entryForm.period_month} fullWidth={false} class="w-28 !py-1">
 														{#each MONTH_NAMES as name, i}
 															<option value={i + 1}>{name}</option>
 														{/each}
-													</select>
+													</Select>
 												</td>
 												<td class="px-4 py-2.5 text-right">
 													<div class="w-32 ml-auto">
@@ -761,10 +757,10 @@
 													</label>
 												</td>
 												<td class="px-4 py-2.5">
-													<input type="date" bind:value={entryForm.paid_date} class="w-36 px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+													<Input type="date" bind:value={entryForm.paid_date} fullWidth={false} class="w-36 !py-1" />
 												</td>
 												<td class="px-4 py-2.5">
-													<input type="text" bind:value={entryForm.notes} placeholder="Not ekle..." class="w-full px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+													<Input type="text" bind:value={entryForm.notes} placeholder="Not ekle..." class="!py-1" />
 												</td>
 												<td class="px-4 py-2.5 text-center">
 													<div class="flex items-center justify-center gap-1">
@@ -879,19 +875,19 @@
 												</div>
 												<div>
 													<label for="se-period-{entry.id}" class="text-[10px] text-gray-500 uppercase font-medium">Dönem</label>
-													<select id="se-period-{entry.id}" bind:value={entryForm.period_month} class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+													<Select id="se-period-{entry.id}" size="sm" bind:value={entryForm.period_month}>
 													{#each MONTH_NAMES as name, i}
 														<option value={i + 1}>{name}</option>
 													{/each}
-												</select>
+												</Select>
 											</div>
 											<div>
 												<label for="se-entry-{entry.id}" class="text-[10px] text-gray-500 uppercase font-medium">Ödeme Tarihi</label>
-												<input id="se-entry-{entry.id}" type="date" bind:value={entryForm.entry_date} class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+												<Input id="se-entry-{entry.id}" type="date" size="sm" bind:value={entryForm.entry_date} />
 												</div>
 												<div>
 													<label for="se-paid-{entry.id}" class="text-[10px] text-gray-500 uppercase font-medium">Ödendi Tarihi</label>
-													<input id="se-paid-{entry.id}" type="date" bind:value={entryForm.paid_date} class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+													<Input id="se-paid-{entry.id}" type="date" size="sm" bind:value={entryForm.paid_date} />
 												</div>
 											</div>
 											<div class="flex items-center gap-4">
@@ -902,7 +898,7 @@
 											</div>
 											<div>
 												<label for="se-notes-{entry.id}" class="text-[10px] text-gray-500 uppercase font-medium">Not</label>
-												<input id="se-notes-{entry.id}" type="text" bind:value={entryForm.notes} placeholder="Not ekle..." class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+												<Input id="se-notes-{entry.id}" type="text" size="sm" bind:value={entryForm.notes} placeholder="Not ekle..." />
 											</div>
 										</div>
 									{:else}
@@ -987,10 +983,10 @@
 
 		<div>
 			<label for="name" class="block text-sm font-medium text-gray-700 mb-1">Ad *</label>
-			<input
+			<Input
 				id="name" type="text" bind:value={form.name}
 				placeholder="Adını girin"
-				class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+				size="sm"
 			/>
 		</div>
 
@@ -998,14 +994,14 @@
 			<div>
 				<label for="category" class="block text-sm font-medium text-gray-700 mb-1">{categoryLabel}</label>
 				{#if categories.length > 0}
-					<select id="category" bind:value={form.category} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+					<Select id="category" bind:value={form.category} size="sm">
 						<option value="">Seçiniz</option>
 						{#each categories as cat}
 							<option value={cat}>{cat}</option>
 						{/each}
-					</select>
+					</Select>
 				{:else}
-					<input id="category" type="text" bind:value={form.category} placeholder="Kategori" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+					<Input id="category" type="text" bind:value={form.category} placeholder="Kategori" size="sm" />
 				{/if}
 			</div>
 		{/if}
@@ -1017,45 +1013,45 @@
 			</div>
 			<div>
 				<label for="frequency" class="block text-sm font-medium text-gray-700 mb-1">Periyot</label>
-				<select id="frequency" bind:value={form.frequency} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+				<Select id="frequency" bind:value={form.frequency} size="sm">
 					<option value="monthly">Aylık</option>
 					<option value="quarterly">3 Aylık</option>
 					<option value="yearly">Yıllık</option>
-				</select>
+				</Select>
 			</div>
 		</div>
 
 		<div class="grid grid-cols-2 gap-4">
 			<div>
 				<label for="start_month" class="block text-sm font-medium text-gray-700 mb-1">Başlangıç Ayı</label>
-				<select id="start_month" bind:value={form.start_month} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+				<Select id="start_month" bind:value={form.start_month} size="sm">
 					{#each MONTH_NAMES as m, i}
 						<option value={i + 1}>{m}</option>
 					{/each}
-				</select>
+				</Select>
 			</div>
 			<div>
 				<label for="payment_day" class="block text-sm font-medium text-gray-700 mb-1">Ödeme Günü</label>
-				<input id="payment_day" type="number" min="1" max="28" bind:value={form.payment_day} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+				<Input id="payment_day" type="number" min="1" max="28" bind:value={form.payment_day} size="sm" />
 			</div>
 		</div>
 
 		{#if enableVendorSync}
 			<div>
 				<label for="billing_offset" class="block text-sm font-medium text-gray-700 mb-1">Fatura gecikmesi (ay)</label>
-				<select id="billing_offset" bind:value={form.billing_offset_months} class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+				<Select id="billing_offset" bind:value={form.billing_offset_months} size="sm">
 					<option value={0}>0 — fatura tüketim ayında kesilir (ör. elektrik, ay sonu)</option>
 					<option value={1}>1 — fatura sonraki ay kesilir (ör. su, ay başı)</option>
 					<option value={2}>2 ay</option>
 					<option value={3}>3 ay</option>
-				</select>
+				</Select>
 				<p class="text-[11px] text-gray-500 mt-1">Cari-bağlı kalemlerde, faturanın hangi tüketim ayına ait olduğunu belirler. Su faturası ay başında gelir (önceki ay tüketimi) → 1.</p>
 			</div>
 		{/if}
 
 		<div>
 			<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">Notlar</label>
-			<textarea id="notes" bind:value={form.notes} rows="2" placeholder="İsteğe bağlı notlar" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"></textarea>
+			<Textarea id="notes" bind:value={form.notes} rows={2} placeholder="İsteğe bağlı notlar" />
 		</div>
 
 		<div class="flex justify-end gap-3 pt-2">
@@ -1183,19 +1179,19 @@
 			<p class="text-sm text-gray-600">Bu talebi onaylamak istediğinize emin misiniz?</p>
 			<div>
 				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">Not <span class="text-gray-500 font-normal">(opsiyonel)</span></label>
-				<textarea id="action-note" bind:value={actionNote} rows="2" placeholder="Onay notu ekleyin..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"></textarea>
+				<Textarea id="action-note" bind:value={actionNote} rows={2} placeholder="Onay notu ekleyin..." />
 			</div>
 		{:else if actionType === 'reject'}
 			<p class="text-sm text-gray-600">Bu talebi reddetmek istediğinize emin misiniz?</p>
 			<div>
 				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">Red gerekçesi <span class="text-red-600">*</span></label>
-				<textarea id="action-note" bind:value={actionNote} rows="3" placeholder="Red gerekçenizi yazın..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"></textarea>
+				<Textarea id="action-note" bind:value={actionNote} rows={3} placeholder="Red gerekçenizi yazın..." />
 			</div>
 		{:else}
 			<p class="text-sm text-gray-600">Bu talebi düzeltme için iade etmek istediğinize emin misiniz?</p>
 			<div>
 				<label for="action-note" class="block text-sm font-medium text-gray-700 mb-1">İade gerekçesi <span class="text-red-600">*</span></label>
-				<textarea id="action-note" bind:value={actionNote} rows="3" placeholder="İade gerekçenizi yazın..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"></textarea>
+				<Textarea id="action-note" bind:value={actionNote} rows={3} placeholder="İade gerekçenizi yazın..." />
 			</div>
 		{/if}
 

@@ -14,6 +14,8 @@
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import {
 		Upload, Plus, Pencil, Trash2, Check, ChevronRight, Building2, FileText, FileSpreadsheet, Loader2
 	} from 'lucide-svelte';
@@ -914,83 +916,49 @@
 						<Plus size={20} class="text-gray-500" />
 					</div>
 				{/if}
-				<select
-					id="ba-bank"
-					bind:value={formBankSelect}
-					class="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500 bg-white"
-				>
+				<Select id="ba-bank" bind:value={formBankSelect} class="flex-1" fullWidth={false}>
 					<option value="" disabled>Banka seçin...</option>
 					{#each allBankNames as bank}
 						<option value={bank}>{bank}</option>
 					{/each}
 					<option value="__other__">Diğer (elle girin)</option>
-				</select>
+				</Select>
 			</div>
 			{#if formBankSelect === '__other__'}
-				<input
-					type="text"
-					bind:value={formBankCustom}
-					placeholder="Banka adını yazın..."
-					class="w-full mt-2 px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
-				/>
+				<Input type="text" bind:value={formBankCustom} placeholder="Banka adını yazın..." class="mt-2" />
 			{/if}
 		</div>
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="ba-iban" class="block text-sm font-medium text-gray-700 mb-1">IBAN</label>
-				<input
-					id="ba-iban"
-					type="text"
-					bind:value={formIban}
-					placeholder="TR..."
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500 font-mono"
-				/>
+				<Input id="ba-iban" type="text" bind:value={formIban} placeholder="TR..." class="font-mono" />
 			</div>
 			<div>
 				<label for="ba-currency" class="block text-sm font-medium text-gray-700 mb-1">Döviz Cinsi</label>
-				<select
-					id="ba-currency"
-					bind:value={formCurrency}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500 bg-white"
-				>
+				<Select id="ba-currency" bind:value={formCurrency}>
 					<option value="TRY">TRY (Türk Lirası)</option>
 					<option value="EUR">EUR (Euro)</option>
 					<option value="USD">USD (Dolar)</option>
-				</select>
+				</Select>
 			</div>
 		</div>
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="ba-branch" class="block text-sm font-medium text-gray-700 mb-1">Şube <span class="text-gray-500">(opsiyonel)</span></label>
-				<input
-					id="ba-branch"
-					type="text"
-					bind:value={formBranchName}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
-				/>
+				<Input id="ba-branch" type="text" bind:value={formBranchName} />
 			</div>
 			<div>
 				<label for="ba-accno" class="block text-sm font-medium text-gray-700 mb-1">Hesap No <span class="text-gray-500">(opsiyonel)</span></label>
-				<input
-					id="ba-accno"
-					type="text"
-					bind:value={formAccountNo}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
-				/>
+				<Input id="ba-accno" type="text" bind:value={formAccountNo} />
 			</div>
 		</div>
 
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="ba-holder" class="block text-sm font-medium text-gray-700 mb-1">Hesap Sahibi <span class="text-gray-500">(opsiyonel)</span></label>
-				<input
-					id="ba-holder"
-					type="text"
-					bind:value={formHolderName}
-					class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500"
-				/>
+				<Input id="ba-holder" type="text" bind:value={formHolderName} />
 			</div>
 			<div>
 				<label for="ba-blocked" class="block text-sm font-medium text-gray-700 mb-1">Bloke Tutarı <span class="text-gray-500">(opsiyonel)</span></label>
@@ -1021,7 +989,7 @@
 			</div>
 			<div>
 				<label for="mtx-date" class="block text-sm font-medium text-gray-700 mb-1">İşlem Tarihi <span class="text-red-500">*</span></label>
-				<input id="mtx-date" type="date" bind:value={manualForm.date} class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+				<Input id="mtx-date" type="date" size="sm" bind:value={manualForm.date} />
 			</div>
 			<div>
 				<span class="block text-sm font-medium text-gray-700 mb-1">Yön <span class="text-red-500">*</span></span>
@@ -1036,7 +1004,7 @@
 			</div>
 			<div>
 				<label for="mtx-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama <span class="text-red-500">*</span></label>
-				<input id="mtx-desc" type="text" bind:value={manualForm.description} placeholder="Ör: YKB ANTALYA hesabına virman" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+				<Input id="mtx-desc" type="text" size="sm" bind:value={manualForm.description} placeholder="Ör: YKB ANTALYA hesabına virman" />
 			</div>
 			{#if manualError}<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{manualError}</div>{/if}
 			<div class="flex justify-end gap-2 pt-1">

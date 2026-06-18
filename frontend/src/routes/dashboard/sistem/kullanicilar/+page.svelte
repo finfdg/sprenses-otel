@@ -11,6 +11,8 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { Plus, Pencil, KeyRound, Trash2, Users, Eye, EyeOff } from 'lucide-svelte';
 
 	const canUse = hasPermission('system.users', 'use');
@@ -271,35 +273,31 @@
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 			<div>
 				<label for="u-first" class="block text-sm font-medium text-gray-700 mb-1">Ad <span class="text-red-600">*</span></label>
-				<input id="u-first" bind:value={formFirstName} placeholder="Ad" aria-invalid={!!fieldErrors.first_name} aria-describedby={fieldErrors.first_name ? 'u-first-error' : undefined}
-					class="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.first_name ? 'border-red-400' : 'border-gray-300'}" />
+				<Input id="u-first" bind:value={formFirstName} placeholder="Ad" invalid={!!fieldErrors.first_name} aria-describedby={fieldErrors.first_name ? 'u-first-error' : undefined} />
 				{#if fieldErrors.first_name}<p id="u-first-error" class="text-xs text-red-600 mt-1">{fieldErrors.first_name}</p>{/if}
 			</div>
 			<div>
 				<label for="u-last" class="block text-sm font-medium text-gray-700 mb-1">Soyad</label>
-				<input id="u-last" bind:value={formLastName} placeholder="Soyad" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+				<Input id="u-last" bind:value={formLastName} placeholder="Soyad" />
 			</div>
 		</div>
 
 		<div>
 			<label for="u-username" class="block text-sm font-medium text-gray-700 mb-1">Kullanıcı Adı <span class="text-red-600">*</span></label>
-			<input id="u-username" bind:value={formUsername} placeholder="kullaniciadi" aria-invalid={!!fieldErrors.username} aria-describedby={fieldErrors.username ? 'u-username-error' : undefined}
-				class="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.username ? 'border-red-400' : 'border-gray-300'}" />
+			<Input id="u-username" bind:value={formUsername} placeholder="kullaniciadi" invalid={!!fieldErrors.username} aria-describedby={fieldErrors.username ? 'u-username-error' : undefined} />
 			{#if fieldErrors.username}<p id="u-username-error" class="text-xs text-red-600 mt-1">{fieldErrors.username}</p>{/if}
 		</div>
 
 		<div>
 			<label for="u-email" class="block text-sm font-medium text-gray-700 mb-1">E-posta <span class="text-gray-500 font-normal">(isteğe bağlı)</span></label>
-			<input id="u-email" type="email" bind:value={formEmail} placeholder="ornek@sprenses.com" aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'u-email-error' : undefined}
-				class="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.email ? 'border-red-400' : 'border-gray-300'}" />
+			<Input id="u-email" type="email" bind:value={formEmail} placeholder="ornek@sprenses.com" invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'u-email-error' : undefined} />
 			{#if fieldErrors.email}<p id="u-email-error" class="text-xs text-red-600 mt-1">{fieldErrors.email}</p>{/if}
 		</div>
 
 		<div>
 			<label for="u-password" class="block text-sm font-medium text-gray-700 mb-1">Şifre {#if editingUser}<span class="text-gray-500 font-normal">(boş bırakırsanız değişmez)</span>{:else}<span class="text-red-600">*</span>{/if}</label>
 			<div class="relative">
-				<input id="u-password" type={showPwd ? 'text' : 'password'} bind:value={formPassword} aria-invalid={!!fieldErrors.password} aria-describedby={fieldErrors.password ? 'u-password-error' : undefined}
-					class="w-full px-3 py-2.5 pr-10 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 {fieldErrors.password ? 'border-red-400' : 'border-gray-300'}" />
+				<Input id="u-password" type={showPwd ? 'text' : 'password'} bind:value={formPassword} invalid={!!fieldErrors.password} aria-describedby={fieldErrors.password ? 'u-password-error' : undefined} class="pr-10" />
 				<button type="button" onclick={() => showPwd = !showPwd} aria-label={showPwd ? 'Şifreyi gizle' : 'Şifreyi göster'} class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer">
 					{#if showPwd}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
 				</button>
@@ -309,9 +307,9 @@
 
 		<div>
 			<label for="u-role" class="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-			<select id="u-role" bind:value={formRoleId} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer">
+			<Select id="u-role" bind:value={formRoleId}>
 				{#each roles as r (r.id)}<option value={r.id}>{r.name}</option>{/each}
-			</select>
+			</Select>
 		</div>
 
 		<label class="flex items-center gap-2 cursor-pointer">
@@ -332,8 +330,7 @@
 		<div>
 			<label for="u-reset-pwd" class="block text-sm font-medium text-gray-700 mb-1">Yeni Şifre</label>
 			<div class="relative">
-				<input id="u-reset-pwd" type={showResetPwd ? 'text' : 'password'} bind:value={resetPassword} placeholder="En az 6 karakter"
-					class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+				<Input id="u-reset-pwd" type={showResetPwd ? 'text' : 'password'} bind:value={resetPassword} placeholder="En az 6 karakter" class="pr-10" />
 				<button type="button" onclick={() => showResetPwd = !showResetPwd} aria-label={showResetPwd ? 'Şifreyi gizle' : 'Şifreyi göster'} class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-600 cursor-pointer">
 					{#if showResetPwd}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
 				</button>

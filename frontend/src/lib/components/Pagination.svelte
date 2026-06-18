@@ -28,6 +28,7 @@
 
 <script lang="ts">
 	import { ChevronLeft, ChevronRight } from 'lucide-svelte';
+	import Select from '$lib/components/Select.svelte';
 
 	let {
 		page,
@@ -59,15 +60,16 @@
 <div class="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 text-sm">
 	<div class="flex items-center gap-2 text-gray-500">
 		<span>Sayfa boyutu:</span>
-		<select
+		<Select
+			size="sm"
+			fullWidth={false}
 			value={pageSize}
 			onchange={(e) => onPageSizeChange(parseInt(e.currentTarget.value))}
-			class="px-2 py-1 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm outline-none focus:border-teal-400 cursor-pointer"
 		>
 			{#each pageSizes as size (size)}
 				<option value={size}>{size}</option>
 			{/each}
-		</select>
+		</Select>
 		<span class="text-gray-500 hidden sm:inline">· Toplam {total}</span>
 	</div>
 

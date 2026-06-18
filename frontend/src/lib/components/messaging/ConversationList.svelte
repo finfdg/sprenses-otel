@@ -2,6 +2,8 @@
 	import type { ConversationItem } from '$lib/types/messaging';
 	import { formatTime, getConvDisplayName, getConvInitial } from '$lib/types/messaging';
 	import { onlinePresence } from '$lib/stores/websocket.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import { Search } from 'lucide-svelte';
 
 	let {
 		conversations,
@@ -113,10 +115,7 @@
 	</div>
 
 	<div class="px-3 py-2 border-b border-gray-100">
-		<div class="relative">
-			<input type="text" bind:value={searchQuery} placeholder="Konuşma ara..." class="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-base md:text-sm text-gray-900 placeholder-gray-400 outline-none focus:ring-2 focus:ring-teal-100 focus:bg-white transition-all" />
-			<svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-		</div>
+		<Input type="search" icon={Search} clearable size="sm" bind:value={searchQuery} placeholder="Konuşma ara..." />
 	</div>
 
 	<div class="flex-1 overflow-y-auto">

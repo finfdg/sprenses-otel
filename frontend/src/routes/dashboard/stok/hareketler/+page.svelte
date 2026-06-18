@@ -5,8 +5,10 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { formatCurrency } from '$lib/utils/finance';
-	import { ArrowRightLeft, Search, X } from 'lucide-svelte';
+	import { ArrowRightLeft, Search } from 'lucide-svelte';
 
 	const DIR_LABEL: Record<string, string> = { in: 'Alış', out: 'Çıkış', consume: 'Tüketim', count: 'Sayım', other: 'Diğer' };
 	const DIR_CLASS: Record<string, string> = {
@@ -61,22 +63,16 @@
 
 	<!-- Filtre barı -->
 	<div class="flex flex-col sm:flex-row sm:items-center gap-3">
-		<div class="relative flex-1 max-w-md">
-			<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-			<input type="text" bind:value={searchInput} placeholder="Ürün, tedarikçi veya belge no..."
-				class="w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
-			{#if searchInput}
-				<button onclick={() => (searchInput = '')} aria-label="Temizle" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 cursor-pointer"><X size={14} /></button>
-			{/if}
-		</div>
-		<select bind:value={direction} onchange={() => (page = 1)} aria-label="Hareket tipi"
-			class="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer sm:ml-auto">
+		<Input type="search" icon={Search} clearable bind:value={searchInput} placeholder="Ürün, tedarikçi veya belge no..."
+			size="sm" fullWidth={false} class="flex-1 max-w-md" />
+		<Select bind:value={direction} onchange={() => (page = 1)} aria-label="Hareket tipi"
+			size="sm" fullWidth={false} class="sm:ml-auto">
 			<option value="">Tüm Hareketler</option>
 			<option value="in">Alış / Giriş</option>
 			<option value="consume">Tüketim</option>
 			<option value="out">Çıkış / Transfer</option>
 			<option value="count">Sayım</option>
-		</select>
+		</Select>
 		<span class="text-xs text-gray-500 tabular-nums">{total} hareket</span>
 	</div>
 
