@@ -5,6 +5,7 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import invalidate_module_cache, require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -143,7 +144,7 @@ def update_role(
             background_tasks.add_task(
                 manager.send_to_users,
                 online_ids,
-                {"type": "permission_changed", "reason": "role_updated"},
+                {"type": WSEvent.PERMISSION_CHANGED, "reason": "role_updated"},
             )
 
     return build_role_response(role, db)

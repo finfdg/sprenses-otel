@@ -64,7 +64,8 @@
 	{:else if items.length === 0}
 		<EmptyState icon={Boxes} title="Ürün bulunamadı" description="Arama/filtre kriterine uygun ürün yok." />
 	{:else}
-		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+		<!-- Masaüstü: tablo -->
+		<div class="hidden sm:block bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			<table class="w-full text-sm">
 				<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
 					<tr>
@@ -87,6 +88,25 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+
+		<!-- Mobil: kart görünümü -->
+		<div class="sm:hidden space-y-2">
+			{#each items as p (p.id)}
+				<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3">
+					<div class="flex items-start justify-between gap-2">
+						<div class="min-w-0">
+							<div class="text-sm font-medium text-gray-800 truncate" title={p.name}>{p.name}</div>
+							<div class="text-xs text-gray-500 tabular-nums">{p.code || '—'}</div>
+						</div>
+						<span class="text-sm font-semibold text-gray-800 tabular-nums shrink-0">{formatCurrency(p.current_value, 'TRY')}</span>
+					</div>
+					<div class="mt-2 flex items-center justify-between text-xs">
+						<span class="text-gray-500">Stok: <span class="tabular-nums {p.current_stock > 0 ? 'text-gray-800' : 'text-gray-400'}">{p.current_stock.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</span></span>
+						<span class="text-gray-500 tabular-nums">Birim: {formatCurrency(p.last_cost, p.currency)}</span>
+					</div>
+				</div>
+			{/each}
 		</div>
 		<Pagination {page} {pageSize} {total} onPageChange={(p) => (page = p)} onPageSizeChange={(s) => { pageSize = s; page = 1; }} />
 	{/if}

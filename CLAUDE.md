@@ -257,7 +257,7 @@ TEMPLATE:
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations
-│   ├── tests/                   # pytest testleri (900+ test, ~%60 satır kapsamı)
+│   ├── tests/                   # pytest testleri (1170+ test, ~%60 satır kapsamı)
 │   │   ├── conftest.py          # Test fixture'ları (SAVEPOINT rollback)
 │   │   ├── test_health.py
 │   │   ├── test_auth.py
@@ -373,9 +373,10 @@ Projeye özel, git'te takip edilen (ekiple paylaşılan) Claude Code otomasyonla
 
 ### Kimlik Doğrulama
 - `POST /api/auth/login` — Giriş (rate limited: 5/dk)
-- `POST /api/auth/register` — Kayıt
 - `GET /api/auth/me` — Mevcut kullanıcı bilgisi
 - `POST /api/auth/change-password` — Şifre değiştirme (kendi şifresi)
+- `POST /api/auth/logout` — Çıkış (cookie temizle + oturum sonlandır)
+- **NOT:** Public self-service `POST /api/auth/register` **güvenlik nedeniyle kaldırıldı** (2026-06-19) — internete açık kayıt yetkisiz veri okuma yüzeyi yaratıyordu. Kullanıcılar yalnızca admin tarafından `POST /api/system/users/` ile oluşturulur.
 
 ### Sistem Yönetimi
 - `GET/POST/PATCH/DELETE /api/system/users/` — Kullanıcı CRUD (paginated)
@@ -973,6 +974,8 @@ Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen
 **Sapma kapatma (2026-06-17 mobil/tasarım geçişi):** emoji-as-icon → Lucide [cariler ödeme-yöntemi rozetleri 🏦💳💵📄📜 → Landmark/CreditCard/Banknote/FileText/Scroll; mizan lejant 📖 → "defter ikonu" (BookOpen zaten satır-aksiyonunda); otel-rezervasyon 👥 → Users]; mizan + fiş-icmali yükleme/lejant metinleri `text-gray-400` → `text-gray-500` (AA). **Denetim düzeltmesi:** önceki mobil denetimin "15 sayfa kart görünümü yok" bulgusu büyük ölçüde **yanlış pozitifti** — cekler/cariler/butce/audit-loglar/onay-akisi/otel-rezervasyon **zaten `sm:hidden` kart bloğuna sahip** (grep `overflow-x-auto`'yu görüp komşu kart bloğunu kaçırmış). **krediler de gerçek kart eksiği DEĞİL** (ikinci doğrulama): ana listesi zaten kart-tabanlı + responsive (başlıkta `hidden sm:inline` ile ikincil bilgi mobilde gizli), tek tablosu açılan **KMH/taksit çizelgesi** (8 sütun yoğun matris → yatay-scroll doğru kalıp, mizan/fiş-icmali gibi). Sonuç: **hiçbir liste sayfasında kart-görünümü rewrite gerekmiyor**. **Yapıldı (2026-06-17):** krediler 5 aksiyon butonuna (`+Taksit/Düzenle/Kapat/Yeniden Aç/Sil`) `touch-target` (mobil 44×44). **Kalan (dedikli görsel geçiş, mobil ekranda doğrulanmalı):** diğer sayfaların satır-aksiyon `touch-target`'ları; form ARIA (`aria-invalid`/`aria-describedby`) yayılımı; spinner→TableSkeleton; dekoratif `gray-300/400` kuyruğu; krediler detay butonlarının `Button.svelte`'e taşınması (inline bg hâlâ var).
 
 **Form-kontrol primitive geçişi (2026-06-18):** 160+ elle `<input>/<select>/<textarea>` (aynı `border rounded-lg … focus:ring-teal-500` dizisini kopyalayan) **4 yeni primitive'e** taşındı — `Input.svelte` (metin/tarih/sayı/arama), `Select.svelte`, `Textarea.svelte`, `Field.svelte` (label+`*`+hata+ARIA sarmalayıcı). Stil/odak-halkası/hata-kenarlığı artık **tek kaynak**. 43 dosya, ~126 kontrol örneği (76 Input + 33 Select + 8 Textarea + 9 Field). Primitive'ler `svelte/elements` (`HTMLInputAttributes`/`HTMLSelectAttributes`/`HTMLTextareaAttributes`) ile tiplenir → `onkeydown`/`onchange` olay parametreleri otomatik tipli (`(e)=>` implicit-any vermez; bu sınıf hatası geçiş sırasında butce/PaymentInstructions'ta yakalanıp primitive tarafında kökten çözüldü). "Soft" desen (bg-gray-50 + ring-teal-100; moduller/roller/mesajlaşma) ve sapkın odak-halkaları (red/amber/cyan/teal-100) standarda (border-gray-300 + ring-teal-500) **normalize edildi**. Doğrulama: `svelte-check` 0 hata, `npm run build` ✓, 274 vitest ✓. Detay: [`docs/ui-kurallari.md`](docs/ui-kurallari.md) (Form Field Pattern + primitive tablosu). **Bilinçli istisna (primitive'e alınmadı):** Login sayfası (`/+page.svelte`) bespoke auth tasarımı (px-4 py-3.5 rounded-xl, bg-gray-50→white, custom ikon+göster/gizle); `MessageInput.svelte` sohbet bestecisi (autogrow textarea + özel davranış); checkbox/radio/file (primitive yok); para → `MoneyInput`, dosya → `FileDropzone`.
+
+**Denetim sonrası kapatma (2026-06-19):** **`Button.svelte`'e `touch-target` gömüldü** → tüm Button-tabanlı satır-aksiyonları dokunmatik cihazlarda (pointer:coarse) otomatik 44×44px (masaüstü yoğunluğu etkilenmez; `@media (pointer: coarse)`). Bu tek değişiklik 49 sayfanın aksiyonlarını mobil-uyumlu yaptı. **cariler** gerçek mobil aksiyonları (IBAN varsayılan-yıldız/sil, vade kaydet/iptal) `touch-target`'e alındı + `gray-300→400` (AA). **Elle bg-teal/bg-rose butonlar → Button.svelte** (krediler detay+modal, otel-rezervasyon, cariler IBAN/upload/dept, onay modal) + buton-içi `animate-spin` → `<Button loading>`. **Elle spinner → Loader2/Skeleton** (doviz, kalite/sablonlar). **cariler 23 inline `<svg>` → Lucide** (dosyada 0 inline SVG kaldı). **cariler özet kartları → StatCard**. **stok/urunler·depolar·hareketler'e `sm:hidden` mobil kart** eklendi. **Gerçek gövde-metni `gray-400→500`** (mizan/krediler/cariler/devam-takip; em-dash placeholder + dekoratif ikon korundu). **Bilinçli atlanan StatCard dönüşümleri (sapma DEĞİL):** otel-rezervasyon KPI (YoY karşılaştırma rozeti — StatCard tek-değer modeline sığmaz), butce (tıklanabilir drill-down + çok-metrikli + progress-bar), krediler (tip-bazlı renk-kodlu tinted kart). Doğrulama: `svelte-check` 0 hata, `npm run build` ✓, 274 vitest ✓.
 
 **Bilinçli bırakılanlar (sapma DEĞİL):** döviz grafik lejantındaki `bg-teal-600` renk çizgisi (dekoratif, grafik rengiyle eşleşir); yoğun tablo satır-aksiyonları ikon-only (istisna); kalite şablon eşiği ve cariler vade günü `type="number"` (para değil — yüzde puanı/gün sayısı); stok/depolar bar'ı `bg-amber-400` (salt dekoratif, üzerinde metin yok); kiosk polling'i (public WS'siz sayfa).
 

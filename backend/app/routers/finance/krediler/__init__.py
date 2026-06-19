@@ -8,8 +8,9 @@ from ._helpers import (
     _regenerate_bch_payments,
     _regenerate_kmh_payments,
 )
+from app.utils.matching_service import _match_credits_to_bank
+
 from .kmh import router as kmh_router
-from .payments import _match_credits_to_bank
 from .payments import router as payments_router
 from .products import router as products_router
 from .summary import router as summary_router

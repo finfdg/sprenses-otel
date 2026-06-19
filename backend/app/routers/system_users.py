@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -165,13 +166,13 @@ def update_user(
         background_tasks.add_task(
             manager.send_to_user,
             user_id,
-            {"type": "force_logout", "reason": "account_disabled"},
+            {"type": WSEvent.FORCE_LOGOUT, "reason": "account_disabled"},
         )
     elif user.role_id != old_role_id:
         background_tasks.add_task(
             manager.send_to_user,
             user_id,
-            {"type": "permission_changed", "reason": "role_changed"},
+            {"type": WSEvent.PERMISSION_CHANGED, "reason": "role_changed"},
         )
 
     user = db.query(User).options(joinedload(User.role_rel)).filter(User.id == user.id).first()
@@ -218,7 +219,7 @@ async def reset_password(
 
     # Kullanıcı online ise oturum sonlandı bildirimi gönder
     await manager.send_to_user(user_id, {
-        "type": "session_expired",
+        "type": WSEvent.SESSION_EXPIRED,
         "reason": "Şifreniz sıfırlandığı için oturumunuz sonlandırıldı",
     })
 

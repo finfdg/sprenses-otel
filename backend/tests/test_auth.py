@@ -173,17 +173,15 @@ class TestLogin:
 
 
 class TestRegister:
-    """Kayıt endpoint'i testleri."""
+    """Public self-service kayıt endpoint'i GÜVENLİK NEDENİYLE KALDIRILDI (2026-06-19).
 
-    def _cleanup_user(self, db, username):
-        """Test kullanıcısını temizle."""
-        user = db.query(User).filter(User.username == username).first()
-        if user:
-            db.delete(user)
-            db.commit()
+    İç (B2B) yönetim paneli olduğundan internete açık kayıt, herkesin "Personel"
+    rolüyle yetkisiz oturum almasına izin veriyordu. Kullanıcılar yalnızca admin
+    tarafından POST /api/system/users/ ile oluşturulur.
+    """
 
-    def test_register_success(self, client, db):
-        """Geçerli bilgilerle kayıt başarılı olmalı."""
+    def test_register_endpoint_removed(self, client):
+        """/api/auth/register artık mevcut olmamalı (404 veya 405)."""
         response = client.post("/api/auth/register", json={
             "username": "newuser_reg",
             "email": "newuser_reg@sprenses.com",
@@ -191,130 +189,7 @@ class TestRegister:
             "first_name": "Yeni",
             "last_name": "Kullanıcı",
         })
-        assert response.status_code == 201
-        data = response.json()
-        assert "access_token" in data
-        assert data["user"]["username"] == "newuser_reg"
-        assert data["user"]["email"] == "newuser_reg@sprenses.com"
-        # Temizlik
-        self._cleanup_user(db, "newuser_reg")
-
-    def test_register_returns_cookie(self, client, db):
-        """Kayıt, HttpOnly cookie dönmeli."""
-        response = client.post("/api/auth/register", json={
-            "username": "newuser_cookie",
-            "email": "cookie@sprenses.com",
-            "password": "securepass123",
-            "first_name": "Cookie",
-            "last_name": "Test",
-        })
-        assert response.status_code == 201
-        assert "access_token" in response.cookies
-        self._cleanup_user(db, "newuser_cookie")
-
-    def test_register_duplicate_username(self, client, test_user):
-        """Aynı kullanıcı adı ile kayıt 409 dönmeli."""
-        response = client.post("/api/auth/register", json={
-            "username": "testuser_auth",
-            "email": "different@sprenses.com",
-            "password": "securepass123",
-            "first_name": "Duplicate",
-            "last_name": "User",
-        })
-        assert response.status_code == 409
-        assert "zaten kayıtlı" in response.json()["detail"].lower()
-
-    def test_register_duplicate_email(self, client, test_user):
-        """Aynı e-posta ile kayıt 409 dönmeli."""
-        response = client.post("/api/auth/register", json={
-            "username": "uniqueuser_xyz",
-            "email": "testauth@sprenses.com",
-            "password": "securepass123",
-            "first_name": "Duplicate",
-            "last_name": "Email",
-        })
-        assert response.status_code == 409
-        assert "e-posta zaten kayıtlı" in response.json()["detail"].lower()
-
-    def test_register_short_password(self, client):
-        """Kısa şifre ile kayıt 422 dönmeli."""
-        response = client.post("/api/auth/register", json={
-            "username": "shortpass_user",
-            "email": "shortpass@sprenses.com",
-            "password": "abc",
-            "first_name": "Short",
-            "last_name": "Pass",
-        })
-        assert response.status_code == 422
-
-    def test_register_short_username(self, client):
-        """Kısa kullanıcı adı ile kayıt 422 dönmeli."""
-        response = client.post("/api/auth/register", json={
-            "username": "ab",
-            "email": "short@sprenses.com",
-            "password": "securepass123",
-            "first_name": "Short",
-            "last_name": "User",
-        })
-        assert response.status_code == 422
-
-    def test_register_invalid_email(self, client):
-        """Geçersiz e-posta ile kayıt 422 dönmeli."""
-        response = client.post("/api/auth/register", json={
-            "username": "invalidemail_user",
-            "email": "not-an-email",
-            "password": "securepass123",
-            "first_name": "Invalid",
-            "last_name": "Email",
-        })
-        assert response.status_code == 422
-
-    def test_register_missing_fields(self, client):
-        """Eksik alanlarla kayıt 422 dönmeli."""
-        response = client.post("/api/auth/register", json={
-            "username": "incomplete",
-            "password": "securepass123",
-        })
-        assert response.status_code == 422
-
-    def test_register_rate_limiting(self, client, db):
-        """3 kayıt denemesinden sonra rate limit devreye girmeli."""
-        for i in range(3):
-            resp = client.post("/api/auth/register", json={
-                "username": f"ratelimit_user_{i}",
-                "email": f"ratelimit{i}@sprenses.com",
-                "password": "securepass123",
-                "first_name": "Rate",
-                "last_name": "Limit",
-            })
-
-        response = client.post("/api/auth/register", json={
-            "username": "ratelimit_user_extra",
-            "email": "ratelimitextra@sprenses.com",
-            "password": "securepass123",
-            "first_name": "Rate",
-            "last_name": "Limit",
-        })
-        assert response.status_code == 429
-
-        # Temizlik
-        for i in range(3):
-            self._cleanup_user(db, f"ratelimit_user_{i}")
-        self._cleanup_user(db, "ratelimit_user_extra")
-
-    def test_register_default_role(self, client, db):
-        """Kayıt olan kullanıcıya Personel rolü atanmalı."""
-        response = client.post("/api/auth/register", json={
-            "username": "rolecheck_user",
-            "email": "rolecheck@sprenses.com",
-            "password": "securepass123",
-            "first_name": "Role",
-            "last_name": "Check",
-        })
-        assert response.status_code == 201
-        user_data = response.json()["user"]
-        assert user_data["role"]["name"] == "Personel"
-        self._cleanup_user(db, "rolecheck_user")
+        assert response.status_code in (404, 405)
 
 
 # ==================== ME TESTLERİ ====================

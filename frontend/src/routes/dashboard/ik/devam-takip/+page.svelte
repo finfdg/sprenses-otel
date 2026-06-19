@@ -962,7 +962,7 @@
 				bind:value={settingsForm.refresh_sec}
 				class="tabular-nums"
 			/>
-			<p class="text-xs text-gray-400 mt-1">{settingsMeta.min}-{settingsMeta.max} sn arası · öneri: 10-15 sn (sakin), 5-7 sn (güvenli)</p>
+			<p class="text-xs text-gray-500 mt-1">{settingsMeta.min}-{settingsMeta.max} sn arası · öneri: 10-15 sn (sakin), 5-7 sn (güvenli)</p>
 		</div>
 		<div class="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-800 leading-snug">
 			⏱️ Karekod ekranda <strong>{settingsForm.refresh_sec} sn</strong>'de bir değişir ·
@@ -998,7 +998,7 @@
 		<div>
 			<label for="mf-time" class="block text-sm font-medium text-gray-700 mb-1">Zaman</label>
 			<Input id="mf-time" type="datetime-local" size="sm" bind:value={manualForm.punched_at} class="tabular-nums" />
-			<p class="text-xs text-gray-400 mt-1">Varsayılan: şimdi. Geçmiş bir an için değiştirebilirsiniz.</p>
+			<p class="text-xs text-gray-500 mt-1">Varsayılan: şimdi. Geçmiş bir an için değiştirebilirsiniz.</p>
 		</div>
 		<div>
 			<label for="mf-note" class="block text-sm font-medium text-gray-700 mb-1">Not (opsiyonel)</label>
@@ -1069,7 +1069,7 @@
 							{h.action === 'manual_punch' ? 'Elle oluşturuldu' : h.action === 'update' ? 'Düzenlendi' : h.action === 'delete' ? 'Silindi' : h.action}
 						</div>
 						{#if h.details}<div class="text-xs text-gray-500">{h.details}</div>{/if}
-						<div class="text-[11px] text-gray-400 mt-0.5">{h.user_name ?? 'Sistem'} · {fmtDateTime(h.created_at)}</div>
+						<div class="text-[11px] text-gray-500 mt-0.5">{h.user_name ?? 'Sistem'} · {fmtDateTime(h.created_at)}</div>
 					</li>
 				{/each}
 			</ol>

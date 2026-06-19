@@ -37,7 +37,8 @@
 	{:else if items.length === 0}
 		<EmptyState icon={Building2} title="Depo bulunamadı" description="Üst bardaki 'Sedna' butonuyla içe aktarın." />
 	{:else}
-		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+		<!-- Masaüstü: tablo -->
+		<div class="hidden sm:block bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 			<table class="w-full text-sm">
 				<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
 					<tr>
@@ -67,6 +68,28 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+
+		<!-- Mobil: kart görünümü -->
+		<div class="sm:hidden space-y-2">
+			{#each sorted as d (d.id)}
+				<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3">
+					<div class="flex items-start justify-between gap-2">
+						<div class="min-w-0">
+							<div class="text-sm font-medium text-gray-800 truncate">{d.name}</div>
+							<div class="text-xs text-gray-500 tabular-nums">{d.code}</div>
+						</div>
+						<span class="text-sm font-semibold text-gray-800 tabular-nums shrink-0">
+							{d.consumption_total > 0 ? formatCurrency(d.consumption_total, 'TRY') : '—'}
+						</span>
+					</div>
+					{#if d.consumption_total > 0}
+						<div class="mt-2 h-2 bg-gray-100 rounded-md overflow-hidden">
+							<div class="h-full bg-amber-400 rounded-md" style="width: {(d.consumption_total / maxCons) * 100}%"></div>
+						</div>
+					{/if}
+				</div>
+			{/each}
 		</div>
 	{/if}
 </div>

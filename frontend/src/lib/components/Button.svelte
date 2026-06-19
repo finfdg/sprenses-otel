@@ -60,8 +60,11 @@
 		md: 'text-sm px-4 py-2.5 gap-2',
 	};
 
+	// touch-target: yalnız dokunmatik cihazlarda (pointer: coarse) min 44×44px uygular
+	// (app.css, WCAG 2.5.5). Masaüstü yoğunluğu etkilenmez; tek noktadan tüm butonlar
+	// mobilde basılabilir olur — satır-aksiyonlarına ayrıca eklemeye gerek kalmaz.
 	let cls = $derived(
-		'inline-flex items-center justify-center font-medium rounded-lg transition-colors cursor-pointer ' +
+		'inline-flex items-center justify-center font-medium rounded-lg transition-colors cursor-pointer touch-target ' +
 		'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ' +
 		'disabled:opacity-50 disabled:cursor-not-allowed ' +
 		VARIANTS[variant] + ' ' + SIZES[size] + (fullWidth ? ' w-full' : '') +

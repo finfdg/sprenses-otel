@@ -1,4 +1,5 @@
 """Verilen çekler endpoint'leri."""
+import asyncio
 import logging
 import math
 import os
@@ -26,6 +27,7 @@ from app.utils.file_validation import validate_upload_file
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.utils.matching_service import _match_checks_to_bank
 from app.utils.sedna_client import SednaUnavailable, fetch_issued_checks, sedna_configured
 
 logger = logging.getLogger(__name__)
@@ -91,7 +93,8 @@ async def upload_checks(
         f.write(content)
 
     try:
-        parsed = parse_check_excel(file_path)
+        # CPU-yoğun Excel parse'ı threadpool'a al → event loop bloke olmaz (eşzamanlı istekler beklemez)
+        parsed = await asyncio.to_thread(parse_check_excel, file_path)
     except Exception as e:
         logger.error("Çek dosyası ayrıştırma hatası (%s): %s", file.filename, e, exc_info=True)
         if os.path.exists(file_path):
@@ -641,102 +644,6 @@ def update_check_status(
 
 
 # ─── Otomatik Eşleştirme ────────────────────────────────
-
-
-def _match_checks_to_bank(db: Session) -> dict:
-    """Bekleyen çekleri banka işlemleriyle eşleştir.
-
-    Eşleştirme önceliği:
-    1. Çek numarası banka açıklamasında geçiyor + tutar eşleşiyor (kesin)
-    2. Tutar + tarih (±3 gün) eşleşiyor (yüksek güvenilirlik)
-
-    Eşleşen çekler 'paid' olarak işaretlenir.
-    """
-    from collections import defaultdict
-
-    # Eşleşmemiş bekleyen çekler
-    pending_checks = (
-        db.query(Check)
-        .filter(Check.status == "pending", Check.bank_transaction_id.is_(None))
-        .all()
-    )
-    if not pending_checks:
-        return {"matched": 0, "total_pending": 0}
-
-    # Eşleşmemiş banka gider işlemleri (çekle eşleşmemiş olanlar)
-    already_matched_ids = set(
-        r[0] for r in
-        db.query(Check.bank_transaction_id)
-        .filter(Check.bank_transaction_id.isnot(None))
-        .all()
-    )
-
-    bank_expenses = (
-        db.query(BankTransaction)
-        .filter(BankTransaction.type == "expense")
-        .all()
-    )
-
-    # Tutar bazlı index
-    btx_by_amount = defaultdict(list)
-    for tx in bank_expenses:
-        if tx.id not in already_matched_ids:
-            btx_by_amount[round(abs(float(tx.amount)), 2)].append(tx)
-
-    matched_count = 0
-    used_btx_ids = set()
-
-    for check in pending_checks:
-        # Hem TL hem döviz tutarıyla aday ara
-        amt_tl = round(float(check.amount_tl), 2)
-        amt_cur = round(float(check.amount_currency), 2)
-        candidates = btx_by_amount.get(amt_tl, [])
-        if amt_cur != amt_tl:
-            candidates = candidates + btx_by_amount.get(amt_cur, [])
-
-        best_match = None
-        best_score = 0
-
-        # Çek numarasını normalize et (baştaki sıfırları kaldır)
-        check_no_stripped = check.check_no.lstrip("0")
-
-        for tx in candidates:
-            if tx.id in used_btx_ids:
-                continue
-
-            date_diff = abs((tx.date - check.due_date).days)
-            if date_diff > 10:
-                continue
-
-            score = 0
-            desc_upper = tx.description.upper()
-
-            # Çek numarası açıklamada geçiyor → kesin eşleşme
-            # Hem orijinal hem sıfırsız versiyonunu kontrol et
-            if check.check_no in desc_upper or (check_no_stripped and check_no_stripped in desc_upper):
-                score = 100 - date_diff
-
-            # Çek numarası yok ama çek ödeme ifadesi + tutar+tarih
-            elif date_diff <= 5 and ("TAKAS" in desc_upper or "ÇEKLE" in desc_upper or "CEKLE" in desc_upper or "ÇEK NO" in desc_upper or "CEK NO" in desc_upper or "TAKAS CEKI" in desc_upper or "ÇEK" in desc_upper and "ÖDEME" in desc_upper):
-                score = 60 - date_diff * 5
-
-            if score > best_score:
-                best_score = score
-                best_match = tx
-
-        if best_match and best_score >= 20:
-            check.bank_transaction_id = best_match.id
-            check.status = "paid"
-            used_btx_ids.add(best_match.id)
-            matched_count += 1
-            db.flush()
-            # finance_events: çek is_matched=True, banka is_realized=True
-            finance_event_svc.match(db, "bank", best_match.id, "check", check.id)
-
-    return {
-        "matched": matched_count,
-        "total_pending": len(pending_checks),
-    }
 
 
 @router.post("/match-bank")

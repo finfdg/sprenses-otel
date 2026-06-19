@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.constants import WSEvent
 from app.models.notification import Notification
 from app.websocket.manager import manager
 
@@ -45,7 +46,7 @@ def create_notifications(
 def _notification_to_ws_event(n: Notification) -> dict:
     """Notification kaydını WS event dict'ine dönüştür."""
     return {
-        "type": "notification",
+        "type": WSEvent.NOTIFICATION,
         "notification": {
             "id": n.id,
             "type": n.type,

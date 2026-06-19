@@ -5,6 +5,34 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Denetim Sonrası İyileştirmeler (2026-06-19)
+
+Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
+
+- **Banka eşleştirme servisleri tek modülde (`utils/matching_service.py`):** `_match_cc_to_bank`,
+  `_match_checks_to_bank`, `_match_credits_to_bank` artık router'larda değil tek servis modülünde.
+  `banks.py` eskiden bu private fonksiyonları üç kardeş router'dan (`checks.py`, `krediler/`,
+  `banks_cc_match.py`) import ediyordu (katman/coupling ihlali) → artık hepsi `app.utils.matching_service`'ten.
+  `banks_cc_match.py` **silindi**; `checks.py`/`krediler/__init__.py` matcher'ı utils'ten re-import eder
+  (geriye uyum + iç kullanım korunur). Davranış birebir aynı (test: `test_banks_cc_match.py`).
+- **`sales_invoices` performansı:** `_compute` (FIFO) artık 30sn TTL cache'li (`_compute_cached`) — 4
+  endpoint (list/summary/advances + yonetim/dashboard) her okumada iki tam tabloyu yeniden RAM'e
+  çekmiyordu. `list_invoices` `status` filtresi yokken **gerçek SQL pagination** (count + offset/limit)
+  yapar; `status` filtresi FIFO'dan türediğinden o durumda DB-filtreli çekip Python'da sayfalar. İçe
+  aktarma sonrası `_invalidate_compute_cache()`. Test izolasyonu: conftest cache'i her test başında sıfırlar.
+- **Upload Excel/PDF parse'ı threadpool'da:** `banks.py`, `checks.py`, `cc_statements.py`,
+  `cariler/uploads.py` (+ `sales/reservations/uploads.py`) `async def` upload'larında CPU-yoğun parse
+  artık `await asyncio.to_thread(parse_..., path)` ile çağrılır → tek büyük dosya yüklenirken event
+  loop bloke olmaz (eşzamanlı istekler beklemez).
+- **`finance_event_service` sessiz hata yutmaz:** `upsert_*` + `match`/`unmatch`/`invalidate`/`sync_tag`
+  artık hatayı loglayıp **yeniden fırlatır** (`return None` yerine `raise`). Çağıranlar zaten
+  `_safe_commit`/try-except içinde → hata rollback'e gider, finance_events tutarsız (eksik kayıt)
+  commit edilmez. (`update_amount_try` sayı dönen cron yolu olduğundan dokunulmadı.)
+- **GZip + cache (genel):** `main.py`'ye `GZipMiddleware` (büyük JSON liste yanıtları sıkışır);
+  `yonetim/dashboard` ve `accounting/fis_icmali/summary` 60sn TTL cache (mizan deseni).
+
+---
+
 ## Cari — Sedna (Muhasebe SQL Server) Doğrudan İçe Aktarma (2026-06-06)
 
 Cariler, Excel'e ek olarak doğrudan Sedna muhasebe DB'sinden beslenir (ters SSH tüneli
@@ -818,7 +846,7 @@ Tüm yazma endpoint'leri bu context manager'ı kullanır:
 ## Test
 
 ```bash
-# Backend testleri (662+ test)
+# Backend testleri (1170+ test)
 cd backend && source venv/bin/activate && python -m pytest tests/ -v
 
 # Finans modülü testleri

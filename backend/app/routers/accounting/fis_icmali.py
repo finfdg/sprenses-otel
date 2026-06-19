@@ -6,6 +6,7 @@ Canlı Sedna sorgusu (yerel saklama yok): `AccountingOwner.RecordUser` (fişi ke
 """
 
 import logging
+import time
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,8 +24,24 @@ from app.utils.sedna_client import (
 logger = logging.getLogger(__name__)
 
 _MAX_RANGE_DAYS = 400  # günlük görünümde sütun patlamasını + ağır sorguyu sınırla
+_CACHE_TTL = 60        # saniye — aynı aralık/granularity/date_field tekrar sorgulanınca Sedna'yı yormaz (mizan deseni)
+_cache: dict = {}      # key → (expiry_ts, value)
 
 router = APIRouter()
+
+
+def _cached(key, producer):
+    """Basit süreç-içi TTL cache — fiş icmali özeti 60sn boyunca yeniden çekilmez."""
+    now = time.time()
+    hit = _cache.get(key)
+    if hit and hit[0] > now:
+        return hit[1]
+    val = producer()
+    _cache[key] = (now + _CACHE_TTL, val)
+    if len(_cache) > 32:  # sınırsız büyümeyi önle — süresi dolmuş girdileri temizle
+        for k in [k for k, (exp, _v) in _cache.items() if exp <= now]:
+            _cache.pop(k, None)
+    return val
 
 
 def _parse_iso(value: str, name: str) -> date:
@@ -89,7 +106,10 @@ def fis_icmali_summary(
         raise HTTPException(status_code=422, detail=f"Tarih aralığı en fazla {_MAX_RANGE_DAYS} gün olabilir.")
     end_excl = (ed + timedelta(days=1)).isoformat()  # bitiş dahil → SQL'de exclusive
     try:
-        rows = fetch_voucher_summary(sd.isoformat(), end_excl, granularity, date_field)
+        rows = _cached(
+            ("summary", sd.isoformat(), end_excl, granularity, date_field),
+            lambda: fetch_voucher_summary(sd.isoformat(), end_excl, granularity, date_field),
+        )
     except SednaUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
     return _build_pivot(rows, granularity, date_field, sd.isoformat(), ed.isoformat())

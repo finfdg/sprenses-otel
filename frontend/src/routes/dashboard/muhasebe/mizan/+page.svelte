@@ -279,7 +279,7 @@
 	{#if txLoading}
 		<div class="py-10 text-center text-gray-500 text-sm"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
 	{:else if !txData || txData.count === 0}
-		<p class="py-8 text-center text-gray-400 text-sm">Bu dönemde hareket yok.</p>
+		<p class="py-8 text-center text-gray-500 text-sm">Bu dönemde hareket yok.</p>
 	{:else}
 		<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mb-2">
 			<span>{txData.count} hareket{txData.truncated ? ' (ilk 1000)' : ''}</span>

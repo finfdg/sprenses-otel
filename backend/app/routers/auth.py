@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import COOKIE_NAME, get_current_user
-from app.middleware.rate_limit import get_client_ip, login_limiter, register_limiter
-from app.models.role import Role
+from app.middleware.rate_limit import get_client_ip, login_limiter
 from app.models.user import User
-from app.schemas.user import PasswordChange, TokenResponse, UserLogin, UserRegister, UserResponse
+from app.schemas.user import PasswordChange, TokenResponse, UserLogin, UserResponse
 from app.utils.audit import log_action
 from app.utils.response_builders import build_user_response
 from app.utils.security import create_access_token, generate_session_id, hash_password, verify_password
@@ -58,7 +58,7 @@ async def login(data: UserLogin, request: Request, response: Response, db: Sessi
     # Eski oturumu sonlandır (varsa)
     if user.active_session_id:
         await manager.send_to_user(user.id, {
-            "type": "session_expired",
+            "type": WSEvent.SESSION_EXPIRED,
             "reason": "Başka bir cihazdan giriş yapıldı",
         })
         log_action(
@@ -84,58 +84,11 @@ async def login(data: UserLogin, request: Request, response: Response, db: Sessi
     return TokenResponse(user=user_resp)
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(data: UserRegister, request: Request, response: Response, db: Session = Depends(get_db)):
-    client_ip = get_client_ip(request)
-    register_limiter.check(client_ip)
-    existing = db.query(User).filter(User.username == data.username).first()
-    if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bu kullanıcı adı zaten kayıtlı")
-
-    if data.email:
-        existing_email = db.query(User).filter(User.email == data.email).first()
-        if existing_email:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bu e-posta zaten kayıtlı")
-
-    # Default rol: Personel
-    default_role = db.query(Role).filter(Role.name == "Personel").first()
-    if not default_role:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Varsayılan rol yapılandırılmamış",
-        )
-
-    new_session_id = generate_session_id()
-    user = User(
-        username=data.username,
-        email=data.email,
-        hashed_password=hash_password(data.password),
-        first_name=data.first_name,
-        last_name=data.last_name,
-        role_id=default_role.id,
-        active_session_id=new_session_id,
-    )
-    db.add(user)
-    db.flush()
-
-    # role_rel'i eager load etmek için tek sorgu
-    user = (
-        db.query(User)
-        .options(joinedload(User.role_rel))
-        .filter(User.id == user.id)
-        .first()
-    )
-
-    token = create_access_token({"sub": str(user.id)}, session_id=new_session_id)
-    user_resp = build_user_response(user, db)
-
-    log_action(db, user.id, "register", "auth", ip_address=client_ip)
-    db.commit()  # Tek commit: kullanıcı + audit log
-
-    _set_auth_cookie(response, token)
-
-    # Token yalnızca HttpOnly cookie ile gönderilir, body'de döndürülmez
-    return TokenResponse(user=user_resp)
+# NOT: Public self-service kayıt (/register) GÜVENLİK NEDENİYLE KALDIRILDI (2026-06-19).
+# Bu bir iç (B2B) yönetim panelidir; internete açık kayıt, herkesin "Personel" rolüyle
+# kimlik doğrulanmış oturum alıp otel verisine (doluluk/rezervasyon vb.) yetkisiz okuma
+# yapmasına izin veriyordu. Kullanıcılar yalnızca admin tarafından
+# `POST /api/system/users/` (system.users:use izni) ile oluşturulur.
 
 
 @router.get("/me", response_model=UserResponse)

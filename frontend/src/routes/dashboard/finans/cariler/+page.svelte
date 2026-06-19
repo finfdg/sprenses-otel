@@ -15,8 +15,9 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
-	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll } from 'lucide-svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, ChevronUp, Check, X, Calendar, Download } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
+	import StatCard from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
@@ -863,28 +864,17 @@
 
 	<!-- Özet Kartları -->
 	{#if summary}
-		<div class="flex flex-wrap gap-3 sm:gap-4">
-			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-5 flex-1 min-w-[140px]">
-				<p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Toplam Borç</p>
-				<p class="text-base sm:text-xl font-bold text-rose-600 mt-1 sm:mt-2">{formatCurrency(summary.total_borc)}</p>
-			</div>
-			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-5 flex-1 min-w-[140px]">
-				<p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Toplam Alacak</p>
-				<p class="text-base sm:text-xl font-bold text-emerald-600 mt-1 sm:mt-2">{formatCurrency(summary.total_alacak)}</p>
-			</div>
-			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-5 flex-1 min-w-[140px]">
-				<p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Net Bakiye</p>
-				<p class="text-base sm:text-xl font-bold mt-1 sm:mt-2 {summary.bakiye > 0 ? 'text-rose-600' : summary.bakiye < 0 ? 'text-emerald-600' : 'text-gray-500'}">{formatCurrency(summary.bakiye)}</p>
-			</div>
-			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-5 flex-1 min-w-[140px]">
-				<p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Cari Borçları</p>
-				<p class="text-base sm:text-xl font-bold text-amber-600 mt-1 sm:mt-2">{formatCurrency(Math.abs(summary.negative_total))}</p>
-				<p class="text-[10px] text-gray-500 mt-0.5">{summary.negative_count} cari</p>
-			</div>
-			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 sm:p-5 flex-1 min-w-[140px]">
-				<p class="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">Cari Sayısı</p>
-				<p class="text-base sm:text-xl font-bold text-gray-900 mt-1 sm:mt-2">{summary.vendor_count}</p>
-			</div>
+		<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+			<StatCard label="Toplam Borç" value={formatCurrency(summary.total_borc)} accent="red" icon={TrendingDown} />
+			<StatCard label="Toplam Alacak" value={formatCurrency(summary.total_alacak)} accent="emerald" icon={TrendingUp} />
+			<StatCard
+				label="Net Bakiye"
+				value={formatCurrency(summary.bakiye)}
+				accent={summary.bakiye > 0 ? 'red' : summary.bakiye < 0 ? 'emerald' : 'gray'}
+				icon={Scale}
+			/>
+			<StatCard label="Cari Borçları" value={formatCurrency(Math.abs(summary.negative_total))} accent="amber" icon={Wallet} hint={`${summary.negative_count} cari`} />
+			<StatCard label="Cari Sayısı" value={summary.vendor_count} accent="gray" icon={Users} />
 		</div>
 	{/if}
 
@@ -923,9 +913,7 @@
 				onclick={() => downloadExcel(activeView === 'vendors' ? 'vendors' : 'payment-schedule')}
 				class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors"
 			>
-				<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-				</svg>
+				<Download size={16} />
 				Excel İndir
 			</button>
 		{/if}
@@ -991,9 +979,7 @@
 										class="ml-3 p-2 text-gray-500 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
 										title="Sil"
 									>
-										<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-										</svg>
+										<Trash2 size={16} />
 									</button>
 								{/if}
 							</div>
@@ -1047,7 +1033,7 @@
 						<button class="col-span-2 flex items-center gap-1 cursor-pointer hover:text-gray-700" onclick={() => toggleSort('hesap_adi')}>
 							Hesap Adı
 							{#if sortBy === 'hesap_adi'}
-								<svg class="w-3 h-3 {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
 							{/if}
 						</button>
 						<div class="col-span-1 text-center">Vade</div>
@@ -1055,19 +1041,19 @@
 						<button class="col-span-2 flex items-center gap-1 justify-end cursor-pointer hover:text-gray-700" onclick={() => toggleSort('total_borc')}>
 							Borç
 							{#if sortBy === 'total_borc'}
-								<svg class="w-3 h-3 {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
 							{/if}
 						</button>
 						<button class="col-span-2 flex items-center gap-1 justify-end cursor-pointer hover:text-gray-700" onclick={() => toggleSort('total_alacak')}>
 							Alacak
 							{#if sortBy === 'total_alacak'}
-								<svg class="w-3 h-3 {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
 							{/if}
 						</button>
 						<button class="col-span-2 flex items-center gap-1 justify-end cursor-pointer hover:text-gray-700" onclick={() => toggleSort('bakiye')}>
 							Bakiye
 							{#if sortBy === 'bakiye'}
-								<svg class="w-3 h-3 {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
 							{/if}
 						</button>
 					</div>
@@ -1083,7 +1069,7 @@
 							>
 								{col.label}
 								{#if sortBy === col.key}
-									<svg class="w-2.5 h-2.5 inline {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+									<ChevronUp size={10} class="inline {sortDir === 'desc' ? 'rotate-180' : ''}" />
 								{/if}
 							</button>
 						{/each}
@@ -1120,17 +1106,17 @@
 										<button
 											onclick={(e) => { e.stopPropagation(); savePaymentDays(vendor.id); }}
 											disabled={savingPaymentDays}
-											class="p-0.5 text-teal-600 hover:text-teal-800 disabled:opacity-50"
+											class="touch-target inline-flex items-center justify-center p-0.5 text-teal-600 hover:text-teal-800 disabled:opacity-50 cursor-pointer"
 											title="Kaydet"
 										>
-											<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+											<Check size={14} />
 										</button>
 										<button
 											onclick={(e) => { e.stopPropagation(); cancelEditPaymentDays(); }}
-											class="p-0.5 text-gray-500 hover:text-red-600"
+											class="touch-target inline-flex items-center justify-center p-0.5 text-gray-500 hover:text-red-600 cursor-pointer"
 											title="İptal"
 										>
-											<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+											<X size={14} />
 										</button>
 									</div>
 								{:else}
@@ -1183,7 +1169,7 @@
 										title="Ödeme talimatına ekle"
 										aria-label="Ödeme talimatına ekle"
 									>
-										<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+										<Plus size={16} />
 									</button>
 								{/if}
 							</div>
@@ -1227,7 +1213,7 @@
 									class="absolute bottom-2.5 right-3 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-teal-50 text-teal-700 text-[11px] font-medium active:bg-teal-100"
 									aria-label="Ödeme talimatına ekle"
 								>
-									<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+									<Plus size={14} />
 									Talimat
 								</button>
 							{/if}
@@ -1247,23 +1233,23 @@
 											<div class="mb-4 bg-white rounded-lg border border-gray-200 p-3">
 												<div class="flex items-center justify-between mb-2">
 													<h4 class="text-xs font-semibold text-gray-700 inline-flex items-center gap-1.5"><Landmark size={14} class="text-teal-600" /> Banka / IBAN</h4>
-													<span class="text-[11px] text-gray-400">Ödeme talimatında kullanılır</span>
+													<span class="text-[11px] text-gray-500">Ödeme talimatında kullanılır</span>
 												</div>
 												{#if vendorIbans.length > 0}
 													<div class="space-y-1.5 mb-2">
 														{#each vendorIbans as ba (ba.id)}
 															<div class="flex items-center gap-2 text-xs bg-gray-50 rounded px-2 py-1.5">
-																<button onclick={() => setDefaultIban(vendor.id, ba.id)} title={ba.is_default ? 'Varsayılan' : 'Varsayılan yap'} class="shrink-0 cursor-pointer {ba.is_default ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}"><Star size={14} fill={ba.is_default ? 'currentColor' : 'none'} /></button>
+																<button onclick={() => setDefaultIban(vendor.id, ba.id)} title={ba.is_default ? 'Varsayılan' : 'Varsayılan yap'} class="touch-target inline-flex items-center justify-center shrink-0 cursor-pointer {ba.is_default ? 'text-amber-500' : 'text-gray-400 hover:text-amber-400'}"><Star size={14} fill={ba.is_default ? 'currentColor' : 'none'} /></button>
 																<span class="min-w-0 flex-1 truncate">
 																	<span class="font-medium text-gray-800">{ba.bank_name || 'Banka'}</span>
 																	<span class="font-mono text-gray-500 ml-1">{fmtIbanDisplay(ba.iban)}</span>
 																</span>
-																<button onclick={() => deleteVendorIban(vendor.id, ba.id)} class="shrink-0 text-gray-300 hover:text-red-500 cursor-pointer" title="Sil"><Trash2 size={14} /></button>
+																<button onclick={() => deleteVendorIban(vendor.id, ba.id)} class="touch-target inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-red-500 cursor-pointer" title="Sil"><Trash2 size={14} /></button>
 															</div>
 														{/each}
 													</div>
 												{:else}
-													<p class="text-xs text-gray-400 mb-2">Kayıtlı IBAN yok. Ödeme talimatında banka/IBAN göstermek için ekleyin.</p>
+													<p class="text-xs text-gray-500 mb-2">Kayıtlı IBAN yok. Ödeme talimatında banka/IBAN göstermek için ekleyin.</p>
 												{/if}
 												<div class="flex flex-col sm:flex-row gap-2">
 													<Input size="sm" fullWidth={false} bind:value={ibanForm.bank_name} placeholder="Banka (ör. Yapı Kredi)" class="sm:w-44" />
@@ -1359,7 +1345,7 @@
 																					class="p-0.5 text-gray-500 hover:text-red-600 transition-colors cursor-pointer"
 																					title="Eşleştirmeyi kaldır"
 																				>
-																					<svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+																					<X size={12} />
 																				</button>
 																			{/if}
 																		</div>
@@ -1379,7 +1365,7 @@
 																				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100 hover:border-orange-300 transition-colors cursor-pointer"
 																				title="Verilen çek ile eşleştir"
 																			>
-																				<svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+																				<FileText size={12} />
 																				Çek
 																			</button>
 																			{#if isDevirCandidate}
@@ -1399,7 +1385,7 @@
 																<td class="px-3 py-2 text-center">
 																	{#if tx.dept_status === 'approved'}
 																		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700 border border-green-200" title={tx.department_name || ''}>
-																			<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+																			<Check size={12} />
 																			{tx.department_name}
 																		</span>
 																	{:else if tx.dept_status === 'pending'}
@@ -1414,7 +1400,7 @@
 																			</span>
 																			{#if canUse}
 																				<button onclick={() => removeDeptAssignment(tx.id)} class="p-0.5 text-gray-500 hover:text-red-600 cursor-pointer" title="Atamayı kaldır">
-																					<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+																					<X size={12} />
 																				</button>
 																			{/if}
 																		</div>
@@ -1424,7 +1410,7 @@
 																			class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors cursor-pointer"
 																			title="Departmana ata"
 																		>
-																			<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+																			<Plus size={12} />
 																			Ata
 																		</button>
 																	{:else}
@@ -1526,7 +1512,7 @@
 																		onclick={(e) => { e.stopPropagation(); unmatchTransaction(tx.id, tx.payment_method || ''); }}
 																		class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-200 active:scale-95 cursor-pointer"
 																	>
-																		<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+																		<X size={14} />
 																		Kaldır
 																	</button>
 																{/if}
@@ -1542,7 +1528,7 @@
 																	onclick={() => openCheckMatch(tx.id, tx.borc)}
 																	class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 border border-orange-300 active:scale-95 transition-transform cursor-pointer"
 																>
-																	<svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+																	<FileText size={14} />
 																	Çek Eşleştir
 																</button>
 																{#if isDevirCandidate}
@@ -1587,7 +1573,7 @@
 																	onclick={() => openDeptAssign(tx)}
 																	class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-600 border border-indigo-200 active:scale-95 transition-transform cursor-pointer"
 																>
-																	<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+																	<Plus size={14} />
 																	Departmana Ata
 																</button>
 															</div>
@@ -1666,9 +1652,7 @@
 							>
 								<div class="flex items-center gap-4">
 									<div class="flex items-center justify-center w-10 h-10 rounded-xl bg-orange-50 text-orange-600">
-										<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-										</svg>
+										<Calendar size={20} />
 									</div>
 									<div class="text-left">
 										<p class="text-sm font-semibold text-gray-900">{month.label}</p>
@@ -1682,9 +1666,7 @@
 											<p class="text-[10px] text-blue-500">{formatEur(month.total_amount)}</p>
 										{/if}
 									</div>
-									<svg class="w-4 h-4 text-gray-500 transition-transform {expandedMonths[month.key] ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-									</svg>
+									<ChevronDown size={16} class="text-gray-500 transition-transform {expandedMonths[month.key] ? 'rotate-180' : ''}" />
 								</div>
 							</button>
 
@@ -1700,9 +1682,7 @@
 											>
 												<div class="flex items-center gap-3">
 													<div class="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-50 text-teal-600">
-														<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-															<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-														</svg>
+														<Calendar size={16} />
 													</div>
 													<div class="text-left">
 														<p class="text-xs font-semibold text-gray-900">{formatDateLong(week.friday_date)}</p>
@@ -1714,9 +1694,7 @@
 													{#if eurRate > 0}
 														<p class="text-[10px] text-blue-500">{formatEur(week.total_amount)}</p>
 													{/if}
-													<svg class="w-3.5 h-3.5 text-gray-500 transition-transform {expandedWeeks[week.friday_date] ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-														<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-													</svg>
+													<ChevronDown size={14} class="text-gray-500 transition-transform {expandedWeeks[week.friday_date] ? 'rotate-180' : ''}" />
 												</div>
 											</button>
 
@@ -1939,27 +1917,8 @@
 				</div>
 
 				<div class="flex items-center justify-end gap-3">
-					<button
-						onclick={() => { showUploadResult = false; uploadResult = null; selectedRemovalIds = new Set(); }}
-						disabled={bulkDeleting}
-						class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 transition-colors cursor-pointer"
-					>
-						Atla / Hiçbirini silme
-					</button>
-					<button
-						onclick={confirmBulkDelete}
-						disabled={bulkDeleting || selectedRemovalIds.size === 0 || !canUse}
-						class="px-4 py-2.5 rounded-lg font-medium text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-					>
-						{#if bulkDeleting}
-							<span class="inline-flex items-center gap-2">
-								<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-								Siliniyor...
-							</span>
-						{:else}
-							Seçilenleri Sil ({selectedRemovalIds.size})
-						{/if}
-					</button>
+					<Button variant="secondary" onclick={() => { showUploadResult = false; uploadResult = null; selectedRemovalIds = new Set(); }} disabled={bulkDeleting}>Atla / Hiçbirini silme</Button>
+					<Button variant="danger" onclick={confirmBulkDelete} loading={bulkDeleting} disabled={bulkDeleting || selectedRemovalIds.size === 0 || !canUse}>{bulkDeleting ? 'Siliniyor...' : `Seçilenleri Sil (${selectedRemovalIds.size})`}</Button>
 				</div>
 			{:else}
 				<Button fullWidth onclick={() => showUploadResult = false}>Tamam</Button>
@@ -1997,26 +1956,8 @@
 		</div>
 
 		<div class="flex items-center justify-end gap-3 pt-2">
-			<button
-				onclick={() => { showDeptAssignModal = false; }}
-				class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-			>
-				İptal
-			</button>
-			<button
-				onclick={assignDepartment}
-				disabled={!selectedDeptId || deptAssigning}
-				class="px-4 py-2.5 rounded-lg font-medium text-sm bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-			>
-				{#if deptAssigning}
-					<span class="inline-flex items-center gap-2">
-						<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-						Atanıyor...
-					</span>
-				{:else}
-					Departmana Ata
-				{/if}
-			</button>
+				<Button variant="secondary" onclick={() => { showDeptAssignModal = false; }}>İptal</Button>
+				<Button onclick={assignDepartment} loading={deptAssigning} disabled={!selectedDeptId || deptAssigning}>{deptAssigning ? 'Atanıyor...' : 'Departmana Ata'}</Button>
 		</div>
 	</div>
 </Modal>

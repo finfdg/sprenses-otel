@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -117,7 +118,7 @@ def create_group(
     # WS bildirimi tüm üyelere
     for uid in member_ids:
         background_tasks.add_task(manager.send_to_user, uid, {
-            "type": "new_conversation",
+            "type": WSEvent.NEW_CONVERSATION,
             "conversation_id": conv.id,
             "group_name": conv.name,
             "initiator": {
@@ -216,7 +217,7 @@ def add_group_members(
     all_member_ids = _get_other_member_ids(db, conversation_id, current_user.id)
     if all_member_ids:
         background_tasks.add_task(manager.send_to_users, all_member_ids, {
-            "type": "group_member_added",
+            "type": WSEvent.GROUP_MEMBER_ADDED,
             "conversation_id": conversation_id,
             "added_by": current_user.id,
         })
@@ -283,7 +284,7 @@ def remove_group_member(
     # WS bildirimi: tüm üyelere + çıkarılan kişiye
     all_member_ids = _get_other_member_ids(db, conversation_id, current_user.id)
     event = {
-        "type": "group_member_removed",
+        "type": WSEvent.GROUP_MEMBER_REMOVED,
         "conversation_id": conversation_id,
         "user_id": user_id,
         "removed_by": current_user.id,
@@ -365,7 +366,7 @@ def update_group_admin(
     db.commit()
 
     _broadcast_to_conversation(background_tasks, db, conversation_id, current_user.id, {
-        "type": "group_admin_changed",
+        "type": WSEvent.GROUP_ADMIN_CHANGED,
         "conversation_id": conversation_id,
         "user_id": user_id,
         "is_admin": data.is_admin,
@@ -411,7 +412,7 @@ def update_group_name(
     db.commit()
 
     _broadcast_to_conversation(background_tasks, db, conversation_id, current_user.id, {
-        "type": "group_name_changed",
+        "type": WSEvent.GROUP_NAME_CHANGED,
         "conversation_id": conversation_id,
         "name": conv.name,
         "changed_by": current_user.id,

@@ -6,6 +6,7 @@ departman tüketimi, aylık alım/tüketim trendi, tedarikçi bazında alım, an
 """
 import calendar
 import json
+import logging
 import math
 from datetime import date, datetime
 from typing import Optional
@@ -38,6 +39,8 @@ from app.utils.sedna_client import (
     sedna_configured,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -52,82 +55,89 @@ def run_stock_import(db: Session, current_user: User, ip: Optional[str] = None) 
     products = fetch_stock_products()
     movements = fetch_stock_movements()
 
-    # Depolar — code ile upsert
-    existing_d = {d.code: d for d in db.query(StockDepot).all()}
-    d_new = 0
-    for r in depots:
-        code = (r["code"] or "").strip()
-        if not code:
-            continue
-        d = existing_d.get(code)
-        if d:
-            d.name = r["name"]
-            d.cost_group = depot_cost_group(code)
-            d.no_consumption = bool(r["no_consumption"])
-            d.is_expense = bool(r["is_expense"])
-        else:
-            db.add(StockDepot(code=code, name=r["name"], cost_group=depot_cost_group(code),
-                              no_consumption=bool(r["no_consumption"]), is_expense=bool(r["is_expense"])))
-            d_new += 1
-    db.flush()
+    # DB mutasyonları tek transaction — herhangi bir adım patlarsa rollback + 500
+    # (diğer Sedna importları — cariler/checks — ile tutarlı; yarım-state bırakmaz).
+    try:
+        # Depolar — code ile upsert
+        existing_d = {d.code: d for d in db.query(StockDepot).all()}
+        d_new = 0
+        for r in depots:
+            code = (r["code"] or "").strip()
+            if not code:
+                continue
+            d = existing_d.get(code)
+            if d:
+                d.name = r["name"]
+                d.cost_group = depot_cost_group(code)
+                d.no_consumption = bool(r["no_consumption"])
+                d.is_expense = bool(r["is_expense"])
+            else:
+                db.add(StockDepot(code=code, name=r["name"], cost_group=depot_cost_group(code),
+                                  no_consumption=bool(r["no_consumption"]), is_expense=bool(r["is_expense"])))
+                d_new += 1
+        db.flush()
 
-    # Ürünler — sedna_id ile upsert + anlık değer
-    existing_p = {p.sedna_id: p for p in db.query(StockProduct).all()}
-    p_new = 0
-    for r in products:
-        sid = r["sedna_id"]
-        cs = float(r["current_stock"] or 0)
-        lc = float(r["last_cost"] or 0)
-        cv = round(cs * lc, 2)
-        p = existing_p.get(sid)
-        if p:
-            p.code = r["code"]
-            p.name = r["name"]
-            p.currency = r["currency"]
-            p.stock_type = r["stock_type"]
-            p.current_stock = cs
-            p.last_cost = lc
-            p.current_value = cv
-        else:
-            db.add(StockProduct(sedna_id=sid, code=r["code"], name=r["name"], currency=r["currency"],
-                                stock_type=r["stock_type"], current_stock=cs, last_cost=lc, current_value=cv))
-            p_new += 1
-    db.flush()
+        # Ürünler — sedna_id ile upsert + anlık değer
+        existing_p = {p.sedna_id: p for p in db.query(StockProduct).all()}
+        p_new = 0
+        for r in products:
+            sid = r["sedna_id"]
+            cs = float(r["current_stock"] or 0)
+            lc = float(r["last_cost"] or 0)
+            cv = round(cs * lc, 2)
+            p = existing_p.get(sid)
+            if p:
+                p.code = r["code"]
+                p.name = r["name"]
+                p.currency = r["currency"]
+                p.stock_type = r["stock_type"]
+                p.current_stock = cs
+                p.last_cost = lc
+                p.current_value = cv
+            else:
+                db.add(StockProduct(sedna_id=sid, code=r["code"], name=r["name"], currency=r["currency"],
+                                    stock_type=r["stock_type"], current_stock=cs, last_cost=lc, current_value=cv))
+                p_new += 1
+        db.flush()
 
-    # Hareketler — sedna_line_id ile dedup, yalnız yenileri ekle (hareketler değişmez)
-    existing_m = {row[0] for row in db.query(StockMovement.sedna_line_id).all()}
-    batch = []
-    for r in movements:
-        lid = r["line_id"]
-        if lid in existing_m:
-            continue
-        existing_m.add(lid)
-        dt = r["date"]
-        d_only = dt.date() if isinstance(dt, datetime) else dt
-        tc = r["type_code"]
-        batch.append({
-            "sedna_line_id": lid, "sedna_owner_id": r["owner_id"], "date": d_only,
-            "period": d_only.strftime("%Y-%m") if d_only else None,
-            "type_code": tc, "type_label": type_label(tc), "direction": type_direction(tc),
-            "product_sedna_id": r["product_id"], "product_code": r["product_code"], "product_name": r["product_name"],
-            "entry_depot": (r["entry_depot"] or "").strip() or None,
-            "exit_depot": (r["exit_depot"] or "").strip() or None,
-            "cons_depot": (r["cons_depot"] or "").strip() or None,
-            "quantity": float(r["quantity"] or 0), "unit_cost": float(r["unit_cost"] or 0),
-            "net_amount": float(r["net_amount"] or 0),
-            "supplier_code": r["supplier_code"], "supplier_name": r["supplier_name"], "doc_no": r["doc_no"],
-        })
-    if batch:
-        db.bulk_insert_mappings(StockMovement, batch)
+        # Hareketler — sedna_line_id ile dedup, yalnız yenileri ekle (hareketler değişmez)
+        existing_m = {row[0] for row in db.query(StockMovement.sedna_line_id).all()}
+        batch = []
+        for r in movements:
+            lid = r["line_id"]
+            if lid in existing_m:
+                continue
+            existing_m.add(lid)
+            dt = r["date"]
+            d_only = dt.date() if isinstance(dt, datetime) else dt
+            tc = r["type_code"]
+            batch.append({
+                "sedna_line_id": lid, "sedna_owner_id": r["owner_id"], "date": d_only,
+                "period": d_only.strftime("%Y-%m") if d_only else None,
+                "type_code": tc, "type_label": type_label(tc), "direction": type_direction(tc),
+                "product_sedna_id": r["product_id"], "product_code": r["product_code"], "product_name": r["product_name"],
+                "entry_depot": (r["entry_depot"] or "").strip() or None,
+                "exit_depot": (r["exit_depot"] or "").strip() or None,
+                "cons_depot": (r["cons_depot"] or "").strip() or None,
+                "quantity": float(r["quantity"] or 0), "unit_cost": float(r["unit_cost"] or 0),
+                "net_amount": float(r["net_amount"] or 0),
+                "supplier_code": r["supplier_code"], "supplier_name": r["supplier_name"], "doc_no": r["doc_no"],
+            })
+        if batch:
+            db.bulk_insert_mappings(StockMovement, batch)
 
-    result = {
-        "depots": len(depots), "depots_new": d_new,
-        "products": len(products), "products_new": p_new,
-        "movements_new": len(batch), "movements_total": len(movements),
-    }
-    log_action(db, current_user.id, "create", "stock", None,
-               json.dumps(result, ensure_ascii=False), ip)
-    db.commit()
+        result = {
+            "depots": len(depots), "depots_new": d_new,
+            "products": len(products), "products_new": p_new,
+            "movements_new": len(batch), "movements_total": len(movements),
+        }
+        log_action(db, current_user.id, "create", "stock", None,
+                   json.dumps(result, ensure_ascii=False), ip)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Stok içe aktarma DB hatası: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Stok içe aktarma sırasında veritabanı hatası.")
     return result
 
 

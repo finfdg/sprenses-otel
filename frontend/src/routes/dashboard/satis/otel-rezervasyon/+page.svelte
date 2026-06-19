@@ -957,15 +957,9 @@
 					</span>
 				</Button>
 
-				<button
-					onclick={refreshAll}
-					disabled={loading}
-					class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500 disabled:opacity-50 cursor-pointer"
-					title="Yenile"
-					aria-label="Yenile"
-				>
+				<Button variant="secondary" onclick={refreshAll} disabled={loading} title="Yenile" ariaLabel="Yenile">
 					<RefreshCw size={16} class={loading ? 'animate-spin' : ''} />
-				</button>
+				</Button>
 
 				{#if uploads.length > 0}
 					<Button variant="secondary" onclick={() => (showUploadsModal = true)}>
@@ -2006,13 +2000,10 @@
 								sistemde iptal edilmişler.
 							</div>
 							{#if canUse}
-								<button
-									onclick={openRemovalReview}
-									class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 text-white rounded-md hover:bg-rose-700 text-xs font-medium"
-								>
+								<Button variant="danger" size="sm" class="mt-2" onclick={openRemovalReview}>
 									<Trash2 size={12} />
 									Kayıtları İncele
-								</button>
+								</Button>
 							{/if}
 						</div>
 					</div>
@@ -2102,24 +2093,11 @@
 		</div>
 
 		<div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
-			<button
-				onclick={() => (showRemovalModal = false)}
-				class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
-			>
-				Vazgeç
-			</button>
-			<button
-				onclick={() => (confirmBulkDelete = true)}
-				disabled={selectedRemovalIds.size === 0 || bulkDeleting}
-				class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-			>
-				{#if bulkDeleting}
-					<Loader2 size={14} class="animate-spin" />
-				{:else}
-					<Trash2 size={14} />
-				{/if}
+			<Button variant="secondary" onclick={() => (showRemovalModal = false)}>Vazgeç</Button>
+			<Button variant="danger" onclick={() => (confirmBulkDelete = true)} loading={bulkDeleting} disabled={selectedRemovalIds.size === 0 || bulkDeleting}>
+				{#if !bulkDeleting}<Trash2 size={14} />{/if}
 				Seçilenleri Sil ({selectedRemovalIds.size})
-			</button>
+			</Button>
 		</div>
 	</div>
 </Modal>

@@ -62,14 +62,11 @@ def get_current_user(
     if not token:
         token = request.cookies.get(COOKIE_NAME)
 
-    # 3. Cookie yoksa query param'dan al (PDF gibi yeni sekmede açılan endpointler için)
-    #    Güvenlik: URL'deki token browser history ve log'lara düşer.
-    #    Sadece belirli path'ler için izin ver.
-    if not token:
-        _ALLOWED_TOKEN_PATHS = ("/api/quality/forms/", "/api/finance/")
-        path = request.url.path
-        if any(path.startswith(p) and path.endswith("/pdf") for p in _ALLOWED_TOKEN_PATHS):
-            token = request.query_params.get("token")
+    # NOT: Query-param token fallback'i (?token=JWT) GÜVENLİK NEDENİYLE KALDIRILDI
+    # (2026-06-19). Tam yetkili JWT, URL üzerinden nginx access log'una, tarayıcı
+    # geçmişine ve Referer başlığına sızıyordu. Frontend artık PDF'leri cookie ile
+    # (credentials: 'include' → fetchRaw/blob indirme) çekiyor; query-param token
+    # hiçbir yerde kullanılmıyordu (ölü + riskli kod).
 
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Kimlik doğrulama gerekli")

@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { Loader2 } from 'lucide-svelte';
 	import type {
 		LatestRates, ExchangeRate, ChartDataPoint, ParityDataPoint, CurrencyCode
 	} from '$lib/types/exchange-rate';
@@ -244,7 +245,7 @@
 
 	{#if loading}
 		<div class="flex items-center justify-center py-24">
-			<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+			<Loader2 size={32} class="animate-spin text-teal-600" />
 		</div>
 	{:else}
 
@@ -336,7 +337,7 @@
 		<!-- SVG Grafik -->
 		{#if chartLoading}
 			<div class="flex items-center justify-center py-16">
-				<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
+				<Loader2 size={24} class="animate-spin text-teal-600" />
 			</div>
 		{:else if activeChartPoints.length < 2}
 			<div class="flex items-center justify-center py-16 text-gray-500 text-sm">
@@ -448,7 +449,7 @@
 
 		{#if historyLoading}
 			<div class="flex items-center justify-center py-12">
-				<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
+				<Loader2 size={24} class="animate-spin text-teal-600" />
 			</div>
 		{:else if historyItems.length === 0}
 			<div class="text-center py-12 text-gray-500 text-sm">Veri bulunamadı</div>

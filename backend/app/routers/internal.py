@@ -6,6 +6,7 @@ import secrets
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.config import settings
+from app.constants import WSEvent
 from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ async def broadcast_finance_update(
 
     if online_count > 0:
         await manager.send_to_all({
-            "type": "finance_updated",
+            "type": WSEvent.FINANCE_UPDATED,
             "module": module,
             "action": action,
         })

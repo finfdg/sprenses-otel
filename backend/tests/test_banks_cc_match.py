@@ -13,7 +13,7 @@ from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CreditProduct
-from app.routers.finance.banks_cc_match import (
+from app.utils.matching_service import (
     _extract_last4_from_desc,
     _get_card_last4,
     _is_cc_payment_desc,

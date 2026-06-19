@@ -1,5 +1,6 @@
 """Banka hesapları ve ekstre yönetimi — hesap CRUD, ekstre yükleme, işlem listeleme."""
 
+import asyncio
 import hashlib
 import logging
 import math
@@ -23,9 +24,6 @@ from app.models.bank_transaction import BankTransaction
 from app.models.module import Module
 from app.models.role_module_permission import RoleModulePermission
 from app.models.user import User
-from app.routers.finance.banks_cc_match import _match_cc_to_bank
-from app.routers.finance.checks import _match_checks_to_bank
-from app.routers.finance.krediler import _match_credits_to_bank
 from app.schemas.bank import (
     BankAccountCreate,
     BankAccountResponse,
@@ -39,9 +37,10 @@ from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.utils.bank_parser import parse_excel, parse_pdf
 from app.utils.file_validation import validate_upload_file
-from app.constants import BroadcastModule
+from app.constants import BroadcastModule, WSEvent
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.utils.matching_service import _match_cc_to_bank, _match_checks_to_bank, _match_credits_to_bank
 from app.utils.notification import _notification_to_ws_event, create_notifications
 from app.utils.push import send_push_to_user
 from app.websocket.manager import manager
@@ -373,10 +372,11 @@ async def _save_and_parse(file: UploadFile):
         f.write(content)
 
     try:
+        # CPU-yoğun parse'ı threadpool'a al → event loop bloke olmaz (eşzamanlı istekler beklemez)
         if file_type == "pdf":
-            parsed = parse_pdf(file_path)
+            parsed = await asyncio.to_thread(parse_pdf, file_path)
         else:
-            parsed = parse_excel(file_path)
+            parsed = await asyncio.to_thread(parse_excel, file_path)
     except Exception:
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -590,7 +590,7 @@ async def _post_upload_processing(
     viewer_ids = _get_banks_viewer_ids(db)
     if viewer_ids:
         ws_event = {
-            "type": "bank_statement_uploaded",
+            "type": WSEvent.BANK_STATEMENT_UPLOADED,
             "account_id": acc.id,
             "account_bank_name": acc.bank_name,
             "statement_id": result.get("statement_id"),

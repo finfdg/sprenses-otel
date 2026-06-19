@@ -24,10 +24,11 @@
 | Method | Path | Rate Limit | Açıklama |
 |---|---|---|---|
 | POST | `/api/auth/login` | 5/dk IP | Email + şifre ile giriş — HttpOnly cookie set eder |
-| POST | `/api/auth/register` | 5/dk IP | Yeni kullanıcı (admin only) |
 | POST | `/api/auth/logout` | — | Cookie temizler, push aboneliği iptal |
 | GET | `/api/auth/me` | — | Mevcut kullanıcı + rol + izinler |
 | POST | `/api/auth/change-password` | — | Kendi şifresini değiştir (mevcut şifre ister) |
+
+> **Public kayıt KALDIRILDI (2026-06-19):** `POST /api/auth/register` güvenlik nedeniyle silindi. İç (B2B) panel olduğundan internete açık self-service kayıt, herkesin "Personel" rolüyle yetkisiz oturum alıp otel verisini okumasına izin veriyordu. Kullanıcı oluşturma artık yalnızca admin tarafından `POST /api/system/users/` (`system.users:use`) ile yapılır. `UserRegister` şeması da kaldırıldı.
 
 ## Güvenlik Kuralları
 - **Token taşıma:** Yalnızca HttpOnly, Secure, SameSite=Lax cookie ile. `localStorage`'da token saklanması kesinlikle yasak.

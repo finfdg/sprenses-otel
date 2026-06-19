@@ -1,5 +1,6 @@
 """Kredi kartı ekstre yönetimi — PDF yükleme ve listeleme."""
 
+import asyncio
 import json
 import logging
 import os
@@ -64,9 +65,9 @@ async def auto_upload_statement(
         logger.error("PDF dosya kaydetme hatası: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Dosya kaydedilemedi. Lütfen tekrar deneyin.")
 
-    # PDF parse
+    # PDF parse — CPU-yoğun, threadpool'a al → event loop bloke olmaz (eşzamanlı istekler beklemez)
     try:
-        parsed = parse_cc_statement(file_path)
+        parsed = await asyncio.to_thread(parse_cc_statement, file_path)
     except Exception:
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -212,9 +213,9 @@ async def upload_statement(
         logger.error("PDF dosya kaydetme hatası: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Dosya kaydedilemedi. Lütfen tekrar deneyin.")
 
-    # PDF parse
+    # PDF parse — CPU-yoğun, threadpool'a al → event loop bloke olmaz (eşzamanlı istekler beklemez)
     try:
-        parsed = parse_cc_statement(file_path)
+        parsed = await asyncio.to_thread(parse_cc_statement, file_path)
     except Exception:
         # Dosyayi temizle
         if os.path.exists(file_path):

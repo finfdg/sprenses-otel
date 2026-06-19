@@ -9,6 +9,7 @@ from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants import WSEvent
 from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message
 from app.models.module import Module
@@ -203,7 +204,7 @@ def _create_system_message(db: Session, conversation_id: int, sender_id: int, co
 def _build_new_message_event(msg: Message, sender: User, conversation_id: int) -> dict:
     """Yeni mesaj WS event'i oluştur (send_message ve upload_file ortak)."""
     return {
-        "type": "new_message",
+        "type": WSEvent.NEW_MESSAGE,
         "conversation_id": conversation_id,
         "message": {
             "id": msg.id,

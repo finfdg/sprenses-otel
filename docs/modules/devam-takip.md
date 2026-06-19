@@ -10,6 +10,21 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
 - **Public rotalar (dashboard dışı, auth yok):** `/devam/ekran` (kiosk), `/devam/kur` (kurulum), `/devam` (basış)
 - **Backend prefix:** `/api/attendance`
 
+## Dosya Haritası
+
+**Backend — `app/routers/attendance/` paketi** (2026-06-17'de 1189 satırlık tek `attendance.py`'den pakete bölündü):
+- `__init__.py` — alt router'ları birleştirir (`include_router` ile kiosk + personnel + logs), `router` ihraç eder
+- `_helpers.py` — ortak sabitler, token/cihaz/log yardımcıları, Excel parser, Pydantic şemaları (diğer modüller `import *` ile kullanır)
+- `kiosk.py` — public kiosk (dönen QR, config, recent) + personel kimlik/kurulum/basış (`punch`, `setup`, `me`) + QR yenileme ayarları
+- `personnel.py` — yönetici personel CRUD + Excel içe aktarma + QR kart üretimi (PDF) + cihaz sıfırlama
+- `logs.py` — yönetici izleme/raporlar (status, logs, summary) + elle giriş/düzenle/sil + bekleyen onaylar
+
+**Onay executor:** `app/utils/approval_executor.py` → `_handle_attendance` (manuel giriş/düzenle/sil onaya tabi).
+
+**Frontend:** `dashboard/ik/devam-takip/+page.svelte` (yönetici), `routes/devam/` altında public sayfalar (`ekran`, `kur`, `+page.svelte` basış).
+
+**Testler:** `tests/test_attendance.py` (ana akış: personel CRUD, uçtan uca basış, elle giriş, düzenle/sil, puantaj, izin), `tests/test_attendance_device.py` (cihaz bağlama/anti-buddy-punch), `tests/test_approval_system.py::TestApprovalExecutorHR` (`_handle_attendance` onay regresyonu).
+
 ## Çalışma Akışı
 1. **Kurulum (bir kez):** Yönetici her personel için QR kart üretir (panel → Personel → QR ikonu).
    Personel kartı telefonuyla okutur → `/devam/kur?t=<access_token>` açılır → **kimlik URL'dedir** (`?t=`).

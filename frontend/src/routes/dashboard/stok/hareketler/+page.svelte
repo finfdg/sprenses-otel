@@ -81,7 +81,8 @@
 	{:else if items.length === 0}
 		<EmptyState icon={ArrowRightLeft} title="Hareket bulunamadı" description="Filtre kriterine uygun stok hareketi yok." />
 	{:else}
-		<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
+		<!-- Masaüstü: tablo -->
+		<div class="hidden sm:block bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
 			<table class="w-full text-sm">
 				<thead class="bg-gray-50 text-gray-500 text-xs uppercase">
 					<tr>
@@ -108,6 +109,24 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+
+		<!-- Mobil: kart görünümü -->
+		<div class="sm:hidden space-y-2">
+			{#each items as m (m.id)}
+				<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3">
+					<div class="flex items-start justify-between gap-2 mb-1.5">
+						<span class="text-[10px] px-1.5 py-0.5 rounded {DIR_CLASS[m.direction] || DIR_CLASS.other}">{m.type_label || DIR_LABEL[m.direction] || '—'}</span>
+						<span class="text-xs text-gray-500 tabular-nums whitespace-nowrap">{fmtDate(m.date)}</span>
+					</div>
+					<div class="text-sm font-medium text-gray-800 truncate" title={m.product_name}>{m.product_name || '—'}</div>
+					<div class="mt-1.5 flex items-center justify-between text-xs">
+						<span class="text-gray-500">Miktar: <span class="tabular-nums text-gray-700">{(m.quantity ?? 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</span></span>
+						<span class="font-semibold text-gray-800 tabular-nums">{formatCurrency(m.net_amount, 'TRY')}</span>
+					</div>
+					<div class="mt-1 text-xs text-gray-500 truncate" title={m.supplier_name || m.cons_depot || ''}>{m.supplier_name || m.cons_depot || m.exit_depot || '—'}</div>
+				</div>
+			{/each}
 		</div>
 		<Pagination {page} {pageSize} {total} onPageChange={(p) => (page = p)} onPageSizeChange={(s) => { pageSize = s; page = 1; }} />
 	{/if}

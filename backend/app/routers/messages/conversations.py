@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import Session, aliased, joinedload
 
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -422,7 +423,7 @@ def create_conversation(
 
     # WebSocket ile hedef kullanıcıya yeni konuşma bildirimi
     background_tasks.add_task(manager.send_to_user, data.user_id, {
-        "type": "new_conversation",
+        "type": WSEvent.NEW_CONVERSATION,
         "conversation_id": conv.id,
         "initiator": {
             "id": current_user.id,
@@ -544,7 +545,7 @@ def mark_as_read(
     other_member_ids = _get_other_member_ids(db, conversation_id, current_user.id)
     if other_member_ids:
         background_tasks.add_task(manager.send_to_users, other_member_ids, {
-            "type": "read_status",
+            "type": WSEvent.READ_STATUS,
             "conversation_id": conversation_id,
             "user_id": current_user.id,
             "last_read_at": str(membership.last_read_at),

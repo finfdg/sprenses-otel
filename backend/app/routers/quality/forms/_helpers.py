@@ -10,6 +10,7 @@ import pytz
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import WSEvent
 from app.models.quality_form import QualityForm
 from app.models.quality_template import QualityTemplate
 from app.models.quality_template_assignee import QualityTemplateAssignee
@@ -38,7 +39,7 @@ async def _notify_quality_event_async(
 ) -> None:
     """Kalite form olayını tüm bağlı kullanıcılara bildir (aktörü hariç tut)."""
     event = {
-        "type": "quality_form_update",
+        "type": WSEvent.QUALITY_FORM_UPDATE,
         "event": event_type,
         "form_id": form_id,
         "template_name": template_name,

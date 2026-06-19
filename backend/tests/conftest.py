@@ -37,6 +37,7 @@ from app.database import Base, get_db
 from app.main import app
 from app.middleware.rate_limit import login_limiter, register_limiter, message_limiter, upload_limiter, search_limiter
 from app.routers.messages._helpers import _invalidate_messaging_role_cache
+from app.routers.finance.sales_invoices import _invalidate_compute_cache as _invalidate_sales_compute_cache
 from app.middleware.auth import invalidate_module_cache
 from app.models.user import User
 from app.models.module import Module
@@ -174,6 +175,7 @@ def _auto_rollback_and_reset():
     search_limiter._requests.clear()
     _invalidate_messaging_role_cache()
     invalidate_module_cache()
+    _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın
 
     yield session
 
@@ -194,6 +196,7 @@ def _auto_rollback_and_reset():
     search_limiter._requests.clear()
     _invalidate_messaging_role_cache()
     invalidate_module_cache()
+    _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın
 
 
 @pytest.fixture(autouse=True)

@@ -869,6 +869,194 @@ class TestApprovalExecutorMoreModules:
         assert db.query(CreditProduct).filter(CreditProduct.name == cname).first() is not None
 
 
+class TestApprovalExecutorHR:
+    """İK modüllerinin (hr.attendance, hr.shift_schedule) uçtan-uca onay→uygula regresyonu.
+
+    Bu handler'lar yalnızca onay onaylanınca çalışır → router'dan sapması sessiz kalır.
+    Modül-bazlı regresyon: 202 → approver onaylar → handler kaydı GERÇEKTEN üretir
+    (alanlar doğru, yan etkiler doğru). Handler eksik/bozuk olsaydı onay 500 verirdi.
+    """
+
+    @staticmethod
+    def _mk_personnel(db):
+        import uuid as _uuid
+
+        from app.models.personnel import Personnel
+        p = Personnel(
+            full_name="Onay Personel",
+            employee_code=f"AP-{_uuid.uuid4().hex[:6]}",
+            department="Mutfak",
+            access_token=f"ENR-{_uuid.uuid4().hex}",
+            is_active=True,
+        )
+        db.add(p)
+        db.commit()
+        return p
+
+    def test_attendance_manual_create_via_approval(self, db):
+        """REGRESYON: hr.attendance elle giriş onaya düşünce `_handle_attendance` create
+        AttendanceLog'u GERÇEKTEN oluşturmalı (kaynak=manual, tip/personel/zaman doğru)."""
+        from datetime import datetime as _dt
+        from datetime import timedelta as _td
+
+        import pytz as _pytz
+
+        from app.models.personnel import TYPE_IN, AttendanceLog
+
+        tz = _pytz.timezone("Europe/Istanbul")
+        _, req_role, req_client = _make_actor(db, {
+            "hr.attendance": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "hr.attendance", req_role, app_role)
+
+        p = self._mk_personnel(db)
+        when = (_dt.now(tz) - _td(hours=2)).isoformat()
+        resp = req_client.post("/api/attendance/manual", json={
+            "personnel_id": p.id, "type": TYPE_IN, "punched_at": when, "note": "Onaylı giriş",
+        })
+        assert resp.status_code == 202, f"onaya düşmeli: {resp.text}"
+        req_id = resp.json()["request_id"]
+
+        # Onaydan önce: kayıt oluşmamalı
+        db.expire_all()
+        assert db.query(AttendanceLog).filter(AttendanceLog.personnel_id == p.id).count() == 0
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"_handle_attendance create hatası → 500: {ap.text}"
+
+        db.expire_all()
+        logs = db.query(AttendanceLog).filter(AttendanceLog.personnel_id == p.id).all()
+        assert len(logs) == 1, "Onay sonrası elle giriş kaydı oluşmalıydı"
+        assert logs[0].type == TYPE_IN
+        assert logs[0].source == "manual"
+        assert logs[0].note == "Onaylı giriş"
+
+    def test_attendance_delete_via_approval_soft_delete(self, db):
+        """REGRESYON: hr.attendance silme onaylanınca `_handle_attendance` soft delete
+        uygulamalı (deleted_at set; kayıt DB'de kalır)."""
+        from datetime import datetime as _dt
+        from datetime import timedelta as _td
+
+        import pytz as _pytz
+
+        from app.models.personnel import TYPE_IN, AttendanceLog
+
+        tz = _pytz.timezone("Europe/Istanbul")
+        _, req_role, req_client = _make_actor(db, {
+            "hr.attendance": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "hr.attendance", req_role, app_role)
+
+        p = self._mk_personnel(db)
+        lg = AttendanceLog(personnel_id=p.id, type=TYPE_IN, source="manual",
+                           punched_at=_dt.now(tz) - _td(hours=1))
+        db.add(lg)
+        db.commit()
+        lg_id = lg.id
+
+        r = req_client.delete(f"/api/attendance/logs/{lg_id}")
+        assert r.status_code == 202, f"onaya düşmeli: {r.text}"
+        req_id = r.json()["request_id"]
+
+        # Onaydan önce: silinmemiş
+        db.expire_all()
+        assert db.get(AttendanceLog, lg_id).deleted_at is None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"_handle_attendance delete hatası → 500: {ap.text}"
+
+        db.expire_all()
+        row = db.get(AttendanceLog, lg_id)
+        assert row is not None, "soft delete — kayıt DB'de kalmalı"
+        assert row.deleted_at is not None
+
+    def test_shift_schedule_assign_via_approval(self, db):
+        """REGRESYON: hr.shift_schedule hücre ataması onaylanınca `_handle_shift_schedule`
+        ShiftAssignment'ı GERÇEKTEN upsert etmeli (personel+gün+vardiya doğru)."""
+        from datetime import time as _time
+
+        from app.models.shift import ShiftDefinition
+        from app.models.shift_assignment import ShiftAssignment
+
+        _, req_role, req_client = _make_actor(db, {
+            "hr.shift_schedule": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "hr.shift_schedule", req_role, app_role)
+
+        p = self._mk_personnel(db)
+        sh = ShiftDefinition(name=f"Rota T {uuid4().hex[:4]}", color="#0d9488",
+                             start_time=_time(7, 0), end_time=_time(15, 0))
+        db.add(sh)
+        db.commit()
+        pid, sid = p.id, sh.id
+
+        resp = req_client.post("/api/hr/shift-schedule", json={
+            "personnel_id": pid, "shift_id": sid, "work_date": "2026-07-02",
+        })
+        assert resp.status_code == 202, f"onaya düşmeli: {resp.text}"
+        req_id = resp.json()["request_id"]
+
+        # Onaydan önce: atama oluşmamalı
+        db.expire_all()
+        assert db.query(ShiftAssignment).filter(
+            ShiftAssignment.personnel_id == pid).count() == 0
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"_handle_shift_schedule hatası → 500: {ap.text}"
+
+        db.expire_all()
+        a = db.query(ShiftAssignment).filter(ShiftAssignment.personnel_id == pid).first()
+        assert a is not None, "Onay sonrası rota ataması oluşmalıydı"
+        assert a.shift_id == sid
+        assert a.work_date.isoformat() == "2026-07-02"
+
+    def test_shift_schedule_delete_via_approval(self, db):
+        """REGRESYON: hr.shift_schedule hücre silme onaylanınca `_handle_shift_schedule`
+        ShiftAssignment'ı GERÇEKTEN silmeli."""
+        from datetime import date as _date
+        from datetime import time as _time
+
+        from app.models.shift import ShiftDefinition
+        from app.models.shift_assignment import ShiftAssignment
+
+        _, req_role, req_client = _make_actor(db, {
+            "hr.shift_schedule": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "hr.shift_schedule", req_role, app_role)
+
+        p = self._mk_personnel(db)
+        sh = ShiftDefinition(name=f"Rota S {uuid4().hex[:4]}", color="#0d9488",
+                             start_time=_time(7, 0), end_time=_time(15, 0))
+        db.add(sh)
+        db.flush()
+        a = ShiftAssignment(personnel_id=p.id, shift_id=sh.id, work_date=_date(2026, 7, 3))
+        db.add(a)
+        db.commit()
+        a_id = a.id
+
+        r = req_client.delete(f"/api/hr/shift-schedule/{a_id}")
+        assert r.status_code == 202, f"onaya düşmeli: {r.text}"
+        req_id = r.json()["request_id"]
+
+        # Onaydan önce: hâlâ var
+        db.expire_all()
+        assert db.get(ShiftAssignment, a_id) is not None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"_handle_shift_schedule delete hatası → 500: {ap.text}"
+
+        db.expire_all()
+        assert db.get(ShiftAssignment, a_id) is None, "Onay sonrası rota ataması silinmeliydi"
+
+
 class TestExecutorImportIntegrity:
     def test_all_lazy_imports_resolve(self):
         """Executor handler'larındaki TÜM lazy import'lar geçerli modül yoluna işaret etmeli.

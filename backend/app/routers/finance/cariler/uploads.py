@@ -1,5 +1,6 @@
 """Cari hesap dosya yükleme ve yükleme geçmişi."""
 
+import asyncio
 import os
 import uuid
 
@@ -152,7 +153,8 @@ async def upload_vendor_excel(
         f.write(content)
 
     try:
-        parsed = parse_vendor_excel(file_path)
+        # CPU-yoğun Excel parse'ı threadpool'a al → event loop bloke olmaz (eşzamanlı istekler beklemez)
+        parsed = await asyncio.to_thread(parse_vendor_excel, file_path)
     except Exception as e:
         logger.error("Cari dosya ayrıştırma hatası (%s): %s", file.filename, e, exc_info=True)
         if os.path.exists(file_path):

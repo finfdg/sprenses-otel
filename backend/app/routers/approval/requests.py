@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -52,16 +53,16 @@ async def _broadcast_approval_update(module_code: Optional[str] = None) -> None:
     """
     try:
         await manager.send_to_all({
-            "type": "finance_updated",
+            "type": WSEvent.FINANCE_UPDATED,
             "module": "approval",
             "action": "update",
         })
         await manager.send_to_all({
-            "type": "approval_updated",
+            "type": WSEvent.APPROVAL_UPDATED,
         })
         if module_code:
             await manager.send_to_all({
-                "type": "approval_status_changed",
+                "type": WSEvent.APPROVAL_STATUS_CHANGED,
                 "module_code": module_code,
             })
     except Exception:

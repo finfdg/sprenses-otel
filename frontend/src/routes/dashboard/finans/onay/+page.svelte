@@ -263,26 +263,8 @@
 				/>
 			</div>
 			<div class="flex items-center justify-end gap-3 pt-2">
-				<button
-					onclick={() => { showApproveModal = false; }}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-				>
-					İptal
-				</button>
-				<button
-					onclick={approveInvoice}
-					disabled={processing}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-				>
-					{#if processing}
-						<span class="inline-flex items-center gap-2">
-							<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-							Onaylanıyor...
-						</span>
-					{:else}
-						Onayla
-					{/if}
-				</button>
+				<Button variant="secondary" onclick={() => { showApproveModal = false; }}>İptal</Button>
+				<Button onclick={approveInvoice} loading={processing}>{processing ? 'Onaylanıyor...' : 'Onayla'}</Button>
 			</div>
 		</div>
 	{/if}
@@ -311,26 +293,8 @@
 				{/if}
 			</div>
 			<div class="flex items-center justify-end gap-3 pt-2">
-				<button
-					onclick={() => { showRejectModal = false; }}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors cursor-pointer"
-				>
-					İptal
-				</button>
-				<button
-					onclick={rejectInvoice}
-					disabled={processing || !rejectionNote.trim()}
-					class="px-4 py-2.5 rounded-lg font-medium text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-				>
-					{#if processing}
-						<span class="inline-flex items-center gap-2">
-							<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-							Reddediliyor...
-						</span>
-					{:else}
-						Reddet
-					{/if}
-				</button>
+				<Button variant="secondary" onclick={() => { showRejectModal = false; }}>İptal</Button>
+				<Button variant="danger" onclick={rejectInvoice} loading={processing} disabled={processing || !rejectionNote.trim()}>{processing ? 'Reddediliyor...' : 'Reddet'}</Button>
 			</div>
 		</div>
 	{/if}

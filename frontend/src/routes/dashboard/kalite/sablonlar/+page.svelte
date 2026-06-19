@@ -14,7 +14,7 @@
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import Textarea from '$lib/components/Textarea.svelte';
-	import { ClipboardList, Plus, Pencil, Trash2 } from 'lucide-svelte';
+	import { ClipboardList, Plus, Pencil, Trash2, Loader2, Image as ImageIcon, X } from 'lucide-svelte';
 
 	interface TemplateItem {
 		id: number;
@@ -481,22 +481,21 @@
 						<button
 							onclick={handleLogoDelete}
 							disabled={uploadingLogo}
-							class="text-xs text-red-600 hover:text-red-700 transition-colors cursor-pointer disabled:opacity-50"
+							class="text-red-600 hover:text-red-700 transition-colors cursor-pointer disabled:opacity-50"
 							title="Logoyu sil"
+							aria-label="Logoyu sil"
 						>
-							✕
+							<X size={14} />
 						</button>
 					</div>
 				{/if}
 				{#if editingId}
 					<label class="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 cursor-pointer transition-colors {uploadingLogo ? 'opacity-50 pointer-events-none' : ''}">
 						{#if uploadingLogo}
-							<span class="w-4 h-4 border-2 border-teal-200 border-t-teal-600 rounded-full animate-spin"></span>
+							<Loader2 size={16} class="animate-spin" />
 							Yükleniyor...
 						{:else}
-							<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-							</svg>
+							<ImageIcon size={16} />
 							{formLogoUrl ? 'Değiştir' : 'Logo Yükle'}
 						{/if}
 						<input

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
@@ -129,6 +130,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Internal-Secret"],
 )
+
+# GZip — büyük JSON liste yanıtlarını (nakit akım/cariler 2000+ kayıt) sıkıştırır (~%70 ağ kazancı).
+# minimum_size: küçük yanıtları sıkıştırma (CPU israfı olmasın).
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 @app.exception_handler(Exception)

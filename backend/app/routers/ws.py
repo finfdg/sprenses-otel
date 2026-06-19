@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from jose import JWTError
 
+from app.constants import WSEvent
 from app.database import SessionLocal
 from app.middleware.auth import COOKIE_NAME
 from app.models.conversation import ConversationMember
@@ -189,7 +190,7 @@ async def _on_user_status_change(user_id: int, is_online: bool) -> None:
     try:
         user_name = await asyncio.to_thread(_sync_get_user_name, user_id)
         event = {
-            "type": "user_status",
+            "type": WSEvent.USER_STATUS,
             "user_id": user_id,
             "is_online": is_online,
             "user_name": user_name,
@@ -274,7 +275,7 @@ async def websocket_endpoint(websocket: WebSocket):
         if not is_valid_session:
             try:
                 await websocket.send_text(json.dumps({
-                    "type": "session_expired",
+                    "type": WSEvent.SESSION_EXPIRED,
                     "reason": "Oturumunuz başka bir cihazdan sonlandırıldı",
                 }))
             except Exception:
@@ -295,7 +296,7 @@ async def websocket_endpoint(websocket: WebSocket):
         # Online kullanıcı adlarını getir
         online_users_info = await asyncio.to_thread(_sync_get_online_users_info, all_online_ids)
         await websocket.send_text(json.dumps({
-            "type": "connected",
+            "type": WSEvent.CONNECTED,
             "user_id": user_id,
             "online_user_ids": all_online_ids,
             "online_users": online_users_info,
@@ -332,7 +333,7 @@ async def handle_client_event(user_id: int, event: dict, websocket: Optional[Web
     """
     event_type = event.get("type")
 
-    if event_type == "typing":
+    if event_type == WSEvent.TYPING:
         # Messaging izin kontrolü — rolü değişen kullanıcılar WS üzerinden işlem yapamamalı
         has_perm = await asyncio.to_thread(_sync_has_messaging_permission, user_id)
         if not has_perm:
@@ -364,7 +365,7 @@ async def handle_client_event(user_id: int, event: dict, websocket: Optional[Web
             return
 
         typing_event = {
-            "type": "typing",
+            "type": WSEvent.TYPING,
             "conversation_id": conversation_id,
             "user_id": user_id,
             "is_typing": is_typing,

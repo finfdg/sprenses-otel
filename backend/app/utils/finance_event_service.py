@@ -124,8 +124,10 @@ class FinanceEventService:
                 "is_realized":    True,
             })
         except Exception as e:
+            # Sessiz yutma YOK: çağıranın transaction'ı rollback olsun, finance_events
+            # tutarsız (eksik kayıt) commit edilmesin. Çağıranlar _safe_commit/try-except içinde.
             logger.error("upsert_bank_tx hatası tx_id=%s: %s", tx.id, e)
-            return None
+            raise
 
     def upsert_check(self, db: Session, check, bank_tx=None) -> Optional[FinanceEvent]:
         """Check → FinanceEvent. Banka eşleşmesi varsa is_matched=True.
@@ -158,7 +160,7 @@ class FinanceEventService:
             })
         except Exception as e:
             logger.error("upsert_check hatası check_id=%s: %s", check.id, e)
-            return None
+            raise
 
     def upsert_credit_payment(self, db: Session, payment, product) -> Optional[FinanceEvent]:
         """CreditPayment → FinanceEvent. Banka eşleşmesi varsa is_matched=True."""
@@ -184,7 +186,7 @@ class FinanceEventService:
             })
         except Exception as e:
             logger.error("upsert_credit_payment hatası payment_id=%s: %s", payment.id, e)
-            return None
+            raise
 
     def upsert_cc_statement(self, db: Session, stmt, product) -> Optional[FinanceEvent]:
         """CreditCardStatement → FinanceEvent.
@@ -225,7 +227,7 @@ class FinanceEventService:
             })
         except Exception as e:
             logger.error("upsert_cc_statement hatası stmt_id=%s: %s", stmt.id, e)
-            return None
+            raise
 
     def upsert_advance(self, db: Session, adv) -> Optional[FinanceEvent]:
         """Advance → FinanceEvent. Banka eşleşmesi varsa is_matched=True."""
@@ -250,7 +252,7 @@ class FinanceEventService:
             })
         except Exception as e:
             logger.error("upsert_advance hatası adv_id=%s: %s", adv.id, e)
-            return None
+            raise
 
     def upsert_vendor_tx(self, db: Session, vtx, vendor, amount: float) -> Optional[FinanceEvent]:
         """VendorTransaction (ödeme planı) → FinanceEvent."""
@@ -274,7 +276,7 @@ class FinanceEventService:
             })
         except Exception as e:
             logger.error("upsert_vendor_tx hatası vtx_id=%s: %s", vtx.id, e)
-            return None
+            raise
 
     # ─── Planlı Giderler (Vergi, Düzenli Ödeme, Maaş, Stopaj) ─────────────
 
@@ -308,7 +310,7 @@ class FinanceEventService:
             })
         except Exception as e:
             logger.error("upsert_scheduled_entry hatası id=%s: %s", entry.id, e)
-            return None
+            raise
 
     # ─── Silme & Eşleştirme ─────────────────────────────────────────────────
 
@@ -355,6 +357,7 @@ class FinanceEventService:
             db.flush()
         except Exception as e:
             logger.error("invalidate hatası %s/%s: %s", source_type, source_id, e)
+            raise
 
     def match(
         self,
@@ -389,6 +392,7 @@ class FinanceEventService:
         except Exception as e:
             logger.error("match hatası %s/%s ↔ %s/%s: %s",
                          source_type_a, source_id_a, source_type_b, source_id_b, e)
+            raise
 
     def unmatch(self, db: Session, source_type: str, source_id: int) -> None:
         """Eşleştirmeyi geri al — is_matched=False, matched_event_id=None."""
@@ -403,6 +407,7 @@ class FinanceEventService:
             db.flush()
         except Exception as e:
             logger.error("unmatch hatası %s/%s: %s", source_type, source_id, e)
+            raise
 
     def sync_tag(self, db: Session, tx_id: int, category_id, category_name, category_color,
                  tag_note, tag_source, payment_method, match_number, vendor_id) -> None:
@@ -453,6 +458,7 @@ class FinanceEventService:
             db.flush()
         except Exception as e:
             logger.error("sync_tag hatası tx_id=%s: %s", tx_id, e)
+            raise
 
     def update_amount_try(self, db: Session, event_date, rate_try_per_eur: float) -> int:
         """Belirli tarih için EUR/USD cinsindeki eventlerin amount_try'ını güncelle.

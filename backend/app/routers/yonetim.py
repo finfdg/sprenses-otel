@@ -5,6 +5,7 @@ operasyonel maliyet (stok×doluluk füzyonu), oda geliri, tedarikçi borcu, acen
 sabit/değişken sınıflama, uyarılar (fiyat sapması, kritik stok). Banka/nakit/90-gün projeksiyon
 ve vadesi gelen çek/kredi gibi ağır KPI'ları frontend mevcut endpoint'lerden çeker.
 """
+import time
 from datetime import date
 from typing import Optional
 
@@ -27,6 +28,25 @@ from app.utils.vendor_fifo import _get_vendor_net_debts
 
 router = APIRouter()
 
+# Dashboard ağır agregasyon zinciridir (occupancy + operasyonel KPI + FIFO avans + tedarikçi
+# borcu). Veri yalnız Sedna/dosya içe aktarmada değişir → 60sn TTL cache (mizan deseni).
+_CACHE_TTL = 60
+_cache: dict = {}  # key → (expiry_ts, value)
+
+
+def _cached(key, producer):
+    """Basit süreç-içi TTL cache — yönetim paneli KPI'sı 60sn boyunca yeniden hesaplanmaz."""
+    now = time.time()
+    hit = _cache.get(key)
+    if hit and hit[0] > now:
+        return hit[1]
+    val = producer()
+    _cache[key] = (now + _CACHE_TTL, val)
+    if len(_cache) > 16:  # sınırsız büyümeyi önle
+        for k in [k for k, (exp, _v) in _cache.items() if exp <= now]:
+            _cache.pop(k, None)
+    return val
+
 
 def _scheduled_total(db: Session, source_types: list, year: int) -> float:
     """Planlı gider (ScheduledEntry) yıl toplamı, source_type'lara göre."""
@@ -43,6 +63,10 @@ def dashboard(
     _: User = Depends(require_permission("yonetim.panel", "view")),
 ):
     """Üst düzey KPI: doluluk + operasyonel maliyet + oda geliri + tedarikçi borcu + avans + GOP."""
+    return _cached("dashboard", lambda: _compute_dashboard(db))
+
+
+def _compute_dashboard(db: Session) -> dict:
     occ = occupancy_metrics(db)
     op = compute_operational_kpi(db)
     op_kpi = op.get("kpi", {})

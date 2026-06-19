@@ -7,6 +7,8 @@ Münferit (120.03.*) ve acente ayrı filtrelenir. Onaydan muaf (operasyonel impo
 import hashlib
 import logging
 import math
+import threading
+import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Optional
@@ -153,6 +155,52 @@ def _compute(db: Session):
     return inv_map, advance_balance
 
 
+# ─── _compute TTL cache ─────────────────────────────────
+# _compute her çağrıda iki tam tabloyu (faturalar + tahsilatlar) belleğe çekip FIFO yapar.
+# 4 endpoint (list/summary/advances + yonetim/dashboard) aynı sonucu kullanır ve veri yalnız
+# Sedna içe aktarmada değişir → 30sn süreç-içi cache tekrar hesaplamayı önler (mizan deseni).
+_COMPUTE_TTL = 30.0  # saniye
+_compute_cache: dict = {"ts": 0.0, "data": None}
+_compute_lock = threading.Lock()
+
+
+def _compute_cached(db: Session):
+    """_compute sonucunu 30sn cache'ler. İçe aktarma _invalidate_compute_cache() çağırır."""
+    now = time.monotonic()
+    data = _compute_cache["data"]
+    if data is not None and (now - _compute_cache["ts"]) < _COMPUTE_TTL:
+        return data
+    data = _compute(db)
+    with _compute_lock:
+        _compute_cache["data"] = data
+        _compute_cache["ts"] = now
+    return data
+
+
+def _invalidate_compute_cache() -> None:
+    """Satış faturası içe aktarmadan sonra cache'i sıfırla → kullanıcı taze veriyi anında görür."""
+    with _compute_lock:
+        _compute_cache["data"] = None
+        _compute_cache["ts"] = 0.0
+
+
+def _invoice_item(inv: SalesInvoice, smap: dict) -> dict:
+    """Tek fatura satırını liste yanıtı sözlüğüne çevirir (smap = _compute durum haritası)."""
+    entry = smap.get(inv.id, {"collected": 0.0, "advance": 0.0, "status": STATUS_OPEN})
+    amt_tl = _f(inv.amount)
+    amt_nat = _f(inv.amount_currency) or amt_tl     # döviz tutarı (TL ise = TL)
+    col = entry["collected"]                          # native
+    return {
+        "id": inv.id, "customer_code": inv.customer_code, "customer_name": inv.customer_name,
+        "is_munferit": inv.is_munferit, "invoice_no": inv.invoice_no,
+        "invoice_date": inv.invoice_date.isoformat() if inv.invoice_date else None,
+        "amount": amt_nat, "amount_tl": amt_tl, "currency": inv.currency,
+        "collected": col, "remaining": round(amt_nat - col, 2),
+        "status": entry["status"], "advance_covered": entry["advance"],
+        "by_advance": entry["advance"] > _EPS, "description": inv.description,
+    }
+
+
 # ─── İçe aktarma (servis fonksiyonu — merkezi Sedna sync kullanır) ───
 
 
@@ -252,6 +300,9 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
         db.rollback()
         logger.warning("340 avans özeti tazelenemedi: %s", e)
 
+    # Yeni fatura/tahsilat eklendi → FIFO cache'i geçersiz kıl (taze veri anında görünsün)
+    _invalidate_compute_cache()
+
     return {
         "invoices_total": len(inv_rows), "invoices_new": inv_new, "invoices_skipped": inv_skip,
         "collections_total": len(col_rows), "collections_new": col_new, "collections_skipped": col_skip,
@@ -275,7 +326,7 @@ def list_invoices(
     _: User = Depends(require_permission("finance.sales_invoices", "view")),
 ):
     """Satış faturaları listesi (FIFO tahsil durumu + filtre + sayfalama)."""
-    smap, _ = _compute(db)
+    smap, _ = _compute_cached(db)
     q = db.query(SalesInvoice)
     if customer_type == "munferit":
         q = q.filter(SalesInvoice.is_munferit.is_(True))
@@ -292,32 +343,24 @@ def list_invoices(
             | SalesInvoice.customer_name.ilike(term)
             | SalesInvoice.customer_code.ilike(term)
         )
-    rows = q.order_by(SalesInvoice.invoice_date.desc(), SalesInvoice.id.desc()).all()
-
-    items = []
-    for inv in rows:
-        entry = smap.get(inv.id, {"collected": 0.0, "advance": 0.0, "status": STATUS_OPEN})
-        st = entry["status"]
-        if status and st != status:
-            continue
-        amt_tl = _f(inv.amount)
-        amt_nat = _f(inv.amount_currency) or amt_tl     # döviz tutarı (TL ise = TL)
-        col = entry["collected"]                        # native
-        items.append({
-            "id": inv.id, "customer_code": inv.customer_code, "customer_name": inv.customer_name,
-            "is_munferit": inv.is_munferit, "invoice_no": inv.invoice_no,
-            "invoice_date": inv.invoice_date.isoformat() if inv.invoice_date else None,
-            "amount": amt_nat, "amount_tl": amt_tl, "currency": inv.currency,
-            "collected": col, "remaining": round(amt_nat - col, 2),
-            "status": st, "advance_covered": entry["advance"], "by_advance": entry["advance"] > _EPS,
-            "description": inv.description,
-        })
-
-    total = len(items)
-    pages = max(1, math.ceil(total / page_size))
+    q = q.order_by(SalesInvoice.invoice_date.desc(), SalesInvoice.id.desc())
     start = (page - 1) * page_size
+
+    if status:
+        # status FIFO'dan türetilir, SQL'e itilemez → DB-filtreli satırları çek, durum süz,
+        # sonra Python'da sayfala (smap cache'li, böylece tekrar FIFO yok).
+        rows = [inv for inv in q.all() if smap.get(inv.id, {}).get("status", STATUS_OPEN) == status]
+        total = len(rows)
+        page_rows = rows[start:start + page_size]
+    else:
+        # status filtresi yok (yaygın durum) → gerçek SQL sayfalama (count + offset/limit).
+        total = q.count()
+        page_rows = q.offset(start).limit(page_size).all()
+
+    items = [_invoice_item(inv, smap) for inv in page_rows]
+    pages = max(1, math.ceil(total / page_size))
     return {
-        "items": items[start:start + page_size],
+        "items": items,
         "total": total, "page": page, "page_size": page_size, "pages": pages,
     }
 
@@ -328,7 +371,7 @@ def summary(
     _: User = Depends(require_permission("finance.sales_invoices", "view")),
 ):
     """Satış faturası özeti: toplam faturalanan/tahsil/açık + durum + münferit/acente kırılımı + avans."""
-    smap, _ = _compute(db)
+    smap, _ = _compute_cached(db)
     invoices = db.query(SalesInvoice).all()
     agg = {
         "total": {"invoiced": 0.0, "collected": 0.0, "count": 0},
@@ -366,7 +409,7 @@ def _merged_advances(db: Session):
     """Acente avans bakiyeleri (EKSİKSİZ): Sedna 340 'Alınan Avanslar' (asıl defter) + 120 net-alacak.
     340'ta adı geçen 120 kaydı atlanır (mükerrer önleme). Döner: (merged_items, total_by_currency)."""
     # 120 net-alacak (offline, import edilmiş veriden)
-    _, adv_bal = _compute(db)
+    _, adv_bal = _compute_cached(db)
     items_120 = []
     if adv_bal:
         inv_info: dict = {}

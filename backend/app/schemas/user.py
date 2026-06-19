@@ -11,26 +11,9 @@ class UserLogin(BaseModel):
     password: str = Field(max_length=128)
 
 
-class UserRegister(BaseModel):
-    username: str = Field(max_length=150)
-    email: EmailStr = Field(max_length=254)
-    password: str = Field(max_length=128)
-    first_name: str = Field(max_length=100)
-    last_name: str = Field(max_length=100)
-
-    @field_validator("password")
-    @classmethod
-    def password_min_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Şifre en az 8 karakter olmalıdır")
-        return v
-
-    @field_validator("username")
-    @classmethod
-    def username_min_length(cls, v: str) -> str:
-        if len(v.strip()) < 3:
-            raise ValueError("Kullanıcı adı en az 3 karakter olmalıdır")
-        return v.strip()
+# NOT: UserRegister şeması, public /api/auth/register endpoint'i ile birlikte
+# güvenlik nedeniyle kaldırıldı (2026-06-19). Kullanıcı oluşturma için
+# UserCreate (admin, system.users:use) kullanılır.
 
 
 class RoleBrief(BaseModel):

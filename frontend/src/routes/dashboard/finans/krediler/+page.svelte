@@ -1039,15 +1039,15 @@
 								<div class="flex gap-1.5 sm:gap-2 flex-wrap">
 									{#if canUse}
 										{#if p.type !== 'kredi_karti' && p.type !== 'kmh'}
-											<button onclick={() => openPaymentModal(p.id)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-teal-700 text-white rounded-lg hover:bg-teal-800 cursor-pointer">+ Taksit</button>
+											<Button size="sm" onclick={() => openPaymentModal(p.id)}><Plus size={14} /> Taksit</Button>
 										{/if}
-										<button onclick={() => openEdit(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 cursor-pointer">Düzenle</button>
+										<Button variant="secondary" size="sm" onclick={() => openEdit(p)}>Düzenle</Button>
 										{#if p.status === 'closed'}
 											<button onclick={() => reopenProduct(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 cursor-pointer">Yeniden Aç</button>
 										{:else if p.type !== 'kredi_karti'}
 											<button onclick={() => openCloseModal(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 cursor-pointer">Kapat</button>
 										{/if}
-										<button onclick={() => deleteProduct(p.id)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 cursor-pointer">Sil</button>
+										<Button variant="danger" size="sm" onclick={() => deleteProduct(p.id)}>Sil</Button>
 									{/if}
 								</div>
 							</div>
@@ -1564,18 +1564,8 @@
 			/>
 		</div>
 		<div class="flex items-center justify-end gap-2 pt-2">
-			<button
-				onclick={() => (closeModal = { show: false, id: null, name: '', closedDate: new Date().toISOString().split('T')[0] })}
-				class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
-			>
-				Vazgeç
-			</button>
-			<button
-				onclick={confirmClose}
-				class="px-4 py-2 text-sm bg-teal-700 text-white rounded-lg hover:bg-teal-800 font-medium"
-			>
-				Krediyi Kapat
-			</button>
+			<Button variant="secondary" onclick={() => (closeModal = { show: false, id: null, name: '', closedDate: new Date().toISOString().split('T')[0] })}>Vazgeç</Button>
+			<Button onclick={confirmClose}>Krediyi Kapat</Button>
 		</div>
 	</div>
 </Modal>
@@ -1600,7 +1590,7 @@
 			{#if planModal.loading}
 				<TableSkeleton rows={5} columns={4} showHeader={false} />
 			{:else if planModal.payments.length === 0}
-				<div class="py-10 text-center text-gray-400 text-sm">Bu kredi için taksit planı bulunmuyor.</div>
+				<div class="py-10 text-center text-gray-500 text-sm">Bu kredi için taksit planı bulunmuyor.</div>
 			{:else}
 				{@const todayS = new Date().toISOString().split('T')[0]}
 				{@const paidCount = planModal.payments.filter((p: any) => p.is_paid).length}

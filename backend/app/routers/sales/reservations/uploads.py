@@ -1,5 +1,6 @@
 """Otel rezervasyon dosya yükleme, yükleme geçmişi ve toplu silme endpoint'leri."""
 
+import asyncio
 import json
 import os
 import uuid
@@ -113,7 +114,8 @@ async def upload_reservations(
         f.write(content)
 
     try:
-        parsed = parse_reservation_excel(file_path)
+        # CPU-yoğun Excel parse'ı threadpool'a al → event loop bloke olmaz (eşzamanlı istekler beklemez)
+        parsed = await asyncio.to_thread(parse_reservation_excel, file_path)
     except Exception as e:
         logger.error("Rezervasyon dosyası ayrıştırma hatası (%s): %s", file.filename, e, exc_info=True)
         if os.path.exists(file_path):

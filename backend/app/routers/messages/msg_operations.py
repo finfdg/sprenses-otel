@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip, message_limiter, search_limiter, upload_limiter
@@ -226,7 +227,7 @@ def edit_message(
 
     # WS broadcast
     _broadcast_to_conversation(background_tasks, db, conversation_id, current_user.id, {
-        "type": "message_edited",
+        "type": WSEvent.MESSAGE_EDITED,
         "conversation_id": conversation_id,
         "message_id": message_id,
         "content": msg.content,
@@ -270,7 +271,7 @@ def delete_message(
 
     # WS broadcast
     _broadcast_to_conversation(background_tasks, db, conversation_id, current_user.id, {
-        "type": "message_deleted",
+        "type": WSEvent.MESSAGE_DELETED,
         "conversation_id": conversation_id,
         "message_id": message_id,
     })

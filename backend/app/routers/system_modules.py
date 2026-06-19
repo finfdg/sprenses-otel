@@ -3,6 +3,7 @@ from typing import List, Set
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import get_current_user, invalidate_module_cache, require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -107,7 +108,7 @@ def create_module(
     # Yeni modül oluşturuldu — tüm online kullanıcıları bildir
     background_tasks.add_task(
         manager.send_to_all,
-        {"type": "permission_changed", "reason": "module_created"},
+        {"type": WSEvent.PERMISSION_CHANGED, "reason": "module_created"},
     )
 
     return module
@@ -174,7 +175,7 @@ def update_module(
     # Modül değişikliğini tüm online kullanıcılara bildir
     background_tasks.add_task(
         manager.send_to_all,
-        {"type": "permission_changed", "reason": "module_updated"},
+        {"type": WSEvent.PERMISSION_CHANGED, "reason": "module_updated"},
     )
 
     return module
@@ -213,5 +214,5 @@ def delete_module(
     # Modül silme değişikliğini tüm online kullanıcılara bildir
     background_tasks.add_task(
         manager.send_to_all,
-        {"type": "permission_changed", "reason": "module_deleted"},
+        {"type": WSEvent.PERMISSION_CHANGED, "reason": "module_deleted"},
     )
