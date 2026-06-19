@@ -110,3 +110,55 @@ yeterlidir. Denetim scripti bunları her çalışmada **UYARI** olarak hatırlat
 
 **Önlem (opsiyonel):** anahtar zayıf seçeneklerle açık kaldığı süre boyunca Ubuntu makinesi
 güvenilmezse `.env` içindeki `SECRET_KEY` ve DB şifresi okunmuş olabilir → ihtiyaten rotasyon.
+
+---
+
+## 5. Bayat (zombie) tünel oturumu — `Address already in use` (2026-06-19)
+
+**Belirti:** Sedna içe-aktarmaları 503 / `Adaptive Server connection timed out` veriyordu **ama
+tünel portu 11433 açık görünüyordu** ve `SEDNA_PASSWORD` ayarlıydı. Yani klasik "ön-koşul eksik"
+durumu değildi.
+
+**Kök neden:** Ubuntu LAN makinesinden ~18 saat önce kurulan ters tünel oturumunun ağ bağlantısı
+kopmuştu, fakat EC2'deki `sshd` oturumu **11433 portunu hâlâ tutuyordu** (yarı-açık/zombie). Bu
+ölü oturumda forward edilen bağlantılar SQL Server'a ulaşamadan timeout oluyor, oturumda
+**onlarca `CLOSE-WAIT`** birikiyordu. LAN makinesi doğru çalışıp her ~6 sn'de yeni sağlam tünel
+kurmaya çalışıyor, ama zombie portu bıraktırmadığı için sshd reddediyordu:
+
+```
+error: bind [127.0.0.1]:11433: Address already in use
+error: channel_setup_fwd_listener_tcpip: cannot listen to port: 11433
+```
+
+**Anlık düzeltme:** Bayat oturumu öldür → port boşalır → bekleyen sağlam tünel saniyeler içinde
+bağlanır (LAN tarafı zaten yeniden deniyor):
+
+```bash
+# 11433'ü LISTEN olarak tutan sshd PID'sini bul, sonra öldür:
+sudo ss -tlnp | grep 11433          # users:(("sshd",pid=XXXXX,...))
+sudo kill <PID>
+```
+
+**Kalıcı önlem — EC2 tarafı (uygulandı 2026-06-19):**
+`/etc/ssh/sshd_config.d/10-tunnel-keepalive.conf` drop-in'i ile sshd ölü tünel oturumlarını
+~90 sn'de kendisi temizler (yeni sağlam tünel `Address already in use` almaz):
+
+```
+ClientAliveInterval 30
+ClientAliveCountMax 3
+```
+Uygulama: `sudo sshd -t` (doğrula) → `sudo systemctl reload sshd` (mevcut bağlantı düşmez).
+Etkin değer: `sudo sshd -T | grep clientalive`.
+
+**Kalıcı önlem — LAN tarafı (Ubuntu tünel başlatma komutuna eklenmeli):**
+```
+ssh -N -R 127.0.0.1:11433:192.168.2.245:1433 \
+    -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
+    -i <sedna-tunnel-key> ec2-user@EC2
+```
+- `ServerAliveInterval/CountMax` → client kendi ölü oturumunu ~90 sn'de kapatır.
+- `ExitOnForwardFailure=yes` → port bağlanamazsa client **hemen çıkar** (boşuna asılı kalmaz,
+  autossh/systemd onu temiz yeniden başlatır).
+
+**Teşhis komutu:** `/sedna-sync` skill'i bu durumu (port açık ama TCP el sıkışma timeout +
+`CLOSE-WAIT` birikimi + `Address already in use` logu) doğrudan gösterir.
