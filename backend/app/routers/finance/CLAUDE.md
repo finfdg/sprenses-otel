@@ -26,8 +26,20 @@ kalkarsa eski tahmin temizlenir.
   banka verince `bank_name_inferred=False` (tahmin → kesin override).
 - **Ayrı tutulur:** `bank_name_inferred` bayrağı (checks + finance_events) → UI'da **soluk/italik "~banka" rozeti**
   (CashFlowItem + cekler), gerçek banka teal rozet. Sedna'da banka girilince otomatik kesinleşir.
-- **İlk sonuç (2026-06-20):** 15 çek tahmin edildi → bekleyen-bankasız çek 6→2'ye düştü (kalan: izole 0012119
-  + bozuk çek-no "ANTALYA"). Migration `d2a6c4f8e1b5`. Test: `test_checks.py::TestCheckBankInference`.
+- **İlk sonuç (2026-06-20):** 15 çek tahmin edildi → bekleyen-bankasız çek 6→2'ye düştü. Migration `d2a6c4f8e1b5`. Test: `test_checks.py::TestCheckBankInference`.
+
+### Çek No ↔ Açıklama-No Uyuşmazlığı Tespiti (`detect_check_no_mismatches`) (2026-06-20)
+
+Excel/cari açıklamasında gerçek çek no gömülü olur (ör. "GALAKSİ 0012419 NL 25.06.2026 VADELİ ÇEK").
+`check_no` bu numaradan farklıysa **transkripsiyon hatası** olabilir (canlı bulgu: `0012119` kayıtlı ama
+açıklama `0012419` → '4' yerine '1'; izole görünüp banka tahmini alamıyordu). `detect_check_no_mismatches(db)`
+açıklamadaki 6-7 haneli numarayı `check_no` ile kıyaslar (Türkçe-duyarsız int normalize). **Yalnız TESPİT —
+asla otomatik düzeltmez** (off-by-1 farklar açıklamanın komşu çeke referansı da olabilir; düzeltme insan kararı).
+- **Tetikleme:** `run_check_import` sonunda çalışır → uyuşmazlıkları `logger.warning` + sonuç `number_anomalies` sayısı.
+- **Endpoint:** `GET /finance/checks/number-anomalies` (finance.checks view) → `{items, count}` liste (UI/inceleme için).
+- **Düzeltilen no'lar (2026-06-20, elle doğrulamayla):** `0012119→0012419`, `02012411→0012411`, `782820→7823820`
+  (üçü de bozuk check_no + boş hedef slot + deftere oturuyor). Kalan 3 anomali ödenmiş+belirsiz (off-by-1) → dokunulmadı.
+- Test: `test_checks.py::TestCheckBankInference::test_number_anomaly_detection`.
 
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 

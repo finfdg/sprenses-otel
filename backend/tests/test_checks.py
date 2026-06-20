@@ -398,3 +398,24 @@ class TestCheckBankInference:
         infer_check_banks(db)
         db.refresh(stale)
         assert stale.bank_name is None and stale.bank_name_inferred is False
+
+    def test_number_anomaly_detection(self, db):
+        from app.models.check import Check, CheckUpload
+        from app.routers.finance.checks import detect_check_no_mismatches
+        up = CheckUpload(file_name="t3.xlsx")
+        db.add(up)
+        db.flush()
+        # Açıklamadaki no check_no'dan FARKLI → işaretlenmeli
+        bad = Check(upload_id=up.id, check_no="0055119", vendor_name="X", due_date=date(2026, 9, 1),
+                    amount_tl=1, currency="TL", amount_currency=1, status="pending",
+                    description="FİRMA 0055419 NL 01.09.2026 VADELİ ÇEK")
+        # Açıklamadaki no check_no ile AYNI → işaretlenmemeli
+        ok = Check(upload_id=up.id, check_no="0055420", vendor_name="Y", due_date=date(2026, 9, 2),
+                   amount_tl=1, currency="TL", amount_currency=1, status="pending",
+                   description="FİRMA 0055420 NL 02.09.2026 VADELİ ÇEK")
+        db.add_all([bad, ok])
+        db.flush()
+        res = detect_check_no_mismatches(db)
+        nos = {r["check_no"]: r["description_no"] for r in res}
+        assert nos.get("0055119") == "0055419"
+        assert "0055420" not in nos

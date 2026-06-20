@@ -565,6 +565,8 @@ Projeye özel, git'te takip edilen (ekiple paylaşılan) Claude Code otomasyonla
 - `PATCH /api/finance/checks/{id}/status` — Çek durumu güncelle
 - `GET /api/finance/checks/summary` — Çek özeti
 - `POST /api/finance/checks/match-bank` — Otomatik banka eşleştirme
+- `GET /api/finance/checks/number-anomalies` — Olası çek-no giriş hataları (açıklamadaki no ≠ check_no; salt rapor)
+- **Banka bilgisi:** çekin ödeneceği banka `checks.bank_name` (Sedna `AccCheck.Bank`); boşsa ardışık çek-no komşularından **tahmin** (`bank_name_inferred`, "~banka" rozeti) — Nakit Akım + Çekler'de gösterilir
 - Detaylı bilgi: `docs/modules/cekler.md`
 
 ### Finans — Krediler

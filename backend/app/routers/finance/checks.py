@@ -3,6 +3,7 @@ import asyncio
 import logging
 import math
 import os
+import re
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -253,6 +254,31 @@ def infer_check_banks(db: Session) -> int:
     return changed
 
 
+def detect_check_no_mismatches(db: Session) -> list:
+    """check_no ile açıklamadaki 6-7 haneli numara uyuşmuyorsa olası giriş hatası listele (DÜZELTMEZ).
+
+    Excel/cari açıklamasında gerçek çek no gömülü olur; check_no'dan farklıysa transkripsiyon hatası
+    olabilir (ör. 0012119 vs açıklama 0012419 → '4' yerine '1'). Yalnız TESPİT — düzeltme insan kararı
+    (off-by-1 farklar açıklamanın komşu çeke referansı da olabilir). Açıklama-no'su check_no ile eşleşen
+    veya açıklamada 6-7 haneli no içermeyen çekler raporlanmaz.
+    """
+    out = []
+    for ch in db.query(Check).filter(Check.description.isnot(None)).all():
+        cn = _checkno_to_int(ch.check_no)
+        if cn is None:
+            continue
+        for tok in re.findall(r"\d{6,7}", ch.description or ""):
+            ti = _checkno_to_int(tok)
+            if ti is not None and ti != cn:
+                out.append({
+                    "id": ch.id, "check_no": ch.check_no, "description_no": tok,
+                    "vendor_code": ch.vendor_code, "vendor_name": ch.vendor_name,
+                    "amount_tl": float(ch.amount_tl), "currency": ch.currency, "status": ch.status,
+                })
+                break
+    return out
+
+
 def run_check_import(db: Session, current_user: User, ip=None) -> dict:
     """Sedna'dan verilen çekleri çek (320 satıcı + 159 avans + 335 personel/ortak) + dedup ile içe aktar.
 
@@ -416,6 +442,11 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         upload.skipped_checks = skipped_count
         # Bankası boş çekleri komşu çek-no'larından tahmin et (Sedna güncellemeleri bittikten SONRA)
         inferred_count = infer_check_banks(db)
+        # Olası check_no↔açıklama-no uyuşmazlıklarını tespit et + uyar (düzeltmez — insan kararı)
+        anomalies = detect_check_no_mismatches(db)
+        if anomalies:
+            logger.warning("Olası çek-no uyuşmazlığı (%d): %s", len(anomalies),
+                           ", ".join(f"{a['check_no']}≠{a['description_no']}" for a in anomalies[:20]))
         log_action(
             db, current_user.id, "create", "check_upload", entity_id=upload.id,
             details=f"Sedna çek içe aktarma: {new_count} yeni, {updated_count} güncel (vade/durum), "
@@ -447,6 +478,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         "removed_dupes": removed_dupes,
         "skipped_checks": skipped_count,
         "matched_to_bank": matched,
+        "number_anomalies": len(anomalies),
     }
 
 
@@ -461,6 +493,16 @@ def sedna_import_checks(
     result = run_check_import(db, current_user, get_client_ip(request))
     broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "upload")
     return result
+
+
+@router.get("/number-anomalies")
+def check_number_anomalies(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.checks", "view")),
+):
+    """Olası çek-no giriş hataları: açıklamadaki numara check_no ile uyuşmuyor (salt rapor)."""
+    items = detect_check_no_mismatches(db)
+    return {"items": items, "count": len(items)}
 
 
 # ─── Yükleme Geçmişi ────────────────────────────────────
