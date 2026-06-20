@@ -279,15 +279,17 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
                 with db.begin_nested():
                     ex = existing.get(key)
                     if ex is not None:
-                        # eşleşmemiş çek → Sedna güncel durumunu yansıt (VADE + durum); eşleşmişe dokunma
+                        # eşleşmemiş çek → Sedna güncel durumunu yansıt (VADE + durum + banka); eşleşmişe dokunma.
+                        # Banka farkı/eksiği de tetikler → mevcut çeklerde bank_name geriye doldurulur (re-sync backfill).
                         if ex.bank_transaction_id is None and ex.match_number is None:
-                            if ex.due_date != due_date or ex.status != new_status:
+                            bank_changed = bool(bank) and ex.bank_name != bank
+                            if ex.due_date != due_date or ex.status != new_status or bank_changed:
                                 ex.due_date = due_date
                                 ex.status = new_status
                                 ex.amount_currency = amount_currency
                                 ex.currency = curr
                                 if bank:
-                                    ex.description = bank
+                                    ex.bank_name = bank
                                 finance_event_svc.upsert_check(db, ex)
                                 updated_count += 1
                             else:
@@ -312,7 +314,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
                             drift.currency = curr
                             drift.status = new_status
                             if bank:
-                                drift.description = bank
+                                drift.bank_name = bank
                             finance_event_svc.upsert_check(db, drift)
                             existing[key] = drift
                             updated_count += 1
@@ -325,7 +327,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
                                 check_no=check_no,
                                 vendor_code=vendor_code,
                                 vendor_name=(r.get("vendor_name") or "").strip() or check_no,
-                                description=bank,                 # banka adı (ayrı kolon yok)
+                                bank_name=bank,                   # çekin ödeneceği banka (Sedna AccCheck.Bank)
                                 city=(r.get("city") or "").strip() or None,
                                 due_date=due_date,
                                 amount_tl=amount_tl,

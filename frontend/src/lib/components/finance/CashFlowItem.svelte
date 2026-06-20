@@ -4,6 +4,7 @@
 	import { categoryColorMap, getColor } from '$lib/utils/colorMap';
 	import { getPaymentMethod } from '$lib/utils/paymentMethods';
 	import TagSelector from './TagSelector.svelte';
+	import { Landmark } from 'lucide-svelte';
 
 	let {
 		item,
@@ -175,6 +176,9 @@
 							{/if}
 							{#if item.vendor_code}
 								<span class="text-[10px] text-gray-500 font-mono">{item.vendor_code}</span>
+							{/if}
+							{#if item.bank_name}
+								<span class="text-[10px] font-medium text-teal-700 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded inline-flex items-center gap-1"><Landmark size={11} />{item.bank_name}</span>
 							{/if}
 						{:else if item.source === 'vendor_payment'}
 							<span class="text-[10px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200">Cari Ödeme</span>

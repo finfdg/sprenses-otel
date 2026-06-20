@@ -64,6 +64,7 @@ class Check(Base):
     vendor_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     vendor_name: Mapped[str] = mapped_column(String(300))
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    bank_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # çekin ödeneceği banka (Sedna AccCheck.Bank)
     city: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     due_date: Mapped[date_type] = mapped_column(Date)
     amount_tl: Mapped[float] = mapped_column(Numeric(15, 2))

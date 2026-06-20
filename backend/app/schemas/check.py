@@ -13,6 +13,7 @@ class CheckResponse(BaseModel):
     vendor_code: Optional[str] = None
     vendor_name: str
     description: Optional[str] = None
+    bank_name: Optional[str] = None
     city: Optional[str] = None
     due_date: date
     amount_tl: float

@@ -133,7 +133,7 @@ class TestSednaCheckImport:
             assert j["new_checks"] == 3 and j["total_fetched"] == 3
 
             rows = {x[0]: x for x in db.execute(text(
-                "SELECT check_no, status, currency, amount_currency, transaction_type, description "
+                "SELECT check_no, status, currency, amount_currency, transaction_type, bank_name "
                 "FROM checks WHERE check_no IN ('CHK001','CHK002','CHK003')"
             )).fetchall()}
             assert rows["CHK001"][1] == "pending"

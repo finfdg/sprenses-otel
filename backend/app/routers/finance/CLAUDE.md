@@ -5,6 +5,15 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Verilen Çek — Ödeme Bankası (`checks.bank_name`) (2026-06-20)
+
+Verilen çekin **hangi bankadan ödeneceği** (çek defterinin bankası) artık ayrı kolonda tutulur.
+- **Kaynak:** Sedna `AccCheck.Bank` (`fetch_issued_checks()` → `bank` anahtarı). Verilen çekte = bizim ödeme bankamız.
+- **Kolon:** `checks.bank_name VARCHAR(100)` (migration `c1f5a8e3b9d2`, additive+nullable). **Eskiden `description`'a yazılıyordu** ama description Excel notlarıyla karışıyordu (güvenilmez) → ayrı kolon.
+- **Import:** `run_check_import` banka adını `bank_name`'e yazar (new + drift + status-sync yolları). **Backfill:** status/vade değişmese bile `bank_name` eksik/farklıysa güncellenir → re-sync mevcut çeklerde geriye doldurur (71/77 bekleyen çek dolduruldu; Sedna'da `Bank` boş olanlar + Excel-only çekler boş kalır).
+- **finance_events:** `upsert_check` FE'nin `bank_name`'ini doldurur (eşleşmişse banka hareketinin bankası, değilse çekin `bank_name`'i) → Nakit Akım çek kartında **banka rozeti** (Landmark ikonlu) gösterilir.
+- **Frontend:** `CashFlowItem.svelte` çek dalında banka rozeti; `cekler/+page.svelte` tabloya "Banka" sütunu + mobil kartta rozet. Test: `test_checks.py::test_import_status_mapping_dedup_and_sync` (bank_name doğrulaması).
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:

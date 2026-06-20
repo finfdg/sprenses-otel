@@ -42,7 +42,8 @@
 | `check_no` | varchar(50) | Çek numarası |
 | `vendor_code` | varchar(50) | Cari kodu |
 | `vendor_name` | varchar(200) | Cari adı |
-| `description` | text | Açıklama |
+| `description` | text | Açıklama / serbest not |
+| `bank_name` | varchar(100) | Çekin ödeneceği banka (Sedna `AccCheck.Bank`) — Nakit Akım + Çekler'de gösterilir |
 | `city` | varchar(100) | Şehir |
 | `due_date` | date | Vade tarihi |
 | `amount_tl` | numeric(15,2) | TL tutarı |
@@ -142,7 +143,7 @@ use, onaydan muaf, audit'li).
     **30.000 € = 1.596.726 TL** (1,56M TL eksik borç) → import bunu otomatik düzeltti. **Eşleşmiş** kayda
     (banka kanıtı) DOKUNULMAZ — mutabık verimiz korunur (ör. 714659 paid+banka-eşleşmiş EUR/TL etiketi atlanır).
 - **Alan eşleme:** `amount_tl`=Debit (TL); EUR çekte `currency`=EUR + `amount_currency`=CurrDebit;
-  `description`=banka adı (ayrı banka kolonu yok); `transaction_type`="Verilen Çek".
+  **`bank_name`=banka adı** (Sedna `AccCheck.Bank`; 2026-06-20'den önce `description`'a yazılıyordu, artık ayrı kolon → Nakit Akım/Çekler'de banka rozeti); `transaction_type`="Verilen Çek".
 - **finance_events:** `upsert_check` `status`'a göre `is_realized` (paid→True) ayarlar → nakit akımda
   doğru görünür. Banka eşleşmesi sonradan `match()` ile çift sayımı engeller.
 - **İptal çek düzeltmesi (2026-06-06):** `upsert_check` artık **cancelled** çekte FE **invalidate**

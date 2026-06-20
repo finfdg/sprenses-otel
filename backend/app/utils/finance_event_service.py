@@ -149,7 +149,10 @@ class FinanceEventService:
                 "direction":       DIRECTION_EXPENSE,
                 "currency":        "TRY" if check.currency == "TL" else check.currency,
                 "description":     check.vendor_name,
-                "bank_name":       bank_tx.account.bank_name if bank_tx and bank_tx.account else None,
+                # Eşleşmişse gerçek banka hareketinin bankası; eşleşmemiş verilen çekte çekin
+                # ödeneceği banka (Sedna AccCheck.Bank → checks.bank_name) → nakit akımda gösterilir.
+                "bank_name":       (bank_tx.account.bank_name if bank_tx and bank_tx.account
+                                    else getattr(check, "bank_name", None)),
                 "payment_method":  "cek",
                 "check_no":        check.check_no,
                 "event_status":    check.status,

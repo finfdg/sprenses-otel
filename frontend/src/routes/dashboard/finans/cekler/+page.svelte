@@ -40,6 +40,7 @@
 		vendor_code: string | null;
 		vendor_name: string;
 		description: string | null;
+		bank_name: string | null;
 		city: string | null;
 		due_date: string;
 		amount_tl: number;
@@ -437,6 +438,7 @@
 										</button>
 									</th>
 									<th class="px-3 py-2 text-left font-medium text-gray-500">Hesap Kodu</th>
+									<th class="px-3 py-2 text-left font-medium text-gray-500">Banka</th>
 									<th class="px-3 py-2 text-right font-medium text-gray-500">
 										<button onclick={() => toggleSort('amount_tl')} class="inline-flex items-center gap-1 cursor-pointer hover:text-gray-700 ml-auto">
 											Tutar
@@ -463,6 +465,7 @@
 										<td class="px-3 py-2 font-mono text-gray-700">{check.check_no}</td>
 										<td class="px-3 py-2 text-gray-800 font-medium max-w-[200px] truncate">{check.vendor_name}</td>
 										<td class="px-3 py-2 text-gray-500 font-mono text-[10px]">{check.vendor_code || '-'}</td>
+										<td class="px-3 py-2 text-gray-600 whitespace-nowrap">{check.bank_name || '—'}</td>
 										<td class="px-3 py-2 text-right font-bold text-gray-800 whitespace-nowrap">
 											{check.currency === 'TL' ? '₺' : '€'}{formatCurrency(check.amount_currency)}
 										</td>
@@ -480,7 +483,7 @@
 							</tbody>
 							<tfoot class="bg-gray-50 border-t border-gray-200">
 								<tr>
-									<td colspan="5" class="px-3 py-2 text-xs font-bold text-gray-600">
+									<td colspan="6" class="px-3 py-2 text-xs font-bold text-gray-600">
 										Ay Toplamı ({group.checks.length} çek)
 									</td>
 									<td class="px-3 py-2 text-right text-xs font-bold text-gray-800">
@@ -510,6 +513,9 @@
 												<span class="text-[10px] text-gray-500">· {check.vendor_code}</span>
 											{/if}
 										</div>
+										{#if check.bank_name}
+											<span class="inline-flex items-center gap-1 text-[10px] font-medium text-teal-700 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded mt-1"><Landmark size={11} />{check.bank_name}</span>
+										{/if}
 									</div>
 									<div class="text-right shrink-0">
 										<div class="text-sm font-bold text-gray-800">
