@@ -60,6 +60,10 @@
 	let a = $derived(ACCENT[accent]);
 	let Icon = $derived(icon);
 
+	// Uzun para değerleri (ör. ₺154.073.001,86) text-xl'de taşıyordu → uzunluğa göre fontu küçült.
+	let valLen = $derived(String(value).length);
+	let valSize = $derived(valLen > 18 ? 'text-base' : valLen > 14 ? 'text-lg' : 'text-xl');
+
 	// Delta: işaret → ok yönü + AA-uyumlu renk (deltaInvert ile anlam tersine çevrilebilir).
 	let hasDelta = $derived(delta !== undefined && delta !== null);
 	let deltaUp = $derived(hasDelta && (delta as number) > 0);
@@ -75,26 +79,26 @@
 	href={href}
 	class="block bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm {href ? 'hover:border-teal-300 hover:shadow-md transition-all cursor-pointer' : ''} {extraClass}"
 >
+	<!-- Üst satır: etiket (en fazla 2 satır) + ikon. Değer ALT satırda tam genişlikte → uzun
+	     para tutarları ikonla yarışmaz, taşmaz. -->
 	<div class="flex items-start justify-between gap-3">
-		<div class="min-w-0">
-			<div class="text-xs font-medium text-gray-500 uppercase tracking-wider truncate">{label}</div>
-			<div class="mt-1.5 text-xl font-bold tabular-nums leading-tight {a.value}" title={String(value)}>{value}</div>
-			{#if hasDelta}
-				<div class="text-xs mt-1 flex items-center gap-1 flex-wrap">
-					<span class="inline-flex items-center gap-0.5 font-medium {deltaColor}">
-						<DeltaIcon size={12} aria-hidden="true" />{deltaText ?? delta}
-					</span>
-					{#if deltaLabel}<span class="text-gray-500">{deltaLabel}</span>{/if}
-				</div>
-			{/if}
-			{#if hint}
-				<div class="text-xs text-gray-500 mt-1">{hint}</div>
-			{/if}
-		</div>
+		<div class="text-xs font-medium text-gray-500 uppercase tracking-wider leading-tight min-w-0 line-clamp-2" title={label}>{label}</div>
 		{#if Icon}
 			<div class="shrink-0 w-10 h-10 rounded-xl {a.iconBg} {a.iconText} flex items-center justify-center" aria-hidden="true">
 				<Icon size={20} />
 			</div>
 		{/if}
 	</div>
+	<div class="mt-1.5 font-bold tabular-nums leading-tight break-words {valSize} {a.value}" title={String(value)}>{value}</div>
+	{#if hasDelta}
+		<div class="text-xs mt-1 flex items-center gap-1 flex-wrap">
+			<span class="inline-flex items-center gap-0.5 font-medium {deltaColor}">
+				<DeltaIcon size={12} aria-hidden="true" />{deltaText ?? delta}
+			</span>
+			{#if deltaLabel}<span class="text-gray-500">{deltaLabel}</span>{/if}
+		</div>
+	{/if}
+	{#if hint}
+		<div class="text-xs text-gray-500 mt-1">{hint}</div>
+	{/if}
 </svelte:element>
