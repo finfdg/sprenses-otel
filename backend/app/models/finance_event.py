@@ -77,6 +77,7 @@ class FinanceEvent(Base):
     # Denormalize görüntü alanları (JOIN gerektirmez)
     description    = Column(Text, nullable=True)
     bank_name      = Column(String(100), nullable=True)
+    bank_name_inferred = Column(Boolean, default=False, nullable=False, server_default="false")  # True → bank_name tahmin (çek komşu no'larından)
     account_id     = Column(Integer, nullable=True)
     iban           = Column(String(34), nullable=True)
     receipt_no     = Column(String(50), nullable=True)

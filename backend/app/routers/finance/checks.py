@@ -191,6 +191,68 @@ def sedna_status(_: User = Depends(require_permission("finance.checks", "view"))
     return {"configured": sedna_configured()}
 
 
+def _checkno_to_int(check_no):
+    """Çek no → int (baştaki sıfırlar atılır). Sayısal değilse (ör. bozuk 'ANTALYA') None."""
+    s = (check_no or "").strip()
+    return int(s) if s.isdigit() else None
+
+
+def _norm_bank(b):
+    """Banka adı karşılaştırması için Türkçe-duyarsız normalizasyon."""
+    s = (b or "").upper().replace(" ", "")
+    for a, k in (("İ", "I"), ("Ş", "S"), ("Ğ", "G"), ("Ç", "C"), ("Ö", "O"), ("Ü", "U")):
+        s = s.replace(a, k)
+    return s
+
+
+_INFER_MAX_GAP = 50  # iki onaylı çapa arası en fazla bu kadar fark → aynı çek defteri sayılır
+
+
+def infer_check_banks(db: Session) -> int:
+    """Bankası boş çekleri ardışık çek-no komşularından TAHMİN et (aynı çek defteri = aynı banka).
+
+    Yalnız INTERPOLASYON: çekin sayısal alt + üst **onaylı** (inferred=False) komşusu aynı bankada
+    ve aralarındaki fark ≤ _INFER_MAX_GAP ise o banka atanır (`bank_name_inferred=True`). Çapa olarak
+    yalnız onaylı bankalar kullanılır (tahmin-üstüne-tahmin yok). İzole/uçtaki + sayısal-olmayan çekler
+    atlanır. Idempotent; çapa kalkarsa eski tahmini temizler. Döner: değişen çek sayısı.
+    """
+    import bisect
+    all_checks = db.query(Check).all()
+    anchors = sorted(
+        (_checkno_to_int(c.check_no), c.bank_name)
+        for c in all_checks
+        if c.bank_name and not c.bank_name_inferred and _checkno_to_int(c.check_no) is not None
+    )
+    nums = [a[0] for a in anchors]
+    changed = 0
+    for c in all_checks:
+        if c.bank_name and not c.bank_name_inferred:
+            continue  # onaylı banka → asla dokunma
+        inferred = None
+        n = _checkno_to_int(c.check_no)
+        if n is not None and anchors:
+            i = bisect.bisect_left(nums, n)
+            lower = anchors[i - 1] if i - 1 >= 0 and anchors[i - 1][0] < n else None
+            upper = anchors[i] if i < len(anchors) and anchors[i][0] > n else None
+            if (lower and upper and _norm_bank(lower[1]) == _norm_bank(upper[1])
+                    and (upper[0] - lower[0]) <= _INFER_MAX_GAP):
+                inferred = lower[1]
+        if inferred:
+            if c.bank_name != inferred or not c.bank_name_inferred:
+                c.bank_name = inferred
+                c.bank_name_inferred = True
+                finance_event_svc.upsert_check(db, c)
+                changed += 1
+        elif c.bank_name_inferred:  # artık tahmin edilemiyor → eski tahmini temizle
+            c.bank_name = None
+            c.bank_name_inferred = False
+            finance_event_svc.upsert_check(db, c)
+            changed += 1
+    if changed:
+        db.flush()
+    return changed
+
+
 def run_check_import(db: Session, current_user: User, ip=None) -> dict:
     """Sedna'dan verilen çekleri çek (320 satıcı + 159 avans + 335 personel/ortak) + dedup ile içe aktar.
 
@@ -282,7 +344,8 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
                         # eşleşmemiş çek → Sedna güncel durumunu yansıt (VADE + durum + banka); eşleşmişe dokunma.
                         # Banka farkı/eksiği de tetikler → mevcut çeklerde bank_name geriye doldurulur (re-sync backfill).
                         if ex.bank_transaction_id is None and ex.match_number is None:
-                            bank_changed = bool(bank) and ex.bank_name != bank
+                            # Sedna gerçek banka verdi → tahminse de güncelle (inferred=False)
+                            bank_changed = bool(bank) and (ex.bank_name != bank or ex.bank_name_inferred)
                             if ex.due_date != due_date or ex.status != new_status or bank_changed:
                                 ex.due_date = due_date
                                 ex.status = new_status
@@ -290,6 +353,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
                                 ex.currency = curr
                                 if bank:
                                     ex.bank_name = bank
+                                    ex.bank_name_inferred = False
                                 finance_event_svc.upsert_check(db, ex)
                                 updated_count += 1
                             else:
@@ -315,6 +379,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
                             drift.status = new_status
                             if bank:
                                 drift.bank_name = bank
+                                drift.bank_name_inferred = False
                             finance_event_svc.upsert_check(db, drift)
                             existing[key] = drift
                             updated_count += 1
@@ -349,10 +414,12 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         upload.total_checks = len(rows)
         upload.new_checks = new_count
         upload.skipped_checks = skipped_count
+        # Bankası boş çekleri komşu çek-no'larından tahmin et (Sedna güncellemeleri bittikten SONRA)
+        inferred_count = infer_check_banks(db)
         log_action(
             db, current_user.id, "create", "check_upload", entity_id=upload.id,
             details=f"Sedna çek içe aktarma: {new_count} yeni, {updated_count} güncel (vade/durum), "
-                    f"{removed_dupes} mükerrer temizlendi, {skipped_count} atlandı",
+                    f"{removed_dupes} mükerrer temizlendi, {skipped_count} atlandı, {inferred_count} banka tahmini",
             ip_address=ip,
         )
         db.commit()

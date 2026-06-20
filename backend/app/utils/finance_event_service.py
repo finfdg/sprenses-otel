@@ -153,6 +153,9 @@ class FinanceEventService:
                 # ödeneceği banka (Sedna AccCheck.Bank → checks.bank_name) → nakit akımda gösterilir.
                 "bank_name":       (bank_tx.account.bank_name if bank_tx and bank_tx.account
                                     else getattr(check, "bank_name", None)),
+                # Eşleşmiş banka kesin; eşleşmemişte çekin bank_name'i tahmin olabilir → bayrağı taşı
+                "bank_name_inferred": (False if (bank_tx and bank_tx.account)
+                                       else bool(getattr(check, "bank_name_inferred", False))),
                 "payment_method":  "cek",
                 "check_no":        check.check_no,
                 "event_status":    check.status,

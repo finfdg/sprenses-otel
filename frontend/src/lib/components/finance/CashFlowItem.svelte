@@ -178,7 +178,10 @@
 								<span class="text-[10px] text-gray-500 font-mono">{item.vendor_code}</span>
 							{/if}
 							{#if item.bank_name}
-								<span class="text-[10px] font-medium text-teal-700 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded inline-flex items-center gap-1"><Landmark size={11} />{item.bank_name}</span>
+								<span
+									class="text-[10px] font-medium px-1.5 py-0.5 rounded border inline-flex items-center gap-1 {item.bank_name_inferred ? 'text-gray-500 bg-gray-50 border-gray-200 italic' : 'text-teal-700 bg-teal-50 border-teal-100'}"
+									title={item.bank_name_inferred ? 'Tahmini banka — komşu çek numaralarından çıkarıldı (Sedna\'da banka girilince kesinleşir)' : ''}
+								><Landmark size={11} />{item.bank_name_inferred ? '~' : ''}{item.bank_name}</span>
 							{/if}
 						{:else if item.source === 'vendor_payment'}
 							<span class="text-[10px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200">Cari Ödeme</span>

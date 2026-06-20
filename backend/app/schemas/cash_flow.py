@@ -16,6 +16,7 @@ class CashFlowResponse(BaseModel):
     balance: Optional[float] = None
     receipt_no: Optional[str] = None
     bank_name: Optional[str] = None
+    bank_name_inferred: bool = False
     currency: str = "TL"
     iban: Optional[str] = None
     account_id: Optional[int] = None

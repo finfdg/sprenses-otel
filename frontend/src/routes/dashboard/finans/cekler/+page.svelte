@@ -41,6 +41,7 @@
 		vendor_name: string;
 		description: string | null;
 		bank_name: string | null;
+		bank_name_inferred?: boolean;
 		city: string | null;
 		due_date: string;
 		amount_tl: number;
@@ -465,7 +466,9 @@
 										<td class="px-3 py-2 font-mono text-gray-700">{check.check_no}</td>
 										<td class="px-3 py-2 text-gray-800 font-medium max-w-[200px] truncate">{check.vendor_name}</td>
 										<td class="px-3 py-2 text-gray-500 font-mono text-[10px]">{check.vendor_code || '-'}</td>
-										<td class="px-3 py-2 text-gray-600 whitespace-nowrap">{check.bank_name || '—'}</td>
+										<td class="px-3 py-2 whitespace-nowrap {check.bank_name_inferred ? 'text-gray-500 italic' : 'text-gray-600'}" title={check.bank_name_inferred ? 'Tahmini banka — komşu çek numaralarından çıkarıldı' : ''}>
+											{#if check.bank_name}{check.bank_name_inferred ? '~' : ''}{check.bank_name}{:else}—{/if}
+										</td>
 										<td class="px-3 py-2 text-right font-bold text-gray-800 whitespace-nowrap">
 											{check.currency === 'TL' ? '₺' : '€'}{formatCurrency(check.amount_currency)}
 										</td>
@@ -514,7 +517,7 @@
 											{/if}
 										</div>
 										{#if check.bank_name}
-											<span class="inline-flex items-center gap-1 text-[10px] font-medium text-teal-700 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded mt-1"><Landmark size={11} />{check.bank_name}</span>
+											<span class="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded mt-1 border {check.bank_name_inferred ? 'text-gray-500 bg-gray-50 border-gray-200 italic' : 'text-teal-700 bg-teal-50 border-teal-100'}" title={check.bank_name_inferred ? 'Tahmini banka' : ''}><Landmark size={11} />{check.bank_name_inferred ? '~' : ''}{check.bank_name}</span>
 										{/if}
 									</div>
 									<div class="text-right shrink-0">

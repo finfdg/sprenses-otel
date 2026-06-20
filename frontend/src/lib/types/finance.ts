@@ -16,6 +16,7 @@ export interface CashFlowItem {
 	balance: number | null;
 	receipt_no: string | null;
 	bank_name: string | null;
+	bank_name_inferred?: boolean;
 	currency: string;
 	iban: string | null;
 	account_id: number | null;

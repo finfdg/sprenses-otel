@@ -44,6 +44,7 @@
 | `vendor_name` | varchar(200) | Cari adı |
 | `description` | text | Açıklama / serbest not |
 | `bank_name` | varchar(100) | Çekin ödeneceği banka (Sedna `AccCheck.Bank`) — Nakit Akım + Çekler'de gösterilir |
+| `bank_name_inferred` | boolean | True → `bank_name` komşu çek-no'larından TAHMİN (UI'da "~banka" soluk rozet); False → kesin (Sedna) |
 | `city` | varchar(100) | Şehir |
 | `due_date` | date | Vade tarihi |
 | `amount_tl` | numeric(15,2) | TL tutarı |

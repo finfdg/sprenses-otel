@@ -341,3 +341,60 @@ class TestSednaCheckImport:
         assert sedna_client.fetch_issued_checks() == []
         q = captured["q"]
         assert "LIKE '320%'" in q and "LIKE '159%'" in q and "LIKE '335%'" in q
+
+
+# ─── BANKA TAHMİNİ (infer_check_banks) ───────────────────────
+
+
+class TestCheckBankInference:
+    """Bankası boş çekleri ardışık çek-no komşularından tahmin etme (interpolasyon)."""
+
+    def _mk(self, db, upload_id, no, bank=None, inferred=False):
+        from app.models.check import Check
+        c = Check(
+            upload_id=upload_id, check_no=no, vendor_name="X", due_date=date(2026, 9, 1),
+            amount_tl=1000, currency="TL", amount_currency=1000, status="pending",
+            bank_name=bank, bank_name_inferred=inferred, transaction_type="Verilen Çek",
+        )
+        db.add(c)
+        db.flush()
+        return c
+
+    def test_interpolation_infers_between_same_bank_neighbors(self, db):
+        from app.models.check import CheckUpload
+        from app.routers.finance.checks import infer_check_banks
+        up = CheckUpload(file_name="t.xlsx")
+        db.add(up)
+        db.flush()
+        # Çapalar: 12410 + 12420 VAKIFBANK (onaylı); 12480 HALKBANK (uzak, farklı banka)
+        a1 = self._mk(db, up.id, "0012410", "VAKIFBANK")
+        a2 = self._mk(db, up.id, "0012420", "VAKIFBANK")
+        a3 = self._mk(db, up.id, "0012480", "HALKBANK")
+        # Boşlar
+        between_same = self._mk(db, up.id, "0012415")   # iki VAKIFBANK arası → tahmin VAKIFBANK
+        between_diff = self._mk(db, up.id, "0012450")   # VAKIFBANK↓ / HALKBANK↑ → tahmin YOK
+        nonnumeric = self._mk(db, up.id, "ANTALYA")     # sayısal değil → tahmin YOK
+
+        n = infer_check_banks(db)
+        db.refresh(between_same); db.refresh(between_diff); db.refresh(nonnumeric)
+        db.refresh(a1)
+
+        assert between_same.bank_name == "VAKIFBANK" and between_same.bank_name_inferred is True
+        assert between_diff.bank_name is None and between_diff.bank_name_inferred is False
+        assert nonnumeric.bank_name is None
+        # Onaylı çapaya dokunulmaz
+        assert a1.bank_name == "VAKIFBANK" and a1.bank_name_inferred is False
+        assert n >= 1
+
+    def test_inferred_cleared_when_anchor_gone(self, db):
+        from app.models.check import CheckUpload
+        from app.routers.finance.checks import infer_check_banks
+        up = CheckUpload(file_name="t2.xlsx")
+        db.add(up)
+        db.flush()
+        # Tek çapa (tek taraf) → interpolasyon yok; daha önce tahmin edilmiş kayıt temizlenir
+        self._mk(db, up.id, "0099500", "GARANTI")
+        stale = self._mk(db, up.id, "0099400", "GARANTI", inferred=True)  # alt çapası yok → tahmin geçersiz
+        infer_check_banks(db)
+        db.refresh(stale)
+        assert stale.bank_name is None and stale.bank_name_inferred is False

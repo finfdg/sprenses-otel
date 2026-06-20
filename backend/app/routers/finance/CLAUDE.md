@@ -14,6 +14,21 @@ Verilen çekin **hangi bankadan ödeneceği** (çek defterinin bankası) artık 
 - **finance_events:** `upsert_check` FE'nin `bank_name`'ini doldurur (eşleşmişse banka hareketinin bankası, değilse çekin `bank_name`'i) → Nakit Akım çek kartında **banka rozeti** (Landmark ikonlu) gösterilir.
 - **Frontend:** `CashFlowItem.svelte` çek dalında banka rozeti; `cekler/+page.svelte` tabloya "Banka" sütunu + mobil kartta rozet. Test: `test_checks.py::test_import_status_mapping_dedup_and_sync` (bank_name doğrulaması).
 
+### Banka Tahmini — komşu çek-no interpolasyonu (`bank_name_inferred`) (2026-06-20)
+
+Sedna'da bankası boş çekler için, **ardışık çek numarası = aynı çek defteri = aynı banka** kuralından
+banka TAHMİN edilir. `infer_check_banks(db)` (checks.py): bir çekin sayısal **alt + üst ONAYLI komşusu**
+(inferred=False) aynı bankada ve aralarındaki fark ≤ `_INFER_MAX_GAP` (50) ise o banka atanır
+(`bank_name_inferred=True`). **Yalnız interpolasyon** (izole/uçtaki çek atlanır), **çapa = yalnız onaylı banka**
+(tahmin-üstüne-tahmin yok), sayısal-olmayan çek-no (`_checkno_to_int` → None) atlanır. Idempotent; çapa
+kalkarsa eski tahmin temizlenir.
+- **Tetikleme:** `run_check_import` sonunda otomatik (her Sedna sync banka tahminini günceller). Sedna gerçek
+  banka verince `bank_name_inferred=False` (tahmin → kesin override).
+- **Ayrı tutulur:** `bank_name_inferred` bayrağı (checks + finance_events) → UI'da **soluk/italik "~banka" rozeti**
+  (CashFlowItem + cekler), gerçek banka teal rozet. Sedna'da banka girilince otomatik kesinleşir.
+- **İlk sonuç (2026-06-20):** 15 çek tahmin edildi → bekleyen-bankasız çek 6→2'ye düştü (kalan: izole 0012119
+  + bozuk çek-no "ANTALYA"). Migration `d2a6c4f8e1b5`. Test: `test_checks.py::TestCheckBankInference`.
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
