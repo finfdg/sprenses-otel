@@ -981,17 +981,56 @@ Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen
 
 **Bilerek istisna olan sayfalar (kanonik iskelete uymaz, normaldir):** Mesajlaşma (iki-panel sohbet), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli + grafik), Panel/Dashboard (karşılama + özet — kendi başlığı), Nakit Akım iç accordion'u, public `/devam` sayfaları (kiosk/kurulum/basış — dashboard iskeleti yok; kiosk'ta sınırlı polling WS'siz public sayfa olduğu için kabul). Bunlar yine de **Button/Lucide/AA/StatCard/hata yönetimi** ilkelerine uyar.
 
-**Yeni modül "tasarımcı" kontrol listesi** (10 boyut — her yeni sayfa için):
-1. **Kullanılabilirlik** — arama+filtre+CTA çalışıyor mu, aksiyonlar keşfedilebilir mi?
-2. **Tutarlılık** — kanonik iskelet + StatCard + PageHeader + Button (referans: avanslar)?
-3. **Görsel hiyerarşi** — başlık → özet → filtre → içerik; en önemli sayı en büyük?
-4. **Hız** — Skeleton loading, WS event-driven (polling yasak), 2000+ kayıtta truncation uyarısı?
-5. **Mobil** — `<md`'de sidebar hamburger, tablo→kart, butonlar `w-full sm:w-auto`, taşma yok?
-6. **Erişilebilirlik** — AA kontrast (teal-700), StatusBadge semantik renk, form label+ARIA, focus halkası?
-7. **Hata yönetimi** — Toast + ErrorLog, boş `catch{}` yasak, EmptyState, ConfirmDialog?
-8. **Tasarım** — kart `rounded-xl shadow-sm`, teal tema, Lucide ikon, tutarlı padding?
-9. **Bir bakışta anlaşılma** — StatCard'lar + renk kodlama durumu anında okutuyor mu?
-10. **Başarı ölçütü** — sayfa tek bakışta "ne durumdayım"ı cevaplıyor; birincil eylem ≤1 tık?
+### Tasarımcı İnceleme Standardı — 10 Boyut (her modül + YENİ MODÜL için ZORUNLU)
+
+Her yeni/değişen sayfa, kanıtlı (dosya:satır) olarak şu 10 boyutta denetlenir. Her boyutun
+**GEÇER** (kabul) kriteri ve **KALIR** (sapma — düzeltilmeli) örnekleri vardır. Referans
+sayfalar: **`finans/avanslar`** ve **`sistem/kullanicilar`** (kanonik). Bu standart, modüllerin
+**birbiriyle tutarlı** olmasını sağlamak içindir — her sayfa aynı iskeleti, aynı bileşeni, aynı
+sırada kullanır.
+
+1. **Kullanılabilirlik** — GEÇER: arama (debounce 300ms + ✕) + filtre + birincil CTA keşfedilebilir, birincil eylem ≤1 tık. KALIR: gizli/keşfedilemeyen aksiyon, çok-adımlı temel akış.
+2. **Tutarlılık** — GEÇER: kanonik iskelet (PageHeader→StatCard→filtre→içerik→Pagination→Modal) + paylaşılan bileşenler; sayfa diğer modüllerle **aynı görünür**. KALIR: bespoke özet kartı (StatCard yerine), elle tab/segment, sayfaya özel buton stili, kanonik sıradan sapma.
+3. **Görsel hiyerarşi** — GEÇER: başlık→özet→filtre→içerik akışı; en önemli sayı en belirgin. KALIR: gömülü/dağınık birincil aksiyon, eşit ağırlıkta her şey.
+4. **Hız** — GEÇER: `TableSkeleton`/`FormSkeleton` (spinner DEĞİL), WS event-driven (polling yasak), 2000+ kayıtta truncation uyarısı. KALIR: `animate-spin`/"Yükleniyor…" metni, veri için `setInterval` polling.
+5. **Mobil** — GEÇER: `<md`'de tablo→kart (`sm:hidden`/`hidden sm:block`), butonlar `w-full sm:w-auto`, **tüm dokunma hedefleri ≥44px** (`Button` otomatik; ham `<button>`'a `touch-target`), taşma yok. KALIR: yalnız `overflow-x-auto` tablo, `p-1.5` ham satır-aksiyonu (<44px), yatay sıkışma.
+6. **Erişilebilirlik** — GEÇER: AA kontrast (teal **700**, en açık gövde metni gray-**500**), `StatusBadge` semantik renk, form `Field`+`fieldErrors`+`aria-invalid`/`aria-describedby`, `focus:ring-teal-500`, Esc/Enter klavye, `prefers-reduced-motion`. KALIR: teal-600/gray-400 gövde, tek `formError` string'i, blue/cyan/teal-100 focus ring, placeholder-gray-300.
+7. **Hata yönetimi** — GEÇER: her `catch`→`console.error`+`showToast`, `EmptyState` (düz metin değil), `ConfirmDialog` (native `confirm()` YASAK). KALIR: sessiz `catch`, yalnız-console, bespoke silme onayı.
+8. **Tasarım** — GEÇER: kart `rounded-2xl border-gray-200 shadow-sm` (paylaşılan bileşenle aynı), teal tema, **yalnız Lucide ikon**, tutarlı padding. KALIR: inline `<svg>`, emoji-as-icon (😊🔔✅⚠️), `bg-teal-600` dolu buton, gradyan/marka-dışı renk.
+9. **Bir bakışta anlaşılma** — GEÇER: StatCard + semantik renk kodu durumu anında okutur; sayfa "ne durumdayım"ı tek bakışta cevaplar. KALIR: ham sayı yığını, renk kodu yok.
+10. **Başarı ölçütü** — GEÇER: kullanıcı hedefine net ve hızlı ulaşır; birincil eylem ≤1 tık, geri bildirim (toast) net. KALIR: belirsiz sonuç, sessiz başarı/başarısızlık.
+
+**Tek-kaynak bileşen kuralı (modüller-arası tutarlılığın temeli):** Özet kart=`StatCard` · buton=`Button`
+(elle `bg-*` YASAK; `touch-target` Button'da gömülü) · başlık=`PageHeader` · liste iskeleti=`ListPage` ·
+form alanı=`Input`/`Select`/`Textarea`/`Field` · para=`MoneyInput` · dosya=`FileDropzone` · sayfalama=`Pagination` ·
+modal=`Modal` · onay=`ConfirmDialog` · boş=`EmptyState` · yükleme=`TableSkeleton`/`FormSkeleton` · durum=`StatusBadge` ·
+ikon=Lucide. **Paylaşılan bileşeni atlayıp elle yazmak = sapma.** Bir sayfaya özel "ada" stil bırakma; düzeltme
+varsa paylaşılan bileşende yap → tüm modüllere yayılsın.
+
+### Tasarımcı Denetimi (2026-06-20) — Sistem Geneli Tutarsızlık Envanteri
+
+54 sayfa tasarımcı gözüyle tek tek denetlendi (ortalama ~8.2/10; sistem güçlü, kritik P0 yok). 2026-06-19
+turu büyük sapmaları kapatmış (native confirm, blue/cyan focus, bg-teal-600 buton, sessiz catch — paylaşılan
+katmanda **yok**). Kalan sapmalar **tekrar eden 6 sistem-geneli temada** yoğunlaşıyor. Yeni sayfa bunları
+ÜRETMEZ; mevcutlar için kapatma sırası:
+
+1. **StatCard çatallaşması** (en görünür) — bespoke özet kartı kullananlar: `dashboard/+page.svelte` (10 kart + inline SVG — sistemin yüzü, en öncelikli), `finans/nakit-akim` (CashFlowSummaryCards + inline SVG), `finans/krediler` (renk-tint), `finans/butce` (drill-down), `satis/oda-tipleri` (3 kart), `satis/otel-rezervasyon` + `yonetim/panel` (YoY/karşılaştırma rozeti gerekçeli → **StatCard'a `delta`/`deltaLabel` prop'u eklenmeli**), `sistem/sunucu` (StatCard import edilip kullanılmıyor — ölü import).
+2. **Segment/Tab primitive'i YOK** — 8+ sayfa kendi tab/chip stilini elle yazıyor (cariler, satis-faturalari, cekler, doviz, talimatlar, fis-icmali, mizan, devam-takip): **5+ farklı görsel dil**. → **Paylaşılan `SegmentedControl`/`Tabs` bileşeni eklenmeli** (eksik primitive).
+3. **Inline aksiyon butonu (Button.svelte değil)** — onay-akisi, kalite/formlar, kalite/formlar/[id], `ScheduledModule` onay modalları (emerald/amber AA-sınırı), krediler "Yeniden Aç/Kapat", bankalar/talimatlar PDF modalı (`bg-blue-600` AA-fail), messaging modalları, ConfirmDialog/EmptyState iç butonları. → Button'a taşı (AA + touch-target tek kaynaktan).
+4. **`touch-target` ham butonlarda yaygın değil** — `Button` otomatik alıyor ama Button kullanmayan ham satır-aksiyonları (<44px): devam-takip, vardiyalar, mizan, oda-tipleri, otel-rezervasyon satır aksiyonları + paylaşılan `ConfirmDialog`/`EmptyState` CTA/`Pagination` okları/`FileDropzone`/`MessageInput`/Topbar mini-aksiyonlar. → paylaşılan bileşenlere `touch-target` ekle (istisnasız 44px).
+5. **Inline SVG / emoji kalıntısı** — dashboard (6), onay-akisi (6), nakit-akim özet (5), krediler (5), cekler (4), audit-loglar (1), Sidebar/Topbar (tamamı inline SVG), NotificationBell (🏦🔔), devam-takip (✅⏱️⏳⚠️), mesajlaşma (😊). → Lucide'a çevir.
+6. **İkincil çatallaşmalar:** Form hata deseni (`Field`+`fieldErrors` yalnız avanslar/kullanicilar/oda-tipleri; ScheduledModule+devam-takip+vardiyalar tek `formError`) · loading (doviz/fis-icmali/mizan-modal/stok-maliyet/yonetim/sunucu spinner-metin, diğerleri Skeleton) · modal (audit-loglar bespoke overlay + messaging modalları `Modal.svelte` kullanmıyor) · inline pagination (doviz, bankalar iç-panel) · kalan `text-gray-400` gövde metni (satis-faturalari, fis-icmali/mizan modal, vardiyalar, devam-takip, login placeholder-gray-300).
+
+**Önerilen yeni paylaşılan primitive'ler (modüller-arası tutarlılığı kökten artırır):** (a) `SegmentedControl`/`Tabs`
+(8+ sayfadaki elle tab/chip'i birleştirir), (b) `StatCard`'a `delta`/`deltaLabel` prop'u (otel-rezervasyon + yonetim
+KPI panolarını StatCard'a taşır, YoY dilini birleştirir). Bu ikisi yapılınca 1. ve 2. tema büyük ölçüde kapanır.
+
+**Bilinçli istisna (sapma DEĞİL):** Mesajlaşma (iki-panel sohbet + MessageInput autogrow), Uçak Rezervasyon
+(gömülü widget), Döviz (salt-okunur kur paneli — StatCard/EmptyState beklenmez, ama Pagination/Skeleton uygulanır),
+Panel/Dashboard karşılaması (kendi başlığı — yine de kart radius/ikon standarda çekilmeli), Login (bespoke auth — yine
+de AA), `/devam` kiosk (public, WS'siz polling + kendi tam-ekran tasarımı), mizan/fis-icmali/roller-matrisi/vardiya-
+çizelgesi/KMH-çizelgesi yoğun-matris tabloları (yatay-scroll doğru kalıp). Bunlar yine **Button/Lucide/AA/hata-yönetimi**
+ilkelerine uyar.
 
 Hızlı özet:
 - **Renk paleti:** Cyan/Teal (ana), Gray (nötr), Red (tehlike), Amber (uyarı), Green (başarı), Blue (bilgi)
