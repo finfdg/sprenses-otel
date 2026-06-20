@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { focusTrap } from '$lib/utils/focus-trap';
+	import Button from '$lib/components/Button.svelte';
 
 	let {
 		show = $bindable(false),
@@ -51,18 +52,8 @@
 				<p class="text-sm text-gray-500 mt-2">{message}</p>
 			</div>
 			<div class="px-5 py-4 flex gap-2">
-				<button
-					onclick={handleCancel}
-					class="flex-1 py-2.5 text-sm text-gray-500 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-				>
-					{cancelText}
-				</button>
-				<button
-					onclick={handleConfirm}
-					class="flex-1 py-2.5 text-sm text-white rounded-lg transition-colors cursor-pointer font-medium {danger ? 'bg-red-600 hover:bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}"
-				>
-					{confirmText}
-				</button>
+				<Button variant="secondary" class="flex-1" onclick={handleCancel}>{cancelText}</Button>
+				<Button variant={danger ? 'danger' : 'primary'} class="flex-1" onclick={handleConfirm}>{confirmText}</Button>
 			</div>
 		</div>
 	</div>

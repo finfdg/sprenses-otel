@@ -14,6 +14,7 @@
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import {
@@ -52,7 +53,7 @@
 	let txPage = $state(1);
 	let txTotal = $state(0);
 	let txPages = $state(1);
-	const txPageSize = 50;
+	let txPageSize = $state(50);
 
 	// Upload — sürükle/bırak
 	let uploading = $state(false);
@@ -262,11 +263,6 @@
 		if (tab === 'statements') {
 			loadStatements(accountId);
 		}
-	}
-
-	function changeTxPage(delta: number) {
-		txPage += delta;
-		if (expandedAccount) loadTransactions(expandedAccount);
 	}
 
 	// ─── Dosya yükleme ──────────────────────────────────────
@@ -664,7 +660,7 @@
 										{/if}
 									</div>
 
-										<!-- Hesap aksiyonları -->
+										<!-- Hesap aksiyonları (üst öğe zaten <button> olduğundan iç içe <button> yerine role="button" — geçerli HTML) -->
 										{#if canUse}
 											<div class="flex gap-0.5 ml-1">
 												<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -672,9 +668,10 @@
 													role="button"
 													tabindex="0"
 													onclick={(e) => { e.stopPropagation(); openAccountForm(acc); }}
-													onkeydown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); openAccountForm(acc); } }}
-													class="p-1 text-gray-500 hover:text-blue-600 cursor-pointer"
+													onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); openAccountForm(acc); } }}
+													class="touch-target inline-flex items-center justify-center p-1 text-gray-500 hover:text-blue-600 cursor-pointer rounded-lg"
 													title="Düzenle"
+													aria-label="Düzenle"
 												>
 													<Pencil size={14} />
 												</span>
@@ -683,9 +680,10 @@
 													role="button"
 													tabindex="0"
 													onclick={(e) => { e.stopPropagation(); askDelete(acc); }}
-													onkeydown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); askDelete(acc); } }}
-													class="p-1 text-gray-500 hover:text-rose-600 cursor-pointer"
+													onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); askDelete(acc); } }}
+													class="touch-target inline-flex items-center justify-center p-1 text-gray-500 hover:text-rose-600 cursor-pointer rounded-lg"
 													title="Sil"
+													aria-label="Sil"
 												>
 													<Trash2 size={14} />
 												</span>
@@ -791,26 +789,15 @@
 													</div>
 
 													<!-- Pagination -->
-													{#if txPages > 1}
-														<div class="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-															<span class="text-xs text-gray-500">Toplam {txTotal} işlem</span>
-															<div class="flex items-center gap-2">
-																<button
-																	onclick={() => changeTxPage(-1)}
-																	disabled={txPage <= 1}
-																	class="px-2.5 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-30 cursor-pointer disabled:cursor-default"
-																>
-																	Önceki
-																</button>
-																<span class="text-xs text-gray-500">{txPage} / {txPages}</span>
-																<button
-																	onclick={() => changeTxPage(1)}
-																	disabled={txPage >= txPages}
-																	class="px-2.5 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-30 cursor-pointer disabled:cursor-default"
-																>
-																	Sonraki
-																</button>
-															</div>
+													{#if txTotal > 0}
+														<div class="px-4 border-t border-gray-100">
+															<Pagination
+																page={txPage}
+																pageSize={txPageSize}
+																total={txTotal}
+																onPageChange={(p) => { txPage = p; if (expandedAccount) loadTransactions(expandedAccount); }}
+																onPageSizeChange={(s) => { txPageSize = s; txPage = 1; if (expandedAccount) loadTransactions(expandedAccount); }}
+															/>
 														</div>
 													{/if}
 												{/if}

@@ -78,7 +78,7 @@
 			onclick={() => go(page - 1)}
 			disabled={!canPrev}
 			aria-label="Önceki sayfa"
-			class="p-2 text-gray-500 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+			class="touch-target inline-flex items-center justify-center p-2 text-gray-500 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
 		>
 			<ChevronLeft size={16} />
 		</button>
@@ -91,7 +91,7 @@
 					onclick={() => go(n)}
 					aria-current={n === page ? 'page' : undefined}
 					aria-label={`Sayfa ${n}`}
-					class="min-w-[2rem] h-8 px-2 rounded-lg text-sm cursor-pointer transition-colors {n === page
+					class="touch-target inline-flex items-center justify-center min-w-[2rem] h-8 px-2 rounded-lg text-sm cursor-pointer transition-colors {n === page
 						? 'bg-teal-700 text-white font-medium'
 						: 'text-gray-600 hover:bg-gray-100'}"
 				>
@@ -104,7 +104,7 @@
 			onclick={() => go(page + 1)}
 			disabled={!canNext}
 			aria-label="Sonraki sayfa"
-			class="p-2 text-gray-500 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+			class="touch-target inline-flex items-center justify-center p-2 text-gray-500 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
 		>
 			<ChevronRight size={16} />
 		</button>

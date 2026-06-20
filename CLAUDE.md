@@ -1025,6 +1025,15 @@ katmanda **yok**). Kalan sapmalar **tekrar eden 6 sistem-geneli temada** yoğunl
 (8+ sayfadaki elle tab/chip'i birleştirir), (b) `StatCard`'a `delta`/`deltaLabel` prop'u (otel-rezervasyon + yonetim
 KPI panolarını StatCard'a taşır, YoY dilini birleştirir). Bu ikisi yapılınca 1. ve 2. tema büyük ölçüde kapanır.
 
+**Kapatma (2026-06-20 — backlog uygulandı):** Yukarıdaki 6 tema büyük ölçüde kapatıldı (svelte-check 0 hata, vitest 274 ✓, build ✓, canlıya alındı).
+- **Yeni primitive'ler:** `SegmentedControl.svelte` (options/value/onchange/count/icon, aktif=teal-700, touch-target, ARIA tablist) — cariler/cekler/satis-faturalari/doviz/talimatlar/fis-icmali/mizan/devam-takip elle tab/chip'leri buna taşındı. `StatCard`'a `delta`/`deltaText`/`deltaLabel`/`deltaInvert` (YoY rozeti) + `href` (tıklanabilir kart) + `class` (layout) prop'ları eklendi.
+- **StatCard benimseme:** dashboard/+page (10 kart), CashFlowSummaryCards, krediler, oda-tipleri, sunucu, otel-rezervasyon (7 KPI, delta ile) StatCard'a taşındı. **Bilinçli istisna kalan:** butce departman kartları (çok-metrikli drill-down), krediler tip kartları tinted→StatCard yapıldı; yonetim/panel zaten StatCard (backend YoY verisi yok → delta eklenmedi).
+- **Paylaşılan touch-target:** `Button`/`ConfirmDialog`/`EmptyState`/`Pagination`/`FileDropzone` + `SegmentedControl` iç butonlarına gömüldü → 44px artık istisnasız (Button kullanmayan satır-aksiyonları da devam-takip/vardiyalar/mizan/oda-tipleri/otel-rezervasyon'da `touch-target` aldı).
+- **Inline buton→Button:** onay-akisi, kalite/formlar(+[id]), ScheduledModule onay modalları, krediler, talimatlar PDF modalı, PaymentInstructions, butce/cariler modalları.
+- **Inline SVG/emoji→Lucide:** dashboard, onay-akisi, cekler, krediler, nakit-akim, CashFlowSummaryCards, Sidebar/Topbar (krom), NotificationBell, devam-takip (✅⏱️⏳→Lucide), otel-rezervasyon, oda-tipleri. (Sidebar'ın `navigation.ts`-güdümlü ikonları + login bespoke form ikonları bilinçli inline kaldı.)
+- **İkincil:** ConfirmDialog/Modal benimseme (audit-loglar bespoke→Modal, onay-akisi→ConfirmDialog); inline pagination→Pagination (doviz, bankalar); loading→TableSkeleton (doviz/fis-icmali/mizan/stok-maliyet/yonetim/sunucu); `Field`+`fieldErrors` (ScheduledModule/devam-takip/vardiyalar); gray-400→500 + login placeholder + login buton AA; kalite/sablonlar logo `accept`'inden SVG çıkarıldı (güvenlik).
+- **Açık kalan (veri/küçük):** kalite/formlar durum StatCard'ları (backend durum-sayım endpoint'i yok); yonetim/panel YoY (backend verisi yok); birkaç dekoratif `—`/`·` placeholder gray-400 (bilinçli).
+
 **Bilinçli istisna (sapma DEĞİL):** Mesajlaşma (iki-panel sohbet + MessageInput autogrow), Uçak Rezervasyon
 (gömülü widget), Döviz (salt-okunur kur paneli — StatCard/EmptyState beklenmez, ama Pagination/Skeleton uygulanır),
 Panel/Dashboard karşılaması (kendi başlığı — yine de kart radius/ikon standarda çekilmeli), Login (bespoke auth — yine

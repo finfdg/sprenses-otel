@@ -10,6 +10,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import { ChevronDown, Send, Printer, Download, X } from 'lucide-svelte';
 
 	// ─── Types ───────────────────────────────────────────
@@ -440,20 +441,15 @@
 	</div>
 
 	<!-- Tab Bar -->
-	<div class="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-		<button
-			onclick={() => activeTab = 'transfer'}
-			class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {activeTab === 'transfer' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
-		>
-			EFT / Havale / Transfer
-		</button>
-		<button
-			onclick={() => activeTab = 'exchange'}
-			class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {activeTab === 'exchange' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
-		>
-			Döviz Bozma Talimatı
-		</button>
-	</div>
+	<SegmentedControl
+		options={[
+			{ value: 'transfer', label: 'EFT / Havale / Transfer' },
+			{ value: 'exchange', label: 'Döviz Bozma Talimatı' },
+		]}
+		value={activeTab}
+		onchange={(v) => (activeTab = v as 'transfer' | 'exchange')}
+		ariaLabel="Talimat türü"
+	/>
 
 	{#if loading}
 		<TableSkeleton rows={6} columns={2} showHeader={false} />
@@ -714,33 +710,24 @@
 			<div class="flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 border-b border-gray-200 bg-gray-50">
 				<h3 class="text-sm font-semibold text-gray-800 truncate">{pdfPreview.filename}</h3>
 				<div class="flex gap-1.5 sm:gap-2 shrink-0">
-					<button
-						type="button"
-						onclick={printPdf}
-						class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 cursor-pointer"
-						title="Yazdır"
-					>
+					<Button variant="secondary" size="sm" onclick={printPdf} title="Yazdır">
 						<Printer size={14} />
 						<span class="hidden sm:inline">Yazdır</span>
-					</button>
+					</Button>
+					<!-- İndir: Button href dalı `download` özniteliğini iletmediğinden ham <a> (teal-700 AA) -->
 					<a
 						href={pdfPreview.url}
 						download={pdfPreview.filename}
-						class="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white text-xs font-medium rounded-lg hover:bg-teal-800 cursor-pointer"
+						class="touch-target inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white text-xs font-medium rounded-lg hover:bg-teal-800 cursor-pointer shadow-sm"
 						title="İndir"
 					>
 						<Download size={14} />
 						<span class="hidden sm:inline">İndir</span>
 					</a>
-					<button
-						type="button"
-						onclick={closePdfPreview}
-						class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-300 cursor-pointer"
-						title="Kapat"
-					>
+					<Button variant="ghost" size="sm" onclick={closePdfPreview} title="Kapat">
 						<X size={14} />
 						<span class="hidden sm:inline">Kapat</span>
-					</button>
+					</Button>
 				</div>
 			</div>
 			<iframe

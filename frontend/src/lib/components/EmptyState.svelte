@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '$lib/components/Button.svelte';
 	// Icon: herhangi bir Svelte bileşeni (tipik: lucide-svelte ikonu).
 	// Tip kontrolünü gevşetiyoruz ki Lucide'ın kendi Component tipleri uyumsuzluk yaratmasın.
 	let {
@@ -30,11 +31,6 @@
 		<p class="text-sm text-gray-500 mb-4 max-w-md mx-auto">{description}</p>
 	{/if}
 	{#if showCta}
-		<button
-			onclick={onCta}
-			class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-teal-700 rounded-lg hover:bg-teal-800 transition-colors cursor-pointer"
-		>
-			{ctaText}
-		</button>
+		<Button onclick={onCta ?? undefined}>{ctaText}</Button>
 	{/if}
 </div>

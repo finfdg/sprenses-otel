@@ -15,11 +15,14 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
+	import Field from '$lib/components/Field.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import SortableHeader, { type SortOrder } from '$lib/components/SortableHeader.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
 		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload, RotateCcw, MoreHorizontal, Loader2,
-		AlertTriangle,
+		AlertTriangle, CircleCheck,
 	} from 'lucide-svelte';
 
 	type Personnel = {
@@ -56,6 +59,7 @@
 	let form = $state({ full_name: '', employee_code: '', department: '', title: '', phone: '' });
 	let saving = $state(false);
 	let formError = $state('');
+	let fieldErrors = $state<Record<string, string>>({});
 
 	let confirmDel = $state<{ show: boolean; target: Personnel | null }>({ show: false, target: null });
 
@@ -71,6 +75,7 @@
 	let showManual = $state(false);
 	let manualForm = $state({ personnel_id: 0, type: 'in', punched_at: '', note: '' });
 	let manualSaving = $state(false);
+	let manualErrors = $state<Record<string, string>>({});
 
 	// Kayıt düzenle / sil
 	let showEditLog = $state(false);
@@ -239,20 +244,23 @@
 		editing = null;
 		form = { full_name: '', employee_code: '', department: '', title: '', phone: '' };
 		formError = '';
+		fieldErrors = {};
 		showPersonnelModal = true;
 	}
 	function openEdit(p: Personnel) {
 		editing = p;
 		form = { full_name: p.full_name, employee_code: p.employee_code, department: p.department ?? '', title: p.title ?? '', phone: p.phone ?? '' };
 		formError = '';
+		fieldErrors = {};
 		showPersonnelModal = true;
 	}
 	async function savePersonnel() {
 		formError = '';
-		if (!form.full_name.trim() || !form.employee_code.trim()) {
-			formError = 'Ad ve sicil no zorunlu';
-			return;
-		}
+		const errs: Record<string, string> = {};
+		if (!form.full_name.trim()) errs.full_name = 'Ad Soyad zorunlu';
+		if (!form.employee_code.trim()) errs.employee_code = 'Sicil no zorunlu';
+		fieldErrors = errs;
+		if (Object.keys(errs).length > 0) return;
 		saving = true;
 		try {
 			if (editing) {
@@ -308,9 +316,12 @@
 	function openImport() {
 		importFile = null; importResult = null; importError = ''; replaceExisting = false; showImport = true;
 	}
-	function onImportFile(e: Event) {
-		const t = e.target as HTMLInputElement;
-		importFile = t.files && t.files.length ? t.files[0] : null;
+	function onImportSelect(files: File[]) {
+		importFile = files[0] ?? null;
+		importError = '';
+	}
+	function onImportFileError(errors: string[]) {
+		importError = errors.join(' · ');
 	}
 	async function doImport() {
 		if (!importFile) { importError = 'Lütfen bir Excel dosyası seçin'; return; }
@@ -354,10 +365,12 @@
 	function openManual() {
 		const pid = personnel[0]?.id ?? 0;
 		manualForm = { personnel_id: pid, type: defaultTypeFor(pid), punched_at: toLocalInput(new Date()), note: '' };
+		manualErrors = {};
 		showManual = true;
 	}
 	async function doManual() {
-		if (!manualForm.personnel_id) { showToast('Personel seçin', 'warning'); return; }
+		manualErrors = {};
+		if (!manualForm.personnel_id) { manualErrors = { personnel_id: 'Personel seçin' }; return; }
 		manualSaving = true;
 		try {
 			const res: any = await api.post('/attendance/manual', manualForm);
@@ -525,13 +538,18 @@
 	</div>
 
 	<!-- Sekmeler -->
-	<div class="flex gap-1 border-b border-gray-200 overflow-x-auto">
-		{#each [['inside', 'İçeride'], ['personnel', 'Personel'], ['logs', 'Geçmiş'], ['summary', 'Puantaj']] as [key, label]}
-			<button
-				onclick={() => switchTab(key as typeof tab)}
-				class="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer whitespace-nowrap {tab === key ? 'border-teal-700 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'}"
-			>{label}</button>
-		{/each}
+	<div class="overflow-x-auto">
+		<SegmentedControl
+			options={[
+				{ value: 'inside', label: 'İçeride' },
+				{ value: 'personnel', label: 'Personel' },
+				{ value: 'logs', label: 'Geçmiş' },
+				{ value: 'summary', label: 'Puantaj' },
+			]}
+			value={tab}
+			onchange={(v) => switchTab(v as typeof tab)}
+			ariaLabel="Görünüm sekmesi"
+		/>
 	</div>
 
 	{#if loading}
@@ -598,19 +616,19 @@
 										</td>
 										<td class="px-4 py-3">
 											<div class="flex items-center justify-end gap-1">
-												<button onclick={() => qrCard = p} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="QR Kart">
+												<button onclick={() => qrCard = p} class="touch-target p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="QR Kart">
 													<QrCode size={16} />
 												</button>
 												{#if canUse}
 													{#if p.device_bound}
-														<button onclick={() => askResetDevice(p)} class="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded cursor-pointer" title="Cihaz Sıfırla (yeni telefon bağlamak için)">
+														<button onclick={() => askResetDevice(p)} class="touch-target p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded cursor-pointer" title="Cihaz Sıfırla (yeni telefon bağlamak için)">
 															<RotateCcw size={16} />
 														</button>
 													{/if}
-													<button onclick={() => openEdit(p)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle">
+													<button onclick={() => openEdit(p)} class="touch-target p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle">
 														<Pencil size={16} />
 													</button>
-													<button onclick={() => askDelete(p)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil">
+													<button onclick={() => askDelete(p)} class="touch-target p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil">
 														<Trash2 size={16} />
 													</button>
 												{/if}
@@ -636,19 +654,19 @@
 									</div>
 								</div>
 								<div class="flex items-center gap-1 shrink-0">
-									<button onclick={() => qrCard = p} class="p-1.5 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="QR Kart" aria-label="QR Kart">
+									<button onclick={() => qrCard = p} class="touch-target p-1.5 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="QR Kart" aria-label="QR Kart">
 										<QrCode size={16} />
 									</button>
 									{#if canUse}
 										{#if p.device_bound}
-											<button onclick={() => askResetDevice(p)} class="p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded cursor-pointer" title="Cihaz Sıfırla (yeni telefon bağlamak için)" aria-label="Cihaz Sıfırla">
+											<button onclick={() => askResetDevice(p)} class="touch-target p-1.5 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded cursor-pointer" title="Cihaz Sıfırla (yeni telefon bağlamak için)" aria-label="Cihaz Sıfırla">
 												<RotateCcw size={16} />
 											</button>
 										{/if}
-										<button onclick={() => openEdit(p)} class="p-1.5 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle" aria-label="Düzenle">
+										<button onclick={() => openEdit(p)} class="touch-target p-1.5 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle" aria-label="Düzenle">
 											<Pencil size={16} />
 										</button>
-										<button onclick={() => askDelete(p)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil" aria-label="Sil">
+										<button onclick={() => askDelete(p)} class="touch-target p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil" aria-label="Sil">
 											<Trash2 size={16} />
 										</button>
 									{/if}
@@ -661,13 +679,19 @@
 			<!-- GEÇMİŞ -->
 			{:else if tab === 'logs'}
 				<!-- Filtre: Tümü / Onay bekleyen / Düzenlenmiş -->
-				<div class="flex items-center gap-2 px-4 py-3 border-b border-gray-100 flex-wrap">
-					{#each [['all', 'Tümü'], ['pending', 'Onay bekleyen'], ['edited', 'Düzenlenmiş'], ['deleted', 'Silinmiş']] as opt (opt[0])}
-						<button onclick={() => (logFilter = opt[0] as 'all' | 'pending' | 'edited' | 'deleted')}
-							class="px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-colors {logFilter === opt[0] ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">
-							{opt[1]}{opt[0] === 'pending' && pending.length ? ` (${pending.length})` : ''}
-						</button>
-					{/each}
+				<div class="px-4 py-3 border-b border-gray-100">
+					<SegmentedControl
+						options={[
+							{ value: 'all', label: 'Tümü' },
+							{ value: 'pending', label: 'Onay bekleyen', count: pending.length || undefined },
+							{ value: 'edited', label: 'Düzenlenmiş' },
+							{ value: 'deleted', label: 'Silinmiş' },
+						]}
+						value={logFilter}
+						onchange={(v) => (logFilter = v as 'all' | 'pending' | 'edited' | 'deleted')}
+						size="sm"
+						ariaLabel="Kayıt filtresi"
+					/>
 				</div>
 
 				{#if displayLogs.length === 0 && !(showCreates && pendingCreates.length)}
@@ -699,7 +723,7 @@
 												<td class="px-4 py-3">
 													<div class="flex items-center justify-end gap-1">
 														{#if pc.can_cancel}
-															<button onclick={() => cancelPending(pc.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
+															<button onclick={() => cancelPending(pc.request_id)} class="touch-target p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
 														{/if}
 													</div>
 												</td>
@@ -727,15 +751,15 @@
 										{#if canUse}
 											<td class="px-4 py-3">
 												<div class="flex items-center justify-end gap-1">
-													<button onclick={() => openHistory(lg)} class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer" title="Tarihçe"><History size={16} /></button>
+													<button onclick={() => openHistory(lg)} class="touch-target p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer" title="Tarihçe"><History size={16} /></button>
 													{#if !lg.deleted_at}
 														{#if pend}
 															{#if pend.can_cancel}
-																<button onclick={() => cancelPending(pend.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
+																<button onclick={() => cancelPending(pend.request_id)} class="touch-target p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et"><Ban size={16} /></button>
 															{/if}
 														{:else}
-															<button onclick={() => openEditLog(lg)} class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle"><Pencil size={16} /></button>
-															<button onclick={() => confirmDeleteLog(lg)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil"><Trash2 size={16} /></button>
+															<button onclick={() => openEditLog(lg)} class="touch-target p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle"><Pencil size={16} /></button>
+															<button onclick={() => confirmDeleteLog(lg)} class="touch-target p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil"><Trash2 size={16} /></button>
 														{/if}
 													{/if}
 												</div>
@@ -760,7 +784,7 @@
 										</div>
 									</div>
 									{#if canUse && pc.can_cancel}
-										<button onclick={() => cancelPending(pc.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer shrink-0" title="Onay talebini iptal et" aria-label="Onay talebini iptal et"><Ban size={16} /></button>
+										<button onclick={() => cancelPending(pc.request_id)} class="touch-target p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer shrink-0" title="Onay talebini iptal et" aria-label="Onay talebini iptal et"><Ban size={16} /></button>
 									{/if}
 								</div>
 							{/each}
@@ -782,15 +806,15 @@
 								</div>
 								{#if canUse}
 									<div class="flex items-center gap-1 shrink-0">
-										<button onclick={() => openHistory(lg)} class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer" title="Tarihçe" aria-label="Tarihçe"><History size={16} /></button>
+										<button onclick={() => openHistory(lg)} class="touch-target p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer" title="Tarihçe" aria-label="Tarihçe"><History size={16} /></button>
 										{#if !lg.deleted_at}
 											{#if pend}
 												{#if pend.can_cancel}
-													<button onclick={() => cancelPending(pend.request_id)} class="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et" aria-label="Onay talebini iptal et"><Ban size={16} /></button>
+													<button onclick={() => cancelPending(pend.request_id)} class="touch-target p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-100 rounded cursor-pointer" title="Onay talebini iptal et" aria-label="Onay talebini iptal et"><Ban size={16} /></button>
 												{/if}
 											{:else}
-												<button onclick={() => openEditLog(lg)} class="p-1.5 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle" aria-label="Düzenle"><Pencil size={16} /></button>
-												<button onclick={() => confirmDeleteLog(lg)} class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil" aria-label="Sil"><Trash2 size={16} /></button>
+												<button onclick={() => openEditLog(lg)} class="touch-target p-1.5 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle" aria-label="Düzenle"><Pencil size={16} /></button>
+												<button onclick={() => confirmDeleteLog(lg)} class="touch-target p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil" aria-label="Sil"><Trash2 size={16} /></button>
 											{/if}
 										{/if}
 									</div>
@@ -840,28 +864,33 @@
 <!-- Personel ekle/düzenle -->
 <Modal bind:show={showPersonnelModal} title={editing ? 'Personeli Düzenle' : 'Yeni Personel'} maxWidth="max-w-md">
 	<form onsubmit={(e) => { e.preventDefault(); savePersonnel(); }} class="space-y-4">
-		<div>
-			<label for="pf-name" class="block text-sm font-medium text-gray-700 mb-1">Ad Soyad <span class="text-red-600">*</span></label>
-			<Input id="pf-name" size="sm" bind:value={form.full_name} />
-		</div>
+		<Field label="Ad Soyad" required for="pf-name" error={fieldErrors.full_name}>
+			{#snippet children({ id, invalid, describedby })}
+				<Input {id} {invalid} aria-describedby={describedby} size="sm" bind:value={form.full_name} />
+			{/snippet}
+		</Field>
 		<div class="grid grid-cols-2 gap-3">
-			<div>
-				<label for="pf-code" class="block text-sm font-medium text-gray-700 mb-1">Sicil No <span class="text-red-600">*</span></label>
-				<Input id="pf-code" size="sm" bind:value={form.employee_code} class="font-mono" />
-			</div>
-			<div>
-				<label for="pf-dept" class="block text-sm font-medium text-gray-700 mb-1">Departman</label>
-				<Input id="pf-dept" size="sm" bind:value={form.department} placeholder="Mutfak, Kat, Resepsiyon…" />
-			</div>
+			<Field label="Sicil No" required for="pf-code" error={fieldErrors.employee_code}>
+				{#snippet children({ id, invalid, describedby })}
+					<Input {id} {invalid} aria-describedby={describedby} size="sm" bind:value={form.employee_code} class="font-mono" />
+				{/snippet}
+			</Field>
+			<Field label="Departman" for="pf-dept">
+				{#snippet children({ id })}
+					<Input {id} size="sm" bind:value={form.department} placeholder="Mutfak, Kat, Resepsiyon…" />
+				{/snippet}
+			</Field>
 		</div>
-		<div>
-			<label for="pf-title" class="block text-sm font-medium text-gray-700 mb-1">Görev</label>
-			<Input id="pf-title" size="sm" bind:value={form.title} placeholder="Elektrikçi, Teknik Müdür…" />
-		</div>
-		<div>
-			<label for="pf-phone" class="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
-			<Input id="pf-phone" size="sm" bind:value={form.phone} />
-		</div>
+		<Field label="Görev" for="pf-title">
+			{#snippet children({ id })}
+				<Input {id} size="sm" bind:value={form.title} placeholder="Elektrikçi, Teknik Müdür…" />
+			{/snippet}
+		</Field>
+		<Field label="Telefon" for="pf-phone">
+			{#snippet children({ id })}
+				<Input {id} size="sm" bind:value={form.phone} />
+			{/snippet}
+		</Field>
 		{#if formError}<div class="px-3 py-2 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">{formError}</div>{/if}
 		<div class="flex justify-end gap-2 pt-2">
 			<Button type="button" variant="secondary" onclick={() => (showPersonnelModal = false)}>İptal</Button>
@@ -913,12 +942,16 @@
 			<strong>Sicil No</strong>, <strong>Ad Soyad</strong>, <strong>Departman</strong>, <strong>Görev</strong>
 			(sıra önemsiz). Var olan sicil güncellenir, yeni sicil eklenir.
 		</p>
-		<input
-			type="file"
+		<FileDropzone
 			accept=".xls,.xlsx"
-			onchange={onImportFile}
-			class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:font-medium hover:file:bg-teal-100 cursor-pointer"
+			label="Excel dosyasını sürükleyin veya seçin"
+			hint=".xls / .xlsx"
+			onSelect={onImportSelect}
+			onError={onImportFileError}
 		/>
+		{#if importFile}
+			<p class="text-xs text-gray-600">Seçilen dosya: <strong>{importFile.name}</strong></p>
+		{/if}
 		<label class="flex items-start gap-2 cursor-pointer">
 			<input type="checkbox" bind:checked={replaceExisting} class="mt-0.5 rounded border-gray-300 text-teal-700 focus:ring-teal-500" />
 			<span class="text-xs text-gray-700 leading-snug">
@@ -930,8 +963,9 @@
 			<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{importError}</div>
 		{/if}
 		{#if importResult}
-			<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 leading-snug">
-				✅ <strong>{importResult.created}</strong> yeni · <strong>{importResult.updated}</strong> güncel{importResult.deleted > 0 ? ` · ${importResult.deleted} silindi` : ''} · toplam {importResult.total} satır.
+			<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 leading-snug flex items-start gap-1.5">
+				<CircleCheck size={14} class="shrink-0 mt-0.5" />
+				<span><strong>{importResult.created}</strong> yeni · <strong>{importResult.updated}</strong> güncel{importResult.deleted > 0 ? ` · ${importResult.deleted} silindi` : ''} · toplam {importResult.total} satır.</span>
 			</div>
 		{/if}
 		<div class="flex justify-end gap-2 pt-1">
@@ -964,9 +998,10 @@
 			/>
 			<p class="text-xs text-gray-500 mt-1">{settingsMeta.min}-{settingsMeta.max} sn arası · öneri: 10-15 sn (sakin), 5-7 sn (güvenli)</p>
 		</div>
-		<div class="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-800 leading-snug">
-			⏱️ Karekod ekranda <strong>{settingsForm.refresh_sec} sn</strong>'de bir değişir ·
-			güvenlik geçerliliği <strong>{derivedTtl} sn</strong> (yenileme + 3 sn tarama payı).
+		<div class="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-800 leading-snug flex items-start gap-1.5">
+			<Clock size={14} class="shrink-0 mt-0.5" />
+			<span>Karekod ekranda <strong>{settingsForm.refresh_sec} sn</strong>'de bir değişir ·
+			güvenlik geçerliliği <strong>{derivedTtl} sn</strong> (yenileme + 3 sn tarama payı).</span>
 		</div>
 		{#if settingsError}
 			<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">{settingsError}</div>
@@ -982,12 +1017,13 @@
 <Modal bind:show={showManual} title="Elle Giriş / Çıkış" maxWidth="max-w-md">
 	<div class="space-y-4">
 		<p class="text-xs text-gray-500 leading-snug">Telefonu olmayan / unutan personel için yöneticinin manuel kaydı.</p>
-		<div>
-			<label for="mf-p" class="block text-sm font-medium text-gray-700 mb-1">Personel</label>
-			<Select id="mf-p" size="sm" bind:value={manualForm.personnel_id} onchange={() => (manualForm.type = defaultTypeFor(manualForm.personnel_id))}>
-				{#each personnel as p (p.id)}<option value={p.id}>{p.full_name} ({p.employee_code})</option>{/each}
-			</Select>
-		</div>
+		<Field label="Personel" required for="mf-p" error={manualErrors.personnel_id}>
+			{#snippet children({ id, invalid, describedby })}
+				<Select {id} {invalid} aria-describedby={describedby} size="sm" bind:value={manualForm.personnel_id} onchange={() => (manualForm.type = defaultTypeFor(manualForm.personnel_id))}>
+					{#each personnel as p (p.id)}<option value={p.id}>{p.full_name} ({p.employee_code})</option>{/each}
+				</Select>
+			{/snippet}
+		</Field>
 		<div>
 			<span class="block text-sm font-medium text-gray-700 mb-1">Hareket</span>
 			<div class="flex gap-2">
@@ -1057,8 +1093,9 @@
 			<EmptyState icon={History} title="Bu kayıt için değişiklik kaydı yok" />
 		{:else}
 			{#if historyData.pending_action}
-				<div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800">
-					⏳ Bu kayıt için <strong>{actionLabel(historyData.pending_action)}</strong> onayı bekliyor.
+				<div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-800 flex items-start gap-1.5">
+					<Hourglass size={13} class="shrink-0 mt-0.5" />
+					<span>Bu kayıt için <strong>{actionLabel(historyData.pending_action)}</strong> onayı bekliyor.</span>
 				</div>
 			{/if}
 			<ol class="relative border-l-2 border-gray-100 ml-2 space-y-4 pt-1">

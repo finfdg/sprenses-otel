@@ -115,7 +115,7 @@
 							id="username"
 							bind:value={username}
 							placeholder="kullanıcı adınızı girin"
-							class="w-full px-4 py-3.5 pl-11 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-300 outline-none focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 transition-all"
+							class="w-full px-4 py-3.5 pl-11 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 outline-none focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 transition-all"
 						/>
 						<svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
@@ -131,16 +131,16 @@
 							id="password"
 							bind:value={password}
 							placeholder="••••••••"
-							class="w-full px-4 py-3.5 pl-11 pr-11 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-300 outline-none focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 transition-all"
+							class="w-full px-4 py-3.5 pl-11 pr-11 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 outline-none focus:border-teal-400 focus:bg-white focus:ring-2 focus:ring-teal-100 transition-all"
 						/>
 						<svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
 						</svg>
 						<button
 							type="button"
-							aria-label="Şifreyi göster"
+							aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
 							onclick={() => showPassword = !showPassword}
-							class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-500 transition-colors cursor-pointer"
+							class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
 						>
 							{#if showPassword}
 								<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -159,7 +159,7 @@
 				<button
 					type="submit"
 					disabled={loading}
-					class="w-full py-3.5 mt-2 bg-gradient-to-r from-cyan-600 to-teal-600 rounded-xl text-white font-semibold tracking-wide hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-200 active:translate-y-0 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+					class="w-full py-3.5 mt-2 bg-gradient-to-r from-teal-700 to-teal-800 rounded-xl text-white font-semibold tracking-wide hover:-translate-y-0.5 hover:shadow-lg hover:shadow-teal-200 active:translate-y-0 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
 				>
 					{#if loading}
 						<svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

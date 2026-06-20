@@ -8,7 +8,9 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
-	import { FileText, Users, Trophy, Sigma, RefreshCw, Calendar, ChevronLeft, ChevronRight, Loader2, ChevronDown } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import { FileText, Users, Trophy, Sigma, RefreshCw, Calendar, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const now = new Date();
@@ -163,47 +165,51 @@
 		<!-- Filtre barı -->
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3 sm:p-4 flex flex-wrap items-center gap-3">
 			<!-- Granularite -->
-			<div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-				<button onclick={() => setGranularity('month')} class="px-3 py-1.5 font-medium {granularity === 'month' ? 'bg-teal-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Aylık</button>
-				<button onclick={() => setGranularity('day')} class="px-3 py-1.5 font-medium border-l border-gray-200 {granularity === 'day' ? 'bg-teal-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}">Günlük</button>
-			</div>
+			<SegmentedControl
+				options={[{ value: 'month', label: 'Aylık' }, { value: 'day', label: 'Günlük' }]}
+				value={granularity}
+				onchange={(v) => setGranularity(v as 'month' | 'day')}
+				size="sm"
+				ariaLabel="Dönem birimi"
+			/>
 
 			<!-- Dönem seçici (◀ önceki / sonraki ▶) -->
 			<div class="inline-flex items-center gap-1">
-				<button onclick={() => shiftPeriod(-1)} aria-label="Önceki dönem"
-					title={granularity === 'month' ? 'Önceki yıl' : 'Önceki ay'}
-					class="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-teal-700">
+				<Button variant="ghost" size="sm" onclick={() => shiftPeriod(-1)} ariaLabel="Önceki dönem"
+					title={granularity === 'month' ? 'Önceki yıl' : 'Önceki ay'}>
 					<ChevronLeft size={16} />
-				</button>
+				</Button>
 				{#if granularity === 'month'}
 					<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-						<Calendar size={15} class="text-gray-400" />
+						<Calendar size={15} class="text-gray-500" />
 						<Select size="sm" fullWidth={false} bind:value={year} onchange={load}>
 							{#each years as y}<option value={y}>{y}</option>{/each}
 						</Select>
 					</label>
 				{:else}
 					<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-						<Calendar size={15} class="text-gray-400" />
+						<Calendar size={15} class="text-gray-500" />
 						<Input type="month" size="sm" fullWidth={false} bind:value={month} onchange={load} />
 					</label>
 				{/if}
-				<button onclick={() => shiftPeriod(1)} aria-label="Sonraki dönem"
-					title={granularity === 'month' ? 'Sonraki yıl' : 'Sonraki ay'}
-					class="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-teal-700">
+				<Button variant="ghost" size="sm" onclick={() => shiftPeriod(1)} ariaLabel="Sonraki dönem"
+					title={granularity === 'month' ? 'Sonraki yıl' : 'Sonraki ay'}>
 					<ChevronRight size={16} />
-				</button>
+				</Button>
 			</div>
 
 			<!-- Tarih ekseni -->
-			<div class="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
-				<button onclick={() => setDateField('record')} class="px-3 py-1.5 {dateField === 'record' ? 'bg-teal-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}" title="Fişin sisteme girildiği tarih (üretkenlik)">Kayıt Tarihi</button>
-				<button onclick={() => setDateField('fiche')} class="px-3 py-1.5 border-l border-gray-200 {dateField === 'fiche' ? 'bg-teal-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}" title="Fişin muhasebe (fiş) tarihi">Fiş Tarihi</button>
-			</div>
+			<SegmentedControl
+				options={[{ value: 'record', label: 'Kayıt Tarihi' }, { value: 'fiche', label: 'Fiş Tarihi' }]}
+				value={dateField}
+				onchange={(v) => setDateField(v as 'record' | 'fiche')}
+				size="sm"
+				ariaLabel="Tarih ekseni"
+			/>
 
-			<button onclick={load} class="ml-auto inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium">
-				<RefreshCw size={15} class={loading ? 'animate-spin' : ''} /> Yenile
-			</button>
+			<Button variant="ghost" size="sm" onclick={load} loading={loading} class="ml-auto">
+				{#if !loading}<RefreshCw size={15} />{/if} Yenile
+			</Button>
 		</div>
 
 		<!-- Özet kartlar -->
@@ -245,7 +251,7 @@
 												<button onclick={() => drillCell(u, p)} title="Fişleri gör" class="w-full px-2 py-2 tabular-nums text-gray-800 hover:ring-2 hover:ring-teal-500 hover:ring-inset">{c}</button>
 											</td>
 										{:else}
-											<td class="text-center px-2 py-2 tabular-nums text-gray-300">·</td>
+											<td class="text-center px-2 py-2 tabular-nums text-gray-400">·</td>
 										{/if}
 									{/each}
 									<td class="text-right">
@@ -278,7 +284,7 @@
 <!-- Drill-down: fiş listesi + fiş satırları -->
 <Modal bind:show={drillOpen} title={drillLabel} maxWidth="max-w-2xl">
 	{#if drillLoading}
-		<div class="py-10 text-center text-gray-500 text-sm"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
+		<TableSkeleton rows={6} columns={4} />
 	{:else if drillVouchers.length === 0}
 		<p class="py-8 text-center text-gray-500 text-sm">Bu dönemde fiş yok.</p>
 	{:else}
@@ -287,8 +293,8 @@
 			{#each drillVouchers as v (v.rec_id)}
 				<div class="border-b border-gray-100">
 					<button onclick={() => toggleVoucher(v.rec_id)} class="w-full flex items-center gap-2 px-1 py-2 text-left hover:bg-gray-50 text-sm">
-						<ChevronDown size={14} class="text-gray-400 shrink-0 transition-transform {expandedRec === v.rec_id ? 'rotate-180' : ''}" />
-						<span class="text-gray-400 tabular-nums w-14 shrink-0">{fmtD(v.record_date)}</span>
+						<ChevronDown size={14} class="text-gray-500 shrink-0 transition-transform {expandedRec === v.rec_id ? 'rotate-180' : ''}" />
+						<span class="text-gray-500 tabular-nums w-14 shrink-0">{fmtD(v.record_date)}</span>
 						<span class="font-medium text-gray-700 w-12 shrink-0">#{v.voucher}</span>
 						<span class="text-gray-600 truncate flex-1">{v.remark || '—'}</span>
 						<span class="font-semibold text-gray-800 tabular-nums shrink-0">₺{v.total.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -296,17 +302,17 @@
 					{#if expandedRec === v.rec_id}
 						<div class="px-7 pb-3 pt-1 bg-gray-50/60">
 							{#if detailLoading}
-								<div class="py-3 text-center text-gray-400 text-xs"><Loader2 class="animate-spin inline" size={14} /> …</div>
+								<div class="py-2"><TableSkeleton rows={3} columns={3} /></div>
 							{:else if drillDetail}
-								<div class="text-[11px] text-gray-400 mb-1">Fiş tarihi {fmtD(drillDetail.fiche_date)} · kesen {drillDetail.record_user}{drillDetail.change_user && drillDetail.change_user !== drillDetail.record_user ? ` · değiştiren ${drillDetail.change_user}` : ''}</div>
+								<div class="text-[11px] text-gray-500 mb-1">Fiş tarihi {fmtD(drillDetail.fiche_date)} · kesen {drillDetail.record_user}{drillDetail.change_user && drillDetail.change_user !== drillDetail.record_user ? ` · değiştiren ${drillDetail.change_user}` : ''}</div>
 								<table class="w-full text-xs">
-									<thead><tr class="text-gray-400 border-b border-gray-200"><th class="text-left font-medium py-1">Hesap</th><th class="text-right font-medium py-1 w-24">Borç</th><th class="text-right font-medium py-1 w-24">Alacak</th></tr></thead>
+									<thead><tr class="text-gray-500 border-b border-gray-200"><th class="text-left font-medium py-1">Hesap</th><th class="text-right font-medium py-1 w-24">Borç</th><th class="text-right font-medium py-1 w-24">Alacak</th></tr></thead>
 									<tbody>
 										{#each drillDetail.lines as l, i (i)}
 											<tr class="border-b border-gray-100">
-												<td class="py-1 text-gray-700"><span class="text-gray-400 tabular-nums">{l.code}</span> {l.account_name || ''}</td>
-												<td class="py-1 text-right tabular-nums {l.debit ? 'text-gray-800' : 'text-gray-300'}">{l.debit ? l.debit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
-												<td class="py-1 text-right tabular-nums {l.credit ? 'text-gray-800' : 'text-gray-300'}">{l.credit ? l.credit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+												<td class="py-1 text-gray-700"><span class="text-gray-500 tabular-nums">{l.code}</span> {l.account_name || ''}</td>
+												<td class="py-1 text-right tabular-nums {l.debit ? 'text-gray-800' : 'text-gray-400'}">{l.debit ? l.debit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
+												<td class="py-1 text-right tabular-nums {l.credit ? 'text-gray-800' : 'text-gray-400'}">{l.credit ? l.credit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
 											</tr>
 										{/each}
 										<tr class="font-semibold text-gray-700"><td class="py-1 text-right">TOPLAM</td><td class="py-1 text-right tabular-nums">{drillDetail.total_debit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td class="py-1 text-right tabular-nums">{drillDetail.total_credit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>

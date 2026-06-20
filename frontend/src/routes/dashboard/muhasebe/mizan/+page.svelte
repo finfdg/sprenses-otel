@@ -8,6 +8,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import {
 		Scale, ArrowDownUp, CheckCircle2, AlertTriangle, Hash, RefreshCw, Calendar,
 		ChevronLeft, ChevronRight, Loader2, Search, X, BookOpen
@@ -160,36 +161,35 @@
 		<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3 sm:p-4 flex flex-wrap items-center gap-3">
 			<!-- Yıl (◀ önceki / sonraki ▶) -->
 			<div class="inline-flex items-center gap-1">
-				<button onclick={() => shiftYear(-1)} aria-label="Önceki yıl" title="Önceki yıl"
-					class="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-teal-700">
+				<Button variant="ghost" size="sm" onclick={() => shiftYear(-1)} ariaLabel="Önceki yıl" title="Önceki yıl">
 					<ChevronLeft size={16} />
-				</button>
+				</Button>
 				<label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-					<Calendar size={15} class="text-gray-400" />
+					<Calendar size={15} class="text-gray-500" />
 					<Select size="sm" fullWidth={false} bind:value={year} onchange={onYearChange}>
 						{#each years as y}<option value={y}>{y}</option>{/each}
 					</Select>
 				</label>
-				<button onclick={() => shiftYear(1)} aria-label="Sonraki yıl" title="Sonraki yıl"
-					class="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-teal-700">
+				<Button variant="ghost" size="sm" onclick={() => shiftYear(1)} ariaLabel="Sonraki yıl" title="Sonraki yıl">
 					<ChevronRight size={16} />
-				</button>
+				</Button>
 			</div>
 
 			<!-- Arama -->
-			<div class="relative flex-1 min-w-[180px] max-w-xs">
-				<Search size={15} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+			<div class="flex items-center gap-1 flex-1 min-w-[180px] max-w-xs">
 				<Input
-					size="sm" fullWidth={false} bind:value={search} oninput={onSearch} placeholder="Hesap kodu / adı ara…"
-					class="w-full pl-8 pr-8" />
+					size="sm" icon={Search} bind:value={search} oninput={onSearch} placeholder="Hesap kodu / adı ara…"
+					class="flex-1" />
 				{#if search}
-					<button onclick={clearSearch} aria-label="Temizle" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={14} /></button>
+					<Button variant="ghost" size="sm" onclick={clearSearch} ariaLabel="Temizle" title="Aramayı temizle">
+						<X size={14} />
+					</Button>
 				{/if}
 			</div>
 
-			<button onclick={() => (search ? runSearch() : loadRoot())} class="ml-auto inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium">
-				<RefreshCw size={15} class={loading ? 'animate-spin' : ''} /> Yenile
-			</button>
+			<Button variant="ghost" size="sm" onclick={() => (search ? runSearch() : loadRoot())} loading={loading} class="ml-auto">
+				{#if !loading}<RefreshCw size={15} />{/if} Yenile
+			</Button>
 		</div>
 
 		<!-- Özet kartlar -->
@@ -230,7 +230,7 @@
 									<td class="px-3 py-2">
 										<div class="flex items-center gap-1" style="padding-left: {r._level * 18}px">
 											{#if r.has_children && !searchMode}
-												<button onclick={() => toggleExpand(r)} aria-label="Aç/Kapat" class="shrink-0 p-0.5 text-gray-400 hover:text-teal-700">
+												<button onclick={() => toggleExpand(r)} aria-label="Aç/Kapat" class="touch-target shrink-0 p-0.5 text-gray-500 hover:text-teal-700">
 													{#if r._loading}
 														<Loader2 size={14} class="animate-spin" />
 													{:else}
@@ -240,16 +240,16 @@
 											{:else}
 												<span class="inline-block w-[18px] shrink-0"></span>
 											{/if}
-											<span class="font-mono text-xs text-gray-400 tabular-nums shrink-0">{r.code}</span>
+											<span class="font-mono text-xs text-gray-500 tabular-nums shrink-0">{r.code}</span>
 											<span class="text-gray-800 truncate {r._level === 0 ? 'font-semibold' : ''}">{r.name || ''}</span>
 										</div>
 									</td>
-									<td class="text-right px-3 py-2 tabular-nums {r.borc ? 'text-gray-700' : 'text-gray-300'}">{r.borc ? fmt(r.borc) : '—'}</td>
-									<td class="text-right px-3 py-2 tabular-nums {r.alacak ? 'text-gray-700' : 'text-gray-300'}">{r.alacak ? fmt(r.alacak) : '—'}</td>
-									<td class="text-right px-3 py-2 tabular-nums font-medium {r.borc_bakiye ? 'text-gray-900' : 'text-gray-300'}">{r.borc_bakiye ? fmt(r.borc_bakiye) : '—'}</td>
-									<td class="text-right px-3 py-2 tabular-nums font-medium {r.alacak_bakiye ? 'text-gray-900' : 'text-gray-300'}">{r.alacak_bakiye ? fmt(r.alacak_bakiye) : '—'}</td>
+									<td class="text-right px-3 py-2 tabular-nums {r.borc ? 'text-gray-700' : 'text-gray-400'}">{r.borc ? fmt(r.borc) : '—'}</td>
+									<td class="text-right px-3 py-2 tabular-nums {r.alacak ? 'text-gray-700' : 'text-gray-400'}">{r.alacak ? fmt(r.alacak) : '—'}</td>
+									<td class="text-right px-3 py-2 tabular-nums font-medium {r.borc_bakiye ? 'text-gray-900' : 'text-gray-400'}">{r.borc_bakiye ? fmt(r.borc_bakiye) : '—'}</td>
+									<td class="text-right px-3 py-2 tabular-nums font-medium {r.alacak_bakiye ? 'text-gray-900' : 'text-gray-400'}">{r.alacak_bakiye ? fmt(r.alacak_bakiye) : '—'}</td>
 									<td class="px-2 py-2 text-center">
-										<button onclick={() => openTx(r)} title="Hareketler (defter)" class="p-1 text-gray-400 hover:text-teal-700"><BookOpen size={15} /></button>
+										<button onclick={() => openTx(r)} title="Hareketler (defter)" aria-label="Hareketler (defter)" class="touch-target p-1 text-gray-500 hover:text-teal-700"><BookOpen size={15} /></button>
 									</td>
 								</tr>
 							{/each}
@@ -290,7 +290,7 @@
 		<div class="max-h-[60vh] overflow-y-auto">
 			<table class="w-full text-xs">
 				<thead class="sticky top-0 bg-white">
-					<tr class="text-gray-400 border-b border-gray-200">
+					<tr class="text-gray-500 border-b border-gray-200">
 						<th class="text-left font-medium py-1.5 w-16">Tarih</th>
 						<th class="text-left font-medium py-1.5 w-12">Fiş</th>
 						<th class="text-left font-medium py-1.5">Açıklama</th>
@@ -305,11 +305,11 @@
 							<td class="py-1.5 text-gray-500 tabular-nums">{fmtD(t.fiche_date)}</td>
 							<td class="py-1.5 text-gray-500">#{t.voucher}</td>
 							<td class="py-1.5 text-gray-700">
-								<span class="text-gray-400 font-mono">{t.code}</span>
+								<span class="text-gray-500 font-mono">{t.code}</span>
 								{t.remark || ''}
 							</td>
-							<td class="py-1.5 text-right tabular-nums {t.debit ? 'text-gray-800' : 'text-gray-300'}">{t.debit ? fmt(t.debit) : '—'}</td>
-							<td class="py-1.5 text-right tabular-nums {t.credit ? 'text-gray-800' : 'text-gray-300'}">{t.credit ? fmt(t.credit) : '—'}</td>
+							<td class="py-1.5 text-right tabular-nums {t.debit ? 'text-gray-800' : 'text-gray-400'}">{t.debit ? fmt(t.debit) : '—'}</td>
+							<td class="py-1.5 text-right tabular-nums {t.credit ? 'text-gray-800' : 'text-gray-400'}">{t.credit ? fmt(t.credit) : '—'}</td>
 							<td class="py-1.5 text-right tabular-nums {t.balance >= 0 ? 'text-gray-600' : 'text-red-600'}">{fmt(t.balance)}</td>
 						</tr>
 					{/each}

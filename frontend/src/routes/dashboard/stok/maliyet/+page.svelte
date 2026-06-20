@@ -4,6 +4,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
 	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert } from 'lucide-svelte';
 
@@ -54,7 +55,7 @@
 	<PageHeader title="Maliyet Kontrol" description="Operasyonel maliyet ↔ doluluk füzyonu: kişi başı F&B maliyeti, CPOR, fiyat sapması, departman tüketimi (Sedna stok + rezervasyon)." />
 
 	{#if loading}
-		<div class="py-12 text-center text-gray-500 text-sm">Yükleniyor…</div>
+		<TableSkeleton rows={6} columns={6} />
 	{:else}
 		<!-- Operasyonel KPI kartları -->
 		<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

@@ -4,6 +4,7 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -14,7 +15,7 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { ClipboardCheck, Inbox, Plus, Check, X, Undo2, Send, History } from 'lucide-svelte';
+	import { ClipboardCheck, Inbox, Plus, Check, X, Undo2, Send, History, Pencil, Trash2, Eye, ChevronRight, FileText } from 'lucide-svelte';
 
 	// ── Sabitler ──────────────────────────────────────────────
 	const STATUS_MAP: Record<string, { label: string; type: BadgeType }> = {
@@ -671,9 +672,7 @@
 											{/each}
 										</div>
 									</div>
-									<svg class="w-4 h-4 text-gray-500 hidden sm:block shrink-0 self-center" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-									</svg>
+									<ChevronRight size={16} class="text-gray-500 hidden sm:block shrink-0 self-center" />
 									<div class="flex items-center gap-1.5">
 										<span class="text-gray-500">Onay:</span>
 										<div class="flex flex-wrap gap-1">
@@ -688,24 +687,8 @@
 							</div>
 							{#if canUse}
 								<div class="flex items-center gap-2 shrink-0">
-									<button
-										onclick={() => openEditWorkflow(wf)}
-										class="p-2 rounded-lg text-gray-500 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-										title="Düzenle"
-									>
-										<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-										</svg>
-									</button>
-									<button
-										onclick={() => confirmDeleteWorkflow(wf)}
-										class="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-										title="Sil"
-									>
-										<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-										</svg>
-									</button>
+									<Button variant="secondary" size="sm" onclick={() => openEditWorkflow(wf)}><Pencil size={14} /> Düzenle</Button>
+									<Button variant="danger" size="sm" onclick={() => confirmDeleteWorkflow(wf)}><Trash2 size={14} /> Sil</Button>
 								</div>
 							{/if}
 						</div>
@@ -743,13 +726,11 @@
 							</div>
 							<button
 								onclick={() => openDetail(req)}
-								class="p-2 rounded-lg text-gray-500 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer shrink-0"
+								class="p-2 rounded-lg text-gray-500 hover:text-teal-700 hover:bg-teal-50 transition-colors cursor-pointer shrink-0"
 								title="Detay"
+								aria-label="Talep detayını görüntüle"
 							>
-								<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-									<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-								</svg>
+								<Eye size={16} />
 							</button>
 						</div>
 
@@ -814,22 +795,10 @@
 						{/if}
 						<div class="flex items-center gap-2 pt-2 border-t border-gray-100">
 							{#if req.status === 'returned'}
-								<button
-									onclick={() => resubmitRequest(req)}
-									disabled={resubmittingId === req.id}
-									class="px-3 py-1.5 rounded-lg text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 disabled:opacity-50 transition-colors cursor-pointer"
-								>
-									Yeniden Gönder
-								</button>
+								<Button variant="secondary" size="sm" loading={resubmittingId === req.id} onclick={() => resubmitRequest(req)}><Send size={14} /> Yeniden Gönder</Button>
 							{/if}
 							{#if req.status === 'pending' || req.status === 'returned'}
-								<button
-									onclick={() => cancelRequest(req)}
-									disabled={cancellingId === req.id}
-									class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-colors cursor-pointer"
-								>
-									İptal
-								</button>
+								<Button variant="ghost" size="sm" loading={cancellingId === req.id} onclick={() => cancelRequest(req)}><X size={14} /> İptal</Button>
 							{/if}
 						</div>
 					</div>
@@ -865,22 +834,10 @@
 								<td class="py-3 text-right">
 									<div class="flex items-center justify-end gap-2">
 										{#if req.status === 'returned'}
-											<button
-												onclick={() => resubmitRequest(req)}
-												disabled={resubmittingId === req.id}
-												class="px-3 py-1.5 rounded-lg text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 disabled:opacity-50 transition-colors cursor-pointer"
-											>
-												Yeniden Gönder
-											</button>
+											<Button variant="secondary" size="sm" loading={resubmittingId === req.id} onclick={() => resubmitRequest(req)}><Send size={14} /> Yeniden Gönder</Button>
 										{/if}
 										{#if req.status === 'pending' || req.status === 'returned'}
-											<button
-												onclick={() => cancelRequest(req)}
-												disabled={cancellingId === req.id}
-												class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 transition-colors cursor-pointer"
-											>
-												İptal
-											</button>
+											<Button variant="ghost" size="sm" loading={cancellingId === req.id} onclick={() => cancelRequest(req)}><X size={14} /> İptal</Button>
 										{/if}
 									</div>
 								</td>
@@ -1110,20 +1067,17 @@
 	</div>
 </Modal>
 
-<!-- Silme Onay Modal -->
-<Modal bind:show={showDeleteConfirm} title="Onay Tanımını Sil" maxWidth="max-w-md">
-	{#if deletingWorkflow}
-		<div class="space-y-4">
-			<p class="text-sm text-gray-600">
-				<span class="font-semibold text-gray-800">"{deletingWorkflow.name}"</span> onay tanımını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
-			</p>
-			<div class="flex items-center justify-end gap-3 pt-2">
-				<Button variant="secondary" onclick={() => { showDeleteConfirm = false; deletingWorkflow = null; }}>Vazgeç</Button>
-				<Button variant="danger" loading={deleting} onclick={deleteWorkflow}>Sil</Button>
-			</div>
-		</div>
-	{/if}
-</Modal>
+<!-- Silme Onayı -->
+<ConfirmDialog
+	bind:show={showDeleteConfirm}
+	title="Onay Tanımını Sil"
+	message={deletingWorkflow ? `"${deletingWorkflow.name}" onay tanımını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.` : ''}
+	confirmText="Sil"
+	cancelText="Vazgeç"
+	danger={true}
+	onConfirm={deleteWorkflow}
+	onCancel={() => { deletingWorkflow = null; }}
+/>
 
 <!-- Onay/Red/İade Modal -->
 <Modal bind:show={showActionModal} title={actionTitle()} maxWidth="max-w-md">
@@ -1226,7 +1180,7 @@
 				{#if payload && Object.keys(payload).filter(k => k !== '_target').length > 0}
 					<div>
 						<h4 class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-							<svg class="w-4 h-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" /></svg>
+							<FileText size={16} class="text-orange-500" />
 							{detailRequest.action_type === 'delete' ? 'Silme Talebi' : 'İstenen Değişiklikler'}
 						</h4>
 						<div class="bg-orange-50/50 border border-orange-200 rounded-lg overflow-hidden">
@@ -1251,7 +1205,7 @@
 				{/if}
 			{:else if detailRequest.action_type === 'delete'}
 				<div class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
-					<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+					<Trash2 size={16} class="shrink-0" />
 					Bu kayıt silinmek üzere onay bekliyor.
 				</div>
 			{/if}

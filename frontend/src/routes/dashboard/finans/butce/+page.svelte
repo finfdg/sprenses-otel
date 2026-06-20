@@ -11,7 +11,8 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
-	import { Building2, Pencil, Trash2, Loader2, Settings, ChevronRight, ChevronLeft, Plus } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
+	import { Building2, Pencil, Trash2, Loader2, Settings, ChevronRight, ChevronLeft } from 'lucide-svelte';
 
 	// ── Türkçe ay isimleri ──
 	const MONTH_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
@@ -528,21 +529,13 @@
 
 	<!-- Bütçe Grid Tablosu -->
 	{#if filteredCategories.length === 0}
-		<div class="text-center py-12 text-gray-500">
-			<p class="text-base font-medium text-gray-500">
-				{activeTab === 'expense' ? 'Gider' : 'Gelir'} kategorisi bulunmuyor
-			</p>
-			<p class="text-sm mt-1">Ayarlardan kategori ekleyerek başlayın</p>
-			{#if canUse}
-				<button
-					onclick={() => { catForm.type = activeTab; showCatModal = true; }}
-					class="mt-3 inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium cursor-pointer"
-				>
-					<Plus size={16} />
-					Kategori Ekle
-				</button>
-			{/if}
-		</div>
+		<EmptyState
+			icon={Building2}
+			title="{activeTab === 'expense' ? 'Gider' : 'Gelir'} kategorisi bulunmuyor"
+			description="Ayarlardan kategori ekleyerek başlayın"
+			ctaText={canUse ? 'Kategori Ekle' : ''}
+			onCta={canUse ? () => { catForm.type = activeTab; showCatModal = true; } : null}
+		/>
 	{:else}
 		<!-- Mobil: Kategori bazlı kart görünümü -->
 		<div class="sm:hidden space-y-3 mb-4">
@@ -754,13 +747,13 @@
 						onkeydown={(e) => { if (e.key === 'Enter' && !editingDeptId) saveDept(); }}
 						disabled={editingDeptId !== null}
 					/>
-					<button
+					<Button
+						size="sm"
 						onclick={saveDept}
 						disabled={editingDeptId !== null || !deptForm.name.trim()}
-						class="text-xs font-medium px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
 					>
 						Ekle
-					</button>
+					</Button>
 				</div>
 			{/if}
 		</div>
@@ -869,20 +862,8 @@
 			</div>
 		</div>
 		<div class="flex justify-end gap-2 pt-2">
-			<button
-				type="button"
-				onclick={() => { showCatModal = false; cancelEditCat(); }}
-				class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 cursor-pointer"
-			>
-				İptal
-			</button>
-			<button
-				type="submit"
-				disabled={!catForm.name.trim()}
-				class="px-4 py-2 text-sm font-medium bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-			>
-				{editingCatId ? 'Güncelle' : 'Ekle'}
-			</button>
+			<Button type="button" variant="secondary" onclick={() => { showCatModal = false; cancelEditCat(); }}>İptal</Button>
+			<Button type="submit" disabled={!catForm.name.trim()}>{editingCatId ? 'Güncelle' : 'Ekle'}</Button>
 		</div>
 	</form>
 </Modal>

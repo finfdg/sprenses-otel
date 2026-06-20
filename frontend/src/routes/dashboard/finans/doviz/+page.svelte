@@ -3,6 +3,9 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import { Loader2 } from 'lucide-svelte';
 	import type {
 		LatestRates, ExchangeRate, ChartDataPoint, ParityDataPoint, CurrencyCode
@@ -27,7 +30,7 @@
 	let historyTotal = $state(0);
 	let historyPages = $state(1);
 	let historyLoading = $state(false);
-	const historyPageSize = 60;
+	let historyPageSize = $state(60);
 
 	// ─── Döviz bilgileri ────────────────────────────
 	const CURRENCY_INFO: Record<string, { symbol: string; name: string; color: string; bgColor: string }> = {
@@ -110,6 +113,7 @@
 	$effect(() => {
 		void historyCurrency;
 		void historyPage;
+		void historyPageSize;
 		if (!loading) loadHistory();
 	});
 
@@ -308,30 +312,27 @@
 		<!-- Grafik kontrolleri -->
 		<div class="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-3 sm:mb-4">
 			<!-- Döviz sekmeleri -->
-			<div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-				{#each (['USD', 'EUR', 'GBP', 'parity'] as const) as tab}
-					<button
-						onclick={() => { chartCurrency = tab; hoverIndex = null; }}
-						class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer
-							{chartCurrency === tab ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
-					>
-						{tab === 'parity' ? 'EUR/USD' : tab}
-					</button>
-				{/each}
-			</div>
+			<SegmentedControl
+				options={[
+					{ value: 'USD', label: 'USD' },
+					{ value: 'EUR', label: 'EUR' },
+					{ value: 'GBP', label: 'GBP' },
+					{ value: 'parity', label: 'EUR/USD' },
+				]}
+				value={chartCurrency}
+				onchange={(v) => { chartCurrency = v as CurrencyCode | 'parity'; hoverIndex = null; }}
+				size="sm"
+				ariaLabel="Grafik döviz seçimi"
+			/>
 
 			<!-- Süre seçici -->
-			<div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-				{#each PERIOD_OPTIONS as opt}
-					<button
-						onclick={() => { chartDays = opt.days; hoverIndex = null; }}
-						class="px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer
-							{chartDays === opt.days ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
-					>
-						{opt.label}
-					</button>
-				{/each}
-			</div>
+			<SegmentedControl
+				options={PERIOD_OPTIONS.map((opt) => ({ value: String(opt.days), label: opt.label }))}
+				value={String(chartDays)}
+				onchange={(v) => { chartDays = Number(v); hoverIndex = null; }}
+				size="sm"
+				ariaLabel="Grafik süre seçimi"
+			/>
 		</div>
 
 		<!-- SVG Grafik -->
@@ -434,23 +435,21 @@
 		<div class="flex flex-wrap items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 border-b border-gray-100">
 			<h2 class="text-sm font-semibold text-gray-700">Kur Tarihçesi</h2>
 
-			<div class="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-				{#each (['USD', 'EUR', 'GBP'] as const) as code}
-					<button
-						onclick={() => { historyCurrency = code; historyPage = 1; }}
-						class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer
-							{historyCurrency === code ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
-					>
-						{code}
-					</button>
-				{/each}
-			</div>
+			<SegmentedControl
+				options={[
+					{ value: 'USD', label: 'USD' },
+					{ value: 'EUR', label: 'EUR' },
+					{ value: 'GBP', label: 'GBP' },
+				]}
+				value={historyCurrency}
+				onchange={(v) => { historyCurrency = v as CurrencyCode; historyPage = 1; }}
+				size="sm"
+				ariaLabel="Tarihçe döviz seçimi"
+			/>
 		</div>
 
 		{#if historyLoading}
-			<div class="flex items-center justify-center py-12">
-				<Loader2 size={24} class="animate-spin text-teal-600" />
-			</div>
+			<div class="p-3 sm:p-4"><TableSkeleton rows={8} columns={6} /></div>
 		{:else if historyItems.length === 0}
 			<div class="text-center py-12 text-gray-500 text-sm">Veri bulunamadı</div>
 		{:else}
@@ -523,29 +522,15 @@
 			</div>
 
 			<!-- Pagination -->
-			{#if historyPages > 1}
-				<div class="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-sm">
-					<span class="text-gray-500 text-xs">
-						{historyTotal} kayıt, sayfa {historyPage}/{historyPages}
-					</span>
-					<div class="flex gap-2">
-						<button
-							onclick={() => historyPage = Math.max(1, historyPage - 1)}
-							disabled={historyPage <= 1}
-							class="px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer
-								{historyPage <= 1 ? 'border-gray-100 text-gray-500 cursor-not-allowed' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}"
-						>
-							← Önceki
-						</button>
-						<button
-							onclick={() => historyPage = Math.min(historyPages, historyPage + 1)}
-							disabled={historyPage >= historyPages}
-							class="px-3 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer
-								{historyPage >= historyPages ? 'border-gray-100 text-gray-500 cursor-not-allowed' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}"
-						>
-							Sonraki →
-						</button>
-					</div>
+			{#if historyTotal > 0}
+				<div class="px-4 border-t border-gray-100">
+					<Pagination
+						page={historyPage}
+						pageSize={historyPageSize}
+						total={historyTotal}
+						onPageChange={(p) => (historyPage = p)}
+						onPageSizeChange={(s) => { historyPageSize = s; historyPage = 1; }}
+					/>
 				</div>
 			{/if}
 		{/if}

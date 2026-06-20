@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
 	import {
 		Landmark, BedDouble, TrendingUp, Flame, PiggyBank, Repeat, Receipt, Truck,
@@ -53,7 +54,7 @@
 	<PageHeader title="Yönetim Paneli" description="GM / Finans üst düzey göstergeler — doluluk, operasyonel maliyet, nakit ve uyarılar tek bakışta." />
 
 	{#if loading}
-		<div class="py-12 text-center text-gray-500 text-sm">Yükleniyor…</div>
+		<TableSkeleton rows={10} columns={5} />
 	{:else}
 		<!-- 10 KPI hero -->
 		<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">

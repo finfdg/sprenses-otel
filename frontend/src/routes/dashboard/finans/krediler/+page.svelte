@@ -11,8 +11,9 @@
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { CreditCard, ChevronRight, FileDown, Plus, Loader2, CheckCircle2 } from 'lucide-svelte';
+	import { CreditCard, ChevronRight, FileDown, Plus, Loader2, CheckCircle2, Info, RotateCcw, Check, X, CornerDownLeft } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
+	import StatCard, { type StatAccent } from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
@@ -44,6 +45,16 @@
 		leasing: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
 	};
 	const PRODUCT_TYPES = Object.keys(TYPE_LABELS);
+
+	// Tip → StatCard aksan rengi (StatCard paleti: teal/emerald/amber/red/blue/gray)
+	const TYPE_ACCENT: Record<string, StatAccent> = {
+		kredi_karti: 'red',
+		kmh: 'amber',
+		bch: 'amber',
+		spot_kredi: 'blue',
+		taksitli_kredi: 'teal',
+		leasing: 'blue',
+	};
 
 	let canUse = $derived(hasPermission('finance.krediler', 'use'));
 
@@ -794,18 +805,14 @@
 	{#if summary.length > 0}
 		<div class="flex flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6">
 			{#each summary as s}
-				{@const c = TYPE_COLORS[s.type] || TYPE_COLORS.spot_kredi}
-				<div class="{c.bg} border {c.border} rounded-xl p-2.5 sm:p-3 shadow-sm flex-1 min-w-[130px]">
-					<div class="text-[10px] sm:text-xs font-medium {c.text}">{s.type_label}</div>
-					<div class="text-sm sm:text-lg font-bold text-gray-800 mt-1">
-						{#if s.remaining_amount_eur != null}
-							{fmt(s.remaining_amount_eur, 'EUR')}
-						{:else}
-							{fmt(s.remaining_amount)}
-						{/if}
-					</div>
-					<div class="text-[10px] text-gray-500">{s.count} ürün</div>
-				</div>
+				<StatCard
+					class="flex-1 min-w-[150px]"
+					label={s.type_label}
+					value={s.remaining_amount_eur != null ? fmt(s.remaining_amount_eur, 'EUR') : fmt(s.remaining_amount)}
+					accent={TYPE_ACCENT[s.type] ?? 'blue'}
+					icon={CreditCard}
+					hint="{s.count} ürün"
+				/>
 			{/each}
 		</div>
 	{/if}
@@ -934,9 +941,7 @@
 							class="w-full flex items-center gap-2 px-2.5 sm:px-3 py-2 text-left hover:bg-amber-50/60 cursor-pointer"
 							aria-expanded={open}
 						>
-							<svg class="w-3.5 h-3.5 shrink-0 text-amber-400 transition-transform {open ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-							</svg>
+							<ChevronRight size={14} class="shrink-0 text-amber-500 transition-transform {open ? 'rotate-90' : ''}" />
 							<span class="font-semibold text-xs sm:text-sm text-gray-700 w-16 sm:w-20 shrink-0">{grp.label}</span>
 							<span class="text-[10px] sm:text-xs text-gray-500 shrink-0">{grp.paidCount}/{grp.count}</span>
 							{#if grp.hasOverdue}
@@ -1009,9 +1014,7 @@
 						onclick={() => toggleExpand(p.id, p.type)}
 						class="w-full flex items-center gap-1.5 sm:gap-3 px-2.5 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 cursor-pointer text-left"
 					>
-						<svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-gray-500 transition-transform {expandedId === p.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-						</svg>
+						<ChevronRight class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-gray-500 transition-transform {expandedId === p.id ? 'rotate-90' : ''}" />
 						<span class="text-[10px] sm:text-xs font-medium {c.bg} {c.text} {c.border} border px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">{p.type_label}</span>
 						{#if p.status === 'closed'}
 							<span class="text-[10px] sm:text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full shrink-0">Kapalı</span>
@@ -1043,9 +1046,9 @@
 										{/if}
 										<Button variant="secondary" size="sm" onclick={() => openEdit(p)}>Düzenle</Button>
 										{#if p.status === 'closed'}
-											<button onclick={() => reopenProduct(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 cursor-pointer">Yeniden Aç</button>
+											<Button variant="secondary" size="sm" onclick={() => reopenProduct(p)}><RotateCcw size={14} /> Yeniden Aç</Button>
 										{:else if p.type !== 'kredi_karti'}
-											<button onclick={() => openCloseModal(p)} class="touch-target inline-flex items-center justify-center text-[10px] sm:text-xs px-2.5 sm:px-3 py-1.5 sm:py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 cursor-pointer">Kapat</button>
+											<Button variant="secondary" size="sm" onclick={() => openCloseModal(p)}>Kapat</Button>
 										{/if}
 										<Button variant="danger" size="sm" onclick={() => deleteProduct(p.id)}>Sil</Button>
 									{/if}
@@ -1160,7 +1163,7 @@
 													{#if cur.carry_date}
 														<tr class="border-t border-gray-100 bg-amber-50/40">
 															<td class="px-3 py-1.5 text-gray-600 whitespace-nowrap">{fmtDate(cur.carry_date)}</td>
-															<td class="px-3 py-1.5 text-gray-500 italic truncate max-w-md" title={cur.carry_description}>↶ Devir bakiye (period öncesi son işlem) — {cur.carry_description}</td>
+															<td class="px-3 py-1.5 text-gray-500 italic truncate max-w-md" title={cur.carry_description}><CornerDownLeft size={11} class="inline-block mr-1 align-middle" />Devir bakiye (period öncesi son işlem) — {cur.carry_description}</td>
 															<td class="px-3 py-1.5 text-right text-gray-500">—</td>
 															<td class="px-3 py-1.5 text-right {cur.carry_balance < 0 ? 'text-red-600 font-semibold' : 'text-gray-600'} whitespace-nowrap">{fmt(cur.carry_balance)}</td>
 															<td class="px-3 py-1.5 text-center">
@@ -1196,8 +1199,9 @@
 											</table>
 										</div>
 										{#if cur.carry_balance < 0 && cur.carry_date}
-											<div class="px-3 py-2 border-t border-gray-100 bg-amber-50 text-[11px] text-amber-700">
-												ℹ️ <strong>Adat'a etki:</strong> Devir bakiye <strong>{fmt(Math.abs(cur.carry_balance))} ₺</strong> negatif olduğundan period başlangıcından (<strong>{fmtDate(cur.period_start)}</strong>) itibaren günlük adat'a eklenir.
+											<div class="px-3 py-2 border-t border-gray-100 bg-amber-50 text-[11px] text-amber-700 flex items-start gap-1.5">
+												<Info size={14} class="shrink-0 mt-0.5" />
+												<span><strong>Adat'a etki:</strong> Devir bakiye <strong>{fmt(Math.abs(cur.carry_balance))} ₺</strong> negatif olduğundan period başlangıcından (<strong>{fmtDate(cur.period_start)}</strong>) itibaren günlük adat'a eklenir.</span>
 											</div>
 										{/if}
 									</div>
@@ -1223,9 +1227,7 @@
 													aria-expanded={ccExpandedStmtId === stmt.id}
 													class="w-full flex items-center gap-2 sm:gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer text-left text-sm flex-wrap sm:flex-nowrap"
 												>
-													<svg class="w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform {ccExpandedStmtId === stmt.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-														<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-													</svg>
+													<ChevronRight size={14} class="shrink-0 text-gray-500 transition-transform {ccExpandedStmtId === stmt.id ? 'rotate-90' : ''}" />
 													<span class="text-gray-600">
 														<span class="font-medium">{fmtDate(stmt.kesim_tarihi)}</span>
 														<span class="text-xs text-gray-500 ml-1 hidden sm:inline">kesim</span>
@@ -1242,12 +1244,11 @@
 													{#if canUse}
 														<button
 															onclick={(e) => { e.stopPropagation(); deleteCCStatement(p.id, stmt.id); }}
-															class="text-xs text-red-400 hover:text-red-600 cursor-pointer ml-1"
+															class="text-red-500 hover:text-red-600 cursor-pointer ml-1"
 															title="Sil"
+															aria-label="Sil"
 														>
-															<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-																<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-															</svg>
+															<X size={14} />
 														</button>
 													{/if}
 												</div>
@@ -1336,9 +1337,7 @@
 													class="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 cursor-pointer"
 													aria-expanded={open}
 												>
-													<svg class="w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform {open ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-														<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-													</svg>
+													<ChevronRight size={14} class="shrink-0 text-gray-500 transition-transform {open ? 'rotate-90' : ''}" />
 													<span class="font-semibold text-xs sm:text-sm text-gray-700 w-20 sm:w-24 shrink-0">{grp.label}</span>
 													<span class="text-[10px] sm:text-xs text-gray-500 shrink-0">{grp.paidCount}/{grp.count}</span>
 													{#if grp.hasOverdue}
@@ -1389,10 +1388,10 @@
 																		</td>
 																		{#if canUse}
 																			<td class="py-1.5 px-2 text-center">
-																				<button onclick={() => togglePaid(pay)} class="text-xs text-teal-600 hover:text-teal-800 cursor-pointer" title={pay.is_paid ? 'Geri al' : 'Ödendi'}>
-																					{pay.is_paid ? '↩' : '✓'}
+																				<button onclick={() => togglePaid(pay)} class="text-teal-700 hover:text-teal-800 cursor-pointer align-middle" title={pay.is_paid ? 'Geri al' : 'Ödendi'} aria-label={pay.is_paid ? 'Geri al' : 'Ödendi'}>
+																					{#if pay.is_paid}<RotateCcw size={14} class="inline-block" />{:else}<Check size={14} class="inline-block" />{/if}
 																				</button>
-																				<button onclick={() => deletePayment(pay.id)} class="text-xs text-red-400 hover:text-red-600 cursor-pointer ml-1" title="Sil">✕</button>
+																				<button onclick={() => deletePayment(pay.id)} class="text-red-500 hover:text-red-600 cursor-pointer ml-1.5 align-middle" title="Sil" aria-label="Sil"><X size={14} class="inline-block" /></button>
 																			</td>
 																		{/if}
 																	</tr>

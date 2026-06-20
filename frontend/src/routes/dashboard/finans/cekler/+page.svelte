@@ -13,7 +13,8 @@
 	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
-	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Loader2 } from 'lucide-svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Loader2, ChevronRight, ArrowUp } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { pending: 'Bekliyor', paid: 'Ödendi', cancelled: 'İptal' };
 	const STATUS_BADGE: Record<string, BadgeType> = { pending: 'warning', paid: 'success', cancelled: 'neutral' };
@@ -160,6 +161,13 @@
 		}
 
 		return Object.values(groups).sort((a, b) => a.key.localeCompare(b.key));
+	});
+
+	const statusCounts = $derived({
+		all: checks.length,
+		pending: checks.filter((c) => c.status === 'pending').length,
+		paid: checks.filter((c) => c.status === 'paid').length,
+		cancelled: checks.filter((c) => c.status === 'cancelled').length,
 	});
 
 	async function loadChecks() {
@@ -340,18 +348,18 @@
 <!-- Filtre Çubuğu -->
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-3 mb-4">
 	<div class="flex items-center gap-2 flex-wrap">
-		<button onclick={() => setFilter(null)} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer {!statusFilter ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}">
-			Tümü <span class="ml-1 text-[10px] opacity-70">{checks.length}</span>
-		</button>
-		<button onclick={() => setFilter('pending')} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer flex items-center gap-1 {statusFilter === 'pending' ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'}">
-			<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Bekleyen
-		</button>
-		<button onclick={() => setFilter('paid')} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer flex items-center gap-1 {statusFilter === 'paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'}">
-			<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Ödenen
-		</button>
-		<button onclick={() => setFilter('cancelled')} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer flex items-center gap-1 {statusFilter === 'cancelled' ? 'bg-gray-200 text-gray-700 border-gray-400' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}">
-			<span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> İptal
-		</button>
+		<SegmentedControl
+			options={[
+				{ value: '', label: 'Tümü', count: statusCounts.all },
+				{ value: 'pending', label: 'Bekleyen', count: statusCounts.pending },
+				{ value: 'paid', label: 'Ödenen', count: statusCounts.paid },
+				{ value: 'cancelled', label: 'İptal', count: statusCounts.cancelled },
+			]}
+			value={statusFilter ?? ''}
+			onchange={(v) => setFilter(v || null)}
+			size="sm"
+			ariaLabel="Çek durumu filtresi"
+		/>
 		<div class="flex-1"></div>
 		<Input
 			type="text"
@@ -384,11 +392,9 @@
 				<button
 					onclick={() => toggleMonth(group.key)}
 					class="w-full flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer
-						{isCurrentMonth ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-50 hover:bg-gray-100'}"
+						{isCurrentMonth ? 'bg-teal-700 text-white' : 'bg-gray-50 hover:bg-gray-100'}"
 				>
-					<svg class="w-4 h-4 shrink-0 transition-transform duration-200 {isExpanded ? 'rotate-90' : ''} {isCurrentMonth ? 'text-white/80' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-					</svg>
+					<ChevronRight size={16} class="shrink-0 transition-transform duration-200 {isExpanded ? 'rotate-90' : ''} {isCurrentMonth ? 'text-white/80' : 'text-gray-500'}" />
 					<span class="font-bold text-sm {isCurrentMonth ? '' : 'text-gray-700'}">{group.label}</span>
 					<span class="text-[10px] font-medium {isCurrentMonth ? 'text-white/70' : 'text-gray-500'}">{group.checks.length} çek</span>
 
@@ -417,7 +423,7 @@
 										<button onclick={() => toggleSort('due_date')} class="inline-flex items-center gap-1 cursor-pointer hover:text-gray-700">
 											Vade
 											{#if sortBy === 'due_date'}
-												<svg class="w-3 h-3 {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+												<ArrowUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
 											{/if}
 										</button>
 									</th>
@@ -426,7 +432,7 @@
 										<button onclick={() => toggleSort('vendor_name')} class="inline-flex items-center gap-1 cursor-pointer hover:text-gray-700">
 											Alıcı
 											{#if sortBy === 'vendor_name'}
-												<svg class="w-3 h-3 {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+												<ArrowUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
 											{/if}
 										</button>
 									</th>
@@ -435,7 +441,7 @@
 										<button onclick={() => toggleSort('amount_tl')} class="inline-flex items-center gap-1 cursor-pointer hover:text-gray-700 ml-auto">
 											Tutar
 											{#if sortBy === 'amount_tl'}
-												<svg class="w-3 h-3 {sortDir === 'desc' ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+												<ArrowUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
 											{/if}
 										</button>
 									</th>

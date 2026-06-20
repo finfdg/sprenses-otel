@@ -7,6 +7,7 @@
 	import { playNotificationSound, isConversationMuted, setMutedConversations, mutedConversationIds } from '$lib/stores/notification.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { NAV_GROUPS, PANEL_ICON, MESSAGING_ICON, type NavGroup, type NavItem } from '$lib/config/navigation';
+	import { ChevronDown, ChevronsLeft, ChevronsRight, X } from 'lucide-svelte';
 
 	let collapsed = $state(false);
 	// Açıl/kapan durumu konfigteki gruplardan türetilir (elle liste tutulmaz)
@@ -198,13 +199,9 @@
 			aria-label={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
 		>
 			{#if collapsed}
-				<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-				</svg>
+				<ChevronsRight size={20} />
 			{:else}
-				<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-				</svg>
+				<ChevronsLeft size={20} />
 			{/if}
 		</button>
 		<!-- Mobilde kapat butonu -->
@@ -214,9 +211,7 @@
 			title="Menüyü kapat"
 			aria-label="Menüyü kapat"
 		>
-			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-			</svg>
+			<X size={20} />
 		</button>
 	</div>
 
@@ -294,9 +289,7 @@
 						</svg>
 						<span class="{collapsed ? 'md:hidden' : ''} font-medium">{group.label}</span>
 					</span>
-					<svg class="w-4 h-4 text-gray-500 transition-transform {expandedGroups[group.key] ? 'rotate-180' : ''} {collapsed ? 'md:hidden' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-					</svg>
+					<ChevronDown class="w-4 h-4 text-gray-500 transition-transform {expandedGroups[group.key] ? 'rotate-180' : ''} {collapsed ? 'md:hidden' : ''}" />
 				</button>
 
 				{#if expandedGroups[group.key] && !collapsed}

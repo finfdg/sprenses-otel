@@ -752,7 +752,7 @@
 												</td>
 												<td class="px-4 py-2.5 text-center">
 													<label class="inline-flex items-center gap-1.5 cursor-pointer">
-														<input type="checkbox" bind:checked={entryForm.is_paid} class="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+														<input type="checkbox" bind:checked={entryForm.is_paid} class="w-4 h-4 rounded border-gray-300 accent-teal-700 focus:ring-teal-500 cursor-pointer" />
 														<span class="text-xs text-gray-600">{entryForm.is_paid ? 'Ödendi' : 'Bekliyor'}</span>
 													</label>
 												</td>
@@ -892,7 +892,7 @@
 											</div>
 											<div class="flex items-center gap-4">
 												<label class="inline-flex items-center gap-2 cursor-pointer">
-													<input type="checkbox" bind:checked={entryForm.is_paid} class="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+													<input type="checkbox" bind:checked={entryForm.is_paid} class="w-4 h-4 rounded border-gray-300 accent-teal-700 focus:ring-teal-500 cursor-pointer" />
 													<span class="text-sm text-gray-700">{entryForm.is_paid ? 'Ödendi' : 'Bekliyor'}</span>
 												</label>
 											</div>
@@ -1140,33 +1140,24 @@
 				<div class="border-t border-gray-200 pt-4">
 					<h4 class="text-sm font-semibold text-gray-700 mb-3">Onay İşlemleri</h4>
 					<div class="flex flex-wrap gap-2">
-						<button
-							onclick={() => openApprovalAction('approve', approvalDetail.id)}
-							class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer"
-						>
+						<Button onclick={() => openApprovalAction('approve', approvalDetail.id)}>
 							<Check size={16} />
 							Onayla
-						</button>
-						<button
-							onclick={() => openApprovalAction('reject', approvalDetail.id)}
-							class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
-						>
+						</Button>
+						<Button variant="danger" onclick={() => openApprovalAction('reject', approvalDetail.id)}>
 							<X size={16} />
 							Reddet
-						</button>
-						<button
-							onclick={() => openApprovalAction('return', approvalDetail.id)}
-							class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors cursor-pointer border border-amber-300"
-						>
+						</Button>
+						<Button variant="secondary" onclick={() => openApprovalAction('return', approvalDetail.id)}>
 							<RotateCcw size={16} />
 							İade Et
-						</button>
+						</Button>
 					</div>
 				</div>
 			{/if}
 
 			<div class="flex justify-end pt-2">
-				<button onclick={() => showApprovalDetail = false} class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 cursor-pointer">Kapat</button>
+				<Button variant="ghost" onclick={() => showApprovalDetail = false}>Kapat</Button>
 			</div>
 		</div>
 	{/if}
@@ -1196,31 +1187,19 @@
 		{/if}
 
 		<div class="flex justify-end gap-3 pt-1">
-			<button onclick={() => showActionModal = false} class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 cursor-pointer">Vazgeç</button>
+			<Button variant="secondary" onclick={() => showActionModal = false}>Vazgeç</Button>
 			{#if actionType === 'approve'}
-				<button
-					onclick={executeApprovalAction}
-					disabled={actionProcessing}
-					class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
-				>
+				<Button onclick={executeApprovalAction} loading={actionProcessing}>
 					{actionProcessing ? 'İşleniyor...' : 'Onayla'}
-				</button>
+				</Button>
 			{:else if actionType === 'reject'}
-				<button
-					onclick={executeApprovalAction}
-					disabled={actionProcessing || !actionNote.trim()}
-					class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 cursor-pointer"
-				>
+				<Button variant="danger" onclick={executeApprovalAction} disabled={actionProcessing || !actionNote.trim()} loading={actionProcessing}>
 					{actionProcessing ? 'İşleniyor...' : 'Reddet'}
-				</button>
+				</Button>
 			{:else}
-				<button
-					onclick={executeApprovalAction}
-					disabled={actionProcessing || !actionNote.trim()}
-					class="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 cursor-pointer"
-				>
+				<Button variant="secondary" onclick={executeApprovalAction} disabled={actionProcessing || !actionNote.trim()} loading={actionProcessing}>
 					{actionProcessing ? 'İşleniyor...' : 'İade Et'}
-				</button>
+				</Button>
 			{/if}
 		</div>
 	</div>

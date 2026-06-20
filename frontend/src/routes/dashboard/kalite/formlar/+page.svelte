@@ -13,7 +13,7 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import { CalendarCheck, FileText, X } from 'lucide-svelte';
+	import { CalendarCheck, FileText, X, Trash2 } from 'lucide-svelte';
 
 	interface FormItem {
 		id: number;
@@ -297,20 +297,11 @@
 							<td class="px-4 py-3 text-gray-600">{f.reviewed_by_name || '—'}</td>
 							<td class="px-4 py-3 text-right">
 								<div class="flex items-center justify-end gap-1.5">
-									<button
-										onclick={() => goto(`/dashboard/kalite/formlar/${f.id}`)}
-										class="text-xs px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-100 transition-colors cursor-pointer"
-									>
+									<Button variant="secondary" size="sm" onclick={() => goto(`/dashboard/kalite/formlar/${f.id}`)}>
 										{f.status === 'draft' || f.status === 'rejected' ? 'Doldur' : f.status === 'submitted' ? 'İncele' : 'Görüntüle'}
-									</button>
+									</Button>
 									{#if canUse && f.status === 'draft'}
-										<button
-											onclick={() => confirmDelete(f)}
-											class="text-xs px-2 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
-											title="Sil"
-										>
-											Sil
-										</button>
+										<Button variant="danger" size="sm" onclick={() => confirmDelete(f)}><Trash2 size={14} /> Sil</Button>
 									{/if}
 								</div>
 							</td>
@@ -345,7 +336,7 @@
 						{/if}
 					</div>
 					<div class="mt-3 flex justify-end">
-						<span class="text-xs px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg font-medium">
+						<span class="text-xs px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg font-medium">
 							{f.status === 'draft' || f.status === 'rejected' ? 'Doldur →' : f.status === 'submitted' ? 'İncele →' : 'Görüntüle →'}
 						</span>
 					</div>

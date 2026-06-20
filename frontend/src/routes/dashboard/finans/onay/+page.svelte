@@ -6,6 +6,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
+	import { showToast } from '$lib/stores/toast.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Textarea from '$lib/components/Textarea.svelte';
 	import { CheckCircle2, Check, X } from 'lucide-svelte';
@@ -74,6 +75,7 @@
 			pendingInvoices = data;
 		} catch (err) {
 			console.error('Onay bekleyen faturalar yüklenemedi:', err);
+			showToast('Onay bekleyen faturalar yüklenemedi', 'error');
 		} finally {
 			loading = false;
 		}
@@ -114,6 +116,7 @@
 			}, 400);
 		} catch (err) {
 			console.error('Fatura onaylanamadı:', err);
+			showToast('Fatura onaylanamadı', 'error');
 		} finally {
 			processing = false;
 		}
@@ -139,6 +142,7 @@
 			}, 400);
 		} catch (err) {
 			console.error('Fatura reddedilemedi:', err);
+			showToast('Fatura reddedilemedi', 'error');
 		} finally {
 			processing = false;
 		}

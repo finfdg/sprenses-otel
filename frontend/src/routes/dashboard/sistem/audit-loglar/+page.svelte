@@ -2,6 +2,7 @@
 	import { api } from '$lib/api';
 	import { onMount } from 'svelte';
 	import ListPage from '$lib/components/ListPage.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import { ClipboardList } from 'lucide-svelte';
 
@@ -32,6 +33,12 @@
 
 	// Detay modalı
 	let selectedLog = $state<AuditLog | null>(null);
+	let showDetail = $state(false);
+
+	function openDetail(log: AuditLog) {
+		selectedLog = log;
+		showDetail = true;
+	}
 
 	const ACTION_LABELS: Record<string, string> = {
 		login: 'Giriş',
@@ -173,7 +180,7 @@
 				{#each logs as log}
 					<tr
 						class="hover:bg-gray-50 cursor-pointer transition-colors"
-						onclick={() => selectedLog = log}
+						onclick={() => openDetail(log)}
 					>
 						<td class="px-4 py-3 text-gray-600 whitespace-nowrap text-xs">
 							<span title={formatDate(log.created_at)}>{formatRelative(log.created_at)}</span>
@@ -209,7 +216,7 @@
 		{#each logs as log}
 			<button
 				class="w-full text-left p-3 hover:bg-gray-50 transition-colors cursor-pointer"
-				onclick={() => selectedLog = log}
+				onclick={() => openDetail(log)}
 			>
 				<div class="flex items-center justify-between mb-1.5">
 					<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border {ACTION_COLORS[log.action] || 'bg-gray-50 text-gray-600 border-gray-200'}">
@@ -230,58 +237,39 @@
 </ListPage>
 
 <!-- Detay Modalı -->
-{#if selectedLog}
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-		onclick={() => selectedLog = null}
-		onkeydown={(e) => { if (e.key === 'Escape') selectedLog = null; }}
-		role="dialog"
-		tabindex="-1"
-	>
-		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-		<div
-			class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
-			onclick={(e) => e.stopPropagation()}
-			role="document"
-		>
-			<div class="p-5 border-b border-gray-100 flex items-center justify-between">
-				<h3 class="text-lg font-bold text-gray-800">Log Detayı</h3>
-				<button onclick={() => selectedLog = null} class="p-1 text-gray-500 hover:text-gray-600 cursor-pointer" aria-label="Detayı kapat">
-					<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-				</button>
-			</div>
-			<div class="p-5 space-y-3">
-				<div class="grid grid-cols-2 gap-3">
-					<div>
-						<span class="text-xs text-gray-500 block">Tarih</span>
-						<span class="text-sm font-medium text-gray-800">{formatDate(selectedLog.created_at)}</span>
-					</div>
-					<div>
-						<span class="text-xs text-gray-500 block">Kullanıcı</span>
-						<span class="text-sm font-medium text-gray-800">{selectedLog.user_full_name || 'Sistem'}</span>
-					</div>
-					<div>
-						<span class="text-xs text-gray-500 block">Eylem</span>
-						<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border {ACTION_COLORS[selectedLog.action] || 'bg-gray-50 text-gray-600 border-gray-200'}">
-							{ACTION_LABELS[selectedLog.action] || selectedLog.action}
-						</span>
-					</div>
-					<div>
-						<span class="text-xs text-gray-500 block">Varlık</span>
-						<span class="text-sm text-gray-800">{selectedLog.entity_type}{selectedLog.entity_id ? ` #${selectedLog.entity_id}` : ''}</span>
-					</div>
-					<div>
-						<span class="text-xs text-gray-500 block">IP Adresi</span>
-						<span class="text-sm font-mono text-gray-600">{selectedLog.ip_address || '-'}</span>
-					</div>
+<Modal bind:show={showDetail} title="Log Detayı" onclose={() => selectedLog = null}>
+	{#if selectedLog}
+		<div class="space-y-3">
+			<div class="grid grid-cols-2 gap-3">
+				<div>
+					<span class="text-xs text-gray-500 block">Tarih</span>
+					<span class="text-sm font-medium text-gray-800">{formatDate(selectedLog.created_at)}</span>
 				</div>
-				{#if selectedLog.details}
-					<div>
-						<span class="text-xs text-gray-500 block mb-1">Detay</span>
-						<div class="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap break-words font-mono text-xs">{selectedLog.details}</div>
-					</div>
-				{/if}
+				<div>
+					<span class="text-xs text-gray-500 block">Kullanıcı</span>
+					<span class="text-sm font-medium text-gray-800">{selectedLog.user_full_name || 'Sistem'}</span>
+				</div>
+				<div>
+					<span class="text-xs text-gray-500 block">Eylem</span>
+					<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border {ACTION_COLORS[selectedLog.action] || 'bg-gray-50 text-gray-600 border-gray-200'}">
+						{ACTION_LABELS[selectedLog.action] || selectedLog.action}
+					</span>
+				</div>
+				<div>
+					<span class="text-xs text-gray-500 block">Varlık</span>
+					<span class="text-sm text-gray-800">{selectedLog.entity_type}{selectedLog.entity_id ? ` #${selectedLog.entity_id}` : ''}</span>
+				</div>
+				<div>
+					<span class="text-xs text-gray-500 block">IP Adresi</span>
+					<span class="text-sm font-mono text-gray-600">{selectedLog.ip_address || '-'}</span>
+				</div>
 			</div>
+			{#if selectedLog.details}
+				<div>
+					<span class="text-xs text-gray-500 block mb-1">Detay</span>
+					<div class="bg-gray-50 rounded-lg p-3 text-gray-700 whitespace-pre-wrap break-words font-mono text-xs">{selectedLog.details}</div>
+				</div>
+			{/if}
 		</div>
-	</div>
-{/if}
+	{/if}
+</Modal>

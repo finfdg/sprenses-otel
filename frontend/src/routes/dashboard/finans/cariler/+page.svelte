@@ -21,6 +21,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 
 	// Generic onay state
 	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({
@@ -880,42 +881,24 @@
 
 	<!-- Tab Bar -->
 	<div class="flex items-center justify-between">
-		<div class="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-			<button
-				onclick={() => activeView = 'upload'}
-				class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {activeView === 'upload' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
-			>
-				Dosya Yükle
-			</button>
-			<button
-				onclick={() => activeView = 'vendors'}
-				class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {activeView === 'vendors' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
-			>
-				Cariler
-			</button>
-			<button
-				onclick={() => activeView = 'schedule'}
-				class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {activeView === 'schedule' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
-			>
-				Ödeme Planı
-			</button>
-			<button
-				onclick={() => activeView = 'instructions'}
-				class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {activeView === 'instructions' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}"
-			>
-				Ödeme Talimatı
-			</button>
-		</div>
+		<SegmentedControl
+			options={[
+				{ value: 'upload', label: 'Dosya Yükle' },
+				{ value: 'vendors', label: 'Cariler' },
+				{ value: 'schedule', label: 'Ödeme Planı' },
+				{ value: 'instructions', label: 'Ödeme Talimatı' },
+			]}
+			value={activeView}
+			onchange={(v) => (activeView = v as typeof activeView)}
+			ariaLabel="Cari görünümü"
+		/>
 
 		<!-- Excel İndir -->
 		{#if activeView === 'vendors' || activeView === 'schedule'}
-			<button
-				onclick={() => downloadExcel(activeView === 'vendors' ? 'vendors' : 'payment-schedule')}
-				class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors"
-			>
+			<Button variant="secondary" onclick={() => downloadExcel(activeView === 'vendors' ? 'vendors' : 'payment-schedule')}>
 				<Download size={16} />
 				Excel İndir
-			</button>
+			</Button>
 		{/if}
 	</div>
 
@@ -1022,9 +1005,6 @@
 				<TableSkeleton rows={6} columns={4} />
 			{:else if vendors.length === 0}
 				<EmptyState icon={Users} title="Henüz cari kaydı bulunmuyor" description="Yukarıdan Excel dosyası yükleyerek başlayın" />
-				<div class="hidden">
-					<p class="text-xs mt-1">Dosya yükleyerek cari kayıtlarını oluşturabilirsiniz</p>
-				</div>
 			{:else}
 				<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 					<!-- Desktop Header -->
@@ -1254,7 +1234,7 @@
 												<div class="flex flex-col sm:flex-row gap-2">
 													<Input size="sm" fullWidth={false} bind:value={ibanForm.bank_name} placeholder="Banka (ör. Yapı Kredi)" class="sm:w-44" />
 													<Input size="sm" fullWidth={false} bind:value={ibanForm.iban} placeholder="TR.. IBAN" class="flex-1 font-mono" />
-													<button onclick={() => addVendorIban(vendor.id)} disabled={ibanSaving} class="shrink-0 px-3 py-1.5 text-xs font-medium rounded bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-1"><Plus size={13} /> Ekle</button>
+													<Button size="sm" onclick={() => addVendorIban(vendor.id)} loading={ibanSaving} disabled={ibanSaving} class="shrink-0"><Plus size={13} /> Ekle</Button>
 												</div>
 											</div>
 										{/if}

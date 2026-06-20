@@ -12,6 +12,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Input from '$lib/components/Input.svelte';
+	import Field from '$lib/components/Field.svelte';
 	import { Plus, Pencil, Trash2, Clock, CalendarClock } from 'lucide-svelte';
 
 	type Shift = {
@@ -36,6 +37,7 @@
 	});
 	let saving = $state(false);
 	let formError = $state('');
+	let fieldErrors = $state<Record<string, string>>({});
 	let confirmDel = $state<{ show: boolean; target: Shift | null }>({ show: false, target: null });
 
 	let activeCount = $derived(shifts.filter((s) => s.is_active).length);
@@ -60,12 +62,14 @@
 	function openCreate() {
 		editing = null;
 		formError = '';
+		fieldErrors = {};
 		form = { name: '', color: COLORS[shifts.length % COLORS.length], start_time: '07:00', end_time: '15:00', is_split: false, start_time2: '13:00', end_time2: '17:00', description: '', is_active: true, sort_order: (shifts.length + 1) };
 		showModal = true;
 	}
 	function openEdit(s: Shift) {
 		editing = s;
 		formError = '';
+		fieldErrors = {};
 		form = {
 			name: s.name, color: s.color, start_time: s.start_time, end_time: s.end_time,
 			is_split: s.is_split, start_time2: s.start_time2 ?? '13:00', end_time2: s.end_time2 ?? '17:00',
@@ -75,9 +79,14 @@
 	}
 	async function save() {
 		formError = '';
-		if (!form.name.trim()) { formError = 'Vardiya adı zorunlu'; return; }
-		if (!form.start_time || !form.end_time) { formError = 'Başlangıç ve bitiş saati zorunlu'; return; }
-		if (form.is_split && (!form.start_time2 || !form.end_time2)) { formError = 'Split vardiyada ikinci segment saatleri zorunlu'; return; }
+		const errs: Record<string, string> = {};
+		if (!form.name.trim()) errs.name = 'Vardiya adı zorunlu';
+		if (!form.start_time) errs.start_time = 'Başlangıç saati zorunlu';
+		if (!form.end_time) errs.end_time = 'Bitiş saati zorunlu';
+		if (form.is_split && !form.start_time2) errs.start_time2 = '2. başlangıç zorunlu';
+		if (form.is_split && !form.end_time2) errs.end_time2 = '2. bitiş zorunlu';
+		fieldErrors = errs;
+		if (Object.keys(errs).length > 0) return;
 		saving = true;
 		const payload = {
 			name: form.name.trim(), color: form.color,
@@ -152,8 +161,8 @@
 							</div>
 							{#if canUse}
 								<div class="flex items-center gap-1 shrink-0">
-									<button onclick={() => openEdit(s)} class="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle"><Pencil size={15} /></button>
-									<button onclick={() => askDelete(s)} class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil"><Trash2 size={15} /></button>
+									<button onclick={() => openEdit(s)} class="touch-target p-1.5 text-gray-500 hover:text-teal-700 hover:bg-teal-50 rounded cursor-pointer" title="Düzenle" aria-label="Düzenle"><Pencil size={15} /></button>
+									<button onclick={() => askDelete(s)} class="touch-target p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer" title="Sil" aria-label="Sil"><Trash2 size={15} /></button>
 								</div>
 							{/if}
 						</div>
@@ -178,10 +187,11 @@
 <!-- Ekle / Düzenle -->
 <Modal bind:show={showModal} title={editing ? 'Vardiyayı Düzenle' : 'Yeni Vardiya'} maxWidth="max-w-md">
 	<div class="space-y-4">
-		<div>
-			<label for="sf-name" class="block text-sm font-medium text-gray-700 mb-1">Vardiya Adı <span class="text-red-500">*</span></label>
-			<Input id="sf-name" size="sm" bind:value={form.name} placeholder="Sabah, Akşam, Gece…" />
-		</div>
+		<Field label="Vardiya Adı" required for="sf-name" error={fieldErrors.name}>
+			{#snippet children({ id, invalid, describedby })}
+				<Input {id} {invalid} aria-describedby={describedby} size="sm" bind:value={form.name} placeholder="Sabah, Akşam, Gece…" />
+			{/snippet}
+		</Field>
 		<div>
 			<span class="block text-sm font-medium text-gray-700 mb-1">Renk</span>
 			<div class="flex flex-wrap gap-2">
@@ -191,40 +201,45 @@
 			</div>
 		</div>
 		<div class="grid grid-cols-2 gap-3">
-			<div>
-				<label for="sf-start" class="block text-sm font-medium text-gray-700 mb-1">Başlangıç <span class="text-red-500">*</span></label>
-				<Input id="sf-start" type="time" size="sm" bind:value={form.start_time} class="tabular-nums" />
-			</div>
-			<div>
-				<label for="sf-end" class="block text-sm font-medium text-gray-700 mb-1">Bitiş <span class="text-red-500">*</span></label>
-				<Input id="sf-end" type="time" size="sm" bind:value={form.end_time} class="tabular-nums" />
-			</div>
+			<Field label="Başlangıç" required for="sf-start" error={fieldErrors.start_time}>
+				{#snippet children({ id, invalid, describedby })}
+					<Input {id} {invalid} aria-describedby={describedby} type="time" size="sm" bind:value={form.start_time} class="tabular-nums" />
+				{/snippet}
+			</Field>
+			<Field label="Bitiş" required for="sf-end" error={fieldErrors.end_time}>
+				{#snippet children({ id, invalid, describedby })}
+					<Input {id} {invalid} aria-describedby={describedby} type="time" size="sm" bind:value={form.end_time} class="tabular-nums" />
+				{/snippet}
+			</Field>
 		</div>
-		<p class="text-xs text-gray-400 -mt-2">Bitiş, başlangıçtan küçük/eşitse vardiya gece yarısını geçer (ör. 23:00–07:00).</p>
+		<p class="text-xs text-gray-500 -mt-2">Bitiş, başlangıçtan küçük/eşitse vardiya gece yarısını geçer (ör. 23:00–07:00).</p>
 
 		<label class="flex items-center gap-2 cursor-pointer">
-			<input type="checkbox" bind:checked={form.is_split} class="rounded border-gray-300 text-teal-700 focus:ring-teal-500" />
+			<input type="checkbox" bind:checked={form.is_split} class="rounded border-gray-300 accent-teal-700 focus:ring-teal-500" />
 			<span class="text-sm text-gray-700">Split vardiya (iki ayrı segment — ör. restoran/banquet)</span>
 		</label>
 		{#if form.is_split}
 			<div class="grid grid-cols-2 gap-3 pl-1 border-l-2 border-amber-200">
-				<div>
-					<label for="sf-start2" class="block text-xs font-medium text-gray-600 mb-1">2. Başlangıç</label>
-					<Input id="sf-start2" type="time" size="sm" bind:value={form.start_time2} class="tabular-nums" />
-				</div>
-				<div>
-					<label for="sf-end2" class="block text-xs font-medium text-gray-600 mb-1">2. Bitiş</label>
-					<Input id="sf-end2" type="time" size="sm" bind:value={form.end_time2} class="tabular-nums" />
-				</div>
+				<Field label="2. Başlangıç" for="sf-start2" error={fieldErrors.start_time2}>
+					{#snippet children({ id, invalid, describedby })}
+						<Input {id} {invalid} aria-describedby={describedby} type="time" size="sm" bind:value={form.start_time2} class="tabular-nums" />
+					{/snippet}
+				</Field>
+				<Field label="2. Bitiş" for="sf-end2" error={fieldErrors.end_time2}>
+					{#snippet children({ id, invalid, describedby })}
+						<Input {id} {invalid} aria-describedby={describedby} type="time" size="sm" bind:value={form.end_time2} class="tabular-nums" />
+					{/snippet}
+				</Field>
 			</div>
 		{/if}
 
-		<div>
-			<label for="sf-desc" class="block text-sm font-medium text-gray-700 mb-1">Açıklama (opsiyonel)</label>
-			<Input id="sf-desc" size="sm" bind:value={form.description} placeholder="Hangi departman/görev…" />
-		</div>
+		<Field label="Açıklama (opsiyonel)" for="sf-desc">
+			{#snippet children({ id })}
+				<Input {id} size="sm" bind:value={form.description} placeholder="Hangi departman/görev…" />
+			{/snippet}
+		</Field>
 		<label class="flex items-center gap-2 cursor-pointer">
-			<input type="checkbox" bind:checked={form.is_active} class="rounded border-gray-300 text-teal-700 focus:ring-teal-500" />
+			<input type="checkbox" bind:checked={form.is_active} class="rounded border-gray-300 accent-teal-700 focus:ring-teal-500" />
 			<span class="text-sm text-gray-700">Aktif</span>
 		</label>
 

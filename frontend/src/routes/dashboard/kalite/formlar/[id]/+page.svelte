@@ -10,7 +10,6 @@
 	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 	import FormSkeleton from '$lib/components/FormSkeleton.svelte';
 	import Button from '$lib/components/Button.svelte';
-	import Input from '$lib/components/Input.svelte';
 	import Textarea from '$lib/components/Textarea.svelte';
 	import { FileText } from 'lucide-svelte';
 
@@ -303,13 +302,10 @@
 					</div>
 				</div>
 				{#if formData.status === 'approved'}
-					<button
-						onclick={openPdf}
-						class="inline-flex items-center gap-1.5 px-4 py-2.5 sm:py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer shrink-0"
-					>
+					<Button variant="secondary" class="shrink-0" onclick={openPdf}>
 						<FileText size={16} />
 						PDF
-					</button>
+					</Button>
 				{/if}
 			</div>
 
@@ -384,38 +380,21 @@
 			{#if canReview}
 				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 space-y-3">
 					<label for="qfd-review" class="block text-sm font-medium text-gray-700">İnceleme</label>
-					<Input
+					<Textarea
 						id="qfd-review"
 						bind:value={reviewComment}
 						placeholder="Yorum (opsiyonel)..."
+						rows={2}
 					/>
 					<div class="flex flex-col sm:flex-row gap-2">
-						<button
-							onclick={() => handleReview('approve')}
-							disabled={reviewing}
-							class="w-full sm:w-auto flex-1 sm:flex-none px-5 py-3 sm:py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer"
-						>
-							{reviewing ? 'İşleniyor...' : 'Onayla'}
-						</button>
-						<button
-							onclick={() => handleReview('reject')}
-							disabled={reviewing}
-							class="w-full sm:w-auto flex-1 sm:flex-none px-5 py-3 sm:py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors cursor-pointer"
-						>
-							{reviewing ? 'İşleniyor...' : 'Reddet'}
-						</button>
+						<Button class="w-full sm:w-auto flex-1 sm:flex-none" loading={reviewing} onclick={() => handleReview('approve')}>Onayla</Button>
+						<Button variant="danger" class="w-full sm:w-auto flex-1 sm:flex-none" loading={reviewing} onclick={() => handleReview('reject')}>Reddet</Button>
 					</div>
 				</div>
 			{/if}
 
 			{#if canReopen}
-				<button
-					onclick={handleReopen}
-					disabled={reopening}
-					class="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors cursor-pointer"
-				>
-					{reopening ? 'Açılıyor...' : 'Yeniden Aç'}
-				</button>
+				<Button variant="secondary" class="w-full sm:w-auto" loading={reopening} onclick={handleReopen}>Yeniden Aç</Button>
 			{/if}
 		</div>
 	{/if}

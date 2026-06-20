@@ -262,10 +262,10 @@
 			return;
 		}
 
-		// Uzantı kontrolü
+		// Uzantı kontrolü — SVG kabul edilmez (stored-XSS riski)
 		const ext = file.name.split('.').pop()?.toLowerCase();
-		if (!['png', 'jpg', 'jpeg', 'svg', 'webp'].includes(ext || '')) {
-			showToast('Desteklenmeyen dosya formatı. PNG, JPG, SVG veya WEBP yükleyin.', 'error');
+		if (!['png', 'jpg', 'jpeg', 'webp'].includes(ext || '')) {
+			showToast('Desteklenmeyen dosya formatı. PNG, JPG veya WEBP yükleyin.', 'error');
 			return;
 		}
 
@@ -490,7 +490,7 @@
 					</div>
 				{/if}
 				{#if editingId}
-					<label class="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 cursor-pointer transition-colors {uploadingLogo ? 'opacity-50 pointer-events-none' : ''}">
+					<label class="flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 cursor-pointer transition-colors {uploadingLogo ? 'opacity-50 pointer-events-none' : ''}">
 						{#if uploadingLogo}
 							<Loader2 size={16} class="animate-spin" />
 							Yükleniyor...
@@ -500,7 +500,7 @@
 						{/if}
 						<input
 							type="file"
-							accept=".png,.jpg,.jpeg,.svg,.webp"
+							accept=".png,.jpg,.jpeg,.webp"
 							onchange={handleLogoUpload}
 							class="hidden"
 							disabled={uploadingLogo}
@@ -510,7 +510,7 @@
 					<p class="text-xs text-gray-500">Logo yüklemek için önce şablonu oluşturun</p>
 				{/if}
 			</div>
-			<p class="text-xs text-gray-500 mt-0.5">PDF çıktısının her sayfasının sol üst köşesinde görünür (maks. 2 MB, PNG/JPG/SVG/WEBP)</p>
+			<p class="text-xs text-gray-500 mt-0.5">PDF çıktısının her sayfasının sol üst köşesinde görünür (maks. 2 MB, PNG/JPG/WEBP)</p>
 		</div>
 
 		<!-- Bölüm ve alan oluşturucu -->

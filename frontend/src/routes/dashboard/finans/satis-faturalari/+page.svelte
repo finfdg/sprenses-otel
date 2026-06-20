@@ -9,6 +9,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Input from '$lib/components/Input.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import { ReceiptText, FileText, CircleCheck, CircleDashed, Search, X, Wallet } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { paid: 'Tahsil edildi', partial: 'Kısmi', open: 'Açık' };
@@ -143,27 +144,47 @@
 	{/if}
 
 	<!-- Görünüm geçişi -->
-	<div class="flex items-center gap-1 mb-3">
-		<button onclick={() => setView('invoices')} class="text-sm font-medium px-3.5 py-1.5 rounded-lg border transition-colors cursor-pointer {view === 'invoices' ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}">Faturalar</button>
-		<button onclick={() => setView('advances')} class="text-sm font-medium px-3.5 py-1.5 rounded-lg border transition-colors cursor-pointer {view === 'advances' ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}">Acente Avansları</button>
+	<div class="mb-3">
+		<SegmentedControl
+			options={[
+				{ value: 'invoices', label: 'Faturalar' },
+				{ value: 'advances', label: 'Acente Avansları' },
+			]}
+			value={view}
+			onchange={(v) => setView(v as 'invoices' | 'advances')}
+			ariaLabel="Satış faturaları görünümü"
+		/>
 	</div>
 
 	{#if view === 'invoices'}
 	<!-- Filtre barı -->
 	<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3 mb-4 flex flex-wrap items-center gap-2">
 		<!-- Tür -->
-		<div class="flex items-center gap-1">
-			{#each [['', 'Tümü'], ['munferit', 'Münferit'], ['agency', 'Acente']] as [val, lbl]}
-				<button onclick={() => setType(val as any)} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer {typeFilter === val ? 'bg-teal-100 text-teal-700 border-teal-300' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}">{lbl}</button>
-			{/each}
-		</div>
+		<SegmentedControl
+			options={[
+				{ value: '', label: 'Tümü' },
+				{ value: 'munferit', label: 'Münferit' },
+				{ value: 'agency', label: 'Acente' },
+			]}
+			value={typeFilter}
+			onchange={(v) => setType(v as typeof typeFilter)}
+			size="sm"
+			ariaLabel="Müşteri türü filtresi"
+		/>
 		<span class="w-px h-5 bg-gray-200"></span>
 		<!-- Durum -->
-		<div class="flex items-center gap-1">
-			{#each [['', 'Hepsi'], ['open', 'Açık'], ['partial', 'Kısmi'], ['paid', 'Tahsil']] as [val, lbl]}
-				<button onclick={() => setStatus(val as any)} class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer {statusFilter === val ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}">{lbl}</button>
-			{/each}
-		</div>
+		<SegmentedControl
+			options={[
+				{ value: '', label: 'Hepsi' },
+				{ value: 'open', label: 'Açık', count: summary?.status_counts.open },
+				{ value: 'partial', label: 'Kısmi', count: summary?.status_counts.partial },
+				{ value: 'paid', label: 'Tahsil', count: summary?.status_counts.paid },
+			]}
+			value={statusFilter}
+			onchange={(v) => setStatus(v as typeof statusFilter)}
+			size="sm"
+			ariaLabel="Tahsilat durumu filtresi"
+		/>
 		<!-- Arama -->
 		<div class="relative ml-auto">
 			<Search size={15} class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -172,7 +193,7 @@
 				<button onclick={clearSearch} class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer" aria-label="Temizle"><X size={14} /></button>
 			{/if}
 		</div>
-		<span class="text-xs text-gray-400 tabular-nums">{total} kayıt</span>
+		<span class="text-xs text-gray-500 tabular-nums">{total} kayıt</span>
 	</div>
 
 	<!-- İçerik -->

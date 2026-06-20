@@ -13,6 +13,8 @@
 </script>
 
 <script lang="ts">
+	import { ArrowUp, ArrowDown, Minus } from 'lucide-svelte';
+
 	// icon tipini gevşetiyoruz (any) — Lucide'ın kendi Component tipleri katı
 	// Component<...> ile uyuşmuyor. EmptyState.svelte de aynı yaklaşımı kullanır.
 	let {
@@ -21,12 +23,30 @@
 		icon = undefined,
 		accent = 'teal',
 		hint = undefined,
+		href = undefined,
+		delta = undefined,
+		deltaText = undefined,
+		deltaLabel = undefined,
+		deltaInvert = false,
+		class: extraClass = '',
 	}: {
 		value: string | number;
 		label: string;
 		icon?: any;
 		accent?: StatAccent;
 		hint?: string;
+		/** Verilirse kart tıklanabilir bağlantı (<a>) olur — hover affordance + cursor. */
+		href?: string;
+		/** İşaretli değişim (YoY/dönem karşılaştırma). İşareti ok yönünü + rengi belirler. null/undefined → rozet gizli. */
+		delta?: number | null;
+		/** Rozette gösterilecek metin (ör. "+%12,5", "+8 puan"). Yoksa delta sayısı kullanılır. TR format çağırandan gelir. */
+		deltaText?: string;
+		/** Rozet sonrası bağlam metni (ör. "geçen yıla göre"). */
+		deltaLabel?: string;
+		/** true → negatif iyi (maliyet düşüşü yeşil). Varsayılan: pozitif iyi. */
+		deltaInvert?: boolean;
+		/** Yalnızca layout (genişlik/boşluk) için ek sınıf. */
+		class?: string;
 	} = $props();
 
 	const ACCENT: Record<StatAccent, { value: string; iconBg: string; iconText: string }> = {
@@ -39,13 +59,34 @@
 	};
 	let a = $derived(ACCENT[accent]);
 	let Icon = $derived(icon);
+
+	// Delta: işaret → ok yönü + AA-uyumlu renk (deltaInvert ile anlam tersine çevrilebilir).
+	let hasDelta = $derived(delta !== undefined && delta !== null);
+	let deltaUp = $derived(hasDelta && (delta as number) > 0);
+	let deltaDown = $derived(hasDelta && (delta as number) < 0);
+	let deltaGood = $derived(deltaInvert ? deltaDown : deltaUp);
+	let deltaBad = $derived(deltaInvert ? deltaUp : deltaDown);
+	let DeltaIcon = $derived(deltaUp ? ArrowUp : deltaDown ? ArrowDown : Minus);
+	let deltaColor = $derived(deltaGood ? 'text-emerald-700' : deltaBad ? 'text-red-600' : 'text-gray-500');
 </script>
 
-<div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+<svelte:element
+	this={href ? 'a' : 'div'}
+	href={href}
+	class="block bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm {href ? 'hover:border-teal-300 hover:shadow-md transition-all cursor-pointer' : ''} {extraClass}"
+>
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
 			<div class="text-xs font-medium text-gray-500 uppercase tracking-wider truncate">{label}</div>
 			<div class="mt-1.5 text-xl font-bold tabular-nums leading-tight {a.value}" title={String(value)}>{value}</div>
+			{#if hasDelta}
+				<div class="text-xs mt-1 flex items-center gap-1 flex-wrap">
+					<span class="inline-flex items-center gap-0.5 font-medium {deltaColor}">
+						<DeltaIcon size={12} aria-hidden="true" />{deltaText ?? delta}
+					</span>
+					{#if deltaLabel}<span class="text-gray-500">{deltaLabel}</span>{/if}
+				</div>
+			{/if}
 			{#if hint}
 				<div class="text-xs text-gray-500 mt-1">{hint}</div>
 			{/if}
@@ -56,4 +97,4 @@
 			</div>
 		{/if}
 	</div>
-</div>
+</svelte:element>

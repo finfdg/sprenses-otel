@@ -6,8 +6,10 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import { FileText, Plus, Trash2, Download, Search, X, Loader2 } from 'lucide-svelte';
+	import { FileText, Plus, Trash2, Download, Search, X } from 'lucide-svelte';
 
 	let { canUse = false }: { canUse?: boolean } = $props();
 
@@ -343,25 +345,19 @@
 			{/each}
 		</Select>
 		{#if canUse}
-			<button
-				onclick={openNewModal}
-				class="inline-flex items-center gap-1.5 px-3 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm font-medium"
-			>
+			<Button onclick={openNewModal}>
 				<Plus size={16} /> Yeni Liste
-			</button>
+			</Button>
 		{/if}
 		{#if activeList && canUse}
-			<button
-				onclick={askDeleteList}
-				class="inline-flex items-center gap-1.5 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm font-medium"
-			>
+			<Button variant="danger" onclick={askDeleteList}>
 				<Trash2 size={16} /> Listeyi Sil
-			</button>
+			</Button>
 		{/if}
 	</div>
 
 	{#if loading}
-		<div class="py-12 text-center text-gray-500"><Loader2 class="animate-spin inline" size={20} /> Yükleniyor…</div>
+		<TableSkeleton rows={5} columns={4} />
 	{:else if !activeList}
 		<EmptyState
 			icon={FileText}
@@ -544,8 +540,8 @@
 			<Input id="pi-name" size="sm" bind:value={newName} placeholder="ör: Haftalık Ödeme 26.05" required />
 		</div>
 		<div class="flex items-center justify-end gap-2">
-			<button type="button" onclick={() => (showNewModal = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
-			<button type="submit" disabled={busy} class="px-4 py-2 text-sm bg-teal-700 text-white rounded-lg hover:bg-teal-800 font-medium disabled:opacity-50">Oluştur</button>
+			<Button variant="secondary" onclick={() => (showNewModal = false)}>Vazgeç</Button>
+			<Button type="submit" loading={busy} disabled={busy}>Oluştur</Button>
 		</div>
 	</form>
 </Modal>
@@ -563,10 +559,10 @@
 			<p class="text-[11px] text-gray-400 mt-1">Boş bırakırsanız kayıtlı Yapı Kredi TL hesabınız otomatik gelir. Girerseniz tarayıcıda da hatırlanır.</p>
 		</div>
 		<div class="flex items-center justify-end gap-2">
-			<button type="button" onclick={() => (ykbModalOpen = false)} class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Vazgeç</button>
-			<button type="submit" disabled={busy} class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50">
+			<Button variant="secondary" onclick={() => (ykbModalOpen = false)}>Vazgeç</Button>
+			<Button type="submit" loading={busy} disabled={busy}>
 				<Download size={15} /> İndir
-			</button>
+			</Button>
 		</div>
 	</form>
 </Modal>

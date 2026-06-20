@@ -11,7 +11,7 @@
 	import { onlinePresence } from '$lib/stores/websocket.svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import { Database, Loader2, CheckCircle2, XCircle, MinusCircle } from 'lucide-svelte';
+	import { Database, Loader2, CheckCircle2, XCircle, MinusCircle, Menu, ArrowLeft, ChevronDown, User, Volume2, Bell, LogOut } from 'lucide-svelte';
 
 	type SednaStep = { key: string; label: string; ok?: boolean; skipped?: boolean; summary: string };
 
@@ -57,6 +57,7 @@
 	onMount(() => {
 		document.addEventListener('click', closeMenu);
 		document.addEventListener('click', closeOnlinePopover);
+		document.addEventListener('keydown', closeOnEscape);
 		pushSupported = isPushSupported();
 		if (pushSupported) {
 			pushEnabled = getPushPermissionState() === 'granted';
@@ -65,8 +66,17 @@
 		return () => {
 			document.removeEventListener('click', closeMenu);
 			document.removeEventListener('click', closeOnlinePopover);
+			document.removeEventListener('keydown', closeOnEscape);
 		};
 	});
+
+	// Esc → açık menü/popover'ı kapat (dışarı tıklamaya ek olarak)
+	function closeOnEscape(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			userMenuOpen = false;
+			onlinePopoverOpen = false;
+		}
+	}
 
 	async function handlePushToggle() {
 		if (!pushEnabled) {
@@ -195,9 +205,7 @@
 			title="Menü"
 			aria-label="Menüyü aç"
 		>
-			<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-			</svg>
+			<Menu size={20} />
 		</button>
 
 		{#if canGoBack()}
@@ -207,9 +215,7 @@
 				title="Geri"
 				aria-label="Önceki sayfa"
 			>
-				<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-				</svg>
+				<ArrowLeft size={20} />
 			</button>
 		{/if}
 	</div>
@@ -225,8 +231,9 @@
 		<div class="relative online-popover">
 			<button
 				onclick={() => onlinePopoverOpen = !onlinePopoverOpen}
-				class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+				class="touch-target flex items-center justify-center gap-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
 				title="Online kullanıcılar"
+				aria-label="Online kullanıcılar"
 			>
 				<span class="relative flex h-2.5 w-2.5">
 					{#if onlineCount > 0}
@@ -262,8 +269,9 @@
 		<button
 			onclick={runSednaSync}
 			disabled={sednaSyncing}
-			class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-teal-700 hover:bg-teal-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+			class="touch-target flex items-center justify-center gap-1.5 px-2.5 rounded-lg text-teal-700 hover:bg-teal-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
 			title="Sedna muhasebe verilerini çek (cari hareketleri · IBAN · verilen çek)"
+			aria-label="Sedna senkronizasyonu"
 		>
 			{#if sednaSyncing}
 				<Loader2 size={18} class="animate-spin" />
@@ -285,9 +293,7 @@
 				</span>
 			</div>
 			<span class="text-sm text-gray-700 font-medium hidden sm:inline">{authState.user?.first_name} {authState.user?.last_name}</span>
-			<svg class="w-3.5 h-3.5 text-gray-500 transition-transform {userMenuOpen ? 'rotate-180' : ''}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-				<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-			</svg>
+			<ChevronDown class="w-3.5 h-3.5 text-gray-500 transition-transform {userMenuOpen ? 'rotate-180' : ''}" />
 		</button>
 
 		{#if userMenuOpen}
@@ -304,9 +310,7 @@
 					class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors cursor-pointer"
 					onclick={() => { userMenuOpen = false; }}
 				>
-					<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-					</svg>
+					<User size={16} class="text-gray-500" />
 					Profil
 				</button>
 
@@ -316,9 +320,7 @@
 					onclick={(e) => { e.stopPropagation(); toggleSound(!notificationSettings.soundEnabled); }}
 				>
 					<span class="flex items-center gap-2.5">
-						<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
-						</svg>
+						<Volume2 size={16} class="text-gray-500" />
 						Bildirim Sesi
 					</span>
 					<div class="relative w-9 h-5 rounded-full transition-colors {notificationSettings.soundEnabled ? 'bg-teal-500' : 'bg-gray-300'}">
@@ -333,9 +335,7 @@
 						onclick={(e) => { e.stopPropagation(); handlePushToggle(); }}
 					>
 						<span class="flex items-center gap-2.5">
-							<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-							</svg>
+							<Bell size={16} class="text-gray-500" />
 							Anlık Bildirimler
 						</span>
 						<div class="relative w-9 h-5 rounded-full transition-colors {pushEnabled ? 'bg-teal-500' : 'bg-gray-300'}">
@@ -352,9 +352,7 @@
 					class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
 					onclick={handleLogout}
 				>
-					<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-					</svg>
+					<LogOut size={16} />
 					Çıkış Yap
 				</button>
 			</div>

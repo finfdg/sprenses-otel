@@ -4,6 +4,7 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -71,11 +72,10 @@
 		return `${Math.round(mb)} MB`;
 	}
 
-	function percentColor(p: number): string {
-		if (p >= 90) return 'text-red-600';
-		if (p >= 75) return 'text-orange-600';
-		if (p >= 50) return 'text-amber-600';
-		return 'text-teal-600';
+	function percentAccent(p: number): 'red' | 'amber' | 'teal' {
+		if (p >= 90) return 'red';
+		if (p >= 75) return 'amber';
+		return 'teal';
 	}
 
 	async function loadInfo() {
@@ -163,7 +163,7 @@
 		</PageHeader>
 
 		{#if loading}
-			<div class="text-center py-20 text-gray-500">Yükleniyor…</div>
+			<TableSkeleton rows={5} columns={4} />
 		{:else if error && !info}
 			<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">
 				{error}
@@ -171,50 +171,34 @@
 		{:else if info}
 			<!-- ─── Stat Cards ──────────────────────────────────────── -->
 			<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
-						<Cpu class="w-4 h-4" />
-						CPU
-					</div>
-					<div class="text-3xl font-bold {percentColor(info.cpu.percent)}">{info.cpu.percent.toFixed(1)}%</div>
-					<div class="text-xs text-gray-500 mt-1">
-						{info.cpu.cores} core · load {info.cpu.load_avg_1m} / {info.cpu.load_avg_5m} / {info.cpu.load_avg_15m}
-					</div>
-				</div>
-
-				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
-						<MemoryStick class="w-4 h-4" />
-						RAM
-					</div>
-					<div class="text-3xl font-bold {percentColor(info.memory.percent)}">{info.memory.percent.toFixed(0)}%</div>
-					<div class="text-xs text-gray-500 mt-1">
-						{fmtMb(info.memory.used_mb)} / {fmtMb(info.memory.total_mb)}
-						{#if info.memory.swap_total_mb === 0}
-							<span class="text-orange-500" title="Swap yok — OOM riski">· swap yok</span>
-						{/if}
-					</div>
-				</div>
-
-				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
-						<HardDrive class="w-4 h-4" />
-						Disk
-					</div>
-					<div class="text-3xl font-bold {percentColor(info.disk.percent)}">{info.disk.percent.toFixed(0)}%</div>
-					<div class="text-xs text-gray-500 mt-1">
-						{info.disk.used_gb} GB / {info.disk.total_gb} GB · {info.disk.free_gb} GB boş
-					</div>
-				</div>
-
-				<div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-					<div class="flex items-center gap-2 text-gray-500 text-xs uppercase tracking-wider mb-1">
-						<Clock class="w-4 h-4" />
-						Uptime
-					</div>
-					<div class="text-2xl font-bold text-teal-600">{formatUptime(info.uptime_seconds)}</div>
-					<div class="text-xs text-gray-500 mt-1">Son yeniden başlatma</div>
-				</div>
+				<StatCard
+					label="CPU"
+					value="{info.cpu.percent.toFixed(1)}%"
+					icon={Cpu}
+					accent={percentAccent(info.cpu.percent)}
+					hint="{info.cpu.cores} core · load {info.cpu.load_avg_1m} / {info.cpu.load_avg_5m} / {info.cpu.load_avg_15m}"
+				/>
+				<StatCard
+					label="RAM"
+					value="{info.memory.percent.toFixed(0)}%"
+					icon={MemoryStick}
+					accent={percentAccent(info.memory.percent)}
+					hint="{fmtMb(info.memory.used_mb)} / {fmtMb(info.memory.total_mb)}{info.memory.swap_total_mb === 0 ? ' · swap yok (OOM riski)' : ''}"
+				/>
+				<StatCard
+					label="Disk"
+					value="{info.disk.percent.toFixed(0)}%"
+					icon={HardDrive}
+					accent={percentAccent(info.disk.percent)}
+					hint="{info.disk.used_gb} GB / {info.disk.total_gb} GB · {info.disk.free_gb} GB boş"
+				/>
+				<StatCard
+					label="Uptime"
+					value={formatUptime(info.uptime_seconds)}
+					icon={Clock}
+					accent="teal"
+					hint="Son yeniden başlatma"
+				/>
 			</div>
 
 			<!-- ─── Servisler Tablosu ──────────────────────────────── -->
@@ -326,7 +310,7 @@
 	onclose={() => (logModal = { show: false, service: '', content: '', loading: false })}
 >
 	{#if logModal.loading}
-		<div class="text-center py-10 text-gray-500">Log alınıyor…</div>
+		<TableSkeleton rows={6} columns={1} showHeader={false} />
 	{:else}
 		<pre class="bg-gray-900 text-gray-100 text-xs font-mono p-4 rounded-lg overflow-auto max-h-[60vh] whitespace-pre-wrap">{logModal.content}</pre>
 	{/if}

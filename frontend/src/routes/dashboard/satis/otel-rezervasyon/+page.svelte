@@ -3,8 +3,10 @@
 	import { goto } from '$app/navigation';
 	import {
 		ArrowUpDown,
+		BedDouble,
 		Building2,
 		Calendar,
+		ChevronRight,
 		Coins,
 		FileSpreadsheet,
 		Globe2,
@@ -30,6 +32,7 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Select from '$lib/components/Select.svelte';
+	import StatCard from '$lib/components/StatCard.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
@@ -860,19 +863,6 @@
 		}
 	}
 
-	function occupancyColorClass(pct: number): string {
-		// Heatmap renkleri — doluluk %'sine göre
-		if (pct >= 100) return 'bg-rose-500 text-white';        // overbooking
-		if (pct >= 90) return 'bg-teal-700 text-white';
-		if (pct >= 75) return 'bg-teal-700 text-white';
-		if (pct >= 60) return 'bg-teal-500 text-white';
-		if (pct >= 45) return 'bg-teal-400 text-teal-900';
-		if (pct >= 30) return 'bg-teal-200 text-teal-900';
-		if (pct >= 15) return 'bg-teal-100 text-teal-800';
-		if (pct > 0) return 'bg-gray-100 text-gray-600';
-		return 'bg-gray-50 text-gray-500';
-	}
-
 	function formatDayShort(iso: string): string {
 		const d = new Date(iso);
 		return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short' }).format(d);
@@ -881,15 +871,6 @@
 	function formatFullMonth(ym: string): string {
 		const [y, m] = ym.split('-');
 		return `${TR_AY_FULL[m] ?? m} ${y}`;
-	}
-
-	/**
-	 * Takvim grid'i için boşluk hesabı: ayın 1'i hangi haftanın gününe denk geliyor?
-	 * weekday 0=Pzt, dolayısıyla 1. günden önce kaç boş kutu olmalı.
-	 */
-	function leadingEmptyCount(days: DailyOccupancy['days']): number {
-		if (!days || days.length === 0) return 0;
-		return days[0].weekday;
 	}
 
 	// ───── Lifecycle ──────────────────────────────────────
@@ -1007,132 +988,91 @@
 		{:else if summary}
 			<!-- KPI Kartları -->
 			{@const prev = compareMode ? previousYearSummary : null}
+			{@const rezPct = prev ? yoyPct(summary.kpi.total_rez, prev.kpi.total_rez) : null}
+			{@const eurPct = prev ? yoyPct(summary.kpi.total_eur, prev.kpi.total_eur) : null}
+			{@const adrPct = prev ? yoyPct(summary.kpi.adr, prev.kpi.adr) : null}
+			{@const rnPct = prev ? yoyPct(summary.kpi.total_room_nights, prev.kpi.total_room_nights) : null}
+			{@const occDp = prev ? yoyPoints(summary.kpi.occupancy_pct, prev.kpi.occupancy_pct) : null}
+			{@const paxPct = prev ? yoyPct(summary.kpi.total_pax, prev.kpi.total_pax) : null}
+			{@const ltDelta = prev ? summary.lead_time.avg - prev.lead_time.avg : null}
 			<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2 sm:gap-3">
 				<!-- Rezervasyon -->
-				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-					<div class="flex items-center justify-between mb-1.5">
-						<span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-semibold">Rezervasyon</span>
-						<FileSpreadsheet size={14} class="text-teal-500" />
-					</div>
-					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatInt(summary.kpi.total_rez)}</div>
-					<div class="text-[10px] text-gray-500 mt-0.5">
-						Definite: {summary.kpi.definite_count} · Option: {summary.kpi.option_count}
-					</div>
-					{#if prev}
-						{@const pct = yoyPct(summary.kpi.total_rez, prev.kpi.total_rez)}
-						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
-							<span>{changeArrow(pct)}</span>
-							<span>{pct >= 0 ? '+' : ''}{pct.toFixed(0)}%</span>
-							<span class="opacity-60 font-normal hidden lg:inline ml-0.5">vs {formatInt(prev.kpi.total_rez)}</span>
-						</div>
-					{/if}
-				</div>
+				<StatCard
+					label="Rezervasyon"
+					value={formatInt(summary.kpi.total_rez)}
+					icon={FileSpreadsheet}
+					accent="teal"
+					hint={`Definite: ${summary.kpi.definite_count} · Option: ${summary.kpi.option_count}`}
+					delta={rezPct}
+					deltaText={rezPct !== null ? `${rezPct >= 0 ? '+' : ''}${rezPct.toFixed(0)}%` : undefined}
+					deltaLabel={prev ? `vs ${formatInt(prev.kpi.total_rez)}` : undefined}
+				/>
 				<!-- Net Ciro -->
-				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-					<div class="flex items-center justify-between mb-1.5">
-						<span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-semibold">Net Ciro</span>
-						<Coins size={14} class="text-teal-500" />
-					</div>
-					<div class="text-lg sm:text-2xl font-bold text-teal-600">{formatEurCompact(summary.kpi.total_eur)}</div>
-					<div class="text-[10px] text-gray-500 mt-0.5">{formatEur(summary.kpi.total_eur)}</div>
-					{#if prev}
-						{@const pct = yoyPct(summary.kpi.total_eur, prev.kpi.total_eur)}
-						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
-							<span>{changeArrow(pct)}</span>
-							<span>{pct >= 0 ? '+' : ''}{pct.toFixed(0)}%</span>
-							<span class="opacity-60 font-normal hidden lg:inline ml-0.5">vs {formatEurCompact(prev.kpi.total_eur)}</span>
-						</div>
-					{/if}
-				</div>
+				<StatCard
+					label="Net Ciro"
+					value={formatEurCompact(summary.kpi.total_eur)}
+					icon={Coins}
+					accent="teal"
+					hint={formatEur(summary.kpi.total_eur)}
+					delta={eurPct}
+					deltaText={eurPct !== null ? `${eurPct >= 0 ? '+' : ''}${eurPct.toFixed(0)}%` : undefined}
+					deltaLabel={prev ? `vs ${formatEurCompact(prev.kpi.total_eur)}` : undefined}
+				/>
 				<!-- ADR -->
-				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-					<div class="flex items-center justify-between mb-1.5">
-						<span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-semibold">ADR</span>
-						<TrendingUp size={14} class="text-teal-500" />
-					</div>
-					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatEur(summary.kpi.adr)}</div>
-					<div class="text-[10px] text-gray-500 mt-0.5">Oda-gece başı ciro</div>
-					{#if prev}
-						{@const pct = yoyPct(summary.kpi.adr, prev.kpi.adr)}
-						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
-							<span>{changeArrow(pct)}</span>
-							<span>{pct >= 0 ? '+' : ''}{pct.toFixed(1)}%</span>
-							<span class="opacity-60 font-normal hidden lg:inline ml-0.5">vs {formatEur(prev.kpi.adr)}</span>
-						</div>
-					{/if}
-				</div>
+				<StatCard
+					label="ADR"
+					value={formatEur(summary.kpi.adr)}
+					icon={TrendingUp}
+					accent="teal"
+					hint="Oda-gece başı ciro"
+					delta={adrPct}
+					deltaText={adrPct !== null ? `${adrPct >= 0 ? '+' : ''}${adrPct.toFixed(1)}%` : undefined}
+					deltaLabel={prev ? `vs ${formatEur(prev.kpi.adr)}` : undefined}
+				/>
 				<!-- Oda-Gece -->
-				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-					<div class="flex items-center justify-between mb-1.5">
-						<span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-semibold">Oda-Gece</span>
-						<Calendar size={14} class="text-teal-500" />
-					</div>
-					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatInt(summary.kpi.total_room_nights)}</div>
-					<div class="text-[10px] text-gray-500 mt-0.5">Ort. {summary.kpi.avg_los.toFixed(1)} gece</div>
-					{#if prev}
-						{@const pct = yoyPct(summary.kpi.total_room_nights, prev.kpi.total_room_nights)}
-						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
-							<span>{changeArrow(pct)}</span>
-							<span>{pct >= 0 ? '+' : ''}{pct.toFixed(0)}%</span>
-							<span class="opacity-60 font-normal hidden lg:inline ml-0.5">vs {formatInt(prev.kpi.total_room_nights)}</span>
-						</div>
-					{/if}
-				</div>
+				<StatCard
+					label="Oda-Gece"
+					value={formatInt(summary.kpi.total_room_nights)}
+					icon={Calendar}
+					accent="teal"
+					hint={`Ort. ${summary.kpi.avg_los.toFixed(1)} gece`}
+					delta={rnPct}
+					deltaText={rnPct !== null ? `${rnPct >= 0 ? '+' : ''}${rnPct.toFixed(0)}%` : undefined}
+					deltaLabel={prev ? `vs ${formatInt(prev.kpi.total_room_nights)}` : undefined}
+				/>
 				<!-- Doluluk — pt fark (yüzde puanı) -->
-				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-					<div class="flex items-center justify-between mb-1.5">
-						<span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-semibold">Doluluk</span>
-						<PieChart size={14} class="text-teal-500" />
-					</div>
-					<div class="text-lg sm:text-2xl font-bold text-teal-600">%{summary.kpi.occupancy_pct.toFixed(1)}</div>
-					<div class="text-[10px] text-gray-500 mt-0.5">
-						{summary.kpi.total_capacity} oda × {summary.kpi.date_range_days} gün
-					</div>
-					{#if prev}
-						{@const dp = yoyPoints(summary.kpi.occupancy_pct, prev.kpi.occupancy_pct)}
-						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(dp)}">
-							<span>{changeArrow(dp)}</span>
-							<span>{dp >= 0 ? '+' : ''}{dp.toFixed(1)}pt</span>
-							<span class="opacity-60 font-normal hidden lg:inline ml-0.5">vs %{prev.kpi.occupancy_pct.toFixed(1)}</span>
-						</div>
-					{/if}
-				</div>
+				<StatCard
+					label="Doluluk"
+					value={`%${summary.kpi.occupancy_pct.toFixed(1)}`}
+					icon={PieChart}
+					accent="teal"
+					hint={`${summary.kpi.total_capacity} oda × ${summary.kpi.date_range_days} gün`}
+					delta={occDp}
+					deltaText={occDp !== null ? `${occDp >= 0 ? '+' : ''}${occDp.toFixed(1)}pt` : undefined}
+					deltaLabel={prev ? `vs %${prev.kpi.occupancy_pct.toFixed(1)}` : undefined}
+				/>
 				<!-- Pax -->
-				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-					<div class="flex items-center justify-between mb-1.5">
-						<span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-semibold">Pax</span>
-						<Users size={14} class="text-teal-500" />
-					</div>
-					<div class="text-lg sm:text-2xl font-bold text-gray-900">{formatInt(summary.kpi.total_pax)}</div>
-					<div class="text-[10px] text-gray-500 mt-0.5">
-						Yet {summary.kpi.total_adult} · Çoc {summary.kpi.total_child_paid + summary.kpi.total_child_free}
-					</div>
-					{#if prev}
-						{@const pct = yoyPct(summary.kpi.total_pax, prev.kpi.total_pax)}
-						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(pct)}">
-							<span>{changeArrow(pct)}</span>
-							<span>{pct >= 0 ? '+' : ''}{pct.toFixed(0)}%</span>
-							<span class="opacity-60 font-normal hidden lg:inline ml-0.5">vs {formatInt(prev.kpi.total_pax)}</span>
-						</div>
-					{/if}
-				</div>
+				<StatCard
+					label="Pax"
+					value={formatInt(summary.kpi.total_pax)}
+					icon={Users}
+					accent="gray"
+					hint={`Yet ${summary.kpi.total_adult} · Çoc ${summary.kpi.total_child_paid + summary.kpi.total_child_free}`}
+					delta={paxPct}
+					deltaText={paxPct !== null ? `${paxPct >= 0 ? '+' : ''}${paxPct.toFixed(0)}%` : undefined}
+					deltaLabel={prev ? `vs ${formatInt(prev.kpi.total_pax)}` : undefined}
+				/>
 				<!-- Lead Time -->
-				<div class="bg-white border border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
-					<div class="flex items-center justify-between mb-1.5">
-						<span class="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wider font-semibold">Rez.-Giriş Arası</span>
-						<Calendar size={14} class="text-teal-500" />
-					</div>
-					<div class="text-lg sm:text-2xl font-bold text-gray-900">{summary.lead_time.avg.toFixed(0)} gün</div>
-					<div class="text-[10px] text-gray-500 mt-0.5">Medyan {summary.lead_time.median} gün</div>
-					{#if prev}
-						{@const d = summary.lead_time.avg - prev.lead_time.avg}
-						<div class="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold {changeColorClass(d)}">
-							<span>{changeArrow(d)}</span>
-							<span>{d >= 0 ? '+' : ''}{d.toFixed(0)} gün</span>
-							<span class="opacity-60 font-normal hidden lg:inline ml-0.5">vs {prev.lead_time.avg.toFixed(0)}g</span>
-						</div>
-					{/if}
-				</div>
+				<StatCard
+					label="Rez.-Giriş Arası"
+					value={`${summary.lead_time.avg.toFixed(0)} gün`}
+					icon={Calendar}
+					accent="gray"
+					hint={`Medyan ${summary.lead_time.median} gün`}
+					delta={ltDelta}
+					deltaText={ltDelta !== null ? `${ltDelta >= 0 ? '+' : ''}${ltDelta.toFixed(0)} gün` : undefined}
+					deltaLabel={prev ? `vs ${prev.lead_time.avg.toFixed(0)}g` : undefined}
+				/>
 			</div>
 
 			<!-- ── Aylık Gece Dağılımı (stay-night attribution) ── -->
@@ -1172,9 +1112,7 @@
 								>
 									<div class="w-20 sm:w-24 shrink-0 text-gray-600 font-medium flex items-center gap-1">
 										<span>{monthLabel(m.month)}</span>
-										<svg class="w-3 h-3 text-gray-500 transition-transform {expandedMonth === m.month ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-											<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-										</svg>
+										<ChevronRight class="w-3 h-3 text-gray-500 transition-transform {expandedMonth === m.month ? 'rotate-90' : ''}" />
 									</div>
 									<div class="flex-1 flex flex-col gap-0.5 min-w-0">
 										<!-- Geçerli yıl bar -->
@@ -1259,9 +1197,7 @@
 												</span>
 												<!-- Kapasite badge'i: Oda Tipleri sayfasından gelen toplam oda sayısı -->
 												<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 font-semibold">
-													<svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-														<path stroke-linecap="round" stroke-linejoin="round" d="M3 12a2.25 2.25 0 002.25 2.25h13.5A2.25 2.25 0 0021 12M3 12V8.25A2.25 2.25 0 015.25 6h13.5A2.25 2.25 0 0121 8.25V12" />
-													</svg>
+													<BedDouble class="w-3 h-3" />
 													Kapasite: {dailyData.total_capacity} oda
 												</span>
 												<span class="text-gray-500">
@@ -1695,7 +1631,8 @@
 											class="w-full flex items-center gap-3 text-sm px-2 py-1.5 bg-teal-50 hover:bg-teal-100 transition-colors"
 										>
 											<!-- Açma/kapama oku -->
-											<span class="text-teal-500 text-xs w-3 shrink-0 transition-transform {expandedGroups.has(item.name) ? 'rotate-90' : ''}">▶</span>
+											<ChevronRight class="w-3 h-3 text-teal-600 shrink-0 transition-transform {expandedGroups.has(item.name) ? 'rotate-90' : ''}" />
+
 											<div class="w-24 sm:w-28 shrink-0 text-xs font-semibold text-teal-800 truncate text-left" title={item.name}>
 												{item.name}
 												<span class="font-normal text-teal-500 ml-1">({item.members.length})</span>
@@ -2200,11 +2137,11 @@
 					</div>
 					<div class="flex gap-1 shrink-0">
 						<button onclick={() => openEditGroup(g)}
-							class="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer" title="Düzenle">
+							class="touch-target flex items-center justify-center text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer" title="Düzenle" aria-label="Düzenle">
 							<Settings2 size={15} />
 						</button>
 						<button onclick={() => askGmDelete(g)}
-							class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer" title="Sil">
+							class="touch-target flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer" title="Sil" aria-label="Sil">
 							<Trash2 size={15} />
 						</button>
 					</div>

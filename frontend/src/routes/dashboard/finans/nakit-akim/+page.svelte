@@ -10,7 +10,8 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
-	import { Filter, AlertTriangle, Receipt } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
+	import { Filter, AlertTriangle, Receipt, Check } from 'lucide-svelte';
 	import {
 		cashFlowCache,
 		loadAllCashFlow,
@@ -394,12 +395,7 @@
 				<span class="font-medium">{matchVendorName}</span> — {matchDate} tarihli ₺{matchAmount?.toLocaleString('tr-TR', {minimumFractionDigits: 2})} borç işlemi için banka karşılığını seçin
 			</div>
 		</div>
-		<button
-			onclick={cancelMatch}
-			class="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors cursor-pointer"
-		>
-			İptal
-		</button>
+		<Button variant="secondary" size="sm" onclick={cancelMatch}>İptal</Button>
 	</div>
 {/if}
 
@@ -411,12 +407,7 @@
 				<span class="font-medium">{ccMatchDescription}</span> — ₺{ccMatchAmount.toLocaleString('tr-TR', {minimumFractionDigits: 2})} için banka işlemini seçin
 			</div>
 		</div>
-		<button
-			onclick={cancelCCMatch}
-			class="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors cursor-pointer"
-		>
-			İptal
-		</button>
+		<Button variant="secondary" size="sm" onclick={cancelCCMatch}>İptal</Button>
 	</div>
 {/if}
 
@@ -436,7 +427,7 @@
 		<Filter size={14} />
 		Filtre
 		{#if filterStartDate || filterEndDate || filterSearch}
-			<span class="bg-teal-700 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center">✓</span>
+			<span class="bg-teal-700 text-white rounded-full w-4 h-4 flex items-center justify-center"><Check size={10} /></span>
 		{/if}
 	</button>
 
@@ -498,10 +489,7 @@
 				oninput={handleSearchInput}
 			/>
 		</div>
-		<button
-			onclick={applyDateFilter}
-			class="px-4 py-1.5 bg-teal-700 text-white text-sm font-medium rounded-lg hover:bg-teal-800 transition-colors cursor-pointer"
-		>Uygula</button>
+		<Button size="sm" onclick={applyDateFilter}>Uygula</Button>
 	</div>
 {/if}
 
