@@ -41,6 +41,26 @@ asla otomatik düzeltmez** (off-by-1 farklar açıklamanın komşu çeke referan
   (üçü de bozuk check_no + boş hedef slot + deftere oturuyor). Kalan 3 anomali ödenmiş+belirsiz (off-by-1) → dokunulmadı.
 - Test: `test_checks.py::TestCheckBankInference::test_number_anomaly_detection`.
 
+### Bayat Çek Süpürme — Sedna = Tek Doğru Kaynak (`_sweep_stale_checks`) (2026-06-20)
+
+**Kök sorun:** Çek içe aktarması eskiden yalnız INSERT/UPDATE yapıyordu — Sedna'da artık olmayan
+(veya farklı/typo'lu numarayla duran) eski Excel kayıtlarını **SİLMİYORDU** → bayat mükerrerler birikiyordu
+(ör. AYKIN'ın "ANTALYA" çeki Sedna'da yok ama lokalde duruyor, borcu 200K şişiriyordu). Kullanıcı uyarısıyla
+keşfedildi: **canlı Sedna sorgulanınca** AYKIN'da TEK çek (9498646) olduğu, "ANTALYA"nın bayat lokal artefakt
+olduğu görüldü. **DERS: typo/mükerrer şüphesinde önce Sedna CANLI sorgulanmalı** (lokal kopya bayat olabilir).
+
+`_sweep_stale_checks(db, sedna_rows)`: `run_check_import` sonunda çalışır. Bir lokal çek **silinir** ancak:
+(a) **eşleşmemiş** (banka/cari bağı yok — `bank_transaction_id` ve `match_number` NULL), (b) verilen-çek kapsamı
+(`320/159/335`), (c) Sedna'da **birebir** (no dahil, `_check_dedup_key`) karşılığı YOK, **ama** (d) Sedna'da
+**no'suz kimliği** (`_check_group_key` = cari+para+tutar+vade) VAR → yani aynı çek Sedna'da farklı no ile duruyor =
+bayat typo-dup. **Sedna'da hiç eşi olmayan (legit) çeke ve EŞLEŞMİŞ çeke DOKUNMAZ.** finance_event invalidate'lenir.
+- **Eşleşmiş bayat çek** süpürülemez (güvenlik) → elle: eşleştirmeyi Sedna'nın doğru çekine **taşı**, sonra stale'i sil
+  (GALAKSİ 0012419→0012119'da yapıldı: match 96 doğru çeke taşındı, kayıt korundu).
+- **İlk temizlik (2026-06-20):** 3 bayat çek süpürüldü (7823820/D054, 0012411/B086, ANTALYA/A225) + GALAKSİ elle +
+  AYKIN bayat cari hareketi (id 10265) silindi → AYKIN net 200K→**0** (gerçek durumu). Sonuç `swept_stale` ile döner.
+- **Cari tarafı:** stale cari hareketleri için `cariler` modülünde `removal_candidates` mekanizması var (manuel onay).
+- Test: `test_checks.py::TestCheckBankInference::test_sweep_stale_checks_removes_only_sedna_absent_dupes`.
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:

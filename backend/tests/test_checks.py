@@ -419,3 +419,33 @@ class TestCheckBankInference:
         nos = {r["check_no"]: r["description_no"] for r in res}
         assert nos.get("0055119") == "0055419"
         assert "0055420" not in nos
+
+    def test_sweep_stale_checks_removes_only_sedna_absent_dupes(self, db):
+        from app.models.check import Check, CheckUpload
+        from app.routers.finance.checks import _sweep_stale_checks
+        up = CheckUpload(file_name="t4.xlsx")
+        db.add(up)
+        db.flush()
+
+        def mk(no, amt, due, vendor="320.01.01.Z999", match=None):
+            c = Check(upload_id=up.id, check_no=no, vendor_code=vendor, vendor_name="Z",
+                      due_date=due, amount_tl=amt, currency="TL", amount_currency=amt,
+                      status="pending", match_number=match, transaction_type="Verilen Çek")
+            db.add(c); db.flush(); return c
+
+        d = date(2026, 10, 10)
+        keep_exact = mk("9000001", 100000, d)                 # Sedna ile birebir → korunur
+        stale_dup = mk("ANTALYA", 100000, d)                  # aynı grup, Sedna'da no yok → SİLİNİR
+        legit_other = mk("9000050", 250000, date(2026, 11, 1))  # Sedna grubunda yok → korunur
+        matched_dup = mk("XXX", 100000, d, match=5)           # aynı grup ama EŞLEŞMİŞ → korunur
+
+        sedna_rows = [{"vendor_code": "320.01.01.Z999", "check_no": "9000001", "currency": "TL",
+                       "amount_tl": 100000, "amount_currency": 0, "due_date": d}]
+        removed = _sweep_stale_checks(db, sedna_rows)
+
+        ids = {c.id for c in db.query(Check).filter(Check.vendor_code == "320.01.01.Z999").all()}
+        assert removed == 1
+        assert stale_dup.id not in ids          # bayat typo-dup silindi
+        assert keep_exact.id in ids             # Sedna birebir korundu
+        assert legit_other.id in ids            # Sedna'da eşi yok → korundu
+        assert matched_dup.id in ids            # eşleşmiş → korundu

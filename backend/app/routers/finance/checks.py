@@ -25,7 +25,7 @@ from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.utils.check_parser import parse_check_excel
 from app.utils.file_validation import validate_upload_file
-from app.constants import BroadcastModule
+from app.constants import BroadcastModule, SourceType
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.matching_service import _match_checks_to_bank
@@ -58,6 +58,15 @@ def _check_dedup_key(check_no, vendor_code, currency, amount_tl, amount_currency
     if curr in ("TL", "TRY", ""):
         return (check_no, vendor_code, "TL", round(float(amount_tl or 0), 2))
     return (check_no, vendor_code, curr, round(float(amount_currency or amount_tl or 0), 2))
+
+
+def _check_group_key(vendor_code, currency, amount_tl, amount_currency, due_date):
+    """Çek-no'SUZ kimlik: (cari, para, NATIVE tutar, vade). Aynı çekin farklı/typo'lu no ile
+    tekrarını yakalamak için (sütun-kayması mükerrer tespiti / removal-sweep)."""
+    curr = (currency or "TL").strip().upper()
+    if curr in ("TL", "TRY", ""):
+        return (vendor_code, "TL", round(float(amount_tl or 0), 2), due_date)
+    return (vendor_code, curr, round(float(amount_currency or amount_tl or 0), 2), due_date)
 
 
 UPLOAD_DIR = os.path.join(
@@ -279,6 +288,56 @@ def detect_check_no_mismatches(db: Session) -> list:
     return out
 
 
+_ISSUED_SCOPE_PREFIXES = ("320", "159", "335")  # Sedna verilen-çek hesap önekleri
+
+
+def _sweep_stale_checks(db: Session, sedna_rows: list) -> int:
+    """Sedna = tek doğru kaynak: Sedna'da OLMAYAN ama Sedna'da AYNI (cari+para+tutar+vade) çeki
+    bulunan EŞLEŞMEMİŞ lokal çekleri sil → lokali Sedna'ya hizalar (sütun-kayması/typo mükerrerleri).
+
+    Güvenlik: yalnız (a) eşleşmemiş (banka/cari bağı yok), (b) verilen-çek kapsamı (320/159/335),
+    (c) Sedna'da birebir (no dahil) karşılığı OLMAYAN, AMA (d) Sedna'da no'suz kimliği (cari+para+
+    tutar+vade) BULUNAN çekler silinir → Sedna'da hiç eşi olmayan (legit) çeke DOKUNMAZ; eşleşmişe DOKUNMAZ.
+    """
+    sedna_exact, sedna_group = set(), set()
+    for r in sedna_rows:
+        code = (r.get("vendor_code") or "").strip()
+        no = (str(r.get("check_no")) or "").strip()[:50]
+        curr = (r.get("currency") or "TL").strip() or "TL"
+        amt_tl = float(r.get("amount_tl") or 0)
+        cur_amt = float(r.get("amount_currency") or 0)
+        native = cur_amt if (curr != "TL" and cur_amt) else amt_tl
+        due = r.get("due_date")
+        if not no or not code or not due:
+            continue
+        sedna_exact.add(_check_dedup_key(no, code, curr, amt_tl, native))
+        sedna_group.add(_check_group_key(code, curr, amt_tl, native, due))
+
+    removed = 0
+    locals_ = db.query(Check).filter(
+        Check.bank_transaction_id.is_(None), Check.match_number.is_(None),
+    ).all()
+    for ch in locals_:
+        code = ch.vendor_code or ""
+        if not any(code.startswith(p) for p in _ISSUED_SCOPE_PREFIXES):
+            continue
+        ek = _check_dedup_key(ch.check_no, ch.vendor_code, ch.currency,
+                              float(ch.amount_tl or 0), float(ch.amount_currency or 0))
+        if ek in sedna_exact:
+            continue  # Sedna ile birebir (no dahil) → koru
+        gk = _check_group_key(ch.vendor_code, ch.currency,
+                              float(ch.amount_tl or 0), float(ch.amount_currency or 0), ch.due_date)
+        if gk in sedna_group:  # Sedna'da aynı çek farklı no ile var → bu lokal kayıt bayat typo-dup
+            finance_event_svc.invalidate(db, SourceType.CHECK, ch.id)
+            logger.warning("Bayat çek silindi (Sedna'da yok): no=%s cari=%s tutar=%s vade=%s",
+                           ch.check_no, ch.vendor_code, ch.amount_tl, ch.due_date)
+            db.delete(ch)
+            removed += 1
+    if removed:
+        db.flush()
+    return removed
+
+
 def run_check_import(db: Session, current_user: User, ip=None) -> dict:
     """Sedna'dan verilen çekleri çek (320 satıcı + 159 avans + 335 personel/ortak) + dedup ile içe aktar.
 
@@ -440,7 +499,9 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         upload.total_checks = len(rows)
         upload.new_checks = new_count
         upload.skipped_checks = skipped_count
-        # Bankası boş çekleri komşu çek-no'larından tahmin et (Sedna güncellemeleri bittikten SONRA)
+        # Sedna = tek doğru kaynak: Sedna'da olmayan eşleşmemiş typo/sütun-kayması mükerrerlerini sil
+        swept_count = _sweep_stale_checks(db, rows)
+        # Bankası boş çekleri komşu çek-no'larından tahmin et (Sedna güncellemeleri + süpürme bittikten SONRA)
         inferred_count = infer_check_banks(db)
         # Olası check_no↔açıklama-no uyuşmazlıklarını tespit et + uyar (düzeltmez — insan kararı)
         anomalies = detect_check_no_mismatches(db)
@@ -450,7 +511,8 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         log_action(
             db, current_user.id, "create", "check_upload", entity_id=upload.id,
             details=f"Sedna çek içe aktarma: {new_count} yeni, {updated_count} güncel (vade/durum), "
-                    f"{removed_dupes} mükerrer temizlendi, {skipped_count} atlandı, {inferred_count} banka tahmini",
+                    f"{removed_dupes} mükerrer temizlendi, {swept_count} bayat süpürüldü, "
+                    f"{skipped_count} atlandı, {inferred_count} banka tahmini",
             ip_address=ip,
         )
         db.commit()
@@ -476,6 +538,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         "new_checks": new_count,
         "updated_checks": updated_count,
         "removed_dupes": removed_dupes,
+        "swept_stale": swept_count,
         "skipped_checks": skipped_count,
         "matched_to_bank": matched,
         "number_anomalies": len(anomalies),
