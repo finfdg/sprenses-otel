@@ -63,8 +63,10 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 - `entity_type=stock`, `action=create` (içe aktarma özeti loglanır).
 
 ## Geliştirme kuralları / kapsam
-- **Erişim sınırı:** Sedna `btadmin` yalnızca **muhasebe DB'sine** (Mhs2026) erişir; PMS/bordro/anket
-  DB'leri kapalı. Stok verisi muhasebe stok modülündendir (F&B + malzeme + demirbaş hareketleri).
+- **Erişim sınırı:** Sedna `btadmin` login'i **muhasebe DB'sini** (`SednaPrensesMhs2026`) okur; stok bu DB'den
+  beslenir. (Not: aynı login 2026-06-07'den beri **önbüro/PMS DB'sini** de [`SednaPrenses`] okur — otel
+  rezervasyon canlı doluluk senkronu için; bkz. `docs/modules/otel-rezervasyon.md`. Bordro/anket DB'leri kapalı.)
+  Stok verisi muhasebe stok modülündendir (F&B + malzeme + demirbaş hareketleri).
 - **Maliyet odaklı v1:** tüketim/alım kırılımı + anlık değer. İleride: kritik-stok uyarısı, ürün
   bazında maliyet trendi, depo-içi anlık stok dökümü.
 - Test: `tests/test_stock.py` (import/dedup + summary + departman + trend + tedarikçi + filtre + izin).

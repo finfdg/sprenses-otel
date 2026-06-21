@@ -20,7 +20,7 @@ app/routers/sales/reservations/
 └── _helpers.py         # _apply_filters, _parse_date, _resolve_date_range, _month_days_in_range, UPLOAD_DIR
 ```
 
-## Canlı Doluluk Senkronu — SednaPrenses Önbüro DB'si (7 Haziran 2026)
+## Canlı Doluluk Senkronu — SednaPrenses Önbüro DB'si (2026-06-07)
 
 Rezervasyonlar artık XLS yüklemeye ek olarak **doğrudan SednaPrenses önbüro/PMS DB'sinden**
 canlı çekilir (ters SSH tüneli `127.0.0.1:11433`; muhasebe DB'sinden `SednaPrensesMhs2026`
@@ -66,7 +66,7 @@ dosya yüklemeden** hep güncel kalır.
 - **Canlı (7 Haz 2026, 2026+):** 5.788 aktif rezervasyon · 48.651 oda-gece · 105.210 geceleme ·
   net ciro **€5,6M** (EUR 5.456 rez €5,5M + TL 331 rez ₺5,9M→€111K + USD 2) · ADR €116.
 
-## İptal Tespiti — Kapsam Dışı Orphan Temizliği (26 Mayıs 2026)
+## İptal Tespiti — Kapsam Dışı Orphan Temizliği (2026-05-26)
 
 Crystal Reports XLS dosyaları iptal edilen rezervasyonları **listeden tamamen düşürür**
 (ayrı bir "Cancelled" status'u ile değil). Önceki sürümde upload akışı yalnızca
@@ -120,13 +120,13 @@ sayısı + toplam EUR saklanır. Kayıt-seviye geri yükleme için daha sonra
 - `test_bulk_delete_over_5000_rejected` — DoS limiti
 - `test_bulk_delete_unauthorized` — auth zorunlu
 
-### İlk Çalıştırma (26 Mayıs 2026)
+### İlk Çalıştırma (2026-05-26)
 İlk uygulamadan önce 100 hayalet kayıt 2026 dönemi içinde "Definite" olarak duruyordu
 (toplam ~100.270 EUR, ALLTOURS D / W2M / BYEBYE D ağırlıklı). Manuel SQL DELETE +
 audit log JSON snapshot ile temizlendi; sonraki yüklemelerde aynı durum bu yeni
 akıştan otomatik tetiklenecek.
 
-## Acente Gruplama (22 Mayıs 2026 → 23 Mayıs 2026 güncellendi)
+## Acente Gruplama (2026-05-22 → 2026-05-23 güncellendi)
 
 Acente Dağılımı bileşenine **Bireysel / Gruplu** toggle ve **Grupları Yönet** modalı eklendi.
 Gruplar veritabanında saklanır (`agency_groups` tablosu) — sabit kod yok.

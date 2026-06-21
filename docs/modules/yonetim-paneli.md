@@ -45,7 +45,7 @@ frontend'de mevcut endpoint'lerden (`/cash-flow/mobile-dashboard`, `/krediler/up
   + **aylık F&B tüketim vs doluluk** + fiyat sapması (gerçek hareket + birim/miktar anomali ayrımı) +
   tedarikçi sıralaması + **all-inclusive maliyet yaklaşımı bilgi notu**.
 
-## All-inclusive maliyet yaklaşımı + bloke kalan KPI'lar (7 Haziran 2026)
+## All-inclusive maliyet yaklaşımı + bloke kalan KPI'lar (2026-06-07)
 
 **Food Cost % uygulanmaz — bloke değil, kavramsal:** Bu resort all-inclusive; F&B geliri oda/paket
 fiyatına gömülü, **ayrı bir F&B geliri yok**. Klasik Food/Beverage Cost % (F&B maliyeti ÷ F&B geliri)

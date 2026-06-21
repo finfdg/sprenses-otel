@@ -850,18 +850,35 @@ PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --data-only \
 cd frontend && npx vitest run
 ```
 
-**Test dosyaları (274 test, 22 dosya):**
+**Test dosyaları (274 test, 22 dosya — toplam birebir doğrulandı):**
+
+*API & utils:*
 - `src/lib/api.test.ts` — API wrapper (GET/POST/PATCH/DELETE, upload, hata yönetimi, 401/403, signal, fetchRaw) (22 test)
 - `src/lib/utils/finance.test.ts` — formatCurrency, formatCompact, groupByMonth, getTodayKeys, transfer hariç tutma (23 test)
 - `src/lib/utils/paymentMethods.test.ts` — PAYMENT_METHODS, SELECTABLE, CATEGORIES, getPaymentMethod fallback (16 test)
 - `src/lib/utils/colorMap.test.ts` — categoryColorMap, filterColorMap, availableColors, getColor fallback (16 test)
 - `src/lib/utils/validation.test.ts` — validateEmail, validatePassword, validateRequired, validateModuleCode (12 test)
 - `src/lib/utils/push.test.ts` — isPushSupported, getPushPermissionState (6 test)
+- `src/lib/utils/lazy-mount.test.ts` — tembel mount görünürlük gözlemcisi (7 test)
 - `src/lib/constants/finance.test.ts` — Kaynak tipleri, ödeme yöntemleri, kredi tipleri, para birimleri, sabit tutarlılığı (15 test)
+
+*Store'lar:*
 - `src/lib/stores/auth.test.ts` — setAuth, loadAuth, hasPermission (izin matrisi) (15 test)
 - `src/lib/stores/toast.test.ts` — showToast, removeToast, otomatik kaldırma (12 test)
 - `src/lib/stores/notification.test.ts` — setMutedConversations, updateMutedConversation, isConversationMuted, toggleSound (11 test)
 - `src/lib/stores/ui.test.ts` — sidebar state, toggleSidebar, closeSidebar (6 test)
+
+*Bileşenler:*
+- `src/lib/components/MoneyInput.test.ts` — formatTR/parseTR/formatLiveTR/round-trip + imleç/highlight (33 test)
+- `src/lib/components/Pagination.test.ts` — getPageNumbers (windowed), sayfa boyutu (16 test)
+- `src/lib/components/FileDropzone.test.ts` — drag-drop, MIME/boyut doğrulama, çoklu dosya (14 test)
+- `src/lib/components/SortableHeader.test.ts` — sıralama yönü/ikon (11 test)
+- `src/lib/components/EmptyState.test.ts` — ikon/başlık/açıklama/CTA (9 test)
+- `src/lib/components/StatusBadge.test.ts` — semantik durum renkleri (8 test)
+- `src/lib/components/Breadcrumb.test.ts` — kırılım üretimi (6 test)
+- `src/lib/components/TableSkeleton.test.ts` — satır/kolon iskeleti (6 test)
+- `src/lib/components/FormSkeleton.test.ts` — form iskeleti (5 test)
+- `src/lib/components/BulkActionsBar.test.ts` — toplu seçim/aksiyon barı (5 test)
 
 ## Modül Bazlı Dokümantasyon
 
@@ -884,6 +901,7 @@ Her modül dosyası şu bölümleri içermelidir:
 |---|---|
 | Finans Mimarisi | `docs/modules/finans-mimarisi.md` |
 | Nakit Akım | `docs/modules/nakit-akim.md` |
+| Nakit Akım İş Akışı | `docs/modules/nakit-akim-is-akisi.md` |
 | Bankalar | `docs/modules/bankalar.md` |
 | Cariler | `docs/modules/cariler.md` |
 | Çekler | `docs/modules/cekler.md` |
@@ -891,7 +909,8 @@ Her modül dosyası şu bölümleri içermelidir:
 | Avanslar | `docs/modules/avanslar.md` |
 | Döviz | `docs/modules/doviz.md` |
 | Bütçe | `docs/modules/butce.md` |
-| Onay | `docs/modules/onay.md` |
+| Onay (Departman İş Akışı) | `docs/modules/onay.md` |
+| Onay Akışı (Sistem/Rol Bazlı) | `docs/modules/onay-akisi.md` |
 | İşlem Etiketleme | `docs/modules/transaction-tags.md` |
 | Muhasebe & İK | `docs/modules/muhasebe-ik.md` |
 | Kullanıcı Fiş İcmali | `docs/modules/fis-icmali.md` |

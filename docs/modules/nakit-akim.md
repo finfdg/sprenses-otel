@@ -75,7 +75,7 @@
 
 ### Query Parametreleri (GET list)
 - `page` (int, default: 1)
-- `page_size` (int, default: 100, max: 500)
+- `page_size` (int, default: 100, max: 2000) — 2000+ kayıtta frontend truncation uyarısı gösterir (sessiz kayıp yok); varsayılan yıl filtresiyle ilk yükleme hafif
 - `type` (string, opsiyonel: `"income"` veya `"expense"`)
 
 ### Response Formatı (list)
