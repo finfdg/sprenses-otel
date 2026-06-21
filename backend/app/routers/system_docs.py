@@ -24,11 +24,10 @@ router = APIRouter()
 
 
 def _category(rel: str) -> str:
-    if rel == "CLAUDE.md":
-        return "Genel"
     if rel.startswith("docs/modules/"):
         return "Modül Dokümanları"
-    if rel.startswith("docs/"):
+    # Kök CLAUDE.md + docs/ kökündeki genel rehberler (ui-kurallari, modulerlik vb.) → tek grup
+    if rel == "CLAUDE.md" or rel.startswith("docs/"):
         return "Genel Dokümanlar"
     if rel.endswith("CLAUDE.md"):
         return "Geliştirici Rehberleri"

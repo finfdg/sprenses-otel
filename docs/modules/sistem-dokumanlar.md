@@ -16,7 +16,7 @@ Sunucu-tarafı izinli küme (`system_docs.py:_walk`):
 - `backend/app/**/CLAUDE.md` ve `frontend/src/**/CLAUDE.md` (geliştirici rehberleri)
 - Hariç: `node_modules`, `venv`, `.git`, `build`, `.svelte-kit`, `.claude`, `.pytest_cache`, `__pycache__`, `htmlcov`
 
-Kategoriler: **Genel** (kök CLAUDE.md), **Modül Dokümanları** (`docs/modules/`), **Genel Dokümanlar** (`docs/`), **Geliştirici Rehberleri** (router/component CLAUDE.md).
+Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü — ui-kurallari, modulerlik vb.), **Modül Dokümanları** (`docs/modules/`), **Geliştirici Rehberleri** (router/component `CLAUDE.md`).
 
 ## API Endpoint'leri
 | Method | Path | İzin | Açıklama |
