@@ -91,7 +91,7 @@
 - **Form Validation:** Frontend'de `lib/utils/validation.ts` helper'ları kullanılır
 - **Modal:** Frontend'de `lib/components/Modal.svelte` reusable bileşeni kullanılır
 - **Hata Yakalama:** Boş `catch {}` blokları **yasaktır** — her catch bloğunda `console.error` ve gerekirse kullanıcı bildirimi olmalıdır
-- **Pagination:** List endpoint'leri **istek** `?page=1&page_size=50` (page_size: 25/50/100/200) + opsiyonel sıralama `?sort=field&order=asc|desc` alır; **yanıt** `{ items, total, page, page_size, pages }` formatında döner. Param adları **sabit** — `limit`/`offset`/`sortBy` gibi varyant **uydurulmaz**.
+- **Pagination:** List endpoint'leri **istek** `?page=1&page_size=50` (page_size UI seçenekleri 25/50/100/200; backend `le` üst sınırı endpoint'e göre) alır; **yanıt** `{ items, total, page, page_size, pages }` döner. Sayfalı listede **`limit`/`offset` query-param'ı kullanılmaz** (bunlar yalnız ORM içi `.offset()/.limit()`; top-N/son-N endpoint'leri sayfalama değildir → `limit` query-param'ı alabilir). Kullanıcı-kontrollü sıralama: **`?sort_by=field&sort_dir=asc|desc`** — `sort_by` **whitelist'li** (regex pattern ile sabit alan kümesi → keyfi kolon sıralaması engellenir), `sort_dir` default `asc`.
 - **Merkezi Sabitler (sihirli string yasak):** WS event tipleri, broadcast modül adları ve planlı `source_type` değerleri **literal yazılmaz** — backend `app/constants.py` (`WSEvent`/`BroadcastModule`/`SourceType`), frontend `lib/constants/realtime.ts` (`WS_EVENT`/`BROADCAST_MODULE`). İki taraf birebir aynı tutulur (otomatik senkron yok). Finans `source_type`'ları `models/finance_event.py`'den re-export edilir (çift tanım yok). DB-saklı değerler değiştirilemez. `onWsEvent`/`emitLocal` `WsEventType` union ile tiplidir → typo derleme hatası. Detay: `docs/modulerlik-iyilestirmeleri.md`
 
 ### Dosya İçi Kod Düzeni — Zorunlu
@@ -377,7 +377,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 **Endpoint tasarım kuralları (CLAUDE.md'de kalır):**
 
 - **İsimlendirme:** REST + çoğul kaynak hiyerarşisi (`/api/finance/cariler/vendors/{id}/bank-accounts`); path **ASCII** (Türkçe segmentte bile: `/dashboard/sistem/kullanicilar`); çok-kelimeli segment **kebab-case** (`cash-flow`, `sedna-import`, `room-types`, `daily-activity`).
-- **Liste istek/yanıtı:** istek `?page=1&page_size=50` (+ opsiyonel `?sort=field&order=asc|desc`; `limit`/`offset` **değil**); yanıt `{ items, total, page, page_size, pages }` (Pagination kuralı).
+- **Liste istek/yanıtı:** istek `?page=1&page_size=50` (sıralama varsa `?sort_by=field&sort_dir=asc|desc`, `sort_by` whitelist'li; sayfalı listede `limit`/`offset` query-param'ı **yok**); yanıt `{ items, total, page, page_size, pages }` (Pagination kuralı).
 - **Mutasyon (POST/PATCH/DELETE):** `require_permission()` + `check_approval()` + audit **zorunlu** (yukarıdaki ilgili bölümler). Salt-okuma GET'ler onaydan muaf.
 - **Dosya/yükleme:** `validate_upload_file()` (uzantı + boyut + magic-byte; yukarı bkz).
 

@@ -137,7 +137,7 @@ Modül tipine göre seçilir ama modül içinde tutarlı kalır:
 - Sıralanabilir kolon başlığına `<SortableHeader>` uygulanır
 - Tıklama: `kapalı → asc ▲ → desc ▼ → kapalı` (3-state toggle)
 - Tek anda bir kolon aktif
-- Server-side: `?sort=field&order=asc|desc`
+- Server-side sıralama: `?sort_by=field&sort_dir=asc|desc` — `sort_by` **whitelist'li** (regex pattern ile sabit alan kümesi; keyfi kolon sıralaması engellenir). Referans: `checks.py`, `cariler/vendors.py`
 
 ### Toplu Seçim (BulkActionsBar.svelte)
 - Her satır başında checkbox
