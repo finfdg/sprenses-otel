@@ -632,6 +632,13 @@ Projeye özel, git'te takip edilen (ekiple paylaşılan) Claude Code otomasyonla
 - `POST /api/system/backup/run` — Manuel yedek (commit + GitHub push)
 - `POST /api/system/backup/restore` — Seçilen commit'e güvenli geri yükleme (ileri-commit, force-push yok). Detay: `docs/modules/yedekleme.md`
 
+### Sistem — Dokümanlar (proje .md dokümanları — görüntüle/indir)
+- `GET /api/system/docs/` — Doküman listesi (path, title, category, size, modified)
+- `GET /api/system/docs/raw?path=` — Tek dokümanın ham markdown içeriği (panelde render)
+- `GET /api/system/docs/download?path=` — Tek dokümanı `.md` indir
+- `GET /api/system/docs/export/word` — **Tüm dokümanları tek `.docx`** üret + indir
+- İzin `system.docs` view; salt-okunur (onay/audit kapsam dışı). Path traversal imkânsız (allowlist birebir eşleşme). Detay: `docs/modules/sistem-dokumanlar.md`
+
 ### Satış — Otel Rezervasyon
 - `POST /api/sales/reservations/upload` — Crystal Reports XLS/XLSX yükleme (RecId bazlı upsert). Response'a `removal_candidates: RemovalCandidate[]` eklenir — yüklemenin check-in + record-date kapsamı içinde olup dosyada bulunmayan kayıtlar (olası iptaller)
 - `GET /api/sales/reservations/uploads` — Yükleme geçmişi
@@ -758,7 +765,7 @@ Projeye özel, git'te takip edilen (ekiple paylaşılan) Claude Code otomasyonla
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali), Mizan (accounting.mizan)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
-- Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup)
+- Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup), Dokümanlar (system.docs)
 - Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Oda Tipleri (sales.room_types)
 - Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
 - Yönetim Paneli (yonetim) → Panel (yonetim.panel — GM/Finans 10 KPI + uyarılar)
@@ -930,6 +937,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Günlük Hareketler (rezervasyon/iptal) | `docs/modules/gunluk-hareketler.md` |
 | Oda Tipleri | `docs/modules/oda-tipleri.md` |
 | Yedekleme | `docs/modules/yedekleme.md` |
+| Sistem — Dokümanlar | `docs/modules/sistem-dokumanlar.md` |
 | Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
 | Vardiyalar (Shift) | `docs/modules/vardiyalar.md` |
 | Satış Faturaları | `docs/modules/satis-faturalari.md` |

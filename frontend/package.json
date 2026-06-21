@@ -16,6 +16,7 @@
     "@tailwindcss/vite": "^4.2.0",
     "jsqr": "^1.4.0",
     "lucide-svelte": "^1.0.1",
+    "marked": "^18.0.5",
     "svelte": "^5.53.2",
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.3",

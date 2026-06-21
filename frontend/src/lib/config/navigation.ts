@@ -157,6 +157,7 @@ export const NAV_GROUPS: NavGroup[] = [
 			{ code: 'system.approval', label: 'Onay Akışı', href: '/dashboard/sistem/onay-akisi', icon: [I.badgeCheck] },
 			{ code: 'system.server', label: 'Sunucu', href: '/dashboard/sistem/sunucu', icon: [I.server] },
 			{ code: 'system.backup', label: 'Yedekleme', href: '/dashboard/sistem/yedekleme', icon: [I.cloudUp] },
+			{ code: 'system.docs', label: 'Dokümanlar', href: '/dashboard/sistem/dokumanlar', icon: [I.doc] },
 		],
 	},
 ];

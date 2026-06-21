@@ -553,3 +553,14 @@ WHERE NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id
 
 SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 913), true);
 
+-- Sistem → Dokümanlar (proje .md dokümanları — görüntüle/indir, salt-okunur) — idempotent
+INSERT INTO public.modules (id, name, code, description, icon, parent_id, sort_order, is_active, created_at) VALUES
+  (914, 'Dokümanlar', 'system.docs', 'Proje dokümantasyonu — görüntüle ve indir', 'document-text', 5, 110, true, now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.role_module_permissions (role_id, module_id, can_view, can_use, created_at)
+SELECT 1, 914, true, true, now()
+WHERE NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id = 1 AND p.module_id = 914);
+
+SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 914), true);
+

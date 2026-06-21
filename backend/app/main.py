@@ -30,6 +30,7 @@ from app.routers import (
     stock,
     yonetim,
     system_backup,
+    system_docs,
     system_modules,
     system_roles,
     system_server,
@@ -185,6 +186,7 @@ app.include_router(system_roles.router, prefix="/api/system/roles", tags=["syste
 app.include_router(system_modules.router, prefix="/api/system/modules", tags=["system-modules"])
 app.include_router(system_server.router, prefix="/api/system", tags=["system-server"])
 app.include_router(system_backup.router, prefix="/api/system", tags=["system-backup"])
+app.include_router(system_docs.router, prefix="/api/system/docs", tags=["system-docs"])
 app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 app.include_router(ws.router, prefix="/api", tags=["websocket"])
 app.include_router(push.router, prefix="/api/push", tags=["push"])
