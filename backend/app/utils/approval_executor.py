@@ -511,47 +511,28 @@ def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):
 
 
 def _handle_finance_checks(db, action_type, entity_id, payload, actor_id):
-    from app.models.bank_transaction import BankTransaction
+    # Router (update_check_status) ile BİREBİR aynı mantık — tek kaynak:
+    # app/services/check_service.apply_check_status (iptal kademesi + finance_event tazeleme).
     from app.models.check import Check
-    from app.models.vendor_transaction import VendorTransaction
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services import check_service
 
     if action_type == "update":
         check = db.query(Check).filter(Check.id == entity_id).first()
         if not check:
             raise ValueError(f"Çek bulunamadı: {entity_id}")
-        # Router update_check_status payload'ı {"new_status": ...} taşır (model alanı "status").
-        # Eski handler _apply_fields ile "new_status"'u arıyordu → hiç eşleşmiyordu (sessiz no-op).
+        # Router payload'ı {"new_status": ...} taşır (model alanı "status").
         new_status = payload.get("new_status", payload.get("status"))
         if new_status:
-            # İptal → cari + banka eşleşmesini kaldır (router ile birebir)
-            if new_status == "cancelled":
-                if check.match_number:
-                    mvtx = db.query(VendorTransaction).filter(
-                        VendorTransaction.match_number == check.match_number
-                    ).first()
-                    if mvtx:
-                        mvtx.match_number = None
-                        mvtx.payment_method = None
-                    check.match_number = None
-                    check.matched_vendor_id = None
-                if check.bank_transaction_id:
-                    btx = db.query(BankTransaction).filter(
-                        BankTransaction.id == check.bank_transaction_id
-                    ).first()
-                    if btx:
-                        btx.match_number = None
-                    check.bank_transaction_id = None
-            check.status = new_status
+            check_service.apply_check_status(db, check, new_status)
         else:
-            _apply_fields(check, payload)  # durum dışı alanlar (savunmacı)
-        # finance_events güncelle (router ile birebir)
-        bank_tx = None
-        if check.bank_transaction_id:
-            bank_tx = db.query(BankTransaction).filter(
-                BankTransaction.id == check.bank_transaction_id
-            ).first()
-        finance_event_svc.upsert_check(db, check, bank_tx)
+            # Savunmacı: durum dışı alan güncellemesi (endpoint her zaman new_status gönderir)
+            from app.models.bank_transaction import BankTransaction
+            from app.utils.finance_event_service import finance_event_svc
+            _apply_fields(check, payload)
+            bank_tx = (db.query(BankTransaction).filter(
+                BankTransaction.id == check.bank_transaction_id).first()
+                if check.bank_transaction_id else None)
+            finance_event_svc.upsert_check(db, check, bank_tx)
 
 
 def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):

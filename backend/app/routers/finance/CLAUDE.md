@@ -89,7 +89,14 @@ vade/durum güncelleme tek kaynak. Router (`cariler/vendors.py` payment-days + s
 yeniden hesapla (+ FE upsert) → `sync_vendor_finance_events`. Geçersiz durum/negatif vade → ValueError.
 Eski executor handler router mantığını elle tekrarlıyordu (doğrulama yoktu; router değişse sessiz sapardı).
 Regresyon: `test_vendor_payment_days_via_approval`, `test_vendor_status_via_approval_syncs_finance_events`.
-(Toplam 1157 test yeşil.)
+
+**Çekler dilimi (aynı desen):** `app/services/check_service.py::apply_check_status` — çek durum
+güncelleme tek kaynak. Router (`checks.py::update_check_status`) ve `_handle_finance_checks` ORTAK
+çağırır: iptal ise **eşleşme kademesi** (cari `match_number`+`payment_method` temizle, banka
+`bank_transaction_id` çöz) → `check.status` → `finance_event_svc.upsert_check`. Bu çoklu-varlık kademe
+iki yerde elle tekrarlanıyordu (router değişse executor sessizce yetim eşleşme bırakırdı). Mevcut
+`test_check_status_via_approval_regression` yalnız temel pending→paid'i kapsıyordu; yeni
+`test_check_cancel_via_approval_unmatches_vendor` iptal kademesini doğrular. (Toplam 1158 test yeşil.)
 
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 

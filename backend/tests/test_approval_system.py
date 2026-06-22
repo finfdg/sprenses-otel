@@ -1061,6 +1061,59 @@ class TestApprovalExecutorMoreModules:
         assert db.query(FinanceEvent).filter(
             FinanceEvent.source_type == "vendor_payment", FinanceEvent.source_id == tid).count() == 0
 
+    def test_check_cancel_via_approval_unmatches_vendor(self, db):
+        """REGRESYON (D1-2, 2026-06-22): eşleşmiş çekin onay yoluyla İPTAL edilmesi → cari eşleşmesi
+        (match_number + payment_method) kaldırılmalı (router iptal kademesi). Eski executor handler bu
+        çoklu-varlık kademeyi elle tekrarlıyordu; `check_service` ile router↔executor tek kaynak →
+        kademe sapamaz (mevcut test yalnız temel pending→paid'i kapsıyordu, iptal kademesini değil)."""
+        from datetime import date as _date
+
+        from app.models.check import Check, CheckUpload
+        from app.models.vendor import Vendor
+        from app.models.vendor_transaction import VendorTransaction
+        from app.models.vendor_upload import VendorUpload
+        from app.utils.vendor_parser import compute_vendor_tx_hash
+
+        _, req_role, req_client = _make_actor(db, {"finance.checks": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.checks", req_role, app_role)
+
+        mno = int(uuid4().int % 9000000) + 1000000  # benzersiz match_number
+        cu = CheckUpload(file_name="seed", file_url="x")
+        db.add(cu)
+        vu = VendorUpload(file_name="t.xlsx", file_url="/tmp/t.xlsx", uploaded_by=1,
+                          total_vendors=1, total_transactions=0, new_transactions=0, skipped_transactions=0)
+        db.add(vu)
+        db.flush()
+        code = f"320.{uuid4().hex[:6]}"
+        vendor = Vendor(hesap_kodu=code, hesap_adi="Eşleşen Cari")
+        db.add(vendor)
+        db.flush()
+        d = _date(2026, 3, 2)
+        vtx = VendorTransaction(vendor_id=vendor.id, upload_id=vu.id, date=d, transaction_type="Fatura",
+                                borc=1000, alacak=0, bakiye=0, match_number=mno, payment_method="cek",
+                                tx_hash=compute_vendor_tx_hash(code, d, "E1", 1000, 0))
+        db.add(vtx)
+        chk = Check(upload_id=cu.id, check_no=f"CHK{uuid4().hex[:5]}", vendor_name="Eşleşen Cari",
+                    due_date=_date(2026, 9, 1), amount_tl=1000, amount_currency=1000, status="pending",
+                    match_number=mno, matched_vendor_id=vendor.id)
+        db.add(chk)
+        db.commit()
+        chk_id, vtx_id = chk.id, vtx.id
+
+        r = req_client.patch(f"/api/finance/checks/{chk_id}/status?new_status=cancelled")
+        assert r.status_code == 202, r.text
+        req_id = r.json()["request_id"]
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"çek iptal onayı 500 vermemeli: {ap.text}"
+
+        db.expire_all()
+        chk2 = db.get(Check, chk_id)
+        assert chk2.status == "cancelled"
+        assert chk2.match_number is None and chk2.matched_vendor_id is None  # çek eşleşmesi kalktı
+        vtx2 = db.get(VendorTransaction, vtx_id)
+        assert vtx2.match_number is None and vtx2.payment_method is None  # cari eşleşmesi de kalktı (kademe)
+
 
 class TestApprovalExecutorHR:
     """İK modüllerinin (hr.attendance, hr.shift_schedule) uçtan-uca onay→uygula regresyonu.

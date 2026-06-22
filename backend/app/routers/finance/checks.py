@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip, upload_limiter
-from app.models.bank_transaction import BankTransaction
 from app.models.check import Check, CheckUpload
 from app.models.user import User
 from app.schemas.check import CheckResponse, CheckUploadResponse, CheckUploadResult
@@ -28,6 +27,7 @@ from app.utils.file_validation import validate_upload_file
 from app.constants import BroadcastModule, SourceType
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.services import check_service
 from app.utils.matching_service import _match_checks_to_bank
 from app.utils.sedna_client import SednaUnavailable, fetch_issued_checks, sedna_configured
 
@@ -764,8 +764,6 @@ def update_check_status(
     current_user: User = Depends(require_permission("finance.checks", "use")),
 ):
     """Çek durumunu güncelle."""
-    from app.models.vendor_transaction import VendorTransaction
-
     check = db.query(Check).filter(Check.id == check_id).first()
     if not check:
         raise HTTPException(status_code=404, detail="Çek bulunamadı")
@@ -776,27 +774,7 @@ def update_check_status(
 
     old_status = check.status
 
-    # Eşleştirilmiş çekin iptal edilmesi → eşleşmeyi de kaldır
-    if new_status == "cancelled":
-        # Cari eşleşmesi (match_number ile direkt bul)
-        if check.match_number:
-            matched_vtx = db.query(VendorTransaction).filter(
-                VendorTransaction.match_number == check.match_number,
-            ).first()
-            if matched_vtx:
-                matched_vtx.match_number = None
-                matched_vtx.payment_method = None
-            check.match_number = None
-            check.matched_vendor_id = None
-
-        # Banka eşleşmesini de kaldır
-        if check.bank_transaction_id:
-            btx = db.query(BankTransaction).filter(BankTransaction.id == check.bank_transaction_id).first()
-            if btx:
-                btx.match_number = None
-            check.bank_transaction_id = None
-
-    check.status = new_status
+    check_service.apply_check_status(db, check, new_status)
 
     status_labels = {"pending": "Bekliyor", "paid": "Ödendi", "cancelled": "İptal"}
     log_action(
@@ -805,12 +783,6 @@ def update_check_status(
         details=f"Çek durumu: {status_labels.get(old_status, old_status)} → {status_labels.get(new_status, new_status)} (Çek No: {check.check_no})",
         ip_address=get_client_ip(request) if request else None,
     )
-    db.commit()
-    # finance_events'i güncelle
-    bank_tx = None
-    if check.bank_transaction_id:
-        bank_tx = db.query(BankTransaction).filter(BankTransaction.id == check.bank_transaction_id).first()
-    finance_event_svc.upsert_check(db, check, bank_tx)
     db.commit()
     broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "update")
 
