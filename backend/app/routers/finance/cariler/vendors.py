@@ -27,9 +27,7 @@ from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.sync_vendor_fifo import sync_vendor_finance_events
-from app.utils.vendor_parser import calculate_payment_friday
+from app.services import vendor_service
 
 from ._helpers import _build_dept_cat_user_maps, _build_tx_response, logger
 
@@ -349,33 +347,15 @@ def update_vendor_payment_days(
         raise HTTPException(status_code=400, detail="Ödeme vadesi negatif olamaz")
 
     old_days = vendor.payment_days
-    vendor.payment_days = body.payment_days
 
     try:
-        invoice_txs = (
-            db.query(VendorTransaction)
-            .filter(
-                VendorTransaction.vendor_id == vendor_id,
-                VendorTransaction.alacak > 0,
-                VendorTransaction.date.isnot(None),
-            )
-            .all()
-        )
-
-        updated_count = 0
-        for tx in invoice_txs:
-            tx.payment_due_date = calculate_payment_friday(tx.date, body.payment_days)
-            updated_count += 1
-            finance_event_svc.upsert_vendor_tx(db, tx, vendor, float(tx.alacak))
-
+        updated_count = vendor_service.apply_vendor_update(db, vendor, {"payment_days": body.payment_days})
         log_action(
             db, current_user.id, "update", "vendor",
             entity_id=vendor_id,
             details=f"Ödeme vadesi güncellendi: {old_days} → {body.payment_days} gün ({updated_count} işlem yeniden hesaplandı)",
             ip_address=get_client_ip(request),
         )
-        db.commit()
-        sync_vendor_finance_events(db)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -417,20 +397,15 @@ def update_vendor_status(
         return approval_resp
 
     old_status = vendor.status
-    vendor.status = body.status
 
     try:
+        vendor_service.apply_vendor_update(db, vendor, {"status": body.status})
         log_action(
             db, current_user.id, "update", "vendor",
             entity_id=vendor_id,
             details=f"Firma durumu güncellendi: {old_status} → {body.status}",
             ip_address=get_client_ip(request),
         )
-        db.commit()
-
-        # Durum değiştiğinde finance_events'i senkronize et
-        # Yasaklı → kayıtlar silinir, Normal → kayıtlar yeniden oluşturulur
-        sync_vendor_finance_events(db)
         db.commit()
     except Exception as e:
         db.rollback()

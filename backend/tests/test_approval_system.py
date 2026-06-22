@@ -972,6 +972,95 @@ class TestApprovalExecutorMoreModules:
         assert db.query(FinanceEvent).filter(
             FinanceEvent.source_type == "credit", FinanceEvent.source_id == pid).count() == 0
 
+    def test_vendor_payment_days_via_approval(self, db):
+        """REGRESYON (D1-2, 2026-06-22): cari vade güncelleme onay yoluyla — executor router'la
+        ORTAK service (vendor_service.apply_vendor_update) çağırmalı; vade değişince işlemlerin
+        ödeme tarihi yeniden hesaplanmalı (eski elle-tekrar handler router'dan saparsa onaylı
+        vade değişimi nakit akıma yansımazdı)."""
+        from datetime import date
+
+        from app.models.vendor import Vendor
+        from app.models.vendor_transaction import VendorTransaction
+        from app.models.vendor_upload import VendorUpload
+        from app.utils.vendor_parser import calculate_payment_friday, compute_vendor_tx_hash
+
+        _, req_role, req_client = _make_actor(db, {"finance.cariler": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.cariler", req_role, app_role)
+
+        up = VendorUpload(file_name="t.xlsx", file_url="/tmp/t.xlsx", uploaded_by=1,
+                          total_vendors=1, total_transactions=0, new_transactions=0, skipped_transactions=0)
+        db.add(up)
+        db.flush()
+        code = f"320.{uuid4().hex[:6]}"
+        vendor = Vendor(hesap_kodu=code, hesap_adi="Test Cari", payment_days=30)
+        db.add(vendor)
+        db.flush()
+        d = date(2026, 3, 2)
+        tx = VendorTransaction(vendor_id=vendor.id, upload_id=up.id, date=d, transaction_type="Fatura",
+                               borc=0, alacak=1000, bakiye=0,
+                               tx_hash=compute_vendor_tx_hash(code, d, "E1", 0, 1000))
+        db.add(tx)
+        db.commit()
+        vid, tid = vendor.id, tx.id
+
+        r = req_client.patch(f"/api/finance/cariler/vendors/{vid}/payment-days", json={"payment_days": 60})
+        assert r.status_code == 202, r.text
+        req_id = r.json()["request_id"]
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"cari vade onayı 500 vermemeli: {ap.text}"
+
+        db.expire_all()
+        assert db.get(Vendor, vid).payment_days == 60
+        assert db.get(VendorTransaction, tid).payment_due_date == calculate_payment_friday(d, 60)
+
+    def test_vendor_status_via_approval_syncs_finance_events(self, db):
+        """REGRESYON (D1-2): cari 'ödeme yasaklısı' yapma onay yoluyla → sync_vendor_finance_events
+        çağrılıp yasaklı carinin nakit-akım (vendor_payment) kayıtları silinmeli (router davranışı)."""
+        from datetime import date
+
+        from app.models.finance_event import FinanceEvent
+        from app.models.vendor import STATUS_PAYMENT_BANNED, Vendor
+        from app.models.vendor_transaction import VendorTransaction
+        from app.models.vendor_upload import VendorUpload
+        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        from app.utils.vendor_parser import compute_vendor_tx_hash
+
+        _, req_role, req_client = _make_actor(db, {"finance.cariler": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.cariler", req_role, app_role)
+
+        up = VendorUpload(file_name="t.xlsx", file_url="/tmp/t.xlsx", uploaded_by=1,
+                          total_vendors=1, total_transactions=0, new_transactions=0, skipped_transactions=0)
+        db.add(up)
+        db.flush()
+        code = f"320.{uuid4().hex[:6]}"
+        vendor = Vendor(hesap_kodu=code, hesap_adi="Yasak Cari", payment_days=30)
+        db.add(vendor)
+        db.flush()
+        d = date(2026, 3, 2)
+        tx = VendorTransaction(vendor_id=vendor.id, upload_id=up.id, date=d, transaction_type="Fatura",
+                               borc=0, alacak=5000, bakiye=0, payment_due_date=d,
+                               tx_hash=compute_vendor_tx_hash(code, d, "E1", 0, 5000))
+        db.add(tx)
+        db.flush()
+        sync_vendor_finance_events(db)
+        db.commit()
+        vid, tid = vendor.id, tx.id
+        assert db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "vendor_payment", FinanceEvent.source_id == tid).count() == 1
+
+        r = req_client.patch(f"/api/finance/cariler/vendors/{vid}/status", json={"status": STATUS_PAYMENT_BANNED})
+        assert r.status_code == 202, r.text
+        req_id = r.json()["request_id"]
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"cari durum onayı 500 vermemeli: {ap.text}"
+
+        db.expire_all()
+        assert db.get(Vendor, vid).status == STATUS_PAYMENT_BANNED
+        assert db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "vendor_payment", FinanceEvent.source_id == tid).count() == 0
+
 
 class TestApprovalExecutorHR:
     """İK modüllerinin (hr.attendance, hr.shift_schedule) uçtan-uca onay→uygula regresyonu.

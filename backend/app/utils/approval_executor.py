@@ -555,36 +555,16 @@ def _handle_finance_checks(db, action_type, entity_id, payload, actor_id):
 
 
 def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):
+    # Router (payment-days + status endpoint'leri) ile BİREBİR aynı mantık —
+    # tek kaynak: app/services/vendor_service.apply_vendor_update (vade recalc + FE sync).
     from app.models.vendor import Vendor
+    from app.services import vendor_service
 
     if action_type == "update":
         vendor = db.query(Vendor).filter(Vendor.id == entity_id).first()
         if not vendor:
             raise ValueError(f"Cari bulunamadı: {entity_id}")
-        _apply_fields(vendor, payload)
-        # Router update_vendor_payment_days/status ile birebir: vade değişince işlem tarihlerini
-        # yeniden hesapla + nakit akımı senkronla. Aksi halde onaylı vade/durum değişimi nakit akıma
-        # yansımıyordu (bayat vade, yasaklı cari kayıt kalıntısı). sync içinde commit yok → güvenli.
-        from app.models.vendor_transaction import VendorTransaction
-        from app.utils.finance_event_service import finance_event_svc
-        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
-        from app.utils.vendor_parser import calculate_payment_friday
-
-        if "payment_days" in payload:
-            invoice_txs = (
-                db.query(VendorTransaction)
-                .filter(
-                    VendorTransaction.vendor_id == entity_id,
-                    VendorTransaction.alacak > 0,
-                    VendorTransaction.date.isnot(None),
-                )
-                .all()
-            )
-            for tx in invoice_txs:
-                tx.payment_due_date = calculate_payment_friday(tx.date, vendor.payment_days)
-                finance_event_svc.upsert_vendor_tx(db, tx, vendor, float(tx.alacak))
-        db.flush()
-        sync_vendor_finance_events(db)
+        vendor_service.apply_vendor_update(db, vendor, payload)
 
 
 # ── Kalite modülleri ──────────────────────────────────────────

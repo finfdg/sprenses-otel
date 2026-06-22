@@ -81,7 +81,15 @@ buraya taşındı (router→router/service import yönü korunur); `_helpers.py`
 
 **Regresyon testleri:** `test_approval_system.py::TestApprovalExecutorMoreModules` →
 `test_credit_bch_create_via_approval_generates_plan`, `test_credit_payment_update_via_approval`,
-`test_credit_product_delete_via_approval`. Davranış router ile birebir (1155 test yeşil).
+`test_credit_product_delete_via_approval`. Davranış router ile birebir.
+
+**Cariler dilimi (aynı desen):** `app/services/vendor_service.py::apply_vendor_update` — cari
+vade/durum güncelleme tek kaynak. Router (`cariler/vendors.py` payment-days + status endpoint'leri) ve
+`_handle_finance_cariler` ORTAK çağırır: alanları uygula → vade değiştiyse işlem ödeme tarihlerini
+yeniden hesapla (+ FE upsert) → `sync_vendor_finance_events`. Geçersiz durum/negatif vade → ValueError.
+Eski executor handler router mantığını elle tekrarlıyordu (doğrulama yoktu; router değişse sessiz sapardı).
+Regresyon: `test_vendor_payment_days_via_approval`, `test_vendor_status_via_approval_syncs_finance_events`.
+(Toplam 1157 test yeşil.)
 
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
