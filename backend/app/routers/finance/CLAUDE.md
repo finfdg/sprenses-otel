@@ -959,7 +959,7 @@ Tüm yazma endpoint'leri bu context manager'ı kullanır:
 ## Test
 
 ```bash
-# Backend testleri (1170+ test)
+# Backend testleri (1220+ test)
 cd backend && source venv/bin/activate && python -m pytest tests/ -v
 
 # Finans modülü testleri

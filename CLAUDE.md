@@ -276,7 +276,7 @@ TEMPLATE:
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations
-│   ├── tests/                   # pytest testleri (1170+ test, ~%60 satır kapsamı)
+│   ├── tests/                   # pytest testleri (1220+ test (pytest), ~%66 satır kapsamı)
 │   │   ├── conftest.py          # Test fixture'ları (SAVEPOINT rollback)
 │   │   ├── test_health.py
 │   │   ├── test_auth.py

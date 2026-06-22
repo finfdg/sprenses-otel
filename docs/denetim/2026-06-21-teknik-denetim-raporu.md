@@ -31,7 +31,7 @@
 **En kritik 3 madde (doğrulanmış):**
 1. ✅ **GİDERİLDİ (2026-06-22) — KRİTİK D15-1:** Otomatik DB yedeği yoktu (modül yalnız kodu yedekliyordu). → `scripts/db-backup.sh` (günlük `pg_dump -Fc` + bütünlük doğrulaması + 30-yedek rotasyon) + systemd `sprenses-db-backup.timer` (03:00 Istanbul) **canlı**; `scripts/db-restore.sh` ile **restore tatbikatı geçti** (yedek gerçek veriyle geri yüklenebildi). **Açık:** off-site (S3) IAM role gerektirir → opt-in (`SPRENSES_BACKUP_S3`) bırakıldı; tam disk/instance-kaybı koruması için kurulmalı.
 2. ✅ **ÇÖZÜLDÜ (2026-06-22) — YÜKSEK D2-4:** `approval_executor` router mantığını elle tekrarlıyordu + **gerçek bug**: `product_id` (model kolonu `credit_product_id`) → onaylanan ödeme-güncelleme/ürün-silme'de `AttributeError` 500; BCH/KMH onayında ödeme planı + finance_events üretilmiyordu. → `app/services/credit_service.py` (router + executor ORTAK çağırır) + tarih coercion + 3 regresyon testi (D1-2 ilk dilim).
-3. 🟠 **YÜKSEK — D10-1:** En büyük dosya `bank_parser.py` (1044 satır, banka ekstre ayrıştırma) ayrıştırma mantığı hiç test edilmiyor (~%9 kapsam = sadece import). Finansal verinin giriş kapısı.
+3. ✅ **BÜYÜK ÖLÇÜDE GİDERİLDİ (2026-06-22) — YÜKSEK D10-1:** `bank_parser.py` ayrıştırma mantığı test edilmiyordu (~%9). → `tests/test_bank_parser.py` (63 test): saf yardımcılar (TR/EN sayı, format tespiti, bakiye-zinciri, tarih, smart-parse, repair) + **sentetik `.xlsx` `parse_excel` entegrasyonu** (işaretli/borç-alacak/string-TR/boş). **Kapsam %9 → %48.** Kalan: `parse_pdf`/OCR/Vakıfbank-metin → gerçek/anonim banka PDF fixture'ı gerektirir (ayrı; örnek dosya sağlanınca eklenir).
 
 ---
 
