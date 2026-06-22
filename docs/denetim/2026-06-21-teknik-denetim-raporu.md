@@ -35,6 +35,46 @@
 
 ---
 
+## Önceki Denetimle Karşılaştırma (2026-06-19 → 2026-06-21)
+
+**2026-06-19 kod denetimi:** 6 paralel ajan, **kod-odaklı 6-7 boyut**, ağırlıklı **≈7.8/10** — "üst-çeyrek, kritik bug yok"; listelenen tüm teknik borçlar aynı oturumda **çözüldü**. **2026-06-20 tasarımcı denetimi:** 54 sayfa UI, **≈8.2/10**, sapmalar uygulandı.
+**2026-06-21 (bu denetim):** 15 boyut — kod **+ operasyon/platform** (CI/CD, DR, observability, ölçeklenebilirlik). Bu yüzden geniş not (**72/100**) dar nottan (7.8) düşük görünür; bu **regresyon değil, daha geniş mercektir.**
+
+**Karşılaştırılabilir boyutlar (06-19'da puanlananlar):**
+
+| Boyut | 06-19 | 06-21 | Δ | Yorum |
+|---|:---:|:---:|:---:|---|
+| Güvenlik | 8.5 | 8.5 | → | Sabit. `/docs prod'da açık` sanılan madde bu turda **public 404** doğrulandı (gerçek açık değil) |
+| Performans | 7.5 | 7.8 | ▲ | 06-19 düzeltmeleri (FIFO TTL cache, upload `to_thread`, GZip, mobile N+1) koddan doğrulandı — **kalıcı** |
+| Mobil & UI | 7.5 | 8.0 | ▲ | 06-20 tasarımcı sapmaları (SegmentedControl, StatCard delta, touch-target) uygulanmış |
+| Dokümantasyon | 7.0 | 7.5 | ▲ | `api-haritasi.md` + `docs/modules` tablosu senkron çıktı |
+| Modülerlik | 8.0 | 7.5 | ▽ | Regresyon değil — service-katmanı yokluğu + executor-paritesi **daha derin** denetlendi |
+| Stabilite | 8.0 | 7.5 | ▽ | retry-yokluğu + sahte health bu turda ayrıca tartıldı (yeni mercek) |
+| Test & CI | 8.0 | Test 7-7.5 / **CI/CD 5.5** | ▽ | 06-19 birleşikti; bu tur **CI/CD'yi ayırdı** → gate/SAST/rollback/DR boşluğu yüzeye çıktı |
+
+> **Nicel kanıt — kod katmanı korundu:** 06-21'de yalnız bu 7 karşılaştırılabilir boyutun ortalaması **≈7.7** — yani 06-19'un 7.8'iyle neredeyse aynı. Dar mercekte skor sabit; **72/100'e çeken, ilk kez ayrı puanlanan operasyon boyutlarıdır.**
+
+**06-19'da hiç puanlanmamış (yeni mercek) boyutlar:** API 7.0 · DB Tasarımı 7.5 · Test Süreçleri 7.5 · **Loglama/İzleme 6.5** · **Ölçeklenebilirlik 5.5** · **Teknik Borç/Yol Haritası 5.5**. Zayıf notlar buradan geliyor.
+
+**Önceki turdan bu yana — durum değişimi:**
+
+| Madde | 06-19 durumu | 06-21 durumu |
+|---|---|---|
+| `/api/auth/register` kaldırma | Çözüldü | ✅ Hâlâ kaldırılmış (kod+doküman tutarlı) |
+| sales_invoices TTL cache + SQL pagination | Çözüldü | ✅ Doğrulandı, çalışıyor |
+| Upload parse `asyncio.to_thread` | Çözüldü | ✅ banks/checks/cariler/reservations'da mevcut |
+| GZip + matching_service ayrıştırma | Çözüldü | ✅ Doğrulandı |
+| Mobil touch-target (Button.svelte) | Çözüldü | ✅ Korundu (D8 = 8.0) |
+| `/docs` prod erişimi (açık nokta) | İzlemede | ✅ Public **404** (kapalı/zaten kapalıydı) |
+| **Otomatik DB yedeği** | *Kapsam dışıydı (DR boyutu yoktu)* | 🔴 **YENİ KRİTİK — D15-1** |
+| **approval_executor `product_id` bug** | *Risk sınıfı işaretliydi, bu bug bulunmamıştı* | 🟠 **YENİ YÜKSEK — D2-4** |
+| **bank_parser iç ayrıştırma testi** | *Parser-çevresi test eklendi, iç mantık değil* | 🟠 **YENİ YÜKSEK — D10-1** |
+| **CI gate / SAST / observability / ölçek** | *Ayrı puanlanmadı* | 🟠 **YENİ ZAYIF boyutlar (5.5-6.5)** |
+
+**Özet:** 06-19/06-20'de işaretlenen hiçbir madde **geri gelmedi** — kod katmanı sağlamlığını korudu, hatta perf/mobil/doküman iyileşti. Bu denetimin değeri, daha önce **hiç bakılmamış operasyon/platform katmanını** ölçmesi: tek Kritik (DB yedeği) ve iki Yüksek tam da bu yeni mercekten çıktı.
+
+---
+
 ## 1. Mimari ve Modülerlik — 7.5/10
 
 **Mevcut Durum:** Gerçek anlamda modüler: domain'ler net paketlere ayrılmış (`finance/cariler`, `krediler`, `cash_flow` + `_helpers`), runtime'da **hiç circular dependency yok** (AST 2-cycle taraması temiz; `utils/models/schemas/middleware` katmanları `routers`'tan import etmiyor — doğru katman yönü). Fabrika desenleri güçlü. Ana borç: resmi bir **service katmanı yok** — iş mantığı kısmen `utils/`, kısmen doğrudan router'larda; onay executor'ı her router'ın mutasyon mantığını elle ikinci kez yazıyor.

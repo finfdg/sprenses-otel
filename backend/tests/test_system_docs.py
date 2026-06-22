@@ -16,6 +16,16 @@ class TestSystemDocs:
         for k in ("path", "title", "category", "size", "modified"):
             assert k in first
 
+    def test_denetim_reports_have_own_category(self, client, auth_headers):
+        # docs/denetim/ altındaki raporlar ayrı "Denetim Raporları" kategorisinde görünür
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        cats = {it["path"]: it["category"] for it in r.json()["items"]}
+        denetim = [p for p in cats if p.startswith("docs/denetim/")]
+        assert denetim, "docs/denetim/ raporları listede yok"
+        for p in denetim:
+            assert cats[p] == "Denetim Raporları", f"{p} → {cats[p]}"
+
     def test_raw_content(self, client, auth_headers):
         r = client.get(f"{PREFIX}/raw", headers=auth_headers, params={"path": "CLAUDE.md"})
         assert r.status_code == 200, r.text

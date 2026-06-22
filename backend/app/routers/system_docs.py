@@ -26,6 +26,9 @@ router = APIRouter()
 def _category(rel: str) -> str:
     if rel.startswith("docs/modules/"):
         return "Modül Dokümanları"
+    # Teknik denetim raporları + soru setleri → kendi grubu (keşfedilebilirlik)
+    if rel.startswith("docs/denetim/"):
+        return "Denetim Raporları"
     # Kök CLAUDE.md + docs/ kökündeki genel rehberler (ui-kurallari, modulerlik vb.) → tek grup
     if rel == "CLAUDE.md" or rel.startswith("docs/"):
         return "Genel Dokümanlar"
