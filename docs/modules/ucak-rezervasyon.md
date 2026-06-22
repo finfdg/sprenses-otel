@@ -14,6 +14,13 @@
 | Maliyet | Ücretsiz |
 | Onay süreci | Yok — widget anında çalışır |
 
+> **Güvenlik notu (2026-06-22):** Bu modülün affiliate'i **yalnız bu sayfaya kapsamlı** `tp.media/content`
+> Aviasales widget'ıdır (`+page.svelte` içinde mount edilir). `app.html`'de ilk commit'ten beri duran
+> **ayrı bir global** Travelpayouts "site doğrulama" script'i (`tp-em.com/NTIzMTU2.js`) vardı; her
+> kimlik-doğrulamalı sayfada çalışıp uygulama-içi tıklamaları affiliate linklerine (klook) yönlendiriyor
+> ve obfuscated 3rd-party kodu hassas DOM'a sokuyordu → **kaldırıldı**. Bu sayfanın widget'ı etkilenmez.
+> Global affiliate/monetizasyon script'i app.html'e **tekrar eklenmemelidir**.
+
 ## Yaklaşım — Neden Widget, API Değil
 
 Travelpayouts'un sunduğu seçenekler:

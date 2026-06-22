@@ -18,15 +18,12 @@
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<meta name="apple-mobile-web-app-title" content="Sprenses" />
 
-		<!-- Travelpayouts site doğrulama (marker: 523156) -->
-		<script data-noptimize="1" data-cfasync="false" data-wpfc-render="false" seraph-accel-crit="1" data-no-defer="1">
-			(function () {
-				var script = document.createElement("script");
-				script.async = 1;
-				script.src = 'https://tp-em.com/NTIzMTU2.js?t=523156';
-				document.head.appendChild(script);
-			})();
-		</script>
+		<!-- NOT: Global "Travelpayouts site doğrulama" (tp-em.com) script'i 2026-06-22'de
+		     KALDIRILDI. Üçüncü-taraf link-monetizasyon script'iydi; her kimlik-doğrulamalı
+		     sayfada (finans/İK/cari) çalışıp uygulama-içi tıklamaları affiliate linklerine
+		     (klook vb.) yönlendiriyor ve obfuscated 3rd-party kodu hassas DOM'a sokuyordu.
+		     Uçak rezervasyon sayfası kendi tp.media widget'ını ayrıca yükler — bu kaldırma
+		     onu etkilemez. Tekrar EKLENMEMELİDİR (güvenlik/UX regresyonu). -->
 
 		%sveltekit.head%
 	</head>
