@@ -98,6 +98,11 @@
 **Risk Seviyesi:** Orta (yapısal, veri-kaybı riski yok).
 **Öncelik:** D1-2 + D1-1 + D1-5 tek "service katmanı oluştur" epiğinde birleştirilebilir → en yüksek mimari getiri. Sonra D1-3 (büyük dosya bölme), D1-4 (parite testi, ucuz).
 
+> **✅ Uygulama Durumu (2026-06-22):**
+> - **D1-1 + D1-5 (kısmen):** `app/services/` katmanı oluşturuldu; `stock` (run_stock_import/compute_operational_kpi/compute_price_variance/anomalies) ve `reservation` (run_reservation_import/_currency_to_eur_factors/_window_start) saf fonksiyonları `stock_service.py`/`reservation_service.py`'ye **byte-aynı** taşındı. `yonetim.py` + `sedna_sync.py` + `daily_activity.py` artık service'ten import ediyor → **4 router→router import'unun 3'ü + 1 paket-içi bağımlılık kapatıldı.** Ölü import'lar temizlendi. CLAUDE.md'ye "router router'dan import etmez" + utils/services ayrımı kuralı eklendi. Doğrulama: 1152 passed / 4 skipped, app temiz yükleniyor, canlıya alındı.
+> - **D1-4 (tamam):** `tests/test_constants_parity.py` — backend `constants.py` ↔ frontend `realtime.ts` WS event + broadcast modül parite testi (26 event + 13 modül senkron).
+> - **Açık kalan:** `sales._merged_advances` decoupling FIFO motoru (`_compute_cached`/`_f`/`_norm_tokens`) çıkarımı gerektirdiğinden (en test-hassas yol) ayrı pass'e bırakıldı → `yonetim.py:22` hâlâ `sales_invoices`'tan import ediyor. **D1-2 tamamı** (~20 executor handler ↔ router birleştirme) ve **D1-3** (god-component bölme) ayrı odaklı pass'ler.
+
 ---
 
 ## 2. Kod Kalitesi — 7.5/10

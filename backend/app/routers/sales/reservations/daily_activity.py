@@ -28,7 +28,7 @@ from app.utils.sedna_client import (
     sedna_configured,
 )
 
-from .sedna_import import _currency_to_eur_factors
+from app.services.reservation_service import _currency_to_eur_factors
 
 logger = logging.getLogger(__name__)
 

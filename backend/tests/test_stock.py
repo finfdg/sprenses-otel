@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 PREFIX = "/api/stok"
 TARGET = "app.routers.stock"
+SERVICE = "app.services.stock_service"
 
 DEPOTS = [
     {"code": "002", "name": "ANA MUTFAK", "no_consumption": 0, "is_expense": 0},
@@ -39,9 +40,9 @@ MOVES = [
 
 def _import(client, headers, depots=DEPOTS, products=PRODUCTS, moves=MOVES):
     with patch(f"{TARGET}.sedna_configured", return_value=True), \
-         patch(f"{TARGET}.fetch_stock_depots", return_value=depots), \
-         patch(f"{TARGET}.fetch_stock_products", return_value=products), \
-         patch(f"{TARGET}.fetch_stock_movements", return_value=moves):
+         patch(f"{SERVICE}.fetch_stock_depots", return_value=depots), \
+         patch(f"{SERVICE}.fetch_stock_products", return_value=products), \
+         patch(f"{SERVICE}.fetch_stock_movements", return_value=moves):
         return client.post(f"{PREFIX}/sedna-import", headers=headers)
 
 

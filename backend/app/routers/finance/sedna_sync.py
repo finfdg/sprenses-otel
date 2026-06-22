@@ -23,8 +23,8 @@ from app.middleware.auth import get_current_user, user_can
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
 from app.utils.finance_broadcast import broadcast_finance_update
-from app.routers.sales.reservations.sedna_import import run_reservation_import
-from app.routers.stock import run_stock_import
+from app.services.reservation_service import run_reservation_import
+from app.services.stock_service import run_stock_import
 from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 from app.utils.sedna_client import sedna_configured
 

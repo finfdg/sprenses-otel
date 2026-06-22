@@ -57,10 +57,10 @@ def test_sync_all_runs_all_steps(client, auth_headers, db):
          patch(f"{CHK}.fetch_issued_checks", return_value=FAKE_CHECK), \
          patch("app.routers.finance.sales_invoices.fetch_sales_invoices",
                return_value={"invoices": [], "collections": []}), \
-         patch("app.routers.stock.fetch_stock_depots", return_value=[]), \
-         patch("app.routers.stock.fetch_stock_products", return_value=[]), \
-         patch("app.routers.stock.fetch_stock_movements", return_value=[]), \
-         patch("app.routers.sales.reservations.sedna_import.fetch_reservations", return_value=[]):
+         patch("app.services.stock_service.fetch_stock_depots", return_value=[]), \
+         patch("app.services.stock_service.fetch_stock_products", return_value=[]), \
+         patch("app.services.stock_service.fetch_stock_movements", return_value=[]), \
+         patch("app.services.reservation_service.fetch_reservations", return_value=[]):
         r = client.post(f"{PREFIX}/sync-all", headers=auth_headers)
         assert r.status_code == 200, r.text
         j = r.json()

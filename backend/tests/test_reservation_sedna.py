@@ -10,11 +10,12 @@ from unittest.mock import patch
 from app.models.exchange_rate import ExchangeRate
 from app.models.reservation import Reservation
 from app.models.room_type import RoomType
-from app.routers.sales.reservations.sedna_import import _window_start
+from app.services.reservation_service import _window_start
 from app.utils.occupancy import occupancy_metrics
 
 PREFIX = "/api/sales/reservations"
 TARGET = "app.routers.sales.reservations.sedna_import"
+SERVICE = "app.services.reservation_service"
 
 WS = _window_start()                 # cari yıl 1 Ocak (pencere başı)
 CI = date(WS.year, 3, 2)             # pencere içi check-in
@@ -36,7 +37,7 @@ def _row(rec_id, ci=CI, co=CO, agency="ALLTOURS D", nation="DEU", adult=2, child
 
 def _import(client, headers, rows):
     with patch(f"{TARGET}.sedna_configured", return_value=True), \
-         patch(f"{TARGET}.fetch_reservations", return_value=rows):
+         patch(f"{SERVICE}.fetch_reservations", return_value=rows):
         return client.post(f"{PREFIX}/sedna-import", headers=headers)
 
 
