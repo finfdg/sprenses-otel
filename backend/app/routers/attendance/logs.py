@@ -1,6 +1,8 @@
 """PDKS — yönetici izleme/raporlar (durum, log, puantaj) + elle giriş/düzenle/sil + onay bekleyenler."""
 from ._helpers import *  # noqa: F401,F403 — paylaşılan import/sabit/helper/şema (bkz. _helpers.__all__)
 
+from app.services import hr_service
+
 router = APIRouter()
 
 
@@ -140,13 +142,10 @@ def manual_punch(
     if approval_resp:
         return approval_resp
 
-    lg = AttendanceLog(
-        personnel_id=p.id, type=data.type, source=SOURCE_MANUAL,
-        recorded_by=current_user.id, note=(data.note or "").strip() or None,
-        punched_at=when,
+    lg = hr_service.create_attendance(
+        db, {"personnel_id": p.id, "type": data.type, "note": data.note, "punched_at": when},
+        current_user.id,
     )
-    db.add(lg)
-    db.flush()
     log_action(db, current_user.id, "manual_punch", "attendance", lg.id,
                f"Elle {data.type} ({when.strftime('%d.%m %H:%M')}): {p.full_name}", get_client_ip(request))
     db.commit()
@@ -189,14 +188,7 @@ def update_log(
     if approval_resp:
         return approval_resp
 
-    old_type, old_when, old_note = lg.type, lg.punched_at, lg.note
-    if "type" in fields:
-        lg.type = new_type
-    if "note" in fields:
-        lg.note = (fields["note"] or "").strip() or None
-    if fields.get("punched_at"):
-        lg.punched_at = new_when
-    lg.edited_at = datetime.now(TZ)
+    old_type, old_when, old_note = hr_service.apply_attendance_update(db, lg, fields)
     detail = _edit_detail(old_type, old_when, old_note, lg.type, lg.punched_at, lg.note)
     log_action(db, current_user.id, "update", "attendance", lg.id, detail, get_client_ip(request))
     db.commit()
@@ -226,7 +218,7 @@ def delete_log(
     log_action(db, current_user.id, "delete", "attendance", lg.id,
                f"Kayıt #{lg.id} silindi ({_type_tr(lg.type)} {lg.punched_at.astimezone(TZ).strftime('%d.%m %H:%M')})",
                get_client_ip(request))
-    lg.deleted_at = datetime.now(TZ)  # soft delete
+    hr_service.delete_attendance(db, lg)  # soft delete
     db.commit()
     manager.send_to_all_sync({"type": WSEvent.ATTENDANCE_UPDATED, "action": "delete"})
     return {"ok": True}

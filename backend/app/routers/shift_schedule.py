@@ -25,6 +25,7 @@ from app.models.personnel import Personnel
 from app.models.shift import ShiftDefinition
 from app.models.shift_assignment import ShiftAssignment
 from app.models.user import User
+from app.services import hr_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.websocket.manager import manager
@@ -94,32 +95,8 @@ def _broadcast(action: str) -> None:
         logger.debug("Vardiya çizelgesi WS broadcast gönderilemedi", exc_info=True)
 
 
-def _upsert_assignment(db, personnel_id, shift_id, work_date, note, actor_id) -> ShiftAssignment:
-    """Bir hücreyi oluştur veya güncelle (personnel_id + work_date benzersiz)."""
-    a = (
-        db.query(ShiftAssignment)
-        .filter(
-            ShiftAssignment.personnel_id == personnel_id,
-            ShiftAssignment.work_date == work_date,
-        )
-        .first()
-    )
-    if a:
-        a.shift_id = shift_id
-        if note is not None:
-            a.note = note or None
-        a.updated_at = _now_tz()
-    else:
-        a = ShiftAssignment(
-            personnel_id=personnel_id,
-            shift_id=shift_id,
-            work_date=work_date,
-            note=(note or None),
-            created_by=actor_id,
-        )
-        db.add(a)
-    db.flush()
-    return a
+# Tek hücre upsert/sil app/services/hr_service'te (router + onay executor ORTAK kaynak).
+# Toplu işlemler (bulk/copy-week) onaydan muaf → kendi inline upsert mantıklarını korur.
 
 
 # ─── Şemalar ─────────────────────────────────────────────
@@ -232,7 +209,7 @@ def assign_cell(
     if approval_resp:
         return approval_resp
 
-    a = _upsert_assignment(db, data.personnel_id, data.shift_id, data.work_date, data.note, current_user.id)
+    a = hr_service.upsert_assignment(db, data.personnel_id, data.shift_id, data.work_date, data.note, current_user.id)
     log_action(
         db, current_user.id, "create", "shift_assignment", a.id,
         f"Rota: {person.full_name} → {shift.name} ({data.work_date.isoformat()})",
@@ -265,7 +242,7 @@ def remove_cell(
         f"Rota silindi (personel #{a.personnel_id}, {a.work_date.isoformat()})",
         get_client_ip(request),
     )
-    db.delete(a)
+    hr_service.delete_assignment(db, a)
     db.commit()
     _broadcast("remove")
     return {"ok": True}

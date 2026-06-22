@@ -144,7 +144,9 @@
 
 **Toplam 10 handler / ≈19 modül birleşti; 9+ gerçek drift/bug kapatıldı. 1158 test yeşil, hepsi canlıda.** `app/services/` 13 modül.
 
-**Kalan 6 handler (dikkatli iş gerektiriyor — sonraki turda):**
+**✅ TÜM 16 handler tamamlandı (2026-06-22):** kalan 6 (butce/room_types/quality_forms/hr×3) 4-ajanlı paralel workflow ile bitirildi. Ek **2 gerçek drift/bug** kapatıldı: (a) **butce budget** executor id-bazlı INSERT yapıyordu → router kompozit-anahtar `_upsert_budget` (dept+kat+yıl+ay) → **onaylı budget create AYNI dönem için ÇİFT bütçe / UNIQUE ihlali** (en kritik); (b) hr attendance note-strip + shifts description-None normalize sapmaları. +3 yeni regresyon testi (butce çift-bütçe, hr shifts-create + attendance-update onay yolu — kapsam yoktu). **1161 test yeşil, app/services/ 15 modül, hepsi canlıda.**
+
+**~~Kalan 6 handler~~ (TAMAMLANDI):**
 - **butce** — budget'te **gerçek upsert drift'i**: router kompozit-anahtar `_upsert_budget` (dept+kategori+yıl+ay), executor id-bazlı insert → **çift bütçe riski**. Dikkatli birleştirme gerekir.
 - **hr×3** (attendance/shifts/shift_schedule) — executor ISO-string parse eder, router typed (datetime/time/date) alır → service'te coercion gerekir (credit_service._coerce_date kalıbı).
 - **room_types** (delete rezervasyon-guard) + **quality_forms** (saf CRUD) — basit, hızlı.

@@ -93,8 +93,18 @@ Regresyon: `test_vendor_payment_days_via_approval`, `test_vendor_status_via_appr
 **Diğer finans dilimleri (aynı desen, 2026-06-22):** `advance_service` (avanslar CRUD+FE),
 `bank_account_service` (banka hesabı CRUD), `department_service` (departman CRUD — **drift kapatıldı:**
 executor delete'i guard'sız SOFT idi → router'la birebir guard'lı HARD oldu). Router endpoint'leri +
-ilgili executor handler'ları ORTAK service çağırır. **Kalan:** butce (budget upsert drift — router
-kompozit-anahtar `_upsert_budget` vs executor id-bazlı insert) ayrı/dikkatli ele alınacak.
+ilgili executor handler'ları ORTAK service çağırır.
+
+**butce dilimi (2026-06-22, `budget_service`):** **GERÇEK BUG kapatıldı** — executor budget create'i
+**id-bazlı INSERT** yapıyordu (create'te entity_id=0 → her zaman INSERT), router ise `_upsert_budget`
+ile **kompozit-anahtar upsert** (department_id+category_id+year+month → varsa GÜNCELLE). Sonuç: onaylı
+budget create aynı dönem için **ÇİFT bütçe satırı / `uq_budget_dept_cat_year_month` ihlali**. `_upsert_budget`
+mantığı `budget_service.upsert_budget`'e taşındı; router upsert endpoint'i + executor AYNI çağırır.
+Kategori CRUD + budget delete de service'te. Regresyon: `test_budget_create_via_approval_upserts_not_duplicate`.
+
+**D1-2 TAMAMLANDI (16/16 handler):** finans (krediler/cariler/checks/avanslar/banks/departmanlar/butce),
+scheduled (8 modül), system×3, sales.room_types, quality (templates/forms), hr×3 (attendance/shifts/
+shift_schedule) — hepsi router+executor ORTAK service. `app/services/` 15 modül. Detay: denetim raporu.
 
 **Çekler dilimi (aynı desen):** `app/services/check_service.py::apply_check_status` — çek durum
 güncelleme tek kaynak. Router (`checks.py::update_check_status`) ve `_handle_finance_checks` ORTAK

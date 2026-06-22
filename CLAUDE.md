@@ -269,7 +269,10 @@ TEMPLATE:
 │   │   │   ├── system_service.py          # Kullanıcı/rol/modül CRUD + cache + oturum (router + executor ORTAK)
 │   │   │   ├── advance_service.py          # Avans CRUD + finance_events
 │   │   │   ├── bank_account_service.py     # Banka hesabı CRUD
-│   │   │   └── department_service.py       # Departman CRUD (guard'lı HARD delete)
+│   │   │   ├── department_service.py       # Departman CRUD (guard'lı HARD delete)
+│   │   │   ├── budget_service.py           # Bütçe kategori + kompozit-anahtar upsert (çift-bütçe drift'i kapatıldı)
+│   │   │   ├── room_type_service.py        # Oda tipi CRUD (delete rezervasyon-guard)
+│   │   │   └── hr_service.py               # Devam/vardiya/çizelge CRUD (typed↔ISO-string coercion)
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations

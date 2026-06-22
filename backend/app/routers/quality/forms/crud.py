@@ -16,6 +16,7 @@ from app.models.quality_template import QualityTemplate
 from app.models.user import User
 from app.routers.quality.scheduler import _get_period_date
 from app.schemas.quality import FormCreate, FormListResponse
+from app.services import quality_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 
@@ -181,12 +182,11 @@ def create_form(
             detail="Bu şablon için bu tarihe ait form zaten var",
         )
 
-    form = QualityForm(
+    form = quality_service.create_form(
+        db,
         template_id=data.template_id,
         period_date=data.period_date,
-        status="draft",
     )
-    db.add(form)
 
     log_action(
         db, current_user.id, "create", "quality_form",
@@ -249,7 +249,7 @@ def delete_form(
     ).first()
     template_name = template.name if template else "—"
 
-    db.delete(form)
+    quality_service.delete_form(db, form)
 
     log_action(
         db, current_user.id, "delete", "quality_form",

@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
-from app.models.reservation import Reservation
 from app.models.room_type import RoomType
 from app.models.user import User
 from app.schemas.room_type import (
@@ -25,6 +24,7 @@ from app.schemas.room_type import (
     RoomTypeResponse,
     RoomTypeUpdate,
 )
+from app.services import room_type_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 
@@ -99,16 +99,7 @@ def create_room_type(
     if approval_resp:
         return approval_resp
 
-    rt = RoomType(
-        code=data.code,
-        name=data.name,
-        total_rooms=data.total_rooms,
-        max_occupancy=data.max_occupancy,
-        sort_order=data.sort_order,
-        is_active=data.is_active,
-        description=data.description,
-    )
-    db.add(rt)
+    rt = room_type_service.create_room_type(db, data.model_dump())
     try:
         db.flush()
     except IntegrityError:
@@ -152,8 +143,7 @@ def update_room_type(
     if approval_resp:
         return approval_resp
 
-    for key, value in payload.items():
-        setattr(rt, key, value)
+    room_type_service.apply_room_type_update(db, rt, payload)
 
     try:
         db.flush()
@@ -196,20 +186,11 @@ def delete_room_type(
     if approval_resp:
         return approval_resp
 
-    # Bu koda sahip rezervasyon var mı?
-    rez_count = (
-        db.query(func.count(Reservation.id))
-        .filter(Reservation.room_type == rt.code)
-        .scalar()
-    )
-    if rez_count and rez_count > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Bu oda tipine ait {rez_count} rezervasyon kaydı bulunduğu için silinemez. "
-                "Bunun yerine 'Pasif' duruma alabilirsiniz."
-            ),
-        )
+    # Bu koda sahip rezervasyon varsa silinemez (service guard'ı — router 400'e çevirir)
+    try:
+        room_type_service.delete_room_type(db, rt)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     log_action(
         db, current_user.id, "delete", "room_type",
@@ -217,5 +198,4 @@ def delete_room_type(
         details=f"{rt.code} — {rt.name}",
         ip_address=get_client_ip(request),
     )
-    db.delete(rt)
     db.commit()

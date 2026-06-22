@@ -343,7 +343,12 @@ def _handle_finance_departmanlar(db, action_type, entity_id, payload, actor_id):
 
 
 def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):
+    # Router (butce.py) ile ORTAK: app/services/budget_service.
+    # DRIFT kapatıldı: budget create artık KOMPOZİT ANAHTAR upsert (dept+cat+yıl+ay) —
+    # eskiden entity_id bazlıydı (create'te entity_id=0 → her zaman INSERT) → aynı dönem
+    # için ÇİFT bütçe / uq_budget_dept_cat_year_month ihlali.
     from app.models.budget import Budget, BudgetCategory
+    from app.services import budget_service
 
     target = payload.pop("_target", "budget")
 
@@ -352,46 +357,35 @@ def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):
 
     if target == "category":
         if action_type == "create":
-            cat = BudgetCategory(
-                name=payload.get("name", ""),
-                type=payload.get("type", "expense"),
-                sort_order=payload.get("sort_order", 0),
-            )
-            db.add(cat)
+            budget_service.create_category(db, payload)
         elif action_type == "update":
             cat = db.query(BudgetCategory).filter(BudgetCategory.id == entity_id).first()
             if cat:
-                _apply_fields(cat, payload, exclude={"_target"})
+                budget_service.apply_category_update(db, cat, payload)
         elif action_type == "delete":
             cat = db.query(BudgetCategory).filter(BudgetCategory.id == entity_id).first()
             if cat:
-                db.delete(cat)
+                budget_service.delete_category(db, cat)
         return
 
-    # Budget CRUD
+    # Budget CRUD — kompozit anahtar upsert (router upsert_budget ile birebir)
     if action_type in ("create", "update"):
-        # Upsert mantığı
-        existing = None
-        if action_type == "update":
-            existing = db.query(Budget).filter(Budget.id == entity_id).first()
-        if existing:
-            _apply_fields(existing, payload, exclude={"_target"})
-        else:
-            budget = Budget(
-                category_id=payload.get("category_id"),
-                department_id=payload.get("department_id"),
-                year=payload.get("year"),
-                month=payload.get("month"),
-                planned_amount=payload.get("planned_amount", payload.get("amount", 0)),
-                currency=payload.get("currency", "TRY"),
-                notes=payload.get("notes"),
-            )
-            db.add(budget)
+        budget_service.upsert_budget(
+            db,
+            department_id=payload.get("department_id"),
+            category_id=payload.get("category_id"),
+            year=payload.get("year"),
+            month=payload.get("month"),
+            planned_amount=payload.get("planned_amount", payload.get("amount", 0)),
+            currency=payload.get("currency", "TRY"),
+            notes=payload.get("notes"),
+            created_by=actor_id,
+        )
 
     elif action_type == "delete":
         budget = db.query(Budget).filter(Budget.id == entity_id).first()
         if budget:
-            db.delete(budget)
+            budget_service.delete_budget(db, budget)
 
 
 def _handle_finance_checks(db, action_type, entity_id, payload, actor_id):
@@ -486,71 +480,47 @@ def _handle_quality_templates(db, action_type, entity_id, payload, actor_id):
 
 def _handle_quality_forms(db, action_type, entity_id, payload, actor_id):
     from app.models.quality_form import QualityForm
+    from app.services import quality_service
 
     if action_type == "create":
-        form = QualityForm(
+        quality_service.create_form(
+            db,
             template_id=payload.get("template_id"),
             period_date=payload.get("period_date"),
             notes=payload.get("notes"),
-            status="draft",
         )
-        db.add(form)
 
     elif action_type == "delete":
         form = db.query(QualityForm).filter(QualityForm.id == entity_id).first()
         if form:
-            db.delete(form)
+            quality_service.delete_form(db, form)
 
 
 def _handle_attendance(db, action_type, entity_id, payload, actor_id):
     """Onaylanan elle giriş/çıkış (hr.attendance) → AttendanceLog oluştur/güncelle/sil.
 
-    punched_at payload'da ISO string olarak talep anında sabitlenir; burada parse edilir.
+    Mutasyon TEK kaynakta: app/services/hr_service (router + executor ORTAK çağırır).
+    punched_at payload'da ISO string olarak talep anında sabitlenir; service coerce eder.
     create → entity_id=0 (yeni kayıt). update/delete → entity_id=düzenlenen log id.
+    Audit (log_action) + eski→yeni diff burada (onay yolu generic detay) kalır.
     """
-    from datetime import datetime as _dt
-
     import pytz
 
-    from app.models.personnel import SOURCE_MANUAL, AttendanceLog
+    from app.models.personnel import AttendanceLog
+    from app.services import hr_service
     from app.utils.audit import log_action
 
     tz = pytz.timezone("Europe/Istanbul")
 
-    def _parse(raw):
-        try:
-            return _dt.fromisoformat(raw) if raw else None
-        except (TypeError, ValueError):
-            return None
-
     if action_type == "create":
-        log = AttendanceLog(
-            personnel_id=payload.get("personnel_id"),
-            type=payload.get("type"),
-            source=SOURCE_MANUAL,
-            recorded_by=actor_id,
-            note=(payload.get("note") or None),
-        )
-        when = _parse(payload.get("punched_at"))
-        if when is not None:
-            log.punched_at = when
-        db.add(log)
-        db.flush()
+        log = hr_service.create_attendance(db, payload, actor_id)
         log_action(db, actor_id, "manual_punch", "attendance", log.id, f"Onaylı elle {log.type}")
 
     elif action_type == "update":
         log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
         if not log:
             return
-        old_type, old_when, old_note = log.type, log.punched_at, log.note
-        if payload.get("type"):
-            log.type = payload["type"]
-        if "note" in payload:
-            log.note = (payload.get("note") or "").strip() or None
-        when = _parse(payload.get("punched_at"))
-        if when is not None:
-            log.punched_at = when
-        log.edited_at = _dt.now(tz)
+        old_type, old_when, old_note = hr_service.apply_attendance_update(db, log, payload)
         # Eski→yeni farkı (audit detayı + tarihçe)
         def _tt(t):
             return "giriş" if t == "in" else "çıkış"
@@ -569,161 +539,79 @@ def _handle_attendance(db, action_type, entity_id, payload, actor_id):
         log = db.query(AttendanceLog).filter(AttendanceLog.id == entity_id).first()
         if log and not log.deleted_at:
             log_action(db, actor_id, "delete", "attendance", log.id, "Onaylı silme")
-            log.deleted_at = _dt.now(tz)  # soft delete
+            hr_service.delete_attendance(db, log)  # soft delete
 
 
 def _handle_shifts(db, action_type, entity_id, payload, actor_id):
     """Onaylanan vardiya tanımı (hr.shifts) → ShiftDefinition oluştur/güncelle/sil.
 
-    Zaman alanları payload'da ISO string ("HH:MM:SS") olarak gelir; time'a parse edilir.
+    Mutasyon TEK kaynakta: app/services/hr_service (router + executor ORTAK çağırır).
+    Zaman alanları payload'da ISO string ("HH:MM:SS") gelir; service time'a coerce eder.
     """
-    from datetime import time as _time
-
-    from app.models.shift import DEFAULT_COLOR, ShiftDefinition
-
-    def _pt(v):
-        if not v:
-            return None
-        try:
-            parts = str(v).split(":")
-            return _time(int(parts[0]), int(parts[1]))
-        except (ValueError, IndexError):
-            return None
+    from app.models.shift import ShiftDefinition
+    from app.services import hr_service
 
     if action_type == "create":
-        is_active = payload.get("is_active")
-        db.add(ShiftDefinition(
-            name=(payload.get("name") or "").strip(),
-            color=payload.get("color") or DEFAULT_COLOR,
-            start_time=_pt(payload.get("start_time")),
-            end_time=_pt(payload.get("end_time")),
-            start_time2=_pt(payload.get("start_time2")),
-            end_time2=_pt(payload.get("end_time2")),
-            description=(payload.get("description") or None),
-            is_active=True if is_active is None else is_active,
-            sort_order=payload.get("sort_order") or 0,
-        ))
+        hr_service.create_shift(db, payload, actor_id)
     elif action_type == "update":
         s = db.query(ShiftDefinition).filter(ShiftDefinition.id == entity_id).first()
         if not s:
             return
-        if "name" in payload:
-            s.name = payload["name"]
-        if "color" in payload:
-            s.color = payload["color"]
-        for tf in ("start_time", "end_time", "start_time2", "end_time2"):
-            if tf in payload:
-                setattr(s, tf, _pt(payload[tf]))
-        if "description" in payload:
-            s.description = payload.get("description") or None
-        if "is_active" in payload:
-            s.is_active = payload["is_active"]
-        if "sort_order" in payload:
-            s.sort_order = payload["sort_order"]
+        hr_service.apply_shift_update(db, s, payload)
     elif action_type == "delete":
         s = db.query(ShiftDefinition).filter(ShiftDefinition.id == entity_id).first()
         if s:
-            db.delete(s)
+            hr_service.delete_shift(db, s)
 
 
 def _handle_shift_schedule(db, action_type, entity_id, payload, actor_id):
     """Onaylanan vardiya çizelgesi (hr.shift_schedule) → ShiftAssignment upsert/sil.
 
+    Mutasyon TEK kaynakta: app/services/hr_service (router + executor ORTAK çağırır).
     create → entity_id=0, upsert (personnel_id + work_date benzersiz).
-    delete → entity_id=atama id.
-    work_date payload'da ISO string ("YYYY-MM-DD") gelir; date'e parse edilir.
+    delete → entity_id=atama id. work_date payload'da ISO string; service date'e coerce eder.
+    Audit (log_action) onay yolunda burada kalır.
     """
-    from datetime import date as _date
-    from datetime import datetime as _dt
-
-    import pytz
-
     from app.models.shift_assignment import ShiftAssignment
+    from app.services import hr_service
     from app.utils.audit import log_action
 
-    tz = pytz.timezone("Europe/Istanbul")
-
-    def _pd(v):
-        try:
-            return _date.fromisoformat(str(v)) if v else None
-        except (TypeError, ValueError):
-            return None
-
     if action_type == "create":
-        wd = _pd(payload.get("work_date"))
         pid = payload.get("personnel_id")
         sid = payload.get("shift_id")
+        wd = payload.get("work_date")
         if not (wd and pid and sid):
             return
-        note = payload.get("note")
-        a = (
-            db.query(ShiftAssignment)
-            .filter(ShiftAssignment.personnel_id == pid, ShiftAssignment.work_date == wd)
-            .first()
-        )
-        if a:
-            a.shift_id = sid
-            if note is not None:
-                a.note = note or None
-            a.updated_at = _dt.now(tz)
-        else:
-            a = ShiftAssignment(
-                personnel_id=pid, shift_id=sid, work_date=wd,
-                note=(note or None), created_by=actor_id,
-            )
-            db.add(a)
-        db.flush()
+        a = hr_service.upsert_assignment(db, pid, sid, wd, payload.get("note"), actor_id)
         log_action(db, actor_id, "create", "shift_assignment", a.id, "Onaylı rota ataması")
 
     elif action_type == "delete":
         a = db.query(ShiftAssignment).filter(ShiftAssignment.id == entity_id).first()
         if a:
             log_action(db, actor_id, "delete", "shift_assignment", a.id, "Onaylı rota silme")
-            db.delete(a)
+            hr_service.delete_assignment(db, a)
 
 
 def _handle_sales_room_types(db, action_type, entity_id, payload, actor_id):
-    """Oda tipi (sales.room_types) onayı — router CRUD'unu birebir yansıtır.
+    """Oda tipi (sales.room_types) onayı — router CRUD'u ile ORTAK service çağırır.
 
-    Delete'te router'daki rezervasyon koruması da uygulanır (rezervasyon varsa silinmez —
-    `Reservation.room_type` koda string-bağlı, FK yok; orphan referansı engeller).
+    app/services/room_type_service: create/apply_update/delete. Delete'te router'daki
+    rezervasyon koruması da uygulanır (rezervasyon varsa silinmez — ValueError).
     """
     from app.models.room_type import RoomType
+    from app.services import room_type_service
 
     if action_type == "create":
-        rt = RoomType(
-            code=payload.get("code", ""),
-            name=payload.get("name", ""),
-            total_rooms=payload.get("total_rooms", 0),
-            max_occupancy=payload.get("max_occupancy", 2),
-            sort_order=payload.get("sort_order", 0),
-            is_active=payload.get("is_active", True),
-            description=payload.get("description"),
-        )
-        db.add(rt)
-
+        room_type_service.create_room_type(db, payload)
     elif action_type == "update":
         rt = db.query(RoomType).filter(RoomType.id == entity_id).first()
         if not rt:
             raise ValueError(f"Oda tipi bulunamadı: {entity_id}")
-        _apply_fields(rt, payload)
-
+        room_type_service.apply_room_type_update(db, rt, payload)
     elif action_type == "delete":
-        from sqlalchemy import func
-        from app.models.reservation import Reservation
         rt = db.query(RoomType).filter(RoomType.id == entity_id).first()
-        if not rt:
-            return
-        rez_count = (
-            db.query(func.count(Reservation.id))
-            .filter(Reservation.room_type == rt.code)
-            .scalar()
-        )
-        if rez_count and rez_count > 0:
-            raise ValueError(
-                f"Bu oda tipine ait {rez_count} rezervasyon olduğu için silinemez (pasif yapın)."
-            )
-        db.delete(rt)
+        if rt:
+            room_type_service.delete_room_type(db, rt)
 
 
 # ── Handler kayıt tablosu ────────────────────────────────────

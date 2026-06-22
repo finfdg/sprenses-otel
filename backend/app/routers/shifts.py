@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
-from app.models.shift import DEFAULT_COLOR, ShiftDefinition
+from app.models.shift import ShiftDefinition
 from app.models.user import User
+from app.services import hr_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 
@@ -109,19 +110,7 @@ def create_shift(
     approval_resp = check_approval(db, "hr.shifts", 0, current_user.id, "create", data.model_dump())
     if approval_resp:
         return approval_resp
-    s = ShiftDefinition(
-        name=data.name.strip(),
-        color=data.color or DEFAULT_COLOR,
-        start_time=data.start_time,
-        end_time=data.end_time,
-        start_time2=data.start_time2,
-        end_time2=data.end_time2,
-        description=(data.description or "").strip() or None,
-        is_active=True if data.is_active is None else data.is_active,
-        sort_order=data.sort_order or 0,
-    )
-    db.add(s)
-    db.flush()
+    s = hr_service.create_shift(db, data.model_dump(), current_user.id)
     log_action(db, current_user.id, "create", "shift", s.id, f"Vardiya: {s.name}", get_client_ip(request))
     db.commit()
     db.refresh(s)
@@ -143,10 +132,7 @@ def update_shift(
     approval_resp = check_approval(db, "hr.shifts", s.id, current_user.id, "update", payload)
     if approval_resp:
         return approval_resp
-    for f in ("name", "color", "start_time", "end_time", "start_time2", "end_time2",
-              "description", "is_active", "sort_order"):
-        if f in payload:
-            setattr(s, f, payload[f])
+    hr_service.apply_shift_update(db, s, payload)
     log_action(db, current_user.id, "update", "shift", s.id, f"Vardiya güncellendi: {s.name}", get_client_ip(request))
     db.commit()
     db.refresh(s)
@@ -167,6 +153,6 @@ def delete_shift(
     if approval_resp:
         return approval_resp
     log_action(db, current_user.id, "delete", "shift", s.id, f"Vardiya silindi: {s.name}", get_client_ip(request))
-    db.delete(s)
+    hr_service.delete_shift(db, s)
     db.commit()
     return {"ok": True}

@@ -1115,6 +1115,60 @@ class TestApprovalExecutorMoreModules:
         assert vtx2.match_number is None and vtx2.payment_method is None  # cari eşleşmesi de kalktı (kademe)
 
 
+    def test_budget_create_via_approval_upserts_not_duplicate(self, db):
+        """REGRESYON: budget executor handler entity_id bazlı INSERT yapıyordu (create'te
+        entity_id=0 → existing=None → her zaman INSERT). Router ise KOMPOZİT ANAHTAR upsert
+        (dept+cat+yıl+ay) yapar → aynı dönem için onaylı iki budget create ÇİFT satır / 
+        uq_budget_dept_cat_year_month ihlali oluşturuyordu. Düzeltme sonrası ikinci onay AYNI
+        kaydı GÜNCELLEMELİ (tek satır kalmalı, tutar güncellenmeli)."""
+        from app.models.budget import Budget, BudgetCategory
+
+        _, req_role, req_client = _make_actor(db, {"finance.butce": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.butce", req_role, app_role)
+
+        dept = Department(name=f"Dept {uuid4().hex[:6]}", code=f"D{uuid4().hex[:5]}", is_active=True)
+        cat = BudgetCategory(name=f"Kat {uuid4().hex[:6]}", type="expense", is_active=True)
+        db.add(dept)
+        db.add(cat)
+        db.commit()
+        dept_id, cat_id = dept.id, cat.id
+
+        def _period_count():
+            return db.query(Budget).filter(
+                Budget.department_id == dept_id,
+                Budget.category_id == cat_id,
+                Budget.year == 2099,
+                Budget.month == 5,
+            ).count()
+
+        # 1. onaylı create
+        r1 = req_client.post("/api/finance/butce/", json={
+            "department_id": dept_id, "category_id": cat_id,
+            "year": 2099, "month": 5, "planned_amount": 1000, "currency": "TRY",
+        })
+        assert r1.status_code == 202, r1.text
+        ap1 = app_client.post(f"{API}/requests/{r1.json()['request_id']}/approve", json={})
+        assert ap1.status_code == 200, ap1.text
+        db.expire_all()
+        assert _period_count() == 1, "İlk onaylı create tek bütçe oluşturmalı"
+
+        # 2. AYNI dönem için ikinci onaylı create → çift değil, upsert (güncelle)
+        r2 = req_client.post("/api/finance/butce/", json={
+            "department_id": dept_id, "category_id": cat_id,
+            "year": 2099, "month": 5, "planned_amount": 2500, "currency": "TRY",
+        })
+        assert r2.status_code == 202, r2.text
+        ap2 = app_client.post(f"{API}/requests/{r2.json()['request_id']}/approve", json={})
+        assert ap2.status_code == 200, f"ikinci onay 500/çakışma vermemeli: {ap2.text}"
+        db.expire_all()
+        assert _period_count() == 1, "İkinci onaylı create ÇİFT bütçe oluşturmamalı (kompozit upsert)"
+        row = db.query(Budget).filter(
+            Budget.department_id == dept_id, Budget.category_id == cat_id,
+            Budget.year == 2099, Budget.month == 5,
+        ).first()
+        assert float(row.planned_amount) == 2500, "Upsert planned_amount'u güncellemeli"
+
 class TestApprovalExecutorHR:
     """İK modüllerinin (hr.attendance, hr.shift_schedule) uçtan-uca onay→uygula regresyonu.
 
@@ -1301,6 +1355,76 @@ class TestApprovalExecutorHR:
 
         db.expire_all()
         assert db.get(ShiftAssignment, a_id) is None, "Onay sonrası rota ataması silinmeliydi"
+
+
+    def test_shift_create_via_approval(self, db):
+        """REGRESYON (D1-2): hr.shifts vardiya tanımı onaylanınca _handle_shifts → hr_service
+        ShiftDefinition oluşturmalı + time alanlarını payload ISO-string'inden coerce etmeli.
+        hr.shifts create onay yolu daha önce hiç test edilmemişti (time-coercion AST testiyle yakalanamaz)."""
+        from app.models.shift import ShiftDefinition
+
+        _, req_role, req_client = _make_actor(db, {
+            "hr.shifts": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "hr.shifts", req_role, app_role)
+
+        name = f"Onay Vardiya {uuid4().hex[:5]}"
+        resp = req_client.post("/api/hr/shifts", json={
+            "name": name, "color": "#0d9488", "start_time": "07:00:00", "end_time": "15:00:00",
+        })
+        assert resp.status_code == 202, f"onaya düşmeli: {resp.text}"
+        req_id = resp.json()["request_id"]
+        db.expire_all()
+        assert db.query(ShiftDefinition).filter(ShiftDefinition.name == name).count() == 0
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"_handle_shifts create → 500: {ap.text}"
+        db.expire_all()
+        s = db.query(ShiftDefinition).filter(ShiftDefinition.name == name).first()
+        assert s is not None, "Onay sonrası vardiya tanımı oluşmalıydı"
+        assert s.start_time.hour == 7 and s.end_time.hour == 15
+        assert s.is_active is True
+
+    def test_attendance_update_via_approval(self, db):
+        """REGRESYON (D1-2): hr.attendance kaydı düzenleme onaylanınca _handle_attendance → hr_service
+        alanları uygulamalı + edited_at damgalamalı + punched_at ISO-string'ini coerce etmeli.
+        attendance update onay yolu daha önce test edilmemişti."""
+        from datetime import datetime as _dt
+        from datetime import timedelta as _td
+
+        import pytz as _pytz
+
+        from app.models.personnel import TYPE_IN, AttendanceLog
+
+        tz = _pytz.timezone("Europe/Istanbul")
+        _, req_role, req_client = _make_actor(db, {
+            "hr.attendance": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "hr.attendance", req_role, app_role)
+
+        p = self._mk_personnel(db)
+        orig_when = _dt.now(tz) - _td(hours=3)
+        lg = AttendanceLog(personnel_id=p.id, type=TYPE_IN, source="manual",
+                           punched_at=orig_when, note="eski not")
+        db.add(lg)
+        db.commit()
+        lg_id = lg.id
+
+        new_when = (orig_when + _td(hours=1)).isoformat()
+        r = req_client.patch(f"/api/attendance/logs/{lg_id}", json={"punched_at": new_when, "note": "yeni not"})
+        assert r.status_code == 202, f"onaya düşmeli: {r.text}"
+        req_id = r.json()["request_id"]
+        db.expire_all()
+        assert db.get(AttendanceLog, lg_id).edited_at is None
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"_handle_attendance update → 500: {ap.text}"
+        db.expire_all()
+        row = db.get(AttendanceLog, lg_id)
+        assert row.note == "yeni not"
+        assert row.edited_at is not None, "update edited_at damgalamalı"
 
 
 class TestExecutorImportIntegrity:

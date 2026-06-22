@@ -25,6 +25,7 @@ from app.schemas.budget import (
     BudgetResponse,
     BudgetSummaryItem,
 )
+from app.services import budget_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 
@@ -95,13 +96,7 @@ def create_category(
             detail="Bu isim ve tipte bir kategori zaten mevcut.",
         )
 
-    category = BudgetCategory(
-        name=data.name.strip(),
-        type=data.type,
-        is_active=data.is_active,
-        sort_order=data.sort_order,
-    )
-    db.add(category)
+    category = budget_service.create_category(db, data.model_dump())
     db.commit()
     db.refresh(category)
 
@@ -131,19 +126,7 @@ def update_category(
     if approval_resp:
         return approval_resp
 
-    changes = {}
-    if data.name is not None:
-        changes["name"] = data.name.strip()
-        category.name = data.name.strip()
-    if data.type is not None:
-        changes["type"] = data.type
-        category.type = data.type
-    if data.is_active is not None:
-        changes["is_active"] = data.is_active
-        category.is_active = data.is_active
-    if data.sort_order is not None:
-        changes["sort_order"] = data.sort_order
-        category.sort_order = data.sort_order
+    changes = budget_service.apply_category_update(db, category, data.model_dump(exclude_unset=True))
 
     if not changes:
         raise HTTPException(status_code=400, detail="Güncellenecek alan belirtilmedi.")
@@ -197,7 +180,7 @@ def delete_category(
         )
 
     cat_name = category.name
-    db.delete(category)
+    budget_service.delete_category(db, category)
     db.commit()
 
     log_action(
@@ -250,45 +233,6 @@ def list_budgets(
     }
 
 
-def _upsert_budget(
-    db: Session,
-    department_id: int,
-    category_id: int,
-    year: int,
-    month: int,
-    planned_amount: float,
-    currency: str,
-    notes: Optional[str],
-    created_by: int,
-) -> Budget:
-    """Bütçe kaydı upsert: varsa planned_amount güncelle, yoksa oluştur."""
-    existing = db.query(Budget).filter(
-        Budget.department_id == department_id,
-        Budget.category_id == category_id,
-        Budget.year == year,
-        Budget.month == month,
-    ).first()
-    if existing:
-        existing.planned_amount = planned_amount
-        if notes is not None:
-            existing.notes = notes
-        return existing
-    else:
-        new_budget = Budget(
-            department_id=department_id,
-            category_id=category_id,
-            year=year,
-            month=month,
-            planned_amount=planned_amount,
-            actual_amount=0,
-            currency=currency,
-            notes=notes,
-            created_by=created_by,
-        )
-        db.add(new_budget)
-        return new_budget
-
-
 @router.post("/", status_code=status.HTTP_200_OK)
 def upsert_budget(
     data: BudgetCreate,
@@ -309,7 +253,7 @@ def upsert_budget(
     if not cat:
         raise HTTPException(status_code=404, detail="Bütçe kategorisi bulunamadı.")
 
-    budget = _upsert_budget(
+    budget = budget_service.upsert_budget(
         db,
         department_id=data.department_id,
         category_id=data.category_id,
@@ -435,7 +379,7 @@ def delete_budget(
         "planned_amount": float(budget.planned_amount),
     }
 
-    db.delete(budget)
+    budget_service.delete_budget(db, budget)
     db.commit()
 
     log_action(
