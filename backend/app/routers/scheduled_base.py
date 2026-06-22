@@ -34,10 +34,9 @@ from app.schemas.scheduled import (
 )
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
-from app.utils.entry_generator import _build_description, generate_entries, regenerate_entries
 from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.recurring_vendor_sync import run_recurring_vendor_sync, sync_recurring_from_vendors
+from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
+from app.services import scheduled_service
 
 
 def _entry_response(e: ScheduledEntry) -> dict:
@@ -218,11 +217,8 @@ def create_scheduled_router(
         db.add(defn)
         db.flush()
 
-        # Girişleri oluştur
-        entries = generate_entries(db, defn, direction=direction)
-        # Cari-bağlı oluşturulduysa hemen cari gerçek faturayla senkronla
-        if enable_vendor_sync and defn.vendor_id:
-            sync_recurring_from_vendors(db)
+        # Girişleri üret + cari-bağlıysa senkronla (router + onay executor ORTAK)
+        entries = scheduled_service.post_create(db, defn, direction)
 
         log_action(
             db, current_user.id, "create", source_type, defn.id,
@@ -263,27 +259,11 @@ def create_scheduled_router(
         if approval_resp:
             return approval_resp
 
-        changes = {}
-        need_regenerate = False
-        for field, value in data.model_dump(exclude_unset=True).items():
-            if field == "vendor_id" and not value:
-                value = None  # 0/None → cari bağlantısını kaldır
-            old_val = getattr(defn, field)
-            if old_val != value:
-                changes[field] = {"old": str(old_val), "new": str(value)}
-                setattr(defn, field, value)
-                if field in ("amount", "frequency", "payment_day", "start_month"):
-                    need_regenerate = True
-
+        changes = scheduled_service.apply_definition_update(
+            db, defn, data.model_dump(exclude_unset=True), direction
+        )
         if not changes:
             return _defn_response(defn, include_entries=True)
-
-        if need_regenerate:
-            regenerate_entries(db, defn, direction=direction)
-        # Cari-bağlı recurring → herhangi bir değişiklikten sonra cari gerçek faturayla yeniden
-        # senkronla (regenerate, başlangıç ayı, fatura gecikmesi vb. tutar/dönem eşleşmesini değiştirir).
-        if enable_vendor_sync and defn.vendor_id:
-            sync_recurring_from_vendors(db)
 
         log_action(
             db, current_user.id, "update", source_type, defn.id,
@@ -319,17 +299,12 @@ def create_scheduled_router(
         if approval_resp:
             return approval_resp
 
-        # Tüm girişlerin finance_event'lerini sil
-        entries = defn.entries.all()
-        for entry in entries:
-            finance_event_svc.invalidate(db, entry.source_type, entry.id)
-
         log_action(
             db, current_user.id, "delete", source_type, defn.id,
             json.dumps({"name": defn.name, "amount": float(defn.amount)}, ensure_ascii=False),
             get_client_ip(request),
         )
-        db.delete(defn)  # CASCADE siler girişleri
+        scheduled_service.delete_definition(db, defn)  # FE invalidate + CASCADE
         db.commit()
         broadcast_finance_update(background_tasks, broadcast_module, "delete")
         return {"detail": f"{entity_label} silindi"}
@@ -361,28 +336,11 @@ def create_scheduled_router(
         if approval_resp:
             return approval_resp
 
-        changes = {}
-        for field, value in data.model_dump(exclude_unset=True).items():
-            old_val = getattr(entry, field)
-            if old_val != value:
-                changes[field] = {"old": str(old_val), "new": str(value)}
-                setattr(entry, field, value)
-
+        changes = scheduled_service.apply_entry_update(
+            db, entry, data.model_dump(exclude_unset=True), direction
+        )
         if not changes:
             return _entry_response(entry)
-
-        # Ödendi olarak işaretlenince paid_date otomatik set
-        if data.is_paid and not entry.paid_date:
-            entry.paid_date = date.today()
-
-        # Dönem değiştiyse açıklamayı da güncelle
-        if "period_month" in changes or "period_year" in changes:
-            entry.description = _build_description(
-                entry.source_type, entry.definition.name, entry.definition.category,
-                entry.period_month, entry.period_year,
-            )
-
-        finance_event_svc.upsert_scheduled_entry(db, entry, direction=direction)
 
         log_action(
             db, current_user.id, "update", f"{source_type}_entry", entry.id,

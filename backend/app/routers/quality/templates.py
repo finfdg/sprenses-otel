@@ -29,6 +29,7 @@ from app.schemas.quality import (
     TemplateUpdate,
 )
 from app.utils.approval_check import check_approval
+from app.services import quality_service
 from app.utils.audit import log_action
 
 router = APIRouter()
@@ -103,46 +104,6 @@ def _build_template_detail(t: QualityTemplate) -> dict:
         created_at=t.created_at,
         updated_at=t.updated_at,
     ).model_dump()
-
-
-def _save_sections(db: Session, template_id: int, sections_data: list) -> None:
-    """Şablon bölümlerini ve alanlarını kaydet."""
-    for i, sec_data in enumerate(sections_data):
-        section = QualityTemplateSection(
-            template_id=template_id,
-            name=sec_data.name,
-            sort_order=sec_data.sort_order if sec_data.sort_order else i,
-        )
-        db.add(section)
-        db.flush()
-
-        for j, field_data in enumerate(sec_data.fields):
-            field = QualityTemplateField(
-                section_id=section.id,
-                label=field_data.label,
-                field_type=field_data.field_type,
-                unit=field_data.unit,
-                is_required=field_data.is_required,
-                is_resource=field_data.is_resource,
-                is_guest_count=field_data.is_guest_count,
-                is_meter=field_data.is_meter,
-                is_month_end_only=field_data.is_month_end_only,
-                options=field_data.options,
-                sort_order=field_data.sort_order if field_data.sort_order else j,
-            )
-            db.add(field)
-
-
-def _save_assignees(db: Session, template_id: int, assignees_data: list) -> None:
-    """Şablon atamalarını kaydet."""
-    for a_data in assignees_data:
-        assignee = QualityTemplateAssignee(
-            template_id=template_id,
-            assignment_type=a_data.assignment_type,
-            user_id=a_data.user_id,
-            role_id=a_data.role_id,
-        )
-        db.add(assignee)
 
 
 # ─── Şablon Listesi ───────────────────────────────────────────────────
@@ -285,11 +246,11 @@ def create_template(
 
     # Bölüm ve alanları kaydet
     if data.sections:
-        _save_sections(db, template.id, data.sections)
+        quality_service.save_sections(db, template.id, [s.model_dump() for s in data.sections])
 
     # Atamaları kaydet
     if data.assignees:
-        _save_assignees(db, template.id, data.assignees)
+        quality_service.save_assignees(db, template.id, [a.model_dump() for a in data.assignees])
 
     log_action(
         db, current_user.id, "create", "quality_template",
@@ -367,7 +328,7 @@ def update_template(
             QualityTemplateSection.template_id == template_id
         ).delete()
         db.flush()
-        _save_sections(db, template_id, data.sections)
+        quality_service.save_sections(db, template_id, [s.model_dump() for s in data.sections])
 
     # Atamalar değiştiyse mevcut atamaları sil, yenilerini ekle
     if data.assignees is not None:
@@ -375,7 +336,7 @@ def update_template(
             QualityTemplateAssignee.template_id == template_id
         ).delete()
         db.flush()
-        _save_assignees(db, template_id, data.assignees)
+        quality_service.save_assignees(db, template_id, [a.model_dump() for a in data.assignees])
 
     log_action(
         db, current_user.id, "update", "quality_template",

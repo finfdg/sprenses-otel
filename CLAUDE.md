@@ -263,7 +263,9 @@ TEMPLATE:
 │   │   │   ├── sales_invoice_service.py   # Satış faturası FIFO motoru + 30sn TTL cache + avans bakiyeleri
 │   │   │   ├── credit_service.py          # Kredi ürün/ödeme CRUD + BCH/KMH plan (router + onay executor ORTAK)
 │   │   │   ├── vendor_service.py          # Cari vade/durum güncelleme + FE sync (router + onay executor ORTAK)
-│   │   │   └── check_service.py           # Çek durum güncelleme + iptal kademesi (router + onay executor ORTAK)
+│   │   │   ├── check_service.py           # Çek durum güncelleme + iptal kademesi (router + onay executor ORTAK)
+│   │   │   ├── scheduled_service.py       # Planlı gelir/gider tanım+giriş (8 modül; router fabrikası + executor ORTAK)
+│   │   │   └── quality_service.py         # Kalite şablon bölüm/alan/atama kaydetme (router + executor ORTAK)
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations

@@ -120,33 +120,22 @@ _SCHEDULED_SOURCE_MAP = {
 
 
 def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type, direction):
-    """Planlı gider/gelir modülleri handler'ı."""
+    """Planlı gider/gelir modülleri handler'ı — router (create_scheduled_router) ile ORTAK tek
+    kaynak: app/services/scheduled_service (girişleri üret + cari sync + FE + açıklama)."""
     from app.models.scheduled import ScheduledDefinition, ScheduledEntry
-    from app.utils.entry_generator import _build_description, generate_entries, regenerate_entries
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services import scheduled_service
 
     target = payload.pop("_target", "definition")
 
     if target == "entry":
-        # Giriş güncelleme
         entry = db.query(ScheduledEntry).filter(ScheduledEntry.id == entity_id).first()
         if not entry:
             raise ValueError(f"Giriş bulunamadı: {entity_id}")
-        _apply_fields(entry, payload, exclude={"_target"})
-        if payload.get("is_paid") and not entry.paid_date:
-            entry.paid_date = date.today()
-        # Dönem değiştiyse açıklamayı yeniden üret (router update_entry ile birebir) — aksi halde
-        # nakit akımda (finance_event.description) bayat ay etiketi kalır.
-        if "period_month" in payload or "period_year" in payload:
-            entry.description = _build_description(
-                entry.source_type, entry.definition.name, entry.definition.category,
-                entry.period_month, entry.period_year,
-            )
-        finance_event_svc.upsert_scheduled_entry(db, entry, direction=direction)
+        scheduled_service.apply_entry_update(db, entry, payload, direction)
         return
 
     if action_type == "create":
-        # Pasif oluşturulmuş kaydı aktifleştir (entity_id > 0 ise)
+        # Pasif oluşturulmuş kaydı aktifleştir (entity_id > 0) veya yeni oluştur
         defn = None
         if entity_id > 0:
             defn = db.query(ScheduledDefinition).filter(
@@ -155,11 +144,10 @@ def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type
                 ScheduledDefinition.is_active == False,  # noqa: E712
             ).first()
         if defn:
-            # Mevcut pasif kaydı aktifleştir ve payload ile güncelle
             defn.is_active = True
             _apply_fields(defn, payload, exclude={"_target"})
         else:
-            # Pasif kayıt yoksa yeni oluştur (geriye uyumluluk)
+            # Geriye uyum fallback — vendor_id dahil (eskiden atlanıyordu → cari sync tetiklenmiyordu)
             defn = ScheduledDefinition(
                 source_type=source_type,
                 name=payload.get("name", ""),
@@ -171,12 +159,13 @@ def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type
                 start_month=payload.get("start_month", 1),
                 year=payload.get("year") or date.today().year,
                 notes=payload.get("notes"),
+                vendor_id=payload.get("vendor_id"),
                 is_active=True,
                 created_by=actor_id,
             )
             db.add(defn)
         db.flush()
-        generate_entries(db, defn, direction=direction)
+        scheduled_service.post_create(db, defn, direction)
 
     elif action_type == "update":
         defn = db.query(ScheduledDefinition).filter(
@@ -185,20 +174,7 @@ def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type
         ).first()
         if not defn:
             raise ValueError(f"Tanım bulunamadı: {entity_id}")
-        need_regen = False
-        for field, value in payload.items():
-            if field.startswith("_"):
-                continue
-            if hasattr(defn, field):
-                setattr(defn, field, value)
-                if field in ("amount", "frequency", "payment_day", "start_month"):
-                    need_regen = True
-        if need_regen:
-            regenerate_entries(db, defn, direction=direction)
-        # Cari-bağlı düzenli ödeme → herhangi bir değişiklikten sonra cari gerçek faturayla senkronla
-        if defn.vendor_id:
-            from app.utils.recurring_vendor_sync import sync_recurring_from_vendors
-            sync_recurring_from_vendors(db)
+        scheduled_service.apply_definition_update(db, defn, payload, direction)
 
     elif action_type == "delete":
         defn = db.query(ScheduledDefinition).filter(
@@ -207,10 +183,7 @@ def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type
         ).first()
         if not defn:
             raise ValueError(f"Tanım bulunamadı: {entity_id}")
-        entries = defn.entries.all()
-        for entry in entries:
-            finance_event_svc.invalidate(db, entry.source_type, entry.id)
-        db.delete(defn)
+        scheduled_service.delete_definition(db, defn)
 
 
 def _make_scheduled_handler(source_type, direction):
@@ -554,6 +527,7 @@ def _handle_quality_templates(db, action_type, entity_id, payload, actor_id):
     from app.models.quality_template import QualityTemplate
     from app.models.quality_template_assignee import QualityTemplateAssignee
     from app.models.quality_template_section import QualityTemplateSection
+    from app.services import quality_service
 
     if action_type == "create":
         sections_data = payload.pop("sections", [])
@@ -570,8 +544,8 @@ def _handle_quality_templates(db, action_type, entity_id, payload, actor_id):
         )
         db.add(tpl)
         db.flush()
-        _save_template_sections(db, tpl.id, sections_data)
-        _save_template_assignees(db, tpl.id, assignees_data)
+        quality_service.save_sections(db, tpl.id, sections_data)
+        quality_service.save_assignees(db, tpl.id, assignees_data)
 
     elif action_type == "update":
         tpl = db.query(QualityTemplate).filter(QualityTemplate.id == entity_id).first()
@@ -585,66 +559,18 @@ def _handle_quality_templates(db, action_type, entity_id, payload, actor_id):
                 QualityTemplateSection.template_id == entity_id
             ).delete()
             db.flush()
-            _save_template_sections(db, entity_id, sections_data)
+            quality_service.save_sections(db, entity_id, sections_data)
         if assignees_data is not None:
             db.query(QualityTemplateAssignee).filter(
                 QualityTemplateAssignee.template_id == entity_id
             ).delete()
             db.flush()
-            _save_template_assignees(db, entity_id, assignees_data)
+            quality_service.save_assignees(db, entity_id, assignees_data)
 
     elif action_type == "delete":
         tpl = db.query(QualityTemplate).filter(QualityTemplate.id == entity_id).first()
         if tpl:
             db.delete(tpl)
-
-
-def _save_template_sections(db, template_id, sections_data):
-    """Şablon bölümlerini ve alanlarını kaydet."""
-    from app.models.quality_template_field import QualityTemplateField
-    from app.models.quality_template_section import QualityTemplateSection
-
-    for i, sec in enumerate(sections_data):
-        section = QualityTemplateSection(
-            template_id=template_id,
-            name=sec.get("name", sec.get("title", "")),
-            sort_order=sec.get("sort_order", i),
-        )
-        db.add(section)
-        db.flush()
-        for j, fld in enumerate(sec.get("fields", [])):
-            field = QualityTemplateField(
-                section_id=section.id,
-                label=fld.get("label", ""),
-                field_type=fld.get("field_type", "text"),
-                unit=fld.get("unit"),
-                # options payload'da zaten JSON string (şema: Optional[str]) — tekrar dumps ETME
-                # (eski handler çift-serileştiriyordu → select seçenekleri parse edilemiyordu).
-                options=fld.get("options"),
-                is_required=fld.get("is_required", False),
-                is_resource=fld.get("is_resource", False),
-                is_guest_count=fld.get("is_guest_count", False),
-                is_meter=fld.get("is_meter", False),
-                is_month_end_only=fld.get("is_month_end_only", False),
-                sort_order=fld.get("sort_order", j),
-            )
-            db.add(field)
-
-
-def _save_template_assignees(db, template_id, assignees_data):
-    """Şablon atananları kaydet."""
-    from app.models.quality_template_assignee import QualityTemplateAssignee
-
-    for a in assignees_data:
-        # assignment_type ZORUNLU (NOT NULL, default yok) — atlanırsa IntegrityError → onay 500.
-        # role_id de taşınmalı (yoksa rol-bazlı atamada user_id+role_id ikisi de NULL → CHECK ihlali).
-        assignee = QualityTemplateAssignee(
-            template_id=template_id,
-            assignment_type=a.get("assignment_type"),
-            user_id=a.get("user_id"),
-            role_id=a.get("role_id"),
-        )
-        db.add(assignee)
 
 
 def _handle_quality_forms(db, action_type, entity_id, payload, actor_id):
