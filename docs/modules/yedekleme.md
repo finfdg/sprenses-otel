@@ -1,5 +1,24 @@
 # Yedekleme Modülü
 
+> ## ⚠️ İki ayrı yedek vardır — karıştırma
+> - **KOD yedeği** (bu modül + Stop hook): kaynak kodu git/GitHub'a yedekler. **Veriyi (DB) YEDEKLEMEZ.**
+> - **VERİTABANI yedeği** (aşağıdaki "Veritabanı Yedeği" bölümü): `pg_dump` ile finansal/cari/rezervasyon/PDKS verisini yedekler.
+>
+> Bu ayrım kritik: 2026-06-21 denetimi (D15-1, **tek Kritik bulgu**) bu modülün yalnız kodu yedeklediğini, DB için
+> hiçbir otomatik yedek olmadığını saptadı → 2026-06-22'de DB yedeği eklendi (aşağıda).
+
+## Veritabanı Yedeği (pg_dump) — 2026-06-22 (D15-1)
+
+Otomatik günlük PostgreSQL yedeği. **Bu modülden (UI) bağımsız**, altyapı seviyesinde çalışır.
+
+- **Script:** `scripts/db-backup.sh` — `pg_dump -Fc` (sıkıştırılmış custom format) → `/var/backups/sprenses-db/sprenses-<ts>.dump`. Atomik yazım (`.tmp`→`mv`), **bütünlük doğrulaması** (`pg_restore --list`), **rotasyon** (son `SPRENSES_BACKUP_KEEP`=30 yedek). DB şifresi `.env`'deki `DATABASE_URL`'den (argümanda parola yok, `PGPASSWORD`).
+- **Zamanlama:** `sprenses-db-backup.timer` (systemd) — her gün **03:00 Europe/Istanbul**, `Persistent=true` (kaçan koşum açılışta çalışır). Servis: `sprenses-db-backup.service` (`User=ec2-user`, oneshot).
+- **Geri yükleme / tatbikat:** `scripts/db-restore.sh`
+  - `scripts/db-restore.sh` → en son yedeği **geçici DB'ye** yükler + kritik tablo satır sayılarını basar + geçici DB'yi siler (**restore tatbikatı** — "yedek var ≠ çalışıyor"). Çeyrekte bir çalıştırılmalı.
+  - `scripts/db-restore.sh <dump> sprenses` → **ÜRETİME** geri yükler (elle `EVET` onayı; `--clean --if-exists`, owner=sprenses md5 ile).
+- **Off-site (OPSİYONEL, henüz pasif):** `SPRENSES_BACKUP_S3=s3://bucket/prefix` set edilirse `aws s3 cp --sse AES256` ile yüklenir. **Şu an kapalı** — EC2'de IAM role / aws credential YOK. Tam felaket-kurtarma (instance/disk kaybı) için S3 bucket + IAM role kurulup bu değişken servise (`/etc/systemd/system/sprenses-db-backup.service` `Environment=`) eklenmeli. Yerel yedek; yanlış DROP/DELETE, app bug ve veri bozulmasına karşı korur ama tek-disk kaybına karşı KORUMAZ → off-site tamamlanmalı.
+- **Not:** `archive_mode=off` (PITR yok); küçük DB (~44 MB) için günlük tam-dump yeterli. PITR/RDS orta-vade.
+
 ## Genel Bilgi
 - **Modül kodu:** `system.backup` (üst modül: `system`)
 - **Frontend rota:** `/dashboard/sistem/yedekleme`

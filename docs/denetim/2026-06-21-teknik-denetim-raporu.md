@@ -29,7 +29,7 @@
 **Profil:** Ürün/uygulama katmanı (güvenlik, mobil, performans, mimari, finans iş mantığı) gerçekten üst-çeyrek; **operasyon/platform katmanı (CI-gating, DR/yedek, observability, yatay ölçek) enterprise seviyenin altında.** Tek Kritik bulgu — **otomatik veritabanı yedeği yok** — genel notu sınırlayan ana kalemdir.
 
 **En kritik 3 madde (doğrulanmış):**
-1. 🔴 **KRİTİK — D15-1:** Otomatik DB yedeği YOK. "Yedekleme" modülü yalnız *kodu* git ile yedekliyor; DB için pg_dump/PITR/snapshot job'u hiç yok.
+1. ✅ **GİDERİLDİ (2026-06-22) — KRİTİK D15-1:** Otomatik DB yedeği yoktu (modül yalnız kodu yedekliyordu). → `scripts/db-backup.sh` (günlük `pg_dump -Fc` + bütünlük doğrulaması + 30-yedek rotasyon) + systemd `sprenses-db-backup.timer` (03:00 Istanbul) **canlı**; `scripts/db-restore.sh` ile **restore tatbikatı geçti** (yedek gerçek veriyle geri yüklenebildi). **Açık:** off-site (S3) IAM role gerektirir → opt-in (`SPRENSES_BACKUP_S3`) bırakıldı; tam disk/instance-kaybı koruması için kurulmalı.
 2. ✅ **ÇÖZÜLDÜ (2026-06-22) — YÜKSEK D2-4:** `approval_executor` router mantığını elle tekrarlıyordu + **gerçek bug**: `product_id` (model kolonu `credit_product_id`) → onaylanan ödeme-güncelleme/ürün-silme'de `AttributeError` 500; BCH/KMH onayında ödeme planı + finance_events üretilmiyordu. → `app/services/credit_service.py` (router + executor ORTAK çağırır) + tarih coercion + 3 regresyon testi (D1-2 ilk dilim).
 3. 🟠 **YÜKSEK — D10-1:** En büyük dosya `bank_parser.py` (1044 satır, banka ekstre ayrıştırma) ayrıştırma mantığı hiç test edilmiyor (~%9 kapsam = sadece import). Finansal verinin giriş kapısı.
 
@@ -535,7 +535,7 @@
 ## 9. 30-60-90 Günlük İyileştirme Planı
 
 **İlk 30 gün — "Kanamayı durdur" (Kritik + Yüksek + ucuz güvenlik):**
-- 🔴 **Otomatik DB yedeği:** `pg_dump -Fc` günlük + off-site (S3, SSE) systemd timer + ilk **restore tatbikatı** (D15-1)
+- ✅ **Otomatik DB yedeği (YAPILDI 2026-06-22):** günlük `pg_dump -Fc` + systemd timer + restore tatbikatı geçti (D15-1). Off-site (S3) opt-in/pasif — IAM role gerektirir.
 - 🟠 `approval_executor` `product_id`→`credit_product_id` bug'ını düzelt + BCH/KMH ödeme planı/finance_events handler'ını tamamla + regresyon testi (D2-4)
 - 🟠 `bank_parser` saf yardımcıları (TR/EN sayı, format tespiti, bakiye-zinciri) için fixture'sız unit testler — hızlı kazanım (D10-1)
 - CI'a `pip-audit` + `bandit` + `.github/dependabot.yml` + `svelte-check` adımı (D11-2/3)
