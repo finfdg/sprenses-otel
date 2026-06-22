@@ -538,16 +538,6 @@
 	let checksLoading = $state(false);
 	let checkSearch = $state('');
 
-	let filteredChecks = $derived(() => {
-		if (!checkSearch) return candidateChecks;
-		const q = checkSearch.toLowerCase();
-		return candidateChecks.filter(c =>
-			c.check_no?.toLowerCase().includes(q) ||
-			c.vendor_name?.toLowerCase().includes(q) ||
-			c.description?.toLowerCase().includes(q)
-		);
-	});
-
 	async function openCheckMatch(vtxId: number, amount: number) {
 		checkMatchVtxId = vtxId;
 		checkMatchVtxAmount = amount;

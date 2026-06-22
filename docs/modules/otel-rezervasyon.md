@@ -20,6 +20,25 @@ app/routers/sales/reservations/
 └── _helpers.py         # _apply_filters, _parse_date, _resolve_date_range, _month_days_in_range, UPLOAD_DIR
 ```
 
+### Frontend (modal bileşenleri — 2026-06-22, D1-3)
+
+Sayfa `+page.svelte` 2232→1916 satıra indirildi; 4 modal ayrı **sunum bileşenlerine** çıkarıldı.
+State + handler + veri yükleme parent'ta kalır, bileşene `$bindable` prop + callback ile geçer
+(davranış birebir korunur — 8-ajan parite incelemesiyle doğrulandı). Ortak tipler `$lib/types/reservation.ts`
+(`UploadHistory`/`RemovalCandidate`/`UploadResult`/`ApiGroup`) — parent + bileşenler tek kaynaktan kullanır.
+
+```
+frontend/src/lib/components/sales/otel-rezervasyon/
+├── ResultModal.svelte          # Yükleme sonucu (özet + "Kayıtları İncele")
+├── RemovalReviewModal.svelte   # Silme adayları seç/sil (toggle mantığı bileşende)
+├── UploadsHistoryModal.svelte  # Yükleme geçmişi tablosu + sil
+└── AgencyGroupModal.svelte     # Acente grupları (liste+form tek modal) — reset $effect parent'ta kalır
+```
+
+> **Not (AgencyGroupModal):** Modal kapanışında gm* state'i sıfırlayan `$effect` ve `gmSuggestions`
+> `$derived`'i **parent'ta** tutuldu (`+page.svelte`). `bind:show` iki-yönlü olduğundan kapanış reset'i
+> bileşenden de doğru tetiklenir; `gmSearch` yazımı parent derived'i yeniden hesaplatır.
+
 ## Canlı Doluluk Senkronu — SednaPrenses Önbüro DB'si (2026-06-07)
 
 Rezervasyonlar artık XLS yüklemeye ek olarak **doğrudan SednaPrenses önbüro/PMS DB'sinden**

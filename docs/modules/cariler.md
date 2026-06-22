@@ -26,7 +26,13 @@
 | Dosya | Açıklama |
 |---|---|
 | `frontend/src/routes/dashboard/finans/cariler/+page.svelte` | Cariler ana sayfa |
+| `frontend/src/lib/components/finance/cariler/CheckMatchModal.svelte` | Çek eşleştirme modalı (sunum bileşeni) |
+| `frontend/src/lib/components/finance/cariler/UploadResultModal.svelte` | Yükleme sonucu + silme adayları modalı |
+| `frontend/src/lib/components/finance/cariler/DeptAssignModal.svelte` | Departman/bütçe atama modalı |
+| `frontend/src/lib/components/finance/cariler/AddToListModal.svelte` | Ödeme talimatına ekle modalı |
 | `frontend/src/lib/types/vendor.ts` | TypeScript tipleri |
+
+> **Modülerlik (2026-06-22, D1-3):** 4 modal `+page.svelte`'den ayrı **sunum bileşenlerine** çıkarıldı (1995→1780 satır). Bileşenler salt sunum: state + handler + veri yükleme parent'ta kalır, bileşene `$bindable` prop + callback ile geçer (davranış birebir korunur — 8-ajan parite incelemesiyle doğrulandı). Toggle (seçim) gibi salt-UI mantığı `UploadResultModal`'a taşındı.
 
 ## Veritabanı Şeması
 

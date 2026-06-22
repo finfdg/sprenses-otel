@@ -152,3 +152,23 @@ risk-without-reward). Yeni liste sayfaları doğrudan ListPage ile kurulmalıdı
 - **Uzak depo:** `github.com/finfdg/sprenses-otel` (private). Kod + git geçmişi off-site yedeklidir.
 - **Gizli bilgi:** `.env` ve sırlar yedeğe DAHİL DEĞİL (gitignore). `backend/.env` ayrı, güvenli bir yerde saklanmalı.
 - **Otomatik yedek:** `.claude/settings.json` içindeki **Stop hook**, her iş bitiminde değişiklik varsa zaman damgalı commit + `origin/master`'a push eder (async, kendini-iyileştiren, turu bloke etmez). Değişiklik yoksa no-op.
+
+---
+
+## God-Component Bölme — Modal Çıkarımı (2026-06-22, D1-3)
+
+İki en büyük frontend sayfası modal markup'larından arındırıldı; her modal ayrı bir **sunum bileşenine** çıkarıldı.
+
+| Sayfa | Önce | Sonra | Çıkarılan bileşen |
+|---|---|---|---|
+| `finans/cariler/+page.svelte` | 1995 | 1780 | `CheckMatchModal`, `UploadResultModal`, `DeptAssignModal`, `AddToListModal` (`lib/components/finance/cariler/`) |
+| `satis/otel-rezervasyon/+page.svelte` | 2232 | 1916 | `ResultModal`, `RemovalReviewModal`, `UploadsHistoryModal`, `AgencyGroupModal` (`lib/components/sales/otel-rezervasyon/`) |
+
+**Desen (zorunlu — davranış-koruyan çıkarım):**
+- Bileşen **salt sunum**: tüm state, handler ve veri yükleme **parent'ta kalır**.
+- Parent'ın geri okuduğu state `$bindable` prop ile iki-yönlü; geri okumadığı veri tek-yön prop; eylemler `callback` prop.
+- Yalnız salt-UI mantığı (seçim toggle'ı) bileşene taşınabilir (`UploadResultModal`/`RemovalReviewModal`).
+- Reaktif bağımlılıklar (örn. otel `AgencyGroupModal`'ın kapanışta-reset `$effect`'i + `gmSuggestions` `$derived`'i) **parent'ta tutuldu**; `bind:show` sayesinde reset bileşenden de tetiklenir.
+- Tekrarlanan tipler ortak dosyaya alındı: `lib/types/reservation.ts` (`UploadHistory`/`RemovalCandidate`/`UploadResult`/`ApiGroup`) — parent + bileşenler tek kaynak.
+
+**Doğrulama:** `svelte-check` **0 hata** · `npm run build` ✓ · **8-ajan adversaryel parite incelemesi** (her bileşen git baseline orijinaliyle karşılaştırıldı) → **8/8 `parity`**, kritik/yüksek/orta sapma yok (yalnız 1 ölü-kod temizliği + 1 zararsız fark).
