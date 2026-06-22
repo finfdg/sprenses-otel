@@ -868,6 +868,110 @@ class TestApprovalExecutorMoreModules:
         db.expire_all()
         assert db.query(CreditProduct).filter(CreditProduct.name == cname).first() is not None
 
+    def test_credit_bch_create_via_approval_generates_plan(self, db):
+        """REGRESYON (D2-4): krediler create handler'ı BCH/KMH ödeme planını + finance_events'i
+        ÜRETMİYORDU (router üretiyordu) → onaylı BCH kredisi sessizce plansız/nakit-akımsız oluşuyordu.
+        Service ortaklaştırması (2026-06-22) sonrası onaylanan BCH kredisi taksit planını + FE üretmeli."""
+        from app.models.credit_product import CreditPayment, CreditProduct
+        from app.models.finance_event import FinanceEvent
+        _, req_role, req_client = _make_actor(db, {"finance.krediler": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.krediler", req_role, app_role)
+
+        cname = f"BCH {uuid4().hex[:6]}"
+        resp = req_client.post("/api/finance/krediler/", json={
+            "type": "bch", "name": cname, "currency": "TRY", "total_amount": 1000000,
+            "interest_rate": 50, "start_date": "2026-01-01", "end_date": "2026-12-31",
+        })
+        assert resp.status_code == 202, resp.text
+        req_id = resp.json()["request_id"]
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"BCH onayı 500 vermemeli (plan/tarih regresyonu): {ap.text}"
+
+        db.expire_all()
+        prod = db.query(CreditProduct).filter(CreditProduct.name == cname).first()
+        assert prod is not None
+        payments = db.query(CreditPayment).filter(CreditPayment.credit_product_id == prod.id).all()
+        assert len(payments) > 0, "Onaylı BCH kredisi ödeme planı üretmeliydi (D2-4)"
+        fe = db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "credit",
+            FinanceEvent.source_id.in_([p.id for p in payments]),
+        ).count()
+        assert fe > 0, "Taksitlerin finance_events kayıtları üretilmeliydi (D2-4)"
+
+    def test_credit_payment_update_via_approval(self, db):
+        """REGRESYON (D2-4): executor payment update `payment.product_id` (yanlış kolon —
+        model `credit_product_id`) kullanıyordu → onaylı ödeme güncelleme AttributeError/500.
+        Service sonrası onaylanınca ödeme güncellenmeli + kalan borç principal kadar azalmalı."""
+        from datetime import date
+
+        from app.models.credit_product import CreditPayment, CreditProduct
+        _, req_role, req_client = _make_actor(db, {"finance.krediler": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.krediler", req_role, app_role)
+
+        prod = CreditProduct(type="spot_kredi", name=f"K {uuid4().hex[:6]}", currency="TRY",
+                             total_amount=100000, remaining_amount=100000)
+        db.add(prod)
+        db.flush()
+        pay = CreditPayment(credit_product_id=prod.id, installment_no=1, due_date=date(2026, 6, 30),
+                            amount=10000, principal=10000, is_paid=False)
+        db.add(pay)
+        db.commit()
+        pid, prod_id = pay.id, prod.id
+
+        r = req_client.patch(f"/api/finance/krediler/payments/{pid}", json={"is_paid": True})
+        assert r.status_code == 202, r.text
+        req_id = r.json()["request_id"]
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"executor product_id bug'ı 500 verirdi (D2-4): {ap.text}"
+
+        db.expire_all()
+        assert db.get(CreditPayment, pid).is_paid is True
+        assert float(db.get(CreditProduct, prod_id).remaining_amount) == 90000  # 100000 - 10000 principal
+
+    def test_credit_product_delete_via_approval(self, db):
+        """REGRESYON (D2-4): executor product delete `CreditPayment.product_id` (yanlış kolon)
+        ile sorguluyordu → AttributeError/500. Service sonrası onaylı silme ürünü + ödemeleri
+        kaldırmalı, finance_events invalidate edilmeli."""
+        from datetime import date
+
+        from app.models.credit_product import CreditPayment, CreditProduct
+        from app.models.finance_event import FinanceEvent
+        from app.utils.finance_event_service import finance_event_svc
+        _, req_role, req_client = _make_actor(db, {"finance.krediler": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.krediler", req_role, app_role)
+
+        prod = CreditProduct(type="spot_kredi", name=f"Sil {uuid4().hex[:6]}", currency="TRY",
+                             total_amount=50000, remaining_amount=50000)
+        db.add(prod)
+        db.flush()
+        pay = CreditPayment(credit_product_id=prod.id, installment_no=1, due_date=date(2026, 6, 30),
+                            amount=5000, principal=5000, is_paid=False)
+        db.add(pay)
+        db.flush()
+        finance_event_svc.upsert_credit_payment(db, pay, prod)
+        db.commit()
+        prod_id, pid = prod.id, pay.id
+        assert db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "credit", FinanceEvent.source_id == pid).count() == 1
+
+        r = req_client.delete(f"/api/finance/krediler/{prod_id}")
+        assert r.status_code == 202, r.text
+        req_id = r.json()["request_id"]
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"executor product_id bug'ı 500 verirdi (D2-4): {ap.text}"
+
+        db.expire_all()
+        assert db.get(CreditProduct, prod_id) is None
+        assert db.get(CreditPayment, pid) is None
+        assert db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "credit", FinanceEvent.source_id == pid).count() == 0
+
 
 class TestApprovalExecutorHR:
     """İK modüllerinin (hr.attendance, hr.shift_schedule) uçtan-uca onay→uygula regresyonu.

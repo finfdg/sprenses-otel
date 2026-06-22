@@ -5,9 +5,8 @@ from fastapi import APIRouter
 from ._helpers import (
     _batch_payment_stats,
     _build_product_response,
-    _regenerate_bch_payments,
-    _regenerate_kmh_payments,
 )
+from app.services.credit_service import _regenerate_bch_payments, _regenerate_kmh_payments
 from app.utils.matching_service import _match_credits_to_bank
 
 from .kmh import router as kmh_router

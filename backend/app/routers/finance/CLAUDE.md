@@ -61,6 +61,28 @@ bayat typo-dup. **Sedna'da hiç eşi olmayan (legit) çeke ve EŞLEŞMİŞ çeke
 - **Cari tarafı:** stale cari hareketleri için `cariler` modülünde `removal_candidates` mekanizması var (manuel onay).
 - Test: `test_checks.py::TestCheckBankInference::test_sweep_stale_checks_removes_only_sedna_absent_dupes`.
 
+## Krediler — Ortak Service Katmanı + Onay Sapması Düzeltmesi (2026-06-22, D1-2)
+
+Kredi ürün/ödeme mutasyon mantığı tek kaynakta: **`app/services/credit_service.py`**. Hem router
+endpoint'leri (`products.py` create/update/delete, `payments.py` update/delete) hem onay executor
+handler'ı (`approval_executor._handle_finance_krediler`) AYNI service fonksiyonlarını çağırır
+(`create_product`/`apply_product_update`/`delete_product`/`apply_payment_update`/`delete_payment`).
+BCH/KMH plan üreticileri (`_regenerate_bch_payments`/`_regenerate_kmh_payments`) `_helpers.py`'den
+buraya taşındı (router→router/service import yönü korunur); `_helpers.py` yalnız sunum yardımcıları
+(`_build_product_response`/`_batch_payment_stats`) tutar.
+
+**Kapatılan sapmalar (2026-06-21 denetim D2-4 — executor router'dan elle sapıyordu):**
+- `payment.product_id` / `CreditPayment.product_id` → model kolonu **`credit_product_id`**; onaylı
+  ödeme-güncelleme + ürün-silme `AttributeError`/500 veriyordu. Artık doğru kolon (service).
+- Onaylı create/update'te **BCH/KMH ödeme planı + finance_events üretilmiyordu** (router üretiyor,
+  executor atlıyordu) → onaylı BCH kredisi sessizce plansız/nakit-akımsız oluşuyordu. Artık üretilir.
+- **Tarih coercion:** onay payload'ı `json.dumps(..., default=str)` ile saklanır → tarihler string
+  olur; `credit_service._coerce_date` regeneratör tarih aritmetiği öncesi `date`'e çevirir.
+
+**Regresyon testleri:** `test_approval_system.py::TestApprovalExecutorMoreModules` →
+`test_credit_bch_create_via_approval_generates_plan`, `test_credit_payment_update_via_approval`,
+`test_credit_product_delete_via_approval`. Davranış router ile birebir (1155 test yeşil).
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:

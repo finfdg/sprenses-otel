@@ -366,75 +366,38 @@ def _handle_finance_banks(db, action_type, entity_id, payload, actor_id):
 
 
 def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
+    # Router endpoint'iyle BİREBİR aynı mantık (tek kaynak: app/services/credit_service).
+    # Böylece onaylanan create/update'te de BCH/KMH ödeme planı + finance_events üretilir,
+    # remaining_amount doğru ayarlanır ve doğru kolon (credit_product_id) kullanılır
+    # (eski elle-yazım `payment.product_id` ile AttributeError veriyor + planı atlıyordu — D2-4).
     from app.models.credit_product import CreditPayment, CreditProduct
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services import credit_service
 
     target = payload.pop("_target", "product")
 
     if target == "payment":
-        # Ödeme güncelleme/silme
+        payment = db.query(CreditPayment).filter(CreditPayment.id == entity_id).first()
         if action_type == "update":
-            payment = db.query(CreditPayment).filter(CreditPayment.id == entity_id).first()
             if not payment:
                 raise ValueError(f"Ödeme bulunamadı: {entity_id}")
-            old_is_paid = payment.is_paid
-            _apply_fields(payment, payload, exclude={"_target"})
-            db.flush()
-            product = db.query(CreditProduct).filter(CreditProduct.id == payment.product_id).first()
-            if product:
-                finance_event_svc.upsert_credit_payment(db, payment, product)
-                # remaining_amount güncelle
-                if old_is_paid != payment.is_paid and payment.principal:
-                    if payment.is_paid:
-                        product.remaining_amount = float(product.remaining_amount or 0) - float(payment.principal or 0)
-                    else:
-                        product.remaining_amount = float(product.remaining_amount or 0) + float(payment.principal or 0)
+            credit_service.apply_payment_update(db, payment, payload)
         elif action_type == "delete":
-            payment = db.query(CreditPayment).filter(CreditPayment.id == entity_id).first()
             if payment:
-                finance_event_svc.invalidate(db, "credit", payment.id)
-                db.delete(payment)
+                credit_service.delete_payment(db, payment)
         return
 
     # Ürün CRUD
     if action_type == "create":
-        details = payload.get("details")
-        product = CreditProduct(
-            type=payload.get("type", ""),
-            name=payload.get("name", ""),
-            bank_name=payload.get("bank_name"),
-            company=payload.get("company"),
-            currency=payload.get("currency", "TRY"),
-            total_amount=payload.get("total_amount", 0),
-            remaining_amount=payload.get("remaining_amount", 0),
-            interest_rate=payload.get("interest_rate"),
-            bsmv_rate=payload.get("bsmv_rate"),
-            commission_rate=payload.get("commission_rate"),
-            start_date=payload.get("start_date"),
-            end_date=payload.get("end_date"),
-            details=json.dumps(details, ensure_ascii=False) if details else None,
-            notes=payload.get("notes"),
-            created_by=actor_id,
-        )
-        db.add(product)
-
+        credit_service.create_product(db, payload, actor_id)
     elif action_type == "update":
         product = db.query(CreditProduct).filter(CreditProduct.id == entity_id).first()
         if not product:
             raise ValueError(f"Kredi ürünü bulunamadı: {entity_id}")
-        details = payload.pop("details", None)
-        _apply_fields(product, payload, exclude={"_target"})
-        if details is not None:
-            product.details = json.dumps(details, ensure_ascii=False)
-
+        credit_service.apply_product_update(db, product, payload)
     elif action_type == "delete":
         product = db.query(CreditProduct).filter(CreditProduct.id == entity_id).first()
         if product:
-            # Ödemelerin finance_event'lerini temizle
-            payments = db.query(CreditPayment).filter(CreditPayment.product_id == entity_id).all()
-            for p in payments:
-                finance_event_svc.invalidate(db, "credit", p.id)
-            db.delete(product)
+            credit_service.delete_product(db, product)
 
 
 def _handle_finance_avanslar(db, action_type, entity_id, payload, actor_id):

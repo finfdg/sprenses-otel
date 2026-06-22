@@ -30,7 +30,7 @@
 
 **En kritik 3 madde (doğrulanmış):**
 1. 🔴 **KRİTİK — D15-1:** Otomatik DB yedeği YOK. "Yedekleme" modülü yalnız *kodu* git ile yedekliyor; DB için pg_dump/PITR/snapshot job'u hiç yok.
-2. 🟠 **YÜKSEK — D2-4:** `approval_executor` router mantığını elle tekrarlıyor + **gerçek bug**: `product_id` (model kolonu `credit_product_id`) → onaylanan ödeme-güncelleme/ürün-silme'de `AttributeError` 500; BCH/KMH onayında ödeme planı + finance_events üretilmiyor.
+2. ✅ **ÇÖZÜLDÜ (2026-06-22) — YÜKSEK D2-4:** `approval_executor` router mantığını elle tekrarlıyordu + **gerçek bug**: `product_id` (model kolonu `credit_product_id`) → onaylanan ödeme-güncelleme/ürün-silme'de `AttributeError` 500; BCH/KMH onayında ödeme planı + finance_events üretilmiyordu. → `app/services/credit_service.py` (router + executor ORTAK çağırır) + tarih coercion + 3 regresyon testi (D1-2 ilk dilim).
 3. 🟠 **YÜKSEK — D10-1:** En büyük dosya `bank_parser.py` (1044 satır, banka ekstre ayrıştırma) ayrıştırma mantığı hiç test edilmiyor (~%9 kapsam = sadece import). Finansal verinin giriş kapısı.
 
 ---
@@ -129,6 +129,8 @@
 
 **Risk Seviyesi:** Çoğu Orta/Düşük (kalite). D2-4 Yüksek (üretim verisi).
 **Öncelik:** D2-4 (önce `product_id`→`credit_product_id` bug'ını düzelt, sonra service-katmanı ile kökten çöz) → D2-1 → D2-2 → D2-5 → D2-3/D2-6.
+
+> **✅ Uygulama Durumu (2026-06-22, D1-2 ilk dilim):** **D2-4 ÇÖZÜLDÜ** — `app/services/credit_service.py` oluşturuldu; `finance.krediler` router endpoint'leri (`products.py`/`payments.py`) ve onay executor handler'ı (`_handle_finance_krediler`) artık **AYNI** service fonksiyonlarını çağırıyor (tek kaynak → router↔executor sapması yapısal olarak imkansız). Düzeltilen bug'lar: (1) `payment.product_id`→`credit_product_id` (AttributeError/500), (2) onayda BCH/KMH ödeme planı + finance_events üretimi, (3) payload JSON tarih→string coercion (`_coerce_date`). BCH/KMH regeneratörler `_helpers.py`→service taşındı. **3 regresyon testi** (BCH plan üretimi, payment update, product delete — onay yoluyla). 1155 test yeşil, davranış router ile birebir, canlıya alındı. **Bu, D1-2 deseninin ilk uygulaması** — kalan ~19 executor handler aynı yöntemle kademeli ortaklaştırılabilir.
 
 ---
 

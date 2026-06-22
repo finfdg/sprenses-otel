@@ -1,6 +1,5 @@
 """Kredi ürünleri CRUD endpoint'leri."""
 
-import json
 import math
 from datetime import date as date_cls
 from typing import Optional
@@ -23,7 +22,6 @@ from app.schemas.credit import (
     CreditCloseRequest,
     CreditPaymentResponse,
     CreditProductCreate,
-    CreditProductResponse,
     CreditProductUpdate,
 )
 from app.utils.approval_check import check_approval
@@ -36,9 +34,8 @@ from app.utils.sql_search import like_pattern
 from ._helpers import (
     _batch_payment_stats,
     _build_product_response,
-    _regenerate_bch_payments,
-    _regenerate_kmh_payments,
 )
+from app.services import credit_service
 
 router = APIRouter()
 
@@ -270,36 +267,10 @@ def create_product(
     if approval_resp:
         return approval_resp
 
-    if data.type not in CREDIT_PRODUCT_TYPES:
-        raise HTTPException(status_code=400, detail=f"Geçersiz ürün tipi: {data.type}")
-
-    product = CreditProduct(
-        type=data.type,
-        name=data.name.strip(),
-        bank_name=data.bank_name.strip() if data.bank_name else None,
-        company=data.company.strip() if data.company else None,
-        currency=data.currency or "TRY",
-        total_amount=data.total_amount,
-        remaining_amount=data.remaining_amount,
-        interest_rate=data.interest_rate,
-        bsmv_rate=data.bsmv_rate,
-        commission_rate=data.commission_rate,
-        start_date=data.start_date,
-        end_date=data.end_date,
-        details=json.dumps(data.details, ensure_ascii=False) if data.details else None,
-        notes=data.notes,
-        created_by=current_user.id,
-    )
-    db.add(product)
-    db.flush()
-
-    # BCH/KMH: gerekli alanlar doluysa ödeme planını üret
-    payment_count = 0
-    if product.type in ("bch", "kmh") and product.start_date and product.end_date and product.interest_rate:
-        if product.type == "kmh":
-            payment_count = _regenerate_kmh_payments(db, product)
-        else:
-            payment_count = _regenerate_bch_payments(db, product)
+    try:
+        product, payment_count = credit_service.create_product(db, data.model_dump(), current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     details_msg = f"Kredi ürünü oluşturuldu: {CREDIT_TYPE_LABELS.get(data.type, data.type)} — {data.name}"
     if payment_count:
@@ -376,29 +347,8 @@ def update_product(
     if approval_resp:
         return approval_resp
 
-    update_data = data.model_dump(exclude_unset=True)
-
-    # BCH/KMH için yeniden hesaplama gerekip gerekmediğini kontrol et
-    needs_recalc = False
-    if product.type in ("bch", "kmh"):
-        recalc_fields = {"start_date", "end_date", "interest_rate", "total_amount", "remaining_amount", "bsmv_rate", "commission_rate"}
-        if recalc_fields & set(update_data.keys()):
-            needs_recalc = True
-
-    if "details" in update_data:
-        update_data["details"] = json.dumps(update_data["details"], ensure_ascii=False) if update_data["details"] else None
-
-    for key, value in update_data.items():
-        if key == "name" and value:
-            value = value.strip()
-        setattr(product, key, value)
-
-    # BCH/KMH ödeme planını yeniden oluştur
-    if needs_recalc:
-        if product.type == "kmh":
-            count = _regenerate_kmh_payments(db, product)
-        else:
-            count = _regenerate_bch_payments(db, product)
+    count = credit_service.apply_product_update(db, product, data.model_dump(exclude_unset=True))
+    if count:
         details = f"Kredi ürünü güncellendi + ödeme planı yeniden oluşturuldu ({count} taksit): {product.name}"
     else:
         details = f"Kredi ürünü güncellendi: {product.name}"
@@ -432,7 +382,7 @@ def delete_product(
         return approval_resp
 
     product_name = product.name
-    db.delete(product)
+    credit_service.delete_product(db, product)
 
     log_action(
         db, current_user.id, "delete", "credit_product",

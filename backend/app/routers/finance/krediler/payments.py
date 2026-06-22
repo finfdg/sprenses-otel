@@ -16,6 +16,7 @@ from app.schemas.credit import (
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.utils.finance_event_service import finance_event_svc
+from app.services import credit_service
 
 router = APIRouter()
 
@@ -100,13 +101,7 @@ def update_payment(
     if approval_resp:
         return approval_resp
 
-    # Ödendi durumu değişecek mi kontrol et (bakiye güncellemesi için)
-    was_paid = payment.is_paid
-    update_data = data.model_dump(exclude_unset=True)
-    will_change_paid = "is_paid" in update_data and update_data["is_paid"] != was_paid
-
-    for key, value in update_data.items():
-        setattr(payment, key, value)
+    credit_service.apply_payment_update(db, payment, data.model_dump(exclude_unset=True))
 
     log_action(
         db, current_user.id, "update", "credit_payment",
@@ -114,23 +109,6 @@ def update_payment(
         details="Ödeme güncellendi",
         ip_address=get_client_ip(request),
     )
-    db.flush()
-    product = db.query(CreditProduct).filter(CreditProduct.id == payment.credit_product_id).first()
-    if product:
-        finance_event_svc.upsert_credit_payment(db, payment, product)
-
-        # Ödendi durumu değiştiyse ve anapara (principal) bilgisi varsa kalan borcu güncelle
-        # principal yoksa bakiyeye dokunma (faiz/komisyon ayrımı bilinemez)
-        if will_change_paid and payment.principal:
-            reduction = float(payment.principal)
-            if update_data["is_paid"]:
-                # Ödendi → bakiyeyi azalt
-                product.remaining_amount = max(0, float(product.remaining_amount) - reduction)
-            else:
-                # Geri alındı → bakiyeyi artır
-                product.remaining_amount = float(product.remaining_amount) + reduction
-            db.flush()
-
     db.commit()
     db.refresh(payment)
 
@@ -169,8 +147,7 @@ def delete_payment(
     if approval_resp:
         return approval_resp
 
-    db.delete(payment)
-    finance_event_svc.invalidate(db, "credit", payment_id)
+    credit_service.delete_payment(db, payment)
 
     log_action(
         db, current_user.id, "delete", "credit_payment",

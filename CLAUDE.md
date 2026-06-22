@@ -48,6 +48,7 @@
   ```
 - Onaylanan talepler `approval_executor.py`'deki handler ile uygulanır — yeni modül için handler eklenmeli
   - **Handler, router endpoint'inin davranışını BİREBİR yansıtmalı** (yalnız model alanları değil): payload anahtarları model kolonlarıyla aynı olmalı, zorunlu kolonlar set edilmeli, ve router'ın yan etkileri (finance_events upsert, eşleşme kaldırma, FIFO/sync, açıklama yeniden üretimi) handler'da da uygulanmalı. Handler yalnız onay onaylanınca çalıştığından sapmalar sessiz kalır.
+    - **TERCİH EDİLEN ÇÖZÜM (D1-2, 2026-06-22) — ortak service:** Bu sapma sınıfını yapısal olarak engellemek için mutasyon mantığını bir **domain service**'e çıkar; hem router endpoint'i hem executor handler'ı AYNI fonksiyonu çağırsın. Referans: `app/services/credit_service.py` (`create_product`/`apply_product_update`/`delete_product`/`apply_payment_update`/`delete_payment`) — `finance.krediler` router'ı (`products.py`/`payments.py`) ve `_handle_finance_krediler` ikisi de buradan çağırır. Bu, eski elle-tekrar handler'daki D2-4 bug'larını kapattı: `payment.product_id` (yanlış kolon → AttributeError) + onayda BCH/KMH planı/finance_events üretilmemesi. **Onay payload'ı JSON'a serileşir (`json.dumps(..., default=str)`) → tarihler string olur; service tüketicisi `date.fromisoformat` ile coerce etmeli** (`credit_service._coerce_date`). Yeni handler'lar bu deseni izlemeli.
   - **Test katmanları (2026-06-17 genişletildi):** `tests/test_approval_system.py::TestExecutorImportIntegrity` üç AST testi — (a) `from app...import` çözümü, (b) `Model(kwarg=...)` alan geçerliliği, (c) **`check_approval` çağıran HER modülün handler'ı var** (`test_all_approval_callers_have_executor_handler`). **AMA** AST testleri payload-anahtar uyuşmazlığını, eksik-zorunlu-kolonu, çift-serileştirmeyi ve eksik yan-etkiyi YAKALAYAMAZ → yeni handler için **modül-bazlı uçtan-uca onay regresyon testi** de eklenmeli (örnekler: `test_create_room_type_via_approval_regression`, `test_check_status_via_approval_regression`, `test_quality_template_via_approval_regression`). Bu hata sınıfı tarama denetiminde finance.checks/quality.templates/sales.room_types'ta bulundu (2026-06-17).
   - Tüm onay motoru (workflow + talep + executor) `tests/test_approval_system.py` ile test edilir (uçtan-uca onay→uygula + modül regresyonları dahil)
 - Detaylı bilgi: `docs/modules/onay-akisi.md`
@@ -259,7 +260,8 @@ TEMPLATE:
 │   │   ├── services/            # Domain servis katmanı (HTTP'siz saf iş mantığı)
 │   │   │   ├── stock_service.py           # Stok Sedna import + maliyet/KPI hesabı
 │   │   │   ├── reservation_service.py     # Rezervasyon Sedna import + EUR çevrim
-│   │   │   └── sales_invoice_service.py   # Satış faturası FIFO motoru + 30sn TTL cache + avans bakiyeleri
+│   │   │   ├── sales_invoice_service.py   # Satış faturası FIFO motoru + 30sn TTL cache + avans bakiyeleri
+│   │   │   └── credit_service.py          # Kredi ürün/ödeme CRUD + BCH/KMH plan (router + onay executor ORTAK)
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations
