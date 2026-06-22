@@ -19,7 +19,7 @@ from app.models.sales_invoice import SalesCollection, SalesInvoice
 from app.models.scheduled import ScheduledEntry
 from app.models.user import User
 from app.models.vendor import Vendor
-from app.routers.finance.sales_invoices import _merged_advances
+from app.services.sales_invoice_service import _merged_advances
 from app.services.stock_service import compute_operational_kpi, compute_price_variance
 from app.models.stock import StockProduct
 from app.models.stock import StockMovement

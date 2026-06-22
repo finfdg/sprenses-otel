@@ -87,7 +87,7 @@
 - **İstisna — Sunucu izleme (`/dashboard/sistem/sunucu`):** sistem metrikleri (CPU/RAM/disk/servis durumu) WS ile taşınmaz, 30 sn'lik `setInterval` ile fetch edilir. Sayfa kapanınca timer durur (`onDestroy`). Bu sınırlı istisna — başka sayfalarda polling yapılamaz.
 
 ### Kod Kalitesi Kuralları
-- **Katman yönü — router router'dan import etmez:** Bir router modülü (`app/routers/...`) **başka bir router'dan saf iş-mantığı fonksiyonu import edemez** (coupling'i yanlış katmana taşır; uzak router'ın iç fonksiyonu değişince sessizce kırılır). Paylaşılan saf domain mantığı `app/services/` (HTTP'siz) veya `app/utils/`'e konur; hem router hem tüketici oradan alır. **Ayrım:** `utils/` = teknik yardımcı (font, dosya doğrulama, audit, response builder); `services/` = domain iş mantığı (Sedna import orchestration, KPI/maliyet hesabı). **services/ router import etmez** (tek yön: router → service → model). Paket-içi `_helpers` import'u (ör. `cariler/_helpers`) serbesttir — sorun yalnız PAKETLER-ARASI router→router'dır. (2026-06-22 mimari denetim D1-1/D1-5: `stock`/`reservation` import fonksiyonları `services/`'e taşındı; `sales._merged_advances` FIFO motoruyla birlikte ayrı pass'e bırakıldı.)
+- **Katman yönü — router router'dan import etmez:** Bir router modülü (`app/routers/...`) **başka bir router'dan saf iş-mantığı fonksiyonu import edemez** (coupling'i yanlış katmana taşır; uzak router'ın iç fonksiyonu değişince sessizce kırılır). Paylaşılan saf domain mantığı `app/services/` (HTTP'siz) veya `app/utils/`'e konur; hem router hem tüketici oradan alır. **Ayrım:** `utils/` = teknik yardımcı (font, dosya doğrulama, audit, response builder); `services/` = domain iş mantığı (Sedna import orchestration, KPI/maliyet hesabı). **services/ router import etmez** (tek yön: router → service → model). Paket-içi `_helpers` import'u (ör. `cariler/_helpers`) serbesttir — sorun yalnız PAKETLER-ARASI router→router'dır. (2026-06-22 mimari denetim D1-1/D1-5: `stock`/`reservation`/`sales` saf fonksiyonları `services/`'e taşındı — `stock_service`/`reservation_service`/`sales_invoice_service`; `_norm_tokens` → `utils/text_match.py`. **Tüm 4 paketler-arası router→router import'u kapatıldı.** Aynı-paket `sedna_sync→sales_invoices.run_sales_invoice_import` bilinçli istisna — finance/ paket-içi, "Sedna servis fonksiyonu" deseni.)
 - **Response Builder:** `utils/response_builders.py` — kullanıcı/rol yanıtları ortak helper ile oluşturulur (N+1 sorgu yok)
 - **Form Validation:** Frontend'de `lib/utils/validation.ts` helper'ları kullanılır
 - **Modal:** Frontend'de `lib/components/Modal.svelte` reusable bileşeni kullanılır
@@ -258,7 +258,8 @@ TEMPLATE:
 │   │   │   └── file_validation.py        # MIME + boyut doğrulaması
 │   │   ├── services/            # Domain servis katmanı (HTTP'siz saf iş mantığı)
 │   │   │   ├── stock_service.py           # Stok Sedna import + maliyet/KPI hesabı
-│   │   │   └── reservation_service.py     # Rezervasyon Sedna import + EUR çevrim
+│   │   │   ├── reservation_service.py     # Rezervasyon Sedna import + EUR çevrim
+│   │   │   └── sales_invoice_service.py   # Satış faturası FIFO motoru + 30sn TTL cache + avans bakiyeleri
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations

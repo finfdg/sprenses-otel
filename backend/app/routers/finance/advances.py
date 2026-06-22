@@ -27,24 +27,9 @@ from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.sedna_client import SednaUnavailable, fetch_advance_accounts, sedna_configured
 from app.utils.sql_search import like_pattern
+from app.utils.text_match import _norm_tokens
 
 router = APIRouter(prefix="/avanslar")
-
-# Acente adı eşleştirme — ayırt edici olmayan kelimeler atılır (token çakışmasını azaltır)
-_STOP_TOKENS = {
-    "TUR", "TURIZM", "TIC", "TICARET", "LTD", "STI", "SAN", "VE", "AS", "ANONIM", "SIRKETI",
-    "ONLINE", "GMBH", "SLU", "SL", "OTEL", "OTELCILIK", "INS", "INSAAT", "ITH", "IHR",
-}
-
-
-def _norm_tokens(s: str) -> set:
-    """Acente adını ASCII'ye fold + büyük harf + ayırt edici token kümesi."""
-    s = s or ""
-    for a, b in (("İ", "I"), ("ı", "i"), ("Ş", "S"), ("ş", "s"), ("Ğ", "G"), ("ğ", "g"),
-                 ("Ü", "U"), ("ü", "u"), ("Ö", "O"), ("ö", "o"), ("Ç", "C"), ("ç", "c")):
-        s = s.replace(a, b)
-    s = s.upper()
-    return {t for t in re.split(r"[^A-Z0-9]+", s) if len(t) >= 2 and t not in _STOP_TOKENS}
 
 
 def _match_account(agency_name: str, currency: str, accounts: list, used: set):

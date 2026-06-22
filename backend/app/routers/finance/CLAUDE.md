@@ -76,6 +76,10 @@ Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
   çekmiyordu. `list_invoices` `status` filtresi yokken **gerçek SQL pagination** (count + offset/limit)
   yapar; `status` filtresi FIFO'dan türediğinden o durumda DB-filtreli çekip Python'da sayfalar. İçe
   aktarma sonrası `_invalidate_compute_cache()`. Test izolasyonu: conftest cache'i her test başında sıfırlar.
+  **Konum (2026-06-22, D1-1):** FIFO motoru + cache + `_merged_advances` artık
+  `app/services/sales_invoice_service.py`'de (`_EPS`/`_f`/`_compute`/`_compute_cached`/`_invalidate_compute_cache`/`_merged_advances`).
+  `yonetim.py` oradan import eder (eski router→router import'u kapatıldı); `sales_invoices.py` router'ı
+  geriye uyum için re-import eder. `_norm_tokens` → `utils/text_match.py`. Davranış birebir aynı (1152 test yeşil).
 - **Upload Excel/PDF parse'ı threadpool'da:** `banks.py`, `checks.py`, `cc_statements.py`,
   `cariler/uploads.py` (+ `sales/reservations/uploads.py`) `async def` upload'larında CPU-yoğun parse
   artık `await asyncio.to_thread(parse_..., path)` ile çağrılır → tek büyük dosya yüklenirken event
