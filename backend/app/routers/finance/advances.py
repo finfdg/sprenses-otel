@@ -25,6 +25,7 @@ from app.utils.audit import log_action
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.services import advance_service
 from app.utils.sedna_client import SednaUnavailable, fetch_advance_accounts, sedna_configured
 from app.utils.sql_search import like_pattern
 from app.utils.text_match import _norm_tokens
@@ -136,24 +137,13 @@ def create_advance(
     if approval_resp:
         return approval_resp
 
-    adv = Advance(
-        agency_name=data.agency_name,
-        amount=data.amount,
-        currency=data.currency,
-        advance_date=data.advance_date,
-        notes=data.notes,
-        status="pending",
-        created_by=current_user.id,
-    )
-    db.add(adv)
-    db.flush()
+    adv = advance_service.create_advance(db, data.model_dump(), current_user.id)
 
     log_action(
         db, current_user.id, "create", "advance", adv.id,
         json.dumps({"agency_name": data.agency_name, "amount": data.amount, "currency": data.currency}, ensure_ascii=False),
         get_client_ip(request),
     )
-    finance_event_svc.upsert_advance(db, adv)
     db.commit()
     broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "create")
     db.refresh(adv)
@@ -181,12 +171,7 @@ def update_advance(
     if approval_resp:
         return approval_resp
 
-    changes = {}
-    for field, value in data.model_dump(exclude_unset=True).items():
-        old_val = getattr(adv, field)
-        if old_val != value:
-            changes[field] = {"old": str(old_val), "new": str(value)}
-            setattr(adv, field, value)
+    changes = advance_service.apply_advance_update(db, adv, data.model_dump(exclude_unset=True))
 
     if not changes:
         return _build_response(adv)
@@ -196,7 +181,6 @@ def update_advance(
         json.dumps(changes, ensure_ascii=False),
         get_client_ip(request),
     )
-    finance_event_svc.upsert_advance(db, adv)
     db.commit()
     broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "update")
     db.refresh(adv)
@@ -231,8 +215,7 @@ def delete_advance(
         json.dumps({"agency_name": adv.agency_name, "amount": float(adv.amount), "currency": adv.currency}, ensure_ascii=False),
         get_client_ip(request),
     )
-    finance_event_svc.invalidate(db, "advance", adv.id)
-    db.delete(adv)
+    advance_service.delete_advance(db, adv)
     db.commit()
     broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "delete")
     return {"detail": "Avans kaydı silindi"}

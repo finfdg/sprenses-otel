@@ -265,7 +265,11 @@ TEMPLATE:
 │   │   │   ├── vendor_service.py          # Cari vade/durum güncelleme + FE sync (router + onay executor ORTAK)
 │   │   │   ├── check_service.py           # Çek durum güncelleme + iptal kademesi (router + onay executor ORTAK)
 │   │   │   ├── scheduled_service.py       # Planlı gelir/gider tanım+giriş (8 modül; router fabrikası + executor ORTAK)
-│   │   │   └── quality_service.py         # Kalite şablon bölüm/alan/atama kaydetme (router + executor ORTAK)
+│   │   │   ├── quality_service.py         # Kalite şablon bölüm/alan/atama kaydetme (router + executor ORTAK)
+│   │   │   ├── system_service.py          # Kullanıcı/rol/modül CRUD + cache + oturum (router + executor ORTAK)
+│   │   │   ├── advance_service.py          # Avans CRUD + finance_events
+│   │   │   ├── bank_account_service.py     # Banka hesabı CRUD
+│   │   │   └── department_service.py       # Departman CRUD (guard'lı HARD delete)
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
 │   ├── alembic/                 # DB migrations

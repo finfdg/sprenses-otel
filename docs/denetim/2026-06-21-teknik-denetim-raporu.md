@@ -137,7 +137,17 @@
 4. **scheduled** (`scheduled_service`) — **8 modül** (vergi/recurring/kira×2/temettü/maaş/stopaj/sgk) tek serviste; **gerçek bug**: executor `create` `sync_recurring_from_vendors`'u atlıyordu → onaylı cari-bağlı düzenli ödeme senkronlanmıyordu (+ fallback `vendor_id` eksikti)
 5. **quality_templates** (`quality_service`) — bölüm/alan/atama kaydetme; router (`_save_sections` Pydantic) + executor (`_save_template_sections` dict) **iki kopyaydı ve drift etmişti** (options çift-serileştirme) → tek dict-tabanlı service
 
-**1158 test yeşil**, hepsi canlıda. `app/services/` 9 modül. **Kalan handler'lar** (daha düşük değer): system (users/roles/modules), hr (attendance/shifts/shift_schedule), avanslar, room_types, ve saf-CRUD (banks/departmanlar/butce/quality_forms — thin pass-through, AST testleri zaten koruyor). Aynı desenle sürdürülebilir.
+6. **system×3** (`system_service`) — **3 gerçek drift**: roles update'te izin cache invalidate eksik (onaylı izin bayat kalıyordu); users update'te devre-dışı→oturum kapatma eksik; roles/modules delete executor SOFT vs router HARD+guard
+7. **avanslar** (`advance_service`) — CRUD + FE (neutral refactor)
+8. **banks** (`bank_account_service`) — hesap CRUD (neutral)
+9. **departmanlar** (`department_service`) — **drift**: executor guard'sız SOFT delete vs router guard'lı HARD → birleştirildi
+
+**Toplam 10 handler / ≈19 modül birleşti; 9+ gerçek drift/bug kapatıldı. 1158 test yeşil, hepsi canlıda.** `app/services/` 13 modül.
+
+**Kalan 6 handler (dikkatli iş gerektiriyor — sonraki turda):**
+- **butce** — budget'te **gerçek upsert drift'i**: router kompozit-anahtar `_upsert_budget` (dept+kategori+yıl+ay), executor id-bazlı insert → **çift bütçe riski**. Dikkatli birleştirme gerekir.
+- **hr×3** (attendance/shifts/shift_schedule) — executor ISO-string parse eder, router typed (datetime/time/date) alır → service'te coercion gerekir (credit_service._coerce_date kalıbı).
+- **room_types** (delete rezervasyon-guard) + **quality_forms** (saf CRUD) — basit, hızlı.
 
 ---
 

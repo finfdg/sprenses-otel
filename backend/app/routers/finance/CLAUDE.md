@@ -90,6 +90,12 @@ yeniden hesapla (+ FE upsert) → `sync_vendor_finance_events`. Geçersiz durum/
 Eski executor handler router mantığını elle tekrarlıyordu (doğrulama yoktu; router değişse sessiz sapardı).
 Regresyon: `test_vendor_payment_days_via_approval`, `test_vendor_status_via_approval_syncs_finance_events`.
 
+**Diğer finans dilimleri (aynı desen, 2026-06-22):** `advance_service` (avanslar CRUD+FE),
+`bank_account_service` (banka hesabı CRUD), `department_service` (departman CRUD — **drift kapatıldı:**
+executor delete'i guard'sız SOFT idi → router'la birebir guard'lı HARD oldu). Router endpoint'leri +
+ilgili executor handler'ları ORTAK service çağırır. **Kalan:** butce (budget upsert drift — router
+kompozit-anahtar `_upsert_budget` vs executor id-bazlı insert) ayrı/dikkatli ele alınacak.
+
 **Çekler dilimi (aynı desen):** `app/services/check_service.py::apply_check_status` — çek durum
 güncelleme tek kaynak. Router (`checks.py::update_check_status`) ve `_handle_finance_checks` ORTAK
 çağırır: iptal ise **eşleşme kademesi** (cari `match_number`+`payment_method` temizle, banka

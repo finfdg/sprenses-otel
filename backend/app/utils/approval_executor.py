@@ -196,146 +196,79 @@ def _make_scheduled_handler(source_type, direction):
 # ── Sistem modülleri ──────────────────────────────────────────
 
 def _handle_system_users(db, action_type, entity_id, payload, actor_id):
+    # Router (system_users.py) ile ORTAK tek kaynak: app/services/system_service.
+    # Devre-dışı→oturum kapatma artık executor yolunda da uygulanır (eskiden eksikti).
     from app.models.user import User
-    from app.utils.security import hash_password
+    from app.services import system_service
 
     if action_type == "create":
-        password = payload.pop("password", None)
-        user = User(
-            username=payload.get("username", ""),
-            email=payload.get("email", ""),
-            first_name=payload.get("first_name", ""),
-            last_name=payload.get("last_name", ""),
-            role_id=payload.get("role_id"),
-            is_active=payload.get("is_active", True),
-            hashed_password=hash_password(password) if password else "",
-        )
-        db.add(user)
-
+        system_service.create_user(db, payload)
     elif action_type == "update":
         user = db.query(User).filter(User.id == entity_id).first()
         if not user:
             raise ValueError(f"Kullanıcı bulunamadı: {entity_id}")
-        for key, val in payload.items():
-            if key == "password" and val:
-                user.hashed_password = hash_password(val)
-            elif key == "email" and val is None:
-                user.email = ""
-            elif hasattr(user, key):
-                setattr(user, key, val)
-
+        system_service.apply_user_update(db, user, payload)
     elif action_type == "delete":
         user = db.query(User).filter(User.id == entity_id).first()
         if user:
-            db.delete(user)
+            system_service.delete_user(db, user)
 
 
 def _handle_system_roles(db, action_type, entity_id, payload, actor_id):
+    # Router (system_roles.py) ile ORTAK tek kaynak: app/services/system_service.
+    # İzin değişince cache invalidate (eskiden eksikti); delete HARD + user-guard (eskiden SOFT'tu).
     from app.models.role import Role
-    from app.models.role_module_permission import RoleModulePermission
+    from app.services import system_service
 
     if action_type == "create":
-        permissions = payload.pop("permissions", [])
-        role = Role(
-            name=payload.get("name", ""),
-            description=payload.get("description"),
-            is_active=payload.get("is_active", True),
-        )
-        db.add(role)
-        db.flush()
-        for perm in permissions:
-            db.add(RoleModulePermission(
-                role_id=role.id,
-                module_id=perm.get("module_id"),
-                can_view=perm.get("can_view", False),
-                can_use=perm.get("can_use", False),
-            ))
-
+        system_service.create_role(db, payload)
     elif action_type == "update":
         role = db.query(Role).filter(Role.id == entity_id).first()
         if not role:
             raise ValueError(f"Rol bulunamadı: {entity_id}")
-        permissions = payload.pop("permissions", None)
-        _apply_fields(role, payload)
-        if permissions is not None:
-            db.query(RoleModulePermission).filter(
-                RoleModulePermission.role_id == entity_id
-            ).delete()
-            db.flush()
-            for perm in permissions:
-                db.add(RoleModulePermission(
-                    role_id=entity_id,
-                    module_id=perm.get("module_id"),
-                    can_view=perm.get("can_view", False),
-                    can_use=perm.get("can_use", False),
-                ))
-
+        system_service.apply_role_update(db, role, payload)
     elif action_type == "delete":
         role = db.query(Role).filter(Role.id == entity_id).first()
         if role:
-            role.is_active = False
+            system_service.delete_role(db, role)
 
 
 def _handle_system_modules(db, action_type, entity_id, payload, actor_id):
+    # Router (system_modules.py) ile ORTAK tek kaynak: app/services/system_service.
+    # delete HARD + alt-modül guard (eskiden SOFT'tu); cache invalidate service içinde.
     from app.models.module import Module
+    from app.services import system_service
 
     if action_type == "create":
-        module = Module(
-            name=payload.get("name", ""),
-            code=payload.get("code", ""),
-            description=payload.get("description"),
-            parent_id=payload.get("parent_id"),
-            sort_order=payload.get("sort_order", 0),
-            icon=payload.get("icon"),
-            is_active=payload.get("is_active", True),
-        )
-        db.add(module)
-
+        system_service.create_module(db, payload)
     elif action_type == "update":
         module = db.query(Module).filter(Module.id == entity_id).first()
         if not module:
             raise ValueError(f"Modül bulunamadı: {entity_id}")
-        _apply_fields(module, payload)
-
+        system_service.apply_module_update(db, module, payload)
     elif action_type == "delete":
         module = db.query(Module).filter(Module.id == entity_id).first()
         if module:
-            module.is_active = False
-
-    # Modül kodu→id cache'ini tazele: create/update/delete code veya is_active'i değiştirebilir;
-    # bayat cache pasif modüle hâlâ izin verir (bkz. _get_module_id is_active filtresi).
-    from app.middleware.auth import invalidate_module_cache
-    invalidate_module_cache()
+            system_service.delete_module(db, module)
 
 
 # ── Finans modülleri ──────────────────────────────────────────
 
 def _handle_finance_banks(db, action_type, entity_id, payload, actor_id):
     from app.models.bank_account import BankAccount
+    from app.services import bank_account_service
 
     if action_type == "create":
-        acc = BankAccount(
-            bank_name=payload.get("bank_name", ""),
-            branch_name=payload.get("branch_name"),
-            account_no=payload.get("account_no"),
-            iban=payload.get("iban"),
-            currency=payload.get("currency", "TRY"),
-            holder_name=payload.get("holder_name"),
-            blocked_amount=payload.get("blocked_amount", 0),
-            created_by=actor_id,
-        )
-        db.add(acc)
-
+        bank_account_service.create_account(db, payload, actor_id)
     elif action_type == "update":
         acc = db.query(BankAccount).filter(BankAccount.id == entity_id).first()
         if not acc:
             raise ValueError(f"Banka hesabı bulunamadı: {entity_id}")
-        _apply_fields(acc, payload)
-
+        bank_account_service.apply_account_update(db, acc, payload)
     elif action_type == "delete":
         acc = db.query(BankAccount).filter(BankAccount.id == entity_id).first()
         if acc:
-            db.delete(acc)
+            bank_account_service.delete_account(db, acc)
 
 
 def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
@@ -375,60 +308,38 @@ def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
 
 def _handle_finance_avanslar(db, action_type, entity_id, payload, actor_id):
     from app.models.advance import Advance
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services import advance_service
 
     if action_type == "create":
-        adv = Advance(
-            agency_name=payload.get("agency_name", ""),
-            amount=payload.get("amount", 0),
-            currency=payload.get("currency", "TRY"),
-            advance_date=payload.get("advance_date"),
-            notes=payload.get("notes"),
-            status="pending",
-            created_by=actor_id,
-        )
-        db.add(adv)
-        db.flush()
-        finance_event_svc.upsert_advance(db, adv)
-
+        advance_service.create_advance(db, payload, actor_id)
     elif action_type == "update":
         adv = db.query(Advance).filter(Advance.id == entity_id).first()
         if not adv:
             raise ValueError(f"Avans bulunamadı: {entity_id}")
-        _apply_fields(adv, payload)
-        db.flush()
-        finance_event_svc.upsert_advance(db, adv)
-
+        advance_service.apply_advance_update(db, adv, payload)
     elif action_type == "delete":
         adv = db.query(Advance).filter(Advance.id == entity_id).first()
         if adv:
-            finance_event_svc.invalidate(db, "advance", adv.id)
-            db.delete(adv)
+            advance_service.delete_advance(db, adv)
 
 
 def _handle_finance_departmanlar(db, action_type, entity_id, payload, actor_id):
+    # Router (departmanlar.py) ile ORTAK: app/services/department_service.
+    # delete artık guard'lı HARD (eskiden guard'sız SOFT idi → router'dan sapıyordu).
     from app.models.department import Department
+    from app.services import department_service
 
     if action_type == "create":
-        dept = Department(
-            name=payload.get("name", ""),
-            code=payload.get("code", ""),
-            manager_id=payload.get("manager_id"),
-            is_active=payload.get("is_active", True),
-            sort_order=payload.get("sort_order", 0),
-        )
-        db.add(dept)
-
+        department_service.create_department(db, payload)
     elif action_type == "update":
         dept = db.query(Department).filter(Department.id == entity_id).first()
         if not dept:
             raise ValueError(f"Departman bulunamadı: {entity_id}")
-        _apply_fields(dept, payload)
-
+        department_service.apply_department_update(db, dept, payload)
     elif action_type == "delete":
         dept = db.query(Department).filter(Department.id == entity_id).first()
         if dept:
-            dept.is_active = False
+            department_service.delete_department(db, dept)
 
 
 def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):

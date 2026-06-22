@@ -9,16 +9,15 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
-from app.models.budget import Budget
 from app.models.department import Department
 from app.models.user import User
-from app.models.vendor_transaction import VendorTransaction
 from app.schemas.budget import (
     DepartmentCreate,
     DepartmentResponse,
     DepartmentUpdate,
 )
 from app.utils.approval_check import check_approval
+from app.services import department_service
 from app.utils.audit import log_action
 
 router = APIRouter(prefix="/departmanlar", tags=["Departmanlar"])
@@ -76,14 +75,7 @@ def create_department(
     if approval_resp:
         return approval_resp
 
-    dept = Department(
-        name=data.name,
-        code=data.code,
-        manager_id=data.manager_id,
-        is_active=data.is_active,
-        sort_order=data.sort_order,
-    )
-    db.add(dept)
+    dept = department_service.create_department(db, data.model_dump())
     try:
         db.flush()
     except IntegrityError:
@@ -140,9 +132,7 @@ def update_department(
     if approval_resp:
         return approval_resp
 
-    update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(dept, key, value)
+    department_service.apply_department_update(db, dept, data.model_dump(exclude_unset=True))
 
     try:
         db.flush()
@@ -199,30 +189,6 @@ def delete_department(
     if approval_resp:
         return approval_resp
 
-    # Bağlı cari işlem kontrolü
-    vtx_count = (
-        db.query(VendorTransaction)
-        .filter(VendorTransaction.department_id == dept_id)
-        .count()
-    )
-    if vtx_count > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bu departmana ait {vtx_count} cari işlem bulunduğu için silinemez",
-        )
-
-    # Bağlı bütçe kontrolü
-    budget_count = (
-        db.query(Budget)
-        .filter(Budget.department_id == dept_id)
-        .count()
-    )
-    if budget_count > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bu departmana ait {budget_count} bütçe kaydı bulunduğu için silinemez",
-        )
-
     log_action(
         db,
         current_user.id,
@@ -232,5 +198,8 @@ def delete_department(
         details=f"{dept.name} ({dept.code})",
         ip_address=get_client_ip(request),
     )
-    db.delete(dept)
+    try:
+        department_service.delete_department(db, dept)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     db.commit()

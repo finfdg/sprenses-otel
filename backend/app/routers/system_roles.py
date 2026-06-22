@@ -7,14 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.constants import WSEvent
 from app.database import get_db
-from app.middleware.auth import invalidate_module_cache, require_permission
+from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.role import Role
-from app.models.role_module_permission import RoleModulePermission
 from app.models.user import User
-from app.routers.messages._helpers import _invalidate_messaging_role_cache
 from app.schemas.role import RoleCreate, RoleResponse, RoleUpdate
 from app.utils.approval_check import check_approval
+from app.services import system_service
 from app.utils.audit import log_action
 from app.utils.response_builders import build_role_response, build_role_responses_batch
 from app.websocket.manager import manager
@@ -58,19 +57,7 @@ def create_role(
     if approval_resp:
         return approval_resp
 
-    role = Role(name=data.name, description=data.description)
-    db.add(role)
-    db.flush()
-
-    # Add permissions
-    for perm in data.permissions:
-        rmp = RoleModulePermission(
-            role_id=role.id,
-            module_id=perm.module_id,
-            can_view=perm.can_view,
-            can_use=perm.can_use,
-        )
-        db.add(rmp)
+    role = system_service.create_role(db, data.model_dump())
 
     client_ip = get_client_ip(request)
     log_action(db, current_user.id, "create", "role", entity_id=role.id, ip_address=client_ip)
@@ -101,28 +88,10 @@ def update_role(
         existing = db.query(Role).filter(Role.name == data.name).first()
         if existing:
             raise HTTPException(status_code=409, detail="Bu rol adı zaten mevcut!")
-        role.name = data.name
-    if data.description is not None:
-        role.description = data.description
-    if data.is_active is not None:
-        role.is_active = data.is_active
 
-    permissions_changed = False
-
-    # Replace permissions if provided
-    if data.permissions is not None:
-        permissions_changed = True
-        db.query(RoleModulePermission).filter(
-            RoleModulePermission.role_id == role.id
-        ).delete()
-        for perm in data.permissions:
-            rmp = RoleModulePermission(
-                role_id=role.id,
-                module_id=perm.module_id,
-                can_view=perm.can_view,
-                can_use=perm.can_use,
-            )
-            db.add(rmp)
+    permissions_changed = system_service.apply_role_update(
+        db, role, data.model_dump(exclude_unset=True)
+    )
 
     client_ip = get_client_ip(request)
     log_action(db, current_user.id, "update", "role", entity_id=role_id, ip_address=client_ip)
@@ -131,11 +100,7 @@ def update_role(
 
     # İzinler değiştiyse: backend cache'lerini invalidate et + online kullanıcılara bildir
     if permissions_changed:
-        # Backend cache'leri sıfırla — yoksa /api/messages/users 5 dk eski izinle çalışır,
-        # require_permission da modül cache'inde eski değerleri tutar.
-        _invalidate_messaging_role_cache()
-        invalidate_module_cache()
-
+        # Cache'ler service içinde invalidate edildi; burada yalnız online kullanıcı bildirimi
         affected_user_ids = [
             u.id for u in db.query(User.id).filter(User.role_id == role_id).all()
         ]
@@ -165,14 +130,10 @@ def delete_role(
     if approval_resp:
         return approval_resp
 
-    # Check if users are assigned to this role
-    user_count = db.query(User).filter(User.role_id == role_id).count()
-    if user_count > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bu role atanmış {user_count} kullanıcı var. Önce kullanıcıların rolünü değiştirin."
-        )
     client_ip = get_client_ip(request)
     log_action(db, current_user.id, "delete", "role", entity_id=role_id, ip_address=client_ip)
-    db.delete(role)
+    try:
+        system_service.delete_role(db, role)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     db.commit()

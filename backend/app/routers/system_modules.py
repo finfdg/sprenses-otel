@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.constants import WSEvent
 from app.database import get_db
-from app.middleware.auth import get_current_user, invalidate_module_cache, require_permission
+from app.middleware.auth import get_current_user, require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.module import Module
 from app.models.user import User
 from app.schemas.module import ModuleCreate, ModuleResponse, ModuleUpdate
 from app.utils.approval_check import check_approval
+from app.services import system_service
 from app.utils.audit import log_action
 from app.websocket.manager import manager
 
@@ -95,14 +96,12 @@ def create_module(
     if approval_resp:
         return approval_resp
 
-    module = Module(**data.model_dump())
-    db.add(module)
+    module = system_service.create_module(db, data.model_dump())
     db.flush()
 
     client_ip = get_client_ip(request)
     log_action(db, current_user.id, "create", "module", entity_id=module.id, ip_address=client_ip)
     db.commit()
-    invalidate_module_cache()
     db.refresh(module)
 
     # Yeni modül oluşturuldu — tüm online kullanıcıları bildir
@@ -163,13 +162,11 @@ def update_module(
         if not parent:
             raise HTTPException(status_code=404, detail="Üst modül bulunamadı")
 
-    for key, value in update_data.items():
-        setattr(module, key, value)
+    system_service.apply_module_update(db, module, update_data)
 
     client_ip = get_client_ip(request)
     log_action(db, current_user.id, "update", "module", entity_id=module_id, ip_address=client_ip)
     db.commit()
-    invalidate_module_cache()
     db.refresh(module)
 
     # Modül değişikliğini tüm online kullanıcılara bildir
@@ -197,19 +194,13 @@ def delete_module(
     if approval_resp:
         return approval_resp
 
-    # Alt modül kontrolü
-    child_count = db.query(Module).filter(Module.parent_id == module_id).count()
-    if child_count > 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Bu modülün {child_count} alt modülü var. Önce alt modülleri silin veya taşıyın."
-        )
-
     client_ip = get_client_ip(request)
     log_action(db, current_user.id, "delete", "module", entity_id=module_id, ip_address=client_ip)
-    db.delete(module)
+    try:
+        system_service.delete_module(db, module)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     db.commit()
-    invalidate_module_cache()
 
     # Modül silme değişikliğini tüm online kullanıcılara bildir
     background_tasks.add_task(

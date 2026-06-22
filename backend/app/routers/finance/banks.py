@@ -40,6 +40,7 @@ from app.utils.file_validation import validate_upload_file
 from app.constants import BroadcastModule, WSEvent
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
+from app.services import bank_account_service
 from app.utils.matching_service import _match_cc_to_bank, _match_checks_to_bank, _match_credits_to_bank
 from app.utils.notification import _notification_to_ws_event, create_notifications
 from app.utils.push import send_push_to_user
@@ -244,17 +245,7 @@ def create_account(
         if existing:
             raise HTTPException(status_code=400, detail="Bu IBAN zaten kayıtlı")
 
-    acc = BankAccount(
-        bank_name=data.bank_name,
-        branch_name=data.branch_name,
-        account_no=data.account_no,
-        iban=data.iban,
-        currency=data.currency,
-        holder_name=data.holder_name,
-        blocked_amount=data.blocked_amount,
-        created_by=current_user.id,
-    )
-    db.add(acc)
+    acc = bank_account_service.create_account(db, data.model_dump(), current_user.id)
     try:
         db.flush()
     except IntegrityError:
@@ -307,8 +298,7 @@ def update_account(
         if existing:
             raise HTTPException(status_code=400, detail="Bu IBAN zaten kayıtlı")
 
-    for key, value in update_data.items():
-        setattr(acc, key, value)
+    bank_account_service.apply_account_update(db, acc, update_data)
 
     log_action(
         db, current_user.id, "update", "bank_account",
@@ -345,7 +335,7 @@ def delete_account(
         details=f"{acc.bank_name} - {acc.iban}",
         ip_address=get_client_ip(request),
     )
-    db.delete(acc)
+    bank_account_service.delete_account(db, acc)
     db.commit()
     broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "delete")
 
