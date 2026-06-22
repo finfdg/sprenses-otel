@@ -13,10 +13,8 @@
 		Loader2,
 		PieChart,
 		GripVertical,
-		Plus,
 		RefreshCw,
 		Settings2,
-		Trash2,
 		TrendingUp,
 		Undo2,
 		Upload,
@@ -28,13 +26,16 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Modal from '$lib/components/Modal.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import ResultModal from '$lib/components/sales/otel-rezervasyon/ResultModal.svelte';
+	import RemovalReviewModal from '$lib/components/sales/otel-rezervasyon/RemovalReviewModal.svelte';
+	import UploadsHistoryModal from '$lib/components/sales/otel-rezervasyon/UploadsHistoryModal.svelte';
+	import AgencyGroupModal from '$lib/components/sales/otel-rezervasyon/AgencyGroupModal.svelte';
+	import type { UploadHistory, RemovalCandidate, UploadResult, ApiGroup } from '$lib/types/reservation';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
@@ -64,48 +65,7 @@
 		lead_time: { avg: number; median: number; min: number; max: number };
 	};
 
-	type UploadHistory = {
-		id: number;
-		file_name: string;
-		hotel_name: string | null;
-		period_checkin_start: string | null;
-		period_checkin_end: string | null;
-		total_rows: number;
-		new_rows: number;
-		updated_rows: number;
-		uploader_name: string | null;
-		uploaded_at: string;
-	};
-
-	type RemovalCandidate = {
-		id: number;
-		rec_id: number;
-		agency: string | null;
-		room_type: string | null;
-		voucher: string | null;
-		guests: string | null;
-		checkin_date: string;
-		checkout_date: string;
-		nights: number;
-		record_date: string;
-		rooms: number;
-		nation: string | null;
-		eur_total: number;
-		rez_status: string | null;
-		status: string | null;
-	};
-
-	type UploadResult = {
-		upload_id: number;
-		file_name: string;
-		hotel_name: string | null;
-		period_checkin_start: string | null;
-		period_checkin_end: string | null;
-		total_rows: number;
-		new_rows: number;
-		updated_rows: number;
-		removal_candidates: RemovalCandidate[];
-	};
+	// UploadHistory, RemovalCandidate, UploadResult, ApiGroup → $lib/types/reservation (modal bileşenleriyle ortak)
 
 	type BulkDeleteResult = {
 		deleted: number;
@@ -180,7 +140,7 @@
 	);
 
 	// ───── Acente Gruplama ─────────────────────────────────
-	type ApiGroup = { id: number; name: string; members: string[] };
+	// ApiGroup → $lib/types/reservation
 
 	type AgencyGroupItem = {
 		type: 'group'; id: number; name: string;
@@ -730,24 +690,6 @@
 		selectedRemovalIds = new Set(removalCandidates.map((c) => c.id));
 		showResultModal = false;
 		showRemovalModal = true;
-	}
-
-	function toggleRemoval(id: number) {
-		const next = new Set(selectedRemovalIds);
-		if (next.has(id)) {
-			next.delete(id);
-		} else {
-			next.add(id);
-		}
-		selectedRemovalIds = next;
-	}
-
-	function toggleAllRemovals() {
-		if (selectedRemovalIds.size === removalCandidates.length) {
-			selectedRemovalIds = new Set();
-		} else {
-			selectedRemovalIds = new Set(removalCandidates.map((c) => c.id));
-		}
 	}
 
 	const selectedRemovalTotalEur = $derived(
@@ -1893,151 +1835,22 @@
 {/if}
 
 <!-- ── Yükleme Sonuç Modalı ── -->
-<Modal bind:show={showResultModal} title="Yükleme Sonucu" maxWidth="max-w-md">
-	{#if uploadResult}
-		<div class="space-y-3 text-sm">
-			<div class="bg-teal-50 rounded-lg p-3 text-teal-900">
-				<div class="font-semibold">{uploadResult.hotel_name ?? 'Bilinmeyen otel'}</div>
-				<div class="text-xs text-teal-700 mt-0.5">
-					{uploadResult.file_name}
-				</div>
-				{#if uploadResult.period_checkin_start}
-					<div class="text-xs text-teal-700 mt-1">
-						Check-in: {formatDate(uploadResult.period_checkin_start)} → {formatDate(uploadResult.period_checkin_end)}
-					</div>
-				{/if}
-			</div>
-
-			<div class="grid grid-cols-3 gap-2">
-				<div class="bg-gray-50 rounded-lg p-3 text-center">
-					<div class="text-[10px] text-gray-500 uppercase font-semibold">Toplam</div>
-					<div class="text-2xl font-bold text-gray-900 mt-1">{formatInt(uploadResult.total_rows)}</div>
-				</div>
-				<div class="bg-emerald-50 rounded-lg p-3 text-center">
-					<div class="text-[10px] text-emerald-700 uppercase font-semibold">Yeni</div>
-					<div class="text-2xl font-bold text-emerald-700 mt-1">{formatInt(uploadResult.new_rows)}</div>
-				</div>
-				<div class="bg-amber-50 rounded-lg p-3 text-center">
-					<div class="text-[10px] text-amber-700 uppercase font-semibold">Güncellenen</div>
-					<div class="text-2xl font-bold text-amber-700 mt-1">{formatInt(uploadResult.updated_rows)}</div>
-				</div>
-			</div>
-
-			{#if uploadResult.removal_candidates.length > 0}
-				<div class="bg-rose-50 border border-rose-200 rounded-lg p-3">
-					<div class="flex items-start gap-2">
-						<Trash2 size={16} class="text-rose-600 mt-0.5 shrink-0" />
-						<div class="flex-1 min-w-0">
-							<div class="font-semibold text-rose-900 text-sm">
-								{formatInt(uploadResult.removal_candidates.length)} olası iptal tespit edildi
-							</div>
-							<div class="text-xs text-rose-700 mt-1 leading-snug">
-								Bu kayıtlar yüklemenin kapsamında (check-in &amp; kayıt tarihi)
-								olduğu halde son Excel'de bulunmuyor — büyük olasılıkla kaynak
-								sistemde iptal edilmişler.
-							</div>
-							{#if canUse}
-								<Button variant="danger" size="sm" class="mt-2" onclick={openRemovalReview}>
-									<Trash2 size={12} />
-									Kayıtları İncele
-								</Button>
-							{/if}
-						</div>
-					</div>
-				</div>
-			{/if}
-
-			<Button fullWidth class="mt-2" onclick={() => (showResultModal = false)}>Tamam</Button>
-		</div>
-	{/if}
-</Modal>
+<ResultModal
+	bind:show={showResultModal}
+	result={uploadResult}
+	{canUse}
+	onReviewRemovals={openRemovalReview}
+/>
 
 <!-- ── Silme Adayları İnceleme Modalı ── -->
-<Modal bind:show={showRemovalModal} title="Kaynakta Olmayan Rezervasyonlar" maxWidth="max-w-5xl">
-	<div class="space-y-3 text-sm">
-		<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 leading-snug">
-			Aşağıdaki <strong>{formatInt(removalCandidates.length)}</strong> kayıt yüklemenin
-			kapsamı içinde olduğu halde son Excel'de bulunmuyor. Silmek istemediklerinizin
-			işaretini kaldırın. <strong>Silme işlemi geri alınamaz</strong> — yine de audit
-			loglarında detay saklanır.
-		</div>
-
-		<div class="flex items-center justify-between gap-2 flex-wrap">
-			<label class="inline-flex items-center gap-2 cursor-pointer select-none">
-				<input
-					type="checkbox"
-					checked={selectedRemovalIds.size === removalCandidates.length && removalCandidates.length > 0}
-					indeterminate={selectedRemovalIds.size > 0 && selectedRemovalIds.size < removalCandidates.length}
-					onchange={toggleAllRemovals}
-					class="w-4 h-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
-				/>
-				<span class="text-xs text-gray-700 font-medium">
-					{selectedRemovalIds.size} / {removalCandidates.length} seçili
-				</span>
-			</label>
-			<div class="text-xs text-gray-600 tabular-nums">
-				Seçilen toplam: <strong class="text-rose-700">{formatEur(selectedRemovalTotalEur)}</strong>
-			</div>
-		</div>
-
-		<div class="max-h-[55vh] overflow-y-auto border border-gray-200 rounded-lg">
-			<table class="w-full text-xs">
-				<thead class="bg-gray-50 sticky top-0 z-10">
-					<tr class="text-gray-600 uppercase">
-						<th class="text-left py-2 px-2 w-10"></th>
-						<th class="text-left py-2 px-2">Acente</th>
-						<th class="text-left py-2 px-2 hidden sm:table-cell">Oda Tipi</th>
-						<th class="text-left py-2 px-2 hidden md:table-cell">Misafir</th>
-						<th class="text-left py-2 px-2">Tarih</th>
-						<th class="text-right py-2 px-2">Oda</th>
-						<th class="text-right py-2 px-2">EUR</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each removalCandidates as c (c.id)}
-						{@const checked = selectedRemovalIds.has(c.id)}
-						<tr
-							class="border-t border-gray-100 hover:bg-rose-50/40 cursor-pointer"
-							class:bg-rose-50={checked}
-							onclick={() => toggleRemoval(c.id)}
-						>
-							<td class="py-1.5 px-2">
-								<input
-									type="checkbox"
-									{checked}
-									onclick={(e) => e.stopPropagation()}
-									onchange={() => toggleRemoval(c.id)}
-									class="w-4 h-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
-								/>
-							</td>
-							<td class="py-1.5 px-2 text-gray-900 truncate max-w-[140px]" title={c.agency ?? ''}>
-								{c.agency ?? '-'}
-							</td>
-							<td class="py-1.5 px-2 text-gray-700 hidden sm:table-cell">{c.room_type ?? '-'}</td>
-							<td class="py-1.5 px-2 text-gray-600 hidden md:table-cell truncate max-w-[160px]" title={c.guests ?? ''}>
-								{c.guests ?? '-'}
-							</td>
-							<td class="py-1.5 px-2 text-gray-700 whitespace-nowrap">
-								{formatRangeDate(c.checkin_date)} → {formatRangeDate(c.checkout_date)}
-								<span class="text-gray-500 ml-1">({c.nights}n)</span>
-							</td>
-							<td class="py-1.5 px-2 text-right tabular-nums">{c.rooms}</td>
-							<td class="py-1.5 px-2 text-right tabular-nums text-rose-700">{formatEur(c.eur_total)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-
-		<div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
-			<Button variant="secondary" onclick={() => (showRemovalModal = false)}>Vazgeç</Button>
-			<Button variant="danger" onclick={() => (confirmBulkDelete = true)} loading={bulkDeleting} disabled={selectedRemovalIds.size === 0 || bulkDeleting}>
-				{#if !bulkDeleting}<Trash2 size={14} />{/if}
-				Seçilenleri Sil ({selectedRemovalIds.size})
-			</Button>
-		</div>
-	</div>
-</Modal>
+<RemovalReviewModal
+	bind:show={showRemovalModal}
+	candidates={removalCandidates}
+	bind:selectedIds={selectedRemovalIds}
+	selectedTotalEur={selectedRemovalTotalEur}
+	{bulkDeleting}
+	onRequestDelete={() => (confirmBulkDelete = true)}
+/>
 
 <ConfirmDialog
 	bind:show={confirmBulkDelete}
@@ -2050,54 +1863,12 @@
 />
 
 <!-- ── Yüklemeler Geçmişi Modal ── -->
-<Modal bind:show={showUploadsModal} title="Yükleme Geçmişi" maxWidth="max-w-3xl">
-	{#if uploads.length === 0}
-		<p class="text-sm text-gray-500 text-center py-6">Henüz yükleme yok.</p>
-	{:else}
-		<div class="overflow-x-auto">
-			<table class="w-full text-sm">
-				<thead>
-					<tr class="text-xs text-gray-500 uppercase border-b border-gray-100">
-						<th class="text-left py-2 px-2">Tarih</th>
-						<th class="text-left py-2 px-2">Dosya</th>
-						<th class="text-left py-2 px-2 hidden sm:table-cell">Otel</th>
-						<th class="text-right py-2 px-2">Toplam</th>
-						<th class="text-right py-2 px-2">Yeni</th>
-						<th class="text-right py-2 px-2">Güncelle</th>
-						<th class="text-left py-2 px-2 hidden md:table-cell">Yükleyen</th>
-						{#if canUse}
-							<th class="text-right py-2 px-2"></th>
-						{/if}
-					</tr>
-				</thead>
-				<tbody>
-					{#each uploads as u (u.id)}
-						<tr class="border-b border-gray-50 hover:bg-gray-50/50">
-							<td class="py-2 px-2 text-xs text-gray-600 whitespace-nowrap">{formatDate(u.uploaded_at)}</td>
-							<td class="py-2 px-2 text-xs text-gray-900 truncate max-w-[180px]" title={u.file_name}>{u.file_name}</td>
-							<td class="py-2 px-2 text-xs text-gray-600 hidden sm:table-cell truncate max-w-[140px]">{u.hotel_name ?? '-'}</td>
-							<td class="py-2 px-2 text-right tabular-nums">{formatInt(u.total_rows)}</td>
-							<td class="py-2 px-2 text-right tabular-nums text-emerald-700">{formatInt(u.new_rows)}</td>
-							<td class="py-2 px-2 text-right tabular-nums text-amber-700">{formatInt(u.updated_rows)}</td>
-							<td class="py-2 px-2 text-xs text-gray-500 hidden md:table-cell">{u.uploader_name ?? '-'}</td>
-							{#if canUse}
-								<td class="py-2 px-2 text-right">
-									<button
-										onclick={() => askDelete(u)}
-										class="p-1.5 rounded text-red-600 hover:bg-red-50"
-										title="Sil"
-									>
-										<Trash2 size={14} />
-									</button>
-								</td>
-							{/if}
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{/if}
-</Modal>
+<UploadsHistoryModal
+	bind:show={showUploadsModal}
+	{uploads}
+	{canUse}
+	onDelete={askDelete}
+/>
 
 <!-- ── Silme Onayı ── -->
 <ConfirmDialog
@@ -2112,112 +1883,25 @@
 
 <!-- ══════════════════════════════════════════════════════
      Acente Grup Yönetim Modalı (Liste + Form tek modal)
-     Not: Modal.svelte ayrı footer slotu desteklemez; butonlar
-     içeriğin sonuna yerleştirilir.
      ══════════════════════════════════════════════════════ -->
-<Modal
+<AgencyGroupModal
 	bind:show={showGroupMgmtModal}
-	title={gmView === 'list' ? 'Acente Gruplarını Yönet' : (gmEditTarget ? `Grubu Düzenle: ${gmEditTarget.name}` : 'Yeni Acente Grubu')}
-	maxWidth={gmView === 'list' ? 'max-w-2xl' : 'max-w-lg'}
->
-	{#if gmView === 'list'}
-		<div class="space-y-2.5">
-			{#each agencyGroups as g (g.id)}
-				<div class="border border-gray-200 rounded-lg p-3 flex items-start gap-3">
-					<div class="flex-1 min-w-0">
-						<div class="font-semibold text-sm text-gray-900 mb-1.5">{g.name}</div>
-						<div class="flex flex-wrap gap-1">
-							{#each g.members as m}
-								<span class="bg-teal-50 text-teal-700 text-xs px-2 py-0.5 rounded-full border border-teal-200">{m}</span>
-							{/each}
-							{#if g.members.length === 0}
-								<span class="text-xs text-gray-500 italic">Üye yok</span>
-							{/if}
-						</div>
-					</div>
-					<div class="flex gap-1 shrink-0">
-						<button onclick={() => openEditGroup(g)}
-							class="touch-target flex items-center justify-center text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded transition-colors cursor-pointer" title="Düzenle" aria-label="Düzenle">
-							<Settings2 size={15} />
-						</button>
-						<button onclick={() => askGmDelete(g)}
-							class="touch-target flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer" title="Sil" aria-label="Sil">
-							<Trash2 size={15} />
-						</button>
-					</div>
-				</div>
-			{/each}
-			{#if agencyGroups.length === 0}
-				<p class="text-sm text-gray-500 text-center py-6">Henüz grup tanımlanmamış</p>
-			{/if}
-		</div>
-
-		<!-- Liste alt aksiyonları -->
-		<div class="flex justify-end gap-2 pt-4 mt-4 border-t border-gray-200">
-			<Button variant="secondary" onclick={closeGroupMgmt}>Kapat</Button>
-			<Button onclick={openNewGroup}><Plus size={15} /> Yeni Grup</Button>
-		</div>
-	{:else}
-		<div class="space-y-4">
-			<div>
-				<label for="gm-name" class="block text-sm font-medium text-gray-700 mb-1">
-					Grup Adı <span class="text-red-600">*</span>
-				</label>
-				<Input
-					id="gm-name"
-					type="text"
-					size="sm"
-					bind:value={gmNewName}
-					placeholder="örn: ALLTOURS"
-					oninput={(e) => { gmNewName = (e.target as HTMLInputElement).value.toUpperCase(); }}
-				/>
-			</div>
-			<div>
-				<span class="block text-sm font-medium text-gray-700 mb-1">Acenteler</span>
-				<div class="flex flex-wrap gap-1.5 min-h-[40px] p-2 bg-gray-50 border border-gray-200 rounded-lg mb-2">
-					{#each gmMembers as m}
-						<span class="inline-flex items-center gap-1 bg-teal-100 text-teal-800 text-xs px-2 py-1 rounded-full">
-							{m}
-							<button onclick={() => gmRemoveMember(m)} class="hover:text-red-600 ml-0.5 cursor-pointer" aria-label="Üyeyi çıkar">
-								<X size={11} />
-							</button>
-						</span>
-					{/each}
-					{#if gmMembers.length === 0}
-						<span class="text-xs text-gray-500 self-center">Henüz üye eklenmedi</span>
-					{/if}
-				</div>
-				<div class="relative">
-					<Input
-						type="text"
-						size="sm"
-						bind:value={gmSearch}
-						placeholder="Acente adı ara ve ekle…"
-					/>
-					{#if gmSuggestions.length > 0}
-						<div class="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-							{#each gmSuggestions as s}
-								<button onclick={() => gmAddMember(s)}
-									class="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 hover:text-teal-700 transition-colors cursor-pointer">
-									{s}
-								</button>
-							{/each}
-						</div>
-					{/if}
-				</div>
-				<p class="text-xs text-gray-500 mt-1.5">
-					Yalnızca mevcut rezervasyon verilerinde görünen ve başka gruba atanmamış acenteler önerilir.
-				</p>
-			</div>
-		</div>
-
-		<!-- Form alt aksiyonları -->
-		<div class="flex justify-end gap-2 pt-4 mt-4 border-t border-gray-200">
-			<Button variant="secondary" onclick={() => (gmView = 'list')}>← Geri</Button>
-			<Button onclick={gmSave} loading={gmSaving} disabled={!gmNewName.trim()}>{gmEditTarget ? 'Kaydet' : 'Oluştur'}</Button>
-		</div>
-	{/if}
-</Modal>
+	bind:view={gmView}
+	groups={agencyGroups}
+	editTarget={gmEditTarget}
+	bind:name={gmNewName}
+	members={gmMembers}
+	bind:search={gmSearch}
+	suggestions={gmSuggestions}
+	saving={gmSaving}
+	onEditGroup={openEditGroup}
+	onAskDelete={askGmDelete}
+	onClose={closeGroupMgmt}
+	onNewGroup={openNewGroup}
+	onRemoveMember={gmRemoveMember}
+	onAddMember={gmAddMember}
+	onSave={gmSave}
+/>
 
 <!-- ── Grup Silme Onayı ── -->
 <ConfirmDialog

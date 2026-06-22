@@ -9,12 +9,15 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import Modal from '$lib/components/Modal.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
+	import CheckMatchModal from '$lib/components/finance/cariler/CheckMatchModal.svelte';
+	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
+	import DeptAssignModal from '$lib/components/finance/cariler/DeptAssignModal.svelte';
+	import AddToListModal from '$lib/components/finance/cariler/AddToListModal.svelte';
 	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, ChevronUp, Check, X, Calendar, Download } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
@@ -368,21 +371,6 @@
 	// Not: Sedna içe aktarma artık Topbar'daki merkezi "Sedna" butonundan yapılır.
 
 	// ─── Removal Candidates ─────────────────────────────
-	function toggleRemovalSelection(id: number) {
-		const next = new Set(selectedRemovalIds);
-		if (next.has(id)) next.delete(id); else next.add(id);
-		selectedRemovalIds = next;
-	}
-
-	function toggleAllRemovals() {
-		if (!uploadResult) return;
-		if (selectedRemovalIds.size === uploadResult.removal_candidates.length) {
-			selectedRemovalIds = new Set();
-		} else {
-			selectedRemovalIds = new Set(uploadResult.removal_candidates.map(c => c.id));
-		}
-	}
-
 	async function executeBulkDelete() {
 		if (!uploadResult || selectedRemovalIds.size === 0) return;
 		const ids = Array.from(selectedRemovalIds);
@@ -1737,210 +1725,38 @@
 </div>
 
 <!-- Çek Eşleştirme Modal -->
-<Modal bind:show={showCheckMatch} title="Çek ile Eşleştir" maxWidth="2xl">
-	<div class="space-y-4 py-2">
-		<!-- Üst bilgi -->
-		<div class="bg-gray-50 rounded-xl p-3 text-sm">
-			<span class="text-gray-500">Eşleştirilecek tutar:</span>
-			<span class="font-bold text-gray-900 ml-1">{formatCurrency(checkMatchVtxAmount)}</span>
-		</div>
-
-		<!-- Arama -->
-		<Input
-			type="search"
-			size="sm"
-			icon={Search}
-			clearable
-			bind:value={checkSearch}
-			placeholder="Çek no, firma adı veya açıklama ile ara..."
-		/>
-
-		<!-- Çek listesi -->
-		{#if checksLoading}
-			<div class="flex items-center justify-center py-8 text-teal-700">
-				<Loader2 size={24} class="animate-spin" />
-			</div>
-		{:else if filteredChecks().length === 0}
-			<div class="text-center py-8 text-gray-500">
-				<p class="text-sm">Eşleştirilebilecek çek bulunamadı</p>
-				<p class="text-xs mt-1">Tüm çekler zaten eşleştirilmiş veya ödenmiş</p>
-			</div>
-		{:else}
-			<div class="max-h-[400px] overflow-y-auto space-y-2">
-				{#each filteredChecks() as check}
-					{@const amountMatch = Math.abs(check.amount_tl - checkMatchVtxAmount) < 0.01}
-					<button
-						onclick={() => matchWithCheck(check.id)}
-						class="w-full text-left p-3 rounded-xl border transition-all cursor-pointer
-							{amountMatch
-								? 'border-teal-300 bg-teal-50/50 hover:bg-teal-50 hover:border-teal-400'
-								: 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300'}"
-					>
-						<div class="flex items-center justify-between">
-							<div class="flex-1 min-w-0">
-								<div class="flex items-center gap-2">
-									<span class="text-xs font-mono font-bold text-gray-900">{check.check_no}</span>
-									{#if amountMatch}
-										<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700">Tutar eşleşiyor</span>
-									{/if}
-									{#if check.score >= 50}
-										<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">Önerilen</span>
-									{/if}
-								</div>
-								<p class="text-xs text-gray-600 mt-0.5 truncate">{check.vendor_name}</p>
-								{#if check.description}
-									<p class="text-[10px] text-gray-500 truncate">{check.description}</p>
-								{/if}
-							</div>
-							<div class="text-right ml-3 shrink-0">
-								<p class="text-sm font-bold {amountMatch ? 'text-teal-700' : 'text-gray-900'}">{formatCurrency(check.amount_tl)}</p>
-								<p class="text-[10px] text-gray-500">Vade: {formatDate(check.due_date)}</p>
-							</div>
-						</div>
-					</button>
-				{/each}
-			</div>
-		{/if}
-	</div>
-</Modal>
+<CheckMatchModal
+	bind:show={showCheckMatch}
+	vtxAmount={checkMatchVtxAmount}
+	loading={checksLoading}
+	checks={candidateChecks}
+	bind:search={checkSearch}
+	onMatch={matchWithCheck}
+/>
 
 <!-- Upload Result Modal -->
-<Modal bind:show={showUploadResult} title="Yükleme Sonucu" maxWidth={uploadResult && uploadResult.removal_candidates.length > 0 ? 'max-w-4xl' : 'max-w-md'}>
-	{#if uploadResult}
-		<div class="space-y-4 py-2">
-			<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-				<div class="bg-gray-50 rounded-xl p-3 text-center">
-					<p class="text-xl font-bold text-gray-900">{uploadResult.total_vendors}</p>
-					<p class="text-xs text-gray-500 mt-1">Cari</p>
-				</div>
-				<div class="bg-gray-50 rounded-xl p-3 text-center">
-					<p class="text-xl font-bold text-gray-900">{uploadResult.total_transactions}</p>
-					<p class="text-xs text-gray-500 mt-1">Toplam İşlem</p>
-				</div>
-				<div class="bg-emerald-50 rounded-xl p-3 text-center">
-					<p class="text-xl font-bold text-emerald-600">{uploadResult.new_transactions}</p>
-					<p class="text-xs text-gray-500 mt-1">Yeni</p>
-				</div>
-				<div class="bg-amber-50 rounded-xl p-3 text-center">
-					<p class="text-xl font-bold text-amber-600">{uploadResult.skipped_transactions}</p>
-					<p class="text-xs text-gray-500 mt-1">Mükerrer</p>
-				</div>
-			</div>
-
-			{#if uploadResult.removal_candidates.length > 0}
-				<div class="border border-red-200 rounded-xl bg-red-50 p-4 space-y-3">
-					<div class="flex items-start gap-3">
-						<div class="flex-shrink-0 w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold">!</div>
-						<div class="flex-1">
-							<h3 class="text-sm font-semibold text-red-900">Kaynakta Bulunmayan Kayıtlar</h3>
-							<p class="text-xs text-red-700 mt-1">
-								Aşağıdaki <strong>{uploadResult.removal_candidates.length}</strong> kayıt yüklediğiniz Excel'in kapsamında (cari + tarih aralığı) olduğu halde dosyada bulunamadı. Kaynakta silindiyse bunları DB'den de silebilirsiniz. Banka/çek eşleşmesi olan veya departmana atanmış kayıtlar bu listeye dahil edilmedi.
-							</p>
-						</div>
-					</div>
-
-					<div class="bg-white rounded-lg border border-red-100 overflow-hidden">
-						<div class="max-h-80 overflow-y-auto">
-							<table class="w-full text-xs">
-								<thead class="bg-gray-50 sticky top-0 z-10">
-									<tr class="border-b border-gray-200">
-										<th class="px-2 py-2 text-left w-8">
-											<input
-												type="checkbox"
-												checked={selectedRemovalIds.size === uploadResult.removal_candidates.length && uploadResult.removal_candidates.length > 0}
-												onchange={toggleAllRemovals}
-												class="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-											/>
-										</th>
-										<th class="px-2 py-2 text-left font-medium text-gray-600">Cari</th>
-										<th class="px-2 py-2 text-left font-medium text-gray-600">Tarih</th>
-										<th class="px-2 py-2 text-left font-medium text-gray-600">Evrak No</th>
-										<th class="px-2 py-2 text-left font-medium text-gray-600">Tip</th>
-										<th class="px-2 py-2 text-right font-medium text-gray-600">Borç</th>
-										<th class="px-2 py-2 text-right font-medium text-gray-600">Alacak</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each uploadResult.removal_candidates as c (c.id)}
-										<tr class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onclick={() => toggleRemovalSelection(c.id)}>
-											<td class="px-2 py-2">
-												<input
-													type="checkbox"
-													checked={selectedRemovalIds.has(c.id)}
-													onclick={(e) => e.stopPropagation()}
-													onchange={() => toggleRemovalSelection(c.id)}
-													class="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
-												/>
-											</td>
-											<td class="px-2 py-2 text-gray-900 max-w-[180px] truncate" title={c.hesap_adi}>{c.hesap_adi}</td>
-											<td class="px-2 py-2 text-gray-700 whitespace-nowrap">{formatDate(c.date)}</td>
-											<td class="px-2 py-2 text-gray-700 whitespace-nowrap">{c.evrak_no || '—'}</td>
-											<td class="px-2 py-2 text-gray-600 max-w-[140px] truncate" title={c.transaction_type || ''}>{c.transaction_type || '—'}</td>
-											<td class="px-2 py-2 text-right whitespace-nowrap {c.borc > 0 ? 'text-emerald-700' : 'text-gray-500'}">{c.borc > 0 ? formatCurrency(c.borc) : '—'}</td>
-											<td class="px-2 py-2 text-right whitespace-nowrap {c.alacak > 0 ? 'text-red-700' : 'text-gray-500'}">{c.alacak > 0 ? formatCurrency(c.alacak) : '—'}</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-					</div>
-
-					<div class="flex items-center justify-between text-xs text-red-700">
-						<span>{selectedRemovalIds.size} / {uploadResult.removal_candidates.length} seçili</span>
-						<button
-							onclick={toggleAllRemovals}
-							class="font-medium hover:underline"
-						>
-							{selectedRemovalIds.size === uploadResult.removal_candidates.length ? 'Hiçbirini seçme' : 'Hepsini seç'}
-						</button>
-					</div>
-				</div>
-
-				<div class="flex items-center justify-end gap-3">
-					<Button variant="secondary" onclick={() => { showUploadResult = false; uploadResult = null; selectedRemovalIds = new Set(); }} disabled={bulkDeleting}>Atla / Hiçbirini silme</Button>
-					<Button variant="danger" onclick={confirmBulkDelete} loading={bulkDeleting} disabled={bulkDeleting || selectedRemovalIds.size === 0 || !canUse}>{bulkDeleting ? 'Siliniyor...' : `Seçilenleri Sil (${selectedRemovalIds.size})`}</Button>
-				</div>
-			{:else}
-				<Button fullWidth onclick={() => showUploadResult = false}>Tamam</Button>
-			{/if}
-		</div>
-	{/if}
-</Modal>
+<UploadResultModal
+	bind:show={showUploadResult}
+	result={uploadResult}
+	bind:selectedIds={selectedRemovalIds}
+	{bulkDeleting}
+	{canUse}
+	onConfirmDelete={confirmBulkDelete}
+	onSkip={() => { showUploadResult = false; uploadResult = null; selectedRemovalIds = new Set(); }}
+/>
 
 <!-- Departman Atama Modalı -->
-<Modal bind:show={showDeptAssignModal} title="Departmana Ata" maxWidth="max-w-md">
-	<div class="space-y-4">
-		<div class="bg-gray-50 rounded-lg p-3 text-sm">
-			<p class="text-gray-600">{deptAssignTxDesc}</p>
-			<p class="font-semibold text-teal-600 mt-1">{deptAssignTxAmount}</p>
-		</div>
-
-		<div>
-			<label for="dept-select" class="block text-sm font-medium text-gray-700 mb-1">Departman</label>
-			<Select id="dept-select" size="sm" bind:value={selectedDeptId}>
-				<option value={null}>Seçiniz...</option>
-				{#each departments.filter(d => d.manager_name) as dept}
-					<option value={dept.id}>{dept.name} — {dept.manager_name}</option>
-				{/each}
-			</Select>
-		</div>
-
-		<div>
-			<label for="cat-select" class="block text-sm font-medium text-gray-700 mb-1">Bütçe Kategorisi (opsiyonel)</label>
-			<Select id="cat-select" size="sm" bind:value={selectedCatId}>
-				<option value={null}>Seçiniz...</option>
-				{#each budgetCategories.filter(c => c.type === 'expense') as cat}
-					<option value={cat.id}>{cat.name}</option>
-				{/each}
-			</Select>
-		</div>
-
-		<div class="flex items-center justify-end gap-3 pt-2">
-				<Button variant="secondary" onclick={() => { showDeptAssignModal = false; }}>İptal</Button>
-				<Button onclick={assignDepartment} loading={deptAssigning} disabled={!selectedDeptId || deptAssigning}>{deptAssigning ? 'Atanıyor...' : 'Departmana Ata'}</Button>
-		</div>
-	</div>
-</Modal>
+<DeptAssignModal
+	bind:show={showDeptAssignModal}
+	txDesc={deptAssignTxDesc}
+	txAmount={deptAssignTxAmount}
+	{departments}
+	{budgetCategories}
+	bind:selectedDeptId
+	bind:selectedCatId
+	assigning={deptAssigning}
+	onAssign={assignDepartment}
+/>
 
 <!-- Generic Onay Diyaloğu -->
 <ConfirmDialog
@@ -1953,43 +1769,12 @@
 />
 
 <!-- Ödeme Talimatına Ekle Modal -->
-<Modal bind:show={addToListModal.show} title="Ödeme Talimatına Ekle" maxWidth="max-w-md">
-	{#if addToListModal.vendor}
-		<div class="space-y-4 text-sm">
-			<div class="bg-gray-50 rounded-lg p-3">
-				<div class="font-medium text-gray-800">{addToListModal.vendor.hesap_adi}</div>
-				<div class="text-xs text-gray-500 mt-0.5">{addToListModal.vendor.hesap_kodu}</div>
-				<div class="text-xs mt-1.5">
-					Ödenecek tutar:
-					<span class="font-bold {addToListModal.vendor.bakiye < 0 ? 'text-rose-600' : 'text-gray-500'}">
-						{formatCurrency(addToListModal.vendor.bakiye < 0 ? -addToListModal.vendor.bakiye : 0)}
-					</span>
-					<span class="text-gray-500">(bakiyeden — listede düzenlenebilir)</span>
-				</div>
-			</div>
-
-			{#if piLists.length > 0}
-				<div>
-					<label for="pi-list-select" class="text-xs text-gray-500 mb-1 block">Mevcut Listeye Ekle</label>
-					<Select id="pi-list-select" size="sm" bind:value={piSelectedListId}>
-						{#each piLists as l (l.id)}
-							<option value={l.id}>{l.name} ({l.item_count} cari)</option>
-						{/each}
-					</Select>
-				</div>
-				<div class="text-center text-xs text-gray-500">— veya —</div>
-			{/if}
-
-			<div>
-				<label for="pi-new-name" class="text-xs text-gray-500 mb-1 block">Yeni Liste Oluştur</label>
-				<Input id="pi-new-name" size="sm" bind:value={piNewListName} placeholder="ör: Haftalık Ödeme 26.05" />
-				<p class="text-[11px] text-gray-500 mt-1">Ad girerseniz yeni liste oluşturulur, aksi halde seçili listeye eklenir.</p>
-			</div>
-
-			<div class="flex items-center justify-end gap-2 pt-1">
-				<Button variant="secondary" onclick={() => (addToListModal = { show: false, vendor: null })}>Vazgeç</Button>
-				<Button onclick={confirmAddToList} loading={piAdding}>Ekle</Button>
-			</div>
-		</div>
-	{/if}
-</Modal>
+<AddToListModal
+	bind:show={addToListModal.show}
+	vendor={addToListModal.vendor}
+	lists={piLists}
+	bind:selectedListId={piSelectedListId}
+	bind:newName={piNewListName}
+	adding={piAdding}
+	onConfirm={confirmAddToList}
+/>
