@@ -21,6 +21,18 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
     `app.routers.finance.check_import`'u hedefler (run_check_import orada bu adları kendi global'inde
     arar). `TARGET`/`CHK` sabitleri + 3 doğrudan import (`infer_check_banks`/`detect_check_no_mismatches`/
     `_sweep_stale_checks`) `check_import`'a repoint edildi. Test: `test_checks.py`, `test_sedna_sync.py`.
+- **`bank_statement_import.py` (yeni) — banka ekstresi yükleme/işleme domain katmanı:** `banks.py`
+  833→467 satıra indi. Ekstre dosyası doğrula+ayrıştır (`_save_and_parse`), dedup ile hesaba kaydet
+  (`_process_statement`), yükleme sonrası bildirim+otomatik eşleştirme (`_post_upload_processing`) +
+  yardımcıları (`_notify_bank_upload`/`_get_banks_viewer_ids`/`_ensure_upload_dir`/`UPLOAD_DIR`) bu modüle
+  taşındı. `banks.py` upload endpoint'leri 3 fonksiyonu buradan import eder; modül router'dan import etmez.
+  Davranış birebir (test: `test_finance`/`test_bank_manual_transaction`/`test_banks_cc_match`).
+- **`utils/bank_parse_helpers.py` (yeni) — saf sayı/tarih ayrıştırma:** `bank_parser.py` 1044→857 satıra
+  indi. **NOT:** bank_parser banka-başına DEĞİL konu-başına organize (tek banka-özel fn `_parse_vakifbank_text`)
+  → "per-bank parser" split uygulanamaz. Saf fonksiyonlar (`parse_turkish_number`/`parse_english_number`/
+  `_detect_number_format`/`_smart_parse_number`/`parse_date_tr`/`_normalize_tr`/`_strip_currency_suffix`/
+  `_extract_trailing_numbers`) ayrıldı; `bank_parser` geri import eder. Davranış birebir (`_normalize_tr`
+  unicode eşdeğerliği test edildi; `test_bank_parser.py` 63 yeşil).
 - **`utils/pagination.py` (yeni) — `page_meta(items, total, page, page_size)` + `paginate(query, ...)`:**
   baskın pagination konvansiyonu (boş→`pages=1`). 14 endpoint'in tekrar eden `{items,total,page,page_size,
   pages: math.ceil(...)}` dict literal'i bununla değiştirildi (audit/advances/error_logs/notifications/
@@ -843,9 +855,11 @@ Mükerrer tespiti **bakiye bazlı** yapılır — en güvenilir yöntem:
 
 ```
 app/routers/finance/
-├── banks.py            # Banka hesapları + ekstre
+├── banks.py            # Banka hesapları CRUD + ekstre upload endpoint'leri + işlem listesi
+├── bank_statement_import.py # Ekstre yükleme/işleme domain mantığı (_save_and_parse/_process_statement/_post_upload_processing)
 ├── bank_instructions.py # Banka talimatları (EFT/havale, döviz bozma PDF)
-├── checks.py           # Çekler
+├── checks.py           # Çek CRUD + upload + liste/özet/durum endpoint'leri
+├── check_import.py     # Çek Sedna içe-aktarma domain mantığı (run_check_import + dedup/infer/sweep)
 ├── krediler/            # Kredi ürünleri paketi
 │   ├── __init__.py      # Alt router'ları birleştirir (prefix="/krediler") + `_match_credits_to_bank` ihracı (banks.py geriye uyumluluk)
 │   ├── products.py      # Kredi ürünleri CRUD (list, get, create, update, delete)
