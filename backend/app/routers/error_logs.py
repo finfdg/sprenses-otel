@@ -1,4 +1,3 @@
-import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -9,6 +8,7 @@ from app.middleware.auth import require_permission
 from app.models.error_log import ErrorLog
 from app.models.user import User
 from app.utils.sql_search import like_pattern
+from app.utils.pagination import page_meta
 
 router = APIRouter()
 
@@ -56,13 +56,7 @@ def list_error_logs(
             "created_at": log.created_at,
         })
 
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta(items, total, page, page_size)
 
 
 @router.get("/summary")

@@ -1,6 +1,5 @@
 """Bildirim endpoint'leri — liste, okunmamış sayısı, okundu işaretleme."""
 
-import math
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
@@ -11,6 +10,7 @@ from app.middleware.auth import get_current_user
 from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.notification import NotificationMarkRead, NotificationResponse
+from app.utils.pagination import page_meta
 
 router = APIRouter()
 
@@ -30,13 +30,7 @@ def list_notifications(
     total = query.count()
     items = query.offset((page - 1) * page_size).limit(page_size).all()
 
-    return {
-        "items": [NotificationResponse.model_validate(n).model_dump() for n in items],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta([NotificationResponse.model_validate(n).model_dump() for n in items], total, page, page_size)
 
 
 @router.get("/unread-count")

@@ -9,9 +9,10 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
+	import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { CreditCard, ChevronRight, FileDown, Plus, Loader2, CheckCircle2, Info, RotateCcw, Check, X, CornerDownLeft } from 'lucide-svelte';
+	import { CreditCard, ChevronRight, FileDown, Plus, CheckCircle2, Info, RotateCcw, Check, X, CornerDownLeft } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard, { type StatAccent } from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -899,14 +900,7 @@
 	<!-- Kredi Kartı Ekstre Sürükle-Bırak (ortak) -->
 	{#if canUse && products.some((p: any) => p.type === 'kredi_karti')}
 		<div class="relative mb-4">
-			{#if ccUploading}
-				<div class="absolute inset-0 z-10 bg-white/80 rounded-xl flex items-center justify-center">
-					<div class="flex items-center gap-2 text-teal-700">
-						<Loader2 size={20} class="animate-spin" />
-						<span class="text-sm font-medium">Ekstre yükleniyor...</span>
-					</div>
-				</div>
-			{/if}
+			<LoadingOverlay show={ccUploading} message="Ekstre yükleniyor..." />
 			<FileDropzone
 				accept=".pdf"
 				maxSize={50 * 1024 * 1024}

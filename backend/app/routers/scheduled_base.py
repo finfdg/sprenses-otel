@@ -12,7 +12,6 @@ Kullanım:
     )
 """
 import json
-import math
 from datetime import date
 from typing import Optional
 
@@ -37,6 +36,7 @@ from app.utils.audit import log_action
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 from app.services import scheduled_service
+from app.utils.pagination import page_meta
 
 
 def _entry_response(e: ScheduledEntry) -> dict:
@@ -124,13 +124,7 @@ def create_scheduled_router(
             .all()
         )
 
-        return {
-            "items": [_defn_response(d, include_entries=True) for d in items],
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "pages": math.ceil(total / page_size) if total > 0 else 1,
-        }
+        return page_meta([_defn_response(d, include_entries=True) for d in items], total, page, page_size)
 
     # ─── GET (detail) ────────────────────────────────────
 

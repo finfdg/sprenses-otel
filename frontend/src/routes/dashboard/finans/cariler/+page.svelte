@@ -13,6 +13,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
+	import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
 	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
 	import CheckMatchModal from '$lib/components/finance/cariler/CheckMatchModal.svelte';
 	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
@@ -887,14 +888,7 @@
 			<!-- Sürükle-Bırak Alan -->
 			{#if canUse}
 				<div class="relative">
-					{#if uploading}
-						<div class="absolute inset-0 z-10 bg-white/80 rounded-xl flex items-center justify-center">
-							<div class="flex items-center gap-2 text-teal-700">
-								<Loader2 size={20} class="animate-spin" />
-								<span class="text-sm font-medium">Yükleniyor...</span>
-							</div>
-						</div>
-					{/if}
+					<LoadingOverlay show={uploading} />
 					<FileDropzone
 						accept=".xls,.xlsx"
 						maxSize={50 * 1024 * 1024}

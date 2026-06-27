@@ -1,6 +1,5 @@
 """Mesajlaşma modülü paylaşılan yardımcı fonksiyonlar."""
 
-import time
 from datetime import datetime
 from typing import List
 
@@ -12,8 +11,6 @@ from app.config import settings
 from app.constants import WSEvent
 from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message
-from app.models.module import Module
-from app.models.role_module_permission import RoleModulePermission
 from app.models.user import User
 from app.schemas.message import GroupMemberBrief, MessageResponse, UserBrief
 from app.websocket.manager import manager
@@ -138,39 +135,14 @@ def _get_muted_user_ids(db: Session, conversation_id: int, user_ids: List[int]) 
     return {r.user_id for r in rows}
 
 
-# TTL cache: messaging rol ID'leri (5 dakika)
-_messaging_role_cache_ids: set = set()
-_messaging_role_cache_ts: float = 0.0
-_MESSAGING_ROLE_CACHE_TTL = 300  # 5 dakika
-
-
-def _invalidate_messaging_role_cache() -> None:
-    """Cache'i sıfırla (testlerde kullanılır)."""
-    global _messaging_role_cache_ids, _messaging_role_cache_ts
-    _messaging_role_cache_ids = set()
-    _messaging_role_cache_ts = 0.0
-
-
-def _get_messaging_role_ids(db: Session) -> set:
-    """Messaging modülüne erişimi olan rol ID'lerini döndür (5dk TTL cache)."""
-    global _messaging_role_cache_ids, _messaging_role_cache_ts
-    now = time.time()
-    if now - _messaging_role_cache_ts < _MESSAGING_ROLE_CACHE_TTL:
-        return _messaging_role_cache_ids
-
-    messaging_mod = db.query(Module).filter(Module.code == "messaging").first()
-    if not messaging_mod:
-        _messaging_role_cache_ids = set()
-        _messaging_role_cache_ts = now
-        return set()
-    perm_rows = db.query(RoleModulePermission.role_id).filter(
-        RoleModulePermission.module_id == messaging_mod.id,
-        RoleModulePermission.can_view == True,
-    ).all()
-    result = {r.role_id for r in perm_rows}
-    _messaging_role_cache_ids = result
-    _messaging_role_cache_ts = now
-    return result
+# Messaging rol-erişim TTL cache'i artık altyapı katmanında (utils) —
+# service→router import yönü oluşmaması için. Geriye uyum için re-export edilir.
+from app.utils.messaging_role_cache import (  # noqa: E402
+    get_messaging_role_ids as _get_messaging_role_ids,
+)
+from app.utils.messaging_role_cache import (  # noqa: E402
+    invalidate_messaging_role_cache as _invalidate_messaging_role_cache,
+)
 
 
 def _broadcast_to_conversation(

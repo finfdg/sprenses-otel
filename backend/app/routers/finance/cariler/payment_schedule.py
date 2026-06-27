@@ -17,6 +17,7 @@ from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.schemas.vendor import PaymentScheduleItem, WeeklyPaymentGroup
 from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+from app.utils.vendor_fifo import _next_friday
 
 router = APIRouter()
 
@@ -38,13 +39,6 @@ def get_payment_schedule(
     sync_result = sync_vendor_finance_events(db)
     if sync_result.get("updated") or sync_result.get("created") or sync_result.get("removed"):
         db.commit()
-
-    def _next_friday(d: date_type) -> date_type:
-        """Verilen tarihten sonraki ilk Cuma'yı döndür."""
-        days_ahead = 4 - d.weekday()  # Cuma = 4
-        if days_ahead <= 0:
-            days_ahead += 7
-        return d + timedelta(days=days_ahead)
 
     # 1) Her carinin net borcunu ve vade gün sayısını çek
     vendor_balance_rows = (

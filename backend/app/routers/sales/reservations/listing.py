@@ -1,6 +1,5 @@
 """Otel rezervasyon listesi — sayfalanmış, filtrelenebilir."""
 
-import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -11,6 +10,7 @@ from app.middleware.auth import require_permission
 from app.models.reservation import Reservation
 from app.models.user import User
 from app.schemas.reservation import ReservationResponse
+from app.utils.pagination import page_meta
 
 from ._helpers import _apply_filters
 
@@ -45,10 +45,4 @@ def list_reservations(
         .all()
     )
 
-    return {
-        "items": [ReservationResponse.model_validate(r).model_dump(mode="json") for r in items],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta([ReservationResponse.model_validate(r).model_dump(mode="json") for r in items], total, page, page_size)

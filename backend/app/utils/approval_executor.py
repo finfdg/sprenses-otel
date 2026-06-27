@@ -105,6 +105,35 @@ def _apply_fields(obj, payload: dict, exclude: Optional[set] = None):
             setattr(obj, key, val)
 
 
+def _make_crud_handler(load, create_fn, update_fn, delete_fn, not_found_msg,
+                       create_takes_actor=True):
+    """Standart create/update/delete onay handler'ı üretir (uniform CRUD modülleri).
+
+    Yalnız basit-CRUD modülleri için (banks/avanslar/departmanlar/room_types) — özel
+    mantıklı handler'lar (krediler `_target`, butce upsert, checks iptal kademesi,
+    quality, scheduled) açık yazılır. `create_takes_actor`, `create_fn`'in `actor_id`
+    alıp almadığını AÇIKÇA kodlar (departmanlar/room_types almaz; banks/avanslar alır) —
+    bu imza farkı eski drift bug'larının (D2-4) kaynağıydı, gizlenmez. `load(db, id)`
+    güncelleme/silmede varlığı çeker (lazy model import'u burada kalır).
+    """
+    def handler(db, action_type, entity_id, payload, actor_id):
+        if action_type == "create":
+            if create_takes_actor:
+                create_fn(db, payload, actor_id)
+            else:
+                create_fn(db, payload)
+        elif action_type == "update":
+            obj = load(db, entity_id)
+            if not obj:
+                raise ValueError(not_found_msg.format(id=entity_id))
+            update_fn(db, obj, payload)
+        elif action_type == "delete":
+            obj = load(db, entity_id)
+            if obj:
+                delete_fn(db, obj)
+    return handler
+
+
 # ── Scheduled modüller (8 modül) ──────────────────────────────
 
 _SCHEDULED_SOURCE_MAP = {
@@ -254,23 +283,6 @@ def _handle_system_modules(db, action_type, entity_id, payload, actor_id):
 
 # ── Finans modülleri ──────────────────────────────────────────
 
-def _handle_finance_banks(db, action_type, entity_id, payload, actor_id):
-    from app.models.bank_account import BankAccount
-    from app.services import bank_account_service
-
-    if action_type == "create":
-        bank_account_service.create_account(db, payload, actor_id)
-    elif action_type == "update":
-        acc = db.query(BankAccount).filter(BankAccount.id == entity_id).first()
-        if not acc:
-            raise ValueError(f"Banka hesabı bulunamadı: {entity_id}")
-        bank_account_service.apply_account_update(db, acc, payload)
-    elif action_type == "delete":
-        acc = db.query(BankAccount).filter(BankAccount.id == entity_id).first()
-        if acc:
-            bank_account_service.delete_account(db, acc)
-
-
 def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
     # Router endpoint'iyle BİREBİR aynı mantık (tek kaynak: app/services/credit_service).
     # Böylece onaylanan create/update'te de BCH/KMH ödeme planı + finance_events üretilir,
@@ -306,26 +318,10 @@ def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
             credit_service.delete_product(db, product)
 
 
-def _handle_finance_avanslar(db, action_type, entity_id, payload, actor_id):
-    from app.models.advance import Advance
-    from app.services import advance_service
-
-    if action_type == "create":
-        advance_service.create_advance(db, payload, actor_id)
-    elif action_type == "update":
-        adv = db.query(Advance).filter(Advance.id == entity_id).first()
-        if not adv:
-            raise ValueError(f"Avans bulunamadı: {entity_id}")
-        advance_service.apply_advance_update(db, adv, payload)
-    elif action_type == "delete":
-        adv = db.query(Advance).filter(Advance.id == entity_id).first()
-        if adv:
-            advance_service.delete_advance(db, adv)
-
-
 def _handle_finance_departmanlar(db, action_type, entity_id, payload, actor_id):
     # Router (departmanlar.py) ile ORTAK: app/services/department_service.
-    # delete artık guard'lı HARD (eskiden guard'sız SOFT idi → router'dan sapıyordu).
+    # delete guard'lı HARD (rezervasyon/kayıt varsa ValueError). Bu handler `butce`
+    # tarafından da yeniden kullanıldığından (target=department) açık fonksiyon tutulur.
     from app.models.department import Department
     from app.services import department_service
 
@@ -592,26 +588,41 @@ def _handle_shift_schedule(db, action_type, entity_id, payload, actor_id):
             hr_service.delete_assignment(db, a)
 
 
-def _handle_sales_room_types(db, action_type, entity_id, payload, actor_id):
-    """Oda tipi (sales.room_types) onayı — router CRUD'u ile ORTAK service çağırır.
+# ── Uniform basit-CRUD handler'ları (factory ile) ────────────
+# Bu 4 modül create/update/delete'te tek service çağrısı yapar (özel mantık yok) →
+# _make_crud_handler ile üretilir. Router'larla ORTAK service (D1-2 deseni); davranış
+# birebir. Önemli notlar:
+#   - departmanlar: delete guard'lı HARD (rezervasyon/kayıt varsa ValueError).
+#   - room_types: delete rezervasyon koruması (rezervasyon varsa ValueError).
+#   - create_takes_actor: banks/avanslar actor_id alır; departmanlar/room_types almaz.
 
-    app/services/room_type_service: create/apply_update/delete. Delete'te router'daki
-    rezervasyon koruması da uygulanır (rezervasyon varsa silinmez — ValueError).
-    """
+def _make_simple_crud_handlers():
+    from app.models.advance import Advance
+    from app.models.bank_account import BankAccount
     from app.models.room_type import RoomType
-    from app.services import room_type_service
+    from app.services import (
+        advance_service,
+        bank_account_service,
+        room_type_service,
+    )
 
-    if action_type == "create":
-        room_type_service.create_room_type(db, payload)
-    elif action_type == "update":
-        rt = db.query(RoomType).filter(RoomType.id == entity_id).first()
-        if not rt:
-            raise ValueError(f"Oda tipi bulunamadı: {entity_id}")
-        room_type_service.apply_room_type_update(db, rt, payload)
-    elif action_type == "delete":
-        rt = db.query(RoomType).filter(RoomType.id == entity_id).first()
-        if rt:
-            room_type_service.delete_room_type(db, rt)
+    def _loader(model):
+        return lambda db, eid: db.query(model).filter(model.id == eid).first()
+
+    return {
+        "finance.banks": _make_crud_handler(
+            _loader(BankAccount), bank_account_service.create_account,
+            bank_account_service.apply_account_update, bank_account_service.delete_account,
+            "Banka hesabı bulunamadı: {id}", create_takes_actor=True),
+        "finance.avanslar": _make_crud_handler(
+            _loader(Advance), advance_service.create_advance,
+            advance_service.apply_advance_update, advance_service.delete_advance,
+            "Avans bulunamadı: {id}", create_takes_actor=True),
+        "sales.room_types": _make_crud_handler(
+            _loader(RoomType), room_type_service.create_room_type,
+            room_type_service.apply_room_type_update, room_type_service.delete_room_type,
+            "Oda tipi bulunamadı: {id}", create_takes_actor=False),
+    }
 
 
 # ── Handler kayıt tablosu ────────────────────────────────────
@@ -621,11 +632,9 @@ _HANDLERS = {
     "system.users": _handle_system_users,
     "system.roles": _handle_system_roles,
     "system.modules": _handle_system_modules,
-    # Finans
-    "finance.banks": _handle_finance_banks,
+    # Finans — özel mantıklı handler'lar (açık)
     "finance.krediler": _handle_finance_krediler,
-    "finance.avanslar": _handle_finance_avanslar,
-    "finance.departmanlar": _handle_finance_departmanlar,
+    "finance.departmanlar": _handle_finance_departmanlar,  # butce target=department yeniden kullanır
     "finance.butce": _handle_finance_butce,
     "finance.checks": _handle_finance_checks,
     "finance.cariler": _handle_finance_cariler,
@@ -638,9 +647,10 @@ _HANDLERS = {
     "hr.shifts": _handle_shifts,
     # İK — Vardiya çizelgesi (rota)
     "hr.shift_schedule": _handle_shift_schedule,
-    # Satış
-    "sales.room_types": _handle_sales_room_types,
 }
+
+# Uniform basit-CRUD modülleri (finance.banks/avanslar/departmanlar, sales.room_types)
+_HANDLERS.update(_make_simple_crud_handlers())
 
 # Scheduled modüller (8 adet)
 for _code, (_src, _dir) in _SCHEDULED_SOURCE_MAP.items():

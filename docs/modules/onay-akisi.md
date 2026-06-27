@@ -247,6 +247,27 @@ def _handle_my_module(db, action_type, entity_id, payload, actor_id):
 _HANDLERS["my.module_code"] = _handle_my_module
 ```
 
+#### Uniform basit-CRUD modülleri — `_make_crud_handler` factory (2026-06-27)
+
+Modülün handler'ı **yalnız** create/update/delete'te tek service çağrısı yapıyorsa (özel
+yan-etki yok), elle handler yazmak yerine `_make_crud_handler` factory kullanılır
+(`_make_simple_crud_handlers()` içinde kaydedilir):
+
+```python
+"finance.banks": _make_crud_handler(
+    _loader(BankAccount), bank_account_service.create_account,
+    bank_account_service.apply_account_update, bank_account_service.delete_account,
+    "Banka hesabı bulunamadı: {id}", create_takes_actor=True),
+```
+
+- `create_takes_actor`, `create_fn`'in `actor_id` alıp almadığını **AÇIKÇA** kodlar
+  (banks/avanslar alır; room_types almaz). Bu imza farkı eski drift bug'larının (D2-4) kaynağıydı —
+  gizlenmez. Şu an factory ile: `finance.banks`, `finance.avanslar`, `sales.room_types`.
+- **Açık (elle) tutulanlar:** özel mantıklı handler'lar — `finance.krediler` (`_target` ürün/ödeme),
+  `finance.butce` (kompozit-anahtar upsert + `target=department/category`), `finance.checks` (iptal
+  kademesi), `finance.departmanlar` (**butce `target=department` yeniden kullandığından** açık
+  fonksiyon), quality/scheduled/hr. Bunlar factory'ye alınmaz.
+
 ### Alt Kayıtlar İçin `_target` Pattern'ı
 
 Aynı modül kodunu paylaşan farklı varlıklar (ör: bütçe + departman, kredi + ödeme):

@@ -29,7 +29,7 @@ from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 from app.utils.sedna_client import sedna_configured
 
 from .cariler.sedna_import import run_cari_import, run_iban_import
-from .checks import run_check_import
+from .check_import import run_check_import
 from .sales_invoices import run_sales_invoice_import
 
 logger = logging.getLogger(__name__)

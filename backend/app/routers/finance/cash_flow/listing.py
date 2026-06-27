@@ -1,6 +1,5 @@
 """Nakit akım listesi, özet ve mobil dashboard endpoint'leri."""
 
-import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -21,6 +20,7 @@ from app.models.finance_event import (
 from app.models.user import User
 from app.models.vendor_transaction import VendorTransaction
 from app.utils.finance_helpers import MIN_DATE
+from app.utils.pagination import page_meta
 
 from ._helpers import _fe_to_response, _get_vendor_net_debts
 
@@ -151,13 +151,7 @@ def list_cash_flows(
     raw_items = [_fe_to_response(fe) for fe in events]
     items = _aggregate_vendor_payments(raw_items)
 
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta(items, total, page, page_size)
 
 
 @router.get("/cash-flow/mobile-dashboard")

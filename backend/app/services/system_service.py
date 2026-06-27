@@ -101,9 +101,9 @@ def apply_role_update(db: Session, role: Role, update_data: dict) -> bool:
         db.flush()
         _set_role_permissions(db, role.id, permissions)
         invalidate_module_cache()
-        # mesajlaşma rol-cache'i (lazy import — service modül-yükleme zamanında router'a bağlanmasın)
-        from app.routers.messages._helpers import _invalidate_messaging_role_cache
-        _invalidate_messaging_role_cache()
+        # mesajlaşma rol-cache'i — cache state utils'te (router'a bağlanmaz)
+        from app.utils.messaging_role_cache import invalidate_messaging_role_cache
+        invalidate_messaging_role_cache()
     return permissions_changed
 
 

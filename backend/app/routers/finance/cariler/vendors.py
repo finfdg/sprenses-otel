@@ -28,6 +28,7 @@ from app.utils.audit import log_action
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.services import vendor_service
+from app.utils.pagination import page_meta
 
 from ._helpers import _build_dept_cat_user_maps, _build_tx_response, logger
 
@@ -187,13 +188,7 @@ def list_vendors(
             unmatched_count=int(row.unmatched_count or 0),
         ).model_dump())
 
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta(items, total, page, page_size)
 
 
 # ─── Cari Detay ─────────────────────────────────────────
@@ -314,13 +309,7 @@ def get_vendor_bank_transactions(
             "tag_note": tx.tag_note,
         })
 
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta(items, total, page, page_size)
 
 
 # ─── Ödeme Vadesi Güncelleme ─────────────────────────────

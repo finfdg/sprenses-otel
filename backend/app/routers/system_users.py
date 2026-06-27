@@ -1,6 +1,5 @@
 """Sistem kullanıcı yönetimi — CRUD, şifre sıfırlama, aktif/pasif."""
 
-import math
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
@@ -20,6 +19,7 @@ from app.utils.security import hash_password
 from app.services import system_service
 from app.utils.sql_search import like_pattern
 from app.websocket.manager import manager
+from app.utils.pagination import page_meta
 
 router = APIRouter()
 
@@ -46,13 +46,7 @@ def list_users(
     total = query.count()
     users = query.order_by(User.first_name).offset((page - 1) * page_size).limit(page_size).all()
 
-    return {
-        "items": build_user_responses_batch(users, db),
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta(build_user_responses_batch(users, db), total, page, page_size)
 
 
 @router.get("/{user_id}", response_model=UserResponse)

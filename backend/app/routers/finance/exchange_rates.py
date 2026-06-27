@@ -1,6 +1,5 @@
 """Döviz kuru API endpoint'leri."""
 
-import math
 from datetime import date, timedelta
 from typing import Optional
 
@@ -13,6 +12,7 @@ from app.middleware.auth import require_permission
 from app.models.exchange_rate import ExchangeRate
 from app.models.user import User
 from app.schemas.exchange_rate import ExchangeRateResponse
+from app.utils.pagination import page_meta
 
 router = APIRouter(prefix="/exchange-rates")
 
@@ -98,13 +98,7 @@ def get_rate_history(
         .all()
     )
 
-    return {
-        "items": [_build_response(er) for er in items],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta([_build_response(er) for er in items], total, page, page_size)
 
 
 @router.get("/chart")

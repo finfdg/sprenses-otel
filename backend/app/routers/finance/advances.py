@@ -1,7 +1,6 @@
 """Alınan Avanslar modülü — Acente/operatör avansları CRUD."""
 
 import json
-import math
 import re
 from typing import Optional
 
@@ -22,6 +21,7 @@ from app.schemas.advance import (
 )
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.utils.pagination import page_meta
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
@@ -112,13 +112,7 @@ def list_advances(
         .all()
     )
 
-    return {
-        "items": [_build_response(adv) for adv in items],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta([_build_response(adv) for adv in items], total, page, page_size)
 
 
 # ─── CREATE ───────────────────────────────────────────────

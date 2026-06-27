@@ -12,7 +12,7 @@ from app.config import settings
 
 PREFIX = "/api/finance/sedna"
 CARI = "app.routers.finance.cariler.sedna_import"
-CHK = "app.routers.finance.checks"
+CHK = "app.routers.finance.check_import"
 
 FAKE_CARI = [
     {"hesap_kodu": "320.88.01.0001", "hesap_adi": "SYNC CARİ A", "tarih": date(2026, 1, 5),

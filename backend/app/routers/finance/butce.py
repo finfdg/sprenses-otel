@@ -1,7 +1,6 @@
 """Bütçe yönetimi — Kategori ve bütçe kaydı CRUD + özet raporları."""
 
 import json
-import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -28,6 +27,7 @@ from app.schemas.budget import (
 from app.services import budget_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.utils.pagination import page_meta
 
 router = APIRouter(prefix="/butce", tags=["Bütçe"])
 
@@ -224,13 +224,7 @@ def list_budgets(
         .all()
     )
 
-    return {
-        "items": [_build_budget_response(b) for b in budgets],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta([_build_budget_response(b) for b in budgets], total, page, page_size)
 
 
 @router.post("/", status_code=status.HTTP_200_OK)

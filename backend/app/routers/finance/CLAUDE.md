@@ -5,6 +5,31 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Refactor — Çek Sedna İçe-Aktarma Ayrıştırması + Pagination Helper (2026-06-27)
+
+- **`check_import.py` (yeni) — Sedna çek içe-aktarma domain katmanı:** `checks.py` 814→432 satıra
+  indi. Tüm Sedna içe-aktarma mantığı (`run_check_import`, `_import_one_check_row`,
+  `_build_existing_and_stale`, `infer_check_banks`, `detect_check_no_mismatches`,
+  `_sweep_stale_checks`, dedup/status anahtar helper'ları `_check_dedup_key`/`_check_status_from_pos`/
+  `_check_group_key`/`_checkno_to_int`/`_norm_bank`) yeni `app/routers/finance/check_import.py`'ye
+  taşındı. Bu modül **router'dan import ETMEZ** (tek yön → cycle yok); `checks.py` ihtiyaç duyduğu
+  isimleri (`_check_dedup_key` [Excel upload dedup'u], `run_check_import`, `detect_check_no_mismatches`)
+  geri import eder. `sedna_sync.py` artık `run_check_import`'u doğrudan `check_import`'tan alır (router
+  yerine domain modülü). **`run_check_import` mantığı değişmedi** — yalnız taşındı + iç döngü
+  `_import_one_check_row` helper'ına bölündü (207→~80 satır; davranış birebir).
+  - **Test patch hedefi değişti:** `sedna_configured`/`fetch_issued_checks` patch'leri artık
+    `app.routers.finance.check_import`'u hedefler (run_check_import orada bu adları kendi global'inde
+    arar). `TARGET`/`CHK` sabitleri + 3 doğrudan import (`infer_check_banks`/`detect_check_no_mismatches`/
+    `_sweep_stale_checks`) `check_import`'a repoint edildi. Test: `test_checks.py`, `test_sedna_sync.py`.
+- **`utils/pagination.py` (yeni) — `page_meta(items, total, page, page_size)` + `paginate(query, ...)`:**
+  baskın pagination konvansiyonu (boş→`pages=1`). 14 endpoint'in tekrar eden `{items,total,page,page_size,
+  pages: math.ceil(...)}` dict literal'i bununla değiştirildi (audit/advances/error_logs/notifications/
+  krediler/cariler/cash_flow/checks/butce/exchange_rates/scheduled/quality/sales/system_users). **`approval/*`
+  HARİÇ** — orada boşta `pages=0` konvansiyonu farklı (sapma yaratmamak için dokunulmadı). Banks/sales_invoices/
+  attendance/stock farklı formatlı (`if total else 1` / `total_count` / tek-satır) → adapte edilebilir, dokunulmadı.
+
+---
+
 ## Verilen Çek — Ödeme Bankası (`checks.bank_name`) (2026-06-20)
 
 Verilen çekin **hangi bankadan ödeneceği** (çek defterinin bankası) artık ayrı kolonda tutulur.

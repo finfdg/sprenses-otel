@@ -1,6 +1,5 @@
 """Kredi ürünleri CRUD endpoint'leri."""
 
-import math
 from datetime import date as date_cls
 from typing import Optional
 
@@ -36,6 +35,7 @@ from ._helpers import (
     _build_product_response,
 )
 from app.services import credit_service
+from app.utils.pagination import page_meta
 
 router = APIRouter()
 
@@ -78,13 +78,7 @@ def list_products(
     product_ids = [p.id for p in products]
     stats = _batch_payment_stats(db, product_ids)
 
-    return {
-        "items": [_build_product_response(p, stats) for p in products],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta([_build_product_response(p, stats) for p in products], total, page, page_size)
 
 
 def _fmt_money_tr(v, currency: Optional[str]) -> str:

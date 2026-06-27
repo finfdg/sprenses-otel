@@ -1,6 +1,5 @@
 """Kalite şablon CRUD endpoint'leri."""
 
-import math
 import os
 import uuid
 from pathlib import Path
@@ -31,6 +30,7 @@ from app.schemas.quality import (
 from app.utils.approval_check import check_approval
 from app.services import quality_service
 from app.utils.audit import log_action
+from app.utils.pagination import page_meta
 
 router = APIRouter()
 
@@ -171,13 +171,7 @@ def list_templates(
             created_at=t.created_at,
         ).model_dump())
 
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta(items, total, page, page_size)
 
 
 # ─── Şablon Detay ─────────────────────────────────────────────────────

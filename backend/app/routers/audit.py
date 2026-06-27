@@ -1,6 +1,5 @@
 """Audit log endpoint'leri — sayfalanmış listeleme ve filtreleme."""
 
-import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -10,6 +9,7 @@ from app.database import get_db
 from app.middleware.auth import require_permission
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.utils.pagination import page_meta
 
 router = APIRouter()
 
@@ -59,10 +59,4 @@ def list_audit_logs(
             "created_at": log.created_at,
         })
 
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "pages": math.ceil(total / page_size) if total > 0 else 1,
-    }
+    return page_meta(items, total, page, page_size)

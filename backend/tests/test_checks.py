@@ -11,7 +11,9 @@ import pytest
 from sqlalchemy import text
 
 PREFIX = "/api/finance/checks"
-TARGET = "app.routers.finance.checks"
+# Sedna içe-aktarma mantığı check_import.py'ye taşındı (checks.py'den ayrıştırıldı);
+# sedna_configured/fetch_issued_checks patch'leri o modülü hedefler.
+TARGET = "app.routers.finance.check_import"
 
 
 # ─── LIST ────────────────────────────────────────────────────
@@ -362,7 +364,7 @@ class TestCheckBankInference:
 
     def test_interpolation_infers_between_same_bank_neighbors(self, db):
         from app.models.check import CheckUpload
-        from app.routers.finance.checks import infer_check_banks
+        from app.routers.finance.check_import import infer_check_banks
         up = CheckUpload(file_name="t.xlsx")
         db.add(up)
         db.flush()
@@ -388,7 +390,7 @@ class TestCheckBankInference:
 
     def test_inferred_cleared_when_anchor_gone(self, db):
         from app.models.check import CheckUpload
-        from app.routers.finance.checks import infer_check_banks
+        from app.routers.finance.check_import import infer_check_banks
         up = CheckUpload(file_name="t2.xlsx")
         db.add(up)
         db.flush()
@@ -401,7 +403,7 @@ class TestCheckBankInference:
 
     def test_number_anomaly_detection(self, db):
         from app.models.check import Check, CheckUpload
-        from app.routers.finance.checks import detect_check_no_mismatches
+        from app.routers.finance.check_import import detect_check_no_mismatches
         up = CheckUpload(file_name="t3.xlsx")
         db.add(up)
         db.flush()
@@ -422,7 +424,7 @@ class TestCheckBankInference:
 
     def test_sweep_stale_checks_removes_only_sedna_absent_dupes(self, db):
         from app.models.check import Check, CheckUpload
-        from app.routers.finance.checks import _sweep_stale_checks
+        from app.routers.finance.check_import import _sweep_stale_checks
         up = CheckUpload(file_name="t4.xlsx")
         db.add(up)
         db.flush()
