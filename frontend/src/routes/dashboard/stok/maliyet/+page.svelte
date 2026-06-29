@@ -88,9 +88,9 @@
 		movementsLoading = true;
 		movementsError = false;
 		detail = { name: p.name, items: [], count: 0, median_cost: p.median_cost ?? p.avg_cost };
-		// Zaman aşımı: yanıt 20sn'de gelmezse iptal et → sonsuz skeleton yerine hata göster
+		// Zaman aşımı: yanıt 5sn'de gelmezse iptal et → sonsuz skeleton yerine hata göster
 		const ctrl = new AbortController();
-		const timer = setTimeout(() => ctrl.abort(), 20000);
+		const timer = setTimeout(() => ctrl.abort(), 5000);
 		try {
 			detail = await api.get<any>(`/stok/product-purchases/${p.product_id}`, ctrl.signal);
 		} catch (e) {
