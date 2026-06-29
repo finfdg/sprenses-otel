@@ -61,7 +61,7 @@
 				api.get<any>('/stok/operational-kpi'),
 				api.get<any>('/stok/summary'),
 				api.get<any>('/stok/by-supplier?limit=10'),
-				api.get<any>('/stok/price-variance?limit=8'),
+				api.get<any>('/stok/price-variance?limit=100'),
 			]);
 			op = o; summary = s; suppliers = sup.items || []; variance = v.items || []; anomalies = v.anomalies || [];
 		} catch (e) {
@@ -146,9 +146,9 @@
 				{#if variance.length === 0}
 					<p class="text-sm text-gray-500">Veri yok</p>
 				{:else}
-					<div class="space-y-0.5">
+					<div class="space-y-0.5 max-h-72 overflow-y-auto pr-1">
 						{#each variance as v (v.product_id)}
-							<button type="button" onclick={() => openMovements(v)} class="w-full flex items-center justify-between gap-2 text-sm text-left px-2 -mx-2 py-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Alış hareketlerini gör">
+							<button type="button" onclick={() => openMovements(v)} class="w-full flex items-center justify-between gap-2 text-sm text-left px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Alış hareketlerini gör">
 								<span class="text-gray-700 truncate flex-1">{v.name}</span>
 								<span class="tabular-nums text-xs text-gray-500 whitespace-nowrap">{v.median_cost ?? v.avg_cost} → {v.last_cost} <span class="font-semibold {v.variance_pct > 0 ? 'text-red-600' : 'text-emerald-600'}">%{v.variance_pct}</span></span>
 							</button>
@@ -162,9 +162,9 @@
 							<TriangleAlert size={14} class="text-amber-500" />
 							<span class="text-xs font-semibold text-gray-600">Olası birim/miktar tutarsızlığı ({anomalies.length})</span>
 						</div>
-						<div class="space-y-0.5">
+						<div class="space-y-0.5 max-h-72 overflow-y-auto pr-1">
 							{#each anomalies as v (v.product_id)}
-								<button type="button" onclick={() => openMovements(v)} class="w-full flex items-center justify-between gap-2 text-xs text-left px-2 -mx-2 py-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Alış hareketlerini gör">
+								<button type="button" onclick={() => openMovements(v)} class="w-full flex items-center justify-between gap-2 text-xs text-left px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Alış hareketlerini gör">
 									<span class="text-gray-500 truncate flex-1">{v.name}</span>
 									<span class="tabular-nums text-gray-500 whitespace-nowrap">medyan {v.median_cost ?? v.avg_cost} → son <span class="font-semibold text-amber-600">{v.last_cost}</span></span>
 								</button>
