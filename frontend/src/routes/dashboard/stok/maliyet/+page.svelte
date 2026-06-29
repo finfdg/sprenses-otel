@@ -66,6 +66,40 @@
 		return it.to_depot ?? '–';
 	}
 
+	// Hareketlerden depo akış grafiği türet: transfer rotaları (oklar) + depo başına özet.
+	let flow = $derived.by(() => {
+		const items: any[] = detail.items || [];
+		const map = new Map<string, any>();
+		const routes = new Map<string, any>();
+		const ens = (n: string) => {
+			if (!map.has(n)) map.set(n, { name: n, alis: 0, acilis: 0, tIn: 0, tOut: 0, tuketim: 0 });
+			return map.get(n);
+		};
+		for (const it of items) {
+			const t = it.type_label || '';
+			if (it.direction === 'in') {
+				const d = ens(it.to_depot || '(belirsiz)');
+				if (t.includes('Devir') || t.includes('Açılış')) d.acilis += it.quantity;
+				else d.alis += it.quantity;
+			} else if (it.direction === 'out') {
+				const from = it.from_depot || '?', to = it.to_depot || '?';
+				ens(from).tOut += it.quantity;
+				ens(to).tIn += it.quantity;
+				const k = `${from}|${to}`;
+				const r = routes.get(k) || { from, to, qty: 0 };
+				r.qty += it.quantity;
+				routes.set(k, r);
+			} else if (it.direction === 'consume') {
+				ens(it.cons_depot || '?').tuketim += it.quantity;
+			}
+		}
+		const act = (d: any) => d.alis + d.tIn + d.tOut + d.tuketim;
+		return {
+			routes: [...routes.values()].sort((a, b) => b.qty - a.qty),
+			depots: [...map.values()].filter((d) => act(d) > 0).sort((a, b) => act(b) - act(a)),
+		};
+	});
+
 	// PDF'i blob olarak çek → gizli iframe ile yazdırma diyaloğunu TETİKLE (masaüstünde direkt
 	// yazıcıya gider). iOS Safari iframe print'i çoğu zaman yoksaydığından fallback: PDF'i yeni
 	// sekmede aç → kullanıcı Paylaş → Yazdır kullanır. (banka talimatları deseniyle aynı.)
@@ -305,8 +339,46 @@
 				<Printer size={16} /> Yazdır
 			</Button>
 		</div>
+		<!-- Görsel depo akış şeması: transfer okları + depo özet kartları -->
+		{#if flow.routes.length || flow.depots.length}
+			<div class="bg-gray-50/70 border border-gray-200 rounded-xl p-3 sm:p-4 mb-4">
+				<div class="text-xs font-semibold text-gray-700 mb-2.5">Depo Akış Şeması</div>
+				{#if flow.routes.length}
+					<div class="space-y-2 mb-3">
+						{#each flow.routes as r (r.from + r.to)}
+							<div class="flex items-center gap-2">
+								<span class="shrink-0 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium whitespace-nowrap max-w-[38%] truncate" title={r.from}>{r.from}</span>
+								<div class="flex-1 flex flex-col items-center min-w-[54px]">
+									<span class="text-[11px] font-semibold text-amber-700 tabular-nums leading-none mb-0.5">{fmtQty(r.qty)}</span>
+									<div class="w-full flex items-center text-amber-400">
+										<div class="flex-1 border-t-2 border-dashed border-amber-300"></div>
+										<span class="text-amber-500 text-sm leading-none -ml-0.5">▶</span>
+									</div>
+								</div>
+								<span class="shrink-0 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium whitespace-nowrap max-w-[38%] truncate" title={r.to}>{r.to}</span>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+					{#each flow.depots as d (d.name)}
+						<div class="bg-white border border-gray-200 rounded-lg p-2">
+							<div class="text-[11px] font-semibold text-gray-800 truncate" title={d.name}>{d.name}</div>
+							<div class="mt-1 space-y-0.5 text-[11px] tabular-nums">
+								{#if d.alis}<div class="flex justify-between gap-2"><span class="text-emerald-600">Alış</span><span>+{fmtQty(d.alis)}</span></div>{/if}
+								{#if d.tIn}<div class="flex justify-between gap-2"><span class="text-amber-600">Transfer giriş</span><span>+{fmtQty(d.tIn)}</span></div>{/if}
+								{#if d.tOut}<div class="flex justify-between gap-2"><span class="text-amber-600">Transfer çıkış</span><span>−{fmtQty(d.tOut)}</span></div>{/if}
+								{#if d.tuketim}<div class="flex justify-between gap-2"><span class="text-red-600">Tüketim</span><span>−{fmtQty(d.tuketim)}</span></div>{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
 		<!-- Renk lejantı -->
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 mb-3">
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 mb-2">
+			<span class="font-medium text-gray-600">Tüm hareketler:</span>
 			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Alış</span>
 			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-gray-300"></span> Devir/Açılış</span>
 			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span> Çıkış/Transfer</span>
