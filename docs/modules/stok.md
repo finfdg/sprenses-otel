@@ -47,6 +47,8 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 | GET | `/stok/cost-by-department` | stok.maliyet view | Departman (ConsumptionDepot) bazında tüketim maliyeti (adlarla) |
 | GET | `/stok/monthly-trend` | stok.maliyet view | Aylık alım vs tüketim (sezon analizi) |
 | GET | `/stok/by-supplier?limit=` | stok.maliyet view | Tedarikçi bazında alım maliyeti |
+| GET | `/stok/price-variance?limit=` | stok.maliyet view | Fiyat hareketi (`items`, medyan↔son alış) + birim/miktar anomalileri (`anomalies`) |
+| GET | `/stok/product-purchases/{product_id}?limit=` | stok.maliyet view | Bir ürünün alış hareketleri (tarih/miktar/birim/net/tedarikçi) — fiyat paneli detay tıklaması |
 | GET | `/stok/products` | stok.urunler view | Ürün listesi (paginated, `search`, `in_stock`; değer azalan) |
 | GET | `/stok/movements` | stok.hareketler view | Hareket listesi (paginated, `direction`, `depot`, `search`, tarih) |
 | GET | `/stok/depots` | stok.depolar view | Depo listesi + toplam tüketim |
@@ -54,7 +56,12 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 
 ## Frontend
 - **Maliyet Analizi** (`/maliyet`): 4 StatCard (anlık stok değeri / toplam alım / toplam tüketim /
-  depo sayısı) + **departman tüketim çubukları** (hero) + aylık alım-tüketim trendi + tedarikçi çubukları.
+  depo sayısı) + **departman tüketim çubukları** (hero) + aylık alım-tüketim trendi + tedarikçi çubukları +
+  **Satın Alma Fiyat Hareketi** (medyan↔son alış) + birim/miktar anomalileri.
+  - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (tarih, tedarikçi,
+    miktar, **birim fiyat = net ÷ miktar**, net tutar). Birim fiyat Sedna'nın `Cost` alanından DEĞİL
+    net÷miktar'dan hesaplanır — `Cost` bazen hatalı/0 (ör. NAR'da tek satır 359,48 ama net/miktar ≈ 135),
+    net tutar ise daima doğru. Detay drill-down bu giriş-kalitesi sapmalarını görünür kılar.
 - **Ürünler & Stok** (`/urunler`): arama + "stokta olanlar" filtresi + tablo (kod/ad/stok/maliyet/değer).
 - **Hareketler** (`/hareketler`): yön filtresi (alış/tüketim/çıkış/sayım) + arama + tablo (renkli tip rozeti).
 - **Depolar** (`/depolar`): departman listesi + toplam tüketim çubuğu (maliyet merkezi sıralı).

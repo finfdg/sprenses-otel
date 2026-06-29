@@ -291,3 +291,46 @@ def compute_price_anomalies(db: Session, limit: int = 20) -> list:
     rows = [r for r in _price_variance_rows(db) if r["category"] == "entry"]
     rows.sort(key=lambda x: -abs(x["variance_pct"]))
     return rows[:limit]
+
+
+def get_product_purchases(db: Session, product_sedna_id: int, limit: int = 200) -> dict:
+    """Bir ürünün alış (`direction='in'`) hareketleri — tarih/fiyat/miktar/tedarikçi kırılımı.
+
+    Maliyet panelindeki fiyat-hareketi/anomali satırına tıklanınca açılan detay için. Net
+    tutar daima doğru; birim fiyat = net/miktar (Sedna'da miktar paydası bazen tutarsız).
+    """
+    q = (
+        db.query(StockMovement)
+        .filter(
+            StockMovement.direction == "in",
+            StockMovement.product_sedna_id == product_sedna_id,
+        )
+        .order_by(StockMovement.date.desc().nullslast(), StockMovement.id.desc())
+    )
+    rows = q.limit(limit).all()
+    name = next((r.product_name for r in rows if r.product_name), None)
+    costs = sorted(float(r.unit_cost) for r in rows if r.unit_cost and float(r.unit_cost) > 0)
+    median = 0.0
+    if costs:
+        mid = len(costs) // 2
+        median = costs[mid] if len(costs) % 2 else (costs[mid - 1] + costs[mid]) / 2
+    items = [
+        {
+            "id": r.id,
+            "date": r.date.isoformat() if r.date else None,
+            "quantity": float(r.quantity or 0),
+            "unit_cost": round(float(r.unit_cost or 0), 4),
+            "net_amount": round(float(r.net_amount or 0), 2),
+            "supplier_name": r.supplier_name,
+            "doc_no": r.doc_no,
+            "entry_depot": r.entry_depot,
+        }
+        for r in rows
+    ]
+    return {
+        "product_id": product_sedna_id,
+        "name": name,
+        "median_cost": round(median, 2),
+        "count": len(items),
+        "items": items,
+    }

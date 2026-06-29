@@ -30,6 +30,7 @@ from app.services.stock_service import (
     compute_operational_kpi,
     compute_price_anomalies,
     compute_price_variance,
+    get_product_purchases,
     run_stock_import,
 )
 
@@ -177,6 +178,17 @@ def price_variance(
         "items": compute_price_variance(db, limit),
         "anomalies": compute_price_anomalies(db, limit),
     }
+
+
+@router.get("/product-purchases/{product_id}")
+def product_purchases(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("stok.maliyet", "view")),
+    limit: int = Query(200, ge=1, le=500),
+):
+    """Bir ürünün alış hareketleri (tarih/fiyat/miktar/tedarikçi) — fiyat paneli detay tıklaması."""
+    return get_product_purchases(db, product_id, limit)
 
 
 # ─── Ürünler + Hareketler + Depolar (liste) ─────────────────────────────────

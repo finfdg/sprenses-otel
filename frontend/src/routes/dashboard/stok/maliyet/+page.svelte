@@ -5,6 +5,7 @@
 	import StatCard from '$lib/components/StatCard.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import Modal from '$lib/components/Modal.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
 	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert } from 'lucide-svelte';
 
@@ -29,6 +30,29 @@
 	let maxGroup = $derived(Math.max(1, ...byGroup.map((g: any) => g.total)));
 	let maxMonthCons = $derived(Math.max(1, ...monthly.map((m: any) => m.fb_consumption)));
 	let maxSup = $derived(Math.max(1, ...suppliers.map((s: any) => s.total)));
+
+	// Ürün alış hareketleri detayı (fiyat/anomali satırına tıklanınca)
+	let showMovements = $state(false);
+	let movementsLoading = $state(false);
+	let detail = $state<any>({ name: '', items: [], count: 0, median_cost: 0 });
+
+	const fmtQty = (n: number) => (n ?? 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+	const fmtDate = (s: string | null) => (s ? s.split('-').reverse().join('.') : '–');
+	// Efektif birim fiyat = net ÷ miktar (Sedna'nın Cost alanı bazen hatalı/0)
+	const effUnit = (it: any) => (it.quantity ? it.net_amount / it.quantity : it.unit_cost);
+
+	async function openMovements(p: any) {
+		showMovements = true;
+		movementsLoading = true;
+		detail = { name: p.name, items: [], count: 0, median_cost: p.median_cost ?? p.avg_cost };
+		try {
+			detail = await api.get<any>(`/stok/product-purchases/${p.product_id}`);
+		} catch (e) {
+			console.error('Ürün alış hareketleri yüklenemedi:', e);
+		} finally {
+			movementsLoading = false;
+		}
+	}
 
 	async function load() {
 		loading = true;
@@ -122,12 +146,12 @@
 				{#if variance.length === 0}
 					<p class="text-sm text-gray-500">Veri yok</p>
 				{:else}
-					<div class="space-y-1.5">
+					<div class="space-y-0.5">
 						{#each variance as v (v.product_id)}
-							<div class="flex items-center justify-between gap-2 text-sm">
-								<span class="text-gray-700 truncate flex-1" title={v.name}>{v.name}</span>
+							<button type="button" onclick={() => openMovements(v)} class="w-full flex items-center justify-between gap-2 text-sm text-left px-2 -mx-2 py-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Alış hareketlerini gör">
+								<span class="text-gray-700 truncate flex-1">{v.name}</span>
 								<span class="tabular-nums text-xs text-gray-500 whitespace-nowrap">{v.median_cost ?? v.avg_cost} → {v.last_cost} <span class="font-semibold {v.variance_pct > 0 ? 'text-red-600' : 'text-emerald-600'}">%{v.variance_pct}</span></span>
-							</div>
+							</button>
 						{/each}
 					</div>
 				{/if}
@@ -138,12 +162,12 @@
 							<TriangleAlert size={14} class="text-amber-500" />
 							<span class="text-xs font-semibold text-gray-600">Olası birim/miktar tutarsızlığı ({anomalies.length})</span>
 						</div>
-						<div class="space-y-1">
+						<div class="space-y-0.5">
 							{#each anomalies as v (v.product_id)}
-								<div class="flex items-center justify-between gap-2 text-xs">
-									<span class="text-gray-500 truncate flex-1" title={v.name}>{v.name}</span>
+								<button type="button" onclick={() => openMovements(v)} class="w-full flex items-center justify-between gap-2 text-xs text-left px-2 -mx-2 py-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Alış hareketlerini gör">
+									<span class="text-gray-500 truncate flex-1">{v.name}</span>
 									<span class="tabular-nums text-gray-500 whitespace-nowrap">medyan {v.median_cost ?? v.avg_cost} → son <span class="font-semibold text-amber-600">{v.last_cost}</span></span>
-								</div>
+								</button>
 							{/each}
 						</div>
 						<p class="text-[11px] text-gray-500 mt-2">Net tutar doğru, <span class="font-medium">miktar paydası</span> Sedna'da tutarsız (kg yerine çuval/koli adedi) — fiyat artışı değil, giriş kalitesi.</p>
@@ -185,3 +209,41 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Ürün alış hareketleri detayı -->
+<Modal bind:show={showMovements} title={detail.name || 'Alış hareketleri'} maxWidth="max-w-2xl">
+	{#if movementsLoading}
+		<TableSkeleton rows={6} columns={5} />
+	{:else if !detail.items?.length}
+		<EmptyState icon={Package} title="Alış hareketi yok" description="Bu ürün için kayıtlı alış bulunamadı." />
+	{:else}
+		<p class="text-xs text-gray-500 mb-3">
+			{detail.count} alış · medyan birim <span class="font-medium text-gray-700 tabular-nums">{formatCurrency(detail.median_cost)}</span>
+			· <span class="font-medium">Birim fiyat = net ÷ miktar</span> (gerçek ödenen)
+		</p>
+		<div class="overflow-x-auto">
+			<table class="w-full text-sm">
+				<thead>
+					<tr class="text-left text-xs text-gray-600 border-b border-gray-200">
+						<th class="py-2 pr-2 font-medium">Tarih</th>
+						<th class="py-2 px-2 font-medium">Tedarikçi</th>
+						<th class="py-2 px-2 font-medium text-right">Miktar</th>
+						<th class="py-2 px-2 font-medium text-right">Birim Fiyat</th>
+						<th class="py-2 pl-2 font-medium text-right">Net Tutar</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each detail.items as it (it.id)}
+						<tr class="border-b border-gray-100 last:border-0">
+							<td class="py-2 pr-2 whitespace-nowrap tabular-nums text-gray-700">{fmtDate(it.date)}</td>
+							<td class="py-2 px-2 text-gray-600 truncate max-w-[220px]" title={it.supplier_name}>{it.supplier_name || '–'}</td>
+							<td class="py-2 px-2 text-right tabular-nums text-gray-700">{fmtQty(it.quantity)}</td>
+							<td class="py-2 px-2 text-right tabular-nums font-medium text-gray-800">{formatCurrency(effUnit(it))}</td>
+							<td class="py-2 pl-2 text-right tabular-nums text-gray-700">{formatCurrency(it.net_amount)}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	{/if}
+</Modal>
