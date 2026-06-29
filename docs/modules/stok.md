@@ -60,10 +60,14 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
   depo sayısı) + **departman tüketim çubukları** (hero) + aylık alım-tüketim trendi + tedarikçi çubukları +
   **Satın Alma Fiyat Hareketi** (medyan↔son alış) + birim/miktar anomalileri.
   - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (sıra no, tarih,
-    tedarikçi, miktar, **birim fiyat = net ÷ miktar**, net tutar). Modalda **"Yazdır"** butonu →
-    `window.open('/api/stok/product-purchases/{id}/pdf')` (same-origin, cookie auth → blob sorunu yok;
-    devam-takip `cards.pdf` deseniyle aynı). PDF reportlab + `pdf_fonts` (₺ destekli), tablo modal ile
-    birebir (net÷miktar birim).
+    tedarikçi, miktar, **birim fiyat = net ÷ miktar**, net tutar). Modalda **"Yazdır"** butonu PDF'i
+    `api.fetchRaw` ile **blob** olarak çeker → **gizli iframe + `contentWindow.print()`** ile yazdırma
+    diyaloğunu tetikler (masaüstünde direkt yazıcıya gider). iOS Safari iframe-print'i yoksayarsa
+    fallback: PDF yeni sekmede açılır (Paylaş → Yazdır). Banka talimatları (`talimatlar`) print deseniyle
+    aynı. PDF reportlab + `pdf_fonts` (₺ destekli), tablo modal ile birebir (net÷miktar birim, sıra no).
+    **NOT:** PDF yanıtında ürün adı HTTP header'ına KONULMAZ (header latin-1; "CİLA" gibi İ/Ş içeren ad
+    `UnicodeEncodeError` → 500 verir). Ad yalnız PDF gövdesinde. Regresyon: `test_cost_control.py::
+    test_product_purchases_pdf_turkish_name`.
   - **Birim fiyat tek baz = net ÷ miktar (gerçek ödenen)** — hem panel (`_price_variance_rows`) hem
     detay modalı Sedna'nın `Cost` (unit_cost) alanını **kullanmaz**. Neden: `Cost` bazen hatalı/0
     (ör. NAR'da 30.05 satırında Cost=359,48 ama net/miktar=6210÷46=135 → eski panel bunu %193,5 sahte

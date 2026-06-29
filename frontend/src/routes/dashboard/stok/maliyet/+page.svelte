@@ -7,6 +7,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
 	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer } from 'lucide-svelte';
 
@@ -42,9 +43,37 @@
 	// Efektif birim fiyat = net ÷ miktar (Sedna'nın Cost alanı bazen hatalı/0)
 	const effUnit = (it: any) => (it.quantity ? it.net_amount / it.quantity : it.unit_cost);
 
-	// PDF'i yeni sekmede aç (cookie auth ile same-origin) → kullanıcı görüntüler/yazdırır
-	function printMovements() {
-		if (detail.product_id) window.open(`/api/stok/product-purchases/${detail.product_id}/pdf`, '_blank');
+	// PDF'i blob olarak çek → gizli iframe ile yazdırma diyaloğunu TETİKLE (masaüstünde direkt
+	// yazıcıya gider). iOS Safari iframe print'i çoğu zaman yoksaydığından fallback: PDF'i yeni
+	// sekmede aç → kullanıcı Paylaş → Yazdır kullanır. (banka talimatları deseniyle aynı.)
+	let printing = $state(false);
+	async function printMovements() {
+		if (!detail.product_id || printing) return;
+		printing = true;
+		try {
+			const res = await api.fetchRaw(`/stok/product-purchases/${detail.product_id}/pdf`);
+			if (!res.ok) throw new Error(`PDF alınamadı (${res.status})`);
+			const url = URL.createObjectURL(await res.blob());
+			const iframe = document.createElement('iframe');
+			iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+			iframe.src = url;
+			iframe.onload = () => {
+				try {
+					iframe.contentWindow?.focus();
+					iframe.contentWindow?.print();
+				} catch (err) {
+					console.error('iframe yazdırma hatası:', err);
+					window.open(url, '_blank'); // iOS fallback → Paylaş → Yazdır
+				}
+				setTimeout(() => { iframe.remove(); URL.revokeObjectURL(url); }, 60000);
+			};
+			document.body.appendChild(iframe);
+		} catch (e) {
+			console.error('Yazdırma başlatılamadı:', e);
+			showToast('Yazdırma başlatılamadı', 'error');
+		} finally {
+			printing = false;
+		}
 	}
 
 	async function openMovements(p: any) {
@@ -228,7 +257,7 @@
 				{detail.count} alış · medyan birim <span class="font-medium text-gray-700 tabular-nums">{formatCurrency(detail.median_cost)}</span>
 				· <span class="font-medium">Birim fiyat = net ÷ miktar</span> (gerçek ödenen)
 			</p>
-			<Button variant="secondary" size="sm" onclick={printMovements} class="shrink-0">
+			<Button variant="secondary" size="sm" onclick={printMovements} loading={printing} class="shrink-0">
 				<Printer size={16} /> Yazdır
 			</Button>
 		</div>
