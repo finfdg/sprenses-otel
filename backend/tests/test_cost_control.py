@@ -110,6 +110,26 @@ def test_price_anomaly_split(db, client, auth_headers):
     assert a["median_cost"] == 40.0 and a["last_cost"] == 2100.0 and a["category"] == "entry"
 
 
+def test_product_purchases_pdf_turkish_name(db, client, auth_headers):
+    """PDF endpoint Türkçe karakterli ürün adında 200 döner (header latin-1 regresyonu).
+
+    HTTP header'ları latin-1 olmalı → ürün adı (ör. 'PED BEYAZ CİLA', İ=U+0130) header'a
+    konulamaz. Eskiden X-Doc-Name header'ına ürün adı yazılıyordu → İ'li üründe 500.
+    """
+    _seed_purchases(db, 7050, [(date(2026, 1, 5), 100), (date(2026, 3, 5), 150)])
+    # Ürün adını Türkçe karakterli yap
+    p = db.query(StockProduct).filter(StockProduct.sedna_id == 7050).first()
+    p.name = "PED BEYAZ CİLA 51 CM"
+    db.query(StockMovement).filter(StockMovement.product_sedna_id == 7050).update(
+        {StockMovement.product_name: "PED BEYAZ CİLA 51 CM"}
+    )
+    db.flush()
+    r = client.get(f"{PREFIX}/product-purchases/7050/pdf", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/pdf"
+    assert r.content[:5] == b"%PDF-"
+
+
 def test_yonetim_dashboard(db, client, auth_headers):
     """Dashboard tüm bölümleri döndürür + doluluk/maliyet füzyonu içerir."""
     _seed_occupancy(db)

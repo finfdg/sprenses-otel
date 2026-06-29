@@ -285,11 +285,12 @@ def product_purchases_pdf(
 
     doc.build(elems)
     output.seek(0)
-    safe = "".join(c for c in (data.get("name") or "urun") if c.isalnum() or c in " -_")[:40].strip() or "urun"
+    # NOT: HTTP header'ları latin-1 olmalı → ürün adını (Türkçe karakterli, ör. "CİLA") header'a
+    # KOYMA. Dosya adı ASCII tutulur; ürün adı zaten PDF gövdesinde başlık olarak var.
     return Response(
         content=output.read(),
         media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename=alis-{product_id}.pdf", "X-Doc-Name": safe},
+        headers={"Content-Disposition": f"inline; filename=alis-{product_id}.pdf"},
     )
 
 
