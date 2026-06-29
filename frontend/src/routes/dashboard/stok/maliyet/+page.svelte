@@ -9,7 +9,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
-	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer, Eye, EyeOff, ChevronUp } from 'lucide-svelte';
+	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer, Eye, EyeOff, ArrowUp } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const periodLabel = (p: string) => { const [y, m] = (p || '').split('-'); return `${AY[Number(m)] || m} ${y}`; };
@@ -43,6 +43,7 @@
 	let detail = $state<any>({ name: '', items: [], count: 0, median_cost: 0 });
 
 	const fmtQty = (n: number) => (n ?? 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+	const fmtTRYint = (n: number) => '₺' + Math.round(n ?? 0).toLocaleString('tr-TR');
 	const fmtDate = (s: string | null) => (s ? s.split('-').reverse().join('.') : '–');
 	// Efektif birim fiyat = net ÷ miktar (Sedna'nın Cost alanı bazen hatalı/0)
 	const effUnit = (it: any) => (it.quantity ? it.net_amount / it.quantity : it.unit_cost);
@@ -61,60 +62,88 @@
 		return { label: t || it.direction || '–', badge: 'bg-gray-100 text-gray-600', accent: 'border-l-gray-300', dot: 'bg-gray-300' };
 	}
 	const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-	const monthKey = (s: string | null) => (s ? s.slice(0, 7) : '');
 	const monthLabel = (k: string) => { const [y, m] = k.split('-'); return `${MONTHS_TR[Number(m) - 1] || m} ${y}`; };
-	let detailView = $state<'timeline' | 'table'>('timeline'); // modal görünümü: zaman çizgisi / liste
+	let detailView = $state<'trunk' | 'table'>('trunk'); // modal görünümü: gövde / liste
 	function flowText(it: any): string {
 		if (it.direction === 'out') return `${it.from_depot ?? '?'} → ${it.to_depot ?? '?'}`;
 		if (it.direction === 'consume') return it.cons_depot ?? '–';
 		return it.to_depot ?? '–';
 	}
 
-	// Hareketlerden DEPO BAZINDA TÜKETİM DEFTERİ türet — her depo için stok denklemi:
-	//   Açılış + Alış + Transfer giriş − Transfer çıkış − Kalan(devreden) = Tüketim
-	// Hareketleri kronolojik (eski→yeni) işleriz: depo başına İLK açılış = dönem açılışı; sonraki
-	// aylık Devir/Açılış kayıtları sadece devreden bakiyeyi tekrar eder → yok sayılır (çift sayım
-	// önlenir). Kalan = Açılış + Alış + Transfer giriş − Transfer çıkış − Tüketim (yürüyen kitap
-	// bakiyesi; sistemde fiziksel "Sayım" hareketi yok → kalan = devreden defter bakiyesi).
-	let ledger = $derived.by(() => {
+	// STOK HAREKET GÖVDESİ (ağaç): kök = ilk dönem devir/açılışı (en alt), gövde yukarı doğru
+	// kronolojik büyür. Sol dal = giriş (yeşil), sağ dal = çıkış/transfer (amber). Her dönem
+	// sonunda HALKA: o depodaki SAYIMDA KALAN (yürüyen bakiye) + TÜKETİM (ay-sonu tüketim postingi,
+	// = sayım farkı: önceki sayım + giren − çıkan − bu sayım). Önemli: Tüketim "kaydedilen" değil,
+	// her halkada sayım farkından okunan değerdir. Veri bunu doğruluyor (ör. PERSONEL MUTFAĞI Oca:
+	// 0 + 16 transfer − 4 kalan = 12 = kayıtlı tüketim). Alış (depo etiketi boş) merkez depoya
+	// (en çok transfer çıkışı yapan = hub) yazılır — çünkü 8 + 36 alış − 12 transfer = 32 = sonraki
+	// ay devri (Sedna mutabakatı). Çıktı: alttan üste sıralı satırlar (root / node / ring), render
+	// için ters çevrilir (en güncel üstte).
+	let trunk = $derived.by(() => {
 		const seq = [...(detail.items || [])].reverse(); // backend date DESC → eski→yeni
-		const map = new Map<string, any>();
-		const routes = new Map<string, any>();
-		const ens = (n: string) => {
-			if (!map.has(n)) map.set(n, { name: n, acilis: 0, alis: 0, tIn: 0, tOut: 0, tuketim: 0, _started: false });
-			return map.get(n);
+		if (!seq.length) return { rows: [] as any[], hub: null as string | null };
+		// hub = en çok transfer çıkışı yapan kaynak depo (alış'ların indiği merkez)
+		const outBy: Record<string, number> = {};
+		for (const it of seq) if (it.direction === 'out') outBy[it.from_depot || '?'] = (outBy[it.from_depot || '?'] || 0) + (it.quantity || 0);
+		const hub = Object.keys(outBy).sort((a, b) => outBy[b] - outBy[a])[0] || null;
+		const per = (s: string | null) => (s ? s.slice(0, 7) : '');
+
+		const bal: Record<string, number> = {};
+		const rows: any[] = [];               // alttan üste: hareketler + dönem halkaları
+		const rootOpen: any[] = [];           // ilk dönem açılış kartları
+		let curPeriod = '';
+		let consume: Record<string, number> = {}; // mevcut dönem tüketim (depo → qty)
+		let rootDone = false;
+
+		const closeRing = (p: string) => {
+			const counts = Object.entries(bal)
+				.filter(([, q]) => Math.round((q as number) * 100) / 100 > 0)
+				.map(([depot, q]) => ({ depot, qty: q as number }))
+				.sort((a, b) => b.qty - a.qty);
+			const cons = Object.entries(consume)
+				.filter(([, q]) => (q as number) > 0)
+				.map(([depot, q]) => ({ depot, qty: q as number }))
+				.sort((a, b) => b.qty - a.qty);
+			rows.push({ kind: 'ring', period: p, counts, cons });
+			consume = {};
 		};
+
 		for (const it of seq) {
+			const p = per(it.date);
 			const t = it.type_label || '';
 			const qty = it.quantity || 0;
+			const opening = it.direction === 'in' && /Devir|Açılış/.test(t);
+			if (curPeriod && p !== curPeriod) closeRing(curPeriod); // devir reset'inden ÖNCE dönemi kapat
+			curPeriod = p;
+
 			if (it.direction === 'in') {
-				const d = ens(it.to_depot || '(belirsiz)');
-				const opening = /Devir|Açılış/.test(t);
+				const depot = it.to_depot || hub || '(belirsiz)';
 				if (opening) {
-					if (!d._started) d.acilis = qty; // yalnız dönemin ilk açılışı; sonraki Devir = devreden, yok say
+					bal[depot] = qty; // sayım reset (fiziksel devir değeri)
+					if (!rootDone) rootOpen.push({ depot, qty, net: it.net_amount });
 				} else {
-					d.alis += qty;
+					bal[depot] = (bal[depot] || 0) + qty;
+					rows.push({ kind: 'node', side: 'in', date: it.date, label: t || 'Giriş', depot, qty, net: it.net_amount });
+					rootDone = true;
 				}
-				d._started = true;
 			} else if (it.direction === 'out') {
 				const from = it.from_depot || '?', to = it.to_depot || '?';
-				ens(from).tOut += qty; ens(from)._started = true;
-				ens(to).tIn += qty; ens(to)._started = true;
-				const k = `${from}|${to}`;
-				const r = routes.get(k) || { from, to, qty: 0 };
-				r.qty += qty;
-				routes.set(k, r);
+				bal[from] = (bal[from] || 0) - qty;
+				bal[to] = (bal[to] || 0) + qty;
+				rows.push({ kind: 'node', side: 'out', date: it.date, label: t || 'Çıkış', from, to, qty });
+				rootDone = true;
 			} else if (it.direction === 'consume') {
-				const d = ens(it.cons_depot || '?'); d.tuketim += qty; d._started = true;
+				const d = it.cons_depot || '?';
+				bal[d] = (bal[d] || 0) - qty;
+				consume[d] = (consume[d] || 0) + qty;
+				rootDone = true;
 			}
 		}
-		const depots = [...map.values()]
-			.map((d) => ({ ...d, kalan: d.acilis + d.alis + d.tIn - d.tOut - d.tuketim }))
-			.filter((d) => d.acilis || d.alis || d.tIn || d.tOut || d.tuketim)
-			.sort((a, b) => b.tOut - a.tOut || b.tuketim - a.tuketim);
-		// HUB = en çok transfer çıkışı yapan depo (dağıtım merkezi)
-		const hubName = depots.length && depots[0].tOut > 0 ? depots[0].name : null;
-		return { routes: [...routes.values()].sort((a, b) => b.qty - a.qty), depots, hubName };
+		if (curPeriod) closeRing(curPeriod);
+
+		if (rootOpen.length) rows.unshift({ kind: 'root', date: seq[0]?.date, openings: rootOpen });
+		rows.reverse(); // üstten alta: en güncel üstte, kök altta
+		return { rows, hub };
 	});
 
 	// Depo bazında YÜRÜYEN BAKİYE: hareketleri kronolojik (eskiden yeniye) işle.
@@ -384,148 +413,133 @@
 				<Printer size={16} /> Yazdır
 			</Button>
 		</div>
-		<!-- Depo Bazında Tüketim Defteri: her depo için stok denklemi + transfer akışı -->
-		{#snippet ledgerLine(label: string, value: number, cls: string)}
-			<div class="flex items-center justify-between">
-				<span class={cls}>{label}</span>
-				<span class="text-gray-700 tabular-nums">{fmtQty(value)}</span>
-			</div>
-		{/snippet}
-		{#if ledger.depots.length}
-			<div class="bg-gray-50/70 border border-gray-200 rounded-xl p-3 sm:p-4 mb-4">
-				<div class="flex items-center justify-between gap-2 mb-3">
-					<div class="text-xs font-semibold text-gray-700">Depo Bazında Tüketim Defteri</div>
-					<div class="text-[11px] text-gray-400 hidden sm:block">Tüketim = Açılış + Giriş − Çıkış − Kalan</div>
-				</div>
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-					{#each ledger.depots as d (d.name)}
-						{@const isHub = d.name === ledger.hubName}
-						<div class="bg-white border rounded-2xl p-3.5 {isHub ? 'border-teal-300 ring-1 ring-teal-100' : 'border-gray-200'}">
-							<div class="flex items-center gap-2 mb-2.5">
-								<span class="text-sm font-bold text-gray-800 truncate" title={d.name}>{d.name}</span>
-								{#if isHub}<span class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700 tracking-wide">HUB</span>{/if}
-							</div>
-							<div class="space-y-1 text-sm">
-								{@render ledgerLine('Açılış', d.acilis, 'text-gray-500')}
-								{#if d.alis}{@render ledgerLine('+ Alış', d.alis, 'text-emerald-600')}{/if}
-								{#if d.tIn}{@render ledgerLine('+ Transfer giriş', d.tIn, 'text-amber-600')}{/if}
-								{#if d.tOut}{@render ledgerLine('− Transfer çıkış', d.tOut, 'text-amber-700')}{/if}
-								<div class="flex items-center justify-between" title="Dönem sonu kalan stok (devreden defter bakiyesi)">
-									<span class="{d.kalan < 0 ? 'text-amber-600 font-medium' : 'text-blue-600'}">− Kalan</span>
-									<span class="tabular-nums {d.kalan < 0 ? 'text-amber-600 font-medium' : 'text-gray-700'}">{fmtQty(d.kalan)}</span>
-								</div>
-							</div>
-							<div class="mt-2.5 flex items-center justify-between px-2.5 py-1.5 rounded-lg {d.tuketim > 0 ? 'bg-red-50' : 'bg-gray-100'}">
-								<span class="text-sm font-bold {d.tuketim > 0 ? 'text-red-600' : 'text-gray-500'}">= Tüketim</span>
-								<span class="text-base font-bold tabular-nums {d.tuketim > 0 ? 'text-red-600' : 'text-gray-500'}">{fmtQty(d.tuketim)}</span>
-							</div>
-						</div>
-					{/each}
-				</div>
-				{#if ledger.routes.length}
-					<div class="mt-3 pt-3 border-t border-gray-200 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
-						<span class="font-medium text-gray-600">Transfer akışı</span>
-						{#each ledger.routes as r (r.from + r.to)}
-							<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-gray-200">
-								<span class="text-gray-700 truncate max-w-[120px]" title={r.from}>{r.from}</span>
-								<span class="text-amber-600 font-semibold tabular-nums whitespace-nowrap">→ {fmtQty(r.qty)} →</span>
-								<span class="text-gray-700 truncate max-w-[120px]" title={r.to}>{r.to}</span>
-							</span>
-						{/each}
-					</div>
-				{/if}
-			</div>
-		{/if}
-
 		<!-- Görünüm geçişi + renk lejantı -->
 		<div class="flex flex-wrap items-center justify-between gap-2 mb-3">
 			<div class="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
-				<button type="button" onclick={() => (detailView = 'timeline')} class="px-3 py-1 rounded-md font-medium transition-colors {detailView === 'timeline' ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50'}">Zaman çizgisi</button>
+				<button type="button" onclick={() => (detailView = 'trunk')} class="px-3 py-1 rounded-md font-medium transition-colors {detailView === 'trunk' ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50'}">Gövde</button>
 				<button type="button" onclick={() => (detailView = 'table')} class="px-3 py-1 rounded-md font-medium transition-colors {detailView === 'table' ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50'}">Liste</button>
 			</div>
 			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500">
-				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Alış</span>
-				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-gray-300"></span> Devir</span>
-				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span> Transfer</span>
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Giriş</span>
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span> Çıkış / Transfer</span>
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span> Sayımda kalan</span>
 				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500"></span> Tüketim</span>
-				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span> Bedelsiz</span>
 			</div>
 		</div>
 
-		{#if detailView === 'timeline'}
-			<!-- Aşağıdan yukarıya akan zaman çizgisi: en eski ay altta → yukarı doğru büyür -->
-			<div class="space-y-0">
-				<!-- üst: yukarı büyüme oku -->
-				<div class="flex gap-3">
-					<div class="relative flex flex-col items-center shrink-0 w-3">
-						<ChevronUp size={18} class="text-teal-500 -mb-1" />
-						<div class="w-px flex-1 bg-gray-200"></div>
+		{#if detailView === 'trunk'}
+			<!-- Stok Hareket Gövdesi: kök (devir) en altta, gövde yukarı doğru kronolojik büyür.
+			     Sol = giriş (yeşil), sağ = çıkış/transfer (amber). Dönem sonu halkası: sayımda kalan +
+			     sayımdan hesaplanan tüketim. Üstte ürün + depo özeti. -->
+			<div class="bg-gray-50/60 border border-gray-200 rounded-xl p-2 sm:p-4">
+				<div class="flex items-start justify-between gap-2 mb-2 px-1">
+					<div>
+						<div class="text-sm font-bold text-gray-800">Stok Hareket Gövdesi</div>
+						<div class="text-[11px] font-medium"><span class="text-emerald-600">← Giriş</span></div>
 					</div>
-					<div class="flex-1 text-[11px] text-gray-400 self-center">en güncel · yukarı doğru büyür</div>
+					<div class="text-right">
+						<div class="text-[11px] text-gray-400">{detail.name}</div>
+						<div class="text-[11px] font-medium text-amber-700">Çıkış / Transfer →</div>
+					</div>
 				</div>
-				{#each detail.items as it, i (it.id)}
-					{@const m = movMeta(it)}
-					{@const mk = monthKey(it.date)}
-					{#if i === 0 || mk !== monthKey(detail.items[i - 1].date)}
-						<div class="flex gap-3 py-1.5">
-							<div class="relative flex justify-center shrink-0 w-3 self-stretch">
-								<div class="absolute top-0 bottom-0 w-px bg-gray-200"></div>
-							</div>
-							<div class="flex-1 flex items-center gap-2">
-								<span class="inline-block px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[11px] font-semibold">{monthLabel(mk)}</span>
-								<div class="flex-1 h-px bg-gray-100"></div>
-							</div>
-						</div>
-					{/if}
-					<div class="flex gap-3">
-						<div class="relative flex justify-center shrink-0 w-3">
-							<div class="absolute top-0 bottom-0 w-px bg-gray-200"></div>
-							<div class="relative z-10 w-3 h-3 rounded-full {m.dot} ring-2 ring-white mt-1"></div>
-						</div>
-						<div class="flex-1 min-w-0 pb-3">
-							<div class="border border-gray-200 border-l-4 {m.accent} rounded-lg px-3 py-2">
-								<div class="flex items-center justify-between gap-2">
-									<div class="flex items-center gap-2 min-w-0">
-										<span class="text-[11px] tabular-nums text-gray-400 shrink-0">{fmtDate(it.date)}</span>
-										<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap {m.badge}">{m.label}</span>
+
+				<!-- üst ok: en güncel -->
+				<div class="flex flex-col items-center">
+					<ArrowUp size={26} class="text-amber-700" strokeWidth={2.5} />
+				</div>
+				<div class="text-center text-[11px] text-gray-400 mb-1">en güncel · gövde yukarı büyür</div>
+
+				{#each trunk.rows as r, ri (r.kind + (r.date || '') + (r.period || '') + (r.side || '') + (r.label || '') + ri)}
+					{#if r.kind === 'ring'}
+						<!-- dönem sonu halkası (sayımda kalan + tüketim) -->
+						<div class="relative py-1.5">
+							<div class="absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-amber-700/40"></div>
+							<div class="relative mx-auto max-w-md bg-white border border-gray-200 rounded-2xl shadow-sm px-4 py-3">
+								<div class="flex items-center justify-center gap-2 mb-2">
+									<span class="text-sm font-bold text-gray-800">{monthLabel(r.period)}</span>
+									<span class="text-[10px] font-semibold tracking-wide text-gray-400">DÖNEM SONU</span>
+								</div>
+								{#if r.counts.length}
+									<div class="flex flex-wrap items-center justify-center gap-1.5 text-xs">
+										<span class="inline-flex items-center gap-1 text-gray-500"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span>sayımda kalan</span>
+										{#each r.counts as c (c.depot)}
+											<span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-medium whitespace-nowrap">{c.depot} {fmtQty(c.qty)}</span>
+										{/each}
 									</div>
-									<span class="tabular-nums font-semibold text-gray-800 shrink-0">{fmtQty(it.quantity)} adet</span>
-								</div>
-								<div class="flex items-center justify-between gap-2 mt-1 text-xs">
-									<span class="text-gray-600 truncate">
-										{#if it.direction === 'out'}
-											{it.from_depot ?? '?'} <span class="text-amber-600">→</span> {it.to_depot ?? '?'}
-										{:else}
-											{flowText(it)}
-										{/if}
-										{#if it.supplier_name}<span class="text-gray-400"> · {it.supplier_name}</span>{/if}
-									</span>
-									<span class="text-gray-500 tabular-nums shrink-0">{it.net_amount ? formatCurrency(it.net_amount) : '–'}</span>
-								</div>
-								{#if runBal[it.id] && !(runBal[it.id].kind === 'in' && runBal[it.id].opening)}
-									{@const b = runBal[it.id]}
-									<div class="text-[11px] text-gray-400 mt-1 pt-1 border-t border-gray-100">
-										{#if b.kind === 'out'}
-											Kalan → <span class="text-gray-600">{b.from}</span> <span class="tabular-nums {b.fromVal < 0 ? 'text-amber-600 font-medium' : 'text-gray-700'}">{fmtQty(b.fromVal)}</span> · <span class="text-gray-600">{b.to}</span> <span class="tabular-nums text-gray-700">{fmtQty(b.toVal)}</span>
-										{:else if b.kind === 'consume'}
-											{b.depot}'da kalan: <span class="tabular-nums {b.val < 0 ? 'text-amber-600 font-medium' : 'text-gray-700'}">{fmtQty(b.val)}</span>
-										{:else}
-											{b.depot}'da kalan: <span class="tabular-nums text-gray-700">{fmtQty(b.val)}</span>
-										{/if}
+								{/if}
+								{#if r.cons.length}
+									<div class="text-center text-[10px] text-gray-400 mt-2 mb-1.5">↓ SAYIMDAN HESAPLANIR</div>
+									<div class="flex flex-wrap items-center justify-center gap-1.5">
+										{#each r.cons as c (c.depot)}
+											<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50">
+												<span class="w-2 h-2 rounded-sm bg-red-500"></span>
+												<span class="text-xs font-bold text-red-600 whitespace-nowrap">TÜKETİM {c.depot} {fmtQty(c.qty)} adet</span>
+											</span>
+										{/each}
 									</div>
 								{/if}
 							</div>
 						</div>
-					</div>
+					{:else if r.kind === 'root'}
+						<!-- kök: ilk dönem devir / açılış -->
+						<div class="relative pt-1">
+							<div class="absolute top-0 h-6 left-1/2 w-[3px] -translate-x-1/2 bg-amber-700/40"></div>
+							<div class="relative flex justify-center mb-1"><div class="w-4 h-4 rounded-full bg-teal-500 ring-4 ring-teal-100"></div></div>
+							<div class="text-center mb-2"><span class="px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-800 text-[11px] font-semibold whitespace-nowrap">{fmtDate(r.date)} · KÖK · DEVİR / AÇILIŞ</span></div>
+							<div class="flex flex-wrap justify-center gap-2">
+								{#each r.openings as o (o.depot)}
+									<div class="bg-white border border-gray-200 rounded-xl px-3 py-2 text-center min-w-[120px]">
+										<div class="text-[11px] text-gray-500">{o.depot}</div>
+										<div class="text-sm font-bold text-gray-800 tabular-nums">{fmtQty(o.qty)} adet</div>
+										{#if o.net}<div class="text-[11px] text-gray-400 tabular-nums">{fmtTRYint(o.net)}</div>{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+					{:else}
+						<!-- hareket düğümü: giriş (sol/yeşil) | çıkış-transfer (sağ/amber) -->
+						{@const isIn = r.side === 'in'}
+						<div class="grid grid-cols-[1fr_2.25rem_1fr] items-center">
+							<!-- sol: giriş -->
+							<div class="flex justify-end">
+								{#if isIn}
+									<div class="bg-white border border-gray-200 border-l-4 border-l-emerald-500 rounded-lg shadow-sm px-3 py-2 max-w-[15rem]">
+										<div class="flex items-center justify-end gap-2 mb-0.5">
+											<span class="text-[11px] tabular-nums text-gray-400">{fmtDate(r.date)}</span>
+											<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 whitespace-nowrap">{r.label}</span>
+										</div>
+										<div class="text-xs text-gray-700 text-right truncate" title={r.depot}>{r.depot}</div>
+										<div class="flex items-baseline justify-end gap-2">
+											<span class="text-sm font-bold text-emerald-700 tabular-nums">+{fmtQty(r.qty)} adet</span>
+											{#if r.net}<span class="text-[11px] text-gray-400 tabular-nums">{fmtTRYint(r.net)}</span>{/if}
+										</div>
+									</div>
+								{/if}
+							</div>
+							<!-- merkez: gövde çizgisi + nokta -->
+							<div class="relative flex justify-center self-stretch min-h-[3.5rem]">
+								<div class="absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-amber-700/40"></div>
+								<div class="relative z-10 self-center w-3.5 h-3.5 rounded-full ring-2 ring-white {isIn ? 'bg-emerald-500' : 'bg-amber-500'}"></div>
+							</div>
+							<!-- sağ: çıkış / transfer -->
+							<div class="flex justify-start">
+								{#if !isIn}
+									<div class="bg-white border border-gray-200 border-l-4 border-l-amber-500 rounded-lg shadow-sm px-3 py-2 max-w-[15rem]">
+										<div class="flex items-center gap-2 mb-0.5">
+											<span class="text-[11px] tabular-nums text-gray-400">{fmtDate(r.date)}</span>
+											<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 whitespace-nowrap">{r.label}</span>
+										</div>
+										<div class="text-xs text-gray-700 truncate" title={`${r.from} → ${r.to}`}>{r.from} <span class="text-amber-600">→</span> {r.to}</div>
+										<div class="flex items-baseline gap-2">
+											<span class="text-sm font-bold text-amber-700 tabular-nums">−{fmtQty(r.qty)} adet</span>
+											<span class="text-[11px] text-gray-300">—</span>
+										</div>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/if}
 				{/each}
-				<!-- alt: başlangıç (ilk ay) -->
-				<div class="flex gap-3">
-					<div class="relative flex flex-col items-center shrink-0 w-3">
-						<div class="w-px h-3 bg-gray-200"></div>
-						<div class="w-2.5 h-2.5 rounded-full bg-gray-300 ring-2 ring-white"></div>
-					</div>
-					<div class="flex-1 text-[11px] text-gray-400 self-end">başlangıç · ilk ay</div>
-				</div>
 			</div>
 		{:else}
 			<div class="overflow-x-auto">
