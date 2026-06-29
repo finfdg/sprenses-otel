@@ -288,14 +288,18 @@ def _price_variance_rows(db: Session) -> list:
     return out
 
 
-def compute_price_variance(db: Session, limit: Optional[int] = 20) -> list:
+def compute_price_variance(db: Session, limit: Optional[int] = 20, include_zero: bool = False) -> list:
     """Gerçek satın alma fiyat hareketleri (medyan bazlı; birim/miktar anomalileri HARİÇ).
 
     Sıralama: **işaretli azalan** → fiyatı artanlar üstte (en çok artan en üstte), azalanlar
-    altta. Değişmeyen (variance_pct=0) ürünler "hareket" sayılmaz → listeye alınmaz. `limit=None`
-    → tüm hareketler (cap yok).
+    altta. `include_zero=False` (varsayılan) → değişmeyen (variance_pct=0) ürünler "hareket"
+    sayılmaz, listeye alınmaz; `include_zero=True` → %0'lar da dönülür (frontend toggle ile
+    göster/gizle). `limit=None` → cap yok (tüm hareketler).
     """
-    rows = [r for r in _price_variance_rows(db) if r["category"] == "price" and r["variance_pct"] != 0]
+    rows = [
+        r for r in _price_variance_rows(db)
+        if r["category"] == "price" and (include_zero or r["variance_pct"] != 0)
+    ]
     rows.sort(key=lambda x: -x["variance_pct"])
     return rows[:limit]
 

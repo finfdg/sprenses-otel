@@ -9,7 +9,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
-	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer } from 'lucide-svelte';
+	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer, Eye, EyeOff } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const periodLabel = (p: string) => { const [y, m] = (p || '').split('-'); return `${AY[Number(m)] || m} ${y}`; };
@@ -24,6 +24,10 @@
 	let suppliers = $state<any[]>([]);
 	let variance = $state<any[]>([]);
 	let anomalies = $state<any[]>([]);
+	let showZero = $state(false); // %0 (değişmeyen) fiyatları göster/gizle
+	// Varsayılan: %0 gizli → liste artan→azalan okunaklı kalır. Toggle ile %0'lar da görünür.
+	let shownVariance = $derived(showZero ? variance : variance.filter((v: any) => v.variance_pct !== 0));
+	let zeroCount = $derived(variance.filter((v: any) => v.variance_pct === 0).length);
 
 	let kpi = $derived(op.kpi || {});
 	let occ = $derived(op.occupancy || {});
@@ -96,7 +100,7 @@
 				api.get<any>('/stok/operational-kpi'),
 				api.get<any>('/stok/summary'),
 				api.get<any>('/stok/by-supplier?limit=10'),
-				api.get<any>('/stok/price-variance?limit=0'),
+				api.get<any>('/stok/price-variance?limit=0&include_zero=true'),
 			]);
 			op = o; summary = s; suppliers = sup.items || []; variance = v.items || []; anomalies = v.anomalies || [];
 		} catch (e) {
@@ -176,16 +180,23 @@
 
 			<!-- Satın alma fiyat sapması (medyan bazlı) + birim/miktar anomalileri -->
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
-				<div class="flex items-center gap-2 mb-1"><TrendingUp size={18} class="text-red-500" /><h3 class="text-sm font-semibold text-gray-800">Satın Alma Fiyat Hareketi</h3></div>
-				<p class="text-[11px] text-gray-500 mb-3">Son alış ↔ <span class="font-medium text-gray-600">medyan</span> (aykırı girişe dayanıklı) — gerçek fiyat hareketi</p>
-				{#if variance.length === 0}
+				<div class="flex items-start justify-between gap-2 mb-1">
+					<div class="flex items-center gap-2"><TrendingUp size={18} class="text-red-500" /><h3 class="text-sm font-semibold text-gray-800">Satın Alma Fiyat Hareketi</h3></div>
+					{#if zeroCount > 0}
+						<Button variant="ghost" size="sm" onclick={() => (showZero = !showZero)} class="shrink-0 -mt-1" title={showZero ? 'Değişmeyenleri gizle' : 'Değişmeyenleri göster'}>
+							{#if showZero}<EyeOff size={14} /> %0 gizle{:else}<Eye size={14} /> %0 göster ({zeroCount}){/if}
+						</Button>
+					{/if}
+				</div>
+				<p class="text-[11px] text-gray-500 mb-3">Son alış ↔ <span class="font-medium text-gray-600">medyan</span> (aykırı girişe dayanıklı) — fiyatı artanlar üstte, azalanlar altta</p>
+				{#if shownVariance.length === 0}
 					<p class="text-sm text-gray-500">Veri yok</p>
 				{:else}
 					<div class="space-y-0.5 max-h-72 overflow-y-auto pr-1">
-						{#each variance as v (v.product_id)}
+						{#each shownVariance as v (v.product_id)}
 							<button type="button" onclick={() => openMovements(v)} class="w-full flex items-center justify-between gap-2 text-sm text-left px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Alış hareketlerini gör">
 								<span class="text-gray-700 truncate flex-1">{v.name}</span>
-								<span class="tabular-nums text-xs text-gray-500 whitespace-nowrap">{v.median_cost ?? v.avg_cost} → {v.last_cost} <span class="font-semibold {v.variance_pct > 0 ? 'text-red-600' : 'text-emerald-600'}">%{v.variance_pct}</span></span>
+								<span class="tabular-nums text-xs text-gray-500 whitespace-nowrap">{v.median_cost ?? v.avg_cost} → {v.last_cost} <span class="font-semibold {v.variance_pct > 0 ? 'text-red-600' : v.variance_pct < 0 ? 'text-emerald-600' : 'text-gray-400'}">%{v.variance_pct}</span></span>
 							</button>
 						{/each}
 					</div>

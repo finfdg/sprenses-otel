@@ -172,14 +172,16 @@ def price_variance(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("stok.maliyet", "view")),
     limit: int = Query(100, ge=0, le=5000),
+    include_zero: bool = Query(False),
 ):
     """Fiyat sapması: gerçek hareketler (`items`) + olası birim/miktar anomalileri (`anomalies`).
 
-    `limit=0` → cap yok (tüm hareketler). `items` fiyatı artanlar üstte / azalanlar altta sıralı.
+    `limit=0` → cap yok (tüm hareketler). `include_zero=true` → fiyatı değişmeyen (%0) ürünler de
+    dönülür (frontend toggle ile göster/gizle). `items` fiyatı artanlar üstte / azalanlar altta sıralı.
     """
     lim = limit or None  # 0 → None (tümü)
     return {
-        "items": compute_price_variance(db, lim),
+        "items": compute_price_variance(db, lim, include_zero),
         "anomalies": compute_price_anomalies(db, lim),
     }
 

@@ -61,8 +61,11 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
   **Satın Alma Fiyat Hareketi** (medyan↔son alış) + birim/miktar anomalileri.
   - **Sıralama + kapsam:** fiyat listesi `?limit=0` ile **tüm hareketleri** (cap yok) çeker,
     **işaretli azalan** sıralıdır (fiyatı en çok artan en üstte → en çok azalan en altta). Fiyatı
-    değişmeyen (%0) ürünler "hareket" olmadığından listeye alınmaz (canlı: 1642 üründen 1036'sı %0 →
-    606 gerçek hareket gösterilir). `max-h-72 overflow-y-auto` ile kaydırılır.
+    değişmeyen (%0) ürünler varsayılan GİZLİ → liste artan→azalan okunaklı kalır. Başlıkta
+    **"%0 göster/gizle" toggle** butonu (Eye/EyeOff) ile fiyatı değişmeyen ürünler de gösterilir
+    (canlı: 1642 üründen 1036'sı %0, 606 gerçek hareket). Frontend `?include_zero=true&limit=0` ile
+    **tümünü tek istekte** çeker, toggle client-side filtreler (`shownVariance`); %0 satırı gri.
+    `max-h-72 overflow-y-auto` ile kaydırılır.
   - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (sıra no, tarih,
     tedarikçi, miktar, **birim fiyat = net ÷ miktar**, net tutar). Modalda **"Yazdır"** butonu PDF'i
     `api.fetchRaw` ile **blob** olarak çeker → **gizli iframe + `contentWindow.print()`** ile yazdırma
