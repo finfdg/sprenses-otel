@@ -60,9 +60,17 @@
 	let a = $derived(ACCENT[accent]);
 	let Icon = $derived(icon);
 
-	// Uzun para değerleri (ör. ₺154.073.001,86) text-xl'de taşıyordu → uzunluğa göre fontu küçült.
+	// Uzun para değerleri (ör. ₺159.331.760,11) tek satıra sığmayıp alt satıra kayıyordu →
+	// uzunluğa göre fontu kademeli küçült + satır kaydırmayı kapat (whitespace-nowrap) ki
+	// tutar her zaman tek satırda, küçülerek görünsün.
 	let valLen = $derived(String(value).length);
-	let valSize = $derived(valLen > 18 ? 'text-base' : valLen > 14 ? 'text-lg' : 'text-xl');
+	let valSize = $derived(
+		valLen > 18 ? 'text-xs'
+		: valLen > 14 ? 'text-sm'
+		: valLen > 11 ? 'text-base'
+		: valLen > 8 ? 'text-lg'
+		: 'text-xl'
+	);
 
 	// Delta: işaret → ok yönü + AA-uyumlu renk (deltaInvert ile anlam tersine çevrilebilir).
 	let hasDelta = $derived(delta !== undefined && delta !== null);
@@ -89,7 +97,7 @@
 			</div>
 		{/if}
 	</div>
-	<div class="mt-1.5 font-bold tabular-nums leading-tight break-words {valSize} {a.value}" title={String(value)}>{value}</div>
+	<div class="mt-1.5 font-bold tabular-nums leading-tight whitespace-nowrap {valSize} {a.value}" title={String(value)}>{value}</div>
 	{#if hasDelta}
 		<div class="text-xs mt-1 flex items-center gap-1 flex-wrap">
 			<span class="inline-flex items-center gap-0.5 font-medium {deltaColor}">
