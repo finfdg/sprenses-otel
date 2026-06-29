@@ -85,6 +85,15 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
     = 32` = sonraki ay ANA DEPO devri. Etiketli alış kendi deposuna gider.
   - **Açık/son dönem:** en üstteki (en güncel) dönem henüz kapanmamışsa "sayımda kalan" = **canlı yürüyen
     bakiye**, TÜKETİM henüz yoksa boş kalır (ay-sonu postingi gelince dolar).
+  - **KÖK yalnız İLK dönemin açılışıdır (bug kaydı, 2026-06-29):** Sonraki ayların Devir/Açılış'ları
+    kökte gösterilmez (devreden sayımı tekrar ederler). `rootDone` bayrağı **ilk dönem değişiminde**
+    set edilir — yalnız non-opening harekette DEĞİL. Neden kritik: `get_product_purchases` boş postingleri
+    (`qty=0 ∧ net=0`) eler; bazı üründe (ör. SOS BULYON TAVUK) erken ayların tek hareketi sıfır-tüketim
+    postingidir → elenince ardışık "yalnız-devir" aylar oluşur → eski mantıkta her ayın açılışı köke
+    eklenip **mükerrer depo** yaratıyordu → `{#each r.openings (o.depot)}` Svelte 5 **client**'ta
+    `each_key_duplicate` fırlatıyor (SSR dup-key kontrol etmez → derleme/SSR sessiz) → modal skeleton'da
+    **donuyordu**. Ek güvenlik: modal içeriği `<svelte:boundary>` ile sarıldı (render hatası → "Liste'ye
+    geç" düşüşü, sonsuz skeleton yerine).
   - **Depo bazında yürüyen bakiye (kalan):** Hareketler kronolojik işlenir; **Devir/Açılış = sayım anlık
     değeri (RESET)**, alış/bedelsiz/transfer-giriş ekler, transfer-çıkış/tüketim çıkarır. Her tüketim/
     transfer/giriş altında **ilgili depo(lar)daki kalan** yazılır (`runBal` $derived, frontend). **Negatif

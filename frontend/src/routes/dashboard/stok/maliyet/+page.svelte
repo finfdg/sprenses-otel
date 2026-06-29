@@ -113,14 +113,18 @@
 			const t = it.type_label || '';
 			const qty = it.quantity || 0;
 			const opening = it.direction === 'in' && /Devir|Açılış/.test(t);
-			if (curPeriod && p !== curPeriod) closeRing(curPeriod); // devir reset'inden ÖNCE dönemi kapat
+			// Dönem değişince önceki dönemi kapat (devir reset'inden ÖNCE) + kök artık tamamdır.
+			// KÖK = YALNIZ ilk dönemin açılışı; sonraki ayların devirleri devreden sayımı tekrar eder.
+			// (Boş postingler API'de elenince ardışık "yalnız-devir" aylar oluşabiliyor; rootDone'u
+			// yalnız non-opening'e bağlamak kökte mükerrer depo → {#each} dup-key crash'i yaratıyordu.)
+			if (curPeriod && p !== curPeriod) { closeRing(curPeriod); rootDone = true; }
 			curPeriod = p;
 
 			if (it.direction === 'in') {
 				const depot = it.to_depot || hub || '(belirsiz)';
 				if (opening) {
 					bal[depot] = qty; // sayım reset (fiziksel devir değeri)
-					if (!rootDone) rootOpen.push({ depot, qty, net: it.net_amount });
+					if (!rootDone && !rootOpen.some((o: any) => o.depot === depot)) rootOpen.push({ depot, qty, net: it.net_amount });
 				} else {
 					bal[depot] = (bal[depot] || 0) + qty;
 					rows.push({ kind: 'node', side: 'in', date: it.date, label: t || 'Giriş', depot, qty, net: it.net_amount });
@@ -394,6 +398,7 @@
 
 <!-- Ürün stok hareketleri detayı (giriş + transfer + tüketim, tür bazlı renkli) -->
 <Modal bind:show={showMovements} title={detail.name || 'Stok hareketleri'} maxWidth="max-w-4xl">
+	<svelte:boundary>
 	{#if movementsLoading}
 		<TableSkeleton rows={6} columns={6} />
 	{:else if movementsError}
@@ -589,4 +594,12 @@
 			</div>
 		{/if}
 	{/if}
+	<!-- Güvenlik ağı: herhangi bir render hatası modalı dondurmasın → hata + Liste'ye geç -->
+	{#snippet failed(error, reset)}
+		<div class="text-center py-8">
+			<EmptyState icon={TriangleAlert} title="Görünüm oluşturulamadı" description="Bu ürünün hareket görünümü çizilirken bir sorun oluştu. Liste görünümünü deneyebilirsiniz." />
+			<Button variant="secondary" size="sm" onclick={() => { detailView = 'table'; reset(); }} class="mt-3">Liste görünümüne geç</Button>
+		</div>
+	{/snippet}
+	</svelte:boundary>
 </Modal>
