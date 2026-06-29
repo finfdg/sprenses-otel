@@ -34,9 +34,8 @@
 	const canQuality = hasPermission('quality.forms');
 
 	function fmt(n: number): string {
-		if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'M';
-		if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(0) + 'K';
-		return n.toFixed(0);
+		if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2).replace('.', ',') + 'M';
+		return new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(n);
 	}
 
 	// Kart bazlı veri hatası: konsola logla, sayfa sonunda tek toast göster (kart başına toast spam'i yok)
