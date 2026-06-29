@@ -9,7 +9,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
-	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer, Eye, EyeOff } from 'lucide-svelte';
+	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer, Eye, EyeOff, ChevronUp } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const periodLabel = (p: string) => { const [y, m] = (p || '').split('-'); return `${AY[Number(m)] || m} ${y}`; };
@@ -424,15 +424,28 @@
 		</div>
 
 		{#if detailView === 'timeline'}
-			<!-- Dikey zaman çizgisi (aylara gruplu, tür bazlı renkli düğümler) -->
+			<!-- Aşağıdan yukarıya akan zaman çizgisi: en eski ay altta → yukarı doğru büyür -->
 			<div class="space-y-0">
+				<!-- üst: yukarı büyüme oku -->
+				<div class="flex gap-3">
+					<div class="relative flex flex-col items-center shrink-0 w-3">
+						<ChevronUp size={18} class="text-teal-500 -mb-1" />
+						<div class="w-px flex-1 bg-gray-200"></div>
+					</div>
+					<div class="flex-1 text-[11px] text-gray-400 self-center">en güncel · yukarı doğru büyür</div>
+				</div>
 				{#each detail.items as it, i (it.id)}
 					{@const m = movMeta(it)}
 					{@const mk = monthKey(it.date)}
 					{#if i === 0 || mk !== monthKey(detail.items[i - 1].date)}
-						<div class="flex items-center gap-2 pt-3 first:pt-0 pb-2">
-							<span class="inline-block px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">{monthLabel(mk)}</span>
-							<div class="flex-1 h-px bg-gray-100"></div>
+						<div class="flex gap-3 py-1.5">
+							<div class="relative flex justify-center shrink-0 w-3 self-stretch">
+								<div class="absolute top-0 bottom-0 w-px bg-gray-200"></div>
+							</div>
+							<div class="flex-1 flex items-center gap-2">
+								<span class="inline-block px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[11px] font-semibold">{monthLabel(mk)}</span>
+								<div class="flex-1 h-px bg-gray-100"></div>
+							</div>
 						</div>
 					{/if}
 					<div class="flex gap-3">
@@ -476,6 +489,14 @@
 						</div>
 					</div>
 				{/each}
+				<!-- alt: başlangıç (ilk ay) -->
+				<div class="flex gap-3">
+					<div class="relative flex flex-col items-center shrink-0 w-3">
+						<div class="w-px h-3 bg-gray-200"></div>
+						<div class="w-2.5 h-2.5 rounded-full bg-gray-300 ring-2 ring-white"></div>
+					</div>
+					<div class="flex-1 text-[11px] text-gray-400 self-end">başlangıç · ilk ay</div>
+				</div>
 			</div>
 		{:else}
 			<div class="overflow-x-auto">

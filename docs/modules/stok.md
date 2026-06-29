@@ -68,8 +68,10 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
     `max-h-72 overflow-y-auto` ile kaydırılır.
   - **Fiyat/anomali satırına tıklayınca** o ürünün **TÜM stok hareketleri** modalda açılır (max-w-4xl).
     Üstte **Depo Akış Şeması** (transfer okları + depo özet kartları) her zaman görünür. Altında
-    **görünüm geçişi**: **Zaman çizgisi** (varsayılan, aylara gruplu dikey timeline, tür bazlı renkli
-    düğümler) ↔ **Liste** (renkli tablo). Tür renkleri: **Alış** yeşil · **Devir/Açılış** gri ·
+    **görünüm geçişi**: **Zaman çizgisi** (varsayılan) ↔ **Liste** (renkli tablo). Zaman çizgisi
+    **aşağıdan yukarıya akar**: en eski ay (ör. Ocak) en altta "başlangıç" işaretiyle, yeni hareketler
+    üste eklenerek büyür; en üstte yukarı-büyüme oku (`ChevronUp`) + "en güncel". Aylara gruplu,
+    sürekli omurga çizgisi, tür bazlı renkli düğümler. Tür renkleri: **Alış** yeşil · **Devir/Açılış** gri ·
     **Çıkış/Transfer** turuncu · **Tüketim** kırmızı · **Bedelsiz** mavi. Depo akışı: girişte hedef depo,
     transferde `kaynak → hedef`, tüketimde tüketim deposu → **depolar arası transferler görünür**.
   - **Depo bazında yürüyen bakiye (kalan):** Hareketler kronolojik işlenir; **Devir/Açılış = sayım anlık
