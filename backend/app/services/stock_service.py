@@ -227,33 +227,42 @@ def compute_operational_kpi(db: Session) -> dict:
 
 # Son alış MEDYANIN bu kat ÜstÜnde/altında ise → "gerçek fiyat hareketi" değil, olası
 # birim/miktar tutarsızlığı (Sedna'da Birim hep "Kg" ama miktar bazen çuval/koli adedi →
-# birim maliyet net_amount/quantity ile uçar). Net tutar daima doğru; sapan yalnız payda.
+# net÷miktar uçar). Net tutar daima doğru; sapan yalnız payda (miktar).
 _PRICE_ANOMALY_RATIO = 3.0
 
 
 def _price_variance_rows(db: Session) -> list:
     """Ürün başına satın alma birim-maliyet sapması — MEDYAN bazlı (aykırı girişe dayanıklı).
 
-    Ortalama yerine medyan: tek bir hatalı giriş (ör. 38→2100) baz çizgisini kaydırmaz. Son
-    alış medyanın `_PRICE_ANOMALY_RATIO` katından sapıyorsa `category="entry"` (olası birim/miktar
-    hatası), aksi halde `category="price"` (gerçek fiyat hareketi).
+    **Birim fiyat = net_amount ÷ quantity** (gerçek ödenen). Sedna'nın `Cost` (unit_cost) alanı
+    bazen hatalı/0 (ör. NAR'da tek satır 359,48 ama net/miktar=135) → onu KULLANMAYIZ; net tutar
+    daima doğru olduğundan net÷miktar gerçek birim fiyatı verir. Bu, `Cost` hatasından doğan sahte
+    "fiyat sıçramalarını" eler.
+
+    Ortalama yerine medyan: tek bir hatalı giriş baz çizgisini kaydırmaz. Son alış medyanın
+    `_PRICE_ANOMALY_RATIO` katından sapıyorsa `category="entry"` (olası birim/miktar hatası — burada
+    net÷miktar da sapar çünkü payda/miktar yanlış girilmiştir), aksi halde `category="price"`.
     """
     rows = db.execute(text("""
-        WITH agg AS (
-            SELECT product_sedna_id AS pid,
-                   MAX(product_name) AS name,
-                   percentile_cont(0.5) WITHIN GROUP (ORDER BY unit_cost) AS median,
-                   COUNT(*) AS n
+        WITH mv AS (
+            SELECT product_sedna_id AS pid, product_name AS name, date, id,
+                   net_amount / quantity AS eff
             FROM stock_movements
-            WHERE direction='in' AND unit_cost > 0 AND product_sedna_id IS NOT NULL
-            GROUP BY product_sedna_id
+            WHERE direction='in' AND quantity > 0 AND net_amount > 0
+              AND product_sedna_id IS NOT NULL
+        ),
+        agg AS (
+            SELECT pid, MAX(name) AS name,
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY eff) AS median,
+                   COUNT(*) AS n
+            FROM mv
+            GROUP BY pid
             HAVING COUNT(*) >= 2
         ),
         last AS (
-            SELECT DISTINCT ON (product_sedna_id) product_sedna_id AS pid, unit_cost AS last_cost
-            FROM stock_movements
-            WHERE direction='in' AND unit_cost > 0 AND product_sedna_id IS NOT NULL
-            ORDER BY product_sedna_id, date DESC NULLS LAST
+            SELECT DISTINCT ON (pid) pid, eff AS last_cost
+            FROM mv
+            ORDER BY pid, date DESC NULLS LAST, id DESC
         )
         SELECT a.pid, a.name, a.median, a.n, l.last_cost
         FROM agg a JOIN last l ON l.pid = a.pid
@@ -309,7 +318,12 @@ def get_product_purchases(db: Session, product_sedna_id: int, limit: int = 200) 
     )
     rows = q.limit(limit).all()
     name = next((r.product_name for r in rows if r.product_name), None)
-    costs = sorted(float(r.unit_cost) for r in rows if r.unit_cost and float(r.unit_cost) > 0)
+    # Birim fiyat = net ÷ miktar (gerçek ödenen) — panel ile aynı baz
+    costs = sorted(
+        float(r.net_amount) / float(r.quantity)
+        for r in rows
+        if r.quantity and float(r.quantity) > 0 and r.net_amount and float(r.net_amount) > 0
+    )
     median = 0.0
     if costs:
         mid = len(costs) // 2

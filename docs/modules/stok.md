@@ -47,7 +47,7 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 | GET | `/stok/cost-by-department` | stok.maliyet view | Departman (ConsumptionDepot) bazında tüketim maliyeti (adlarla) |
 | GET | `/stok/monthly-trend` | stok.maliyet view | Aylık alım vs tüketim (sezon analizi) |
 | GET | `/stok/by-supplier?limit=` | stok.maliyet view | Tedarikçi bazında alım maliyeti |
-| GET | `/stok/price-variance?limit=` | stok.maliyet view | Fiyat hareketi (`items`, medyan↔son alış) + birim/miktar anomalileri (`anomalies`) |
+| GET | `/stok/price-variance?limit=` | stok.maliyet view | Fiyat hareketi (`items`, medyan↔son alış, **birim=net÷miktar**) + birim/miktar anomalileri (`anomalies`) |
 | GET | `/stok/product-purchases/{product_id}?limit=` | stok.maliyet view | Bir ürünün alış hareketleri (tarih/miktar/birim/net/tedarikçi) — fiyat paneli detay tıklaması |
 | GET | `/stok/products` | stok.urunler view | Ürün listesi (paginated, `search`, `in_stock`; değer azalan) |
 | GET | `/stok/movements` | stok.hareketler view | Hareket listesi (paginated, `direction`, `depot`, `search`, tarih) |
@@ -59,9 +59,15 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
   depo sayısı) + **departman tüketim çubukları** (hero) + aylık alım-tüketim trendi + tedarikçi çubukları +
   **Satın Alma Fiyat Hareketi** (medyan↔son alış) + birim/miktar anomalileri.
   - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (tarih, tedarikçi,
-    miktar, **birim fiyat = net ÷ miktar**, net tutar). Birim fiyat Sedna'nın `Cost` alanından DEĞİL
-    net÷miktar'dan hesaplanır — `Cost` bazen hatalı/0 (ör. NAR'da tek satır 359,48 ama net/miktar ≈ 135),
-    net tutar ise daima doğru. Detay drill-down bu giriş-kalitesi sapmalarını görünür kılar.
+    miktar, **birim fiyat = net ÷ miktar**, net tutar).
+  - **Birim fiyat tek baz = net ÷ miktar (gerçek ödenen)** — hem panel (`_price_variance_rows`) hem
+    detay modalı Sedna'nın `Cost` (unit_cost) alanını **kullanmaz**. Neden: `Cost` bazen hatalı/0
+    (ör. NAR'da 30.05 satırında Cost=359,48 ama net/miktar=6210÷46=135 → eski panel bunu %193,5 sahte
+    sıçrama gösteriyordu); net tutar ise daima doğru. net÷miktar'a geçiş bu sahte sıçramaları eledi
+    (NAR artık %8,4 ile listede değil). Anomali tespiti (>3× medyan) korunur: miktar paydası yanlış
+    girilince net÷miktar da sapar → gerçek birim/miktar tutarsızlıkları yine `anomalies`'e düşer.
+    Test: `test_cost_control.py::test_price_variance` / `test_price_anomaly_split` (seed `quantity=1,
+    net_amount=unit_cost` → net÷miktar=unit_cost, davranış birebir).
 - **Ürünler & Stok** (`/urunler`): arama + "stokta olanlar" filtresi + tablo (kod/ad/stok/maliyet/değer).
 - **Hareketler** (`/hareketler`): yön filtresi (alış/tüketim/çıkış/sayım) + arama + tablo (renkli tip rozeti).
 - **Depolar** (`/depolar`): departman listesi + toplam tüketim çubuğu (maliyet merkezi sıralı).
