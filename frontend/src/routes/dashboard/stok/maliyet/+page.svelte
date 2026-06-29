@@ -49,17 +49,21 @@
 
 	// Hareket türü → renkli rozet + sol kenar aksanı (giriş yeşil, devir gri, transfer turuncu,
 	// tüketim kırmızı, bedelsiz mavi). Depo akışı: giriş→hedef, çıkış kaynak→hedef, tüketim depo.
-	function movMeta(it: any): { label: string; badge: string; accent: string } {
+	function movMeta(it: any): { label: string; badge: string; accent: string; dot: string } {
 		const t = it.type_label || '';
 		if (it.direction === 'in') {
-			if (t.includes('Alış')) return { label: t, badge: 'bg-emerald-50 text-emerald-700', accent: 'border-l-emerald-500' };
-			if (t.includes('Bedelsiz')) return { label: t, badge: 'bg-blue-50 text-blue-700', accent: 'border-l-blue-500' };
-			return { label: t || 'Giriş', badge: 'bg-gray-100 text-gray-600', accent: 'border-l-gray-300' };
+			if (t.includes('Alış')) return { label: t, badge: 'bg-emerald-50 text-emerald-700', accent: 'border-l-emerald-500', dot: 'bg-emerald-500' };
+			if (t.includes('Bedelsiz')) return { label: t, badge: 'bg-blue-50 text-blue-700', accent: 'border-l-blue-500', dot: 'bg-blue-500' };
+			return { label: t || 'Giriş', badge: 'bg-gray-100 text-gray-600', accent: 'border-l-gray-300', dot: 'bg-gray-300' };
 		}
-		if (it.direction === 'out') return { label: t || 'Çıkış', badge: 'bg-amber-50 text-amber-700', accent: 'border-l-amber-500' };
-		if (it.direction === 'consume') return { label: t || 'Tüketim', badge: 'bg-red-50 text-red-600', accent: 'border-l-red-500' };
-		return { label: t || it.direction || '–', badge: 'bg-gray-100 text-gray-600', accent: 'border-l-gray-300' };
+		if (it.direction === 'out') return { label: t || 'Çıkış', badge: 'bg-amber-50 text-amber-700', accent: 'border-l-amber-500', dot: 'bg-amber-500' };
+		if (it.direction === 'consume') return { label: t || 'Tüketim', badge: 'bg-red-50 text-red-600', accent: 'border-l-red-500', dot: 'bg-red-500' };
+		return { label: t || it.direction || '–', badge: 'bg-gray-100 text-gray-600', accent: 'border-l-gray-300', dot: 'bg-gray-300' };
 	}
+	const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+	const monthKey = (s: string | null) => (s ? s.slice(0, 7) : '');
+	const monthLabel = (k: string) => { const [y, m] = k.split('-'); return `${MONTHS_TR[Number(m) - 1] || m} ${y}`; };
+	let detailView = $state<'timeline' | 'table'>('timeline'); // modal görünümü: zaman çizgisi / liste
 	function flowText(it: any): string {
 		if (it.direction === 'out') return `${it.from_depot ?? '?'} → ${it.to_depot ?? '?'}`;
 		if (it.direction === 'consume') return it.cons_depot ?? '–';
@@ -376,52 +380,102 @@
 			</div>
 		{/if}
 
-		<!-- Renk lejantı -->
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 mb-2">
-			<span class="font-medium text-gray-600">Tüm hareketler:</span>
-			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Alış</span>
-			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-gray-300"></span> Devir/Açılış</span>
-			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span> Çıkış/Transfer</span>
-			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500"></span> Tüketim</span>
-			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span> Bedelsiz</span>
+		<!-- Görünüm geçişi + renk lejantı -->
+		<div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+			<div class="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
+				<button type="button" onclick={() => (detailView = 'timeline')} class="px-3 py-1 rounded-md font-medium transition-colors {detailView === 'timeline' ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50'}">Zaman çizgisi</button>
+				<button type="button" onclick={() => (detailView = 'table')} class="px-3 py-1 rounded-md font-medium transition-colors {detailView === 'table' ? 'bg-teal-700 text-white' : 'text-gray-600 hover:bg-gray-50'}">Liste</button>
+			</div>
+			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500">
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Alış</span>
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-gray-300"></span> Devir</span>
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span> Transfer</span>
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500"></span> Tüketim</span>
+				<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span> Bedelsiz</span>
+			</div>
 		</div>
-		<div class="overflow-x-auto">
-			<table class="w-full text-sm">
-				<thead>
-					<tr class="text-left text-xs text-gray-600 border-b border-gray-200">
-						<th class="py-2 pr-2 font-medium text-right w-8">#</th>
-						<th class="py-2 px-2 font-medium">Tarih</th>
-						<th class="py-2 px-2 font-medium">Hareket</th>
-						<th class="py-2 px-2 font-medium">Depo / Akış</th>
-						<th class="py-2 px-2 font-medium text-right">Miktar</th>
-						<th class="py-2 px-2 font-medium text-right">Birim</th>
-						<th class="py-2 pl-2 font-medium text-right">Net Tutar</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each detail.items as it, i (it.id)}
-						{@const m = movMeta(it)}
-						<tr class="border-b border-gray-100 last:border-0 border-l-4 {m.accent}">
-							<td class="py-2 pr-2 pl-2 text-right tabular-nums text-gray-400">{i + 1}</td>
-							<td class="py-2 px-2 whitespace-nowrap tabular-nums text-gray-700">{fmtDate(it.date)}</td>
-							<td class="py-2 px-2">
-								<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap {m.badge}">{m.label}</span>
-								{#if it.supplier_name}<div class="text-[11px] text-gray-500 truncate max-w-[180px] mt-0.5" title={it.supplier_name}>{it.supplier_name}</div>{/if}
-							</td>
-							<td class="py-2 px-2 text-gray-600 whitespace-nowrap">
-								{#if it.direction === 'out'}
-									<span class="text-gray-700">{it.from_depot ?? '?'}</span> <span class="text-amber-600">→</span> <span class="text-gray-700">{it.to_depot ?? '?'}</span>
-								{:else}
-									{flowText(it)}
-								{/if}
-							</td>
-							<td class="py-2 px-2 text-right tabular-nums text-gray-700">{fmtQty(it.quantity)}</td>
-							<td class="py-2 px-2 text-right tabular-nums font-medium text-gray-800">{it.net_amount ? formatCurrency(effUnit(it)) : '–'}</td>
-							<td class="py-2 pl-2 text-right tabular-nums text-gray-700">{formatCurrency(it.net_amount)}</td>
+
+		{#if detailView === 'timeline'}
+			<!-- Dikey zaman çizgisi (aylara gruplu, tür bazlı renkli düğümler) -->
+			<div class="space-y-0">
+				{#each detail.items as it, i (it.id)}
+					{@const m = movMeta(it)}
+					{@const mk = monthKey(it.date)}
+					{#if i === 0 || mk !== monthKey(detail.items[i - 1].date)}
+						<div class="flex items-center gap-2 pt-3 first:pt-0 pb-2">
+							<span class="inline-block px-2.5 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">{monthLabel(mk)}</span>
+							<div class="flex-1 h-px bg-gray-100"></div>
+						</div>
+					{/if}
+					<div class="flex gap-3">
+						<div class="relative flex justify-center shrink-0 w-3">
+							<div class="absolute top-0 bottom-0 w-px bg-gray-200"></div>
+							<div class="relative z-10 w-3 h-3 rounded-full {m.dot} ring-2 ring-white mt-1"></div>
+						</div>
+						<div class="flex-1 min-w-0 pb-3">
+							<div class="border border-gray-200 border-l-4 {m.accent} rounded-lg px-3 py-2">
+								<div class="flex items-center justify-between gap-2">
+									<div class="flex items-center gap-2 min-w-0">
+										<span class="text-[11px] tabular-nums text-gray-400 shrink-0">{fmtDate(it.date)}</span>
+										<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap {m.badge}">{m.label}</span>
+									</div>
+									<span class="tabular-nums font-semibold text-gray-800 shrink-0">{fmtQty(it.quantity)} adet</span>
+								</div>
+								<div class="flex items-center justify-between gap-2 mt-1 text-xs">
+									<span class="text-gray-600 truncate">
+										{#if it.direction === 'out'}
+											{it.from_depot ?? '?'} <span class="text-amber-600">→</span> {it.to_depot ?? '?'}
+										{:else}
+											{flowText(it)}
+										{/if}
+										{#if it.supplier_name}<span class="text-gray-400"> · {it.supplier_name}</span>{/if}
+									</span>
+									<span class="text-gray-500 tabular-nums shrink-0">{it.net_amount ? formatCurrency(it.net_amount) : '–'}</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="overflow-x-auto">
+				<table class="w-full text-sm">
+					<thead>
+						<tr class="text-left text-xs text-gray-600 border-b border-gray-200">
+							<th class="py-2 pr-2 font-medium text-right w-8">#</th>
+							<th class="py-2 px-2 font-medium">Tarih</th>
+							<th class="py-2 px-2 font-medium">Hareket</th>
+							<th class="py-2 px-2 font-medium">Depo / Akış</th>
+							<th class="py-2 px-2 font-medium text-right">Miktar</th>
+							<th class="py-2 px-2 font-medium text-right">Birim</th>
+							<th class="py-2 pl-2 font-medium text-right">Net Tutar</th>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
+					</thead>
+					<tbody>
+						{#each detail.items as it, i (it.id)}
+							{@const m = movMeta(it)}
+							<tr class="border-b border-gray-100 last:border-0 border-l-4 {m.accent}">
+								<td class="py-2 pr-2 pl-2 text-right tabular-nums text-gray-400">{i + 1}</td>
+								<td class="py-2 px-2 whitespace-nowrap tabular-nums text-gray-700">{fmtDate(it.date)}</td>
+								<td class="py-2 px-2">
+									<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap {m.badge}">{m.label}</span>
+									{#if it.supplier_name}<div class="text-[11px] text-gray-500 truncate max-w-[180px] mt-0.5" title={it.supplier_name}>{it.supplier_name}</div>{/if}
+								</td>
+								<td class="py-2 px-2 text-gray-600 whitespace-nowrap">
+									{#if it.direction === 'out'}
+										<span class="text-gray-700">{it.from_depot ?? '?'}</span> <span class="text-amber-600">→</span> <span class="text-gray-700">{it.to_depot ?? '?'}</span>
+									{:else}
+										{flowText(it)}
+									{/if}
+								</td>
+								<td class="py-2 px-2 text-right tabular-nums text-gray-700">{fmtQty(it.quantity)}</td>
+								<td class="py-2 px-2 text-right tabular-nums font-medium text-gray-800">{it.net_amount ? formatCurrency(effUnit(it)) : '–'}</td>
+								<td class="py-2 pl-2 text-right tabular-nums text-gray-700">{formatCurrency(it.net_amount)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	{/if}
 </Modal>
