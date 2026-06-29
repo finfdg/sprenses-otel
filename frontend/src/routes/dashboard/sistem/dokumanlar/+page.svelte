@@ -13,7 +13,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { FileText, Download, Eye, Search, Library, FolderOpen, FileStack } from 'lucide-svelte';
 
-	interface Doc { path: string; title: string; category: string; size: number; modified: string; }
+	interface Doc { path: string; title: string; module_code?: string | null; category: string; size: number; modified: string; }
 
 	// State
 	let docs = $state<Doc[]>([]);
@@ -40,7 +40,7 @@
 		docs.filter((d) => {
 			if (cat && d.category !== cat) return false;
 			const term = q.trim().toLocaleLowerCase('tr');
-			return !term || `${d.title} ${d.path}`.toLocaleLowerCase('tr').includes(term);
+			return !term || `${d.title} ${d.path} ${d.module_code ?? ''}`.toLocaleLowerCase('tr').includes(term);
 		}),
 	);
 	let grouped = $derived.by(() => {
@@ -171,7 +171,10 @@
 									<FileText size={18} />
 								</div>
 								<button onclick={() => viewDoc(d)} class="min-w-0 flex-1 text-left cursor-pointer touch-target">
-									<div class="text-sm font-medium text-gray-800 truncate">{d.title}</div>
+									<div class="flex items-center gap-2 min-w-0">
+										<span class="text-sm font-medium text-gray-800 truncate">{d.title}</span>
+										{#if d.module_code}<span class="shrink-0 px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 text-[10px] font-mono font-medium">{d.module_code}</span>{/if}
+									</div>
 									<div class="text-[11px] text-gray-500 font-mono truncate">{d.path}</div>
 								</button>
 								<div class="hidden sm:block text-[11px] text-gray-500 text-right shrink-0 tabular-nums">

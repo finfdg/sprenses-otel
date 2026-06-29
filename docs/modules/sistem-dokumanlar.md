@@ -21,7 +21,7 @@ Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü — ui-kur
 ## API Endpoint'leri
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/api/system/docs/` | view | Doküman listesi (path, title, category, size, modified) |
+| GET | `/api/system/docs/` | view | Doküman listesi (path, title, **module_code**, category, size, modified) |
 | GET | `/api/system/docs/raw?path=` | view | Tek dokümanın ham markdown içeriği (panelde render için) |
 | GET | `/api/system/docs/download?path=` | view | Tek dokümanı `.md` olarak indir (attachment) |
 | GET | `/api/system/docs/export/word` | view | **Tüm dokümanları tek `.docx`** olarak üret + indir |
@@ -33,6 +33,7 @@ Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü — ui-kur
 ## Frontend
 - **Dosyalar:** `routes/dashboard/sistem/dokumanlar/+page.svelte`.
 - Tasarım sistemi: `PageHeader` (+ "Word olarak indir" aksiyonu), `StatCard` (toplam/kategori), `SegmentedControl` (kategori filtresi), `Input` (arama, `icon`+`clearable`), `Modal` (görüntüleyici), `EmptyState`, `TableSkeleton`, `Button`, Lucide ikonlar.
+- **Modül kodu rozeti:** Liste, başlığın yanında **modül kodunu** (ör. `finance.cariler`) teal rozetle gösterir. Kod, dokümandaki "Modül kodu/Kodu" satırından çıkarılır (`system_docs.py:_module_code` — ilk 150 satır, büyük/küçük harf duyarsız, ilk backtick'li token). 31/38 modül dokümanında çıkar; çok-modüllü/altyapı dokümanlarında (finans-mimarisi, stok [alt modüller], yonetim-paneli, ssh/websocket) yoktur → rozet gizli. Arama kodu da kapsar.
 - **Görüntüleme:** `marked` ile markdown → HTML (`{@html}`); içerik güvenilir kaynak (kendi commit'li repo dokümanları + yalnız `system.docs` yetkili erişir). Render stilleri `.doc-content :global(...)` ile.
 - **İndirme:** `api.fetchRaw` (cookie auth) → blob → tarayıcı indirmesi. Tekil `.md` veya birleşik `.docx`.
 

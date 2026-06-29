@@ -6,6 +6,7 @@ sunucu-tarafı izinli kümeyle BİREBİR eşleşirse servis edilir (path travers
 İzin: system.docs view. Salt-okunur → onay/audit kapsam dışı.
 """
 import io
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -51,6 +52,26 @@ def _title(abspath: Path, rel: str) -> str:
     return rel
 
 
+# Modül kodu satırından (ör. "- **Modül kodu:** `finance.banks`") ilk backtick'li kodu çıkarır.
+_CODE_RE = re.compile(r"`([a-z][a-z0-9_.]*)`")
+
+
+def _module_code(abspath: Path):
+    """Doküman içindeki 'Modül kodu' satırından modül kodunu çıkar (yoksa None)."""
+    try:
+        with abspath.open(encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                if i > 150:
+                    break
+                if "modül kod" in line.lower():  # "Modül kodu"/"Modül Kodu" — büyük/küçük duyarsız
+                    m = _CODE_RE.search(line)
+                    if m:
+                        return m.group(1)
+    except Exception:
+        pass
+    return None
+
+
 def _walk():
     """İzinli .md dosyaları: (relpath, abspath) — sıralı, tekilleştirilmiş."""
     found: dict = {}
@@ -89,6 +110,7 @@ def list_documents(_: User = Depends(require_permission("system.docs", "view")))
         items.append({
             "path": rel,
             "title": _title(p, rel),
+            "module_code": _module_code(p),
             "category": _category(rel),
             "size": st.st_size,
             "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
