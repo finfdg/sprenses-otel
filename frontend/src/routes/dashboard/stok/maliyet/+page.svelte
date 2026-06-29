@@ -6,8 +6,9 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import Button from '$lib/components/Button.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
-	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert } from 'lucide-svelte';
+	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const periodLabel = (p: string) => { const [y, m] = (p || '').split('-'); return `${AY[Number(m)] || m} ${y}`; };
@@ -40,6 +41,11 @@
 	const fmtDate = (s: string | null) => (s ? s.split('-').reverse().join('.') : '–');
 	// Efektif birim fiyat = net ÷ miktar (Sedna'nın Cost alanı bazen hatalı/0)
 	const effUnit = (it: any) => (it.quantity ? it.net_amount / it.quantity : it.unit_cost);
+
+	// PDF'i yeni sekmede aç (cookie auth ile same-origin) → kullanıcı görüntüler/yazdırır
+	function printMovements() {
+		if (detail.product_id) window.open(`/api/stok/product-purchases/${detail.product_id}/pdf`, '_blank');
+	}
 
 	async function openMovements(p: any) {
 		showMovements = true;
@@ -217,15 +223,21 @@
 	{:else if !detail.items?.length}
 		<EmptyState icon={Package} title="Alış hareketi yok" description="Bu ürün için kayıtlı alış bulunamadı." />
 	{:else}
-		<p class="text-xs text-gray-500 mb-3">
-			{detail.count} alış · medyan birim <span class="font-medium text-gray-700 tabular-nums">{formatCurrency(detail.median_cost)}</span>
-			· <span class="font-medium">Birim fiyat = net ÷ miktar</span> (gerçek ödenen)
-		</p>
+		<div class="flex items-start justify-between gap-3 mb-3">
+			<p class="text-xs text-gray-500">
+				{detail.count} alış · medyan birim <span class="font-medium text-gray-700 tabular-nums">{formatCurrency(detail.median_cost)}</span>
+				· <span class="font-medium">Birim fiyat = net ÷ miktar</span> (gerçek ödenen)
+			</p>
+			<Button variant="secondary" size="sm" onclick={printMovements} class="shrink-0">
+				<Printer size={16} /> Yazdır
+			</Button>
+		</div>
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm">
 				<thead>
 					<tr class="text-left text-xs text-gray-600 border-b border-gray-200">
-						<th class="py-2 pr-2 font-medium">Tarih</th>
+						<th class="py-2 pr-2 font-medium text-right w-8">#</th>
+						<th class="py-2 px-2 font-medium">Tarih</th>
 						<th class="py-2 px-2 font-medium">Tedarikçi</th>
 						<th class="py-2 px-2 font-medium text-right">Miktar</th>
 						<th class="py-2 px-2 font-medium text-right">Birim Fiyat</th>
@@ -233,9 +245,10 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each detail.items as it (it.id)}
+					{#each detail.items as it, i (it.id)}
 						<tr class="border-b border-gray-100 last:border-0">
-							<td class="py-2 pr-2 whitespace-nowrap tabular-nums text-gray-700">{fmtDate(it.date)}</td>
+							<td class="py-2 pr-2 text-right tabular-nums text-gray-400">{i + 1}</td>
+							<td class="py-2 px-2 whitespace-nowrap tabular-nums text-gray-700">{fmtDate(it.date)}</td>
 							<td class="py-2 px-2 text-gray-600 truncate max-w-[220px]" title={it.supplier_name}>{it.supplier_name || '–'}</td>
 							<td class="py-2 px-2 text-right tabular-nums text-gray-700">{fmtQty(it.quantity)}</td>
 							<td class="py-2 px-2 text-right tabular-nums font-medium text-gray-800">{formatCurrency(effUnit(it))}</td>

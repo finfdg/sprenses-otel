@@ -191,6 +191,108 @@ def product_purchases(
     return get_product_purchases(db, product_id, limit)
 
 
+@router.get("/product-purchases/{product_id}/pdf")
+def product_purchases_pdf(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("stok.maliyet", "view")),
+    limit: int = Query(500, ge=1, le=500),
+):
+    """Ürün alış hareketlerini PDF olarak döndürür (modal 'Yazdır' butonu)."""
+    import io
+    from datetime import date as date_cls
+    from html import escape
+
+    from fastapi.responses import Response
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    from app.utils.pdf_fonts import register_turkish_fonts
+
+    data = get_product_purchases(db, product_id, limit)
+    base_font, bold_font = register_turkish_fonts()
+
+    def _tl(v):
+        s = f"{float(v or 0):,.2f}"  # 1,234.56 → TR: 1.234,56
+        return "₺" + s.replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _num(v):
+        s = f"{float(v or 0):,.2f}".rstrip("0").rstrip(".")
+        return s.replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _eff(it):  # birim fiyat = net ÷ miktar (modal ile aynı)
+        return (it["net_amount"] / it["quantity"]) if it.get("quantity") else (it.get("unit_cost") or 0)
+
+    def _date_tr(s):
+        return ".".join(reversed(s.split("-"))) if s else "—"
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(
+        output, pagesize=A4,
+        topMargin=14 * mm, bottomMargin=14 * mm, leftMargin=14 * mm, rightMargin=14 * mm,
+    )
+    title_style = ParagraphStyle("t", fontName=bold_font, fontSize=14, spaceAfter=4)
+    sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=10)
+    cell_style = ParagraphStyle("cell", fontName=base_font, fontSize=8, leading=10)
+
+    today = date_cls.today()
+    elems = [
+        Paragraph(escape(data.get("name") or "Ürün"), title_style),
+        Paragraph(
+            f"{data['count']} alış &nbsp;·&nbsp; medyan birim {_tl(data['median_cost'])} "
+            f"&nbsp;·&nbsp; Birim fiyat = net ÷ miktar (gerçek ödenen) "
+            f"&nbsp;·&nbsp; Rapor: {today.strftime('%d.%m.%Y')}",
+            sub_style,
+        ),
+    ]
+
+    rows = [["#", "Tarih", "Tedarikçi", "Miktar", "Birim Fiyat", "Net Tutar"]]
+    for i, it in enumerate(data["items"], 1):
+        rows.append([
+            str(i),
+            _date_tr(it["date"]),
+            Paragraph(escape(it.get("supplier_name") or "—"), cell_style),
+            _num(it["quantity"]),
+            _tl(_eff(it)),
+            _tl(it["net_amount"]),
+        ])
+
+    if len(rows) == 1:
+        elems.append(Paragraph("Bu ürün için kayıtlı alış bulunamadı.", sub_style))
+    else:
+        # Portrait A4 kullanılabilir genişlik ≈ 182mm
+        table = Table(rows, colWidths=[10 * mm, 26 * mm, 72 * mm, 24 * mm, 26 * mm, 24 * mm], repeatRows=1)
+        table.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, 0), bold_font),
+            ("FONTNAME", (0, 1), (-1, -1), base_font),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0D9488")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (0, 0), (0, -1), "CENTER"),
+            ("ALIGN", (3, 0), (5, -1), "RIGHT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F3F4F6")]),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#0D9488")),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        elems.append(table)
+
+    doc.build(elems)
+    output.seek(0)
+    safe = "".join(c for c in (data.get("name") or "urun") if c.isalnum() or c in " -_")[:40].strip() or "urun"
+    return Response(
+        content=output.read(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=alis-{product_id}.pdf", "X-Doc-Name": safe},
+    )
+
+
 # ─── Ürünler + Hareketler + Depolar (liste) ─────────────────────────────────
 
 @router.get("/products")

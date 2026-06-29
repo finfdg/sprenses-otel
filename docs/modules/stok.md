@@ -49,6 +49,7 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 | GET | `/stok/by-supplier?limit=` | stok.maliyet view | Tedarikçi bazında alım maliyeti |
 | GET | `/stok/price-variance?limit=` | stok.maliyet view | Fiyat hareketi (`items`, medyan↔son alış, **birim=net÷miktar**) + birim/miktar anomalileri (`anomalies`) |
 | GET | `/stok/product-purchases/{product_id}?limit=` | stok.maliyet view | Bir ürünün alış hareketleri (tarih/miktar/birim/net/tedarikçi) — fiyat paneli detay tıklaması |
+| GET | `/stok/product-purchases/{product_id}/pdf` | stok.maliyet view | Aynı veriyi PDF olarak döndürür (modal "Yazdır" — reportlab + `pdf_fonts` ₺) |
 | GET | `/stok/products` | stok.urunler view | Ürün listesi (paginated, `search`, `in_stock`; değer azalan) |
 | GET | `/stok/movements` | stok.hareketler view | Hareket listesi (paginated, `direction`, `depot`, `search`, tarih) |
 | GET | `/stok/depots` | stok.depolar view | Depo listesi + toplam tüketim |
@@ -58,8 +59,11 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 - **Maliyet Analizi** (`/maliyet`): 4 StatCard (anlık stok değeri / toplam alım / toplam tüketim /
   depo sayısı) + **departman tüketim çubukları** (hero) + aylık alım-tüketim trendi + tedarikçi çubukları +
   **Satın Alma Fiyat Hareketi** (medyan↔son alış) + birim/miktar anomalileri.
-  - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (tarih, tedarikçi,
-    miktar, **birim fiyat = net ÷ miktar**, net tutar).
+  - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (sıra no, tarih,
+    tedarikçi, miktar, **birim fiyat = net ÷ miktar**, net tutar). Modalda **"Yazdır"** butonu →
+    `window.open('/api/stok/product-purchases/{id}/pdf')` (same-origin, cookie auth → blob sorunu yok;
+    devam-takip `cards.pdf` deseniyle aynı). PDF reportlab + `pdf_fonts` (₺ destekli), tablo modal ile
+    birebir (net÷miktar birim).
   - **Birim fiyat tek baz = net ÷ miktar (gerçek ödenen)** — hem panel (`_price_variance_rows`) hem
     detay modalı Sedna'nın `Cost` (unit_cost) alanını **kullanmaz**. Neden: `Cost` bazen hatalı/0
     (ör. NAR'da 30.05 satırında Cost=359,48 ama net/miktar=6210÷46=135 → eski panel bunu %193,5 sahte
