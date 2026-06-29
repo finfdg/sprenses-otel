@@ -67,7 +67,19 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
     **tümünü tek istekte** çeker, toggle client-side filtreler (`shownVariance`); %0 satırı gri.
     `max-h-72 overflow-y-auto` ile kaydırılır.
   - **Fiyat/anomali satırına tıklayınca** o ürünün **TÜM stok hareketleri** modalda açılır (max-w-4xl).
-    Üstte **Depo Akış Şeması** (transfer okları + depo özet kartları) her zaman görünür. Altında
+    Üstte **Depo Bazında Tüketim Defteri** (`ledger` $derived) her zaman görünür: her depo için bir
+    kart, stok denklemini **dikey defter** olarak gösterir — `Açılış + Alış + Transfer giriş − Transfer
+    çıkış − Kalan = Tüketim` (renk kodlu: alış yeşil, transfer amber, kalan mavi, sonuç `= Tüketim`
+    kırmızı-tinted kutuda vurgulu; tüketmeyen saf depo `= Tüketim 0`). En çok transfer çıkışı yapan depo
+    **HUB** rozeti + teal kenarlık alır. Altta **Transfer akışı** şeridi `kaynak →qty→ hedef` rotalarını
+    listeler. **Defter mantığı (eski→yeni kronolojik):** depo başına **İLK Devir/Açılış = dönem açılışı**;
+    sonraki aylık Devir kayıtları yalnız devreden bakiyeyi tekrar eder → **yok sayılır** (çift sayım
+    önlenir, ledger tüm dönemi sürekli kapsar). **Kalan = Açılış + Alış + Transfer giriş − Transfer çıkış
+    − Tüketim** (yürüyen defter bakiyesi). Sistemde fiziksel **Sayım** hareketi yok (`type 40` canlıda 0
+    kayıt) → mockup'taki "Sayım (kalan)" = **devreden defter bakiyesi**, etiket "− Kalan" (negatifse amber
+    → veri tutarsızlığını ifşa eder). Tüketim = açık `consume` hareketleri toplamı (panelin diğer tüketim
+    metrikleriyle tutarlı). Önceki "depo özet kartları" grid'i (Alış/Transfer/Tüketim) bu defterle
+    değiştirildi (2026-06-29). Altında
     **görünüm geçişi**: **Zaman çizgisi** (varsayılan) ↔ **Liste** (renkli tablo). Zaman çizgisi
     **aşağıdan yukarıya akar**: en eski ay (ör. Ocak) en altta "başlangıç" işaretiyle, yeni hareketler
     üste eklenerek büyür; en üstte yukarı-büyüme oku (`ChevronUp`) + "en güncel". Aylara gruplu,

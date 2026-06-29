@@ -70,38 +70,51 @@
 		return it.to_depot ?? '–';
 	}
 
-	// Hareketlerden depo akış grafiği türet: transfer rotaları (oklar) + depo başına özet.
-	let flow = $derived.by(() => {
-		const items: any[] = detail.items || [];
+	// Hareketlerden DEPO BAZINDA TÜKETİM DEFTERİ türet — her depo için stok denklemi:
+	//   Açılış + Alış + Transfer giriş − Transfer çıkış − Kalan(devreden) = Tüketim
+	// Hareketleri kronolojik (eski→yeni) işleriz: depo başına İLK açılış = dönem açılışı; sonraki
+	// aylık Devir/Açılış kayıtları sadece devreden bakiyeyi tekrar eder → yok sayılır (çift sayım
+	// önlenir). Kalan = Açılış + Alış + Transfer giriş − Transfer çıkış − Tüketim (yürüyen kitap
+	// bakiyesi; sistemde fiziksel "Sayım" hareketi yok → kalan = devreden defter bakiyesi).
+	let ledger = $derived.by(() => {
+		const seq = [...(detail.items || [])].reverse(); // backend date DESC → eski→yeni
 		const map = new Map<string, any>();
 		const routes = new Map<string, any>();
 		const ens = (n: string) => {
-			if (!map.has(n)) map.set(n, { name: n, alis: 0, acilis: 0, tIn: 0, tOut: 0, tuketim: 0 });
+			if (!map.has(n)) map.set(n, { name: n, acilis: 0, alis: 0, tIn: 0, tOut: 0, tuketim: 0, _started: false });
 			return map.get(n);
 		};
-		for (const it of items) {
+		for (const it of seq) {
 			const t = it.type_label || '';
+			const qty = it.quantity || 0;
 			if (it.direction === 'in') {
 				const d = ens(it.to_depot || '(belirsiz)');
-				if (t.includes('Devir') || t.includes('Açılış')) d.acilis += it.quantity;
-				else d.alis += it.quantity;
+				const opening = /Devir|Açılış/.test(t);
+				if (opening) {
+					if (!d._started) d.acilis = qty; // yalnız dönemin ilk açılışı; sonraki Devir = devreden, yok say
+				} else {
+					d.alis += qty;
+				}
+				d._started = true;
 			} else if (it.direction === 'out') {
 				const from = it.from_depot || '?', to = it.to_depot || '?';
-				ens(from).tOut += it.quantity;
-				ens(to).tIn += it.quantity;
+				ens(from).tOut += qty; ens(from)._started = true;
+				ens(to).tIn += qty; ens(to)._started = true;
 				const k = `${from}|${to}`;
 				const r = routes.get(k) || { from, to, qty: 0 };
-				r.qty += it.quantity;
+				r.qty += qty;
 				routes.set(k, r);
 			} else if (it.direction === 'consume') {
-				ens(it.cons_depot || '?').tuketim += it.quantity;
+				const d = ens(it.cons_depot || '?'); d.tuketim += qty; d._started = true;
 			}
 		}
-		const act = (d: any) => d.alis + d.tIn + d.tOut + d.tuketim;
-		return {
-			routes: [...routes.values()].sort((a, b) => b.qty - a.qty),
-			depots: [...map.values()].filter((d) => act(d) > 0).sort((a, b) => act(b) - act(a)),
-		};
+		const depots = [...map.values()]
+			.map((d) => ({ ...d, kalan: d.acilis + d.alis + d.tIn - d.tOut - d.tuketim }))
+			.filter((d) => d.acilis || d.alis || d.tIn || d.tOut || d.tuketim)
+			.sort((a, b) => b.tOut - a.tOut || b.tuketim - a.tuketim);
+		// HUB = en çok transfer çıkışı yapan depo (dağıtım merkezi)
+		const hubName = depots.length && depots[0].tOut > 0 ? depots[0].name : null;
+		return { routes: [...routes.values()].sort((a, b) => b.qty - a.qty), depots, hubName };
 	});
 
 	// Depo bazında YÜRÜYEN BAKİYE: hareketleri kronolojik (eskiden yeniye) işle.
@@ -371,40 +384,56 @@
 				<Printer size={16} /> Yazdır
 			</Button>
 		</div>
-		<!-- Görsel depo akış şeması: transfer okları + depo özet kartları -->
-		{#if flow.routes.length || flow.depots.length}
+		<!-- Depo Bazında Tüketim Defteri: her depo için stok denklemi + transfer akışı -->
+		{#snippet ledgerLine(label: string, value: number, cls: string)}
+			<div class="flex items-center justify-between">
+				<span class={cls}>{label}</span>
+				<span class="text-gray-700 tabular-nums">{fmtQty(value)}</span>
+			</div>
+		{/snippet}
+		{#if ledger.depots.length}
 			<div class="bg-gray-50/70 border border-gray-200 rounded-xl p-3 sm:p-4 mb-4">
-				<div class="text-xs font-semibold text-gray-700 mb-2.5">Depo Akış Şeması</div>
-				{#if flow.routes.length}
-					<div class="space-y-2 mb-3">
-						{#each flow.routes as r (r.from + r.to)}
-							<div class="flex items-center gap-2">
-								<span class="shrink-0 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium whitespace-nowrap max-w-[38%] truncate" title={r.from}>{r.from}</span>
-								<div class="flex-1 flex flex-col items-center min-w-[54px]">
-									<span class="text-[11px] font-semibold text-amber-700 tabular-nums leading-none mb-0.5">{fmtQty(r.qty)}</span>
-									<div class="w-full flex items-center text-amber-400">
-										<div class="flex-1 border-t-2 border-dashed border-amber-300"></div>
-										<span class="text-amber-500 text-sm leading-none -ml-0.5">▶</span>
-									</div>
-								</div>
-								<span class="shrink-0 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium whitespace-nowrap max-w-[38%] truncate" title={r.to}>{r.to}</span>
+				<div class="flex items-center justify-between gap-2 mb-3">
+					<div class="text-xs font-semibold text-gray-700">Depo Bazında Tüketim Defteri</div>
+					<div class="text-[11px] text-gray-400 hidden sm:block">Tüketim = Açılış + Giriş − Çıkış − Kalan</div>
+				</div>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+					{#each ledger.depots as d (d.name)}
+						{@const isHub = d.name === ledger.hubName}
+						<div class="bg-white border rounded-2xl p-3.5 {isHub ? 'border-teal-300 ring-1 ring-teal-100' : 'border-gray-200'}">
+							<div class="flex items-center gap-2 mb-2.5">
+								<span class="text-sm font-bold text-gray-800 truncate" title={d.name}>{d.name}</span>
+								{#if isHub}<span class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-700 tracking-wide">HUB</span>{/if}
 							</div>
-						{/each}
-					</div>
-				{/if}
-				<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-					{#each flow.depots as d (d.name)}
-						<div class="bg-white border border-gray-200 rounded-lg p-2">
-							<div class="text-[11px] font-semibold text-gray-800 truncate" title={d.name}>{d.name}</div>
-							<div class="mt-1 space-y-0.5 text-[11px] tabular-nums">
-								{#if d.alis}<div class="flex justify-between gap-2"><span class="text-emerald-600">Alış</span><span>+{fmtQty(d.alis)}</span></div>{/if}
-								{#if d.tIn}<div class="flex justify-between gap-2"><span class="text-amber-600">Transfer giriş</span><span>+{fmtQty(d.tIn)}</span></div>{/if}
-								{#if d.tOut}<div class="flex justify-between gap-2"><span class="text-amber-600">Transfer çıkış</span><span>−{fmtQty(d.tOut)}</span></div>{/if}
-								{#if d.tuketim}<div class="flex justify-between gap-2"><span class="text-red-600">Tüketim</span><span>−{fmtQty(d.tuketim)}</span></div>{/if}
+							<div class="space-y-1 text-sm">
+								{@render ledgerLine('Açılış', d.acilis, 'text-gray-500')}
+								{#if d.alis}{@render ledgerLine('+ Alış', d.alis, 'text-emerald-600')}{/if}
+								{#if d.tIn}{@render ledgerLine('+ Transfer giriş', d.tIn, 'text-amber-600')}{/if}
+								{#if d.tOut}{@render ledgerLine('− Transfer çıkış', d.tOut, 'text-amber-700')}{/if}
+								<div class="flex items-center justify-between" title="Dönem sonu kalan stok (devreden defter bakiyesi)">
+									<span class="{d.kalan < 0 ? 'text-amber-600 font-medium' : 'text-blue-600'}">− Kalan</span>
+									<span class="tabular-nums {d.kalan < 0 ? 'text-amber-600 font-medium' : 'text-gray-700'}">{fmtQty(d.kalan)}</span>
+								</div>
+							</div>
+							<div class="mt-2.5 flex items-center justify-between px-2.5 py-1.5 rounded-lg {d.tuketim > 0 ? 'bg-red-50' : 'bg-gray-100'}">
+								<span class="text-sm font-bold {d.tuketim > 0 ? 'text-red-600' : 'text-gray-500'}">= Tüketim</span>
+								<span class="text-base font-bold tabular-nums {d.tuketim > 0 ? 'text-red-600' : 'text-gray-500'}">{fmtQty(d.tuketim)}</span>
 							</div>
 						</div>
 					{/each}
 				</div>
+				{#if ledger.routes.length}
+					<div class="mt-3 pt-3 border-t border-gray-200 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
+						<span class="font-medium text-gray-600">Transfer akışı</span>
+						{#each ledger.routes as r (r.from + r.to)}
+							<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-gray-200">
+								<span class="text-gray-700 truncate max-w-[120px]" title={r.from}>{r.from}</span>
+								<span class="text-amber-600 font-semibold tabular-nums whitespace-nowrap">→ {fmtQty(r.qty)} →</span>
+								<span class="text-gray-700 truncate max-w-[120px]" title={r.to}>{r.to}</span>
+							</span>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{/if}
 
