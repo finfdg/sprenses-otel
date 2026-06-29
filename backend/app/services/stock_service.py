@@ -288,14 +288,19 @@ def _price_variance_rows(db: Session) -> list:
     return out
 
 
-def compute_price_variance(db: Session, limit: int = 20) -> list:
-    """Gerçek satın alma fiyat hareketleri (medyan bazlı; birim/miktar anomalileri HARİÇ)."""
-    rows = [r for r in _price_variance_rows(db) if r["category"] == "price"]
-    rows.sort(key=lambda x: -abs(x["variance_pct"]))
+def compute_price_variance(db: Session, limit: Optional[int] = 20) -> list:
+    """Gerçek satın alma fiyat hareketleri (medyan bazlı; birim/miktar anomalileri HARİÇ).
+
+    Sıralama: **işaretli azalan** → fiyatı artanlar üstte (en çok artan en üstte), azalanlar
+    altta. Değişmeyen (variance_pct=0) ürünler "hareket" sayılmaz → listeye alınmaz. `limit=None`
+    → tüm hareketler (cap yok).
+    """
+    rows = [r for r in _price_variance_rows(db) if r["category"] == "price" and r["variance_pct"] != 0]
+    rows.sort(key=lambda x: -x["variance_pct"])
     return rows[:limit]
 
 
-def compute_price_anomalies(db: Session, limit: int = 20) -> list:
+def compute_price_anomalies(db: Session, limit: Optional[int] = 20) -> list:
     """Olası birim/miktar tutarsızlıkları (medyandan >3× sapan son alış) — Sedna giriş kalitesi."""
     rows = [r for r in _price_variance_rows(db) if r["category"] == "entry"]
     rows.sort(key=lambda x: -abs(x["variance_pct"]))

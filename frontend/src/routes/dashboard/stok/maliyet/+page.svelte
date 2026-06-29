@@ -96,7 +96,7 @@
 				api.get<any>('/stok/operational-kpi'),
 				api.get<any>('/stok/summary'),
 				api.get<any>('/stok/by-supplier?limit=10'),
-				api.get<any>('/stok/price-variance?limit=100'),
+				api.get<any>('/stok/price-variance?limit=0'),
 			]);
 			op = o; summary = s; suppliers = sup.items || []; variance = v.items || []; anomalies = v.anomalies || [];
 		} catch (e) {

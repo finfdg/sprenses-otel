@@ -171,12 +171,16 @@ def operational_kpi(
 def price_variance(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("stok.maliyet", "view")),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(100, ge=0, le=5000),
 ):
-    """Fiyat sapması: gerçek hareketler (`items`) + olası birim/miktar anomalileri (`anomalies`)."""
+    """Fiyat sapması: gerçek hareketler (`items`) + olası birim/miktar anomalileri (`anomalies`).
+
+    `limit=0` → cap yok (tüm hareketler). `items` fiyatı artanlar üstte / azalanlar altta sıralı.
+    """
+    lim = limit or None  # 0 → None (tümü)
     return {
-        "items": compute_price_variance(db, limit),
-        "anomalies": compute_price_anomalies(db, limit),
+        "items": compute_price_variance(db, lim),
+        "anomalies": compute_price_anomalies(db, lim),
     }
 
 

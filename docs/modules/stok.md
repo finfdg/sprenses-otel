@@ -47,7 +47,7 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 | GET | `/stok/cost-by-department` | stok.maliyet view | Departman (ConsumptionDepot) bazında tüketim maliyeti (adlarla) |
 | GET | `/stok/monthly-trend` | stok.maliyet view | Aylık alım vs tüketim (sezon analizi) |
 | GET | `/stok/by-supplier?limit=` | stok.maliyet view | Tedarikçi bazında alım maliyeti |
-| GET | `/stok/price-variance?limit=` | stok.maliyet view | Fiyat hareketi (`items`, medyan↔son alış, **birim=net÷miktar**) + birim/miktar anomalileri (`anomalies`) |
+| GET | `/stok/price-variance?limit=` | stok.maliyet view | Fiyat hareketi (`items`, medyan↔son alış, **birim=net÷miktar**) + anomaliler (`anomalies`). `items` **işaretli azalan sıralı** (artan üstte/azalan altta), **%0 hariç**. `limit=0` → cap yok (tüm hareketler) |
 | GET | `/stok/product-purchases/{product_id}?limit=` | stok.maliyet view | Bir ürünün alış hareketleri (tarih/miktar/birim/net/tedarikçi) — fiyat paneli detay tıklaması |
 | GET | `/stok/product-purchases/{product_id}/pdf` | stok.maliyet view | Aynı veriyi PDF olarak döndürür (modal "Yazdır" — reportlab + `pdf_fonts` ₺) |
 | GET | `/stok/products` | stok.urunler view | Ürün listesi (paginated, `search`, `in_stock`; değer azalan) |
@@ -59,6 +59,10 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 - **Maliyet Analizi** (`/maliyet`): 4 StatCard (anlık stok değeri / toplam alım / toplam tüketim /
   depo sayısı) + **departman tüketim çubukları** (hero) + aylık alım-tüketim trendi + tedarikçi çubukları +
   **Satın Alma Fiyat Hareketi** (medyan↔son alış) + birim/miktar anomalileri.
+  - **Sıralama + kapsam:** fiyat listesi `?limit=0` ile **tüm hareketleri** (cap yok) çeker,
+    **işaretli azalan** sıralıdır (fiyatı en çok artan en üstte → en çok azalan en altta). Fiyatı
+    değişmeyen (%0) ürünler "hareket" olmadığından listeye alınmaz (canlı: 1642 üründen 1036'sı %0 →
+    606 gerçek hareket gösterilir). `max-h-72 overflow-y-auto` ile kaydırılır.
   - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (sıra no, tarih,
     tedarikçi, miktar, **birim fiyat = net ÷ miktar**, net tutar). Modalda **"Yazdır"** butonu PDF'i
     `api.fetchRaw` ile **blob** olarak çeker → **gizli iframe + `contentWindow.print()`** ile yazdırma
