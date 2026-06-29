@@ -80,15 +80,24 @@
 		}
 	}
 
+	let movementsError = $state(false);
+	let lastProduct = $state<any>(null);
 	async function openMovements(p: any) {
+		lastProduct = p;
 		showMovements = true;
 		movementsLoading = true;
+		movementsError = false;
 		detail = { name: p.name, items: [], count: 0, median_cost: p.median_cost ?? p.avg_cost };
+		// Zaman aşımı: yanıt 20sn'de gelmezse iptal et → sonsuz skeleton yerine hata göster
+		const ctrl = new AbortController();
+		const timer = setTimeout(() => ctrl.abort(), 20000);
 		try {
-			detail = await api.get<any>(`/stok/product-purchases/${p.product_id}`);
+			detail = await api.get<any>(`/stok/product-purchases/${p.product_id}`, ctrl.signal);
 		} catch (e) {
 			console.error('Ürün alış hareketleri yüklenemedi:', e);
+			movementsError = true;
 		} finally {
+			clearTimeout(timer);
 			movementsLoading = false;
 		}
 	}
@@ -260,6 +269,11 @@
 <Modal bind:show={showMovements} title={detail.name || 'Alış hareketleri'} maxWidth="max-w-2xl">
 	{#if movementsLoading}
 		<TableSkeleton rows={6} columns={5} />
+	{:else if movementsError}
+		<div class="text-center py-8">
+			<EmptyState icon={TriangleAlert} title="Yüklenemedi" description="Alış hareketleri getirilemedi. Bağlantınızı kontrol edip tekrar deneyin." />
+			<Button variant="secondary" size="sm" onclick={() => lastProduct && openMovements(lastProduct)} class="mt-3">Tekrar dene</Button>
+		</div>
 	{:else if !detail.items?.length}
 		<EmptyState icon={Package} title="Alış hareketi yok" description="Bu ürün için kayıtlı alış bulunamadı." />
 	{:else}
