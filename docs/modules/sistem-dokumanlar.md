@@ -10,13 +10,12 @@ Proje dokümantasyonunu (`.md` dosyaları) panel içinden **görüntüleme ve in
 - **Onay/Audit:** kapsam dışı (salt-okunur, mutasyon yok).
 
 ## Kapsam (hangi dosyalar)
-Sunucu-tarafı izinli küme (`system_docs.py:_walk`):
-- Kök `CLAUDE.md`
-- `docs/**/*.md` (modül dokümanları + genel dokümanlar)
-- `backend/app/**/CLAUDE.md` ve `frontend/src/**/CLAUDE.md` (geliştirici rehberleri)
+**Dokümanlar** (`system_docs.py:_walk`): kök `CLAUDE.md` + `docs/**/*.md` + `backend/app|frontend/src`'teki `CLAUDE.md` rehberleri.
+**Kaynak kod** (`_walk_source`): `backend/app/**/*.py` + `frontend/src/**/*.{svelte,ts,js}` (231 backend + 168 frontend ≈ 399 dosya).
 - Hariç: `node_modules`, `venv`, `.git`, `build`, `.svelte-kit`, `.claude`, `.pytest_cache`, `__pycache__`, `htmlcov`
+- **`.env` ASLA dahil değil** (uzantı kümesinde yok + `app/` altında değil); `_resolve` yalnız allowlist'le birebir eşleşeni servis eder → traversal/sızma imkânsız. Sır yok (config `.env`'den okur).
 
-Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü — ui-kurallari, modulerlik vb.), **Modül Dokümanları** (`docs/modules/`), **Denetim Raporları** (`docs/denetim/` — teknik denetim raporları + soru setleri), **Geliştirici Rehberleri** (router/component `CLAUDE.md`).
+Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü), **Modül Dokümanları** (`docs/modules/`), **Denetim Raporları** (`docs/denetim/`), **Geliştirici Rehberleri** (`CLAUDE.md` rehberleri), **Kaynak — Backend** (`.py`), **Kaynak — Frontend** (`.svelte`/`.ts`/`.js`). Kaynak dosyalarda başlık = dosya adı, modül kodu yok; `export/word` yalnız dokümanları (`_walk`) kapsar — kaynak kod docx'e girmez.
 
 ## API Endpoint'leri
 | Method | Path | İzin | Açıklama |
@@ -34,7 +33,7 @@ Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü — ui-kur
 - **Dosyalar:** `routes/dashboard/sistem/dokumanlar/+page.svelte`.
 - Tasarım sistemi: `PageHeader` (+ "Word olarak indir" aksiyonu), `StatCard` (toplam/kategori), `SegmentedControl` (kategori filtresi), `Input` (arama, `icon`+`clearable`), `Modal` (görüntüleyici), `EmptyState`, `TableSkeleton`, `Button`, Lucide ikonlar.
 - **Modül kodu rozetleri (çoklu):** Liste, başlığın yanında dokümanın **tüm modül kodlarını** teal rozetlerle gösterir. `system_docs.py:_module_codes` çıkarır (ilk 150 satır, büyük/küçük duyarsız, max 6): "Modül kodu/Kodu" satırından birincil kod + **kalın etiketli** "Üst modül"/"Alt modüller"/"Modüller" satırlarından o satırdaki tüm backtick kodlar. Böylece **Stok → `stok` + `stok.maliyet`/`stok.urunler`/`stok.hareketler`/`stok.depolar`** (5 rozet), muhasebe-ik → 6, yonetim-paneli → 3. **Yanlış-pozitif koruması:** yalnız `**`-kalın etiket satırı (prose "tüm modüller"/"alt modüllere" değil); örnek liste ("… vb./gibi/örnek") atlanır (sistem-moduller'in `finance.cash_flow` vb. örnekleri rozet olmaz). 33/38 modül dokümanında kod çıkar; tekil kodu olmayan altyapı/mimari dokümanlarında (finans-mimarisi, nakit-akim-is-akisi, push-bildirim, ssh-tunel, websocket) yoktur → rozet gizli. transaction-tags → `finance.banks` (doküman "bankalar modülünün parçası" der; doğru). Arama tüm kodları kapsar.
-- **Görüntüleme:** `marked` ile markdown → HTML (`{@html}`); içerik güvenilir kaynak (kendi commit'li repo dokümanları + yalnız `system.docs` yetkili erişir). Render stilleri `.doc-content :global(...)` ile.
+- **Görüntüleme:** `.md` → `marked` ile HTML. **Kaynak kod (.py/.svelte/.ts/.js)** → **`highlight.js`** (lib/core + python/typescript/javascript/xml/css/json/bash) ile syntax-highlight (`.svelte`/`.html` → `xml` dili). hljs çıktısı HTML-escape'li (XSS güvenli) + içerik güvenilir (kendi repo, admin-only). Token renkleri `.doc-content :global(.hljs-*)` ile (mevcut `pre` kutu stili korunur). Render stilleri `.doc-content :global(...)`.
 - **İndirme:** `api.fetchRaw` (cookie auth) → blob → tarayıcı indirmesi. Tekil `.md` veya birleşik `.docx`.
 
 ## Backend Dosyaları

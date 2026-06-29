@@ -26,6 +26,20 @@ class TestSystemDocs:
         for p in denetim:
             assert cats[p] == "Denetim Raporları", f"{p} → {cats[p]}"
 
+    def test_source_files_listed_and_served(self, client, auth_headers):
+        # Kaynak kod dosyaları (backend .py / frontend .svelte) listede + raw ile servis edilir
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        cats = {it["path"]: it["category"] for it in r.json()["items"]}
+        be = "backend/app/routers/system_docs.py"
+        assert be in cats and cats[be] == "Kaynak — Backend", cats.get(be)
+        assert any(p.startswith("frontend/src/") and cats[p] == "Kaynak — Frontend" for p in cats)
+        # .env bu kümede ASLA olmamalı (uzantı + konum dışı)
+        assert not any(p.endswith(".env") for p in cats)
+        # raw ile kaynak içeriği gelir
+        rr = client.get(f"{PREFIX}/raw", headers=auth_headers, params={"path": be})
+        assert rr.status_code == 200 and "def list_documents" in rr.json()["content"]
+
     def test_raw_content(self, client, auth_headers):
         r = client.get(f"{PREFIX}/raw", headers=auth_headers, params={"path": "CLAUDE.md"})
         assert r.status_code == 200, r.text

@@ -3,6 +3,14 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { marked } from 'marked';
+	import hljs from 'highlight.js/lib/core';
+	import python from 'highlight.js/lib/languages/python';
+	import typescript from 'highlight.js/lib/languages/typescript';
+	import javascript from 'highlight.js/lib/languages/javascript';
+	import xml from 'highlight.js/lib/languages/xml';
+	import css from 'highlight.js/lib/languages/css';
+	import json from 'highlight.js/lib/languages/json';
+	import bash from 'highlight.js/lib/languages/bash';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -12,6 +20,19 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { FileText, Download, Eye, Search, Library, FolderOpen, FileStack } from 'lucide-svelte';
+
+	hljs.registerLanguage('python', python);
+	hljs.registerLanguage('typescript', typescript);
+	hljs.registerLanguage('javascript', javascript);
+	hljs.registerLanguage('xml', xml);
+	hljs.registerLanguage('css', css);
+	hljs.registerLanguage('json', json);
+	hljs.registerLanguage('bash', bash);
+	// Dosya uzantısı → highlight.js dili (.svelte/.html → xml ile şablon vurgusu)
+	const HL_LANG: Record<string, string> = {
+		py: 'python', ts: 'typescript', js: 'javascript', svelte: 'xml',
+		html: 'xml', css: 'css', json: 'json', sh: 'bash',
+	};
 
 	interface Doc { path: string; title: string; module_codes?: string[]; category: string; size: number; modified: string; }
 
@@ -84,8 +105,18 @@
 		viewOpen = true; viewLoading = true; viewTitle = d.title; viewPath = d.path; viewHtml = '';
 		try {
 			const res = await api.get<{ content: string }>(`/system/docs/raw?path=${encodeURIComponent(d.path)}`);
-			// İçerik bizim kendi commit'li repo dokümanlarımız + yalnız system.docs yetkili erişir (güvenilir kaynak)
-			viewHtml = marked.parse(res.content, { async: false }) as string;
+			// İçerik bizim kendi commit'li repo dosyalarımız + yalnız system.docs yetkili erişir (güvenilir kaynak)
+			const ext = (d.path.split('.').pop() || '').toLowerCase();
+			if (ext === 'md') {
+				viewHtml = marked.parse(res.content, { async: false }) as string;
+			} else {
+				// Kaynak kod → syntax highlight (hljs çıktısı HTML-escape'li → güvenli)
+				const lang = HL_LANG[ext];
+				const out = lang
+					? hljs.highlight(res.content, { language: lang, ignoreIllegals: true })
+					: hljs.highlightAuto(res.content);
+				viewHtml = `<pre class="hljs"><code>${out.value}</code></pre>`;
+			}
 		} catch (e) {
 			console.error('Doküman açılamadı:', e);
 			showToast('Doküman açılamadı', 'error');
@@ -231,4 +262,17 @@
 	.doc-content :global(blockquote) { border-left: 3px solid #99f6e4; padding-left: 0.8rem; margin: 0.5rem 0; color: #475569; }
 	.doc-content :global(hr) { border: none; border-top: 1px solid #e5e7eb; margin: 1rem 0; }
 	.doc-content :global(strong) { font-weight: 700; }
+	/* Kaynak kod — highlight.js token renkleri (mevcut pre kutusu korunur, sadece renkler) */
+	.doc-content :global(pre.hljs) { font-size: 0.8rem; line-height: 1.5; }
+	.doc-content :global(pre.hljs code) { font-family: Consolas, 'SF Mono', Menlo, monospace; white-space: pre; }
+	.doc-content :global(.hljs-comment), .doc-content :global(.hljs-quote) { color: #6b7280; font-style: italic; }
+	.doc-content :global(.hljs-keyword), .doc-content :global(.hljs-selector-tag), .doc-content :global(.hljs-literal) { color: #8250df; }
+	.doc-content :global(.hljs-string), .doc-content :global(.hljs-meta-string) { color: #0a7d22; }
+	.doc-content :global(.hljs-number), .doc-content :global(.hljs-symbol) { color: #b35900; }
+	.doc-content :global(.hljs-title), .doc-content :global(.hljs-title.function_), .doc-content :global(.hljs-section) { color: #0550ae; }
+	.doc-content :global(.hljs-title.class_), .doc-content :global(.hljs-built_in), .doc-content :global(.hljs-type) { color: #0a7d8c; }
+	.doc-content :global(.hljs-attr), .doc-content :global(.hljs-attribute), .doc-content :global(.hljs-property) { color: #0550ae; }
+	.doc-content :global(.hljs-tag), .doc-content :global(.hljs-name) { color: #116329; }
+	.doc-content :global(.hljs-meta), .doc-content :global(.hljs-decorator) { color: #953800; }
+	.doc-content :global(.hljs-variable), .doc-content :global(.hljs-template-variable) { color: #953800; }
 </style>

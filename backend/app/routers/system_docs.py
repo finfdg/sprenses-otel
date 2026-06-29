@@ -35,6 +35,10 @@ def _category(rel: str) -> str:
         return "Genel Dokümanlar"
     if rel.endswith("CLAUDE.md"):
         return "Geliştirici Rehberleri"
+    if rel.startswith("backend/"):
+        return "Kaynak — Backend"
+    if rel.startswith("frontend/"):
+        return "Kaynak — Frontend"
     return "Diğer"
 
 
@@ -115,9 +119,32 @@ def _walk():
     return sorted(found.items())
 
 
+_SRC_EXT = {".py", ".svelte", ".ts", ".js"}
+
+
+def _walk_source():
+    """İzinli kaynak kod dosyaları: backend/app/**/*.py + frontend/src/**/*.{svelte,ts,js}.
+
+    Salt-okunur kaynak görüntüleme için. Sır içermez (config .env'den okur; .env zaten
+    kapsam dışı — `.env` bu uzantı kümesinde değil ve app/ altında değil).
+    """
+    found: dict = {}
+    for base in ("backend/app", "frontend/src"):
+        bp = ROOT / base
+        if not bp.is_dir():
+            continue
+        for p in bp.rglob("*"):
+            if p.suffix not in _SRC_EXT or not p.is_file():
+                continue
+            if any(part in _EXCLUDE for part in p.parts):
+                continue
+            found[str(p.relative_to(ROOT))] = p
+    return sorted(found.items())
+
+
 def _resolve(path: str):
     """İstenen relpath izinli kümede mi → abspath; değilse None (traversal koruması)."""
-    return dict(_walk()).get(path)
+    return dict(_walk()).get(path) or dict(_walk_source()).get(path)
 
 
 @router.get("/")
@@ -132,6 +159,20 @@ def list_documents(_: User = Depends(require_permission("system.docs", "view")))
             "path": rel,
             "title": _title(p, rel),
             "module_codes": _module_codes(p),
+            "category": _category(rel),
+            "size": st.st_size,
+            "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
+        })
+    # Kaynak kod dosyaları (başlık = dosya adı; markdown başlığı/modül kodu yok)
+    for rel, p in _walk_source():
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        items.append({
+            "path": rel,
+            "title": p.name,
+            "module_codes": [],
             "category": _category(rel),
             "size": st.st_size,
             "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),
