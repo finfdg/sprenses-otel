@@ -47,6 +47,25 @@
 	// Efektif birim fiyat = net ÷ miktar (Sedna'nın Cost alanı bazen hatalı/0)
 	const effUnit = (it: any) => (it.quantity ? it.net_amount / it.quantity : it.unit_cost);
 
+	// Hareket türü → renkli rozet + sol kenar aksanı (giriş yeşil, devir gri, transfer turuncu,
+	// tüketim kırmızı, bedelsiz mavi). Depo akışı: giriş→hedef, çıkış kaynak→hedef, tüketim depo.
+	function movMeta(it: any): { label: string; badge: string; accent: string } {
+		const t = it.type_label || '';
+		if (it.direction === 'in') {
+			if (t.includes('Alış')) return { label: t, badge: 'bg-emerald-50 text-emerald-700', accent: 'border-l-emerald-500' };
+			if (t.includes('Bedelsiz')) return { label: t, badge: 'bg-blue-50 text-blue-700', accent: 'border-l-blue-500' };
+			return { label: t || 'Giriş', badge: 'bg-gray-100 text-gray-600', accent: 'border-l-gray-300' };
+		}
+		if (it.direction === 'out') return { label: t || 'Çıkış', badge: 'bg-amber-50 text-amber-700', accent: 'border-l-amber-500' };
+		if (it.direction === 'consume') return { label: t || 'Tüketim', badge: 'bg-red-50 text-red-600', accent: 'border-l-red-500' };
+		return { label: t || it.direction || '–', badge: 'bg-gray-100 text-gray-600', accent: 'border-l-gray-300' };
+	}
+	function flowText(it: any): string {
+		if (it.direction === 'out') return `${it.from_depot ?? '?'} → ${it.to_depot ?? '?'}`;
+		if (it.direction === 'consume') return it.cons_depot ?? '–';
+		return it.to_depot ?? '–';
+	}
+
 	// PDF'i blob olarak çek → gizli iframe ile yazdırma diyaloğunu TETİKLE (masaüstünde direkt
 	// yazıcıya gider). iOS Safari iframe print'i çoğu zaman yoksaydığından fallback: PDF'i yeni
 	// sekmede aç → kullanıcı Paylaş → Yazdır kullanır. (banka talimatları deseniyle aynı.)
@@ -265,26 +284,34 @@
 	{/if}
 </div>
 
-<!-- Ürün alış hareketleri detayı -->
-<Modal bind:show={showMovements} title={detail.name || 'Alış hareketleri'} maxWidth="max-w-2xl">
+<!-- Ürün stok hareketleri detayı (giriş + transfer + tüketim, tür bazlı renkli) -->
+<Modal bind:show={showMovements} title={detail.name || 'Stok hareketleri'} maxWidth="max-w-4xl">
 	{#if movementsLoading}
-		<TableSkeleton rows={6} columns={5} />
+		<TableSkeleton rows={6} columns={6} />
 	{:else if movementsError}
 		<div class="text-center py-8">
-			<EmptyState icon={TriangleAlert} title="Yüklenemedi" description="Alış hareketleri getirilemedi. Bağlantınızı kontrol edip tekrar deneyin." />
+			<EmptyState icon={TriangleAlert} title="Yüklenemedi" description="Stok hareketleri getirilemedi. Bağlantınızı kontrol edip tekrar deneyin." />
 			<Button variant="secondary" size="sm" onclick={() => lastProduct && openMovements(lastProduct)} class="mt-3">Tekrar dene</Button>
 		</div>
 	{:else if !detail.items?.length}
-		<EmptyState icon={Package} title="Alış hareketi yok" description="Bu ürün için kayıtlı alış bulunamadı." />
+		<EmptyState icon={Package} title="Stok hareketi yok" description="Bu ürün için kayıtlı hareket bulunamadı." />
 	{:else}
-		<div class="flex items-start justify-between gap-3 mb-3">
+		<div class="flex items-start justify-between gap-3 mb-2">
 			<p class="text-xs text-gray-500">
-				{detail.count} alış · medyan birim <span class="font-medium text-gray-700 tabular-nums">{formatCurrency(detail.median_cost)}</span>
-				· <span class="font-medium">Birim fiyat = net ÷ miktar</span> (gerçek ödenen)
+				{detail.count} hareket · {detail.purchase_count} alış · medyan alış <span class="font-medium text-gray-700 tabular-nums">{formatCurrency(detail.median_cost)}</span>
+				· <span class="font-medium">Birim = net ÷ miktar</span>
 			</p>
 			<Button variant="secondary" size="sm" onclick={printMovements} loading={printing} class="shrink-0">
 				<Printer size={16} /> Yazdır
 			</Button>
+		</div>
+		<!-- Renk lejantı -->
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 mb-3">
+			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span> Alış</span>
+			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-gray-300"></span> Devir/Açılış</span>
+			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span> Çıkış/Transfer</span>
+			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500"></span> Tüketim</span>
+			<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500"></span> Bedelsiz</span>
 		</div>
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm">
@@ -292,20 +319,32 @@
 					<tr class="text-left text-xs text-gray-600 border-b border-gray-200">
 						<th class="py-2 pr-2 font-medium text-right w-8">#</th>
 						<th class="py-2 px-2 font-medium">Tarih</th>
-						<th class="py-2 px-2 font-medium">Tedarikçi</th>
+						<th class="py-2 px-2 font-medium">Hareket</th>
+						<th class="py-2 px-2 font-medium">Depo / Akış</th>
 						<th class="py-2 px-2 font-medium text-right">Miktar</th>
-						<th class="py-2 px-2 font-medium text-right">Birim Fiyat</th>
+						<th class="py-2 px-2 font-medium text-right">Birim</th>
 						<th class="py-2 pl-2 font-medium text-right">Net Tutar</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each detail.items as it, i (it.id)}
-						<tr class="border-b border-gray-100 last:border-0">
-							<td class="py-2 pr-2 text-right tabular-nums text-gray-400">{i + 1}</td>
+						{@const m = movMeta(it)}
+						<tr class="border-b border-gray-100 last:border-0 border-l-4 {m.accent}">
+							<td class="py-2 pr-2 pl-2 text-right tabular-nums text-gray-400">{i + 1}</td>
 							<td class="py-2 px-2 whitespace-nowrap tabular-nums text-gray-700">{fmtDate(it.date)}</td>
-							<td class="py-2 px-2 text-gray-600 truncate max-w-[220px]" title={it.supplier_name}>{it.supplier_name || '–'}</td>
+							<td class="py-2 px-2">
+								<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap {m.badge}">{m.label}</span>
+								{#if it.supplier_name}<div class="text-[11px] text-gray-500 truncate max-w-[180px] mt-0.5" title={it.supplier_name}>{it.supplier_name}</div>{/if}
+							</td>
+							<td class="py-2 px-2 text-gray-600 whitespace-nowrap">
+								{#if it.direction === 'out'}
+									<span class="text-gray-700">{it.from_depot ?? '?'}</span> <span class="text-amber-600">→</span> <span class="text-gray-700">{it.to_depot ?? '?'}</span>
+								{:else}
+									{flowText(it)}
+								{/if}
+							</td>
 							<td class="py-2 px-2 text-right tabular-nums text-gray-700">{fmtQty(it.quantity)}</td>
-							<td class="py-2 px-2 text-right tabular-nums font-medium text-gray-800">{formatCurrency(effUnit(it))}</td>
+							<td class="py-2 px-2 text-right tabular-nums font-medium text-gray-800">{it.net_amount ? formatCurrency(effUnit(it)) : '–'}</td>
 							<td class="py-2 pl-2 text-right tabular-nums text-gray-700">{formatCurrency(it.net_amount)}</td>
 						</tr>
 					{/each}

@@ -311,49 +311,65 @@ def compute_price_anomalies(db: Session, limit: Optional[int] = 20) -> list:
     return rows[:limit]
 
 
-def get_product_purchases(db: Session, product_sedna_id: int, limit: int = 200) -> dict:
-    """Bir ürünün alış (`direction='in'`) hareketleri — tarih/fiyat/miktar/tedarikçi kırılımı.
+def get_product_purchases(db: Session, product_sedna_id: int, limit: int = 500) -> dict:
+    """Bir ürünün TÜM stok hareketleri — giriş (alış/devir/açılış/bedelsiz) + çıkış/transfer + tüketim.
 
-    Maliyet panelindeki fiyat-hareketi/anomali satırına tıklanınca açılan detay için. Net
-    tutar daima doğru; birim fiyat = net/miktar (Sedna'da miktar paydası bazen tutarsız).
+    Maliyet panelindeki satıra tıklanınca açılan detay için. Her hareket tür + depo akışıyla
+    döner ki depolar arası transferler ve aylık devirler görünsün. Birim fiyat = net ÷ miktar
+    (gerçek ödenen); medyan yalnız gerçek girişler (`direction='in'`) üzerinden hesaplanır.
     """
-    q = (
+    depot_names = {d.code: d.name for d in db.query(StockDepot.code, StockDepot.name).all()}
+
+    def _depot(code):
+        if not code:
+            return None
+        return depot_names.get(code, code)
+
+    rows = (
         db.query(StockMovement)
-        .filter(
-            StockMovement.direction == "in",
-            StockMovement.product_sedna_id == product_sedna_id,
-        )
+        .filter(StockMovement.product_sedna_id == product_sedna_id)
         .order_by(StockMovement.date.desc().nullslast(), StockMovement.id.desc())
+        .limit(limit)
+        .all()
     )
-    rows = q.limit(limit).all()
+    # Tamamen boş postingleri (miktar=0 ve net=0) ele — gürültü
+    rows = [r for r in rows if float(r.quantity or 0) != 0 or float(r.net_amount or 0) != 0]
     name = next((r.product_name for r in rows if r.product_name), None)
-    # Birim fiyat = net ÷ miktar (gerçek ödenen) — panel ile aynı baz
-    costs = sorted(
-        float(r.net_amount) / float(r.quantity)
-        for r in rows
-        if r.quantity and float(r.quantity) > 0 and r.net_amount and float(r.net_amount) > 0
-    )
+
+    # Medyan yalnız gerçek girişler (net÷miktar) — panel ile aynı baz
+    purchases = [
+        r for r in rows
+        if r.direction == "in" and float(r.quantity or 0) > 0 and float(r.net_amount or 0) > 0
+    ]
+    costs = sorted(float(r.net_amount) / float(r.quantity) for r in purchases)
     median = 0.0
     if costs:
         mid = len(costs) // 2
         median = costs[mid] if len(costs) % 2 else (costs[mid - 1] + costs[mid]) / 2
-    items = [
-        {
+
+    items = []
+    for r in rows:
+        qty = float(r.quantity or 0)
+        net = float(r.net_amount or 0)
+        items.append({
             "id": r.id,
             "date": r.date.isoformat() if r.date else None,
-            "quantity": float(r.quantity or 0),
-            "unit_cost": round(float(r.unit_cost or 0), 4),
-            "net_amount": round(float(r.net_amount or 0), 2),
+            "type_label": r.type_label,
+            "direction": r.direction,                 # in / out / consume / count / other
+            "from_depot": _depot(r.exit_depot),       # kaynak (çıkış/transfer)
+            "to_depot": _depot(r.entry_depot),        # hedef (giriş/transfer)
+            "cons_depot": _depot(r.cons_depot),       # tüketim deposu
+            "quantity": qty,
+            "unit_cost": round(net / qty, 4) if qty else 0,
+            "net_amount": round(net, 2),
             "supplier_name": r.supplier_name,
-            "doc_no": r.doc_no,
-            "entry_depot": r.entry_depot,
-        }
-        for r in rows
-    ]
+        })
+
     return {
         "product_id": product_sedna_id,
         "name": name,
         "median_cost": round(median, 2),
+        "purchase_count": len(purchases),
         "count": len(items),
         "items": items,
     }

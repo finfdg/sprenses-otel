@@ -204,7 +204,7 @@ def product_purchases_pdf(
     _: User = Depends(require_permission("stok.maliyet", "view")),
     limit: int = Query(500, ge=1, le=500),
 ):
-    """Ürün alış hareketlerini PDF olarak döndürür (modal 'Yazdır' butonu)."""
+    """Ürün stok hareketlerini (giriş+transfer+tüketim) renkli PDF olarak döndürür (modal 'Yazdır')."""
     import io
     from datetime import date as date_cls
     from html import escape
@@ -214,7 +214,7 @@ def product_purchases_pdf(
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
 
     from app.utils.pdf_fonts import register_turkish_fonts
 
@@ -235,58 +235,99 @@ def product_purchases_pdf(
     def _date_tr(s):
         return ".".join(reversed(s.split("-"))) if s else "—"
 
+    def _flow(it):  # depo akışı
+        if it["direction"] == "out":
+            return f"{it.get('from_depot') or '?'} → {it.get('to_depot') or '?'}"
+        if it["direction"] == "consume":
+            return it.get("cons_depot") or "—"
+        return it.get("to_depot") or "—"
+
+    # Tür → satır arka plan rengi (modal lejantıyla aynı)
+    def _row_bg(it):
+        t = it.get("type_label") or ""
+        if it["direction"] == "in":
+            if "Alış" in t:
+                return colors.HexColor("#ECFDF5")      # yeşil (alış)
+            if "Bedelsiz" in t:
+                return colors.HexColor("#EFF6FF")      # mavi (bedelsiz)
+            return colors.HexColor("#F3F4F6")          # gri (devir/açılış)
+        if it["direction"] == "out":
+            return colors.HexColor("#FFFBEB")          # turuncu (çıkış/transfer)
+        if it["direction"] == "consume":
+            return colors.HexColor("#FEF2F2")          # kırmızı (tüketim)
+        return colors.white
+
     output = io.BytesIO()
     doc = SimpleDocTemplate(
         output, pagesize=A4,
-        topMargin=14 * mm, bottomMargin=14 * mm, leftMargin=14 * mm, rightMargin=14 * mm,
+        topMargin=14 * mm, bottomMargin=14 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
     )
     title_style = ParagraphStyle("t", fontName=bold_font, fontSize=14, spaceAfter=4)
-    sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=10)
-    cell_style = ParagraphStyle("cell", fontName=base_font, fontSize=8, leading=10)
+    sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=4)
+    legend_style = ParagraphStyle("lg", fontName=base_font, fontSize=8, textColor=colors.grey, spaceAfter=10)
+    cell_style = ParagraphStyle("cell", fontName=base_font, fontSize=7.5, leading=9)
+    sup_style = ParagraphStyle("sup", fontName=base_font, fontSize=6.5, leading=8, textColor=colors.grey)
 
     today = date_cls.today()
     elems = [
         Paragraph(escape(data.get("name") or "Ürün"), title_style),
         Paragraph(
-            f"{data['count']} alış &nbsp;·&nbsp; medyan birim {_tl(data['median_cost'])} "
-            f"&nbsp;·&nbsp; Birim fiyat = net ÷ miktar (gerçek ödenen) "
-            f"&nbsp;·&nbsp; Rapor: {today.strftime('%d.%m.%Y')}",
+            f"{data['count']} hareket &nbsp;·&nbsp; {data.get('purchase_count', 0)} alış "
+            f"&nbsp;·&nbsp; medyan alış {_tl(data['median_cost'])} "
+            f"&nbsp;·&nbsp; Birim = net ÷ miktar &nbsp;·&nbsp; Rapor: {today.strftime('%d.%m.%Y')}",
             sub_style,
+        ),
+        Paragraph(
+            '<font color="#059669">■</font> Alış &nbsp; <font color="#9CA3AF">■</font> Devir/Açılış '
+            '&nbsp; <font color="#D97706">■</font> Çıkış/Transfer &nbsp; '
+            '<font color="#DC2626">■</font> Tüketim &nbsp; <font color="#2563EB">■</font> Bedelsiz',
+            legend_style,
         ),
     ]
 
-    rows = [["#", "Tarih", "Tedarikçi", "Miktar", "Birim Fiyat", "Net Tutar"]]
+    def _type_cell(it):
+        label = escape(it.get("type_label") or it["direction"] or "—")
+        sup = it.get("supplier_name")
+        if sup:
+            return [Paragraph(label, cell_style), Paragraph(escape(sup), sup_style)]
+        return Paragraph(label, cell_style)
+
+    rows = [["#", "Tarih", "Hareket", "Depo / Akış", "Miktar", "Birim", "Net Tutar"]]
     for i, it in enumerate(data["items"], 1):
         rows.append([
             str(i),
             _date_tr(it["date"]),
-            Paragraph(escape(it.get("supplier_name") or "—"), cell_style),
+            _type_cell(it),
+            Paragraph(escape(_flow(it)), cell_style),
             _num(it["quantity"]),
-            _tl(_eff(it)),
+            _tl(_eff(it)) if it.get("net_amount") else "—",
             _tl(it["net_amount"]),
         ])
 
     if len(rows) == 1:
-        elems.append(Paragraph("Bu ürün için kayıtlı alış bulunamadı.", sub_style))
+        elems.append(Paragraph("Bu ürün için kayıtlı hareket bulunamadı.", sub_style))
     else:
-        # Portrait A4 kullanılabilir genişlik ≈ 182mm
-        table = Table(rows, colWidths=[10 * mm, 26 * mm, 72 * mm, 24 * mm, 26 * mm, 24 * mm], repeatRows=1)
-        table.setStyle(TableStyle([
+        # Portrait A4 kullanılabilir genişlik ≈ 186mm
+        table = Table(rows, colWidths=[8 * mm, 22 * mm, 40 * mm, 50 * mm, 22 * mm, 22 * mm, 24 * mm], repeatRows=1)
+        style_cmds = [
             ("FONTNAME", (0, 0), (-1, 0), bold_font),
             ("FONTNAME", (0, 1), (-1, -1), base_font),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.5),
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0D9488")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("ALIGN", (0, 0), (0, -1), "CENTER"),
-            ("ALIGN", (3, 0), (5, -1), "RIGHT"),
+            ("ALIGN", (4, 0), (6, -1), "RIGHT"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F3F4F6")]),
             ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.HexColor("#0D9488")),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ("LEFTPADDING", (0, 0), (-1, -1), 5),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ]))
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ]
+        # Satır arka planlarını türe göre boya
+        for idx, it in enumerate(data["items"], 1):
+            style_cmds.append(("BACKGROUND", (0, idx), (-1, idx), _row_bg(it)))
+        table.setStyle(TableStyle(style_cmds))
         elems.append(table)
 
     doc.build(elems)
@@ -296,7 +337,7 @@ def product_purchases_pdf(
     return Response(
         content=output.read(),
         media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename=alis-{product_id}.pdf"},
+        headers={"Content-Disposition": f"inline; filename=hareketler-{product_id}.pdf"},
     )
 
 

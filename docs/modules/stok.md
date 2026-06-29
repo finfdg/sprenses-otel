@@ -48,8 +48,8 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
 | GET | `/stok/monthly-trend` | stok.maliyet view | Aylık alım vs tüketim (sezon analizi) |
 | GET | `/stok/by-supplier?limit=` | stok.maliyet view | Tedarikçi bazında alım maliyeti |
 | GET | `/stok/price-variance?limit=` | stok.maliyet view | Fiyat hareketi (`items`, medyan↔son alış, **birim=net÷miktar**) + anomaliler (`anomalies`). `items` **işaretli azalan sıralı** (artan üstte/azalan altta), **%0 hariç**. `limit=0` → cap yok (tüm hareketler) |
-| GET | `/stok/product-purchases/{product_id}?limit=` | stok.maliyet view | Bir ürünün alış hareketleri (tarih/miktar/birim/net/tedarikçi) — fiyat paneli detay tıklaması |
-| GET | `/stok/product-purchases/{product_id}/pdf` | stok.maliyet view | Aynı veriyi PDF olarak döndürür (modal "Yazdır" — reportlab + `pdf_fonts` ₺) |
+| GET | `/stok/product-purchases/{product_id}?limit=` | stok.maliyet view | Bir ürünün **TÜM** stok hareketleri (giriş/alış/devir/açılış/bedelsiz + çıkış/transfer + tüketim) — her hareket tür + depo akışıyla; medyan yalnız `direction='in'` üzerinden |
+| GET | `/stok/product-purchases/{product_id}/pdf` | stok.maliyet view | Aynı veriyi **renkli** PDF olarak (modal "Yazdır" — reportlab + `pdf_fonts` ₺, tür bazlı satır rengi) |
 | GET | `/stok/products` | stok.urunler view | Ürün listesi (paginated, `search`, `in_stock`; değer azalan) |
 | GET | `/stok/movements` | stok.hareketler view | Hareket listesi (paginated, `direction`, `depot`, `search`, tarih) |
 | GET | `/stok/depots` | stok.depolar view | Depo listesi + toplam tüketim |
@@ -66,8 +66,12 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
     (canlı: 1642 üründen 1036'sı %0, 606 gerçek hareket). Frontend `?include_zero=true&limit=0` ile
     **tümünü tek istekte** çeker, toggle client-side filtreler (`shownVariance`); %0 satırı gri.
     `max-h-72 overflow-y-auto` ile kaydırılır.
-  - **Fiyat/anomali satırına tıklayınca** o ürünün alış hareketleri modalda açılır (sıra no, tarih,
-    tedarikçi, miktar, **birim fiyat = net ÷ miktar**, net tutar). Modalda **"Yazdır"** butonu PDF'i
+  - **Fiyat/anomali satırına tıklayınca** o ürünün **TÜM stok hareketleri** modalda açılır (max-w-4xl):
+    sıra no, tarih, **tür rozeti (renkli)**, **depo akışı**, miktar, birim (net÷miktar), net tutar.
+    Tür renkleri: **Alış** yeşil · **Devir/Açılış** gri · **Çıkış/Transfer** turuncu · **Tüketim** kırmızı ·
+    **Bedelsiz** mavi (sol kenar aksanı + rozet + lejant). Depo akışı: girişte hedef depo, transferde
+    `kaynak → hedef`, tüketimde tüketim deposu → **depolar arası devir/transfer hareketleri görünür**.
+    Boş postingler (miktar=0 ∧ net=0) elenir. Modalda **"Yazdır"** PDF'i de aynı renkli yapıda. Modalda **"Yazdır"** butonu PDF'i
     `api.fetchRaw` ile **blob** olarak çeker → **gizli iframe + `contentWindow.print()`** ile yazdırma
     diyaloğunu tetikler (masaüstünde direkt yazıcıya gider). iOS Safari iframe-print'i yoksayarsa
     fallback: PDF yeni sekmede açılır (Paylaş → Yazdır). Banka talimatları (`talimatlar`) print deseniyle
