@@ -56,35 +56,41 @@ def _title(abspath: Path, rel: str) -> str:
 _CODE_RE = re.compile(r"`([a-z][a-z0-9_.]*)`")
 
 
-def _module_code(abspath: Path):
-    """Doküman başlığındaki modül kodunu çıkar (yoksa None).
+def _module_codes(abspath: Path) -> list:
+    """Doküman başlığındaki TÜM modül kod(lar)ını çıkar (sıralı, tekilleştirilmiş).
 
-    Öncelik: 'Modül kodu' satırı → yoksa 'Üst modül' (grup kodu) → yoksa 'Alt modüller'/'Modüller'
-    satırının ilk kodu. Böylece Stok (Üst modül `stok`) / Yönetim Paneli (`yonetim`) gibi çok-modüllü
-    dokümanlar da kod gösterir. Hepsinde ilk backtick'li token alınır (büyük/küçük harf duyarsız).
+    - 'Modül kodu/Kodu' satırı → birincil kod (ilk backtick).
+    - 'Üst modül' / 'Alt modüller' / 'Modüller' başlık satırları → o satırdaki TÜM backtick kodlar.
+      Böylece Stok dokümanı `stok` + `stok.maliyet`/`stok.urunler`/… hepsini gösterir.
+    Yalnız başlık satırları (`**`/`|` içeren) taranır → gövde metnindeki örnek kodlar karışmaz.
+    Büyük/küçük harf duyarsız; en fazla 6 kod.
     """
-    primary = parent = group = None
+    codes: list = []
+
+    def _add(c):
+        if c and c not in codes:
+            codes.append(c)
+
     try:
         with abspath.open(encoding="utf-8") as f:
             for i, line in enumerate(f):
                 if i > 150:
                     break
                 low = line.lower()
-                if primary is None and "modül kod" in low:
-                    m = _CODE_RE.search(line)
+                if "modül kod" in low:
+                    m = _CODE_RE.search(line)  # birincil kod (ilk backtick)
                     if m:
-                        primary = m.group(1)
-                elif parent is None and "üst modül" in low:
-                    m = _CODE_RE.search(line)
-                    if m:
-                        parent = m.group(1)
-                elif group is None and ("alt modül" in low or "modüller" in low):
-                    m = _CODE_RE.search(line)
-                    if m:
-                        group = m.group(1)
+                        _add(m.group(1))
+                elif "**üst modül" in low or "**alt modül" in low or "**modüller" in low:
+                    # Yalnız KALIN ETİKET satırı (prose "tüm modüller"/"alt modüllere" değil).
+                    # Örnek liste ("... vb./gibi/örnek") kendi kodu değildir → atla.
+                    if "vb" in low or "gibi" in low or "örnek" in low:
+                        continue
+                    for m in _CODE_RE.finditer(line):  # satırdaki tüm kodlar
+                        _add(m.group(1))
     except Exception:
         pass
-    return primary or parent or group
+    return codes[:6]
 
 
 def _walk():
@@ -125,7 +131,7 @@ def list_documents(_: User = Depends(require_permission("system.docs", "view")))
         items.append({
             "path": rel,
             "title": _title(p, rel),
-            "module_code": _module_code(p),
+            "module_codes": _module_codes(p),
             "category": _category(rel),
             "size": st.st_size,
             "modified": datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat(),

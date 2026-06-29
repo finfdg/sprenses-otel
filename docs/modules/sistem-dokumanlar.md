@@ -21,7 +21,7 @@ Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü — ui-kur
 ## API Endpoint'leri
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/api/system/docs/` | view | Doküman listesi (path, title, **module_code**, category, size, modified) |
+| GET | `/api/system/docs/` | view | Doküman listesi (path, title, **module_codes[]**, category, size, modified) |
 | GET | `/api/system/docs/raw?path=` | view | Tek dokümanın ham markdown içeriği (panelde render için) |
 | GET | `/api/system/docs/download?path=` | view | Tek dokümanı `.md` olarak indir (attachment) |
 | GET | `/api/system/docs/export/word` | view | **Tüm dokümanları tek `.docx`** olarak üret + indir |
@@ -33,7 +33,7 @@ Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü — ui-kur
 ## Frontend
 - **Dosyalar:** `routes/dashboard/sistem/dokumanlar/+page.svelte`.
 - Tasarım sistemi: `PageHeader` (+ "Word olarak indir" aksiyonu), `StatCard` (toplam/kategori), `SegmentedControl` (kategori filtresi), `Input` (arama, `icon`+`clearable`), `Modal` (görüntüleyici), `EmptyState`, `TableSkeleton`, `Button`, Lucide ikonlar.
-- **Modül kodu rozeti:** Liste, başlığın yanında **modül kodunu** (ör. `finance.cariler`) teal rozetle gösterir. Kod `system_docs.py:_module_code` ile çıkarılır (ilk 150 satır, büyük/küçük harf duyarsız, ilk backtick'li token) — **öncelik:** "Modül kodu/Kodu" → yoksa "Üst modül" (grup kodu, ör. Stok → `stok`) → yoksa "Alt modüller"/"Modüller" (ör. Yönetim Paneli → `yonetim`). 33/38 modül dokümanında çıkar; tekil kodu olmayan altyapı/mimari dokümanlarında (finans-mimarisi, nakit-akim-is-akisi, push-bildirim, ssh-tunel, websocket) yoktur → rozet gizli. transaction-tags → `finance.banks` (doküman "bankalar modülünün parçası" der; doğru). Arama kodu da kapsar.
+- **Modül kodu rozetleri (çoklu):** Liste, başlığın yanında dokümanın **tüm modül kodlarını** teal rozetlerle gösterir. `system_docs.py:_module_codes` çıkarır (ilk 150 satır, büyük/küçük duyarsız, max 6): "Modül kodu/Kodu" satırından birincil kod + **kalın etiketli** "Üst modül"/"Alt modüller"/"Modüller" satırlarından o satırdaki tüm backtick kodlar. Böylece **Stok → `stok` + `stok.maliyet`/`stok.urunler`/`stok.hareketler`/`stok.depolar`** (5 rozet), muhasebe-ik → 6, yonetim-paneli → 3. **Yanlış-pozitif koruması:** yalnız `**`-kalın etiket satırı (prose "tüm modüller"/"alt modüllere" değil); örnek liste ("… vb./gibi/örnek") atlanır (sistem-moduller'in `finance.cash_flow` vb. örnekleri rozet olmaz). 33/38 modül dokümanında kod çıkar; tekil kodu olmayan altyapı/mimari dokümanlarında (finans-mimarisi, nakit-akim-is-akisi, push-bildirim, ssh-tunel, websocket) yoktur → rozet gizli. transaction-tags → `finance.banks` (doküman "bankalar modülünün parçası" der; doğru). Arama tüm kodları kapsar.
 - **Görüntüleme:** `marked` ile markdown → HTML (`{@html}`); içerik güvenilir kaynak (kendi commit'li repo dokümanları + yalnız `system.docs` yetkili erişir). Render stilleri `.doc-content :global(...)` ile.
 - **İndirme:** `api.fetchRaw` (cookie auth) → blob → tarayıcı indirmesi. Tekil `.md` veya birleşik `.docx`.
 
