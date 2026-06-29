@@ -66,12 +66,19 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
     (canlı: 1642 üründen 1036'sı %0, 606 gerçek hareket). Frontend `?include_zero=true&limit=0` ile
     **tümünü tek istekte** çeker, toggle client-side filtreler (`shownVariance`); %0 satırı gri.
     `max-h-72 overflow-y-auto` ile kaydırılır.
-  - **Fiyat/anomali satırına tıklayınca** o ürünün **TÜM stok hareketleri** modalda açılır (max-w-4xl):
-    sıra no, tarih, **tür rozeti (renkli)**, **depo akışı**, miktar, birim (net÷miktar), net tutar.
-    Tür renkleri: **Alış** yeşil · **Devir/Açılış** gri · **Çıkış/Transfer** turuncu · **Tüketim** kırmızı ·
-    **Bedelsiz** mavi (sol kenar aksanı + rozet + lejant). Depo akışı: girişte hedef depo, transferde
-    `kaynak → hedef`, tüketimde tüketim deposu → **depolar arası devir/transfer hareketleri görünür**.
-    Boş postingler (miktar=0 ∧ net=0) elenir. Modalda **"Yazdır"** PDF'i de aynı renkli yapıda. Modalda **"Yazdır"** butonu PDF'i
+  - **Fiyat/anomali satırına tıklayınca** o ürünün **TÜM stok hareketleri** modalda açılır (max-w-4xl).
+    Üstte **Depo Akış Şeması** (transfer okları + depo özet kartları) her zaman görünür. Altında
+    **görünüm geçişi**: **Zaman çizgisi** (varsayılan, aylara gruplu dikey timeline, tür bazlı renkli
+    düğümler) ↔ **Liste** (renkli tablo). Tür renkleri: **Alış** yeşil · **Devir/Açılış** gri ·
+    **Çıkış/Transfer** turuncu · **Tüketim** kırmızı · **Bedelsiz** mavi. Depo akışı: girişte hedef depo,
+    transferde `kaynak → hedef`, tüketimde tüketim deposu → **depolar arası transferler görünür**.
+  - **Depo bazında yürüyen bakiye (kalan):** Hareketler kronolojik işlenir; **Devir/Açılış = sayım anlık
+    değeri (RESET)**, alış/bedelsiz/transfer-giriş ekler, transfer-çıkış/tüketim çıkarır. Her tüketim/
+    transfer/giriş altında **ilgili depo(lar)daki kalan** yazılır (`runBal` $derived, frontend). **Negatif
+    kalan amber ile işaretlenir** → Sedna veri tutarsızlığını ifşa eder (canlı: Ana Depo 16.03'te 320
+    açılışla 3.200 transfer → −2.880, 31.03 bedelsiz girişle 0'a düzelir). Tüketim kalanı bir sonraki
+    ayın devir/sayım değeriyle birebir tutar (Bar/Restaurant doğrulandı). Boş posting (miktar=0 ∧ net=0)
+    elenir. **"Yazdır"** PDF'i renkli yapıda (kalan kolonu PDF'te yok — modal-only). Modalda **"Yazdır"** butonu PDF'i
     `api.fetchRaw` ile **blob** olarak çeker → **gizli iframe + `contentWindow.print()`** ile yazdırma
     diyaloğunu tetikler (masaüstünde direkt yazıcıya gider). iOS Safari iframe-print'i yoksayarsa
     fallback: PDF yeni sekmede açılır (Paylaş → Yazdır). Banka talimatları (`talimatlar`) print deseniyle

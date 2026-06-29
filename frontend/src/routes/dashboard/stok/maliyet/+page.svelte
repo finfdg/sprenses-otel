@@ -104,6 +104,34 @@
 		};
 	});
 
+	// Depo bazında YÜRÜYEN BAKİYE: hareketleri kronolojik (eskiden yeniye) işle.
+	// Devir/Açılış = sayım anlık değeri (RESET); alış/bedelsiz/transfer-giriş = ekle;
+	// transfer-çıkış/tüketim = çıkar. Her hareketin id'sine, ilgili depo(lar)daki kalan yazılır.
+	let runBal = $derived.by(() => {
+		const seq = [...(detail.items || [])].reverse();
+		const bal: Record<string, number> = {};
+		const res: Record<number, any> = {};
+		for (const it of seq) {
+			const t = it.type_label || '';
+			if (it.direction === 'in') {
+				const d = it.to_depot || '?';
+				const opening = /Devir|Açılış/.test(t);
+				bal[d] = opening ? it.quantity : (bal[d] || 0) + it.quantity;
+				res[it.id] = { kind: 'in', depot: d, val: bal[d], opening };
+			} else if (it.direction === 'out') {
+				const f = it.from_depot || '?', to = it.to_depot || '?';
+				bal[f] = (bal[f] || 0) - it.quantity;
+				bal[to] = (bal[to] || 0) + it.quantity;
+				res[it.id] = { kind: 'out', from: f, fromVal: bal[f], to, toVal: bal[to] };
+			} else if (it.direction === 'consume') {
+				const d = it.cons_depot || '?';
+				bal[d] = (bal[d] || 0) - it.quantity;
+				res[it.id] = { kind: 'consume', depot: d, val: bal[d] };
+			}
+		}
+		return res;
+	});
+
 	// PDF'i blob olarak çek → gizli iframe ile yazdırma diyaloğunu TETİKLE (masaüstünde direkt
 	// yazıcıya gider). iOS Safari iframe print'i çoğu zaman yoksaydığından fallback: PDF'i yeni
 	// sekmede aç → kullanıcı Paylaş → Yazdır kullanır. (banka talimatları deseniyle aynı.)
@@ -432,6 +460,18 @@
 									</span>
 									<span class="text-gray-500 tabular-nums shrink-0">{it.net_amount ? formatCurrency(it.net_amount) : '–'}</span>
 								</div>
+								{#if runBal[it.id] && !(runBal[it.id].kind === 'in' && runBal[it.id].opening)}
+									{@const b = runBal[it.id]}
+									<div class="text-[11px] text-gray-400 mt-1 pt-1 border-t border-gray-100">
+										{#if b.kind === 'out'}
+											Kalan → <span class="text-gray-600">{b.from}</span> <span class="tabular-nums {b.fromVal < 0 ? 'text-amber-600 font-medium' : 'text-gray-700'}">{fmtQty(b.fromVal)}</span> · <span class="text-gray-600">{b.to}</span> <span class="tabular-nums text-gray-700">{fmtQty(b.toVal)}</span>
+										{:else if b.kind === 'consume'}
+											{b.depot}'da kalan: <span class="tabular-nums {b.val < 0 ? 'text-amber-600 font-medium' : 'text-gray-700'}">{fmtQty(b.val)}</span>
+										{:else}
+											{b.depot}'da kalan: <span class="tabular-nums text-gray-700">{fmtQty(b.val)}</span>
+										{/if}
+									</div>
+								{/if}
 							</div>
 						</div>
 					</div>
@@ -466,6 +506,13 @@
 										<span class="text-gray-700">{it.from_depot ?? '?'}</span> <span class="text-amber-600">→</span> <span class="text-gray-700">{it.to_depot ?? '?'}</span>
 									{:else}
 										{flowText(it)}
+									{/if}
+									{#if runBal[it.id] && !(runBal[it.id].kind === 'in' && runBal[it.id].opening)}
+										{@const b = runBal[it.id]}
+										<div class="text-[11px] text-gray-400">
+											{#if b.kind === 'out'}kalan {b.from}: <span class={b.fromVal < 0 ? 'text-amber-600' : ''}>{fmtQty(b.fromVal)}</span> · {b.to}: {fmtQty(b.toVal)}
+											{:else}kalan: <span class={b.val < 0 ? 'text-amber-600' : ''}>{fmtQty(b.val)}</span>{/if}
+										</div>
 									{/if}
 								</td>
 								<td class="py-2 px-2 text-right tabular-nums text-gray-700">{fmtQty(it.quantity)}</td>
