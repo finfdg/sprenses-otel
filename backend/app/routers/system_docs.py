@@ -57,19 +57,34 @@ _CODE_RE = re.compile(r"`([a-z][a-z0-9_.]*)`")
 
 
 def _module_code(abspath: Path):
-    """Doküman içindeki 'Modül kodu' satırından modül kodunu çıkar (yoksa None)."""
+    """Doküman başlığındaki modül kodunu çıkar (yoksa None).
+
+    Öncelik: 'Modül kodu' satırı → yoksa 'Üst modül' (grup kodu) → yoksa 'Alt modüller'/'Modüller'
+    satırının ilk kodu. Böylece Stok (Üst modül `stok`) / Yönetim Paneli (`yonetim`) gibi çok-modüllü
+    dokümanlar da kod gösterir. Hepsinde ilk backtick'li token alınır (büyük/küçük harf duyarsız).
+    """
+    primary = parent = group = None
     try:
         with abspath.open(encoding="utf-8") as f:
             for i, line in enumerate(f):
                 if i > 150:
                     break
-                if "modül kod" in line.lower():  # "Modül kodu"/"Modül Kodu" — büyük/küçük duyarsız
+                low = line.lower()
+                if primary is None and "modül kod" in low:
                     m = _CODE_RE.search(line)
                     if m:
-                        return m.group(1)
+                        primary = m.group(1)
+                elif parent is None and "üst modül" in low:
+                    m = _CODE_RE.search(line)
+                    if m:
+                        parent = m.group(1)
+                elif group is None and ("alt modül" in low or "modüller" in low):
+                    m = _CODE_RE.search(line)
+                    if m:
+                        group = m.group(1)
     except Exception:
         pass
-    return None
+    return primary or parent or group
 
 
 def _walk():
