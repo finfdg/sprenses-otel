@@ -25,8 +25,7 @@
 
 	function fmt(n: number): string {
 		if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2).replace('.', ',') + 'M';
-		if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(2).replace('.', ',') + 'K';
-		return n.toFixed(2).replace('.', ',');
+		return new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(n);
 	}
 
 	// sublabel + detail birleştirilerek StatCard hint'i oluşturulur
