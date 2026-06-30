@@ -64,11 +64,20 @@
 	const MONTHS_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 	const monthLabel = (k: string) => { const [y, m] = k.split('-'); return `${MONTHS_TR[Number(m) - 1] || m} ${y}`; };
 	let detailView = $state<'trunk' | 'table'>('trunk'); // modal görünümü: gövde / liste
-	function flowText(it: any): string {
+	function flowText(it: any, hub: string | null = null): string {
 		if (it.direction === 'out') return `${it.from_depot ?? '?'} → ${it.to_depot ?? '?'}`;
 		if (it.direction === 'consume') return it.cons_depot ?? '–';
-		return it.to_depot ?? '–';
+		return it.to_depot || hub || '–'; // giriş: depo etiketi boşsa merkez (hub) depoya
 	}
+
+	// HUB = en çok transfer çıkışı yapan kaynak depo (= ANA DEPO). Sedna'da bazı Alış'lar depo
+	// etiketsiz gelir; o mal fiziksel olarak merkez depoya girer (mutabakat doğrular). Hem gövde,
+	// hem yürüyen bakiye, hem liste bu hub'ı kullanır → "alış nereye girdi" tutarlı görünür.
+	let hubDepot = $derived.by(() => {
+		const outBy: Record<string, number> = {};
+		for (const it of (detail.items || [])) if (it.direction === 'out') outBy[it.from_depot || '?'] = (outBy[it.from_depot || '?'] || 0) + (it.quantity || 0);
+		return Object.keys(outBy).sort((a, b) => outBy[b] - outBy[a])[0] || null;
+	});
 
 	// STOK HAREKET GÖVDESİ (ağaç): kök = ilk dönem devir/açılışı (en alt), gövde yukarı doğru
 	// kronolojik büyür. Sol dal = giriş (yeşil), sağ dal = çıkış/transfer (amber). Her dönem
@@ -82,10 +91,7 @@
 	let trunk = $derived.by(() => {
 		const seq = [...(detail.items || [])].reverse(); // backend date DESC → eski→yeni
 		if (!seq.length) return { rows: [] as any[], hub: null as string | null };
-		// hub = en çok transfer çıkışı yapan kaynak depo (alış'ların indiği merkez)
-		const outBy: Record<string, number> = {};
-		for (const it of seq) if (it.direction === 'out') outBy[it.from_depot || '?'] = (outBy[it.from_depot || '?'] || 0) + (it.quantity || 0);
-		const hub = Object.keys(outBy).sort((a, b) => outBy[b] - outBy[a])[0] || null;
+		const hub = hubDepot; // alış'ların (depo etiketsiz) indiği merkez depo
 		const per = (s: string | null) => (s ? s.slice(0, 7) : '');
 
 		const bal: Record<string, number> = {};
@@ -160,7 +166,7 @@
 		for (const it of seq) {
 			const t = it.type_label || '';
 			if (it.direction === 'in') {
-				const d = it.to_depot || '?';
+				const d = it.to_depot || hubDepot || '?'; // alış depo etiketsizse merkez (hub) depoya gir
 				const opening = /Devir|Açılış/.test(t);
 				bal[d] = opening ? it.quantity : (bal[d] || 0) + it.quantity;
 				res[it.id] = { kind: 'in', depot: d, val: bal[d], opening };
@@ -573,6 +579,8 @@
 								<td class="py-2 px-2 text-gray-600 whitespace-nowrap">
 									{#if it.direction === 'out'}
 										<span class="text-gray-700">{it.from_depot ?? '?'}</span> <span class="text-amber-600">→</span> <span class="text-gray-700">{it.to_depot ?? '?'}</span>
+									{:else if it.direction === 'in'}
+										<span class="text-gray-700">{it.to_depot || hubDepot || '–'}</span>{#if !it.to_depot && hubDepot}<span class="text-gray-400 ml-0.5" title="Sedna'da depo etiketi yok — mal merkez depoya (hub) girer">*</span>{/if}
 									{:else}
 										{flowText(it)}
 									{/if}
@@ -580,7 +588,7 @@
 										{@const b = runBal[it.id]}
 										<div class="text-[11px] text-gray-400">
 											{#if b.kind === 'out'}kalan {b.from}: <span class={b.fromVal < 0 ? 'text-amber-600' : ''}>{fmtQty(b.fromVal)}</span> · {b.to}: {fmtQty(b.toVal)}
-											{:else}kalan: <span class={b.val < 0 ? 'text-amber-600' : ''}>{fmtQty(b.val)}</span>{/if}
+											{:else}kalan {b.depot}: <span class={b.val < 0 ? 'text-amber-600' : ''}>{fmtQty(b.val)}</span>{/if}
 										</div>
 									{/if}
 								</td>

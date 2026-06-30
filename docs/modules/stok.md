@@ -82,7 +82,12 @@ aylık alım/tüketim trendi, tedarikçi bazında alım, anlık stok değeri. Ve
   - **Alış'ın deposu (önemli):** Alış (`direction=in`, non-opening) hareketlerinin bir kısmı Sedna'da
     **depo etiketsiz** gelir (canlı: 6780 alıştan 1750'si boş). Etiketsiz alış **hub deposuna** (en çok
     transfer çıkışı yapan = ANA DEPO) yazılır — çünkü mutabakat bunu gerektirir: `8 + 36(alış) − 12(transfer)
-    = 32` = sonraki ay ANA DEPO devri. Etiketli alış kendi deposuna gider.
+    = 32` = sonraki ay ANA DEPO devri. Etiketli alış kendi deposuna gider. **Hub ataması 3 yerde TUTARLI
+    olmalı (`hubDepot` $derived ortak kaynak):** (1) Gövde, (2) yürüyen bakiye `runBal`, (3) **Liste tablosu**
+    "Depo/Akış" kolonu. Bug kaydı (2026-06-29): başta yalnız Gövde hub atıyordu; Liste'de etiketsiz alış
+    "–" görünüyor + `runBal` malı `?` deposuna yazıyordu → sonraki transfer ANA DEPO'yu **eksiye düşürüyordu**
+    (kullanıcı "alış yapılan 8 adet ne oldu" diye fark etti). Liste'de etiketsiz alış artık hub adıyla +
+    `*` işareti ("Sedna'da depo etiketi yok — merkez depoya girer") gösterilir; `runBal` da hub'a yazar.
   - **Açık/son dönem:** en üstteki (en güncel) dönem henüz kapanmamışsa "sayımda kalan" = **canlı yürüyen
     bakiye**, TÜKETİM henüz yoksa boş kalır (ay-sonu postingi gelince dolar).
   - **KÖK yalnız İLK dönemin açılışıdır (bug kaydı, 2026-06-29):** Sonraki ayların Devir/Açılış'ları
