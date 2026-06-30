@@ -245,7 +245,7 @@
 			const [o, s, sup, v] = await Promise.all([
 				api.get<any>('/stok/operational-kpi'),
 				api.get<any>('/stok/summary'),
-				api.get<any>('/stok/by-supplier?limit=10'),
+				api.get<any>('/stok/by-supplier?limit=0'),
 				api.get<any>('/stok/price-variance?limit=0&include_zero=true'),
 			]);
 			op = o; summary = s; suppliers = sup.items || []; variance = v.items || []; anomalies = v.anomalies || [];
@@ -369,11 +369,11 @@
 
 			<!-- Tedarikçi sıralaması -->
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
-				<div class="flex items-center gap-2 mb-4"><Truck size={18} class="text-blue-600" /><h3 class="text-sm font-semibold text-gray-800">Tedarikçi Bazında Alım</h3></div>
+				<div class="flex items-center gap-2 mb-4"><Truck size={18} class="text-blue-600" /><h3 class="text-sm font-semibold text-gray-800">Tedarikçi Bazında Alım</h3>{#if suppliers.length}<span class="text-xs text-gray-500">({suppliers.length})</span>{/if}</div>
 				{#if suppliers.length === 0}
 					<p class="text-sm text-gray-500">Veri yok</p>
 				{:else}
-					<div class="space-y-2">
+					<div class="space-y-2 max-h-96 overflow-y-auto pr-1">
 						{#each suppliers as s (s.code)}
 							<div class="flex items-center gap-3">
 								<span class="w-32 sm:w-40 shrink-0 text-xs text-gray-700 truncate" title={s.name}>{s.name}</span>

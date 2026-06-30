@@ -141,10 +141,10 @@ def monthly_trend(
 def by_supplier(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("stok.maliyet", "view")),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(15, ge=0, le=1000),
 ):
-    """Tedarikçi bazında alım maliyeti (en çok alınan)."""
-    rows = (
+    """Tedarikçi bazında alım maliyeti (en çok alınan). `limit=0` → cap yok (tüm tedarikçiler)."""
+    q = (
         db.query(
             StockMovement.supplier_code.label("code"),
             func.max(StockMovement.supplier_name).label("name"),
@@ -152,8 +152,11 @@ def by_supplier(
             func.count(StockMovement.id).label("n"),
         )
         .filter(StockMovement.direction == "in", StockMovement.supplier_code.isnot(None))
-        .group_by(StockMovement.supplier_code).order_by(desc("total")).limit(limit).all()
+        .group_by(StockMovement.supplier_code).order_by(desc("total"))
     )
+    if limit:
+        q = q.limit(limit)
+    rows = q.all()
     return {"items": [{"code": r.code, "name": r.name or r.code,
                        "total": float(r.total or 0), "count": r.n} for r in rows]}
 
