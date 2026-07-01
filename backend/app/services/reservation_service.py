@@ -10,6 +10,7 @@ import logging
 from datetime import date
 from typing import Optional
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.exchange_rate import ExchangeRate

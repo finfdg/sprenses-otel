@@ -157,6 +157,18 @@ Form durumu değiştiğinde (submit/approve/reject/reopen) tüm bağlı kullanı
 - **Form silme:** Sadece `draft` durumundaki formlar silinebilir.
 - **PDF export:** Sadece `approved` durumundaki formlar PDF olarak dışa aktarılabilir.
 
+## Onay Akışı İstisnası — Form Durum Geçişleri (2026-07-01 kararı)
+
+Form **yaşam-döngüsü** mutasyonları — `PATCH /forms/{id}/fill`, `POST /forms/{id}/submit`,
+`POST /forms/{id}/review`, `POST /forms/{id}/reopen` (`forms/fill_submit.py`) — bilinçli olarak
+`check_approval`'dan **GEÇMEZ**. Bunlar konfigürasyon/CRUD değil, formun kendi iş akışı adımlarıdır
+(doldur → gönder → incele/onayla → yeniden aç); zaten `review` adımı bir onay mekanizmasıdır. Bu
+mutasyonları ayrıca sistem onay akışına sokmak "onaylamak için onay" kısır döngüsü yaratır ve günlük
+kalite formu doldurmayı kilitler. **Form create + delete (`crud.py`) `check_approval`'dan GEÇER** —
+form varlığının oluşturulması/silinmesi konfigürasyon niteliğindedir. Executor `_handle_quality_forms`
+bu nedenle yalnız `create`/`delete` işler (form durum geçişi için `update` dalı yoktur). Denetim bulgusu
+(2026-07-01) bu davranışın belgelenmesini istedi.
+
 ## Audit Logging
 
 Tüm CRUD işlemleri `audit_logs` tablosuna kaydedilir:

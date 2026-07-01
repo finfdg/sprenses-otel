@@ -183,7 +183,12 @@ async def reset_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("system.users", "use")),
 ):
-    """Admin tarafından kullanıcı şifresini sıfırla."""
+    """Admin tarafından kullanıcı şifresini sıfırla.
+
+    ONAY İSTİSNASI (2026-07-01 kararı): Bu POST mutasyonu bilinçli olarak `check_approval`'dan
+    GEÇMEZ — şifre sıfırlama, kilitli/ele geçirilmiş hesaba acil müdahale operasyonudur; onay
+    beklemek güvenlik müdahalesini geciktirir. İşlem `log_action` (audit) ile izlenir.
+    """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")

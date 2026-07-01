@@ -364,6 +364,22 @@ def _handle_finance_butce(db, action_type, entity_id, payload, actor_id):
                 budget_service.delete_category(db, cat)
         return
 
+    if target == "bulk":
+        # Router bulk_upsert_budgets ile birebir — her kalem kompozit-anahtar upsert.
+        for item in payload.get("items", []):
+            budget_service.upsert_budget(
+                db,
+                department_id=item.get("department_id"),
+                category_id=item.get("category_id"),
+                year=item.get("year"),
+                month=item.get("month"),
+                planned_amount=item.get("planned_amount", 0),
+                currency=item.get("currency", "TRY"),
+                notes=item.get("notes"),
+                created_by=actor_id,
+            )
+        return
+
     # Budget CRUD — kompozit anahtar upsert (router upsert_budget ile birebir)
     if action_type in ("create", "update"):
         budget_service.upsert_budget(

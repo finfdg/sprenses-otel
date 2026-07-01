@@ -296,6 +296,16 @@ def bulk_upsert_budgets(
     if not data.items:
         raise HTTPException(status_code=400, detail="En az bir kayıt gerekli.")
 
+    # Onay akışı — /bulk grid'deki her hücre kaydının normal yoludur (operasyonel
+    # toplu içe-aktarma değil), bu yüzden onay kontrolünden geçer. Eşleşen workflow
+    # yoksa no-op'tur. Executor `_target="bulk"` dalı bu payload'ı birebir yeniden uygular.
+    approval_resp = check_approval(
+        db, "finance.butce", 0, current_user.id, "create",
+        {"_target": "bulk", **data.model_dump()},
+    )
+    if approval_resp:
+        return approval_resp
+
     created_count = 0
     updated_count = 0
 
@@ -306,21 +316,21 @@ def bulk_upsert_budgets(
             Budget.year == item.year,
             Budget.month == item.month,
         ).first()
+        # Ortak service (kompozit-anahtar upsert) — elle Budget() insert/update yerine.
+        budget_service.upsert_budget(
+            db,
+            department_id=item.department_id,
+            category_id=item.category_id,
+            year=item.year,
+            month=item.month,
+            planned_amount=item.planned_amount,
+            currency=item.currency,
+            notes=getattr(item, "notes", None),
+            created_by=current_user.id,
+        )
         if existing:
-            existing.planned_amount = item.planned_amount
             updated_count += 1
         else:
-            new_budget = Budget(
-                department_id=item.department_id,
-                category_id=item.category_id,
-                year=item.year,
-                month=item.month,
-                planned_amount=item.planned_amount,
-                actual_amount=0,
-                currency=item.currency,
-                created_by=current_user.id,
-            )
-            db.add(new_budget)
             created_count += 1
 
     db.commit()

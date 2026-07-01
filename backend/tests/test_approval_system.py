@@ -1169,6 +1169,60 @@ class TestApprovalExecutorMoreModules:
         ).first()
         assert float(row.planned_amount) == 2500, "Upsert planned_amount'u güncellemeli"
 
+    def test_budget_bulk_via_approval_upserts_not_duplicate(self, db):
+        """REGRESYON: /butce/bulk eskiden check_approval çağırmıyordu (kritik denetim bulgusu,
+        2026-07-01) VE elle Budget() insert/update ile budget_service'i bypass ediyordu.
+        Düzeltme sonrası bulk onaya girer (202) ve executor `_target="bulk"` dalı her kalemi
+        kompozit-anahtar upsert eder → onaylı bulk çift satır oluşturmaz, ikinci onay günceller."""
+        from app.models.budget import Budget, BudgetCategory
+
+        _, req_role, req_client = _make_actor(db, {"finance.butce": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.butce", req_role, app_role)
+
+        dept = Department(name=f"Dept {uuid4().hex[:6]}", code=f"D{uuid4().hex[:5]}", is_active=True)
+        cat = BudgetCategory(name=f"Kat {uuid4().hex[:6]}", type="expense", is_active=True)
+        db.add(dept)
+        db.add(cat)
+        db.commit()
+        dept_id, cat_id = dept.id, cat.id
+
+        def _period_count():
+            return db.query(Budget).filter(
+                Budget.department_id == dept_id,
+                Budget.category_id == cat_id,
+                Budget.year == 2099,
+                Budget.month == 7,
+            ).count()
+
+        payload = {"items": [{
+            "department_id": dept_id, "category_id": cat_id,
+            "year": 2099, "month": 7, "planned_amount": 1000, "currency": "TRY",
+        }]}
+
+        # 1. onaylı bulk → 202 → onay → tek satır
+        r1 = req_client.post("/api/finance/butce/bulk", json=payload)
+        assert r1.status_code == 202, r1.text
+        ap1 = app_client.post(f"{API}/requests/{r1.json()['request_id']}/approve", json={})
+        assert ap1.status_code == 200, ap1.text
+        db.expire_all()
+        assert _period_count() == 1, "Onaylı bulk tek bütçe oluşturmalı"
+
+        # 2. AYNI dönem farklı tutar → çift değil, upsert (güncelle)
+        payload["items"][0]["planned_amount"] = 3300
+        r2 = req_client.post("/api/finance/butce/bulk", json=payload)
+        assert r2.status_code == 202, r2.text
+        ap2 = app_client.post(f"{API}/requests/{r2.json()['request_id']}/approve", json={})
+        assert ap2.status_code == 200, f"ikinci onay çakışma vermemeli: {ap2.text}"
+        db.expire_all()
+        assert _period_count() == 1, "İkinci onaylı bulk ÇİFT bütçe oluşturmamalı (kompozit upsert)"
+        row = db.query(Budget).filter(
+            Budget.department_id == dept_id, Budget.category_id == cat_id,
+            Budget.year == 2099, Budget.month == 7,
+        ).first()
+        assert float(row.planned_amount) == 3300, "Bulk upsert planned_amount'u güncellemeli"
+
+
 class TestApprovalExecutorHR:
     """İK modüllerinin (hr.attendance, hr.shift_schedule) uçtan-uca onay→uygula regresyonu.
 

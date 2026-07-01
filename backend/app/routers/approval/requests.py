@@ -489,6 +489,10 @@ async def return_request(
     return {"ok": True, "status": req.status}
 
 
+# İZİN İSTİSNASI (2026-07-01 kararı): cancel/resubmit/trigger POST'ları bilinçli olarak
+# "view" izniyle korunur ("use" değil) — bunlar talep SAHİBİNİN kendi talebi üzerindeki
+# self-service aksiyonlarıdır (yalnız view izinli talep sahibi kendi talebini iptal edebilmeli /
+# yeniden gönderebilmeli). Sahiplik ve durum kontrolü endpoint gövdesinde ayrıca yapılır.
 @router.post("/requests/{request_id}/cancel")
 async def cancel_request(
     request_id: int,
