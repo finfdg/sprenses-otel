@@ -1,12 +1,27 @@
 export const meta = {
   name: 'denetle-moduller',
-  description: 'Değişen (veya verilen) modülleri modul-denetci ile paralel denetler ve tek rapora birleştirir',
+  description: 'Modülleri modul-denetci ile paralel denetler (hedef yoksa TÜM modüller) ve tek rapora birleştirir',
   phases: [
-    { title: 'Keşif', detail: 'git diff ile değişen modülleri bul (veya args listesini kullan)' },
+    { title: 'Keşif', detail: 'hedef modülleri belirle: args listesi / "degisen" (git) / boşsa tüm modüller' },
     { title: 'Denetim', detail: 'her modül için modul-denetci — paralel' },
     { title: 'Sentez', detail: 'bulguları önem sırasına göre tek rapora birleştir' },
   ],
 }
+
+// ── Tüm leaf (CRUD'lu) modüller — DB `modules` tablosu anlık görüntüsü (2026-07-01, 45 modül).
+// Leaf = alt-modülü olmayan modüller. Yenilemek için: alt-modülü olmayan modules.code listesi.
+const TUM_MODULLER = [
+  'accounting.dividend', 'accounting.fis_icmali', 'accounting.mizan', 'accounting.recurring',
+  'accounting.rent_expense', 'accounting.rent_income', 'accounting.taxes', 'dashboard',
+  'finance.avanslar', 'finance.banks', 'finance.butce', 'finance.cariler', 'finance.cash_flow',
+  'finance.checks', 'finance.doviz', 'finance.krediler', 'finance.onay', 'finance.sales_invoices',
+  'hr.attendance', 'hr.salary', 'hr.sgk', 'hr.shift_schedule', 'hr.shifts', 'hr.withholding',
+  'messaging', 'quality.forms', 'quality.templates', 'sales.daily_reservations', 'sales.flight',
+  'sales.hotel_reservation', 'sales.room_types', 'stok.depolar', 'stok.hareketler', 'stok.maliyet',
+  'stok.urunler', 'system.approval', 'system.audit_logs', 'system.backup', 'system.docs',
+  'system.error_logs', 'system.modules', 'system.roles', 'system.server', 'system.users',
+  'yonetim.panel',
+]
 
 // ── Şemalar ───────────────────────────────────────────────────
 const KESIF_SEMA = {
@@ -51,9 +66,12 @@ if (typeof girdi === 'string') {
     girdi = s ? s.split(',').map((x) => x.trim()).filter(Boolean) : []
   }
 }
-log(`args tipi=${typeof args}, çözümlenen hedef sayısı=${Array.isArray(girdi) ? girdi.length : 0}`)
-let hedefler = Array.isArray(girdi) && girdi.length ? girdi : null
-if (!hedefler) {
+const verilen = Array.isArray(girdi) ? girdi.filter(Boolean) : []
+const ilk = verilen.length === 1 ? String(verilen[0]).toLowerCase() : null
+
+let hedefler
+if (ilk === 'degisen' || ilk === 'changed') {
+  // "degisen" anahtarı → git ile değişen modülleri keşfet
   const disc = await agent(
     'git status --porcelain ve git diff --name-only HEAD ile değişen dosyaları bul. ' +
     'Her dosyayı modül koduna indirge (ör. backend/app/routers/finance/checks.py → "finance.checks", ' +
@@ -62,13 +80,22 @@ if (!hedefler) {
     { label: 'kesif', phase: 'Keşif', schema: KESIF_SEMA }
   )
   hedefler = disc?.moduller || []
+  log(`git keşfi: ${hedefler.length} değişen modül.`)
+} else if (verilen.length) {
+  // Açık modül listesi verildi
+  hedefler = verilen
+  log(`Verilen ${hedefler.length} modül denetlenecek.`)
+} else {
+  // Hedef yok → TÜM modülleri tara
+  hedefler = TUM_MODULLER
+  log(`Hedef verilmedi → TÜM ${TUM_MODULLER.length} modül taranacak.`)
 }
 
 if (!hedefler.length) {
-  log('Değişen modül bulunamadı — denetlenecek bir şey yok.')
+  log('Denetlenecek modül yok.')
   return { denetlenen: [], toplam_bulgu: 0, moduller: [] }
 }
-log(`${hedefler.length} modül denetlenecek: ${hedefler.join(', ')}`)
+log(`Denetim başlıyor (${hedefler.length}): ${hedefler.join(', ')}`)
 
 // ── 2) Her modülü paralel denetle (modul-denetci) ─────────────
 const denetimler = (await parallel(hedefler.map((m) => () =>
@@ -93,8 +120,10 @@ if (toplam === 0) {
 
 const rapor = await agent(
   'Aşağıdaki modül denetim bulgularını tek bir Türkçe markdown rapora birleştir. ' +
-  'Önem sırasına göre grupla (Kritik → Yüksek → Orta → Düşük); her bulguda dosya:satır ve kısa düzeltme öner. ' +
-  'Sonda modül-bazlı özet tablo ver.\n\n' +
+  'Kritik ve Yüksek bulguları tek tek yaz (dosya:satır + kısa düzeltme). ' +
+  'Orta ve Düşük bulguları kesişen temalara göre grupla ve özetle (her temada birkaç örnek dosya:satır ver). ' +
+  'Modüller-arası tekrarlayan desenleri (ör. eksik RBAC 403 testi, doküman/kod sapması) ayrı bir ' +
+  '"Kesişen Temalar" bölümünde vurgula. Sonda önem kırılımını gösteren modül-bazlı özet tablo ver.\n\n' +
   JSON.stringify(denetimler),
   { label: 'sentez', phase: 'Sentez' }
 )
