@@ -93,6 +93,64 @@ class TestWriteEndpointsBlocked:
         )
 
 
+# ── RBAC: view var, use YOK → mutasyon 403 ─────────────────
+# Denetim bulgusu (2026-07-01): çoğu modülde "giriş yapmış ama use izni olmayan"
+# kullanıcının POST/PATCH/DELETE'te 403 aldığını doğrulayan test yoktu — izin
+# decorator'ı yanlışlıkla kaldırılsa regresyon kırmızı vermezdi. Aşağıdaki merkezi
+# parametrik test bu boşluğu tüm modüller için tek yerde kapatır.
+#
+# require_permission(module, "use") bir FastAPI dependency'sidir → endpoint gövdesinden
+# (404/503 vb.) ÖNCE çalışır; bu yüzden var olmayan ID'li DELETE bile 403 döner.
+# (method, path, module_code) — module_code yalnız okunabilirlik için yorum.
+VIEWER_FORBIDDEN_MUTATIONS = [
+    ("DELETE", "/api/finance/krediler/999999"),            # finance.krediler
+    ("DELETE", "/api/finance/butce/999999"),               # finance.butce
+    ("DELETE", "/api/finance/banks/accounts/999999"),      # finance.banks
+    ("DELETE", "/api/finance/checks/uploads/999999"),      # finance.checks
+    ("DELETE", "/api/finance/avanslar/999999"),            # finance.avanslar
+    ("DELETE", "/api/finance/cariler/uploads/999999"),     # finance.cariler
+    ("DELETE", "/api/accounting/taxes/999999"),            # accounting.taxes
+    ("DELETE", "/api/accounting/recurring/999999"),        # accounting.recurring
+    ("DELETE", "/api/accounting/rent-income/999999"),      # accounting.rent_income
+    ("DELETE", "/api/accounting/rent-expense/999999"),     # accounting.rent_expense
+    ("DELETE", "/api/accounting/dividend/999999"),         # accounting.dividend
+    ("DELETE", "/api/hr/salary/999999"),                   # hr.salary
+    ("DELETE", "/api/hr/withholding/999999"),              # hr.withholding
+    ("DELETE", "/api/hr/sgk/999999"),                      # hr.sgk
+    ("DELETE", "/api/hr/shifts/999999"),                   # hr.shifts
+    ("DELETE", "/api/hr/shift-schedule/999999"),           # hr.shift_schedule
+    ("DELETE", "/api/quality/templates/999999"),           # quality.templates
+    ("DELETE", "/api/quality/forms/999999"),               # quality.forms
+    ("DELETE", "/api/sales/room-types/999999"),            # sales.room_types
+    ("DELETE", "/api/sales/reservations/uploads/999999"),  # sales.hotel_reservation
+    ("DELETE", "/api/system/users/999999"),                # system.users
+    ("DELETE", "/api/system/roles/999999"),                # system.roles
+    ("DELETE", "/api/system/modules/999999"),              # system.modules
+    ("DELETE", "/api/system/error-logs/999999"),           # system.error_logs
+    ("POST", "/api/system/server/services/nginx/restart"), # system.server
+    ("POST", "/api/stok/sedna-import"),                    # stok.maliyet
+    ("POST", "/api/finance/sales-invoices/sedna-import"),  # finance.sales_invoices
+    ("POST", "/api/system/backup/run"),                    # system.backup
+]
+
+
+class TestViewerCannotMutate:
+    """View izni olan ama use izni OLMAYAN kullanıcı mutasyon endpoint'lerinde 403 almalı.
+
+    Her modülün `require_permission(module, "use")` geçidinin gerçekten çalıştığını
+    doğrular (izin decorator'ı kaldırılırsa/GET'e düşürülürse test kırmızı verir).
+    """
+
+    @pytest.mark.parametrize("method,path", VIEWER_FORBIDDEN_MUTATIONS,
+                             ids=[f"{m} {p}" for m, p in VIEWER_FORBIDDEN_MUTATIONS])
+    def test_viewer_forbidden(self, client, viewer_user_headers, method, path):
+        resp = getattr(client, method.lower())(path, headers=viewer_user_headers)
+        assert resp.status_code == 403, (
+            f"Viewer (use izni yok) {method} {path} → {resp.status_code} "
+            f"(403 beklenirdi; use geçidi çalışmıyor olabilir)"
+        )
+
+
 # ── Admin yetkili endpoint testleri ────────────────────────
 # Admin tüm view endpoint'lerine erişebilmeli
 
