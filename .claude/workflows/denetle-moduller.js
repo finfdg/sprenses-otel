@@ -41,7 +41,18 @@ const DENETIM_SEMA = {
 
 // ── 1) Hedef modülleri belirle ────────────────────────────────
 phase('Keşif')
-let hedefler = Array.isArray(args) && args.length ? args : null
+// args normalizasyonu — dizi, JSON-string veya virgüllü string olarak gelebilir
+let girdi = args
+if (typeof girdi === 'string') {
+  const s = girdi.trim()
+  try {
+    girdi = JSON.parse(s)
+  } catch (e) {
+    girdi = s ? s.split(',').map((x) => x.trim()).filter(Boolean) : []
+  }
+}
+log(`args tipi=${typeof args}, çözümlenen hedef sayısı=${Array.isArray(girdi) ? girdi.length : 0}`)
+let hedefler = Array.isArray(girdi) && girdi.length ? girdi : null
 if (!hedefler) {
   const disc = await agent(
     'git status --porcelain ve git diff --name-only HEAD ile değişen dosyaları bul. ' +
