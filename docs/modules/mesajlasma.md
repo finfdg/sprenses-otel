@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/messages/` (conversations.py, messages.py, users.py, read.py, _helpers.py) |
+| Router | `backend/app/routers/messages/` (`conversations.py`, `groups.py`, `msg_operations.py`, `users.py`, `_helpers.py`) |
 | Rol cache | `backend/app/utils/messaging_role_cache.py` — messaging erişimli rol ID'leri (5dk TTL). **Cache state utils'tedir** (router değil) ki `system_service` izin değişiminde invalidate ederken service→router import yönü oluşmasın (2026-06-27 refactor). `_helpers.py` geriye uyum için `_get_messaging_role_ids`/`_invalidate_messaging_role_cache` adlarıyla re-export eder. |
 | Model | `backend/app/models/conversation.py`, `message.py`, `conversation_member.py` |
 | Schema | `backend/app/schemas/message.py` |

@@ -52,6 +52,7 @@
 |---|---|---|---|
 | `GET` | `/avanslar/` | view | Liste (sayfalı, filtrelenebilir) |
 | `GET` | `/avanslar/summary` | view | Özet (para birimine göre) |
+| `GET` | `/avanslar/sedna-reconciliation` | view | Sedna 340 hesap mutabakatı (isim+para birimi eşleştirme skoru) |
 | `POST` | `/avanslar/` | use | Yeni avans oluştur |
 | `PATCH` | `/avanslar/{id}` | use | Avans güncelle |
 | `DELETE` | `/avanslar/{id}` | use | Avans sil (sadece pending) |

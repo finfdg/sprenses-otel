@@ -19,7 +19,10 @@
 | `backend/app/models/vendor_upload.py` | `VendorUpload` SQLAlchemy modeli |
 | `backend/app/models/vendor_transaction.py` | `VendorTransaction` SQLAlchemy modeli |
 | `backend/app/schemas/vendor.py` | Pydantic şemaları |
-| `backend/app/routers/finance/cariler.py` | API endpoint'leri |
+| `backend/app/routers/finance/cariler/` | API endpoint'leri paketi (`__init__.py`, `uploads.py`, `vendors.py`, `payment_schedule.py`, `matching.py`, `sedna_import.py`, `bank_accounts.py`, `_helpers.py`) |
+| `backend/app/models/vendor_bank_account.py` | `VendorBankAccount` (cari IBAN'ları) |
+| `backend/app/models/payment_instruction.py` + `backend/app/routers/finance/payment_instructions.py` | Ödeme Talimatı listeleri/kalemleri |
+| `backend/app/services/vendor_service.py` | Cari vade/durum güncelleme (router + onay executor ORTAK) |
 | `backend/app/utils/vendor_parser.py` | Excel ayrıştırma mantığı |
 
 ### Frontend

@@ -56,6 +56,10 @@ Migration 3 örnek seed eder (Sabah/Akşam/Gece).
   planlanan-vardiya ile gerçek basış karşılaştırması (geç kalma/erken çıkış).
 - Modül kaydı: prod'da SQL ile `modules`/`role_module_permissions`; CI parite `tests/ci/02_seed.sql` (id 902).
 
+## Test
+- `backend/tests/test_shifts.py` — izin geçitleri (view/use, 403 yolu), CRUD, gece/split süre hesabı, 404, onay akışı regresyonu.
+- Merkezi RBAC: `tests/test_permissions.py::TestViewerCannotMutate` `DELETE /api/hr/shifts/{id}` için viewer→403 doğrular.
+
 ---
 
 # Vardiya Çizelgesi (Rota) Modülü
