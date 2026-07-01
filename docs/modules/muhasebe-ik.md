@@ -11,7 +11,7 @@
 
 ## Mimari Karar: Ortak Tablo Yaklaşımı
 
-Tüm 4 alt modül aynı CRUD pattern'ını kullandığı için:
+Tüm alt modüller (muhasebe: vergi/düzenli ödeme/alınan kira/verilen kira/temettü + İK: maaş/stopaj/SGK) aynı CRUD pattern'ını kullandığı için:
 - **1 tanım tablosu** (`scheduled_definitions`) — `source_type` ile ayrışır
 - **1 giriş tablosu** (`scheduled_entries`) — `source_type` + `definition_id`
 - **1 ortak router fabrikası** (`scheduled_base.py`) — `create_scheduled_router()`

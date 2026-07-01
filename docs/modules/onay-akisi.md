@@ -10,6 +10,8 @@
 | Backend prefix | `/api/system/approval` |
 | İzin kodu | `system.approval` (view/use) |
 
+> **Onay akışı istisnası (bilinçli):** `system.approval` router'ının kendi CRUD'ları (workflow oluştur/güncelle/sil, approve/reject/return/cancel/resubmit/trigger) `check_approval`'dan **GEÇMEZ** — onay motorunun kendisi ikinci bir onay katmanına tabi olamaz (sonsuz döngü riski). Bu, CLAUDE.md'nin "hariç tutulabilir" istisnalarına eklenen bilinçli bir muafiyettir. (cancel/resubmit/trigger'ın `"view"` iznine bağlı olması da bilinçlidir — talep sahibinin self-service aksiyonları; `requests.py` inline gerekçesine bakın.)
+
 ## Konsept
 
 Modül bazlı, rol tabanlı, tek adımlı onay sistemi. Admin bir onay tanımı oluşturur:

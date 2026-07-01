@@ -601,6 +601,9 @@ Her modül dosyası şu bölümleri içermelidir:
 | Satış Faturaları | `docs/modules/satis-faturalari.md` |
 | Stok / Depo Maliyet | `docs/modules/stok.md` |
 | Yönetim Paneli + Maliyet Kontrol | `docs/modules/yonetim-paneli.md` |
+| Panel (Dashboard) | `docs/modules/panel.md` |
+| Kalite (Şablonlar + Formlar) | `docs/modules/kalite.md` |
+| Sistem — Sunucu İzleme | `docs/modules/sunucu.md` |
 | SSH Tünel Güvenliği | `docs/modules/ssh-tunel-guvenligi.md` |
 
 ## UI Tasarım Kuralları

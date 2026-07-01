@@ -132,6 +132,7 @@ python cron_fetch_exchange_rates.py
 
 1. Kullanıcı tarafından veri girişi **yoktur** — tüm veri TCMB'den çekilir
 2. `can_use` izni bu modülde **gerekmez** (salt okunur modül)
+   - **Onay akışı istisnası:** Modülde hiç POST/PATCH/DELETE mutasyon endpoint'i olmadığından `check_approval` uygulanamaz (onay akışı kavramı salt-okunur modülde geçersiz) — bilinçli muafiyet
 3. Bulk fetch sadece bir kez çalıştırılır (`--bulk` parametresi)
 4. Kur bulunamazsa önceki iş gününün kuru taşınır (asla boş gün kalmaz)
 5. TCMB istekleri arasında 0.5s bekleme (rate limiting)

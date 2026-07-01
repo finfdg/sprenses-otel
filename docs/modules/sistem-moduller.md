@@ -23,7 +23,7 @@
 ## API Endpoint'leri
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/api/system/modules/` | `system.modules:view` | Paginated düz liste |
+| GET | `/api/system/modules/` | `system.modules:view` | Düz liste (tümü, sıralı — pagination zarfı yok, `List[ModuleResponse]`) |
 | GET | `/api/system/modules/tree` | `system.modules:view` | Hiyerarşik ağaç |
 | POST | `/api/system/modules/` | `system.modules:use` | Yeni modül (onay akışı) |
 | PATCH | `/api/system/modules/{id}` | `system.modules:use` | Güncelle (onay akışı) |

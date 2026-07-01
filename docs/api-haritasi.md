@@ -200,6 +200,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `PATCH /api/finance/checks/{id}/status` — Çek durumu güncelle
 - `GET /api/finance/checks/summary` — Çek özeti
 - `POST /api/finance/checks/match-bank` — Otomatik banka eşleştirme
+- `GET /api/finance/checks/number-anomalies` — Çek no ↔ açıklama-no uyuşmazlıkları (yalnız tespit)
 - `GET /api/finance/checks/number-anomalies` — Olası çek-no giriş hataları (açıklamadaki no ≠ check_no; salt rapor)
 - **Banka bilgisi:** çekin ödeneceği banka `checks.bank_name` (Sedna `AccCheck.Bank`); boşsa ardışık çek-no komşularından **tahmin** (`bank_name_inferred`, "~banka" rozeti) — Nakit Akım + Çekler'de gösterilir
 - Detaylı bilgi: `docs/modules/cekler.md`
@@ -244,11 +245,14 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 
 ### Kalite Yönetimi
 - `GET/POST/PATCH/DELETE /api/quality/templates/` — Kalite şablonu CRUD
+- `POST /api/quality/templates/{id}/logo` · `DELETE /api/quality/templates/{id}/logo` — Şablon logosu yükle/sil
 - `GET/POST /api/quality/forms/` — Kalite formu listele/oluştur
-- `PATCH /api/quality/forms/{id}` — Form güncelle
-- `POST /api/quality/forms/{id}/fill` — Form doldur
+- `GET /api/quality/forms/{id}` · `DELETE /api/quality/forms/{id}` — Form detay / sil
+- `PATCH /api/quality/forms/{id}/fill` — Form doldur (POST değil, PATCH)
 - `POST /api/quality/forms/{id}/submit` — Form gönder
 - `POST /api/quality/forms/{id}/review` — Form onayla/reddet
+- `POST /api/quality/forms/{id}/reopen` — Formu yeniden aç
+- `GET /api/quality/forms/{id}/pdf` — Onaylı form PDF
 
 ### Diğer
 - `GET /api/health` — Sağlık kontrolü
@@ -369,6 +373,8 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /products` — Ürün listesi (anlık stok)
 - `GET /movements` — Stok hareketleri (filtreli)
 - `GET /depots` — Depolar
+- `GET /product-purchases/{product_id}` — Ürün alım geçmişi (tedarikçi/fiyat)
+- `GET /product-purchases/{product_id}/pdf` — Ürün alım geçmişi PDF
 - Salt-okuma GET'ler + tek Sedna-import mutasyonu → onay akışı kapsam dışı. Detay: `docs/modules/stok.md`
 
 ### Yönetim Paneli (GM/Finans) — prefix `/api/yonetim`

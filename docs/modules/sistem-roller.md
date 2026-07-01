@@ -45,8 +45,8 @@ POST/PATCH/DELETE `check_approval(db, "system.roles", ...)` çağrısından geç
 | `delete` | `role` |
 
 ## Geliştirme Kuralları
-- **Admin rol korumalı:** `name="Admin"` olan rol silinemez/düzenlenemez
+- **Kullanıcılara atanmış rol silme yasağı:** Rol'e atanmış kullanıcı varsa silinemez → 400 (`system_service.py`)
+- **NOT (bilinen sınırlama):** İsimle özel bir "Admin rolü korumalı" kontrolü **kodda YOKTUR** — Admin rolünün tüm kullanıcıları başka bir role taşınırsa rol silinebilir/düzenlenebilir. İstenirse `name=="Admin"` guard eklenebilir (güvenlik iyileştirmesi).
 - **İzin güncellenirken** mevcut satırlar upsert edilir, kaldırılan modüller tabloda silinir
-- **Kullanıcılara atanmış rol silme yasağı:** Endpoint 400 döner
 - **UI:** İzin matrisi checkbox grid, modül ağacı hiyerarşik render
 - **Toplu izin işlemleri (2026-06-02):** Matris başlığında "Tümünü seç" (görme+kullanma), "Sadece görme", "Temizle" butonları → tüm modülleri tek tıkla ayarlar. Ana modül checkbox'ı **grup-toggle**'dır: alt modüllere yayılır (cascade) ve kısmi seçimde `indeterminate` (—) gösterir. Bireysel alt-modül checkbox'ları ince ayar için korunur. `görme→kullanma` eşlemesi (kullanma açılınca görme de açılır; görme kapanınca kullanma kapanır) toplu işlemlerde de geçerlidir.

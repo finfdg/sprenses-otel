@@ -54,7 +54,7 @@ faturalara uygulanır (doğru muhasebe davranışı).
 |---|---|---|---|
 | GET | `/sales-invoices/` | view | Liste (FIFO durum + `by_advance`/`advance_covered` + filtre: `customer_type`, `status`, `start_date`/`end_date`/`search`, paginated) |
 | GET | `/sales-invoices/summary` | view | Özet: faturalanan/tahsil/açık + münferit/acente kırılımı + durum sayıları + **`advance`** (kullanılmamış net avans + acente sayısı) |
-| GET | `/sales-invoices/advances` | view | **Acente avans bakiyeleri** — net avanslı müşteriler: `total_collected` (yatırılan), `consumed` (faturayla kapanan), `net_advance` (kalan). Sıralı (kalan azalan) |
+| GET | `/sales-invoices/advances` | view | **Acente avans bakiyeleri** — net avanslı müşteriler: `received` (yatırılan), `consumed` (faturayla kapanan), `remaining` (kalan). Sıralı (kalan azalan) |
 | POST | `/sales-invoices/sedna-import` | use | Sedna'dan içe aktar (tekil; merkezi sync da çağırır). Onaydan muaf, audit'li |
 
 ## Acente avansları + tahsil-durumu (tarih-sıralı FIFO — `_compute`)

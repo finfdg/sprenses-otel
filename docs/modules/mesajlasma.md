@@ -63,6 +63,10 @@
 - Service worker: `frontend/src/service-worker.ts` — push event → notification show
 
 ## Geliştirme Kuralları
+- **Onay akışı istisnası (bilinçli):** Mesajlaşma modülünün hiçbir POST/PATCH/DELETE endpoint'i
+  `check_approval`'dan geçmez ve `approval_executor.py`'de `messaging` handler'ı yoktur — mesajlaşma
+  finansal/onay gerektiren bir mutasyon içermez (konuşma/mesaj/üye işlemleri). Bu, CLAUDE.md onay
+  kuralının bilinçli bir muafiyetidir.
 - **Polling yasak:** `setInterval` yalnızca WS keepalive için
 - **structuredClone fallback:** Svelte proxy objelerinde `structuredClone` başarısız olabilir → JSON parse fallback (log düşürülür)
 - **İzin:** `hasPermission('messaging', 'view')` — görme yoksa modül menüde yok

@@ -191,7 +191,7 @@ Gruplar veritabanında saklanır (`agency_groups` tablosu) — sabit kod yok.
 - Toast bildirim: başarıda `{acente} → {grup} grubuna eklendi` veya `gruptan çıkarıldı`
 
 ### Grupları Yönet Modal
-- Liste görünümü: tüm gruplar üye chip'leriyle + ✏ düzenle / 🗑 sil ikonları + "+ Yeni Grup" butonu
+- Liste görünümü: tüm gruplar üye chip'leriyle + Lucide `Settings2` (düzenle) / `Trash2` (sil) ikonları + "+ Yeni Grup" butonu
 - Form görünümü: grup adı + üye arama/ekleme (autocomplete sadece `summary.by_agency`'de görünen ve başka gruba ait olmayan acenteleri önerir) + üye chip'lerinden X ile çıkarma
 - Modal kapanışında `$effect` ile state otomatik temizlenir (kapanış yolundan bağımsız)
 - Footer slotu yok — butonlar içerik bölümünün altına `border-t` ile ayrılmış flex div'de
