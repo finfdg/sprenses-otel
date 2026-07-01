@@ -1222,6 +1222,45 @@ class TestApprovalExecutorMoreModules:
         ).first()
         assert float(row.planned_amount) == 3300, "Bulk upsert planned_amount'u güncellemeli"
 
+    def test_credit_close_reopen_via_approval_actually_toggles(self, db):
+        """REGRESYON (2026-07-01 denetim, KRİTİK): close/reopen onay payload'ı {"action":"close"|"reopen"}
+        gönderir ama executor bunu OKUMUYORDU → apply_product_update `action`'ı anlamsız bir attribute'a
+        yazıp status'ü DEĞİŞTİRMİYORDU → onaylı kapatma/açma SESSİZCE çalışmıyordu. Düzeltme sonrası
+        executor ortak credit_service.close_product/reopen_product'ı çağırır → status GERÇEKTEN değişir."""
+        from app.models.credit_product import CreditProduct
+
+        _, req_role, req_client = _make_actor(db, {"finance.krediler": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "finance.krediler", req_role, app_role)
+
+        product = CreditProduct(
+            type="spot", name=f"Kredi {uuid4().hex[:6]}", currency="TRY",
+            total_amount=100000, remaining_amount=100000, status="active",
+        )
+        db.add(product)
+        db.commit()
+        pid = product.id
+
+        # close → 202 → onay → status GERÇEKTEN 'closed'
+        r = req_client.post(f"/api/finance/krediler/{pid}/close", json={})
+        assert r.status_code == 202, r.text
+        ap = app_client.post(f"{API}/requests/{r.json()['request_id']}/approve", json={})
+        assert ap.status_code == 200, ap.text
+        db.expire_all()
+        closed = db.query(CreditProduct).filter(CreditProduct.id == pid).first()
+        assert closed.status == "closed", "Onaylı kapatma status'ü 'closed' yapmalı (executor action bug regresyonu)"
+        assert closed.closed_date is not None, "Onaylı kapatma closed_date set etmeli"
+
+        # reopen → 202 → onay → status GERÇEKTEN 'active'
+        r2 = req_client.post(f"/api/finance/krediler/{pid}/reopen", json={})
+        assert r2.status_code == 202, r2.text
+        ap2 = app_client.post(f"{API}/requests/{r2.json()['request_id']}/approve", json={})
+        assert ap2.status_code == 200, ap2.text
+        db.expire_all()
+        reopened = db.query(CreditProduct).filter(CreditProduct.id == pid).first()
+        assert reopened.status == "active", "Onaylı reopen status'ü 'active' yapmalı"
+        assert reopened.closed_date is None, "Onaylı reopen closed_date'i temizlemeli"
+
 
 class TestApprovalExecutorHR:
     """İK modüllerinin (hr.attendance, hr.shift_schedule) uçtan-uca onay→uygula regresyonu.

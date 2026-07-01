@@ -75,6 +75,9 @@ def error_log_summary(
     return {row[0]: row[1] for row in rows}
 
 
+# ONAY AKIŞI İSTİSNASI (2026-07-01 kararı): Hata logu silme/temizleme salt-teknik,
+# idempotent bir bakım işlemidir (iş verisi değil) → bilinçli olarak `check_approval`'dan
+# GEÇMEZ. İşlem yalnız `system.error_logs` use izniyle yapılır ve audit'lenir.
 @router.delete("/{log_id}")
 def delete_error_log(
     log_id: int,

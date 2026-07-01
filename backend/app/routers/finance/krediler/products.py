@@ -253,6 +253,7 @@ def export_credits_pdf(
 def create_product(
     data: CreditProductCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.krediler", "use")),
 ):
@@ -279,6 +280,7 @@ def create_product(
     db.commit()
     db.refresh(product)
 
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "create")
     return _build_product_response(product, _batch_payment_stats(db, [product.id]))
 
 
@@ -329,6 +331,7 @@ def update_product(
     product_id: int,
     data: CreditProductUpdate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.krediler", "use")),
 ):
@@ -356,6 +359,7 @@ def update_product(
     db.commit()
     db.refresh(product)
 
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "update")
     return _build_product_response(product, _batch_payment_stats(db, [product.id]))
 
 
@@ -363,6 +367,7 @@ def update_product(
 def delete_product(
     product_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.krediler", "use")),
 ):
@@ -385,6 +390,8 @@ def delete_product(
         ip_address=get_client_ip(request),
     )
     db.commit()
+
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "delete")
 
 
 # ─── Kapatma / Yeniden Açma ──────────────────────────────
@@ -422,27 +429,15 @@ def close_product(
         return approval_resp
 
     try:
-        product.status = "closed"
-        product.closed_date = closed_date
-
-        # Ödenmemiş ileri vadeli taksitlerin finance_event'lerini nakit akımdan çıkar
-        unpaid = (
-            db.query(CreditPayment)
-            .filter(
-                CreditPayment.credit_product_id == product_id,
-                CreditPayment.is_paid.is_(False),
-            )
-            .all()
-        )
-        for pay in unpaid:
-            finance_event_svc.invalidate(db, "credit", pay.id)
+        # Ortak service (router + onay executor birebir): status + FE invalidate.
+        unpaid_count = credit_service.close_product(db, product, closed_date)
 
         log_action(
             db, current_user.id, "update", "credit_product",
             entity_id=product_id,
             details=(
                 f"Kredi kapatıldı: {product.name} (kapanış {closed_date.isoformat()}). "
-                f"{len(unpaid)} ödenmemiş taksit nakit akımdan çıkarıldı."
+                f"{unpaid_count} ödenmemiş taksit nakit akımdan çıkarıldı."
             ),
             ip_address=get_client_ip(request),
         )
@@ -487,27 +482,15 @@ def reopen_product(
         return approval_resp
 
     try:
-        product.status = "active"
-        product.closed_date = None
-
-        # Ödenmemiş taksitleri nakit akıma geri getir
-        unpaid = (
-            db.query(CreditPayment)
-            .filter(
-                CreditPayment.credit_product_id == product_id,
-                CreditPayment.is_paid.is_(False),
-            )
-            .all()
-        )
-        for pay in unpaid:
-            finance_event_svc.upsert_credit_payment(db, pay, product)
+        # Ortak service (router + onay executor birebir): status + FE re-upsert.
+        unpaid_count = credit_service.reopen_product(db, product)
 
         log_action(
             db, current_user.id, "update", "credit_product",
             entity_id=product_id,
             details=(
                 f"Kredi yeniden açıldı: {product.name}. "
-                f"{len(unpaid)} ödenmemiş taksit nakit akıma geri eklendi."
+                f"{unpaid_count} ödenmemiş taksit nakit akıma geri eklendi."
             ),
             ip_address=get_client_ip(request),
         )

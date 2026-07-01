@@ -83,6 +83,13 @@ def _build_response(vtx: VendorTransaction, vendor_name: str,
 
 
 # ─── Endpoints ──────────────────────────────────────────
+#
+# ONAY AKIŞI İSTİSNASI (2026-07-01 kararı): Bu modülün mutasyon endpoint'leri
+# (assign/approve/reject/remove) bilinçli olarak `check_approval`'dan GEÇMEZ — modülün
+# KENDİSİ departman onay akışıdır; işlem onaylama/reddetme eylemlerini bir başka onay
+# katmanına sokmak "onaylamak için onay" kısır döngüsü yaratır. finance.onay için
+# approval_executor'da handler da yoktur (bilinçli).
+
 
 @router.post("/assign/{vtx_id}")
 def assign_department(

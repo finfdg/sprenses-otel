@@ -120,6 +120,15 @@ buraya taşındı (router→router/service import yönü korunur); `_helpers.py`
 `test_credit_bch_create_via_approval_generates_plan`, `test_credit_payment_update_via_approval`,
 `test_credit_product_delete_via_approval`. Davranış router ile birebir.
 
+**Close/Reopen sapması + broadcast (2026-07-01 denetim, KRİTİK):** close/reopen endpoint'leri onay
+payload'ını `{"action": "close"|"reopen"}` olarak gönderir; ama executor `update` dalı bunu OKUMUYORDU →
+`apply_product_update` `action`'ı anlamsız bir attribute'a `setattr` edip `status`'ü DEĞİŞTİRMİYOR,
+ödenmemiş taksit FE'lerini invalidate/re-upsert ETMİYORDU → **onaylı kapatma/açma sessizce çalışmıyordu.**
+Düzeltme (D1-2 deseni): mantık `credit_service.close_product`/`reopen_product`'a çıkarıldı; router endpoint'i
++ executor `action` dalı AYNI fonksiyonu çağırır. Regresyon: `test_credit_close_reopen_via_approval_actually_toggles`.
+Ayrıca **ürün + ödeme CRUD** (create/update/delete) artık `broadcast_finance_update(..., BroadcastModule.CREDITS, ...)`
+çağırır (eskiden yalnız close/reopen ediyordu → açık sekmeler kredi CRUD'unda gerçek-zamanlı güncellenmiyordu).
+
 **Cariler dilimi (aynı desen):** `app/services/vendor_service.py::apply_vendor_update` — cari
 vade/durum güncelleme tek kaynak. Router (`cariler/vendors.py` payment-days + status endpoint'leri) ve
 `_handle_finance_cariler` ORTAK çağırır: alanları uygula → vade değiştiyse işlem ödeme tarihlerini

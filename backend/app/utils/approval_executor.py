@@ -311,7 +311,15 @@ def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
         product = db.query(CreditProduct).filter(CreditProduct.id == entity_id).first()
         if not product:
             raise ValueError(f"Kredi ürünü bulunamadı: {entity_id}")
-        credit_service.apply_product_update(db, product, payload)
+        # Router close/reopen özel `action` payload'ı gönderir (alan güncellemesi DEĞİL) →
+        # ortak service'in close_product/reopen_product'ını çağır (status + FE yan etkileri).
+        action = payload.get("action")
+        if action == "close":
+            credit_service.close_product(db, product, payload.get("closed_date"))
+        elif action == "reopen":
+            credit_service.reopen_product(db, product)
+        else:
+            credit_service.apply_product_update(db, product, payload)
     elif action_type == "delete":
         product = db.query(CreditProduct).filter(CreditProduct.id == entity_id).first()
         if product:

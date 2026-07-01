@@ -303,6 +303,41 @@ def delete_product(db: Session, product: CreditProduct) -> None:
     db.delete(product)
 
 
+def close_product(db: Session, product: CreditProduct, closed_date) -> int:
+    """Krediyi kapat: status='closed' + closed_date + ödenmemiş taksit finance_events'lerini
+    invalidate (nakit akımdan çıkar). Döner: çıkarılan ödenmemiş taksit sayısı.
+
+    Router (close_product endpoint) ve onay executor (_handle_finance_krediler action='close')
+    ORTAK çağırır — böylece onaylı kapatma da status'ü GERÇEKTEN değiştirir + FE'leri invalidate eder
+    (eski executor `action` alanını okumuyordu → onaylı kapatma sessizce çalışmıyordu)."""
+    product.status = "closed"
+    product.closed_date = _coerce_date(closed_date)
+    unpaid = (
+        db.query(CreditPayment)
+        .filter(CreditPayment.credit_product_id == product.id, CreditPayment.is_paid.is_(False))
+        .all()
+    )
+    for pay in unpaid:
+        finance_event_svc.invalidate(db, "credit", pay.id)
+    return len(unpaid)
+
+
+def reopen_product(db: Session, product: CreditProduct) -> int:
+    """Kapalı krediyi yeniden aç: status='active' + closed_date=None + ödenmemiş taksit
+    finance_events'lerini re-upsert (nakit akıma geri getir). Döner: geri eklenen taksit sayısı.
+    Router ve onay executor ORTAK çağırır."""
+    product.status = "active"
+    product.closed_date = None
+    unpaid = (
+        db.query(CreditPayment)
+        .filter(CreditPayment.credit_product_id == product.id, CreditPayment.is_paid.is_(False))
+        .all()
+    )
+    for pay in unpaid:
+        finance_event_svc.upsert_credit_payment(db, pay, product)
+    return len(unpaid)
+
+
 def apply_payment_update(db: Session, payment: CreditPayment, update_data: dict) -> None:
     """Ödeme alanlarını uygula + finance_event tazele + ödendi değişiminde kalan borcu ayarla."""
     was_paid = payment.is_paid

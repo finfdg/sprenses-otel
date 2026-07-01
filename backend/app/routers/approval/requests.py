@@ -1,6 +1,7 @@
 """Onay Akışı — onay talebi endpoint'leri (gönderme, onaylama, reddetme, iade, iptal)."""
 
 import json
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -42,6 +43,8 @@ from app.websocket.manager import manager
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 
 async def _broadcast_approval_update(module_code: Optional[str] = None) -> None:
     """Onay durumu değiştiğinde tüm bağlı kullanıcılara WS event gönder.
@@ -66,7 +69,8 @@ async def _broadcast_approval_update(module_code: Optional[str] = None) -> None:
                 "module_code": module_code,
             })
     except Exception:
-        pass
+        # Best-effort WS broadcast — hata akışı bozmamalı (kardeş approval_check.py ile tutarlı)
+        logger.debug("Onay WS broadcast başarısız", exc_info=True)
 
 
 # --- Yardımcı fonksiyonlar ---

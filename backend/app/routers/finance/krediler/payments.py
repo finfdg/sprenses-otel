@@ -1,6 +1,6 @@
 """Kredi ödeme planı CRUD."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -13,8 +13,10 @@ from app.schemas.credit import (
     CreditPaymentResponse,
     CreditPaymentUpdate,
 )
+from app.constants import BroadcastModule
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.services import credit_service
 
@@ -26,6 +28,7 @@ def add_payments(
     product_id: int,
     data: CreditPaymentBulkCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.krediler", "use")),
 ):
@@ -64,6 +67,7 @@ def add_payments(
         finance_event_svc.upsert_credit_payment(db, cp, product)
     db.commit()
 
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "create")
     return [
         CreditPaymentResponse(
             id=p.id,
@@ -89,6 +93,7 @@ def update_payment(
     payment_id: int,
     data: CreditPaymentUpdate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.krediler", "use")),
 ):
@@ -112,6 +117,7 @@ def update_payment(
     db.commit()
     db.refresh(payment)
 
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "update")
     return CreditPaymentResponse(
         id=payment.id,
         credit_product_id=payment.credit_product_id,
@@ -135,6 +141,7 @@ def update_payment(
 def delete_payment(
     payment_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.krediler", "use")),
 ):
@@ -155,3 +162,5 @@ def delete_payment(
         ip_address=get_client_ip(request),
     )
     db.commit()
+
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "delete")
