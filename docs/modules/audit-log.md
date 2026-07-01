@@ -31,7 +31,7 @@
 ## API Endpoint'leri
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/api/system/audit-logs/` | `system.audit_logs:view` | Paginated + filtrelenebilir (action, entity_type, user_id, start_date, end_date) |
+| GET | `/api/system/audit-logs/` | `system.audit_logs:view` | Paginated + filtrelenebilir (action, entity_type, user_id) |
 
 ## Kullanım (Backend)
 ```python

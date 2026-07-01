@@ -37,13 +37,18 @@
 | Kolon | Tip | Açıklama |
 |---|---|---|
 | `id` | integer PK | |
-| `name` | varchar(100) | Hesap adı (ör. "Garanti Vadesiz TL") |
 | `bank_name` | varchar(100) | Banka adı |
-| `iban` | varchar(34) | IBAN |
+| `branch_name` | varchar(200) | Şube adı |
+| `account_no` | varchar(50) | Hesap no |
+| `iban` | varchar(34) | IBAN (unique) |
 | `currency` | varchar(3) | Para birimi (TRY, USD, EUR) |
-| `balance` | numeric(15,2) | Güncel bakiye |
+| `holder_name` | varchar(300) | Hesap sahibi |
+| `blocked_amount` | numeric(15,2) | Bloke tutar |
 | `is_active` | boolean | Aktif/pasif |
+| `created_by` | integer FK → users | Oluşturan |
 | `created_at` | timestamptz | Oluşturma zamanı |
+
+> **Not:** `bank_accounts`'ta ayrı `balance` kolonu **yoktur** — güncel bakiye hesabın son `bank_transactions.balance` değerinden türetilir.
 
 ### `bank_transactions`
 | Kolon | Tip | Açıklama |
@@ -51,13 +56,13 @@
 | `id` | integer PK | |
 | `account_id` | integer FK → bank_accounts | |
 | `statement_id` | integer FK → bank_statements | |
-| `transaction_date` | date | İşlem tarihi |
+| `date` | date | İşlem tarihi |
 | `description` | text | Açıklama |
 | `amount` | numeric(15,2) | İşlem tutarı (+ giriş, - çıkış) |
 | `balance` | numeric(15,2) | İşlem sonrası bakiye |
 | `receipt_no` | varchar(50) | Fiş/dekont no |
 | `payment_method` | varchar(20) | Ödeme yöntemi (eft, havale, pos, atm) |
-| `tag_category_id` | integer FK → transaction_categories | |
+| `category_id` | integer FK → transaction_categories | Etiket kategorisi |
 | `tag_note` | text | Etiket notu |
 | `match_number` | varchar(50) | Eşleştirme numarası |
 | `created_at` | timestamptz | |
@@ -94,7 +99,6 @@
 | `POST` | `/banks/accounts/{id}/manual-transaction` | use | **Ekstre-dışı (manuel) hareket** — ekstresi gelmemiş işlemi yansıtır; ekstre yüklenince o tarih aralığında **otomatik silinir** (çift kayıt yok). `source='manual'`, audit'li |
 | `GET` | `/banks/accounts/{id}/transactions` | view | İşlem listesi (paginated; yanıt `source`: statement/manual) |
 | `GET` | `/banks/accounts/{id}/statements` | view | Ekstre yükleme geçmişi |
-| `DELETE` | `/banks/accounts/{id}/statements/{stmt_id}` | use | Ekstre sil (işlemler geri alınır) |
 
 ---
 

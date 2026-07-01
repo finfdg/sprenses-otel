@@ -31,7 +31,7 @@ Tüm POST/PATCH/DELETE endpoint'leri `check_approval(db, "system.users", entity_
 ## Performans
 - **Batch response:** Liste endpoint'i `build_user_responses_batch()` kullanır — kullanıcı + rol + izin matrisi tek sorguda (N+1 yok)
 - **joinedload:** `Role` ilişkisi eager load edilir (`system_users.py`)
-- **Pagination:** Varsayılan `page_size=20`, max `100`
+- **Pagination:** Varsayılan `page_size=50`, max `200`
 
 ## Audit Log
 | Action | Entity Type | Details |

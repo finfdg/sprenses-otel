@@ -3,7 +3,7 @@
 ## Genel Bilgi
 - **Modül kodu:** `system.error_logs`
 - **Üst modül:** `system`
-- **Frontend rota:** `/dashboard/sistem/hata-loglari`
+- **Frontend rota:** `/dashboard/sistem/hata-loglar`
 - **Backend prefix:** `/api/system/error-logs`
 - **İzin kodu:** `system.error_logs` — sadece `can_view`
 
@@ -13,28 +13,27 @@
 | Router | `backend/app/routers/error_logs.py` |
 | Model | `backend/app/models/error_log.py` |
 | Middleware | `backend/app/main.py` — global exception handler ErrorLog'a yazar |
-| Frontend | `frontend/src/routes/dashboard/sistem/hata-loglari/+page.svelte` |
+| Frontend | `frontend/src/routes/dashboard/sistem/hata-loglar/+page.svelte` |
 
 ## Veri Modeli
 **`error_logs`**:
 | Kolon | Açıklama |
 |---|---|
 | id | PK |
-| user_id | Etkilenen kullanıcı (NULL olabilir) |
+| level | Seviye (ERROR, CRITICAL, WARNING) |
+| source | Kaynak modül/dosya adı |
+| message | Hata mesajı |
+| traceback | Full traceback (NULL olabilir) |
 | method | HTTP metodu (GET/POST/…) |
 | path | İstek yolu |
-| status_code | HTTP status (500, 503, …) |
-| error_type | Exception sınıf adı |
-| error_message | Exception mesajı |
-| stack_trace | Full traceback |
-| request_body | İstek gövdesi (sensitive alanlar maskelenir) |
+| user_id | Etkilenen kullanıcı (NULL olabilir) |
 | ip_address | Kaynak IP |
 | created_at | Zaman |
 
 ## API Endpoint'leri
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/api/system/error-logs/` | `system.error_logs:view` | Paginated, error_type/path/user_id/date filtresi |
+| GET | `/api/system/error-logs/` | `system.error_logs:view` | Paginated, `level`/`source`/`search` (mesaj) filtresi |
 | DELETE | `/api/system/error-logs/{id}` | `system.error_logs:use` | Tek kayıt sil |
 | DELETE | `/api/system/error-logs/` | `system.error_logs:use` | Tümünü temizle |
 

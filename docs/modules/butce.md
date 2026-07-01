@@ -80,10 +80,12 @@ Unique constraint: `(department_id, category_id, year, month)`
 - Bütçe kaydı `(department_id, category_id, year, month)` dörtlüsüne göre unique
 - POST `/` ve POST `/bulk` upsert yapar: kayıt varsa `planned_amount` güncellenir, yoksa yeni oluşturulur
 - Upsert sırasında `actual_amount` değiştirilmez (gerçekleşen tutar fatura/ödeme entegrasyonuyla güncellenir)
+- **Her ikisi de `budget_service.upsert_budget` (kompozit-anahtar) kullanır** — router + onay executor ORTAK; elle `Budget()` insert/update yoktur (çift-bütçe drift'i engellenir)
+- **Onay akışı:** Hem POST `/` hem POST `/bulk` `check_approval`'dan geçer (bulk grid'deki her hücre kaydının normal yoludur, operasyonel içe-aktarma değil → onaydan muaf DEĞİL). Executor `_target="bulk"` dalı bulk payload'ını birebir yeniden uygular. (2026-07-01 denetim düzeltmesi.)
 
 ### Kategori Silme
-- Bütçe kaydında veya faturada kullanılan kategori silinemez
-- Silme öncesi `budgets` ve `invoices` tablolarında kullanım kontrolü yapılır
+- Bütçe kaydında veya cari işleminde kullanılan kategori silinemez
+- Silme öncesi `budgets` ve `vendor_transactions` (`budget_category_id`) tablolarında kullanım kontrolü yapılır
 
 ### finance_events Entegrasyonu
 - Bütçe modülü şu an `finance_events` tablosuna yazmaz (para hareketi değil, planlama verisi)

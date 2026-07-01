@@ -51,7 +51,7 @@
 | `currency` | varchar(3) | Döviz kodu |
 | `amount_currency` | numeric(15,2) | Döviz tutarı |
 | `transaction_type` | varchar(50) | İşlem tipi |
-| `status` | varchar(20) | Durum: pending, cashed, returned, cancelled |
+| `status` | varchar(20) | Durum: pending, paid, cancelled |
 | `bank_transaction_id` | integer FK → bank_transactions | Banka eşleşmesi |
 | `created_at` | timestamptz | |
 
@@ -82,8 +82,9 @@
 | `DELETE` | `/checks/uploads/{id}` | use | Yükleme sil (çekler geri alınır) |
 | `GET` | `/checks/` | view | Çek listesi (paginated, durum/tarih filtresi) |
 | `GET` | `/checks/summary` | view | Özet (toplam tutar, durum bazlı) |
-| `PATCH` | `/checks/{id}/status` | use | Durum güncelle (cashed, returned, cancelled) |
+| `PATCH` | `/checks/{id}/status` | use | Durum güncelle (paid, cancelled) |
 | `POST` | `/checks/match-bank` | use | Banka işlemleriyle otomatik eşleştir |
+| `GET` | `/checks/number-anomalies` | view | Çek no ↔ açıklama-no uyuşmazlıkları (tespit) |
 
 ---
 
@@ -185,7 +186,7 @@ use, onaydan muaf, audit'li).
    olan en yakın işlemi bul
 3. Eşleşme bulunursa:
    - `check.bank_transaction_id = best_match.id`
-   - `check.status = "cashed"`
+   - `check.status = "paid"`
    - `finance_event_svc.match(db, "bank", btx_id, "check", check_id)` çağrılır
 
 ### Ne zaman çalışır — boşluk düzeltmesi (2026-06-06)
@@ -223,7 +224,7 @@ finance_event_svc.upsert_check(db, check, bank_tx=None)
 | `event_status` | `check.status` |
 | `vendor_code` | `check.vendor_code` |
 | `check_no` | `check.check_no` |
-| `is_realized` | `True` (cashed/returned) veya `False` (pending) |
+| `is_realized` | `True` (paid) veya `False` (pending) |
 | `is_matched` | `True` (banka eşleşmesi varsa) |
 
 ---
@@ -231,10 +232,9 @@ finance_event_svc.upsert_check(db, check, bank_tx=None)
 ## Durum Geçişleri
 
 ```
-pending → cashed    (banka işlemi eşleşti)
-pending → returned  (çek iade edildi)
+pending → paid      (banka işlemi eşleşti / tahsil edildi)
 pending → cancelled (iptal edildi)
-cashed  → (nihai durum)
+paid    → pending   (eşleşme/tahsil geri alındı)
 ```
 
 Durum değişikliğinde `finance_event_svc.upsert_check(db, check)` yeniden çağrılır.

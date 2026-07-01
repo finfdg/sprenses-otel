@@ -23,10 +23,10 @@
 | `app/routers/finance/krediler/payments.py` | Ödeme planı CRUD (`POST /{id}/payments`, `PATCH/DELETE /payments/{id}`) + `_match_credits_to_bank` |
 | `app/routers/finance/krediler/kmh.py` | KMH durumu (`GET /{id}/kmh-status`) |
 | `app/routers/finance/krediler/summary.py` | Tip bazlı özet + yaklaşan ödemeler (`/summary/by-type`, `/upcoming-payments`) |
-| `app/routers/finance/krediler/_helpers.py` | Paylaşılan yardımcılar (`_build_product_response`, `_batch_payment_stats`, `_regenerate_bch_payments`, `_regenerate_kmh_payments`) |
+| `app/routers/finance/krediler/_helpers.py` | Sunum yardımcıları (`_build_product_response`, `_batch_payment_stats`) |
+| `app/services/credit_service.py` | Ürün/ödeme CRUD + BCH/KMH plan üreticileri (`_regenerate_bch_payments`/`_regenerate_kmh_payments`) — router + onay executor ORTAK |
 | `app/routers/finance/cc_statements.py` | Kredi kartı ekstre yükleme (PDF) |
-| `app/models/credit_product.py` | `CreditProduct` modeli |
-| `app/models/credit_payment.py` | `CreditPayment` modeli |
+| `app/models/credit_product.py` | `CreditProduct` **ve** `CreditPayment` modelleri (ikisi de bu dosyada) |
 | `app/models/credit_card_statement.py` | `CreditCardStatement`, `CreditCardTransaction` modelleri |
 | `app/utils/cc_statement_parser.py` | PDF ekstre ayrıştırıcı |
 | `app/schemas/credit.py` | Pydantic şemalar |
@@ -45,30 +45,43 @@
 | Kolon | Tip | Açıklama |
 |---|---|---|
 | `id` | integer PK | |
-| `name` | varchar(100) | Ürün adı (ör. "Garanti Bankası Konut Kredisi") |
-| `type` | varchar(20) | `kredi` veya `kredi_karti` |
+| `type` | varchar(30) | Kredi tipi (`bch`, `kmh`, `kredi_karti` vb.) |
+| `name` | varchar(200) | Ürün adı |
 | `bank_name` | varchar(100) | Banka adı |
-| `currency` | varchar(3) | Para birimi |
-| `principal` | numeric(15,2) | Ana para |
-| `interest_rate` | numeric(5,2) | Faiz oranı (%) |
+| `company` | varchar(200) | Firma |
+| `currency` | varchar(5) | Para birimi |
+| `total_amount` | numeric(15,2) | Toplam kredi tutarı |
+| `remaining_amount` | numeric(15,2) | Kalan tutar |
+| `interest_rate` | numeric(6,4) | Faiz oranı (%) |
+| `bsmv_rate` | numeric(6,4) | BSMV oranı (%) |
+| `commission_rate` | numeric(6,4) | Komisyon oranı (%) |
+| `linked_account_id` | integer FK → bank_accounts | KMH bağlı hesap |
 | `start_date` | date | Başlangıç tarihi |
 | `end_date` | date | Bitiş tarihi |
-| `details` | jsonb | Türe özgü ek bilgiler (kart_no_son4 vb.) |
-| `is_active` | boolean | Aktif/pasif |
-| `created_at` | timestamptz | |
+| `status` | varchar(20) | `active` / `closed` |
+| `closed_date` | date | Kapatılma tarihi (`status='closed'` olunca) |
+| `details` | text | Türe özgü ek bilgiler |
+| `notes` | text | Notlar |
+| `created_by` | integer FK → users | |
+| `created_at` / `updated_at` | timestamptz | |
 
 ### `credit_payments`
 | Kolon | Tip | Açıklama |
 |---|---|---|
 | `id` | integer PK | |
 | `credit_product_id` | integer FK | |
-| `payment_date` | date | Ödeme tarihi |
+| `installment_no` | integer | Taksit no |
+| `due_date` | date | Vade tarihi |
 | `amount` | numeric(15,2) | Toplam taksit |
-| `principal_amount` | numeric(15,2) | Ana para payı |
-| `interest_amount` | numeric(15,2) | Faiz payı |
-| `remaining_balance` | numeric(15,2) | Kalan bakiye |
-| `status` | varchar(20) | pending, paid, overdue |
+| `principal` | numeric(15,2) | Ana para payı |
+| `interest` | numeric(15,2) | Faiz payı |
+| `bsmv` | numeric(15,2) | BSMV payı |
+| `commission` | numeric(15,2) | Komisyon payı |
+| `is_paid` | boolean | Ödendi mi |
+| `paid_date` | date | Ödenme tarihi |
 | `bank_transaction_id` | integer FK → bank_transactions | Banka eşleşmesi |
+| `match_number` | integer | Eşleştirme numarası |
+| `notes` | varchar(300) | |
 | `created_at` | timestamptz | |
 
 ### `credit_card_statements`
