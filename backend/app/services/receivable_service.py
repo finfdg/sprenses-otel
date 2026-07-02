@@ -105,11 +105,12 @@ def _group_map(db: Session) -> dict:
 
 
 def _advance_by_code(db: Session, firm_names: dict, rates: dict) -> dict:
-    """customer_code → kalan avans TL karşılığı.
+    """customer_code → {"tl": TL karşılığı toplam, "native": {para_birimi: native kalan}}.
 
     340 'Alınan Avanslar' (SalesAdvance) kayıtları muhasebe cari ADLARIYLA tutulur ve 120
     adlarıyla aynı evrendir → `_norm_tokens` alt-küme eşlemesi güvenilir (satis-faturalari
-    `_merged_advances` ile aynı desen). Native kalan → son TCMB forex_selling ile TL'ye çevrilir.
+    `_merged_advances` ile aynı desen). TL karşılığı son TCMB forex_selling ile; native kırılım
+    tek-para-birimli firmalarda € gösterim için taşınır.
     """
     firm_tokens = {code: _norm_tokens(name or code) for code, name in firm_names.items()}
     out: dict = {}
@@ -131,8 +132,11 @@ def _advance_by_code(db: Session, firm_names: dict, rates: dict) -> dict:
             if score > best_score:
                 best, best_score = code, score
         if best:
-            rate = rates.get((a.currency or "TL").strip() or "TL", 1.0)
-            out[best] = round(out.get(best, 0.0) + rem * rate, 2)
+            cur = (a.currency or "TL").strip() or "TL"
+            rate = rates.get(cur, 1.0)
+            slot = out.setdefault(best, {"tl": 0.0, "native": {}})
+            slot["tl"] = round(slot["tl"] + rem * rate, 2)
+            slot["native"][cur] = round(slot["native"].get(cur, 0.0) + rem, 2)
     return out
 
 
@@ -182,17 +186,22 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
             "is_default_term": inv.customer_code not in terms,
             "currencies": set(),
             "open_tl": 0.0, "overdue_tl": 0.0,
+            "open_native": 0.0, "overdue_native": 0.0,  # tek para birimli firmada € gösterim için
             "max_overdue_days": 0, "next_due_date": None,
             "invoice_count": 0,
             "buckets": {BUCKET_NOT_DUE: 0.0, BUCKET_1_7: 0.0, BUCKET_8_30: 0.0, BUCKET_30_PLUS: 0.0},
         })
+        native_amt = _f(inv.amount_currency) or _f(inv.amount)
+        remaining_native = round(native_amt - _f(st.get("collected", 0)), 2)
         f["currencies"].add(inv.currency)
         f["open_tl"] = round(f["open_tl"] + remaining_tl, 2)
+        f["open_native"] = round(f["open_native"] + remaining_native, 2)
         f["invoice_count"] += 1
         f["buckets"][bucket] = round(f["buckets"][bucket] + remaining_tl, 2)
         summary_buckets[bucket] = round(summary_buckets[bucket] + remaining_tl, 2)
         if overdue > 0:
             f["overdue_tl"] = round(f["overdue_tl"] + remaining_tl, 2)
+            f["overdue_native"] = round(f["overdue_native"] + remaining_native, 2)
             f["max_overdue_days"] = max(f["max_overdue_days"], overdue)
         else:
             if f["next_due_date"] is None or due < f["next_due_date"]:
@@ -200,16 +209,41 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
             if (due - today).days <= 7:
                 due_7d_tl = round(due_7d_tl + remaining_tl, 2)
 
-    # Avans düşme: firma bazlı kalan avans (340, isim-eşli) TL karşılığı → net açık
+    # Avans düşme: firma bazlı kalan avans (340, isim-eşli) → net açık.
+    # TEK para birimli firmada tutarlar NATIVE (€) de taşınır — fatura detayı ile aynı birim
+    # (TL karşılığı fatura-tarihi kurundandır, kullanıcıya karışık görünüyordu; 2026-07-02 geri bildirimi).
     rates = _latest_rates(db)
     advances = _advance_by_code(db, {c: f["name"] for c, f in firms.items()}, rates)
     for code, f in firms.items():
-        f["advance_tl"] = advances.get(code, 0.0)
+        adv = advances.get(code)
+        f["advance_tl"] = adv["tl"] if adv else 0.0
         f["net_open_tl"] = round(max(0.0, f["open_tl"] - f["advance_tl"]), 2)
         f["currencies"] = sorted(f["currencies"])
         f["next_due_date"] = f["next_due_date"].isoformat() if f["next_due_date"] else None
         f["is_group"] = False
         f["members"] = []
+
+        # display_currency: firmanın TÜM faturaları tek (TRY-dışı) para birimindeyse o birim
+        single = f["currencies"][0] if len(f["currencies"]) == 1 else None
+        f["display_currency"] = single if single not in (None, "TL", "TRY") else None
+        if f["display_currency"]:
+            cur = f["display_currency"]
+            if adv:
+                nat = adv["native"]
+                if set(nat) <= {cur}:  # avans da aynı birimde → birebir native
+                    adv_native = nat.get(cur, 0.0)
+                else:  # farklı birimde avans → güncel kurla firma birimine çevir (yaklaşık)
+                    rate = rates.get(cur, 0.0)
+                    adv_native = (adv["tl"] / rate) if rate else 0.0
+            else:
+                adv_native = 0.0
+            f["advance_native"] = round(adv_native, 2)
+            f["net_open_native"] = round(max(0.0, f["open_native"] - adv_native), 2)
+        else:
+            f["open_native"] = None
+            f["overdue_native"] = None
+            f["advance_native"] = None
+            f["net_open_native"] = None
 
     # Gruplama: rezervasyon acente grupları (agency_groups) → PMS-ad köprüsüyle 120 kodları
     gmap = _group_map(db)
@@ -251,6 +285,20 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
     for row in grouped.values():
         row["currencies"] = sorted(row["currencies"])
         row["net_open_tl"] = round(max(0.0, row["open_tl"] - row["advance_tl"]), 2)
+        # Grup native gösterimi: TÜM üyeler aynı (TRY-dışı) tek para birimindeyse üye native'leri topla
+        member_codes = [m["code"] for m in row["members"]]
+        member_fs = [firms[c] for c in member_codes]
+        dcs = {mf["display_currency"] for mf in member_fs}
+        if len(dcs) == 1 and None not in dcs:
+            row["display_currency"] = dcs.pop()
+            row["open_native"] = round(sum(mf["open_native"] for mf in member_fs), 2)
+            row["overdue_native"] = round(sum(mf["overdue_native"] for mf in member_fs), 2)
+            row["advance_native"] = round(sum(mf["advance_native"] for mf in member_fs), 2)
+            row["net_open_native"] = round(max(0.0, row["open_native"] - row["advance_native"]), 2)
+        else:
+            row["display_currency"] = None
+            row["open_native"] = row["overdue_native"] = None
+            row["advance_native"] = row["net_open_native"] = None
         firm_list.append(row)
 
     # En sorunlu (gecikmiş tutarı en yüksek) üstte; eşitlikte net açık tutara göre
@@ -260,10 +308,20 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
                        + summary_buckets[BUCKET_30_PLUS], 2)
     advance_total = round(sum(x["advance_tl"] for x in firm_list), 2)
     open_total = round(sum(x["open_tl"] for x in firm_list), 2)
+    # Para birimi kırılımı (kartlarda "€X + ₺Y" ipucu için): tek-birimli firmalar native,
+    # karışık firmalar TL karşılığıyla TRY kovasına
+    open_by_currency: dict = {}
+    for x in firm_list:
+        if x["display_currency"]:
+            k = x["display_currency"]
+            open_by_currency[k] = round(open_by_currency.get(k, 0.0) + x["open_native"], 2)
+        else:
+            open_by_currency["TRY"] = round(open_by_currency.get("TRY", 0.0) + x["open_tl"], 2)
     return {
         "firms": firm_list,
         "summary": {
             "open_tl": open_total,
+            "open_by_currency": open_by_currency,
             "advance_tl": advance_total,
             "net_open_tl": round(sum(x["net_open_tl"] for x in firm_list), 2),
             "overdue_tl": overdue_tl,

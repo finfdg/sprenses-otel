@@ -60,6 +60,21 @@
 	function fmt(n: number): string {
 		return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 	}
+	// Firma tek para birimliyse native (€), karışıksa TL karşılığı (fatura tarihi kuru)
+	function money(f: any, field: 'open' | 'overdue' | 'advance' | 'net_open'): string {
+		if (f.display_currency) {
+			const sym = CURRENCY_SYMBOLS[f.display_currency] ?? f.display_currency;
+			return `${sym}${fmt(f[`${field}_native`])}`;
+		}
+		return `₺${fmt(f[`${field}_tl`])}`;
+	}
+	function currencyBreakdown(byCur: Record<string, number> | undefined): string {
+		if (!byCur) return '';
+		return Object.entries(byCur)
+			.sort((a, b) => b[1] - a[1])
+			.map(([c, v]) => `${CURRENCY_SYMBOLS[c] ?? c}${fmt(v)}`)
+			.join(' + ');
+	}
 	function fmtDate(s: string | null): string {
 		if (!s) return '—';
 		const [y, m, d] = s.split('-');
@@ -179,7 +194,7 @@
 <!-- Özet kartları -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 	<StatCard label="Açık Hak Ediş" value={`₺${fmt(summary?.open_tl ?? 0)}`} icon={Receipt} accent="teal"
-		hint={`${summary?.firm_count ?? 0} firma/grup`} />
+		hint={`${currencyBreakdown(summary?.open_by_currency)} · ${summary?.firm_count ?? 0} firma/grup`} />
 	<StatCard label="Alınan Avans (eşlenen)" value={`₺${fmt(summary?.advance_tl ?? 0)}`} icon={Wallet} accent="blue"
 		hint="340 hesabı, güncel kurla" />
 	<StatCard label="Net Açık (avans sonrası)" value={`₺${fmt(summary?.net_open_tl ?? 0)}`} icon={Scale} accent="teal" />
@@ -262,15 +277,17 @@
 								{/if}
 							</span>
 						</td>
-						<td class="px-4 py-3 text-right tabular-nums">₺{fmt(f.open_tl)}</td>
+						<td class="px-4 py-3 text-right tabular-nums" title={f.display_currency ? `TL karşılığı (fatura tarihi kuru): ₺${fmt(f.open_tl)}` : undefined}>
+							{money(f, 'open')}
+						</td>
 						<td class="px-4 py-3 text-right tabular-nums {f.advance_tl > 0 ? 'text-blue-700' : 'text-gray-500'}">
-							{f.advance_tl > 0 ? `₺${fmt(f.advance_tl)}` : '—'}
+							{f.advance_tl > 0 ? money(f, 'advance') : '—'}
 						</td>
 						<td class="px-4 py-3 text-right tabular-nums font-semibold {f.net_open_tl > 0 ? 'text-gray-900' : 'text-green-700'}">
-							₺{fmt(f.net_open_tl)}
+							{money(f, 'net_open')}
 						</td>
 						<td class="px-4 py-3 text-right tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}">
-							{f.overdue_tl > 0 ? `₺${fmt(f.overdue_tl)}` : '—'}
+							{f.overdue_tl > 0 ? money(f, 'overdue') : '—'}
 						</td>
 						<td class="px-4 py-3">
 							<StatusBadge type={overdueBadge(f.max_overdue_days)}>
@@ -349,11 +366,11 @@
 					</StatusBadge>
 				</div>
 				<div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-					<div><span class="text-gray-500">Açık:</span> <span class="tabular-nums">₺{fmt(f.open_tl)}</span></div>
-					<div><span class="text-gray-500">Avans:</span> <span class="tabular-nums text-blue-700">₺{fmt(f.advance_tl)}</span></div>
-					<div><span class="text-gray-500">Net Açık:</span> <span class="tabular-nums font-semibold">₺{fmt(f.net_open_tl)}</span></div>
+					<div><span class="text-gray-500">Açık:</span> <span class="tabular-nums">{money(f, 'open')}</span></div>
+					<div><span class="text-gray-500">Avans:</span> <span class="tabular-nums text-blue-700">{money(f, 'advance')}</span></div>
+					<div><span class="text-gray-500">Net Açık:</span> <span class="tabular-nums font-semibold">{money(f, 'net_open')}</span></div>
 					<div><span class="text-gray-500">Geciken:</span>
-						<span class="tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : ''}">₺{fmt(f.overdue_tl)}</span></div>
+						<span class="tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : ''}">{money(f, 'overdue')}</span></div>
 					<div><span class="text-gray-500">Vade:</span> {f.term_days === null ? 'karma' : `${f.term_days} gün${f.is_default_term ? ' (vars.)' : ''}`}</div>
 				</div>
 				{#if canUse}

@@ -186,3 +186,42 @@ class TestRBAC:
 
     def test_viewer_can_read(self, client, viewer_user_headers):
         assert client.get(f"{PREFIX}/", headers=viewer_user_headers).status_code == 200
+
+
+class TestNativeCurrencyDisplay:
+    def test_single_currency_firm_gets_native_fields(self, client, auth_headers, db):
+        """Tek para birimli (EUR) firmada open/overdue/net native (€) alanları döner —
+        fatura detayıyla aynı birim (2026-07-02 geri bildirimi: 'faturalar EUR, başlık neden TL')."""
+        from datetime import date, timedelta
+        today = date.today()
+        inv = _mk_invoice(db, "120.95.01.E001", "EURO TEST GMBH",
+                          today - timedelta(days=40), 53000, currency="EUR", invoice_no="E1")
+        inv.amount_currency = 1000  # €1.000 (TL karşılığı 53.000)
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        row = next(f for f in r.json()["firms"] if f["code"] == "120.95.01.E001")
+        assert row["display_currency"] == "EUR"
+        assert row["open_native"] == 1000
+        assert row["overdue_native"] == 1000  # 40g > 30g vade
+        assert row["net_open_native"] == 1000  # avans yok
+        assert row["open_tl"] == 53000  # TL karşılığı korunur (tooltip/toplamlar)
+        assert "open_by_currency" in r.json()["summary"]
+
+    def test_mixed_currency_firm_has_no_native(self, client, auth_headers, db):
+        from datetime import date, timedelta
+        today = date.today()
+        _mk_invoice(db, "120.95.02.M001", "KARMA TEST", today - timedelta(days=5), 1000, currency="TRY", invoice_no="M1")
+        inv2 = _mk_invoice(db, "120.95.02.M001", "KARMA TEST", today - timedelta(days=6), 5300, currency="EUR", invoice_no="M2")
+        inv2.amount_currency = 100
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        row = next(f for f in r.json()["firms"] if f["code"] == "120.95.02.M001")
+        assert row["display_currency"] is None
+        assert row["open_native"] is None  # karışık → TL gösterilir
+        assert row["open_tl"] == 6300
