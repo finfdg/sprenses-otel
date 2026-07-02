@@ -15,7 +15,7 @@
 	import Field from '$lib/components/Field.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import { Receipt, AlarmClock, CalendarClock, Building2, Pencil, Search, ChevronDown, ChevronRight } from 'lucide-svelte';
+	import { Receipt, AlarmClock, Wallet, Scale, Pencil, Search, ChevronDown, ChevronRight, Users } from 'lucide-svelte';
 
 	// Sabitler
 	const BUCKET_LABELS: Record<string, string> = {
@@ -106,7 +106,7 @@
 	// CRUD — vade tanımı
 	function openTermEdit(firm: any) {
 		termFirm = firm;
-		termDays = firm.term_days;
+		termDays = firm.term_days ?? 30; // grup "karma" ise 30'dan başla
 		termNotes = '';
 		fieldErrors = {};
 		termModalOpen = true;
@@ -120,13 +120,21 @@
 		}
 		termSaving = true;
 		try {
-			const resp: any = await api.patch(`/finance/hakedis/terms/${encodeURIComponent(termFirm.code)}`, {
-				term_days: termDays, notes: termNotes || null
-			});
-			if (resp?.approval_required || resp?.request_id) {
-				showToast('Vade değişikliği onaya gönderildi', 'info');
+			// Grup satırında vade TÜM üye firmalara uygulanır (her kod kendi onay kontrolünden geçer)
+			const codes: string[] = termFirm.is_group
+				? termFirm.members.map((m: any) => m.code)
+				: [termFirm.code];
+			let approvals = 0;
+			for (const code of codes) {
+				const resp: any = await api.patch(`/finance/hakedis/terms/${encodeURIComponent(code)}`, {
+					term_days: termDays, notes: termNotes || null
+				});
+				if (resp?.approval_required || resp?.request_id) approvals++;
+			}
+			if (approvals > 0) {
+				showToast(`${approvals} vade değişikliği onaya gönderildi`, 'info');
 			} else {
-				showToast('Vade güncellendi', 'success');
+				showToast(codes.length > 1 ? `${codes.length} firmanın vadesi güncellendi` : 'Vade güncellendi', 'success');
 			}
 			termModalOpen = false;
 			await loadData();
@@ -171,11 +179,12 @@
 <!-- Özet kartları -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 	<StatCard label="Açık Hak Ediş" value={`₺${fmt(summary?.open_tl ?? 0)}`} icon={Receipt} accent="teal"
-		hint={`${summary?.firm_count ?? 0} firma`} />
+		hint={`${summary?.firm_count ?? 0} firma/grup`} />
+	<StatCard label="Alınan Avans (eşlenen)" value={`₺${fmt(summary?.advance_tl ?? 0)}`} icon={Wallet} accent="blue"
+		hint="340 hesabı, güncel kurla" />
+	<StatCard label="Net Açık (avans sonrası)" value={`₺${fmt(summary?.net_open_tl ?? 0)}`} icon={Scale} accent="teal" />
 	<StatCard label="Vadesi Geçen" value={`₺${fmt(summary?.overdue_tl ?? 0)}`} icon={AlarmClock} accent="red"
-		hint={`${summary?.overdue_firm_count ?? 0} firma gecikmede`} />
-	<StatCard label="7 Gün İçinde Vadesi Dolan" value={`₺${fmt(summary?.due_7d_tl ?? 0)}`} icon={CalendarClock} accent="amber" />
-	<StatCard label="30+ Gün Geciken" value={`₺${fmt(summary?.buckets?.overdue_30_plus ?? 0)}`} icon={Building2} accent="red" />
+		hint={`${summary?.overdue_firm_count ?? 0} firma · 7 gün içinde ₺${fmt(summary?.due_7d_tl ?? 0)}`} />
 </div>
 
 <!-- Filtre barı -->
@@ -210,12 +219,13 @@
 			<thead>
 				<tr class="border-b border-gray-200 text-left text-gray-600">
 					<th class="px-4 py-3 w-8"></th>
-					<th class="px-4 py-3">Firma</th>
+					<th class="px-4 py-3">Firma / Grup</th>
 					<th class="px-4 py-3">Vade</th>
 					<th class="px-4 py-3 text-right">Açık Tutar</th>
+					<th class="px-4 py-3 text-right">Avans</th>
+					<th class="px-4 py-3 text-right">Net Açık</th>
 					<th class="px-4 py-3 text-right">Vadesi Geçen</th>
 					<th class="px-4 py-3">Gecikme</th>
-					<th class="px-4 py-3">Sonraki Vade</th>
 					<th class="px-4 py-3 text-right">Fatura</th>
 				</tr>
 			</thead>
@@ -226,13 +236,22 @@
 							{#if expanded[f.code]}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
 						</td>
 						<td class="px-4 py-3">
-							<div class="font-medium text-gray-900">{f.name || f.code}</div>
-							<div class="text-xs text-gray-500 font-mono">{f.code} · {f.currencies.join(', ')}</div>
+							<div class="font-medium text-gray-900 flex items-center gap-2">
+								{f.name || f.code}
+								{#if f.is_group}
+									<span class="inline-flex items-center gap-1 text-xs font-normal text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5">
+										<Users size={11} /> Grup · {f.members.length} firma
+									</span>
+								{/if}
+							</div>
+							<div class="text-xs text-gray-500 font-mono">
+								{f.is_group ? f.members.map((m: any) => m.code).join(' · ') : f.code} · {f.currencies.join(', ')}
+							</div>
 						</td>
 						<td class="px-4 py-3">
 							<span class="inline-flex items-center gap-1.5">
-								<span class="tabular-nums">{f.term_days} gün</span>
-								{#if f.is_default_term}<span class="text-xs text-gray-500">(varsayılan)</span>{/if}
+								<span class="tabular-nums">{f.term_days === null ? 'karma' : `${f.term_days} gün`}</span>
+								{#if f.is_default_term && f.term_days !== null}<span class="text-xs text-gray-500">(varsayılan)</span>{/if}
 								{#if canUse}
 									<button type="button" aria-label={`${f.name || f.code} vadesini düzenle`}
 										onclick={(e) => { e.stopPropagation(); openTermEdit(f); }}
@@ -242,7 +261,13 @@
 								{/if}
 							</span>
 						</td>
-						<td class="px-4 py-3 text-right tabular-nums font-medium">₺{fmt(f.open_tl)}</td>
+						<td class="px-4 py-3 text-right tabular-nums">₺{fmt(f.open_tl)}</td>
+						<td class="px-4 py-3 text-right tabular-nums {f.advance_tl > 0 ? 'text-blue-700' : 'text-gray-500'}">
+							{f.advance_tl > 0 ? `₺${fmt(f.advance_tl)}` : '—'}
+						</td>
+						<td class="px-4 py-3 text-right tabular-nums font-semibold {f.net_open_tl > 0 ? 'text-gray-900' : 'text-green-700'}">
+							₺{fmt(f.net_open_tl)}
+						</td>
 						<td class="px-4 py-3 text-right tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}">
 							{f.overdue_tl > 0 ? `₺${fmt(f.overdue_tl)}` : '—'}
 						</td>
@@ -251,18 +276,18 @@
 								{f.max_overdue_days > 0 ? `${f.max_overdue_days} gün` : 'Vadesinde'}
 							</StatusBadge>
 						</td>
-						<td class="px-4 py-3 tabular-nums text-gray-700">{fmtDate(f.next_due_date)}</td>
 						<td class="px-4 py-3 text-right tabular-nums text-gray-700">{f.invoice_count}</td>
 					</tr>
 					{#if expanded[f.code]}
 						<tr class="border-b border-gray-100 bg-gray-50/60">
-							<td colspan="8" class="px-6 py-3">
+							<td colspan="9" class="px-6 py-3">
 								{#if invoiceLoading[f.code]}
 									<TableSkeleton rows={3} columns={6} />
 								{:else}
 									<table class="w-full text-xs">
 										<thead>
 											<tr class="text-left text-gray-600">
+												{#if f.is_group}<th class="py-1.5 pr-3">Firma</th>{/if}
 												<th class="py-1.5 pr-3">Fatura No</th>
 												<th class="py-1.5 pr-3">Tarih</th>
 												<th class="py-1.5 pr-3">Vade</th>
@@ -274,6 +299,9 @@
 										<tbody>
 											{#each invoicesByFirm[f.code] || [] as inv (inv.id)}
 												<tr class="border-t border-gray-100">
+													{#if f.is_group}
+														<td class="py-1.5 pr-3 text-gray-700">{(inv.customer_name || inv.customer_code || '').slice(0, 26)}</td>
+													{/if}
 													<td class="py-1.5 pr-3 font-mono">{inv.invoice_no || '—'}</td>
 													<td class="py-1.5 pr-3 tabular-nums">{fmtDate(inv.invoice_date)}</td>
 													<td class="py-1.5 pr-3 tabular-nums">{fmtDate(inv.due_date)}</td>
@@ -311,18 +339,21 @@
 				<div class="flex items-start justify-between gap-2">
 					<div>
 						<div class="font-medium text-gray-900">{f.name || f.code}</div>
-						<div class="text-xs text-gray-500 font-mono">{f.code}</div>
+						<div class="text-xs text-gray-500 font-mono">
+							{f.is_group ? `Grup · ${f.members.length} firma` : f.code}
+						</div>
 					</div>
 					<StatusBadge type={overdueBadge(f.max_overdue_days)}>
 						{f.max_overdue_days > 0 ? `${f.max_overdue_days} gün` : 'Vadesinde'}
 					</StatusBadge>
 				</div>
 				<div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-					<div><span class="text-gray-500">Açık:</span> <span class="tabular-nums font-medium">₺{fmt(f.open_tl)}</span></div>
+					<div><span class="text-gray-500">Açık:</span> <span class="tabular-nums">₺{fmt(f.open_tl)}</span></div>
+					<div><span class="text-gray-500">Avans:</span> <span class="tabular-nums text-blue-700">₺{fmt(f.advance_tl)}</span></div>
+					<div><span class="text-gray-500">Net Açık:</span> <span class="tabular-nums font-semibold">₺{fmt(f.net_open_tl)}</span></div>
 					<div><span class="text-gray-500">Geciken:</span>
 						<span class="tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : ''}">₺{fmt(f.overdue_tl)}</span></div>
-					<div><span class="text-gray-500">Vade:</span> {f.term_days} gün{f.is_default_term ? ' (vars.)' : ''}</div>
-					<div><span class="text-gray-500">Sonraki:</span> <span class="tabular-nums">{fmtDate(f.next_due_date)}</span></div>
+					<div><span class="text-gray-500">Vade:</span> {f.term_days === null ? 'karma' : `${f.term_days} gün${f.is_default_term ? ' (vars.)' : ''}`}</div>
 				</div>
 				{#if canUse}
 					<div class="mt-3">
@@ -346,6 +377,12 @@
 		<Field label="Not">
 			<Textarea bind:value={termNotes} rows={2} placeholder="ör. 2026 anlaşması — 45 gün" />
 		</Field>
+		{#if termFirm?.is_group}
+			<p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+				Bu bir grup: vade, gruptaki <strong>{termFirm.members.length} firmanın tümüne</strong> uygulanacak
+				({termFirm.members.map((m: any) => m.code).join(', ')}).
+			</p>
+		{/if}
 		<p class="text-xs text-gray-500">
 			Vade, fatura tarihine eklenerek son ödeme tarihini belirler. Sedna'da vade bilgisi tutulmadığından
 			bu tanım yalnız bu sistemde saklanır.

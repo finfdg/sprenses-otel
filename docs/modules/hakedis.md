@@ -62,6 +62,27 @@ Canlı temizlik 2026-07-02: 7 bayat satır / ₺6,57M silindi (ODEON ₺5,8M vir
 ₺616K tarih taşıma + kur farkı). **Kalıcı çözüm (yapılacak):** cari sweep deseni
 (`_sweep_stale_vendor_txns`) sales_invoices import'una da uygulanmalı.
 
+## Acente Gruplama (2026-07-02)
+Rezervasyon modülündeki **acente grupları** (`agency_groups`) hak edişte birleşik satır olarak
+gösterilir (ör. ODEON grubu = ODEON TUR + CORAL SEYAHAT). **Eşleme isimle YAPILMAZ** — PMS adları
+↔ muhasebe adları farklı evren ('CORAL PL' ↔ 'CORAL SEYAHAT A.Ş.'). Köprü: `agency_code_map`
+tablosu (PMS `Agency.Name → AgencyAccCode.AccCode`, `fetch_agency_acc_codes()` ile sales
+import'unda tazelenir). Grup satırı: `is_group=true`, `code="group-{id}"`, `members[]`; üyeler
+farklı vadedeyse `term_days=null` ("karma"). Grup fatura detayı: `GET /firms/group-{id}/invoices`.
+UI'da grup vadesi düzenlenince TÜM üye kodlarına uygulanır (her biri kendi onay kontrolünden geçer).
+
+## Avans Düşme (2026-07-02)
+Firma/grubun **340 'Alınan Avanslar'** kalanı (SalesAdvance, isim-token eşleme — `_merged_advances`
+deseni) son TCMB `forex_selling` kuruyla TL'ye çevrilip açıktan düşülür:
+`net_open_tl = max(0, open_tl - advance_tl)`. Kartlarda ve tabloda Açık / Avans / **Net Açık**
+birlikte gösterilir (ör. ALLTOURS €4,4M avanslı → net 0; FUN&SUN avanssız → net = açık).
+
+## Düzenli Sedna Senkronu (2026-07-02)
+Hak ediş verisi `finance.sales_invoices` import'undan beslenir; artık **otomatik**:
+`cron_sync_sales_invoices.py` + systemd **`sprenses-sales-sync.timer`** (08–22 arası 2 saatte bir,
+Europe/Istanbul; `Persistent=true`). Tünel kapalıysa uyarı loglar, timer düşmez. Topbar'daki
+manuel "Sedna" butonu da aynı import'u çalıştırır. Kurulum: `scripts/systemd/sprenses-sales-sync.*`.
+
 ## Hesaplama Kuralları
 - Fatura vadesi = `invoice_date + term_days` (firma tanımı yoksa 30).
 - **Ödendi (FIFO)** faturalar ve kalanı ≤ 0,01 TL olanlar listeye girmez.

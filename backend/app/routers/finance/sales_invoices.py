@@ -186,6 +186,24 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
         db.rollback()
         logger.warning("340 avans özeti tazelenemedi: %s", e)
 
+    # PMS acente adı → 120 cari kodu köprüsünü tazele (hak ediş gruplaması için; best-effort)
+    try:
+        from app.models.agency_code_map import AgencyCodeMap
+        from app.utils.sedna_client import fetch_agency_acc_codes
+        pairs = fetch_agency_acc_codes()
+        if pairs:
+            db.query(AgencyCodeMap).delete()
+            seen = set()
+            for p in pairs:
+                nm = (p.get("pms_name") or "").strip()
+                if nm and nm not in seen:
+                    seen.add(nm)
+                    db.add(AgencyCodeMap(pms_name=nm[:200], acc_code=(p.get("acc_code") or "")[:50]))
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning("Acente→cari kod köprüsü tazelenemedi: %s", e)
+
     # Yeni fatura/tahsilat eklendi → FIFO cache'i geçersiz kıl (taze veri anında görünsün)
     _invalidate_compute_cache()
 

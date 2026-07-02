@@ -99,6 +99,61 @@ class TestReceivableComputation:
         assert inv["remaining"] == 8000
 
 
+class TestGroupingAndAdvances:
+    def test_agency_grouping_via_bridge(self, client, auth_headers, db):
+        """agency_groups.members (PMS adları) → agency_code_map köprüsü → 120 kodları gruplanır;
+        grup satırı toplamları + üye listesi + grup fatura detayı (`group-{id}`) çalışır."""
+        from app.models.agency_code_map import AgencyCodeMap
+        from app.models.agency_group import AgencyGroup
+
+        today = date.today()
+        _mk_invoice(db, "120.96.01.G001", "GRUP TEST BİR A.Ş.", today - timedelta(days=50), 10000, invoice_no="G1")
+        _mk_invoice(db, "120.96.01.G002", "GRUP TEST İKİ LTD.", today - timedelta(days=10), 4000, invoice_no="G2")
+        db.add(AgencyCodeMap(pms_name="GRUPTEST EU", acc_code="120.96.01.G001"))
+        db.add(AgencyCodeMap(pms_name="GRUPTEST RU", acc_code="120.96.01.G002"))
+        grp = AgencyGroup(name="GRUPTEST", members=["GRUPTEST EU", "GRUPTEST RU"])
+        db.add(grp)
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        assert r.status_code == 200
+        rows = {f["name"]: f for f in r.json()["firms"]}
+        g = rows.get("GRUPTEST")
+        assert g and g["is_group"] is True, "Grup satırı oluşmalı"
+        assert len(g["members"]) == 2
+        assert g["open_tl"] == 14000  # 10000 + 4000
+        assert g["max_overdue_days"] == 20  # 50g - 30g vade
+        # Üye kodları ayrı satır olarak GÖRÜNMEMELİ
+        codes = [f["code"] for f in r.json()["firms"]]
+        assert "120.96.01.G001" not in codes and "120.96.01.G002" not in codes
+
+        # Grup fatura detayı — iki üyenin faturaları birleşik
+        d = client.get(f"{PREFIX}/firms/group-{grp.id}/invoices", headers=auth_headers)
+        assert d.status_code == 200
+        inv_nos = sorted(i["invoice_no"] for i in d.json()["items"])
+        assert inv_nos == ["G1", "G2"]
+
+    def test_advance_netting(self, client, auth_headers, db):
+        """340 avansı (isim-eşli) firmadan düşülür: net_open_tl = max(0, open - advance_tl)."""
+        from app.models.sales_invoice import SalesAdvance
+
+        today = date.today()
+        _mk_invoice(db, "120.96.02.A001", "AVANS TEST TURİZM A.Ş.", today - timedelta(days=5), 20000, invoice_no="AV1")
+        db.add(SalesAdvance(code="340.96.02.A001", name="AVANS TEST TURİZM",
+                            currency="TL", received=15000, consumed=0))
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        row = next(f for f in r.json()["firms"] if f["code"] == "120.96.02.A001")
+        assert row["advance_tl"] == 15000
+        assert row["net_open_tl"] == 5000  # 20000 - 15000
+        assert "advance_tl" in r.json()["summary"] and "net_open_tl" in r.json()["summary"]
+
+
 class TestTermUpsert:
     def test_patch_creates_and_updates(self, client, auth_headers, db):
         code = "120.98.03.D001"

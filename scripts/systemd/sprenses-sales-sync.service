@@ -1,0 +1,11 @@
+[Unit]
+Description=Sprenses Satış Faturası/Hak Ediş Sedna Senkronu
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=ec2-user
+WorkingDirectory=/home/ec2-user/otel/backend
+ExecStart=/home/ec2-user/otel/backend/venv/bin/python cron_sync_sales_invoices.py
+StandardOutput=journal
+StandardError=journal

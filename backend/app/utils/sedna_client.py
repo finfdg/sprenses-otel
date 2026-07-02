@@ -250,6 +250,32 @@ def fetch_cari_transactions() -> List[dict]:
     return rows
 
 
+def fetch_agency_acc_codes() -> List[dict]:
+    """Sedna PMS: acente adı → muhasebe 120 cari kodu köprüsü (hak ediş gruplaması için).
+
+    Kaynak: Agency (Name) + AgencyAccCode (AccCode, para birimi bazlı satırlar → DISTINCT).
+    Anahtarlar: pms_name, acc_code. Yalnız 120.* kodları döner.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+
+    conn = _connect(timeout=60, database=settings.sedna_pms_database, context="agency-map")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute("""
+            SELECT DISTINCT a.Name AS pms_name, ac.AccCode AS acc_code
+            FROM Agency a
+            JOIN AgencyAccCode ac ON ac.AgencyId = a.RecId
+            WHERE ac.AccCode LIKE '120%' AND a.Name IS NOT NULL AND LTRIM(RTRIM(a.Name)) <> ''
+        """)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    logger.info("Sedna PMS'ten %d acente→cari kod eşlemesi çekildi", len(rows))
+    return rows
+
+
 def fetch_cari_deleted_rows() -> List[dict]:
     """Sedna'da SİLİNMİŞ (Deleted=1) cari hareketleri çek — yerel bayat-satır süpürmesi için.
 

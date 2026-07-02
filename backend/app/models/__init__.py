@@ -1,4 +1,5 @@
 from app.models.advance import Advance
+from app.models.agency_code_map import AgencyCodeMap
 from app.models.agency_group import AgencyGroup
 from app.models.approval import (
     ApprovalRequest,
@@ -69,7 +70,7 @@ __all__ = [
     "Department", "BudgetCategory", "Budget",
     "ErrorLog",
     "Reservation", "ReservationUpload",
-    "RoomType", "AgencyGroup",
+    "RoomType", "AgencyGroup", "AgencyCodeMap",
     "SalesInvoice", "SalesCollection", "SalesAdvance",
     "ReceivableTerm",
     "ScheduledDefinition", "ScheduledEntry",
