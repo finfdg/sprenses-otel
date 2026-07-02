@@ -692,6 +692,23 @@ SQL seviyesinde filtrelenir, asla aday gösterilmez:
   - `_compute_removal_candidates` unit testleri (basic diff, tarih kapsamı, korumalı kayıtlar)
   - `bulk-delete` endpoint testleri (boş, auth, 5000 limit, korumalı atla, eksik id)
 
+### Sedna Import — Bayat Satır Otomatik Süpürme (2026-07-02)
+
+**Sorun:** Cari Sedna import'u insert-only + tutar-hash'li; Sedna'da bir hareket sonradan
+düzeltilir/silinirse eski yerel satır kalır (nakit akım/bakiyeyi şişirir). `_compute_removal_candidates`
+bunları buluyordu ama **yalnız manuel onayla** (`bulk-delete`) siliniyordu → biriktiler (canlı bulgu:
+YİĞİTOĞLU +₺795K, +3 cari daha). **Çözüm (`sedna_import._sweep_stale_vendor_txns`):** `run_cari_import`
+sonunda, bayat adaylardan **yalnız POZİTİF KANITLI** olanları otomatik siler (emsal: `_sweep_stale_checks`
+— "sadece Sedna'da yok" YETMEZ, legit/Excel-only korunur):
+- **Sinyal A:** yerel `tx_hash` Sedna'nın **`Deleted=1`** hash kümesinde (soft-delete). Yeni Sedna sorgusu:
+  `sedna_client.fetch_cari_deleted_rows()`.
+- **Sinyal B:** yerel `(kod, tarih, evrak-rakam)` Sedna **aktifte** var ama tam hash farklı → **tutar düzeltmesi**;
+  eski tutarlı satır bayat.
+- **Kanıtsız** (hard-delete / elle-eklenmiş, Sedna'da hiç izi yok) → SİLİNMEZ, **manuel silme-adayı** olarak kalır.
+- Guard'lar `_compute_removal_candidates` ile birebir (eşleşmemiş, atanmamış, eşleşmiş-FE yok, kapsam-içi) +
+  `_SWEEP_SAFETY_CAP=200` devre kesici (aşılırsa süpürme iptal, hepsi manuel adaya düşer). Silme: `finance_event_svc.invalidate` + `db.delete` + WARNING log; sonra `sync_vendor_finance_events`.
+- Test: `tests/test_cariler_sedna.py::test_sedna_import_auto_sweeps_stale_rows` (A+B silinir, kanıtsız korunur).
+
 ---
 
 ## Cari "Devir" Butonu Gösterim Kuralı

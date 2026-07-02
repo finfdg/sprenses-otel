@@ -29,6 +29,7 @@ from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.sedna_client import (
     SednaUnavailable,
+    fetch_cari_deleted_rows,
     fetch_cari_transactions,
     fetch_vendor_ibans,
     sedna_configured,
@@ -50,6 +51,77 @@ router = APIRouter()
 
 def _f(v) -> float:
     return float(v) if v is not None else 0.0
+
+
+# Bayat-satır süpürmesi güvenlik tavanı — tek import'ta bundan fazla satır silinmeye
+# çalışılırsa (olası mantık hatası / Sedna kısmi veri) süpürme İPTAL edilir, hepsi manuel adaya düşer.
+_SWEEP_SAFETY_CAP = 200
+
+
+def _evrak_digits(evrak) -> str:
+    return "".join(c for c in (evrak or "") if c.isdigit())
+
+
+def _sweep_stale_vendor_txns(db: Session, candidate_ids: list, vendor_map: dict,
+                             parsed: list, deleted_rows: list) -> set:
+    """Bayat adaylardan yalnız POZİTİF KANITLI olanları otomatik sil (emsal: `_sweep_stale_checks`).
+
+    `candidate_ids` = `_compute_removal_candidates`'ın döndürdüğü, zaten guard'lanmış (eşleşmemiş,
+    atanmamış, eşleşmiş-FE yok, kapsam-içi) bayat aday ID'leri. "Sadece Sedna'da yok" YETMEZ
+    (legit/Excel-only'yi silmemek için) — yalnız Sedna'da-vardı-artık-yok kanıtı olanlar silinir:
+      - **Sinyal A:** yerel tx_hash Sedna'nın `Deleted=1` hash kümesinde (soft-delete edilmiş).
+      - **Sinyal B:** yerel (kod, tarih, evrak-rakam) Sedna AKTİF'te var ama tam hash farklı
+        (evrak Sedna'da duruyor, tutarı düzeltilmiş → eski tutarlı satır bayat).
+    Kanıtsız (hard-delete / elle-eklenmiş) satırlar SİLİNMEZ → manuel silme-adayı olarak kalır.
+
+    Döner: silinen VendorTransaction id kümesi.
+    """
+    if not candidate_ids or not parsed:
+        return set()
+
+    id_to_code = {v.id: code for code, v in vendor_map.items()}
+    active_hashes = {tx.tx_hash for tx in parsed}
+    active_evrak = {
+        (tx.hesap_kodu, str(tx.date), _evrak_digits(tx.evrak_no))
+        for tx in parsed if tx.date and _evrak_digits(tx.evrak_no)
+    }
+    deleted_hashes = set()
+    for r in deleted_rows:
+        code = (r.get("hesap_kodu") or "").strip()
+        if code:
+            deleted_hashes.add(compute_vendor_tx_hash(
+                code, r.get("tarih"), r.get("evrak_no"), _f(r.get("borc")), _f(r.get("alacak"))))
+    deleted_hashes -= active_hashes  # Sedna'da silinip yeniden girilmiş olanı hariç tut
+
+    rows = db.query(VendorTransaction).filter(VendorTransaction.id.in_(candidate_ids)).all()
+    to_sweep = []
+    for r in rows:
+        if r.tx_hash in active_hashes:  # savunmacı: Sedna aktifte birebir var → koru
+            continue
+        code = id_to_code.get(r.vendor_id, "")
+        ed = _evrak_digits(r.evrak_no)
+        sig_a = r.tx_hash in deleted_hashes
+        sig_b = bool(ed) and (code, str(r.date), ed) in active_evrak
+        if sig_a or sig_b:
+            to_sweep.append((r, "A" if sig_a else "B"))
+
+    if len(to_sweep) > _SWEEP_SAFETY_CAP:
+        logger.error(
+            "Bayat cari süpürmesi İPTAL: %d aday güvenlik tavanını (%d) aştı → hepsi manuel adaya bırakıldı.",
+            len(to_sweep), _SWEEP_SAFETY_CAP)
+        return set()
+
+    swept = set()
+    for r, sig in to_sweep:
+        finance_event_svc.invalidate(db, "vendor_payment", r.id)
+        logger.warning(
+            "Bayat cari satırı silindi (sinyal %s): id=%s cari=%s tarih=%s borç=%s alacak=%s evrak=%s",
+            sig, r.id, id_to_code.get(r.vendor_id), r.date, r.borc, r.alacak, r.evrak_no)
+        db.delete(r)
+        swept.add(r.id)
+    if swept:
+        db.flush()
+    return swept
 
 
 @router.get("/sedna-status")
@@ -76,6 +148,14 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
 
     if not rows:
         raise HTTPException(status_code=400, detail="Sedna'dan cari hareket alınamadı (0 satır).")
+
+    # Bayat-satır süpürmesi Sinyal A için Sedna silinmiş satırları — başarısız olursa
+    # süpürme yalnız Sinyal B (evrak tutar düzeltmesi) ile sürer (import'u bozmaz).
+    try:
+        deleted_rows = fetch_cari_deleted_rows()
+    except Exception as e:  # noqa: BLE001 — best-effort; import ana akışını düşürme
+        logger.warning("Sedna silinmiş-satır sorgusu başarısız, bayat süpürme Sinyal A atlanıyor: %s", e)
+        deleted_rows = []
 
     # Sedna satırları → ParsedVendorTransaction (Excel ile aynı yapı + hash)
     parsed: list = []
@@ -182,7 +262,16 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
 
         removal_candidates = _compute_removal_candidates(db, vendor_map, parsed)
 
+        # Pozitif kanıtlı bayatları (Sinyal A: Sedna Deleted=1 · Sinyal B: evrak tutar düzeltmesi)
+        # otomatik sil; kanıtsızlar (hard-delete/elle) manuel silme-adayı olarak kalır.
+        swept_ids = _sweep_stale_vendor_txns(
+            db, [c.id for c in removal_candidates], vendor_map, parsed, deleted_rows)
+        if swept_ids:
+            removal_candidates = [c for c in removal_candidates if c.id not in swept_ids]
+
         details = f"Sedna içe aktarma: {new_count} yeni, {skipped} mükerrer"
+        if swept_ids:
+            details += f", {len(swept_ids)} bayat silindi"
         if removal_candidates:
             details += f", {len(removal_candidates)} silme adayı"
         log_action(

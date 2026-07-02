@@ -45,6 +45,23 @@ ORDER BY t.AccountingCode, o.FicheDate, t.RecId
 """
 
 
+# Sedna'da SİLİNMİŞ (Deleted=1) cari hareketler — yerel bayat-satır süpürmesi için
+# (yalnız hash'e gereken alanlar). {prefix} güvenli (rakam) → gömülü; execute() PARAMETRESİZ.
+_CARI_DELETED_QUERY = """
+SELECT
+    t.AccountingCode            AS hesap_kodu,
+    CONVERT(date, o.FicheDate)  AS tarih,
+    t.DocumentNo                AS evrak_no,
+    t.Debit                     AS borc,
+    t.Credit                    AS alacak
+FROM AccountingTrans t
+JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
+WHERE t.AccountingCode LIKE '{prefix}%'
+  AND (t.Deleted = 1 OR o.Deleted = 1)
+  AND o.FicheDate IS NOT NULL
+"""
+
+
 # Cari (320) banka/IBAN kayıtları — dbo.Bank, cari koduna (AccountingCode) bağlı.
 # AccountingCode VİRGÜLLÜ saklanır (320,01,01,0063); Accounting.Code NOKTALI (320.01.01.0063)
 # → join'de REPLACE ile eşitlenir. Bir firma → 0..N IBAN. {prefix} güvenli (rakam) → gömülü.
@@ -230,6 +247,29 @@ def fetch_cari_transactions() -> List[dict]:
         conn.close()
 
     logger.info("Sedna'dan %d cari hareket çekildi (prefix=%s)", len(rows), prefix)
+    return rows
+
+
+def fetch_cari_deleted_rows() -> List[dict]:
+    """Sedna'da SİLİNMİŞ (Deleted=1) cari hareketleri çek — yerel bayat-satır süpürmesi için.
+
+    Anahtarlar: hesap_kodu, tarih(date), evrak_no, borc, alacak (tx_hash hesaplamaya yeter).
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+
+    prefix = "".join(c for c in (settings.sedna_account_prefix or "320") if c.isdigit()) or "320"
+    query = _CARI_DELETED_QUERY.format(prefix=prefix)
+
+    conn = _connect(timeout=180, context="cari-deleted")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query)  # PARAMETRESİZ (bkz. %-tuzağı notu)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    logger.info("Sedna'dan %d SİLİNMİŞ cari hareket çekildi (prefix=%s)", len(rows), prefix)
     return rows
 
 

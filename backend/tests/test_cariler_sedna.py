@@ -72,6 +72,51 @@ def test_sedna_import_not_configured_503(client, auth_headers):
         assert client.post(f"{PREFIX}/sedna-import", headers=auth_headers).status_code == 503
 
 
+def test_sedna_import_auto_sweeps_stale_rows(client, auth_headers, db):
+    """Bayat-satır otomatik süpürme (2026-07-02): Sinyal A (Sedna Deleted=1) + Sinyal B
+    (evrak tutar düzeltmesi) SİLİNİR; kanıtsız (elle/hard-delete, Sedna'da izi yok) satır KORUNUR."""
+    from app.models.vendor import Vendor
+    from app.models.vendor_transaction import VendorTransaction
+    from app.models.vendor_upload import VendorUpload
+
+    def row(evrak, borc=0, alacak=0):
+        return {"hesap_kodu": "320.77.01.S001", "hesap_adi": "SÜPÜRME TEST",
+                "tarih": date(2026, 5, 1), "evrak_no": evrak, "islem_tipi": None,
+                "fis_no": None, "aciklama": f"ev{evrak}", "borc": borc, "alacak": alacak, "pay_day": 0}
+
+    # Import 1: 5001=7.500, 6001=100, 7001=alacak 50
+    imp1 = [row("5001", borc=7500), row("6001", borc=100), row("7001", alacak=50)]
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_cari_transactions", return_value=imp1), \
+         patch(f"{TARGET}.fetch_cari_deleted_rows", return_value=[]):
+        assert client.post(f"{PREFIX}/sedna-import", headers=auth_headers).status_code == 200
+
+    v = db.query(Vendor).filter(Vendor.hesap_kodu == "320.77.01.S001").first()
+    up = db.query(VendorUpload).order_by(VendorUpload.id.desc()).first()
+    # Kanıtsız (elle eklenmiş) bayat satır — evrak Sedna'da HİÇ yok → süpürülmemeli
+    amb = VendorTransaction(vendor_id=v.id, upload_id=up.id, date=date(2026, 5, 1),
+                            evrak_no="9999", borc=999, alacak=0, bakiye=0,
+                            tx_hash="manual-hash-xyz", match_number=None)
+    db.add(amb); db.commit(); amb_id = amb.id
+
+    # Import 2: 5001 tutarı 75.000'e düzeltildi (Sinyal B), 6001 SİLİNDİ (Sinyal A), 7001 aynı
+    imp2 = [row("5001", borc=75000), row("7001", alacak=50)]
+    deleted = [{"hesap_kodu": "320.77.01.S001", "tarih": date(2026, 5, 1),
+                "evrak_no": "6001", "borc": 100, "alacak": 0}]
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_cari_transactions", return_value=imp2), \
+         patch(f"{TARGET}.fetch_cari_deleted_rows", return_value=deleted):
+        assert client.post(f"{PREFIX}/sedna-import", headers=auth_headers).status_code == 200
+
+    db.expire_all()
+    rows = db.query(VendorTransaction).filter(VendorTransaction.vendor_id == v.id).all()
+    evraks = sorted(x.evrak_no for x in rows)
+    assert evraks == ["5001", "7001", "9999"], f"eski 5001(7.500)+6001 süpürülmeli, 9999 kalmalı: {evraks}"
+    assert [float(x.borc) for x in rows if x.evrak_no == "5001"][0] == 75000, "Doğru tutarlı 5001 kalmalı"
+    assert any(x.id == amb_id for x in rows), "Kanıtsız (elle) satır KORUNMALI"
+    assert sum(float(x.borc or 0) for x in rows) == 75000 + 999
+
+
 # --- Sedna IBAN içe aktarma (dbo.Bank → vendor_bank_accounts) ---
 
 FAKE_IBAN_ROWS = [
