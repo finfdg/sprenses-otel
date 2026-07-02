@@ -304,3 +304,17 @@ describe('groupDaySourceItems', () => {
 		expect(groupDaySourceItems([])).toEqual([]);
 	});
 });
+
+	it('kredi taksitleri (leasing dahil) ve KK ödemeleri de ayrı gruplara toplanır', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 1, date: '2026-07-01', amount: 1000, type: 'expense', source: 'credit' }),
+			makeItem({ id: 2, date: '2026-07-01', amount: 2000, type: 'expense', source: 'credit' }),
+			makeItem({ id: 3, date: '2026-07-01', amount: 300, type: 'expense', source: 'cc_payment' }),
+			makeItem({ id: 4, date: '2026-07-01', amount: 400, type: 'expense', source: 'cc_payment' }),
+			makeItem({ id: 5, date: '2026-07-01', amount: 50, type: 'expense', source: 'bank' }),
+		]);
+		expect(units.map((u) => (u.kind === 'group' ? `g:${u.source}` : `i:${(u as any).item.source}`)))
+			.toEqual(['g:credit', 'g:cc_payment', 'i:bank']);
+		expect((units[0] as any).totalTry).toBe(3000);
+		expect((units[1] as any).totalTry).toBe(700);
+	});

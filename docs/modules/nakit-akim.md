@@ -119,12 +119,15 @@
 - **Day-content lazy mount (`use:lazyMount`):** Bir gün açıldıktan sonra içeriği yalnızca viewport'a 300px yaklaşınca mount edilir. Kullanıcı doğrudan tıklarsa anında render edilir (UX kuralı: kullanıcı eylemi → bekleme yok); ama scroll edilirken karşılaşılan gizli açık günler için placeholder gösterilir. `frontend/src/lib/utils/lazy-mount.svelte.ts`.
 - **EUR bakiye lookup O(log n):** Aktivitesi olmayan günler için önceki bakiyeyi binary search ile bulur (`sortedBalanceDays` $derived). Eski sürüm her açık gün için `Object.keys().sort()` çağırıyordu — 200+ gün açıldığında O(n²·log n) → scroll donması.
 
-### Gün İçi Kaynak Gruplaması — Çekler + Cari Ödemeleri (2026-07-02)
-- **Frontend (görsel):** Bir gün içinde 2+ **çek** (`source='check'`) veya 2+ **cari ödemesi**
-  (`source='vendor_payment'`) varsa, o kaynak tek **katlanabilir grup kartında** toplanır:
-  "Verilen Çekler · N kayıt · toplam" / "Cari Ödemeleri · N kayıt · toplam" (varsayılan KAPALI,
-  tıklayınca içindeki `CashFlowItem` satırları açılır). Tek kayıt gruplanmaz; diğer kaynaklar
-  (bank/credit/cc_payment/planlı) birebir listelenir. Grup, ilk üyesinin konumunda görünür (sıra korunur).
+### Gün İçi Kaynak Gruplaması — Çek / Cari / Kredi / KK (2026-07-02)
+- **Frontend (görsel):** Bir gün içinde aynı kaynaktan 2+ kayıt varsa, o kaynak tek
+  **katlanabilir grup kartında** toplanır (varsayılan KAPALI, tıklayınca `CashFlowItem` satırları açılır):
+  `check` → "Verilen Çekler" (turuncu) · `vendor_payment` → "Cari Ödemeleri" (mor) ·
+  `credit` → **"Kredi / Leasing Taksitleri"** (indigo — leasing bir kredi ürün TİPİdir, taksitleri
+  `source='credit'` gelir, ayrı kaynak değildir) · `cc_payment` → "KK Borç Ödemeleri" (pembe).
+  Tek kayıt gruplanmaz; diğer kaynaklar (bank/advance/planlı) birebir listelenir. Grup, ilk
+  üyesinin konumunda görünür (sıra korunur). Grup içindeki kredi/KK satırlarının tıkla-eşleştir
+  etkileşimi (onCCMatchStart) korunur — kullanıcı grubu açıp satıra tıklar.
   Toplam: tüm üyeler aynı (TRY-dışı) para birimindeyse native (€), karışıksa TL (`amount_try`).
   Helper: `finance.ts::groupDaySourceItems` (birim testli) · Bileşen: `CashFlowGroupCard.svelte` ·
   Entegrasyon: `MonthAccordion` 4 `{#each}` bloğu. Gün/ay toplamları DEĞİŞMEZ (groupByMonth aynen).

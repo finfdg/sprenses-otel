@@ -74,13 +74,17 @@ export function groupByMonth(items: CashFlowItem[]): MonthGroup[] {
 	return Object.values(groups).sort((a, b) => a.key.localeCompare(b.key));
 }
 
-// Gün içi kaynak gruplaması: çekler ve cari ödemeleri tek katlanabilir kartta toplanır
-// (2+ kayıt varsa). Diğer kaynaklar birebir geçer; grup ilk üyesinin konumunda görünür (sıra korunur).
+// Gün içi kaynak gruplaması: çekler, cari ödemeleri, kredi taksitleri (leasing dahil —
+// leasing bir kredi ürün tipidir, source='credit' gelir) ve KK borç ödemeleri tek katlanabilir
+// kartta toplanır (2+ kayıt varsa). Diğer kaynaklar birebir geçer; grup ilk üyesinin konumunda
+// görünür (sıra korunur).
+export type GroupableSource = 'check' | 'vendor_payment' | 'credit' | 'cc_payment';
+
 export type DayRenderUnit =
 	| { kind: 'item'; item: CashFlowItem }
 	| {
 			kind: 'group';
-			source: 'check' | 'vendor_payment';
+			source: GroupableSource;
 			items: CashFlowItem[];
 			count: number;
 			totalTry: number;
@@ -89,18 +93,18 @@ export type DayRenderUnit =
 			currency: string | null;
 	  };
 
-const GROUPABLE_SOURCES = new Set(['check', 'vendor_payment']);
+const GROUPABLE_SOURCES = new Set(['check', 'vendor_payment', 'credit', 'cc_payment']);
 
 export function groupDaySourceItems(items: CashFlowItem[]): DayRenderUnit[] {
 	const units: DayRenderUnit[] = [];
-	const groups: Partial<Record<'check' | 'vendor_payment', Extract<DayRenderUnit, { kind: 'group' }>>> = {};
+	const groups: Partial<Record<GroupableSource, Extract<DayRenderUnit, { kind: 'group' }>>> = {};
 
 	for (const item of items) {
 		if (!GROUPABLE_SOURCES.has(item.source)) {
 			units.push({ kind: 'item', item });
 			continue;
 		}
-		const src = item.source as 'check' | 'vendor_payment';
+		const src = item.source as GroupableSource;
 		let g = groups[src];
 		if (!g) {
 			g = groups[src] = {
