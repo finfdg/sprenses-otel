@@ -119,11 +119,31 @@
 - **Day-content lazy mount (`use:lazyMount`):** Bir gün açıldıktan sonra içeriği yalnızca viewport'a 300px yaklaşınca mount edilir. Kullanıcı doğrudan tıklarsa anında render edilir (UX kuralı: kullanıcı eylemi → bekleme yok); ama scroll edilirken karşılaşılan gizli açık günler için placeholder gösterilir. `frontend/src/lib/utils/lazy-mount.svelte.ts`.
 - **EUR bakiye lookup O(log n):** Aktivitesi olmayan günler için önceki bakiyeyi binary search ile bulur (`sortedBalanceDays` $derived). Eski sürüm her açık gün için `Object.keys().sort()` çağırıyordu — 200+ gün açıldığında O(n²·log n) → scroll donması.
 
+### Gün İçi Kaynak Gruplaması — Çekler + Cari Ödemeleri (2026-07-02)
+- **Frontend (görsel):** Bir gün içinde 2+ **çek** (`source='check'`) veya 2+ **cari ödemesi**
+  (`source='vendor_payment'`) varsa, o kaynak tek **katlanabilir grup kartında** toplanır:
+  "Verilen Çekler · N kayıt · toplam" / "Cari Ödemeleri · N kayıt · toplam" (varsayılan KAPALI,
+  tıklayınca içindeki `CashFlowItem` satırları açılır). Tek kayıt gruplanmaz; diğer kaynaklar
+  (bank/credit/cc_payment/planlı) birebir listelenir. Grup, ilk üyesinin konumunda görünür (sıra korunur).
+  Toplam: tüm üyeler aynı (TRY-dışı) para birimindeyse native (€), karışıksa TL (`amount_try`).
+  Helper: `finance.ts::groupDaySourceItems` (birim testli) · Bileşen: `CashFlowGroupCard.svelte` ·
+  Entegrasyon: `MonthAccordion` 4 `{#each}` bloğu. Gün/ay toplamları DEĞİŞMEZ (groupByMonth aynen).
+- **Backend (veri) — mevcut istisna:** `listing.py::_aggregate_vendor_payments` aynı
+  `(vendor_id, tarih)` cari ödeme satırlarını SQL sayfalamasından SONRA firma başına TEK satıra
+  birleştirir (amount toplanır, `invoice_count` set edilir, >1 ise `tag_note="N fatura"`).
+  Yani frontend'deki "Cari Ödemeleri" grubunun her satırı zaten firma-gün özetidir.
+  Bilinen sınırlama: birleştirme sayfa-içi çalışır → aynı grup sayfa sınırına bölünürse iki ayrı
+  satır görünebilir (page_size=2000 + yıl filtresi pratiğinde nadir).
+- **`{#each}` key düzeltmesi:** Satır key'i `item.id` → `${item.source}-${item.id}` yapıldı —
+  `id` kaynak tablonun ID'si olduğundan farklı kaynaklarda çakışabilir; dup-key yalnız client'ta
+  crash/donma yaratır (bkz. Svelte dup-key bellek notu). Grup key'i: `g-${source}` (gün içinde tekil).
+
 ### Kullanılan Bileşenler
 - `Modal.svelte` — Ekleme/düzenleme formu
 - `ConfirmDialog.svelte` — Silme onayı
 - `MonthAccordion.svelte` — 3 seviyeli yıl/ay/gün akordiyonu + lazy mount
 - `CashFlowItem.svelte` — Tek satır (mobile/desktop varyant)
+- `CashFlowGroupCard.svelte` — Gün içi çek/cari grup kartı (katlanabilir)
 - `lazy-mount.svelte.ts` — `IntersectionObserver` tabanlı tek-seferlik Svelte action
 - `api.ts` — HTTP istekleri
 - `showToast` — Bildirim gösterimi

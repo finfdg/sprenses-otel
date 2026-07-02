@@ -233,3 +233,74 @@ describe('getTodayKeys', () => {
 		expect(currentDayKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 	});
 });
+
+// ─── groupDaySourceItems (gün içi çek/cari gruplaması) ──────
+
+import { groupDaySourceItems } from './finance';
+
+describe('groupDaySourceItems', () => {
+	it('2+ çeki tek grupta toplar, toplamları hesaplar', () => {
+		const items = [
+			makeItem({ id: 1, date: '2026-07-01', amount: 100, type: 'expense', source: 'check' }),
+			makeItem({ id: 2, date: '2026-07-01', amount: 250, type: 'expense', source: 'check' }),
+		];
+		const units = groupDaySourceItems(items);
+		expect(units).toHaveLength(1);
+		const g = units[0] as any;
+		expect(g.kind).toBe('group');
+		expect(g.source).toBe('check');
+		expect(g.count).toBe(2);
+		expect(g.totalTry).toBe(350);
+		expect(g.nativeTotal).toBeNull(); // TRY'de native ayrıca gösterilmez
+	});
+
+	it('tek kayıtlı kaynak gruplanmaz (düz item kalır)', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 1, date: '2026-07-01', amount: 100, type: 'expense', source: 'check' }),
+		]);
+		expect(units).toHaveLength(1);
+		expect(units[0].kind).toBe('item');
+	});
+
+	it('çek ve cari ödeme AYRI gruplara gider; diğer kaynaklar birebir geçer', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 1, date: '2026-07-01', amount: 10, type: 'expense', source: 'bank' }),
+			makeItem({ id: 2, date: '2026-07-01', amount: 20, type: 'expense', source: 'check' }),
+			makeItem({ id: 3, date: '2026-07-01', amount: 30, type: 'expense', source: 'vendor_payment' }),
+			makeItem({ id: 4, date: '2026-07-01', amount: 40, type: 'expense', source: 'check' }),
+			makeItem({ id: 5, date: '2026-07-01', amount: 50, type: 'expense', source: 'vendor_payment' }),
+			makeItem({ id: 6, date: '2026-07-01', amount: 60, type: 'expense', source: 'credit' }),
+		]);
+		// bank, check-grubu, vendor-grubu, credit → 4 birim; grup ilk üyesinin konumunda
+		expect(units.map((u) => (u.kind === 'group' ? `g:${u.source}` : `i:${(u as any).item.source}`)))
+			.toEqual(['i:bank', 'g:check', 'g:vendor_payment', 'i:credit']);
+		const check = units[1] as any;
+		expect(check.count).toBe(2);
+		expect(check.totalTry).toBe(60);
+	});
+
+	it('aynı para birimli (EUR) grupta native toplam döner; TL karşılığı amount_try ile', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 1, date: '2026-07-01', amount: 100, amount_try: 5300, currency: 'EUR', type: 'expense', source: 'check' }),
+			makeItem({ id: 2, date: '2026-07-01', amount: 200, amount_try: 10600, currency: 'EUR', type: 'expense', source: 'check' }),
+		]);
+		const g = units[0] as any;
+		expect(g.nativeTotal).toBe(300);
+		expect(g.currency).toBe('EUR');
+		expect(g.totalTry).toBe(15900);
+	});
+
+	it('karışık para biriminde native null olur (TL toplam gösterilir)', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 1, date: '2026-07-01', amount: 100, amount_try: 5300, currency: 'EUR', type: 'expense', source: 'check' }),
+			makeItem({ id: 2, date: '2026-07-01', amount: 500, currency: 'TRY', type: 'expense', source: 'check' }),
+		]);
+		const g = units[0] as any;
+		expect(g.nativeTotal).toBeNull();
+		expect(g.totalTry).toBe(5800);
+	});
+
+	it('boş liste boş döner', () => {
+		expect(groupDaySourceItems([])).toEqual([]);
+	});
+});

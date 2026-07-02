@@ -74,6 +74,64 @@ export function groupByMonth(items: CashFlowItem[]): MonthGroup[] {
 	return Object.values(groups).sort((a, b) => a.key.localeCompare(b.key));
 }
 
+// Gün içi kaynak gruplaması: çekler ve cari ödemeleri tek katlanabilir kartta toplanır
+// (2+ kayıt varsa). Diğer kaynaklar birebir geçer; grup ilk üyesinin konumunda görünür (sıra korunur).
+export type DayRenderUnit =
+	| { kind: 'item'; item: CashFlowItem }
+	| {
+			kind: 'group';
+			source: 'check' | 'vendor_payment';
+			items: CashFlowItem[];
+			count: number;
+			totalTry: number;
+			/** Tüm üyeler aynı (TRY-dışı) para birimindeyse native toplam; karışıksa null */
+			nativeTotal: number | null;
+			currency: string | null;
+	  };
+
+const GROUPABLE_SOURCES = new Set(['check', 'vendor_payment']);
+
+export function groupDaySourceItems(items: CashFlowItem[]): DayRenderUnit[] {
+	const units: DayRenderUnit[] = [];
+	const groups: Partial<Record<'check' | 'vendor_payment', Extract<DayRenderUnit, { kind: 'group' }>>> = {};
+
+	for (const item of items) {
+		if (!GROUPABLE_SOURCES.has(item.source)) {
+			units.push({ kind: 'item', item });
+			continue;
+		}
+		const src = item.source as 'check' | 'vendor_payment';
+		let g = groups[src];
+		if (!g) {
+			g = groups[src] = {
+				kind: 'group', source: src, items: [], count: 0,
+				totalTry: 0, nativeTotal: 0, currency: null,
+			};
+			units.push(g); // grup, ilk üyesinin konumuna yerleşir
+		}
+		g.items.push(item);
+		g.count++;
+		g.totalTry += item.currency === 'TRY' ? item.amount : (item.amount_try ?? 0);
+		if (g.nativeTotal !== null) {
+			if (g.currency === null) g.currency = item.currency;
+			if (g.currency === item.currency) g.nativeTotal += item.amount;
+			else { g.nativeTotal = null; g.currency = null; } // karışık para birimi → TL göster
+		}
+	}
+
+	// Tek kayıtlı "grup"ları düz item'a indir (gruplamaya değmez) + toplamları yuvarla
+	return units.map((u) =>
+		u.kind === 'group' && u.count === 1 ? ({ kind: 'item', item: u.items[0] } as DayRenderUnit) : u
+	).map((u) => {
+		if (u.kind === 'group') {
+			u.totalTry = Math.round(u.totalTry * 100) / 100;
+			if (u.nativeTotal !== null) u.nativeTotal = Math.round(u.nativeTotal * 100) / 100;
+			if (u.currency === 'TRY') { u.nativeTotal = null; u.currency = null; } // TRY'de native ayrıca gösterilmez
+		}
+		return u;
+	});
+}
+
 export function getTodayKeys() {
 	const today = new Date();
 	const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;

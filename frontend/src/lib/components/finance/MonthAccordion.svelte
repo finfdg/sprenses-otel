@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import type { MonthGroup, TransactionCategory } from '$lib/types/finance';
-	import { formatCompact } from '$lib/utils/finance';
+	import { formatCompact, groupDaySourceItems } from '$lib/utils/finance';
 	import { lazyMount } from '$lib/utils/lazy-mount';
 	import CashFlowItem from './CashFlowItem.svelte';
+	import CashFlowGroupCard from './CashFlowGroupCard.svelte';
 
 	let {
 		monthGroups,
@@ -404,19 +405,30 @@
 									{dayItemCount} kayıt yükleniyor…
 								</div>
 							{:else}
+								<!-- Gün içi gruplama: çekler + cari ödemeleri katlanabilir tek kartta (2+ kayıtta) -->
+								{@const expenseUnits = groupDaySourceItems(day.expenseItems)}
+								{@const incomeUnits = groupDaySourceItems(day.incomeItems)}
 								<!-- MOBİL: sabit grid -->
 								<div class="grid grid-cols-2 md:hidden border-t border-gray-100">
 									<div class="p-1 space-y-1 overflow-hidden">
-										{#each day.expenseItems as item (item.id)}
-											<CashFlowItem {item} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+										{#each expenseUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+											{#if unit.kind === 'group'}
+												<CashFlowGroupCard {unit} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{:else}
+												<CashFlowItem item={unit.item} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{/if}
 										{/each}
 										{#if day.expenseItems.length === 0}
 											<div class="min-h-[1px]"></div>
 										{/if}
 									</div>
 									<div class="p-1 space-y-1 overflow-hidden border-l-[2px] border-blue-500">
-										{#each day.incomeItems as item (item.id)}
-											<CashFlowItem {item} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+										{#each incomeUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+											{#if unit.kind === 'group'}
+												<CashFlowGroupCard {unit} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{:else}
+												<CashFlowItem item={unit.item} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{/if}
 										{/each}
 										{#if day.incomeItems.length === 0}
 											<div class="min-h-[1px]"></div>
@@ -427,16 +439,24 @@
 								<!-- MASAÜSTÜ: focusMode destekli grid -->
 								<div class="hidden md:grid border-t border-gray-100" style="grid-template-columns: {gridCols}; transition: grid-template-columns 300ms ease-in-out">
 									<div class="p-3 space-y-1.5 overflow-hidden">
-										{#each day.expenseItems as item (item.id)}
-											<CashFlowItem {item} narrow={isExpenseNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+										{#each expenseUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+											{#if unit.kind === 'group'}
+												<CashFlowGroupCard {unit} narrow={isExpenseNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{:else}
+												<CashFlowItem item={unit.item} narrow={isExpenseNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{/if}
 										{/each}
 										{#if day.expenseItems.length === 0}
 											<div class="min-h-[1px]"></div>
 										{/if}
 									</div>
 									<div class="p-3 space-y-1.5 overflow-hidden border-l-[3px] border-blue-500">
-										{#each day.incomeItems as item (item.id)}
-											<CashFlowItem {item} narrow={isIncomeNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+										{#each incomeUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+											{#if unit.kind === 'group'}
+												<CashFlowGroupCard {unit} narrow={isIncomeNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{:else}
+												<CashFlowItem item={unit.item} narrow={isIncomeNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
+											{/if}
 										{/each}
 										{#if day.incomeItems.length === 0}
 											<div class="min-h-[1px]"></div>
