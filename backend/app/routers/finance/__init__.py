@@ -10,6 +10,7 @@ from .cc_statements import router as cc_statements_router
 from .checks import router as checks_router
 from .departmanlar import router as departmanlar_router
 from .exchange_rates import router as exchange_rates_router
+from .hakedis import router as hakedis_router
 from .krediler import router as krediler_router
 from .onay import router as onay_router
 from .payment_instructions import router as payment_instructions_router
@@ -33,4 +34,5 @@ router.include_router(onay_router)
 router.include_router(bank_instructions_router)
 router.include_router(payment_instructions_router)
 router.include_router(sales_invoices_router)
+router.include_router(hakedis_router)
 router.include_router(sedna_sync_router)

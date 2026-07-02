@@ -326,6 +326,22 @@ def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
             credit_service.delete_product(db, product)
 
 
+def _handle_finance_hakedis(db, action_type, entity_id, payload, actor_id):
+    # Router (hakedis.py update_term) ile ORTAK: receivable_service.upsert_term.
+    # Doğal anahtar customer_code (payload'da) — entity_id'ye bakılmaz (kompozit upsert,
+    # budget deseni). create/update aynı upsert; delete kullanılmaz (vade tanımı silinmez,
+    # 30 güne çekilir).
+    from app.services import receivable_service
+
+    if action_type in ("create", "update"):
+        receivable_service.upsert_term(
+            db,
+            payload.get("customer_code", ""),
+            int(payload.get("term_days", 30)),
+            payload.get("notes"),
+        )
+
+
 def _handle_finance_departmanlar(db, action_type, entity_id, payload, actor_id):
     # Router (departmanlar.py) ile ORTAK: app/services/department_service.
     # delete guard'lı HARD (rezervasyon/kayıt varsa ValueError). Bu handler `butce`
@@ -662,6 +678,7 @@ _HANDLERS = {
     "finance.butce": _handle_finance_butce,
     "finance.checks": _handle_finance_checks,
     "finance.cariler": _handle_finance_cariler,
+    "finance.hakedis": _handle_finance_hakedis,
     # Kalite
     "quality.templates": _handle_quality_templates,
     "quality.forms": _handle_quality_forms,

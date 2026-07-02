@@ -419,7 +419,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 **Mevcut modüller:**
 - Panel (dashboard)
 - Mesajlaşma (messaging)
-- Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Satış Faturaları (finance.sales_invoices), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
+- Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Satış Faturaları (finance.sales_invoices), Hak Ediş Takibi (finance.hakedis), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali), Mizan (accounting.mizan)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
@@ -599,6 +599,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
 | Vardiyalar (Shift) | `docs/modules/vardiyalar.md` |
 | Satış Faturaları | `docs/modules/satis-faturalari.md` |
+| Hak Ediş Takibi | `docs/modules/hakedis.md` |
 | Stok / Depo Maliyet | `docs/modules/stok.md` |
 | Yönetim Paneli + Maliyet Kontrol | `docs/modules/yonetim-paneli.md` |
 | Panel (Dashboard) | `docs/modules/panel.md` |

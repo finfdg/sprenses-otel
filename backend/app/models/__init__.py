@@ -25,6 +25,7 @@ from app.models.message import Message
 from app.models.module import Module
 from app.models.notification import Notification
 from app.models.push_subscription import PushSubscription
+from app.models.receivable_term import ReceivableTerm
 from app.models.reservation import Reservation, ReservationUpload
 from app.models.room_type import RoomType
 from app.models.sales_invoice import SalesAdvance, SalesCollection, SalesInvoice
@@ -70,6 +71,7 @@ __all__ = [
     "Reservation", "ReservationUpload",
     "RoomType", "AgencyGroup",
     "SalesInvoice", "SalesCollection", "SalesAdvance",
+    "ReceivableTerm",
     "ScheduledDefinition", "ScheduledEntry",
     "ApprovalWorkflow", "ApprovalWorkflowStep",
     "ApprovalWorkflowRequestorRole", "ApprovalWorkflowApproverRole",

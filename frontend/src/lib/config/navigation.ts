@@ -98,6 +98,7 @@ export const NAV_GROUPS: NavGroup[] = [
 			{ code: 'finance.doviz', label: 'Döviz', href: '/dashboard/finans/doviz', icon: [I.currency] },
 			{ code: 'finance.cariler', label: 'Cariler', href: '/dashboard/finans/cariler', icon: [I.users] },
 			{ code: 'finance.sales_invoices', label: 'Satış Faturaları', href: '/dashboard/finans/satis-faturalari', icon: [I.receipt] },
+			{ code: 'finance.hakedis', label: 'Hak Ediş Takibi', href: '/dashboard/finans/hakedis', icon: [I.receipt] },
 			{ code: 'finance.checks', label: 'Verilen Çekler', href: '/dashboard/finans/cekler', icon: [I.checkDoc] },
 			{ code: 'finance.krediler', label: 'Krediler', href: '/dashboard/finans/krediler', icon: [I.creditCard] },
 			{ code: 'finance.avanslar', label: 'Alınan Avanslar', href: '/dashboard/finans/avanslar', icon: [I.money] },

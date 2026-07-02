@@ -52,6 +52,11 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/finance/sales-invoices/advances` — **Acente avans bakiyeleri** (acentelerin yatırıp henüz fatura ile kapatmadığı net avans; yatırılan/kapanan/kalan). Acente avansı = 120 hesabına ALACAK, faturalarla (Borç) FIFO mahsup. Liste `by_advance` rozeti taşır
 - `POST /api/finance/sales-invoices/sedna-import` — **Sedna'dan satış faturası + tahsilat içe aktarma** (120 Borç=fatura DocumentType=1, 120 Alacak=tahsilat; FIFO ile fatura bazında ödendi/kısmi/açık). finance.sales_invoices use, audit'li, onaydan muaf. Merkezi Sedna sync'in adımı. Detay: `docs/modules/satis-faturalari.md`
 
+### Finans — Hak Ediş Takibi (acente fatura alacakları, 30/45 gün vade)
+- `GET /api/finance/hakedis/` — Firma bazlı açık hak ediş + yaşlandırma kovaları + özet (vade = fatura + firma `term_days`; Sedna'da vade olmadığından yerel `receivable_terms`, varsayılan 30 gün). Aggregate — pagination yok
+- `GET /api/finance/hakedis/firms/{customer_code}/invoices` — Firmanın açık/kısmi faturaları (vade, gecikme günü, kalan native+TL)
+- `PATCH /api/finance/hakedis/terms/{customer_code}` — Firma vade tanımı upsert (0-365 gün) — finance.hakedis use, `check_approval` + audit. Detay: `docs/modules/hakedis.md`
+
 ### Finans — Sedna Senkronizasyonu (Merkezi)
 - `POST /api/finance/sedna/sync-all` — **Tek noktadan tüm Sedna içe aktarmaları** (cari hareketleri + cari IBAN'ları + verilen çekler + **satış faturaları** + **stok/depo** + **otel rezervasyonları** + düzenli ödeme cari senkronu). Topbar'daki tek "Sedna" butonu bunu çağırır. Her adım izin kontrollü (kullanıcının `use` izni olmayan adım "Yetki yok" atlanır), adım-bazlı izole (biri hata verirse diğerleri sürer). Yanıt: `{ok_count, total, steps:[{key,label,ok,skipped,summary}]}`
 - `GET /api/finance/sedna/status` — Merkezi sync etkin mi + kullanıcının çalıştırabileceği adımlar (buton gösterimi)
