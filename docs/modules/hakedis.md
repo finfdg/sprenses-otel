@@ -48,6 +48,20 @@ Sedna'nın tüm veritabanları incelendi (29 DB): PMS `Invoice.DueDate` her zama
 | GET | `/hakedis/firms/{customer_code}/invoices` | view | Firmanın açık/kısmi faturaları (vade, gecikme, kalan native+TL) |
 | PATCH | `/hakedis/terms/{customer_code}` | use | Vade tanımı upsert — `check_approval` + audit |
 
+## Münferit İstisnası (2026-07-02 kanıtlı karar)
+**Münferit (walk-in) faturalar (`is_munferit=True`, 120.03.*) hak ediş takibine GİRMEZ.**
+Kanıt: Haziran 2026'daki 259 münferit faturanın 259'unun PMS folio bakiyesi 0 (misafir çıkışta
+kart/nakit/havale ile ödemiş — DepartCode 900/980/930…), ama muhasebe 120.03.01.0001'e tahsilat
+kaydını işlemiyor (son alacak kaydı 15.05). 120-alacak sinyali münferitte güvenilmez → sahte
+"₺5,7M açık" üretiyordu. Takip yalnız anlaşmalı acente alacaklarını kapsar.
+
+## Bayat Tahsilat Riski (2026-07-02 bulgusu)
+`sales_collections` import'u insert-only + tutar-hash'li → Sedna'da tahsilat düzeltilir/taşınırsa
+eski satır yerelde kalır ve faturaları FIFO'da sahte "ödendi" gösterir (**açık alacak gizlenir**).
+Canlı temizlik 2026-07-02: 7 bayat satır / ₺6,57M silindi (ODEON ₺5,8M virman düzeltmeleri, PEGAS
+₺616K tarih taşıma + kur farkı). **Kalıcı çözüm (yapılacak):** cari sweep deseni
+(`_sweep_stale_vendor_txns`) sales_invoices import'una da uygulanmalı.
+
 ## Hesaplama Kuralları
 - Fatura vadesi = `invoice_date + term_days` (firma tanımı yoksa 30).
 - **Ödendi (FIFO)** faturalar ve kalanı ≤ 0,01 TL olanlar listeye girmez.

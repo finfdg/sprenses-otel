@@ -88,7 +88,11 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
     summary_buckets = {BUCKET_NOT_DUE: 0.0, BUCKET_1_7: 0.0, BUCKET_8_30: 0.0, BUCKET_30_PLUS: 0.0}
     due_7d_tl = 0.0
 
-    for inv in db.query(SalesInvoice).all():
+    # MÜNFERİT HARİÇ (2026-07-02 kanıtı): walk-in misafir çıkışta kart/nakit/havale ile öder
+    # (PMS folio bakiyeleri 0 — 259/259 doğrulandı) ama muhasebe 120.03.* hesabına tahsilat
+    # kaydı işlemez → 120 alacak sinyali münferitte GÜVENİLMEZ, sahte "açık" üretir.
+    # Hak ediş takibi yalnız ACENTE (anlaşmalı firma) alacaklarını izler.
+    for inv in db.query(SalesInvoice).filter(SalesInvoice.is_munferit.is_(False)).all():
         st = inv_map.get(inv.id, {})
         if st.get("status") == "paid":
             continue
@@ -158,7 +162,8 @@ def firm_open_invoices(db: Session, customer_code: str, today: Optional[date] = 
 
     items = []
     for inv in (db.query(SalesInvoice)
-                .filter(SalesInvoice.customer_code == customer_code)
+                .filter(SalesInvoice.customer_code == customer_code,
+                        SalesInvoice.is_munferit.is_(False))  # münferit hariç (bkz. compute_receivables)
                 .order_by(SalesInvoice.invoice_date).all()):
         st = inv_map.get(inv.id, {})
         if st.get("status") == "paid":

@@ -64,6 +64,22 @@ class TestReceivableComputation:
         assert j["summary"]["open_tl"] >= 22000
         assert j["summary"]["overdue_firm_count"] >= 2
 
+    def test_munferit_excluded(self, client, auth_headers, db):
+        """Münferit (walk-in) faturalar hak ediş takibine GİRMEZ — misafir çıkışta öder
+        (PMS folio kanıtı) ama muhasebe 120.03.*'e tahsilat işlemez → sinyal güvenilmez."""
+        today = date.today()
+        inv = _mk_invoice(db, "120.03.99.M001", "MÜNFERİT TEST",
+                          today - timedelta(days=90), 99999, invoice_no="FM1")
+        inv.is_munferit = True
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        assert r.status_code == 200
+        codes = [f["code"] for f in r.json()["firms"]]
+        assert "120.03.99.M001" not in codes, "Münferit firma hak ediş listesinde OLMAMALI"
+
     def test_firm_invoices_detail(self, client, auth_headers, db):
         today = date.today()
         code = "120.98.02.C001"

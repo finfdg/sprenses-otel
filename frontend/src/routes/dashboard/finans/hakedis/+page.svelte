@@ -165,7 +165,7 @@
 
 <PageHeader
 	title="Hak Ediş Takibi"
-	description="Çıkışta kesilen acente faturaları — anlaşma vadesi (30/45 gün) içinde tahsilat takibi"
+	description="Çıkışta kesilen acente faturaları — anlaşma vadesi (30/45 gün) içinde tahsilat takibi. Münferit (walk-in) satışlar hariçtir: misafir çıkışta öder."
 />
 
 <!-- Özet kartları -->
