@@ -213,9 +213,9 @@
 	<EmptyState icon={Receipt} title="Açık hak ediş bulunamadı"
 		description={searchDebounced || onlyOverdue ? 'Filtreyle eşleşen firma yok.' : 'Tüm acente faturaları tahsil edilmiş görünüyor.'} />
 {:else}
-	<!-- Masaüstü tablo -->
-	<div class="hidden sm:block bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-		<table class="w-full text-sm">
+	<!-- Masaüstü tablo — 9 kolon geniş: yatay kaydırma (overflow-x-auto), kolonlar ezilmesin (min-w) -->
+	<div class="hidden sm:block bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
+		<table class="w-full min-w-[1120px] text-sm">
 			<thead>
 				<tr class="border-b border-gray-200 text-left text-gray-600">
 					<th class="px-4 py-3 w-8"></th>
@@ -235,16 +235,17 @@
 						<td class="px-4 py-3 text-gray-500">
 							{#if expanded[f.code]}<ChevronDown size={16} />{:else}<ChevronRight size={16} />{/if}
 						</td>
-						<td class="px-4 py-3">
+						<td class="px-4 py-3 max-w-[300px]">
 							<div class="font-medium text-gray-900 flex items-center gap-2">
-								{f.name || f.code}
+								<span class="truncate" title={f.name || f.code}>{f.name || f.code}</span>
 								{#if f.is_group}
-									<span class="inline-flex items-center gap-1 text-xs font-normal text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5">
+									<span class="shrink-0 inline-flex items-center gap-1 text-xs font-normal text-teal-700 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5">
 										<Users size={11} /> Grup · {f.members.length} firma
 									</span>
 								{/if}
 							</div>
-							<div class="text-xs text-gray-500 font-mono">
+							<div class="text-xs text-gray-500 font-mono truncate"
+								title={f.is_group ? f.members.map((m: any) => m.code).join(' · ') : f.code}>
 								{f.is_group ? f.members.map((m: any) => m.code).join(' · ') : f.code} · {f.currencies.join(', ')}
 							</div>
 						</td>
