@@ -46,7 +46,30 @@ Sedna'nın tüm veritabanları incelendi (29 DB): PMS `Invoice.DueDate` her zama
 |---|---|---|---|
 | GET | `/hakedis/` | view | Firma bazlı açık hak ediş + yaşlandırma + özet (tek çağrı; aggregate — pagination yok) |
 | GET | `/hakedis/firms/{customer_code}/invoices` | view | Firmanın açık/kısmi faturaları (vade, gecikme, kalan native+TL) |
+| GET | `/hakedis/firms/{customer_code}/collections` | view | Firmanın tahsilat dökümü, yeniden eskiye (`group-{id}` destekli) |
 | PATCH | `/hakedis/terms/{customer_code}` | use | Vade tanımı upsert — `check_approval` + audit |
+
+## Tahsilat Görünürlüğü + Eşlenmemiş Havuz (2026-07-03)
+
+Kullanıcı sorusu "bu acentadan hiç tahsilat yapılmış mı?" satırdan okunamıyordu (yalnız
+Açık/Avans/Net/Geciken vardı; Avans'taki "—" tahsilat yok sanılıyordu). Eklenenler:
+
+- **Firma satırı yeni alanlar** (`compute_receivables`): `collected_tl` / `collected_native`
+  (display_currency biriminde tahsilat toplamı), `collection_count`, `last_collection_date/
+  amount/currency`, `unapplied_tl` / `unapplied_by_currency`. Grup satırında üye toplamları.
+  Özet: `collected_tl`, `unapplied_tl`.
+- **UI:** "Tahsilat" kolonu (yeşil toplam + "son: tarih"; hiç yoksa "—"); satır genişletilince
+  fatura listesinin altında **Tahsilatlar** tablosu (tarih · native tutar · TL karşılığı ·
+  açıklama, yeniden eskiye) — hiç yoksa "henüz hiç tahsilat kaydı yok" metni.
+- **Eşlenmemiş (unapplied) havuz — çapraz kur bulgusu:** FIFO (customer, currency) bazında
+  eşler; faturaları EUR olan firmaya **TL tahsilat** gelirse hiçbir faturaya mahsup edilmez,
+  `_compute`'un `advance_balance` havuzunda askıda kalır ve **açık tutardan düşülmez** (canlı
+  örnek: FUN AND SUN 120.01.01.F005 — 12.06.2026 ₺213.959 TL EFT, faturalar EUR; sistem geneli
+  ₺307.635). Artık satırda **amber "eşlenmemiş" rozeti** + detayda açıklama notu gösterilir;
+  Avans özet kartının ipucunda toplam verilir. Mahsup edilmez — yalnız GÖRÜNÜR kılınır
+  (kur çevrimiyle otomatik mahsup ayrı bir iş kararı; nakit yönetimi tarafı bilerek dokunulmadı).
+- Test: `test_hakedis.py::TestCollectionsVisibility` (4 test — istatistikler, çapraz-kur
+  unapplied, döküm endpoint'i, RBAC).
 
 ## Münferit İstisnası (2026-07-02 kanıtlı karar)
 **Münferit (walk-in) faturalar (`is_munferit=True`, 120.03.*) hak ediş takibine GİRMEZ.**

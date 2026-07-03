@@ -31,6 +31,7 @@
 	let summary = $state<any>(null);
 	let loading = $state(true);
 	let invoicesByFirm = $state<Record<string, any[]>>({});
+	let collectionsByFirm = $state<Record<string, any[]>>({});
 	let invoiceLoading = $state<Record<string, boolean>>({});
 
 	// UI state
@@ -61,12 +62,28 @@
 		return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 	}
 	// Firma tek para birimliyse native (€), karışıksa TL karşılığı (fatura tarihi kuru)
-	function money(f: any, field: 'open' | 'overdue' | 'advance' | 'net_open'): string {
+	function money(f: any, field: 'open' | 'overdue' | 'advance' | 'net_open' | 'collected'): string {
 		if (f.display_currency) {
 			const sym = CURRENCY_SYMBOLS[f.display_currency] ?? f.display_currency;
 			return `${sym}${fmt(f[`${field}_native`])}`;
 		}
 		return `₺${fmt(f[`${field}_tl`])}`;
+	}
+	// Tahsilat kolonu: firma birimi cinsinden; o birimde hiç tahsilat yoksa
+	// (ör. EUR faturalı firmaya yalnız TL EFT gelmiş) TL karşılığı gösterilir — "€0,00" yanıltmasın
+	function collectedDisplay(f: any): string {
+		if (f.display_currency && (f.collected_native ?? 0) > 0) {
+			const sym = CURRENCY_SYMBOLS[f.display_currency] ?? f.display_currency;
+			return `${sym}${fmt(f.collected_native)}`;
+		}
+		return `₺${fmt(f.collected_tl)}`;
+	}
+	// Eşlenmemiş tahsilat havuzu rozet metni: "₺213.959" / birden çok birimde "₺X + €Y"
+	function unappliedLabel(f: any): string {
+		const byCur = f.unapplied_by_currency || {};
+		return Object.entries(byCur)
+			.map(([c, v]) => `${CURRENCY_SYMBOLS[c] ?? c}${fmt(v as number)}`)
+			.join(' + ');
 	}
 	function currencyBreakdown(byCur: Record<string, number> | undefined): string {
 		if (!byCur) return '';
@@ -103,14 +120,18 @@
 
 	async function toggleExpand(code: string) {
 		expanded[code] = !expanded[code];
-		if (expanded[code] && !invoicesByFirm[code]) {
+		if (expanded[code] && (!invoicesByFirm[code] || !collectionsByFirm[code])) {
 			invoiceLoading[code] = true;
 			try {
-				const r: any = await api.get(`/finance/hakedis/firms/${encodeURIComponent(code)}/invoices`);
-				invoicesByFirm[code] = r.items || [];
+				const [inv, col] = await Promise.all([
+					api.get<any>(`/finance/hakedis/firms/${encodeURIComponent(code)}/invoices`),
+					api.get<any>(`/finance/hakedis/firms/${encodeURIComponent(code)}/collections`),
+				]);
+				invoicesByFirm[code] = inv.items || [];
+				collectionsByFirm[code] = col.items || [];
 			} catch (err) {
-				console.error('Fatura detayı yüklenemedi:', err);
-				showToast('Fatura detayı yüklenemedi', 'error');
+				console.error('Firma detayı yüklenemedi:', err);
+				showToast('Firma detayı yüklenemedi', 'error');
 				expanded[code] = false;
 			} finally {
 				invoiceLoading[code] = false;
@@ -196,7 +217,7 @@
 	<StatCard label="Açık Hak Ediş" value={`₺${fmt(summary?.open_tl ?? 0)}`} icon={Receipt} accent="teal"
 		hint={`${currencyBreakdown(summary?.open_by_currency)} · ${summary?.firm_count ?? 0} firma/grup`} />
 	<StatCard label="Alınan Avans (eşlenen)" value={`₺${fmt(summary?.advance_tl ?? 0)}`} icon={Wallet} accent="blue"
-		hint="340 hesabı, güncel kurla" />
+		hint={`340 hesabı, güncel kurla${(summary?.unapplied_tl ?? 0) > 0 ? ` · ₺${fmt(summary.unapplied_tl)} eşlenmemiş tahsilat` : ''}`} />
 	<StatCard label="Net Açık (avans sonrası)" value={`₺${fmt(summary?.net_open_tl ?? 0)}`} icon={Scale} accent="teal" />
 	<StatCard label="Vadesi Geçen" value={`₺${fmt(summary?.overdue_tl ?? 0)}`} icon={AlarmClock} accent="red"
 		hint={`${summary?.overdue_firm_count ?? 0} firma · 7 gün içinde ₺${fmt(summary?.due_7d_tl ?? 0)}`} />
@@ -223,20 +244,21 @@
 
 <!-- Ana içerik -->
 {#if loading}
-	<TableSkeleton rows={6} columns={7} />
+	<TableSkeleton rows={6} columns={8} />
 {:else if filteredFirms.length === 0}
 	<EmptyState icon={Receipt} title="Açık hak ediş bulunamadı"
 		description={searchDebounced || onlyOverdue ? 'Filtreyle eşleşen firma yok.' : 'Tüm acente faturaları tahsil edilmiş görünüyor.'} />
 {:else}
-	<!-- Masaüstü tablo — 9 kolon geniş: yatay kaydırma (overflow-x-auto), kolonlar ezilmesin (min-w) -->
+	<!-- Masaüstü tablo — 10 kolon geniş: yatay kaydırma (overflow-x-auto), kolonlar ezilmesin (min-w) -->
 	<div class="hidden sm:block bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
-		<table class="w-full min-w-[1120px] text-sm">
+		<table class="w-full min-w-[1280px] text-sm">
 			<thead>
 				<tr class="border-b border-gray-200 text-left text-gray-600">
 					<th class="px-4 py-3 w-8"></th>
 					<th class="px-4 py-3">Firma / Grup</th>
 					<th class="px-4 py-3">Vade</th>
 					<th class="px-4 py-3 text-right">Açık Tutar</th>
+					<th class="px-4 py-3 text-right">Tahsilat</th>
 					<th class="px-4 py-3 text-right">Avans</th>
 					<th class="px-4 py-3 text-right">Net Açık</th>
 					<th class="px-4 py-3 text-right">Vadesi Geçen</th>
@@ -280,6 +302,25 @@
 						<td class="px-4 py-3 text-right tabular-nums" title={f.display_currency ? `TL karşılığı (fatura tarihi kuru): ₺${fmt(f.open_tl)}` : undefined}>
 							{money(f, 'open')}
 						</td>
+						<td class="px-4 py-3 text-right"
+							title={`${f.collection_count} tahsilat kaydı · toplam TL karşılığı ₺${fmt(f.collected_tl)}`}>
+							{#if f.collected_tl > 0}
+								<div class="tabular-nums text-green-700">{collectedDisplay(f)}</div>
+								{#if f.last_collection_date}
+									<div class="text-[11px] text-gray-500">son: {fmtDate(f.last_collection_date)}</div>
+								{/if}
+							{:else}
+								<span class="text-gray-500" title="Bu firmadan hiç tahsilat kaydı yok">—</span>
+							{/if}
+							{#if f.unapplied_tl > 0}
+								<div class="mt-0.5">
+									<span class="inline-block text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5"
+										title="Fatura para birimiyle eşleşmeyen (veya faturaları aşan) tahsilat — açık tutardan DÜŞÜLMEMİŞTİR">
+										{unappliedLabel(f)} eşlenmemiş
+									</span>
+								</div>
+							{/if}
+						</td>
 						<td class="px-4 py-3 text-right tabular-nums {f.advance_tl > 0 ? 'text-blue-700' : 'text-gray-500'}">
 							{f.advance_tl > 0 ? money(f, 'advance') : '—'}
 						</td>
@@ -298,10 +339,13 @@
 					</tr>
 					{#if expanded[f.code]}
 						<tr class="border-b border-gray-100 bg-gray-50/60">
-							<td colspan="9" class="px-6 py-3">
+							<td colspan="10" class="px-6 py-3">
 								{#if invoiceLoading[f.code]}
 									<TableSkeleton rows={3} columns={6} />
 								{:else}
+									<div class="text-xs font-semibold text-gray-700 mb-1.5">
+										Açık Faturalar ({(invoicesByFirm[f.code] || []).length})
+									</div>
 									<table class="w-full text-xs">
 										<thead>
 											<tr class="text-left text-gray-600">
@@ -341,6 +385,50 @@
 											{/each}
 										</tbody>
 									</table>
+
+									<!-- Tahsilat dökümü — "bu firmadan hiç tahsilat yapılmış mı?" kanıtı -->
+									<div class="mt-4 pt-3 border-t border-gray-200">
+										{#if (collectionsByFirm[f.code] || []).length > 0}
+											<div class="text-xs font-semibold text-gray-700 mb-1.5">
+												Tahsilatlar ({(collectionsByFirm[f.code] || []).length})
+											</div>
+											<table class="w-full text-xs">
+												<thead>
+													<tr class="text-left text-gray-600">
+														<th class="py-1.5 pr-3">Tarih</th>
+														{#if f.is_group}<th class="py-1.5 pr-3">Firma</th>{/if}
+														<th class="py-1.5 pr-3 text-right">Tutar</th>
+														<th class="py-1.5 pr-3 text-right">TL Karşılığı</th>
+														<th class="py-1.5 pr-3">Açıklama</th>
+													</tr>
+												</thead>
+												<tbody>
+													{#each collectionsByFirm[f.code] || [] as col (col.id)}
+														<tr class="border-t border-gray-100">
+															<td class="py-1.5 pr-3 tabular-nums">{fmtDate(col.collection_date)}</td>
+															{#if f.is_group}
+																<td class="py-1.5 pr-3 text-gray-700">{(col.customer_name || col.customer_code || '').slice(0, 26)}</td>
+															{/if}
+															<td class="py-1.5 pr-3 text-right tabular-nums font-medium text-green-700">
+																{CURRENCY_SYMBOLS[col.currency] ?? col.currency}{fmt(col.amount)}
+															</td>
+															<td class="py-1.5 pr-3 text-right tabular-nums text-gray-600">₺{fmt(col.amount_tl)}</td>
+															<td class="py-1.5 pr-3 text-gray-600 max-w-[360px] truncate" title={col.description}>{col.description || '—'}</td>
+														</tr>
+													{/each}
+												</tbody>
+											</table>
+										{:else}
+											<p class="text-xs text-gray-500">Bu firmadan henüz hiç tahsilat kaydı yok.</p>
+										{/if}
+										{#if f.unapplied_tl > 0}
+											<p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+												<strong>{unappliedLabel(f)}</strong> tutarında tahsilat, firmanın fatura para birimiyle
+												eşleşmediği (veya faturaları aştığı) için hiçbir faturaya mahsup edilemedi —
+												yukarıdaki açık tutardan <strong>düşülmemiştir</strong>.
+											</p>
+										{/if}
+									</div>
 								{/if}
 							</td>
 						</tr>
@@ -367,12 +455,24 @@
 				</div>
 				<div class="mt-3 grid grid-cols-2 gap-2 text-sm">
 					<div><span class="text-gray-500">Açık:</span> <span class="tabular-nums">{money(f, 'open')}</span></div>
+					<div><span class="text-gray-500">Tahsilat:</span>
+						<span class="tabular-nums {f.collected_tl > 0 ? 'text-green-700' : 'text-gray-500'}">
+							{f.collected_tl > 0 ? collectedDisplay(f) : '—'}</span>
+						{#if f.last_collection_date}<span class="text-xs text-gray-500">(son {fmtDate(f.last_collection_date)})</span>{/if}
+					</div>
 					<div><span class="text-gray-500">Avans:</span> <span class="tabular-nums text-blue-700">{money(f, 'advance')}</span></div>
 					<div><span class="text-gray-500">Net Açık:</span> <span class="tabular-nums font-semibold">{money(f, 'net_open')}</span></div>
 					<div><span class="text-gray-500">Geciken:</span>
 						<span class="tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : ''}">{money(f, 'overdue')}</span></div>
 					<div><span class="text-gray-500">Vade:</span> {f.term_days === null ? 'karma' : `${f.term_days} gün${f.is_default_term ? ' (vars.)' : ''}`}</div>
 				</div>
+				{#if f.unapplied_tl > 0}
+					<div class="mt-2">
+						<span class="inline-block text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+							{unappliedLabel(f)} eşlenmemiş tahsilat — açık tutardan düşülmedi
+						</span>
+					</div>
+				{/if}
 				{#if canUse}
 					<div class="mt-3">
 						<Button variant="secondary" size="sm" fullWidth onclick={() => openTermEdit(f)}>

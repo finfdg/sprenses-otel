@@ -56,6 +56,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 ### Finans — Hak Ediş Takibi (acente fatura alacakları, 30/45 gün vade)
 - `GET /api/finance/hakedis/` — Firma bazlı açık hak ediş + yaşlandırma kovaları + özet (vade = fatura + firma `term_days`; Sedna'da vade olmadığından yerel `receivable_terms`, varsayılan 30 gün). Aggregate — pagination yok
 - `GET /api/finance/hakedis/firms/{customer_code}/invoices` — Firmanın açık/kısmi faturaları (vade, gecikme günü, kalan native+TL)
+- `GET /api/finance/hakedis/firms/{customer_code}/collections` — Firmanın (veya `group-{id}`) tahsilat dökümü, yeniden eskiye (tarih, native+TL tutar, açıklama)
 - `PATCH /api/finance/hakedis/terms/{customer_code}` — Firma vade tanımı upsert (0-365 gün) — finance.hakedis use, `check_approval` + audit. Detay: `docs/modules/hakedis.md`
 
 ### Finans — Sedna Senkronizasyonu (Merkezi)

@@ -21,7 +21,7 @@ from app.models.agency_code_map import AgencyCodeMap
 from app.models.agency_group import AgencyGroup
 from app.models.exchange_rate import ExchangeRate
 from app.models.receivable_term import DEFAULT_TERM_DAYS, ReceivableTerm
-from app.models.sales_invoice import SalesAdvance, SalesInvoice
+from app.models.sales_invoice import SalesAdvance, SalesCollection, SalesInvoice
 from app.services.sales_invoice_service import _compute_cached, _f
 from app.utils.text_match import _norm_tokens
 
@@ -140,6 +140,32 @@ def _advance_by_code(db: Session, firm_names: dict, rates: dict) -> dict:
     return out
 
 
+def _collections_by_code(db: Session) -> dict:
+    """customer_code → tahsilat istatistikleri (satırdaki 'Tahsilat' kolonu için).
+
+    {count, tl (toplam TL karşılığı), by_currency: {birim: native toplam},
+     last_date, last_amount (native), last_currency}
+    """
+    out: dict = {}
+    for c in db.query(SalesCollection).all():
+        s = out.setdefault(c.customer_code, {
+            "count": 0, "tl": 0.0, "by_currency": {},
+            "last_date": None, "last_amount": 0.0, "last_currency": "TL", "_last_id": 0,
+        })
+        cur = (c.currency or "TL").strip() or "TL"
+        native = _f(c.amount_currency) or _f(c.amount)
+        s["count"] += 1
+        s["tl"] = round(s["tl"] + _f(c.amount), 2)
+        s["by_currency"][cur] = round(s["by_currency"].get(cur, 0.0) + native, 2)
+        # (tarih, id) karşılaştırması: aynı-gün birden çok tahsilatta seçim deterministik
+        if s["last_date"] is None or (c.collection_date, c.id) > (s["last_date"], s["_last_id"]):
+            s["last_date"] = c.collection_date
+            s["_last_id"] = c.id
+            s["last_amount"] = round(native, 2)
+            s["last_currency"] = cur
+    return out
+
+
 # ─── Hak ediş hesaplama ──────────────────────────────────
 
 def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
@@ -155,7 +181,7 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
     Tutarlar TL karşılığıdır (kartlar/toplama için); fatura detayında native de döner.
     """
     today = today or date.today()
-    inv_map, _adv = _compute_cached(db)
+    inv_map, adv_pool = _compute_cached(db)
     terms = get_terms_map(db)
 
     firms: dict = {}
@@ -214,6 +240,14 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
     # (TL karşılığı fatura-tarihi kurundandır, kullanıcıya karışık görünüyordu; 2026-07-02 geri bildirimi).
     rates = _latest_rates(db)
     advances = _advance_by_code(db, {c: f["name"] for c, f in firms.items()}, rates)
+    collections = _collections_by_code(db)
+    # FIFO havuzunda artan (hiçbir faturaya eşlenmemiş) tahsilat — tipik neden çapraz kur:
+    # faturaları EUR olan firmaya TL tahsilat gelirse havuzda askıda kalır ve açık tutardan
+    # DÜŞÜLMEZ (canlı örnek 2026-07-03: FUN AND SUN ₺213.959 TL EFT, faturalar EUR).
+    pool_by_code: dict = {}
+    for (pcode, pcur), leftover in adv_pool.items():
+        if leftover > 0.01:
+            pool_by_code.setdefault(pcode, {})[pcur] = round(leftover, 2)
     for code, f in firms.items():
         adv = advances.get(code)
         f["advance_tl"] = adv["tl"] if adv else 0.0
@@ -244,6 +278,25 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
             f["overdue_native"] = None
             f["advance_native"] = None
             f["net_open_native"] = None
+
+        # Tahsilat görünürlüğü (2026-07-03): "bu firmadan hiç tahsilat yapılmış mı?"
+        # sorusu satırdan okunabilsin — toplam + son tahsilat + eşlenmemiş havuz.
+        col = collections.get(code)
+        f["collected_tl"] = col["tl"] if col else 0.0
+        f["collection_count"] = col["count"] if col else 0
+        f["last_collection_date"] = (col["last_date"].isoformat()
+                                     if col and col["last_date"] else None)
+        f["last_collection_amount"] = col["last_amount"] if col else 0.0
+        f["last_collection_currency"] = col["last_currency"] if col else None
+        if f["display_currency"]:
+            f["collected_native"] = round(
+                col["by_currency"].get(f["display_currency"], 0.0), 2) if col else 0.0
+        else:
+            f["collected_native"] = None
+        unap = pool_by_code.get(code, {})
+        f["unapplied_by_currency"] = unap
+        f["unapplied_tl"] = round(
+            sum(v * rates.get(cur_, 1.0) for cur_, v in unap.items()), 2)
 
     # Gruplama: rezervasyon acente grupları (agency_groups) → PMS-ad köprüsüyle 120 kodları
     gmap = _group_map(db)
@@ -299,6 +352,23 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
             row["display_currency"] = None
             row["open_native"] = row["overdue_native"] = None
             row["advance_native"] = row["net_open_native"] = None
+
+        # Grup tahsilat toplamları (üyelerden)
+        row["collected_tl"] = round(sum(mf["collected_tl"] for mf in member_fs), 2)
+        row["collection_count"] = sum(mf["collection_count"] for mf in member_fs)
+        row["unapplied_tl"] = round(sum(mf["unapplied_tl"] for mf in member_fs), 2)
+        merged_unap: dict = {}
+        for mf in member_fs:
+            for cur_, v in mf["unapplied_by_currency"].items():
+                merged_unap[cur_] = round(merged_unap.get(cur_, 0.0) + v, 2)
+        row["unapplied_by_currency"] = merged_unap
+        last_mf = max((mf for mf in member_fs if mf["last_collection_date"]),
+                      key=lambda mf: mf["last_collection_date"], default=None)
+        row["last_collection_date"] = last_mf["last_collection_date"] if last_mf else None
+        row["last_collection_amount"] = last_mf["last_collection_amount"] if last_mf else 0.0
+        row["last_collection_currency"] = last_mf["last_collection_currency"] if last_mf else None
+        row["collected_native"] = (round(sum(mf["collected_native"] or 0.0 for mf in member_fs), 2)
+                                   if row["display_currency"] else None)
         firm_list.append(row)
 
     # En sorunlu (gecikmiş tutarı en yüksek) üstte; eşitlikte net açık tutara göre
@@ -326,6 +396,8 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
             "net_open_tl": round(sum(x["net_open_tl"] for x in firm_list), 2),
             "overdue_tl": overdue_tl,
             "due_7d_tl": due_7d_tl,
+            "collected_tl": round(sum(x["collected_tl"] for x in firm_list), 2),
+            "unapplied_tl": round(sum(x["unapplied_tl"] for x in firm_list), 2),
             "firm_count": len(firm_list),
             "overdue_firm_count": sum(1 for x in firm_list if x["overdue_tl"] > 0),
             "buckets": summary_buckets,
@@ -339,6 +411,44 @@ def group_member_codes(db: Session, group_id: int) -> list:
     return [code for code, g in gmap.items() if g["id"] == group_id]
 
 
+def _resolve_codes(db: Session, customer_code: str) -> list:
+    """`group-{id}` → üye 120 kodları; düz kod → tek elemanlı liste."""
+    if customer_code.startswith("group-"):
+        try:
+            return group_member_codes(db, int(customer_code.split("-", 1)[1]))
+        except (ValueError, IndexError):
+            return []
+    return [customer_code]
+
+
+def firm_collections(db: Session, customer_code: str) -> list:
+    """Bir firmanın (veya `group-{id}` grubunun) tahsilat dökümü — yeniden eskiye.
+
+    Satır genişletildiğinde fatura listesinin yanında gösterilir: "bu firmadan
+    hiç/ne zaman tahsilat yapılmış?" sorusunun kanıtı.
+    """
+    codes = _resolve_codes(db, customer_code)
+    if not codes:
+        return []
+    items = []
+    for c in (db.query(SalesCollection)
+              .filter(SalesCollection.customer_code.in_(codes))
+              .order_by(SalesCollection.collection_date.desc(), SalesCollection.id.desc())
+              .all()):
+        native = _f(c.amount_currency) or _f(c.amount)
+        items.append({
+            "id": c.id,
+            "customer_code": c.customer_code,
+            "customer_name": c.customer_name,
+            "collection_date": c.collection_date.isoformat(),
+            "currency": (c.currency or "TL").strip() or "TL",
+            "amount": round(native, 2),
+            "amount_tl": round(_f(c.amount), 2),
+            "description": c.description,
+        })
+    return items
+
+
 def firm_open_invoices(db: Session, customer_code: str, today: Optional[date] = None) -> list:
     """Bir firmanın (veya `group-{id}` ile bir GRUBUN tüm üyelerinin) açık/kısmi faturaları —
     vade + gecikme + kalan (native ve TL). Grup modunda her fatura kendi firmasının vadesiyle."""
@@ -346,15 +456,9 @@ def firm_open_invoices(db: Session, customer_code: str, today: Optional[date] = 
     inv_map, _adv = _compute_cached(db)
     terms = get_terms_map(db)
 
-    if customer_code.startswith("group-"):
-        try:
-            codes = group_member_codes(db, int(customer_code.split("-", 1)[1]))
-        except (ValueError, IndexError):
-            codes = []
-        if not codes:
-            return []
-    else:
-        codes = [customer_code]
+    codes = _resolve_codes(db, customer_code)
+    if not codes:
+        return []
 
     items = []
     for inv in (db.query(SalesInvoice)

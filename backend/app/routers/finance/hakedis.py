@@ -43,6 +43,17 @@ def firm_invoices(
     return {"items": items, "count": len(items)}
 
 
+@router.get("/firms/{customer_code}/collections")
+def firm_collections(
+    customer_code: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.hakedis", "view")),
+):
+    """Bir firmanın tahsilat dökümü (yeniden eskiye) — tarih, tutar (native+TL), açıklama."""
+    items = receivable_service.firm_collections(db, customer_code)
+    return {"items": items, "count": len(items)}
+
+
 @router.patch("/terms/{customer_code}")
 def update_term(
     customer_code: str,

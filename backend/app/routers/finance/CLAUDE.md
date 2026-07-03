@@ -202,6 +202,13 @@ vade+yaşlandırma katmanı (`receivable_service.compute_receivables`). `upsert_
 budget deseni). Modül id 920 (905 stok'a ait — ÇAKIŞMA yakalandı, migration `f4a8c2d6e9b1`).
 Test: `test_hakedis.py` (7) + onay regresyonu. Detay: `docs/modules/hakedis.md`.
 
+**Tahsilat görünürlüğü (2026-07-03):** firma satırına `collected_tl/native` + `collection_count` +
+`last_collection_*` + **`unapplied_tl`** (FIFO `advance_balance` havuzunda askıda kalan çapraz-kur
+tahsilat — EUR faturalı firmaya TL EFT gelirse mahsup edilmez, açık tutardan düşülmez; canlı örnek
+FUN AND SUN ₺213.959) alanları eklendi; yeni `GET /hakedis/firms/{code}/collections` döküm
+endpoint'i; UI'da "Tahsilat" kolonu + amber "eşlenmemiş" rozeti + detayda tahsilat tablosu.
+Test: `TestCollectionsVisibility` (4). Detay: `docs/modules/hakedis.md` "Tahsilat Görünürlüğü".
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:

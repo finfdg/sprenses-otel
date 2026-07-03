@@ -188,6 +188,84 @@ class TestRBAC:
         assert client.get(f"{PREFIX}/", headers=viewer_user_headers).status_code == 200
 
 
+class TestCollectionsVisibility:
+    """Tahsilat görünürlüğü (2026-07-03): firma satırında toplam/son tahsilat +
+    eşlenmemiş (çapraz-kur) havuz + tahsilat dökümü endpoint'i."""
+
+    def test_firm_row_includes_collection_stats(self, client, auth_headers, db):
+        today = date.today()
+        code = "120.94.01.T001"
+        _mk_invoice(db, code, "TAHSİLAT TEST A.Ş.", today - timedelta(days=10), 10000, invoice_no="T1")
+        db.add(SalesCollection(customer_code=code, customer_name="TAHSİLAT TEST A.Ş.",
+                               collection_date=today - timedelta(days=3), amount=4000,
+                               currency="TL", amount_currency=0, tx_hash="col-t1"))
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        row = next(f for f in r.json()["firms"] if f["code"] == code)
+        assert row["collected_tl"] == 4000
+        assert row["collection_count"] == 1
+        assert row["last_collection_date"] == (today - timedelta(days=3)).isoformat()
+        assert row["open_tl"] == 6000  # FIFO kısmi mahsup
+        assert row["unapplied_tl"] == 0.0  # aynı birim, faturayı aşmıyor → havuz boş
+        assert "collected_tl" in r.json()["summary"]
+        assert "unapplied_tl" in r.json()["summary"]
+
+    def test_cross_currency_collection_shows_unapplied(self, client, auth_headers, db):
+        """EUR faturalı firmaya TL tahsilat: FIFO mahsup ETMEZ (para birimi kovası farklı) →
+        açık native değişmez ama tahsilat satırda görünür ve havuz 'eşlenmemiş' olarak döner.
+        (Canlı örnek: FUN AND SUN ₺213.959 TL EFT, faturaların tamamı EUR.)"""
+        today = date.today()
+        code = "120.94.02.X001"
+        inv = _mk_invoice(db, code, "ÇAPRAZ KUR TEST GMBH",
+                          today - timedelta(days=10), 53000, currency="EUR", invoice_no="X1")
+        inv.amount_currency = 1000  # €1.000
+        db.add(SalesCollection(customer_code=code, customer_name="ÇAPRAZ KUR TEST GMBH",
+                               collection_date=today - timedelta(days=2), amount=5000,
+                               currency="TL", amount_currency=0, tx_hash="col-x1"))
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        row = next(f for f in r.json()["firms"] if f["code"] == code)
+        assert row["open_native"] == 1000  # TL tahsilat EUR faturayı KAPATMADI
+        assert row["collected_tl"] == 5000  # ama satırda görünür
+        assert row["collected_native"] == 0.0  # EUR cinsinden tahsilat yok
+        assert row["unapplied_tl"] == 5000  # havuzda askıda (TL kuru 1.0)
+        assert row["unapplied_by_currency"] == {"TL": 5000}
+
+    def test_firm_collections_endpoint(self, client, auth_headers, db):
+        today = date.today()
+        code = "120.94.03.C001"
+        _mk_invoice(db, code, "DÖKÜM TEST LTD.", today - timedelta(days=5), 9000, invoice_no="D1")
+        db.add(SalesCollection(customer_code=code, customer_name="DÖKÜM TEST LTD.",
+                               collection_date=today - timedelta(days=4), amount=2000,
+                               currency="TL", amount_currency=0, tx_hash="col-d1",
+                               description="GELEN EFT"))
+        db.add(SalesCollection(customer_code=code, customer_name="DÖKÜM TEST LTD.",
+                               collection_date=today - timedelta(days=1), amount=1500,
+                               currency="TL", amount_currency=0, tx_hash="col-d2"))
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/firms/{code}/collections", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        items = r.json()["items"]
+        assert len(items) == 2
+        # Yeniden eskiye sıralı
+        assert items[0]["collection_date"] == (today - timedelta(days=1)).isoformat()
+        assert items[1]["description"] == "GELEN EFT"
+        assert items[1]["amount_tl"] == 2000
+
+    def test_collections_endpoint_requires_view(self, client, no_perm_user_headers):
+        r = client.get(f"{PREFIX}/firms/120.94.03.C001/collections", headers=no_perm_user_headers)
+        assert r.status_code == 403
+
+
 class TestNativeCurrencyDisplay:
     def test_single_currency_firm_gets_native_fields(self, client, auth_headers, db):
         """Tek para birimli (EUR) firmada open/overdue/net native (€) alanları döner —
