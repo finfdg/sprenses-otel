@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatCompact, groupByMonth, getTodayKeys, MONTH_NAMES } from './finance';
+import { formatCurrency, formatCompact, groupByMonth, getTodayKeys, monthKeysToDateRange, MONTH_NAMES } from './finance';
 import type { CashFlowItem } from '$lib/types/finance';
 
 // ─── Yardımcı: minimal CashFlowItem oluştur ─────────────────
@@ -318,3 +318,31 @@ describe('groupDaySourceItems', () => {
 		expect((units[0] as any).totalTry).toBe(3000);
 		expect((units[1] as any).totalTry).toBe(700);
 	});
+
+// ─── monthKeysToDateRange ───────────────────────────────────
+describe('monthKeysToDateRange', () => {
+	it('tek ay → ayın 1\'i ile son günü', () => {
+		expect(monthKeysToDateRange(['2026-07'])).toEqual({ start: '2026-07-01', end: '2026-07-31' });
+	});
+
+	it('30 çeken ay ve Şubat (artık olmayan yıl) doğru biter', () => {
+		expect(monthKeysToDateRange(['2026-09'])).toEqual({ start: '2026-09-01', end: '2026-09-30' });
+		expect(monthKeysToDateRange(['2026-02'])).toEqual({ start: '2026-02-01', end: '2026-02-28' });
+	});
+
+	it('artık yıl Şubat 29 çeker', () => {
+		expect(monthKeysToDateRange(['2028-02'])).toEqual({ start: '2028-02-01', end: '2028-02-29' });
+	});
+
+	it('birden çok ay → ilk ayın 1\'i, son ayın son günü (sırasız girişte de)', () => {
+		expect(monthKeysToDateRange(['2026-09', '2026-07'])).toEqual({ start: '2026-07-01', end: '2026-09-30' });
+	});
+
+	it('yıl sınırını aşan aralık', () => {
+		expect(monthKeysToDateRange(['2026-12', '2027-01'])).toEqual({ start: '2026-12-01', end: '2027-01-31' });
+	});
+
+	it('boş liste → null (çağıran, filtre aralığına düşer)', () => {
+		expect(monthKeysToDateRange([])).toBeNull();
+	});
+});

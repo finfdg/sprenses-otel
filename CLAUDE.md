@@ -323,7 +323,7 @@ TEMPLATE:
 │   │   │   │   └── StatCard.svelte       # İstatistik kartı
 │   │   │   └── utils/
 │   │   │       ├── finance.ts            # formatCurrency, groupByMonth, getTodayKeys
-│   │   │       ├── finance.test.ts       # Finans yardımcı testleri (23 test)
+│   │   │       ├── finance.test.ts       # Finans yardımcı testleri (36 test)
 │   │   │       ├── paymentMethods.ts     # Ödeme yöntemi haritası + helper
 │   │   │       ├── paymentMethods.test.ts # Ödeme yöntemi testleri (16 test)
 │   │   │       ├── colorMap.ts           # Kategori renk haritası + getColor
@@ -515,11 +515,11 @@ PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --data-only \
 cd frontend && npx vitest run
 ```
 
-**Test dosyaları (287 test, 23 dosya — toplam birebir doğrulandı):**
+**Test dosyaları (293 test, 23 dosya — toplam birebir doğrulandı):**
 
 *API & utils:*
 - `src/lib/api.test.ts` — API wrapper (GET/POST/PATCH/DELETE, upload, hata yönetimi, 401/403, signal, fetchRaw) (22 test)
-- `src/lib/utils/finance.test.ts` — formatCurrency, formatCompact, groupByMonth, getTodayKeys, transfer hariç tutma (23 test)
+- `src/lib/utils/finance.test.ts` — formatCurrency, formatCompact, groupByMonth, getTodayKeys, monthKeysToDateRange, transfer hariç tutma (36 test)
 - `src/lib/utils/paymentMethods.test.ts` — PAYMENT_METHODS, SELECTABLE, CATEGORIES, getPaymentMethod fallback (16 test)
 - `src/lib/utils/colorMap.test.ts` — categoryColorMap, filterColorMap, availableColors, getColor fallback (16 test)
 - `src/lib/utils/validation.test.ts` — validateEmail, validatePassword, validateRequired, validateModuleCode (12 test)

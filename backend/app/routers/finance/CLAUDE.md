@@ -22,7 +22,10 @@ nakit akışını PDF indirir: `GET /cash-flow/report/pdf?start_date&end_date`
   aralıktaki son günün `balance_eur`'u (UI ay başlığı tam-ay gösterir — tam-ay
   aralığında ikisi özdeş).
 - **Frontend:** `api.fetchRaw` → blob → **`PdfPreviewModal.svelte`** (paylaşılan
-  önizleme modalı); uygulanmış filtre (`cashFlowCache.filters`) parametre olarak gider.
+  önizleme modalı). **Kapsam = akordiyonda AÇIK olan ay** (kullanıcı isteği 2026-07-03:
+  "Temmuz seçiliyse Temmuz raporu"): `MonthAccordion.getExpandedMonthKeys()` +
+  `monthKeysToDateRange()` (utils/finance.ts, testli) → start/end; birden çok açık ay =
+  kapsayan aralık; hiç açık ay yoksa fallback uygulanmış filtre (`cashFlowCache.filters`).
   **NOT (2026-07-03):** ilk sürümdeki `<a download>` + `click()` deseni iPad Safari'de
   "WebKitBlobResource hatası 1" verdi → talimatlar sayfasının modal-iframe çözümü
   `lib/components/PdfPreviewModal.svelte` ortak bileşenine çıkarıldı; nakit-akım +

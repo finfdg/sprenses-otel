@@ -218,6 +218,12 @@
 		visibleDays = {};
 	}
 
+	/** Açık (genişletilmiş) ay anahtarlarını döner — görünür aylarla kesişim, kronolojik.
+	 *  PDF raporu "seçili ay" kapsamını buradan alır. */
+	export function getExpandedMonthKeys(): string[] {
+		return monthGroups.map((m) => m.key).filter((k) => expandedMonths[k]);
+	}
+
 	/** Otomatik açılan günü hemen "görünür" işaretle —
 	 *  scrollIntoView animasyonu sonrası IO geç tetiklenebilir, kullanıcı bekletilmesin. */
 	function markVisible(date: string) {

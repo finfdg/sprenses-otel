@@ -27,7 +27,7 @@
 	import CashFlowFilterBar from '$lib/components/finance/CashFlowFilterBar.svelte';
 	import MonthAccordion from '$lib/components/finance/MonthAccordion.svelte';
 	import type { CashFlowItem as CashFlowItemType, TransactionCategory } from '$lib/types/finance';
-	import { groupByMonth, getTodayKeys } from '$lib/utils/finance';
+	import { groupByMonth, getTodayKeys, monthKeysToDateRange } from '$lib/utils/finance';
 
 	// $state — data
 	let autoTagging = $state(false);
@@ -323,20 +323,34 @@
 		autoTagging = false;
 	}
 
-	/** Ekrandaki tarih aralığındaki ayların nakit akışını PDF rapor olarak göster/indir */
+	/** Akordiyonda açık (seçili) ayın nakit akış raporunu PDF göster.
+	 *  Birden çok ay açıksa hepsini kapsayan aralık; hiçbir ay açık değilse
+	 *  ekrandaki tarih filtresi kullanılır. */
 	async function downloadPdf() {
 		pdfLoading = true;
 		try {
+			const expandedMonthKeys = accordionRef?.getExpandedMonthKeys() ?? [];
+			const monthRange = monthKeysToDateRange(expandedMonthKeys);
+
 			const params = new URLSearchParams();
-			if (cashFlowCache.filters.startDate) params.set('start_date', cashFlowCache.filters.startDate);
-			if (cashFlowCache.filters.endDate) params.set('end_date', cashFlowCache.filters.endDate);
+			if (monthRange) {
+				params.set('start_date', monthRange.start);
+				params.set('end_date', monthRange.end);
+			} else {
+				if (cashFlowCache.filters.startDate) params.set('start_date', cashFlowCache.filters.startDate);
+				if (cashFlowCache.filters.endDate) params.set('end_date', cashFlowCache.filters.endDate);
+			}
 			const qs = params.toString();
 			const res = await api.fetchRaw(`/finance/cash-flow/report/pdf${qs ? '?' + qs : ''}`);
 			if (!res.ok) throw new Error('İndirme başarısız');
 			const blob = await res.blob();
+
+			const fnameLabel = monthRange
+				? (expandedMonthKeys.length === 1 ? expandedMonthKeys[0] : `${monthRange.start}_${monthRange.end}`)
+				: new Date().toISOString().slice(0, 10);
 			// iOS Safari blob'u doğrudan indiremiyor (WebKitBlobResource hatası 1) →
 			// paylaşılan önizleme modalında göster (Yazdır/İndir oradan)
-			pdfModal?.open(blob, `nakit-akim-raporu-${new Date().toISOString().slice(0, 10)}.pdf`);
+			pdfModal?.open(blob, `nakit-akim-raporu-${fnameLabel}.pdf`);
 		} catch (err) {
 			console.error('PDF rapor indirme hatası:', err);
 			showToast('PDF raporu indirilemedi', 'error');
@@ -418,7 +432,7 @@
 				loading={pdfLoading}
 				onclick={downloadPdf}
 				ariaLabel="PDF Rapor"
-				title="Görüntülenen aylardaki nakit akışını PDF rapor olarak indir"
+				title="Açık (seçili) ayın nakit akışını PDF rapor olarak göster — ay kapalıysa görüntülenen aralık"
 			>
 				<FileDown size={16} /> <span class="hidden sm:inline">PDF Rapor</span>
 			</Button>

@@ -136,6 +136,18 @@ export function groupDaySourceItems(items: CashFlowItem[]): DayRenderUnit[] {
 	});
 }
 
+/** Ay anahtarlarını ('YYYY-MM') tarih aralığına çevirir: ilk ayın 1'i → son ayın son günü.
+ *  Nakit akım PDF raporu, akordiyonda açık ay(lar)ın kapsamını bununla üretir. */
+export function monthKeysToDateRange(keys: string[]): { start: string; end: string } | null {
+	if (keys.length === 0) return null;
+	const sorted = [...keys].sort();
+	const first = sorted[0];
+	const last = sorted[sorted.length - 1];
+	const [y, m] = last.split('-').map(Number);
+	const lastDay = new Date(y, m, 0).getDate(); // ayın son günü (m 1-bazlı → bir sonraki ayın 0. günü)
+	return { start: `${first}-01`, end: `${last}-${String(lastDay).padStart(2, '0')}` };
+}
+
 export function getTodayKeys() {
 	const today = new Date();
 	const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;

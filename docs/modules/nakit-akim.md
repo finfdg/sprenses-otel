@@ -160,10 +160,14 @@ ayların nakit akışını PDF olarak indirir.
 
 - **Endpoint:** `GET /api/finance/cash-flow/report/pdf?start_date&end_date`
   (`finance.cash_flow` **view** — salt-okuma export, onaydan muaf, `heavy_limiter`'lı).
-- **Kapsam ("ilgili aylar"):** Frontend, ekrandaki **uygulanmış** tarih filtresini
-  (`cashFlowCache.filters.startDate/endDate`) parametre olarak gönderir — rapor,
-  akordiyonda görünen aylarla eşleşir. Aralık verilmezse tüm kayıtlar raporlanır.
-  Geçersiz tarih parametresi sessizce yok sayılır (`listing.py` toleransıyla aynı).
+- **Kapsam ("ilgili ay") — 2026-07-03 netleştirildi:** Rapor, akordiyonda **açık
+  (seçili) olan ayı** kapsar (Temmuz açıksa yalnız Temmuz). Kaynak:
+  `MonthAccordion.getExpandedMonthKeys()` → `monthKeysToDateRange()` (`utils/finance.ts`,
+  ilk ayın 1'i → son ayın son günü) → `start_date`/`end_date`. Birden çok ay açıksa
+  hepsini kapsayan aralık; **hiçbir ay açık değilse** ekrandaki uygulanmış tarih
+  filtresi (`cashFlowCache.filters`) kullanılır. Geçersiz tarih parametresi sessizce
+  yok sayılır (`listing.py` toleransıyla aynı). Dosya adı tek ayda
+  `nakit-akim-raporu-YYYY-MM.pdf`.
 - **İçerik:** Her ay için başlık (Gider/Gelir/Ay Sonu Bakiye) + günlük satırlar
   (Tarih · Gider € · Gelir € · Bakiye €) + ay toplamı satırı; sonda genel toplam.
   Gün etiketi ekranla aynı biçimde ("1 Temmuz Çar" — locale bağımsız sabit listeler).
