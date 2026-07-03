@@ -71,6 +71,27 @@ Açık/Avans/Net/Geciken vardı; Avans'taki "—" tahsilat yok sanılıyordu). E
 - Test: `test_hakedis.py::TestCollectionsVisibility` (4 test — istatistikler, çapraz-kur
   unapplied, döküm endpoint'i, RBAC).
 
+## Düzenli Satır Yapısı — İş Akışı Sırası (2026-07-03 kullanıcı isteği)
+
+Tablo kolonları muhasebe akışı sırasına dizildi: **Faturalanan → Avans → Tahsilat →
+Kalan Hak Ediş → Vadesi Geçen → Ay Sonu Plan** ("önce kesilen faturalar, sonra alınan
+avanslar, yapılan tahsilatlar, avans mahsup edilmiş mi, kalan hak ediş ve ay sonları
+itibariyle tahsil edilmesi gereken").
+
+- **Faturalanan:** kesilen TÜM faturalar (ödenmişler DAHİL) — `invoiced_tl/invoiced_native`
+  + `total_invoice_count`; alt satırda "N fatura · M açık". Eski "Açık Tutar" kolonu kalktı;
+  avans-öncesi açık, Kalan kolonunun tooltip'inde.
+- **Avans:** ana rakam = KALAN avans (netlemeye giren); alt satır **"alınan ₺A · mahsup ₺B"**
+  (`advance_received_tl`/`advance_consumed_tl` — `_advance_by_code` artık tamamı mahsup edilmiş
+  avansları da istatistik için toplar; netleme davranışı DEĞİŞMEDİ, yalnız kalan>1 sayılır).
+- **Kalan Hak Ediş** = eski "Net Açık" (açık − kalan avans).
+- **Vadesi Geçen:** tutar + gecikme rozeti tek hücrede (ayrı Gecikme kolonu kalktı).
+- **Ay Sonu Plan** (`monthly_due`): vade ayına göre `[{month, due_tl/native (ay içi vadesi
+  dolan), cum_tl/native (ay sonu itibariyle KÜMÜLATİF — gecikmişler ilk aya devreder)}]`.
+  Satırda içinde bulunulan ay + sonrası (ilk 3) gösterilir; detay genişletmesinde tam tablo
+  ("Ay Sonu Tahsilat Planı"). Grup satırında üye planları ay bazında birleştirilir.
+- Test: `TestOrganizedRowFields` (3 — ödenmiş-dahil faturalanan, kümülatif plan, mahsup istatistiği).
+
 ## Münferit İstisnası (2026-07-02 kanıtlı karar)
 **Münferit (walk-in) faturalar (`is_munferit=True`, 120.03.*) hak ediş takibine GİRMEZ.**
 Kanıt: Haziran 2026'daki 259 münferit faturanın 259'unun PMS folio bakiyesi 0 (misafir çıkışta

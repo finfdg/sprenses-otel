@@ -22,6 +22,8 @@
 		not_due: 'Vadesi gelmemiş', overdue_1_7: '1-7 gün', overdue_8_30: '8-30 gün', overdue_30_plus: '30+ gün'
 	};
 	const CURRENCY_SYMBOLS: Record<string, string> = { EUR: '€', USD: '$', TL: '₺', TRY: '₺', GBP: '£' };
+	const TR_MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+	const TR_MONTHS_FULL = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
 	// Türetilmiş
 	let canUse = $derived(hasPermission('finance.hakedis', 'use'));
@@ -77,6 +79,43 @@
 			return `${sym}${fmt(f.collected_native)}`;
 		}
 		return `₺${fmt(f.collected_tl)}`;
+	}
+	// Faturalanan kolonu (kesilen TÜM faturalar): firma birimi cinsinden, yoksa TL
+	function invoicedDisplay(f: any): string {
+		if (f.display_currency && (f.invoiced_native ?? 0) > 0) {
+			const sym = CURRENCY_SYMBOLS[f.display_currency] ?? f.display_currency;
+			return `${sym}${fmt(f.invoiced_native)}`;
+		}
+		return `₺${fmt(f.invoiced_tl)}`;
+	}
+	function fmt0(n: number): string {
+		return new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(n || 0);
+	}
+	function monthShort(mk: string): string {
+		const [y, m] = mk.split('-');
+		return `${TR_MONTHS_SHORT[parseInt(m) - 1]} ${y.slice(2)}`;
+	}
+	function monthFull(mk: string): string {
+		const [y, m] = mk.split('-');
+		return `${TR_MONTHS_FULL[parseInt(m) - 1]} ${y}`;
+	}
+	// Ay sonu plan tutarı (kümülatif / ay içi) — firma birimi cinsinden, yoksa TL
+	function planAmount(f: any, e: any, field: 'cum' | 'due'): string {
+		if (f.display_currency && e[`${field}_native`] != null) {
+			const sym = CURRENCY_SYMBOLS[f.display_currency] ?? f.display_currency;
+			return `${sym}${fmt0(e[`${field}_native`])}`;
+		}
+		return `₺${fmt0(e[`${field}_tl`])}`;
+	}
+	// Satırda gösterilecek plan girdileri: içinde bulunulan ay ve sonrası
+	// (geçmiş ayların gecikmişleri kümülatife zaten devreder); hepsi geçmişse son girdi
+	function planEntries(f: any): any[] {
+		const all = f.monthly_due || [];
+		const now = new Date();
+		const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+		const upcoming = all.filter((e: any) => e.month >= curKey);
+		if (upcoming.length === 0) return all.length ? [all[all.length - 1]] : [];
+		return upcoming;
 	}
 	// Eşlenmemiş tahsilat havuzu rozet metni: "₺213.959" / birden çok birimde "₺X + €Y"
 	function unappliedLabel(f: any): string {
@@ -244,26 +283,26 @@
 
 <!-- Ana içerik -->
 {#if loading}
-	<TableSkeleton rows={6} columns={8} />
+	<TableSkeleton rows={6} columns={9} />
 {:else if filteredFirms.length === 0}
 	<EmptyState icon={Receipt} title="Açık hak ediş bulunamadı"
 		description={searchDebounced || onlyOverdue ? 'Filtreyle eşleşen firma yok.' : 'Tüm acente faturaları tahsil edilmiş görünüyor.'} />
 {:else}
-	<!-- Masaüstü tablo — 10 kolon geniş: yatay kaydırma (overflow-x-auto), kolonlar ezilmesin (min-w) -->
+	<!-- Masaüstü tablo — iş akışı sırasıyla: Faturalanan → Avans → Tahsilat → Kalan → Geciken → Ay Sonu Plan
+	     (yatay kaydırma: overflow-x-auto, kolonlar ezilmesin: min-w) -->
 	<div class="hidden sm:block bg-white border border-gray-200 rounded-2xl shadow-sm overflow-x-auto">
-		<table class="w-full min-w-[1280px] text-sm">
+		<table class="w-full min-w-[1360px] text-sm">
 			<thead>
 				<tr class="border-b border-gray-200 text-left text-gray-600">
 					<th class="px-4 py-3 w-8"></th>
 					<th class="px-4 py-3">Firma / Grup</th>
 					<th class="px-4 py-3">Vade</th>
-					<th class="px-4 py-3 text-right">Açık Tutar</th>
-					<th class="px-4 py-3 text-right">Tahsilat</th>
+					<th class="px-4 py-3 text-right">Faturalanan</th>
 					<th class="px-4 py-3 text-right">Avans</th>
-					<th class="px-4 py-3 text-right">Net Açık</th>
+					<th class="px-4 py-3 text-right">Tahsilat</th>
+					<th class="px-4 py-3 text-right">Kalan Hak Ediş</th>
 					<th class="px-4 py-3 text-right">Vadesi Geçen</th>
-					<th class="px-4 py-3">Gecikme</th>
-					<th class="px-4 py-3 text-right">Fatura</th>
+					<th class="px-4 py-3 text-right">Ay Sonu Plan</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -299,9 +338,26 @@
 								{/if}
 							</span>
 						</td>
-						<td class="px-4 py-3 text-right tabular-nums" title={f.display_currency ? `TL karşılığı (fatura tarihi kuru): ₺${fmt(f.open_tl)}` : undefined}>
-							{money(f, 'open')}
+						<!-- 1) Kesilen faturalar (ödenmişler dahil toplam) -->
+						<td class="px-4 py-3 text-right" title={`TL karşılığı: ₺${fmt(f.invoiced_tl)}`}>
+							<div class="tabular-nums text-gray-900">{invoicedDisplay(f)}</div>
+							<div class="text-[11px] text-gray-500">{f.total_invoice_count} fatura · {f.invoice_count} açık</div>
 						</td>
+						<!-- 2) Alınan avans + mahsup durumu -->
+						<td class="px-4 py-3 text-right">
+							{#if f.advance_received_tl > 0 || f.advance_tl > 0}
+								<div class="tabular-nums {f.advance_tl > 0 ? 'text-blue-700' : 'text-gray-500'}"
+									title="Kalan avans — Kalan Hak Ediş hesabında düşülür">
+									{f.advance_tl > 0 ? money(f, 'advance') : '₺0,00'}
+								</div>
+								<div class="text-[11px] text-gray-500 tabular-nums">
+									alınan ₺{fmt0(f.advance_received_tl)} · mahsup ₺{fmt0(f.advance_consumed_tl)}
+								</div>
+							{:else}
+								<span class="text-gray-500" title="340 hesabında bu firmayla eşleşen avans yok">—</span>
+							{/if}
+						</td>
+						<!-- 3) Yapılan tahsilatlar -->
 						<td class="px-4 py-3 text-right"
 							title={`${f.collection_count} tahsilat kaydı · toplam TL karşılığı ₺${fmt(f.collected_tl)}`}>
 							{#if f.collected_tl > 0}
@@ -321,25 +377,47 @@
 								</div>
 							{/if}
 						</td>
-						<td class="px-4 py-3 text-right tabular-nums {f.advance_tl > 0 ? 'text-blue-700' : 'text-gray-500'}">
-							{f.advance_tl > 0 ? money(f, 'advance') : '—'}
-						</td>
-						<td class="px-4 py-3 text-right tabular-nums font-semibold {f.net_open_tl > 0 ? 'text-gray-900' : 'text-green-700'}">
+						<!-- 4) Kalan hak ediş (avans kalanı düşülmüş net açık) -->
+						<td class="px-4 py-3 text-right tabular-nums font-semibold {f.net_open_tl > 0 ? 'text-gray-900' : 'text-green-700'}"
+							title={`Avans öncesi açık: ${money(f, 'open')}${f.display_currency ? ` · TL karşılığı: ₺${fmt(f.open_tl)}` : ''}`}>
 							{money(f, 'net_open')}
 						</td>
-						<td class="px-4 py-3 text-right tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}">
-							{f.overdue_tl > 0 ? money(f, 'overdue') : '—'}
+						<!-- 5) Vadesi geçen + gecikme -->
+						<td class="px-4 py-3 text-right">
+							{#if f.overdue_tl > 0}
+								<div class="tabular-nums text-red-600 font-semibold">{money(f, 'overdue')}</div>
+								<div class="mt-0.5 flex justify-end">
+									<StatusBadge type={overdueBadge(f.max_overdue_days)}>{f.max_overdue_days} gün</StatusBadge>
+								</div>
+							{:else}
+								<div class="mt-0.5 flex justify-end">
+									<StatusBadge type="success">Vadesinde</StatusBadge>
+								</div>
+							{/if}
 						</td>
-						<td class="px-4 py-3">
-							<StatusBadge type={overdueBadge(f.max_overdue_days)}>
-								{f.max_overdue_days > 0 ? `${f.max_overdue_days} gün` : 'Vadesinde'}
-							</StatusBadge>
+						<!-- 6) Ay sonu itibariyle tahsil edilmesi gereken (kümülatif) -->
+						<td class="px-4 py-3 text-right"
+							title="Ay sonu itibariyle tahsil edilmesi gereken toplam (kümülatif — gecikmişler dahil). Detay için satırı genişletin.">
+							{#if planEntries(f).length > 0}
+								<div class="space-y-0.5">
+									{#each planEntries(f).slice(0, 3) as e (e.month)}
+										<div class="text-xs tabular-nums whitespace-nowrap">
+											<span class="text-gray-500">{monthShort(e.month)} sonu:</span>
+											<span class="font-medium text-gray-900">{planAmount(f, e, 'cum')}</span>
+										</div>
+									{/each}
+									{#if planEntries(f).length > 3}
+										<div class="text-[11px] text-gray-500">+{planEntries(f).length - 3} ay daha</div>
+									{/if}
+								</div>
+							{:else}
+								<span class="text-gray-500">—</span>
+							{/if}
 						</td>
-						<td class="px-4 py-3 text-right tabular-nums text-gray-700">{f.invoice_count}</td>
 					</tr>
 					{#if expanded[f.code]}
 						<tr class="border-b border-gray-100 bg-gray-50/60">
-							<td colspan="10" class="px-6 py-3">
+							<td colspan="9" class="px-6 py-3">
 								{#if invoiceLoading[f.code]}
 									<TableSkeleton rows={3} columns={6} />
 								{:else}
@@ -429,6 +507,34 @@
 											</p>
 										{/if}
 									</div>
+
+									<!-- Ay sonu tahsilat planı — vadesi o ayda dolan + kümülatif -->
+									{#if (f.monthly_due || []).length > 0}
+										<div class="mt-4 pt-3 border-t border-gray-200">
+											<div class="text-xs font-semibold text-gray-700 mb-1.5">Ay Sonu Tahsilat Planı</div>
+											<table class="text-xs">
+												<thead>
+													<tr class="text-left text-gray-600">
+														<th class="py-1.5 pr-6">Ay</th>
+														<th class="py-1.5 pr-6 text-right">Ay İçi Vadesi Dolan</th>
+														<th class="py-1.5 pr-3 text-right">Ay Sonu İtibariyle Tahsil Edilmesi Gereken</th>
+													</tr>
+												</thead>
+												<tbody>
+													{#each f.monthly_due as e (e.month)}
+														<tr class="border-t border-gray-100">
+															<td class="py-1.5 pr-6">{monthFull(e.month)}</td>
+															<td class="py-1.5 pr-6 text-right tabular-nums">{planAmount(f, e, 'due')}</td>
+															<td class="py-1.5 pr-3 text-right tabular-nums font-medium">{planAmount(f, e, 'cum')}</td>
+														</tr>
+													{/each}
+												</tbody>
+											</table>
+											<p class="mt-1.5 text-[11px] text-gray-500">
+												Kümülatif tutar, o ay sonuna kadar vadesi dolan tüm açık faturaları (gecikmişler dahil) kapsar.
+											</p>
+										</div>
+									{/if}
 								{/if}
 							</td>
 						</tr>
@@ -454,18 +560,32 @@
 					</StatusBadge>
 				</div>
 				<div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-					<div><span class="text-gray-500">Açık:</span> <span class="tabular-nums">{money(f, 'open')}</span></div>
+					<div><span class="text-gray-500">Faturalanan:</span> <span class="tabular-nums">{invoicedDisplay(f)}</span>
+						<span class="text-xs text-gray-500">({f.total_invoice_count})</span></div>
+					<div><span class="text-gray-500">Avans:</span>
+						<span class="tabular-nums text-blue-700">{f.advance_received_tl > 0 || f.advance_tl > 0 ? money(f, 'advance') : '—'}</span></div>
 					<div><span class="text-gray-500">Tahsilat:</span>
 						<span class="tabular-nums {f.collected_tl > 0 ? 'text-green-700' : 'text-gray-500'}">
 							{f.collected_tl > 0 ? collectedDisplay(f) : '—'}</span>
 						{#if f.last_collection_date}<span class="text-xs text-gray-500">(son {fmtDate(f.last_collection_date)})</span>{/if}
 					</div>
-					<div><span class="text-gray-500">Avans:</span> <span class="tabular-nums text-blue-700">{money(f, 'advance')}</span></div>
-					<div><span class="text-gray-500">Net Açık:</span> <span class="tabular-nums font-semibold">{money(f, 'net_open')}</span></div>
+					<div><span class="text-gray-500">Kalan:</span> <span class="tabular-nums font-semibold">{money(f, 'net_open')}</span></div>
 					<div><span class="text-gray-500">Geciken:</span>
 						<span class="tabular-nums {f.overdue_tl > 0 ? 'text-red-600 font-semibold' : ''}">{money(f, 'overdue')}</span></div>
 					<div><span class="text-gray-500">Vade:</span> {f.term_days === null ? 'karma' : `${f.term_days} gün${f.is_default_term ? ' (vars.)' : ''}`}</div>
 				</div>
+				{#if f.advance_received_tl > 0}
+					<div class="mt-1 text-xs text-gray-500 tabular-nums">
+						Avans: alınan ₺{fmt0(f.advance_received_tl)} · mahsup ₺{fmt0(f.advance_consumed_tl)}
+					</div>
+				{/if}
+				{#if planEntries(f).length > 0}
+					<div class="mt-1 text-xs text-gray-600 tabular-nums">
+						{#each planEntries(f).slice(0, 2) as e (e.month)}
+							<span class="mr-3">{monthShort(e.month)} sonu: <strong>{planAmount(f, e, 'cum')}</strong></span>
+						{/each}
+					</div>
+				{/if}
 				{#if f.unapplied_tl > 0}
 					<div class="mt-2">
 						<span class="inline-block text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">

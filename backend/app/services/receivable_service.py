@@ -115,9 +115,11 @@ def _advance_by_code(db: Session, firm_names: dict, rates: dict) -> dict:
     firm_tokens = {code: _norm_tokens(name or code) for code, name in firm_names.items()}
     out: dict = {}
     for a in db.query(SalesAdvance).all():
-        rem = round(_f(a.received) - _f(a.consumed), 2)
-        if rem <= 1:
+        received = _f(a.received)
+        consumed = _f(a.consumed)
+        if received <= 0 and consumed <= 0:
             continue
+        rem = round(received - consumed, 2)
         at = _norm_tokens(a.name or a.code)
         if not at:
             continue
@@ -134,9 +136,15 @@ def _advance_by_code(db: Session, firm_names: dict, rates: dict) -> dict:
         if best:
             cur = (a.currency or "TL").strip() or "TL"
             rate = rates.get(cur, 1.0)
-            slot = out.setdefault(best, {"tl": 0.0, "native": {}})
-            slot["tl"] = round(slot["tl"] + rem * rate, 2)
-            slot["native"][cur] = round(slot["native"].get(cur, 0.0) + rem, 2)
+            slot = out.setdefault(best, {"tl": 0.0, "native": {},
+                                         "received_tl": 0.0, "consumed_tl": 0.0})
+            # Alınan/mahsup istatistikleri — "avans mahsup edilmiş mi?" satırdan okunsun
+            slot["received_tl"] = round(slot["received_tl"] + received * rate, 2)
+            slot["consumed_tl"] = round(slot["consumed_tl"] + consumed * rate, 2)
+            # Netleme havuzu (kalan) — davranış değişmedi: yalnız >1 kalan sayılır
+            if rem > 1:
+                slot["tl"] = round(slot["tl"] + rem * rate, 2)
+                slot["native"][cur] = round(slot["native"].get(cur, 0.0) + rem, 2)
     return out
 
 
@@ -192,7 +200,15 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
     # (PMS folio bakiyeleri 0 — 259/259 doğrulandı) ama muhasebe 120.03.* hesabına tahsilat
     # kaydı işlemez → 120 alacak sinyali münferitte GÜVENİLMEZ, sahte "açık" üretir.
     # Hak ediş takibi yalnız ACENTE (anlaşmalı firma) alacaklarını izler.
+    # kod → kesilen TÜM faturaların toplamı (ödenmişler DAHİL) — "Faturalanan" kolonu
+    invoiced_by_code: dict = {}
     for inv in db.query(SalesInvoice).filter(SalesInvoice.is_munferit.is_(False)).all():
+        agg = invoiced_by_code.setdefault(inv.customer_code, {"tl": 0.0, "count": 0, "by_cur": {}})
+        agg["tl"] = round(agg["tl"] + _f(inv.amount), 2)
+        agg["count"] += 1
+        _nat = _f(inv.amount_currency) or _f(inv.amount)
+        agg["by_cur"][inv.currency] = round(agg["by_cur"].get(inv.currency, 0.0) + _nat, 2)
+
         st = inv_map.get(inv.id, {})
         if st.get("status") == "paid":
             continue
@@ -216,6 +232,7 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
             "max_overdue_days": 0, "next_due_date": None,
             "invoice_count": 0,
             "buckets": {BUCKET_NOT_DUE: 0.0, BUCKET_1_7: 0.0, BUCKET_8_30: 0.0, BUCKET_30_PLUS: 0.0},
+            "due_by_month": {},  # 'YYYY-MM' → {tl, native} — ay sonu tahsilat planı
         })
         native_amt = _f(inv.amount_currency) or _f(inv.amount)
         remaining_native = round(native_amt - _f(st.get("collected", 0)), 2)
@@ -225,6 +242,9 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
         f["invoice_count"] += 1
         f["buckets"][bucket] = round(f["buckets"][bucket] + remaining_tl, 2)
         summary_buckets[bucket] = round(summary_buckets[bucket] + remaining_tl, 2)
+        md = f["due_by_month"].setdefault(due.strftime("%Y-%m"), {"tl": 0.0, "native": 0.0})
+        md["tl"] = round(md["tl"] + remaining_tl, 2)
+        md["native"] = round(md["native"] + remaining_native, 2)
         if overdue > 0:
             f["overdue_tl"] = round(f["overdue_tl"] + remaining_tl, 2)
             f["overdue_native"] = round(f["overdue_native"] + remaining_native, 2)
@@ -298,6 +318,34 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
         f["unapplied_tl"] = round(
             sum(v * rates.get(cur_, 1.0) for cur_, v in unap.items()), 2)
 
+        # Faturalanan (kesilen TÜM faturalar — ödenmişler dahil)
+        agg = invoiced_by_code.get(code, {"tl": 0.0, "count": 0, "by_cur": {}})
+        f["invoiced_tl"] = agg["tl"]
+        f["total_invoice_count"] = agg["count"]
+        f["invoiced_native"] = (round(agg["by_cur"].get(f["display_currency"], 0.0), 2)
+                                if f["display_currency"] else None)
+
+        # Avans mahsup durumu (340: alınan / faturayla mahsup edilen — güncel kurla TL)
+        f["advance_received_tl"] = adv["received_tl"] if adv else 0.0
+        f["advance_consumed_tl"] = adv["consumed_tl"] if adv else 0.0
+
+        # Ay sonu tahsilat planı: ay içi vadesi dolan + kümülatif (gecikmişler ilk aya devreder)
+        sched = []
+        cum_tl = 0.0
+        cum_nat = 0.0
+        for mk in sorted(f["due_by_month"].keys()):
+            v = f["due_by_month"][mk]
+            cum_tl = round(cum_tl + v["tl"], 2)
+            cum_nat = round(cum_nat + v["native"], 2)
+            sched.append({
+                "month": mk,
+                "due_tl": v["tl"], "cum_tl": cum_tl,
+                "due_native": round(v["native"], 2) if f["display_currency"] else None,
+                "cum_native": cum_nat if f["display_currency"] else None,
+            })
+        f["monthly_due"] = sched
+        del f["due_by_month"]
+
     # Gruplama: rezervasyon acente grupları (agency_groups) → PMS-ad köprüsüyle 120 kodları
     gmap = _group_map(db)
     grouped: dict = {}
@@ -369,6 +417,34 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
         row["last_collection_currency"] = last_mf["last_collection_currency"] if last_mf else None
         row["collected_native"] = (round(sum(mf["collected_native"] or 0.0 for mf in member_fs), 2)
                                    if row["display_currency"] else None)
+
+        # Grup: faturalanan + avans mahsup + ay sonu planı (üyelerden)
+        row["invoiced_tl"] = round(sum(mf["invoiced_tl"] for mf in member_fs), 2)
+        row["total_invoice_count"] = sum(mf["total_invoice_count"] for mf in member_fs)
+        row["invoiced_native"] = (round(sum(mf["invoiced_native"] or 0.0 for mf in member_fs), 2)
+                                  if row["display_currency"] else None)
+        row["advance_received_tl"] = round(sum(mf["advance_received_tl"] for mf in member_fs), 2)
+        row["advance_consumed_tl"] = round(sum(mf["advance_consumed_tl"] for mf in member_fs), 2)
+        gm: dict = {}
+        for mf in member_fs:
+            for e in mf["monthly_due"]:
+                slot = gm.setdefault(e["month"], {"tl": 0.0, "native": 0.0})
+                slot["tl"] = round(slot["tl"] + e["due_tl"], 2)
+                slot["native"] = round(slot["native"] + (e["due_native"] or 0.0), 2)
+        g_sched = []
+        g_cum_tl = 0.0
+        g_cum_nat = 0.0
+        for mk in sorted(gm.keys()):
+            v = gm[mk]
+            g_cum_tl = round(g_cum_tl + v["tl"], 2)
+            g_cum_nat = round(g_cum_nat + v["native"], 2)
+            g_sched.append({
+                "month": mk,
+                "due_tl": v["tl"], "cum_tl": g_cum_tl,
+                "due_native": v["native"] if row["display_currency"] else None,
+                "cum_native": g_cum_nat if row["display_currency"] else None,
+            })
+        row["monthly_due"] = g_sched
         firm_list.append(row)
 
     # En sorunlu (gecikmiş tutarı en yüksek) üstte; eşitlikte net açık tutara göre

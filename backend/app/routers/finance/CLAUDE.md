@@ -209,6 +209,13 @@ FUN AND SUN ₺213.959) alanları eklendi; yeni `GET /hakedis/firms/{code}/colle
 endpoint'i; UI'da "Tahsilat" kolonu + amber "eşlenmemiş" rozeti + detayda tahsilat tablosu.
 Test: `TestCollectionsVisibility` (4). Detay: `docs/modules/hakedis.md` "Tahsilat Görünürlüğü".
 
+**Düzenli satır yapısı (2026-07-03, aynı gün):** kolonlar iş akışı sırasına dizildi —
+Faturalanan (ödenmişler DAHİL toplam; `invoiced_tl/native` + `total_invoice_count`) → Avans
+(kalan + "alınan/mahsup" alt satırı; `advance_received_tl/consumed_tl` — netleme DEĞİŞMEDİ) →
+Tahsilat → Kalan Hak Ediş (eski Net Açık) → Vadesi Geçen (+gecikme rozeti tek hücre) →
+**Ay Sonu Plan** (`monthly_due`: ay içi vadesi dolan + kümülatif; gecikmiş geçmiş aylar
+kümülatife devreder; satırda ilk 3 ay, detayda tam tablo). Test: `TestOrganizedRowFields` (3).
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:

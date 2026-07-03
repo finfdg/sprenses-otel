@@ -266,6 +266,71 @@ class TestCollectionsVisibility:
         assert r.status_code == 403
 
 
+class TestOrganizedRowFields:
+    """Düzenli satır alanları (2026-07-03): faturalanan toplam (ödenmişler dahil),
+    avans alınan/mahsup durumu, ay sonu tahsilat planı (kümülatif)."""
+
+    def test_invoiced_totals_include_paid(self, client, auth_headers, db):
+        today = date.today()
+        code = "120.93.01.F001"
+        _mk_invoice(db, code, "FATURALANAN TEST", today - timedelta(days=60), 3000, invoice_no="P1")
+        _mk_invoice(db, code, "FATURALANAN TEST", today - timedelta(days=5), 5000, invoice_no="P2")
+        db.add(SalesCollection(customer_code=code, customer_name="FATURALANAN TEST",
+                               collection_date=today - timedelta(days=50), amount=3000,
+                               currency="TL", amount_currency=0, tx_hash="col-f1"))
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        row = next(f for f in r.json()["firms"] if f["code"] == code)
+        assert row["invoiced_tl"] == 8000       # ödenmiş P1 DAHİL
+        assert row["total_invoice_count"] == 2
+        assert row["invoice_count"] == 1        # yalnız açık
+        assert row["open_tl"] == 5000
+
+    def test_monthly_due_schedule_cumulative(self, db):
+        """Ay sonu planı: ay içi vadesi dolan + kümülatif (sonraki ay öncekini kapsar)."""
+        from app.services.receivable_service import compute_receivables
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+
+        code = "120.93.02.M001"
+        # Varsayılan vade 30 gün: 10.06 → vade 10.07 (Temmuz); 20.07 → vade 19.08 (Ağustos)
+        _mk_invoice(db, code, "PLAN TEST", date(2026, 6, 10), 4000, invoice_no="PL1")
+        _mk_invoice(db, code, "PLAN TEST", date(2026, 7, 20), 6000, invoice_no="PL2")
+        db.commit()
+        _invalidate_compute_cache()
+
+        res = compute_receivables(db, today=date(2026, 7, 15))
+        row = next(f for f in res["firms"] if f["code"] == code)
+        sched = {e["month"]: e for e in row["monthly_due"]}
+        assert sched["2026-07"]["due_tl"] == 4000
+        assert sched["2026-07"]["cum_tl"] == 4000
+        assert sched["2026-08"]["due_tl"] == 6000
+        assert sched["2026-08"]["cum_tl"] == 10000  # kümülatif — Temmuz'u kapsar
+
+    def test_advance_consumed_stats(self, client, auth_headers, db):
+        """Tamamı mahsup edilmiş avans: netleme değişmez (advance_tl=0) ama
+        alınan/mahsup istatistikleri satırda görünür ('avans mahsup edilmiş mi?')."""
+        from app.models.sales_invoice import SalesAdvance
+
+        today = date.today()
+        code = "120.93.03.A001"
+        _mk_invoice(db, code, "MAHSUP TEST TURİZM A.Ş.", today - timedelta(days=5), 20000, invoice_no="MA1")
+        db.add(SalesAdvance(code="340.93.03.A001", name="MAHSUP TEST TURİZM",
+                            currency="TL", received=15000, consumed=15000))
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        row = next(f for f in r.json()["firms"] if f["code"] == code)
+        assert row["advance_tl"] == 0.0          # kalan avans yok → net açık değişmez
+        assert row["advance_received_tl"] == 15000
+        assert row["advance_consumed_tl"] == 15000
+        assert row["net_open_tl"] == 20000
+
+
 class TestNativeCurrencyDisplay:
     def test_single_currency_firm_gets_native_fields(self, client, auth_headers, db):
         """Tek para birimli (EUR) firmada open/overdue/net native (€) alanları döner —
