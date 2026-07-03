@@ -515,7 +515,7 @@ PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --data-only \
 cd frontend && npx vitest run
 ```
 
-**Test dosyaları (274 test, 22 dosya — toplam birebir doğrulandı):**
+**Test dosyaları (287 test, 23 dosya — toplam birebir doğrulandı):**
 
 *API & utils:*
 - `src/lib/api.test.ts` — API wrapper (GET/POST/PATCH/DELETE, upload, hata yönetimi, 401/403, signal, fetchRaw) (22 test)
@@ -544,6 +544,7 @@ cd frontend && npx vitest run
 - `src/lib/components/TableSkeleton.test.ts` — satır/kolon iskeleti (6 test)
 - `src/lib/components/FormSkeleton.test.ts` — form iskeleti (5 test)
 - `src/lib/components/BulkActionsBar.test.ts` — toplu seçim/aksiyon barı (5 test)
+- `src/lib/components/PdfPreviewModal.test.ts` — iOS Safari uyumlu PDF önizleme modalı (açma/kapama, blob URL yaşam döngüsü, Esc, backdrop) (6 test)
 
 ## Modül Bazlı Dokümantasyon
 

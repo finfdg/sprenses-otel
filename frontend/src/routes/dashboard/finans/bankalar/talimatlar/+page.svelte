@@ -11,7 +11,8 @@
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import { ChevronDown, Send, Printer, Download, X } from 'lucide-svelte';
+	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+	import { ChevronDown, Send } from 'lucide-svelte';
 
 	// ─── Types ───────────────────────────────────────────
 	interface BankAccount {
@@ -34,72 +35,15 @@
 	const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 	const CURRENCY_LABELS: Record<string, string> = { TRY: 'TL', EUR: 'Euro', USD: 'USD', GBP: 'GBP' };
 
-	/**
-	 * PDF blob'u sayfa içi modal'da gösterir. iOS Safari, yeni sekmede açılan
-	 * blob URL'lerine erişemiyor ("WebKitBlobResource hatası 1"); bu nedenle
-	 * PDF aynı sayfada iframe içinde render edilir + yanında "İndir" butonu
-	 * sunulur. Aynı-origin blob'lar iframe'de sorunsuz çalışır.
-	 */
-	function downloadPdfBlob(blob: Blob, filename: string) {
-		// Önceki önizlemeyi temizle
-		if (pdfPreview) URL.revokeObjectURL(pdfPreview.url);
-		const url = URL.createObjectURL(blob);
-		pdfPreview = { url, filename };
-	}
-
-	function closePdfPreview() {
-		if (pdfPreview) {
-			URL.revokeObjectURL(pdfPreview.url);
-			pdfPreview = null;
-		}
-	}
-
-	/**
-	 * PDF'i yazdır. Masaüstünde iframe.contentWindow.print() çalışır.
-	 * iOS Safari'de iframe print sinyali çoğu zaman yoksayıldığı için
-	 * fallback olarak blob URL ayrı bir boyutsuz pencerede açılıp print tetiklenir;
-	 * bu da başarısızsa kullanıcı Paylaş → Yazdır'ı kullanabilir.
-	 */
-	function printPdf() {
-		if (!pdfPreview) return;
-		const iframe = document.getElementById('pdf-preview-iframe') as HTMLIFrameElement | null;
-		try {
-			if (iframe?.contentWindow) {
-				iframe.contentWindow.focus();
-				iframe.contentWindow.print();
-				return;
-			}
-		} catch (err) {
-			console.error('iframe print hatası:', err);
-		}
-		// Fallback — blob'u gizli iframe'e yükleyip print
-		const hidden = document.createElement('iframe');
-		hidden.style.position = 'fixed';
-		hidden.style.right = '0';
-		hidden.style.bottom = '0';
-		hidden.style.width = '0';
-		hidden.style.height = '0';
-		hidden.style.border = '0';
-		hidden.src = pdfPreview.url;
-		hidden.onload = () => {
-			try {
-				hidden.contentWindow?.focus();
-				hidden.contentWindow?.print();
-			} catch (err) {
-				console.error('Fallback print hatası:', err);
-				showToast('Yazdırma başlatılamadı — Paylaş menüsünden Yazdır\'ı kullanın', 'error');
-			}
-			setTimeout(() => hidden.remove(), 60000);
-		};
-		document.body.appendChild(hidden);
-	}
-
 	// ─── State ──────────────────────────────────────────
 	let activeTab = $state<'transfer' | 'exchange'>('transfer');
 	let accounts = $state<BankAccount[]>([]);
 	let loading = $state(true);
 	let generating = $state(false);
-	let pdfPreview = $state<{ url: string; filename: string } | null>(null);
+	// PDF, paylaşılan PdfPreviewModal'da gösterilir (iOS Safari "WebKitBlobResource
+	// hatası 1" — blob yeni sekme/doğrudan indirme yerine iframe önizleme;
+	// Yazdır/İndir aksiyonları ve blob URL yaşam döngüsü bileşenin içinde)
+	let pdfModal: PdfPreviewModal | undefined = $state();
 
 	// Sol imza seçenekleri (sağ imza her zaman İsmail ÖZDEN)
 	const LEFT_SIGNERS = [
@@ -290,7 +234,7 @@
 				throw new Error(err.detail || 'PDF oluşturulamadı');
 			}
 			const blob = await res.blob();
-			downloadPdfBlob(blob, `eft-talimat-${transferForm.instruction_date || 'tarihsiz'}.pdf`);
+			pdfModal?.open(blob, `eft-talimat-${transferForm.instruction_date || 'tarihsiz'}.pdf`);
 			showToast('Talimat PDF hazırlandı', 'success');
 		} catch (err: any) {
 			console.error('PDF oluşturma hatası:', err);
@@ -332,7 +276,7 @@
 				throw new Error(err.detail || 'PDF oluşturulamadı');
 			}
 			const blob = await res.blob();
-			downloadPdfBlob(blob, `doviz-talimat-${exchangeForm.instruction_date || 'tarihsiz'}.pdf`);
+			pdfModal?.open(blob, `doviz-talimat-${exchangeForm.instruction_date || 'tarihsiz'}.pdf`);
 			showToast('Döviz talimatı PDF hazırlandı', 'success');
 		} catch (err: any) {
 			console.error('PDF oluşturma hatası:', err);
@@ -342,19 +286,12 @@
 		}
 	}
 
-	function handleEscKey(e: KeyboardEvent) {
-		if (e.key === 'Escape' && pdfPreview) closePdfPreview();
-	}
-
 	// ─── Lifecycle ──────────────────────────────────────
 	onMount(() => {
 		loadAccounts();
 		document.addEventListener('click', handleClickOutside);
-		document.addEventListener('keydown', handleEscKey);
 		return () => {
 			document.removeEventListener('click', handleClickOutside);
-			document.removeEventListener('keydown', handleEscKey);
-			if (pdfPreview) URL.revokeObjectURL(pdfPreview.url);
 		};
 	});
 </script>
@@ -698,44 +635,5 @@
 	{/if}
 </div>
 
-<!-- PDF Önizleme Modal (iOS Safari uyumlu — iframe, aynı origin blob) -->
-{#if pdfPreview}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-2 sm:p-4"
-		onclick={(e) => { if (e.target === e.currentTarget) closePdfPreview(); }}
-	>
-		<div class="bg-white rounded-xl w-full max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col overflow-hidden shadow-2xl">
-			<div class="flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 border-b border-gray-200 bg-gray-50">
-				<h3 class="text-sm font-semibold text-gray-800 truncate">{pdfPreview.filename}</h3>
-				<div class="flex gap-1.5 sm:gap-2 shrink-0">
-					<Button variant="secondary" size="sm" onclick={printPdf} title="Yazdır">
-						<Printer size={14} />
-						<span class="hidden sm:inline">Yazdır</span>
-					</Button>
-					<!-- İndir: Button href dalı `download` özniteliğini iletmediğinden ham <a> (teal-700 AA) -->
-					<a
-						href={pdfPreview.url}
-						download={pdfPreview.filename}
-						class="touch-target inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white text-xs font-medium rounded-lg hover:bg-teal-800 cursor-pointer shadow-sm"
-						title="İndir"
-					>
-						<Download size={14} />
-						<span class="hidden sm:inline">İndir</span>
-					</a>
-					<Button variant="ghost" size="sm" onclick={closePdfPreview} title="Kapat">
-						<X size={14} />
-						<span class="hidden sm:inline">Kapat</span>
-					</Button>
-				</div>
-			</div>
-			<iframe
-				id="pdf-preview-iframe"
-				src={pdfPreview.url}
-				class="flex-1 border-0 w-full"
-				title={pdfPreview.filename}
-			></iframe>
-		</div>
-	</div>
-{/if}
+<!-- PDF Önizleme Modal (iOS Safari uyumlu — paylaşılan bileşen) -->
+<PdfPreviewModal bind:this={pdfModal} />

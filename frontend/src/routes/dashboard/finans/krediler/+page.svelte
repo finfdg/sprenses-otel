@@ -10,6 +10,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
 	import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
+	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { CreditCard, ChevronRight, FileDown, Plus, CheckCircle2, Info, RotateCcw, Check, X, CornerDownLeft } from 'lucide-svelte';
@@ -76,6 +77,8 @@
 	let typeFilter = $state('');
 	let statusFilter = $state('active');
 	let pdfLoading = $state(false);
+	// PDF önizleme modalı (iOS Safari uyumlu — blob doğrudan indirilmez, iframe'de gösterilir)
+	let pdfModal: PdfPreviewModal | undefined = $state();
 
 	// Kapatma modal state
 	let closeModal = $state<{ show: boolean; id: number | null; name: string; closedDate: string }>({
@@ -470,12 +473,9 @@
 			const res = await api.fetchRaw(`/finance/krediler/export/pdf${qs ? '?' + qs : ''}`);
 			if (!res.ok) throw new Error('İndirme başarısız');
 			const blob = await res.blob();
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `kredi-raporu-${new Date().toISOString().slice(0, 10)}.pdf`;
-			a.click();
-			URL.revokeObjectURL(url);
+			// iOS Safari blob'u doğrudan indiremiyor (WebKitBlobResource hatası 1) →
+			// paylaşılan önizleme modalında göster (Yazdır/İndir oradan)
+			pdfModal?.open(blob, `kredi-raporu-${new Date().toISOString().slice(0, 10)}.pdf`);
 		} catch (err) {
 			console.error('PDF indirme hatası:', err);
 			showToast('PDF raporu indirilemedi', 'error');
@@ -1617,3 +1617,6 @@
 		</div>
 	{/if}
 </Modal>
+
+<!-- PDF Rapor önizleme (iOS Safari uyumlu) -->
+<PdfPreviewModal bind:this={pdfModal} />

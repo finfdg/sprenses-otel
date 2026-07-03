@@ -174,8 +174,13 @@ ayların nakit akışını PDF olarak indirir.
   son günün bakiyesi.
 - **Görsel dil:** Gider kırmızı, gelir yeşil, negatif bakiye kırmızı (ekranla tutarlı);
   başlık satırı teal (#0D9488); font `register_turkish_fonts()` (DejaVuSans — ₺/€ glyph).
-- **Frontend indirme:** `api.fetchRaw` → blob → `<a download>` (krediler PDF deseniyle
-  aynı; iOS Safari blob-yeni-sekme sorunundan etkilenmez).
+- **Frontend gösterim (2026-07-03 düzeltildi):** `api.fetchRaw` → blob →
+  **`PdfPreviewModal.svelte`** (paylaşılan bileşen — sayfa içi iframe önizleme +
+  Yazdır/İndir/Kapat). İlk sürümdeki `<a download>` + `click()` deseni iPad
+  Safari'de **"WebKitBlobResource hatası 1"** verdi (iOS, click handler'ı bittikten
+  sonra blob'u yüklemeye çalışırken URL bağlamına erişemiyor) → talimatlar
+  sayfasındaki kanıtlanmış modal-iframe çözümü ortak bileşene çıkarıldı; krediler
+  PDF'i ve talimatlar da aynı bileşene geçirildi.
 - **Test:** `tests/test_cash_flow_report.py` (8 test — geçerli PDF, tarih aralığı,
   boş aralık, geçersiz tarih toleransı, auth/izin, eur-balances refactor regresyonu).
 

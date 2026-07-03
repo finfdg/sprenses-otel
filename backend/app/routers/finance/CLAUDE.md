@@ -21,9 +21,15 @@ nakit akışını PDF indirir: `GET /cash-flow/report/pdf?start_date&end_date`
 - **Ay toplamı semantiği:** rapora dahil edilen günlerden hesaplanır; ay bakiyesi =
   aralıktaki son günün `balance_eur`'u (UI ay başlığı tam-ay gösterir — tam-ay
   aralığında ikisi özdeş).
-- **Frontend:** krediler PDF deseni (`api.fetchRaw` → blob → `<a download>`); uygulanmış
-  filtre (`cashFlowCache.filters`) parametre olarak gider.
-- **Test:** `tests/test_cash_flow_report.py` (8 test). Detay: `docs/modules/nakit-akim.md`.
+- **Frontend:** `api.fetchRaw` → blob → **`PdfPreviewModal.svelte`** (paylaşılan
+  önizleme modalı); uygulanmış filtre (`cashFlowCache.filters`) parametre olarak gider.
+  **NOT (2026-07-03):** ilk sürümdeki `<a download>` + `click()` deseni iPad Safari'de
+  "WebKitBlobResource hatası 1" verdi → talimatlar sayfasının modal-iframe çözümü
+  `lib/components/PdfPreviewModal.svelte` ortak bileşenine çıkarıldı; nakit-akım +
+  krediler + talimatlar üçü de bunu kullanır. **Yeni PDF indirme akışı yazarken blob'u
+  `<a download>`/yeni-sekme ile AÇMA — PdfPreviewModal.open(blob, dosyaAdi) kullan.**
+- **Test:** `tests/test_cash_flow_report.py` (8 test) +
+  `src/lib/components/PdfPreviewModal.test.ts` (6 test). Detay: `docs/modules/nakit-akim.md`.
 
 ---
 
@@ -904,7 +910,7 @@ Mükerrer tespiti **bakiye bazlı** yapılır — en güvenilir yöntem:
 - Tüm platformlarda (iPad / Mac / Windows / Android) aynı akış çalışır — iOS tespiti artık gereksiz.
 - Modal kapandığında veya yeni PDF üretildiğinde `URL.revokeObjectURL()` ile bellek serbest bırakılır.
 - Esc tuşu ile modal kapatılabilir; backdrop'a tıklama da kapatır.
-- İlgili dosya: `frontend/src/routes/dashboard/finans/bankalar/talimatlar/+page.svelte` → `downloadPdfBlob()`, `printPdf()`, `pdfPreview` state, template sonundaki modal.
+- **Ortak bileşene çıkarıldı (2026-07-03):** bu desen artık `frontend/src/lib/components/PdfPreviewModal.svelte` paylaşılan bileşenindedir (`pdfModal?.open(blob, dosyaAdi)` — blob URL yaşam döngüsü, Yazdır/İndir/Kapat, Esc bileşenin içinde). Tüketiciler: talimatlar, nakit-akım PDF raporu, krediler PDF raporu. Aynı hata nakit-akım/krediler'in `<a download>` + `click()` deseninde de iPad'de tetiklendi — **blob'lu PDF indirmede tek doğru desen budur.** Test: `PdfPreviewModal.test.ts` (6).
 
 **Yeni logo yüklerken:** `convert_logo_to_rgb(path)` helper'ı çağrılmalı veya upload endpoint'i PIL ile CMYK→RGB dönüşümü yapmalı — aksi halde Safari PDF render'da hatalı renk gösterebilir.
 

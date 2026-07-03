@@ -11,6 +11,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
 	import { Filter, AlertTriangle, Receipt, Check, FileDown } from 'lucide-svelte';
 	import {
 		cashFlowCache,
@@ -61,6 +62,9 @@
 
 	// MonthAccordion referansı — filtre değiştiğinde sıfırlamak için
 	let accordionRef: MonthAccordion | undefined = $state();
+
+	// PDF önizleme modalı (iOS Safari uyumlu — blob doğrudan indirilmez, iframe'de gösterilir)
+	let pdfModal: PdfPreviewModal | undefined = $state();
 
 	// $derived — Store'dan reactive okuma — optimistic update için doğrudan cache'e yazılır
 	let items = $derived(cashFlowCache.items);
@@ -319,7 +323,7 @@
 		autoTagging = false;
 	}
 
-	/** Ekrandaki tarih aralığındaki ayların nakit akışını PDF rapor olarak indir */
+	/** Ekrandaki tarih aralığındaki ayların nakit akışını PDF rapor olarak göster/indir */
 	async function downloadPdf() {
 		pdfLoading = true;
 		try {
@@ -330,12 +334,9 @@
 			const res = await api.fetchRaw(`/finance/cash-flow/report/pdf${qs ? '?' + qs : ''}`);
 			if (!res.ok) throw new Error('İndirme başarısız');
 			const blob = await res.blob();
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `nakit-akim-raporu-${new Date().toISOString().slice(0, 10)}.pdf`;
-			a.click();
-			URL.revokeObjectURL(url);
+			// iOS Safari blob'u doğrudan indiremiyor (WebKitBlobResource hatası 1) →
+			// paylaşılan önizleme modalında göster (Yazdır/İndir oradan)
+			pdfModal?.open(blob, `nakit-akim-raporu-${new Date().toISOString().slice(0, 10)}.pdf`);
 		} catch (err) {
 			console.error('PDF rapor indirme hatası:', err);
 			showToast('PDF raporu indirilemedi', 'error');
@@ -567,3 +568,6 @@
 		onCCMatchStart={handleCCMatchStart}
 	/>
 {/if}
+
+<!-- PDF Rapor önizleme (iOS Safari uyumlu) -->
+<PdfPreviewModal bind:this={pdfModal} />

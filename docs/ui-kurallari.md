@@ -284,6 +284,7 @@ Modül tipine göre seçilir ama modül içinde tutarlı kalır:
 | `Breadcrumb.svelte` | ✅ mevcut | Yol göstergesi (iç sayfalar) — `items` array |
 | `SortableHeader.svelte` | ✅ mevcut | Tablo kolon sort başlığı (3-state) + `getNextSort` helper |
 | `BulkActionsBar.svelte` | ✅ mevcut | Toplu seçim aksiyon barı (`count` + `onClear` + children snippet) |
+| `PdfPreviewModal.svelte` | ✅ mevcut | iOS Safari uyumlu PDF önizleme (iframe + Yazdır/İndir/Kapat). Blob'lu PDF'te **tek doğru desen** — `<a download>`/yeni-sekme blob iPad'de "WebKitBlobResource hatası 1" verir. Kullanım: `pdfModal?.open(blob, dosyaAdi)` |
 
 ## 7. Renk Paleti
 
