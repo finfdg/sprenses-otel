@@ -5,6 +5,28 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Nakit Akım PDF Raporu (2026-07-03, YENİ)
+
+Nakit Akım sayfasındaki **"PDF Rapor"** butonu (PageHeader actions) ekrandaki ayların
+nakit akışını PDF indirir: `GET /cash-flow/report/pdf?start_date&end_date`
+(`cash_flow/report.py`, `finance.cash_flow` view, `heavy_limiter`, onaydan muaf GET).
+
+- **Tek sayı kaynağı:** EUR gün/ay hesabı `eur_balances.py`'den
+  **`compute_eur_balances(db)`** fonksiyonuna çıkarıldı; `eur-balances` endpoint'i ve
+  PDF raporu AYNI fonksiyonu çağırır → ekran ile rapor birebir tutar. (Paket-içi
+  import — paketler-arası router→router yasağına girmez.)
+- **İçerik:** ay başına günlük Gider/Gelir/Bakiye (€) tablosu + ay toplamı + genel
+  toplam; gün etiketi ekranla aynı ("1 Temmuz Çar", locale bağımsız sabit listeler);
+  gider kırmızı / gelir yeşil / negatif bakiye kırmızı; font `register_turkish_fonts()`.
+- **Ay toplamı semantiği:** rapora dahil edilen günlerden hesaplanır; ay bakiyesi =
+  aralıktaki son günün `balance_eur`'u (UI ay başlığı tam-ay gösterir — tam-ay
+  aralığında ikisi özdeş).
+- **Frontend:** krediler PDF deseni (`api.fetchRaw` → blob → `<a download>`); uygulanmış
+  filtre (`cashFlowCache.filters`) parametre olarak gider.
+- **Test:** `tests/test_cash_flow_report.py` (8 test). Detay: `docs/modules/nakit-akim.md`.
+
+---
+
 ## Refactor — Çek Sedna İçe-Aktarma Ayrıştırması + Pagination Helper (2026-06-27)
 
 - **`check_import.py` (yeni) — Sedna çek içe-aktarma domain katmanı:** `checks.py` 814→432 satıra
@@ -920,7 +942,8 @@ app/routers/finance/
 │   ├── __init__.py      # Alt router'ları birleştirir
 │   ├── listing.py       # Liste, özet, mobil dashboard
 │   ├── matching.py      # Eşleştirme (cari, kredi kartı, kredi)
-│   ├── eur_balances.py  # EUR bakiye özeti
+│   ├── eur_balances.py  # EUR bakiye özeti + compute_eur_balances(db) ortak çekirdek
+│   ├── report.py        # Nakit akım PDF raporu (ay/gün bazlı EUR tablosu)
 │   └── _helpers.py      # Ortak yardımcı fonksiyonlar
 ├── exchange_rates.py   # Döviz kurları
 └── transaction_tags.py # Etiketleme + kategori yönetimi

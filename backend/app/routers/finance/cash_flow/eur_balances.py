@@ -24,14 +24,11 @@ from app.utils.finance_helpers import MIN_DATE
 router = APIRouter()
 
 
-@router.get("/cash-flow/eur-balances")
-def eur_balances(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("finance.cash_flow", "view")),
-):
-    heavy_limiter.check(f"eur-bal-{current_user.id}")
-    """Günlük ve aylık EUR bazlı toplam banka bakiyesi.
+def compute_eur_balances(db: Session) -> dict:
+    """Günlük ve aylık EUR bazlı toplam banka bakiyesi hesabı.
+
+    `eur-balances` endpoint'i ile nakit akım PDF raporunun (report.py) ORTAK
+    çekirdeği — iki tüketici de aynı sayıları göstersin diye tek fonksiyon.
 
     Banka işlemleri + çekler + kredi ödemeleri dahil.
     Son banka bakiyesi gelecek günlere taşınır, çek/kredi giderleri düşülür.
@@ -394,3 +391,14 @@ def eur_balances(
         "eur_rate": get_eur(today),
         "usd_rate": get_usd(today),
     }
+
+
+@router.get("/cash-flow/eur-balances")
+def eur_balances(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cash_flow", "view")),
+):
+    """Günlük ve aylık EUR bazlı toplam banka bakiyesi."""
+    heavy_limiter.check(f"eur-bal-{current_user.id}")
+    return compute_eur_balances(db)

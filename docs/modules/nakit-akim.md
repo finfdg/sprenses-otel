@@ -22,7 +22,8 @@
 | `backend/app/routers/finance/cash_flow/__init__.py` | Alt router'ları birleştiren paket girişi |
 | `backend/app/routers/finance/cash_flow/listing.py` | Liste, özet, mobil dashboard endpoint'leri |
 | `backend/app/routers/finance/cash_flow/matching.py` | Eşleştirme endpoint'leri (cari, kredi kartı, kredi) |
-| `backend/app/routers/finance/cash_flow/eur_balances.py` | EUR bakiye endpoint'i |
+| `backend/app/routers/finance/cash_flow/eur_balances.py` | EUR bakiye endpoint'i + `compute_eur_balances(db)` ortak çekirdeği |
+| `backend/app/routers/finance/cash_flow/report.py` | Nakit akım PDF raporu endpoint'i (ay/gün bazlı EUR tablosu) |
 | `backend/app/routers/finance/cash_flow/_helpers.py` | Ortak yardımcı fonksiyonlar |
 
 ### Frontend
@@ -66,6 +67,7 @@
 | `GET` | `/api/finance/cash-flow/summary` | `view` | Toplam gelir, gider, bakiye |
 | `GET` | `/api/finance/cash-flow/monthly-summary` | `view` | Aylık gelir/gider/bakiye özeti |
 | `GET` | `/api/finance/cash-flow/eur-balances` | `view` | EUR bakiye özeti |
+| `GET` | `/api/finance/cash-flow/report/pdf` | `view` | Ay/gün bazlı nakit akım PDF raporu (`start_date`/`end_date` opsiyonel) |
 | `GET` | `/api/finance/cash-flow/credit-payments-unpaid` | `view` | Ödenmemiş kredi taksitleri listesi |
 | `GET` | `/api/finance/cash-flow/cc-statements-unpaid` | `view` | Ödenmemiş kredi kartı ekstreleri listesi |
 | `POST` | `/api/finance/cash-flow/match-vendor-tx` | `use` | Cari işlem eşleştirme |
@@ -150,6 +152,32 @@
 - `lazy-mount.svelte.ts` — `IntersectionObserver` tabanlı tek-seferlik Svelte action
 - `api.ts` — HTTP istekleri
 - `showToast` — Bildirim gösterimi
+
+### PDF Rapor — "PDF Rapor" Butonu (2026-07-03)
+
+Sayfa başlığındaki (PageHeader `actions`) **"PDF Rapor"** butonu, ekranda görüntülenen
+ayların nakit akışını PDF olarak indirir.
+
+- **Endpoint:** `GET /api/finance/cash-flow/report/pdf?start_date&end_date`
+  (`finance.cash_flow` **view** — salt-okuma export, onaydan muaf, `heavy_limiter`'lı).
+- **Kapsam ("ilgili aylar"):** Frontend, ekrandaki **uygulanmış** tarih filtresini
+  (`cashFlowCache.filters.startDate/endDate`) parametre olarak gönderir — rapor,
+  akordiyonda görünen aylarla eşleşir. Aralık verilmezse tüm kayıtlar raporlanır.
+  Geçersiz tarih parametresi sessizce yok sayılır (`listing.py` toleransıyla aynı).
+- **İçerik:** Her ay için başlık (Gider/Gelir/Ay Sonu Bakiye) + günlük satırlar
+  (Tarih · Gider € · Gelir € · Bakiye €) + ay toplamı satırı; sonda genel toplam.
+  Gün etiketi ekranla aynı biçimde ("1 Temmuz Çar" — locale bağımsız sabit listeler).
+- **Sayı kaynağı — tek çekirdek:** Ekrandaki ay/gün başlıklarının EUR değerleri
+  `eur-balances` endpoint'inden gelir; PDF de AYNI fonksiyonu
+  (`eur_balances.compute_eur_balances(db)`) kullanır → rapor ile ekran birebir tutar.
+  Ay toplamları rapora dahil edilen günlerden hesaplanır; ay bakiyesi = aralıktaki
+  son günün bakiyesi.
+- **Görsel dil:** Gider kırmızı, gelir yeşil, negatif bakiye kırmızı (ekranla tutarlı);
+  başlık satırı teal (#0D9488); font `register_turkish_fonts()` (DejaVuSans — ₺/€ glyph).
+- **Frontend indirme:** `api.fetchRaw` → blob → `<a download>` (krediler PDF deseniyle
+  aynı; iOS Safari blob-yeni-sekme sorunundan etkilenmez).
+- **Test:** `tests/test_cash_flow_report.py` (8 test — geçerli PDF, tarih aralığı,
+  boş aralık, geçersiz tarih toleransı, auth/izin, eur-balances refactor regresyonu).
 
 ## Audit Log Entegrasyonu
 

@@ -11,7 +11,7 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Button from '$lib/components/Button.svelte';
-	import { Filter, AlertTriangle, Receipt, Check } from 'lucide-svelte';
+	import { Filter, AlertTriangle, Receipt, Check, FileDown } from 'lucide-svelte';
 	import {
 		cashFlowCache,
 		loadAllCashFlow,
@@ -30,6 +30,7 @@
 
 	// $state — data
 	let autoTagging = $state(false);
+	let pdfLoading = $state(false);
 
 	// Cari eşleştirme modu (cariler sayfasından gelince)
 	let matchMode = $state(false);
@@ -318,6 +319,31 @@
 		autoTagging = false;
 	}
 
+	/** Ekrandaki tarih aralığındaki ayların nakit akışını PDF rapor olarak indir */
+	async function downloadPdf() {
+		pdfLoading = true;
+		try {
+			const params = new URLSearchParams();
+			if (cashFlowCache.filters.startDate) params.set('start_date', cashFlowCache.filters.startDate);
+			if (cashFlowCache.filters.endDate) params.set('end_date', cashFlowCache.filters.endDate);
+			const qs = params.toString();
+			const res = await api.fetchRaw(`/finance/cash-flow/report/pdf${qs ? '?' + qs : ''}`);
+			if (!res.ok) throw new Error('İndirme başarısız');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `nakit-akim-raporu-${new Date().toISOString().slice(0, 10)}.pdf`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			console.error('PDF rapor indirme hatası:', err);
+			showToast('PDF raporu indirilemedi', 'error');
+		} finally {
+			pdfLoading = false;
+		}
+	}
+
 	function setFilter(filter: 'all' | 'untagged' | number) {
 		tagFilter = filter;
 		accordionRef?.resetAccordion();
@@ -384,7 +410,19 @@
 
 <!-- Başlık -->
 <div class="mb-5">
-	<PageHeader title="Nakit Akım" description="Banka hareketleri, gelir/gider takibi ve işlem eşleştirme" />
+	<PageHeader title="Nakit Akım" description="Banka hareketleri, gelir/gider takibi ve işlem eşleştirme">
+		{#snippet actions()}
+			<Button
+				variant="secondary"
+				loading={pdfLoading}
+				onclick={downloadPdf}
+				ariaLabel="PDF Rapor"
+				title="Görüntülenen aylardaki nakit akışını PDF rapor olarak indir"
+			>
+				<FileDown size={16} /> <span class="hidden sm:inline">PDF Rapor</span>
+			</Button>
+		{/snippet}
+	</PageHeader>
 </div>
 
 {#if matchMode}
