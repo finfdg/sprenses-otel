@@ -207,6 +207,13 @@ listeden tamamen KAYBOLUYORDU. Kullanıcı isteğiyle davranış değişti:
   çek grup kartının toplamına KATMAZ (`groupByMonth` + `groupDaySourceItems`); para
   hareketi banka bacağında sayılır. EUR başlık toplamları (`eur-balances`) değişmedi.
 - **Görsel:** yeşil "Ödendi" rozeti (CashFlowItem'da zaten vardı) + kart `opacity-70`.
+- **Gruplama (2026-07-04):** Bir günde 2+ ödenen çek varsa krediler gibi **katlanabilir
+  "Ödenen Çekler · N kayıt" grubunda** toplanır (bekleyen "Verilen Çekler" grubundan AYRI;
+  `groupDaySourceItems` grup anahtarı `check:matched`). Grup başlığında emerald "Ödendi"
+  chip'i + tooltip ("tutarlar gün toplamına dahil değildir"); kart `opacity-75`.
+  **DİKKAT:** MonthAccordion `{#each}` grup key'i `g-{source}{-matched}` — aynı günde
+  bekleyen+ödenen çek grubu birlikteyken `g-check` çakışması Svelte dup-key donması
+  yapar (bkz. bellek: svelte-each-dupkey-freeze); key'e matched eki ZORUNLU.
 - **Tarih:** çek FE'si HER ZAMAN **vade tarihinde** gösterilir (`upsert_check`
   display_date=due_date; eskiden eşleşince banka tarihine taşınırdı). Mevcut 32 eşleşmiş
   FE 2026-07-03'te vadeye geri çekildi (tek seferlik UPDATE). Banka adı eşleşen hareketin

@@ -88,6 +88,8 @@ export type DayRenderUnit =
 	| {
 			kind: 'group';
 			source: GroupableSource;
+			/** true → eşleşmiş bilgi grubu (ör. "Ödenen Çekler") — toplamı gün toplamına girmez */
+			matched: boolean;
 			items: CashFlowItem[];
 			count: number;
 			totalTry: number;
@@ -100,20 +102,22 @@ const GROUPABLE_SOURCES = new Set(['check', 'vendor_payment', 'credit', 'cc_paym
 
 export function groupDaySourceItems(items: CashFlowItem[]): DayRenderUnit[] {
 	const units: DayRenderUnit[] = [];
-	const groups: Partial<Record<GroupableSource, Extract<DayRenderUnit, { kind: 'group' }>>> = {};
+	const groups: Partial<Record<string, Extract<DayRenderUnit, { kind: 'group' }>>> = {};
 
 	for (const item of items) {
-		// Eşleşmiş bilgi satırları (ör. ödenen çek) grup kartına ve grup toplamına
-		// girmez — tek başına "Ödendi" rozetiyle gösterilir
-		if (!GROUPABLE_SOURCES.has(item.source) || item.is_matched === true) {
+		if (!GROUPABLE_SOURCES.has(item.source)) {
 			units.push({ kind: 'item', item });
 			continue;
 		}
 		const src = item.source as GroupableSource;
-		let g = groups[src];
+		// Eşleşmiş bilgi satırları (ör. ödenen çekler) AYRI bir grupta toplanır
+		// ("Ödenen Çekler") — bekleyenlerin grubuna ve gün toplamına karışmaz
+		const matched = item.is_matched === true;
+		const key = matched ? `${src}:matched` : src;
+		let g = groups[key];
 		if (!g) {
-			g = groups[src] = {
-				kind: 'group', source: src, items: [], count: 0,
+			g = groups[key] = {
+				kind: 'group', source: src, matched, items: [], count: 0,
 				totalTry: 0, nativeTotal: 0, currency: null,
 			};
 			units.push(g); // grup, ilk üyesinin konumuna yerleşir

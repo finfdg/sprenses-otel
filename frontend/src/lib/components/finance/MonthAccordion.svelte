@@ -417,7 +417,7 @@
 								<!-- MOBİL: sabit grid -->
 								<div class="grid grid-cols-2 md:hidden border-t border-gray-100">
 									<div class="p-1 space-y-1 overflow-hidden">
-										{#each expenseUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+										{#each expenseUnits as unit (unit.kind === 'group' ? `g-${unit.source}${unit.matched ? '-matched' : ''}` : `${unit.item.source}-${unit.item.id}`)}
 											{#if unit.kind === 'group'}
 												<CashFlowGroupCard {unit} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
 											{:else}
@@ -429,7 +429,7 @@
 										{/if}
 									</div>
 									<div class="p-1 space-y-1 overflow-hidden border-l-[2px] border-blue-500">
-										{#each incomeUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+										{#each incomeUnits as unit (unit.kind === 'group' ? `g-${unit.source}${unit.matched ? '-matched' : ''}` : `${unit.item.source}-${unit.item.id}`)}
 											{#if unit.kind === 'group'}
 												<CashFlowGroupCard {unit} variant="mobile" {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
 											{:else}
@@ -445,7 +445,7 @@
 								<!-- MASAÜSTÜ: focusMode destekli grid -->
 								<div class="hidden md:grid border-t border-gray-100" style="grid-template-columns: {gridCols}; transition: grid-template-columns 300ms ease-in-out">
 									<div class="p-3 space-y-1.5 overflow-hidden">
-										{#each expenseUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+										{#each expenseUnits as unit (unit.kind === 'group' ? `g-${unit.source}${unit.matched ? '-matched' : ''}` : `${unit.item.source}-${unit.item.id}`)}
 											{#if unit.kind === 'group'}
 												<CashFlowGroupCard {unit} narrow={isExpenseNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
 											{:else}
@@ -457,7 +457,7 @@
 										{/if}
 									</div>
 									<div class="p-3 space-y-1.5 overflow-hidden border-l-[3px] border-blue-500">
-										{#each incomeUnits as unit (unit.kind === 'group' ? `g-${unit.source}` : `${unit.item.source}-${unit.item.id}`)}
+										{#each incomeUnits as unit (unit.kind === 'group' ? `g-${unit.source}${unit.matched ? '-matched' : ''}` : `${unit.item.source}-${unit.item.id}`)}
 											{#if unit.kind === 'group'}
 												<CashFlowGroupCard {unit} narrow={isIncomeNarrow} {categories} {onTagAssign} {matchMode} {onMatchSelect} {onCCMatchStart} onCreateCategory={onCreateCategory} />
 											{:else}

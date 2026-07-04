@@ -44,22 +44,27 @@
 	} as const;
 
 	const style = $derived(STYLES[unit.source]);
-	const label = $derived(style.label);
+	// Eşleşmiş bilgi grubu (ör. ödenen çekler) — toplamı gün toplamına girmez
+	const label = $derived(unit.matched && unit.source === 'check' ? 'Ödenen Çekler' : style.label);
 	const Icon = $derived(style.icon);
 	const isMobile = $derived(variant === 'mobile');
 </script>
 
-<div class="rounded-lg border {style.border} overflow-hidden">
+<div class="rounded-lg border {style.border} overflow-hidden {unit.matched ? 'opacity-75' : ''}">
 	<button
 		type="button"
 		onclick={() => (open = !open)}
 		aria-expanded={open}
 		aria-label={`${label} grubunu ${open ? 'kapat' : 'aç'} (${unit.count} kayıt)`}
 		class="w-full flex items-center gap-1.5 {isMobile ? 'px-1.5 py-1' : 'px-2.5 py-1.5'} {style.header} transition-colors touch-target"
+		title={unit.matched ? 'Ödenen çekler — bilgi amaçlı; tutarlar gün toplamına dahil değildir (para banka hareketinde sayılır)' : undefined}
 	>
 		{#if open}<ChevronDown size={isMobile ? 12 : 14} class="shrink-0" />{:else}<ChevronRight size={isMobile ? 12 : 14} class="shrink-0" />{/if}
 		<Icon size={isMobile ? 12 : 14} class="shrink-0" />
 		<span class="{isMobile ? 'text-[10px]' : 'text-xs'} font-medium truncate">{label}</span>
+		{#if unit.matched}
+			<span class="{isMobile ? 'text-[9px]' : 'text-[10px]'} font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1 py-px rounded shrink-0">Ödendi</span>
+		{/if}
 		<span class="{isMobile ? 'text-[10px]' : 'text-xs'} opacity-80 shrink-0">· {unit.count} kayıt</span>
 		<span class="ml-auto {isMobile ? 'text-[10px]' : 'text-xs'} font-semibold tabular-nums shrink-0">
 			{#if unit.nativeTotal !== null && unit.currency}

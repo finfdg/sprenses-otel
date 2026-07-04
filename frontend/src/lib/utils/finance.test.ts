@@ -370,17 +370,34 @@ describe('groupByMonth — is_matched bilgi satırları', () => {
 	});
 });
 
-describe('groupDaySourceItems — is_matched grup dışı', () => {
-	it('ödenen çek grup kartına ve grup toplamına girmez, tek başına gösterilir', () => {
+describe('groupDaySourceItems — ödenen çekler ayrı grupta', () => {
+	it('ödenen çekler bekleyenlerin grubuna karışmaz — kendi "matched" grubunda toplanır', () => {
 		const units = groupDaySourceItems([
 			makeItem({ id: 1, date: '2026-07-02', amount: 100, type: 'expense', source: 'check' }),
 			makeItem({ id: 2, date: '2026-07-02', amount: 200, type: 'expense', source: 'check' }),
 			makeItem({ id: 3, date: '2026-07-02', amount: 999, type: 'expense', source: 'check', is_matched: true, check_status: 'paid' }),
+			makeItem({ id: 4, date: '2026-07-02', amount: 500, type: 'expense', source: 'check', is_matched: true, check_status: 'paid' }),
 		]);
-		const group = units.find((u) => u.kind === 'group') as any;
-		expect(group.count).toBe(2);          // yalnız bekleyen çekler
-		expect(group.totalTry).toBe(300);     // ödenen çek toplama girmedi
-		const singles = units.filter((u) => u.kind === 'item') as any[];
-		expect(singles.map((u) => u.item.id)).toContain(3);
+		const groups = units.filter((u) => u.kind === 'group') as any[];
+		expect(groups).toHaveLength(2);
+
+		const pendingGroup = groups.find((g) => !g.matched);
+		expect(pendingGroup.count).toBe(2);
+		expect(pendingGroup.totalTry).toBe(300);   // ödenen çekler bekleyen toplamına girmedi
+
+		const paidGroup = groups.find((g) => g.matched);
+		expect(paidGroup.source).toBe('check');
+		expect(paidGroup.count).toBe(2);
+		expect(paidGroup.totalTry).toBe(1499);     // grup kendi (bilgi amaçlı) toplamını taşır
+		expect(paidGroup.items.map((i: any) => i.id)).toEqual([3, 4]);
+	});
+
+	it('tek ödenen çek grup açılmaz, düz kart olarak gösterilir', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 1, date: '2026-07-02', amount: 100, type: 'expense', source: 'check' }),
+			makeItem({ id: 2, date: '2026-07-02', amount: 999, type: 'expense', source: 'check', is_matched: true, check_status: 'paid' }),
+		]);
+		// İki tek üyeli "grup" da düz item'a iner (gruplamaya değmez kuralı)
+		expect(units.every((u) => u.kind === 'item')).toBe(true);
 	});
 });
