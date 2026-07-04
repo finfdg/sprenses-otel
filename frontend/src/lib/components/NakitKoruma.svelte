@@ -146,6 +146,28 @@
 	});
 
 	// Grup: tek tarih seçici tüm üyeleri toptan erteler / sıfırlar
+	// Beklenen tahsilatlar: aynı gün + aynı tür → tek çip (tekse asıl ad, çoksa "N tahsilat").
+	// Ertelenemez (referans) olduğundan çip biçimi korunur, akordiyon yok.
+	const groupedInflows = $derived.by(() => {
+		if (!data) return [];
+		const map = new Map<string, Flow[]>();
+		for (const i of data.inflows) {
+			const key = `${i.date}|${i.source_type ?? 'other'}`;
+			const arr = map.get(key);
+			if (arr) arr.push(i); else map.set(key, [i]);
+		}
+		const out = [];
+		for (const [key, members] of map) {
+			out.push({
+				key, date: members[0].date,
+				label: members.length === 1 ? cleanName(members[0].name) : `${members.length} tahsilat`,
+				title: members.map((m) => cleanName(m.name)).join(', '),
+				total: members.reduce((s, m) => s + m.amount_eur, 0),
+			});
+		}
+		return out.sort((a, b) => dayNum(a.date) - dayNum(b.date));
+	});
+
 	function setGroupDate(ids: string[], v: string) {
 		if (!v) return;
 		for (const id of ids) dates[id] = v;
@@ -213,15 +235,15 @@
 			<div class="text-[11.5px] text-teal-200 mt-2">En düşük bakiye: <span class="text-brass-light font-semibold">{proj.lowLabel}</span></div>
 		</div>
 
-		<!-- BEKLENEN TAHSİLATLAR -->
-		{#if data.inflows.length > 0}
+		<!-- BEKLENEN TAHSİLATLAR — aynı gün+tür gruplu çipler -->
+		{#if groupedInflows.length > 0}
 			<div class="mt-4 text-[11px] tracking-[1px] uppercase text-green-700 font-bold">Beklenen Tahsilatlar</div>
 			<div class="flex gap-2 flex-wrap mt-2">
-				{#each data.inflows as i (i.id)}
-					<span class="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 text-xs">
-						<span class="tabular-nums text-gray-500">{labelDate(i.date)}</span>
-						<span class="text-gray-700 truncate max-w-[160px]">{i.name}</span>
-						<span class="tabular-nums font-semibold text-green-700">+{fmtEur(i.amount_eur)}</span>
+				{#each groupedInflows as g (g.key)}
+					<span class="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5 text-xs" title={g.title}>
+						<span class="tabular-nums text-gray-500">{labelDate(g.date)}</span>
+						<span class="text-gray-700 truncate max-w-[160px]">{g.label}</span>
+						<span class="tabular-nums font-semibold text-green-700">+{fmtEur(g.total)}</span>
 					</span>
 				{/each}
 			</div>
