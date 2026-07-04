@@ -273,6 +273,7 @@ TEMPLATE:
 │   │   │   ├── budget_service.py           # Bütçe kategori + kompozit-anahtar upsert (çift-bütçe drift'i kapatıldı)
 │   │   │   ├── room_type_service.py        # Oda tipi CRUD (delete rezervasyon-guard)
 │   │   │   ├── cc_projection_service.py     # Kredi kartı ekstresi projeksiyonu (nakit akım; okuma-anında, cari ay=limit/ileri ay=0)
+│   │   │   ├── dividend_service.py           # Kâr payı dağıtımı üretim (Decimal) + net/stopaj FE roll-up (router + onay executor ORTAK)
 │   │   │   └── hr_service.py               # Devam/vardiya/çizelge CRUD (typed↔ISO-string coercion)
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi
@@ -404,7 +405,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 
 - **DB adı:** sprenses
 - **Kullanıcı:** sprenses
-- **Tablolar (63):** stock_depots, stock_products, stock_movements, personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, vendor_bank_accounts, sales_invoices, sales_collections, sales_advances, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items
+- **Tablolar (68):** stock_depots, stock_products, stock_movements, personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, vendor_bank_accounts, sales_invoices, sales_collections, sales_advances, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items, payment_deferrals, dividend_distributions, dividend_shareholders, dividend_installments, dividend_payments
 - **Saat dilimi:** Europe/Istanbul (her bağlantıda SET edilir)
 - **Migrations:** `cd backend && source venv/bin/activate && alembic upgrade head`
 - **Otomatik yedek (2026-06-22, denetim D15-1 — tek Kritik):** Günlük `pg_dump -Fc` → `/var/backups/sprenses-db/` (`scripts/db-backup.sh`, systemd `sprenses-db-backup.timer` 03:00 Istanbul, bütünlük doğrulamalı, 30-yedek rotasyon). Geri yükleme + **restore tatbikatı**: `scripts/db-restore.sh` (argümansız = en son yedeği geçici DB'ye yükle/say/sil; `<dump> sprenses` = üretime, `EVET` onaylı). **Kod yedeği (git/Stop hook) ≠ DB yedeği** — bu ayrı. **Off-site (S3) opt-in/pasif** (`SPRENSES_BACKUP_S3`, IAM role gerekir) → tam disk/instance-kaybı koruması için kurulmalı. Detay: `docs/modules/yedekleme.md`.
@@ -580,6 +581,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Onay Akışı (Sistem/Rol Bazlı) | `docs/modules/onay-akisi.md` |
 | İşlem Etiketleme | `docs/modules/transaction-tags.md` |
 | Muhasebe & İK | `docs/modules/muhasebe-ik.md` |
+| Temettü (Kâr Payı Dağıtımı) | `docs/modules/temettu.md` |
 | Kullanıcı Fiş İcmali | `docs/modules/fis-icmali.md` |
 | Mizan (Geçici Mizan) | `docs/modules/mizan.md` |
 | Kimlik Doğrulama | `docs/modules/auth.md` |

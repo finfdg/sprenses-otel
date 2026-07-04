@@ -1,7 +1,9 @@
 # Muhasebe Modülü — Geliştirici Rehberi
 
-Muhasebe alt modülleri (`taxes`, `recurring`, `rent_income`, `rent_expense`, `dividend`)
-ortak **fabrika deseni** ile üretilir. Bu dosya muhasebe modülüne katkı kurallarını içerir.
+Muhasebe alt modüllerinden `taxes`, `recurring`, `rent_income`, `rent_expense`
+ortak **fabrika deseni** ile üretilir. `dividend` (Temettü) **bespoke**tir (fabrika DIŞI —
+aşağıdaki carve-out); `fis_icmali`/`mizan` de fabrika dışıdır. Bu dosya muhasebe modülüne
+katkı kurallarını içerir.
 
 ## Mimari — Fabrika Deseni
 
@@ -61,6 +63,16 @@ sonra) **veya** sayfadaki "Cari ile Senkronize" butonu. Detay: `docs/modules/muh
 6. `docs/modules/muhasebe-ik.md` güncelle.
 
 Detay: `docs/modules/muhasebe-ik.md`, `docs/modulerlik-iyilestirmeleri.md`.
+
+## Temettü (Kâr Payı Dağıtımı) — Fabrika Dışı (bespoke parent/child)
+
+`dividend` (Temettü) artık planlı-gider fabrikasının **parçası değildir** — `finance.krediler`
+deseni gibi bespoke bir parent/child modüldür (dağıtım → pay sahipleri + taksitler + 72 ödeme).
+Router paketi `accounting/dividend/` (`distributions.py`/`payments.py`/`_helpers.py`), ortak
+service `app/services/dividend_service.py` (router + onay executor `_handle_accounting_dividend`
+ORTAK). `_SCHEDULED_SOURCE_MAP`'te YOKtur; `_HANDLERS`'a AÇIK kayıtlıdır. Nakit akım: taksit başına
+`dividend` (net) + `dividend_stopaj` (ertesi ay 26 muhtasar) finance_events. Detay:
+`docs/modules/temettu.md`.
 
 ## Canlı Sedna Modülleri — Fabrika Dışı (salt-okunur)
 

@@ -932,6 +932,74 @@ class TestApprovalExecutorMoreModules:
         assert db.get(CreditPayment, pid).is_paid is True
         assert float(db.get(CreditProduct, prod_id).remaining_amount) == 90000  # 100000 - 10000 principal
 
+    def test_dividend_create_via_approval_generates_installments_payments_and_events(self, db):
+        """Temettü bespoke handler (_handle_accounting_dividend): onaylanınca dağıtım +
+        taksitler + 72 (burada 6) ödeme + net/stopaj finance_events üretilir (router ile birebir)."""
+        from app.models.dividend import (
+            DividendDistribution, DividendInstallment, DividendPayment,
+        )
+        from app.models.finance_event import (
+            FinanceEvent, SOURCE_DIVIDEND, SOURCE_DIVIDEND_STOPAJ,
+        )
+        _, req_role, req_client = _make_actor(db, {"accounting.dividend": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "accounting.dividend", req_role, app_role)
+
+        dname = f"KP {uuid4().hex[:6]}"
+        resp = req_client.post("/api/accounting/dividend/", json={
+            "name": dname, "total_gross": 1200000, "withholding_rate": 0.15,
+            "installment_count": 3, "year": 2026, "first_installment_date": "2026-06-30",
+            "shareholders": [{"name": "A", "share_value": 600000},
+                             {"name": "B", "share_value": 600000}],
+        })
+        assert resp.status_code == 202, resp.text
+        req_id = resp.json()["request_id"]
+
+        db.expire_all()
+        assert db.query(DividendDistribution).filter(DividendDistribution.name == dname).first() is None
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"temettü onayı 500 vermemeli: {ap.text}"
+
+        db.expire_all()
+        dist = db.query(DividendDistribution).filter(DividendDistribution.name == dname).first()
+        assert dist is not None
+        insts = db.query(DividendInstallment).filter_by(distribution_id=dist.id).all()
+        assert len(insts) == 3
+        assert db.query(DividendPayment).filter_by(distribution_id=dist.id).count() == 6  # 2×3
+        inst_ids = [i.id for i in insts]
+        net = db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == SOURCE_DIVIDEND, FinanceEvent.source_id.in_(inst_ids)).count()
+        stopaj = db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == SOURCE_DIVIDEND_STOPAJ, FinanceEvent.source_id.in_(inst_ids)).count()
+        assert net == 3 and stopaj == 3
+
+    def test_dividend_payment_toggle_via_approval(self, db):
+        """Temettü ödeme (net) toggle onay yolu → _target=payment dalı is_paid'i uygular."""
+        from app.models.dividend import DividendPayment
+        from app.services import dividend_service
+        _, req_role, req_client = _make_actor(db, {"accounting.dividend": {"view": True, "use": True}})
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "accounting.dividend", req_role, app_role)
+
+        dist = dividend_service.create_distribution(db, {
+            "name": f"KP {uuid4().hex[:6]}", "total_gross": 600000, "withholding_rate": 0.15,
+            "installment_count": 2, "year": 2026, "first_installment_date": "2026-06-30",
+            "shareholders": [{"name": "A", "share_value": 600000}],
+        }, actor_id=None)
+        db.commit()
+        pid = db.query(DividendPayment).filter_by(distribution_id=dist.id).first().id
+
+        r = req_client.patch(f"/api/accounting/dividend/payments/{pid}", json={"is_paid": True})
+        assert r.status_code == 202, r.text
+        req_id = r.json()["request_id"]
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"temettü ödeme onayı 500 vermemeli: {ap.text}"
+
+        db.expire_all()
+        assert db.get(DividendPayment, pid).is_paid is True
+
     def test_credit_product_delete_via_approval(self, db):
         """REGRESYON (D2-4): executor product delete `CreditPayment.product_id` (yanlış kolon)
         ile sorguluyordu → AttributeError/500. Service sonrası onaylı silme ürünü + ödemeleri

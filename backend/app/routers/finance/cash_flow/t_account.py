@@ -52,6 +52,7 @@ SOURCE_LABELS = {
     "withholding": "Stopaj",
     "sgk": "SGK",
     "dividend": "Temettü",
+    "dividend_stopaj": "Temettü Stopajı",
     "rent_expense": "Verilen Kiralar",
     "rent_income": "Alınan Kiralar",
 }

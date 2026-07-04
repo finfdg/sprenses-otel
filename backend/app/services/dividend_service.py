@@ -160,13 +160,13 @@ def create_distribution(db: Session, data: dict, actor_id) -> DividendDistributi
     db.flush()
 
     # ── Pay sahipleri (brüt/stopaj/net) ──
+    # Her pay sahibinin figürü kendi oranının kuruşa yuvarlanmış hâlidir (Excel paritesi;
+    # Excel de reconcile ETMEZ — 12 satırın toplamı headerdan ~1 kuruş sapabilir, aynen korunur).
     sh_models: List[DividendShareholder] = []
-    gross_list: List[Decimal] = []
     for idx, s in enumerate(shareholders_in):
         sv = Decimal(str(s.get("share_value") or 0))
         gross = _q2(total_gross * (sv / denom))
         stopaj = _q2(gross * rate)
-        gross_list.append(gross)
         sh = DividendShareholder(
             distribution_id=dist.id,
             sort_order=idx + 1,
@@ -179,17 +179,6 @@ def create_distribution(db: Session, data: dict, actor_id) -> DividendDistributi
         )
         sh_models.append(sh)
         db.add(sh)
-
-    # Brüt yuvarlama artığını en büyük paya ekle → sum(gross) == total_gross (Excel paritesi)
-    diff = total_gross - sum(gross_list, Decimal("0"))
-    if diff != 0:
-        max_i = max(range(len(sh_models)), key=lambda i: gross_list[i])
-        new_gross = _q2(gross_list[max_i] + diff)
-        new_stopaj = _q2(new_gross * rate)
-        gross_list[max_i] = new_gross
-        sh_models[max_i].gross_dividend = new_gross
-        sh_models[max_i].stopaj_amount = new_stopaj
-        sh_models[max_i].net_dividend = _q2(new_gross - new_stopaj)
     db.flush()
 
     # ── Taksitler (tutarlar ödemelerden türetilecek) ──

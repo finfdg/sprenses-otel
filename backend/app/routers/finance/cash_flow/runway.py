@@ -62,6 +62,7 @@ SOURCE_LABELS = {
     "sgk": "SGK",
     "withholding": "Stopaj",
     "dividend": "Temettü",
+    "dividend_stopaj": "Temettü Stopajı",
     "rent_expense": "Verilen Kira",
     "rent_income": "Alınan Kira",
     "advance": "Avans",
@@ -203,6 +204,16 @@ def _natural_date(db: Session, source_type: str, source_id: int):
         v = db.query(VendorTransaction.payment_due_date).filter(
             VendorTransaction.id == source_id).first()
         return v[0] if v else None
+    if source_type in ("dividend", "dividend_stopaj"):
+        from app.models.dividend import DividendInstallment
+        i = db.query(DividendInstallment.due_date).filter(
+            DividendInstallment.id == source_id).first()
+        if not i:
+            return None
+        if source_type == "dividend_stopaj":
+            from app.services.dividend_service import _derive_stopaj_date
+            return _derive_stopaj_date(i[0])
+        return i[0]
     # scheduled türleri: entry_date (paid_date ödeme tarihi olurdu ama öteleme = planlı)
     from app.models.scheduled import ScheduledEntry
     e = db.query(ScheduledEntry.entry_date).filter(ScheduledEntry.id == source_id).first()

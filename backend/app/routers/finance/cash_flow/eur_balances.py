@@ -278,8 +278,8 @@ def compute_eur_balances(db: Session) -> dict:
     # Tarih seti güncellendi, yeniden sırala
     all_dates = sorted(all_date_set)
 
-    # Planlı gider/gelir (vergi, düzenli ödeme, maaş, stopaj, kiralar)
-    scheduled_types = ("tax", "recurring", "salary", "withholding", "rent_income", "rent_expense", "sgk", "dividend")
+    # Planlı gider/gelir (vergi, düzenli ödeme, maaş, stopaj, kiralar) + temettü net/stopaj
+    scheduled_types = ("tax", "recurring", "salary", "withholding", "rent_income", "rent_expense", "sgk", "dividend", "dividend_stopaj")
     scheduled_fes = (
         db.query(FinanceEvent)
         .filter(

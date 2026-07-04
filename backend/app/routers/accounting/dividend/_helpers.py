@@ -33,15 +33,19 @@ def batch_rollup_stats(db: Session, distribution_ids: List[int]) -> dict:
     if not distribution_ids:
         return stats
 
-    for did, s_stopaj, s_net in (
+    # Toplam stopaj/net = pay sahibi (Özet) görünümü → Excel Özet TOPLAM ile birebir
+    # (taksit görünümü kuruş yuvarlamasıyla ~3 kuruş sapar; Excel'de de öyle).
+    for did, cnt, s_stopaj, s_net in (
         db.query(
-            DividendInstallment.distribution_id,
-            func.coalesce(func.sum(DividendInstallment.stopaj_amount), 0),
-            func.coalesce(func.sum(DividendInstallment.net_amount), 0),
+            DividendShareholder.distribution_id,
+            func.count(DividendShareholder.id),
+            func.coalesce(func.sum(DividendShareholder.stopaj_amount), 0),
+            func.coalesce(func.sum(DividendShareholder.net_dividend), 0),
         )
-        .filter(DividendInstallment.distribution_id.in_(distribution_ids))
-        .group_by(DividendInstallment.distribution_id)
+        .filter(DividendShareholder.distribution_id.in_(distribution_ids))
+        .group_by(DividendShareholder.distribution_id)
     ):
+        stats[did]["shareholder_count"] = int(cnt)
         stats[did]["total_stopaj"] = float(s_stopaj)
         stats[did]["total_net"] = float(s_net)
 
@@ -58,13 +62,6 @@ def batch_rollup_stats(db: Session, distribution_ids: List[int]) -> dict:
         stats[did]["net_total_count"] = int(total)
         stats[did]["net_paid_count"] = int(net_paid)
         stats[did]["stopaj_paid_count"] = int(stopaj_paid)
-
-    for did, cnt in (
-        db.query(DividendShareholder.distribution_id, func.count(DividendShareholder.id))
-        .filter(DividendShareholder.distribution_id.in_(distribution_ids))
-        .group_by(DividendShareholder.distribution_id)
-    ):
-        stats[did]["shareholder_count"] = int(cnt)
 
     return stats
 

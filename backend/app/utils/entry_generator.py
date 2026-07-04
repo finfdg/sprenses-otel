@@ -49,13 +49,15 @@ def _build_description(source_type: str, defn_name: str, category: Optional[str]
 SHIFT_NEXT_MONTH_SOURCES = {"salary", "sgk", "withholding"}
 
 
-def _payment_date(source_type: str, period_year: int, period_month: int, payment_day: int) -> date:
+def _payment_date(source_type: str, period_year: int, period_month: int, payment_day: int,
+                  pay_next_month: bool = False) -> date:
     """Dönem ay/yıl ve payment_day'den gerçek ödeme tarihini hesapla.
 
-    salary/sgk/withholding için +1 ay kaydırılır; diğerlerinde aynı ay kullanılır.
+    salary/sgk/withholding kaynak-bazlı VEYA tanımın `pay_next_month` bayrağı True ise +1 ay
+    kaydırılır (ör. Ocak dönemi → 10 Şubat); aksi halde aynı ay kullanılır.
     """
     day = min(payment_day, 28)
-    if source_type in SHIFT_NEXT_MONTH_SOURCES:
+    if pay_next_month or source_type in SHIFT_NEXT_MONTH_SOURCES:
         if period_month == 12:
             return date(period_year + 1, 1, day)
         return date(period_year, period_month + 1, day)
@@ -98,7 +100,7 @@ def generate_entries(
 
     entries = []
     for m in period_months:
-        pay_date = _payment_date(defn.source_type, defn.year, m, defn.payment_day)
+        pay_date = _payment_date(defn.source_type, defn.year, m, defn.payment_day, defn.pay_next_month)
         entry = ScheduledEntry(
             definition_id=defn.id,
             source_type=defn.source_type,
@@ -163,7 +165,7 @@ def regenerate_entries(
         if (defn.year, m) in paid_periods:
             continue
 
-        pay_date = _payment_date(defn.source_type, defn.year, m, defn.payment_day)
+        pay_date = _payment_date(defn.source_type, defn.year, m, defn.payment_day, defn.pay_next_month)
         entry = ScheduledEntry(
             definition_id=defn.id,
             source_type=defn.source_type,

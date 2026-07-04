@@ -19,6 +19,7 @@ class DefinitionCreate(BaseModel):
     notes: Optional[str] = None
     vendor_id: Optional[int] = None  # cari (satıcı) bağlantısı — recurring senkronu için
     billing_offset_months: int = Field(default=0, ge=0, le=6)  # fatura gecikmesi (su=1, elektrik=0)
+    pay_next_month: bool = False  # True → ödeme dönemin BİR SONRAKİ ayında (ör. Ocak → 10 Şubat)
 
 
 class DefinitionUpdate(BaseModel):
@@ -32,6 +33,7 @@ class DefinitionUpdate(BaseModel):
     is_active: Optional[bool] = None
     vendor_id: Optional[int] = None  # None gönderilirse bağlantı korunur (exclude_unset); 0 → kaldır
     billing_offset_months: Optional[int] = Field(None, ge=0, le=6)
+    pay_next_month: Optional[bool] = None  # değişince girişler yeniden üretilir (yeni tarihler)
 
 
 class DefinitionResponse(BaseModel):
@@ -50,6 +52,7 @@ class DefinitionResponse(BaseModel):
     vendor_id: Optional[int] = None
     vendor_name: Optional[str] = None  # bağlı cari adı (gösterim)
     billing_offset_months: int = 0
+    pay_next_month: bool = False
     created_by: Optional[int] = None
     created_at: Optional[datetime] = None
     entries: Optional[List["EntryResponse"]] = None

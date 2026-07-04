@@ -174,6 +174,7 @@ def create_scheduled_router(
                 notes=data.notes,
                 vendor_id=data.vendor_id,
                 billing_offset_months=data.billing_offset_months,
+                pay_next_month=data.pay_next_month,
                 is_active=False,
                 created_by=current_user.id,
             )
@@ -205,6 +206,7 @@ def create_scheduled_router(
             notes=data.notes,
             vendor_id=data.vendor_id,
             billing_offset_months=data.billing_offset_months,
+            pay_next_month=data.pay_next_month,
             is_active=True,
             created_by=current_user.id,
         )

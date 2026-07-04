@@ -58,6 +58,10 @@ class ScheduledDefinition(Base):
     # Cari fatura gecikmesi (ay): fatura tüketim ayından sonra kesiliyorsa kaç ay geri kaydırılır.
     # Su (ASAT) faturası ay başında gelir = önceki ay tüketimi → 1. Elektrik (CK) ay sonu = aynı ay → 0.
     billing_offset_months: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # True ise dönemin ödemesi BİR SONRAKİ ayın payment_day'inde yapılır (ör. Ocak dönemi → 10 Şubat).
+    # salary/sgk/withholding zaten source_type bazlı +1 ay kayar; bu, diğer türlerde (recurring vb.)
+    # tanım-bazlı aynı davranışı sağlar. entry_date bu bayrağa göre hesaplanır (_payment_date).
+    pay_next_month: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     created_by: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,

@@ -26,17 +26,18 @@ logger = logging.getLogger(__name__)
 DEFERRABLE_SOURCE_TYPES = frozenset({
     "vendor_payment", "check", "credit", "cc_payment",
     "tax", "recurring", "salary", "withholding", "sgk",
-    "dividend", "rent_income", "rent_expense",
+    "dividend", "dividend_stopaj", "rent_income", "rent_expense",
 })
 
-# scheduled_entry türleri (upsert_scheduled_entry ile yazılır) → direction eşlemesi
+# scheduled_entry türleri (upsert_scheduled_entry ile yazılır) → direction eşlemesi.
+# NOT: "dividend"/"dividend_stopaj" bespoke temettü modülüne aittir (ScheduledEntry DEĞİL) →
+# resync'te ayrı branch ile ele alınır (aksi halde installment.id, scheduled_entries.id ile çakışabilir).
 _SCHEDULED_DIRECTION = {
     "tax": -1,
     "recurring": -1,
     "salary": -1,
     "withholding": -1,
     "sgk": -1,
-    "dividend": -1,
     "rent_expense": -1,
     "rent_income": 1,   # tek gelir türü
 }
@@ -180,6 +181,15 @@ def resync_deferred_event(db: Session, source_type: str, source_id: int) -> None
         ).first()
         if product:
             finance_event_svc.upsert_cc_statement(db, stmt, product)
+        return
+
+    if source_type in ("dividend", "dividend_stopaj"):
+        # Bespoke temettü — source_id = dividend_installments.id (ScheduledEntry DEĞİL)
+        from app.models.dividend import DividendInstallment
+        from app.services.dividend_service import _upsert_installment_events
+        inst = db.query(DividendInstallment).filter(DividendInstallment.id == source_id).first()
+        if inst and inst.distribution:
+            _upsert_installment_events(db, inst, inst.distribution)
         return
 
     if source_type in _SCHEDULED_DIRECTION:

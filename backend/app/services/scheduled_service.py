@@ -17,8 +17,8 @@ from app.utils.entry_generator import _build_description, generate_entries, rege
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.recurring_vendor_sync import sync_recurring_from_vendors
 
-# Bu alanlar değişince planlı girişler yeniden üretilir
-_REGEN_FIELDS = ("amount", "frequency", "payment_day", "start_month")
+# Bu alanlar değişince planlı girişler yeniden üretilir (yeni entry_date/tutar)
+_REGEN_FIELDS = ("amount", "frequency", "payment_day", "start_month", "pay_next_month")
 
 
 def post_create(db: Session, defn: ScheduledDefinition, direction: int) -> list:

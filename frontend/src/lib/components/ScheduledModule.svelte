@@ -124,6 +124,7 @@
 		year: number;
 		notes: string;
 		billing_offset_months: number;
+		pay_next_month: boolean;
 	}>({
 		name: '',
 		category: '',
@@ -135,6 +136,7 @@
 		year: new Date().getFullYear(),
 		notes: '',
 		billing_offset_months: 0,
+		pay_next_month: false,
 	});
 	let saving = $state(false);
 	let formError = $state('');
@@ -414,7 +416,7 @@
 			name: '', category: '', amount: null, currency: 'TRY',
 			frequency: 'monthly', payment_day: 1,
 			start_month: now.getMonth() + 1, year: selectedYear, notes: '',
-			billing_offset_months: 0,
+			billing_offset_months: 0, pay_next_month: false,
 		};
 		formError = '';
 		showModal = true;
@@ -428,6 +430,7 @@
 			frequency: d.frequency, payment_day: d.payment_day,
 			start_month: d.start_month, year: d.year, notes: d.notes || '',
 			billing_offset_months: d.billing_offset_months ?? 0,
+			pay_next_month: d.pay_next_month ?? false,
 		};
 		formError = '';
 		showModal = true;

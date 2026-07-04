@@ -2,8 +2,9 @@
 
 Bu tek test dosyası, scheduled_base.create_scheduled_router() tarafından
 üretilen generic endpoint'leri test eder. Aynı CRUD pattern'ını kullanan
-8 modül (vergiler, düzenli ödemeler, alınan/verilen kiralar, temettü,
-maaş, stopaj, SGK) burada parametrik olarak kapsanır.
+7 modül (vergiler, düzenli ödemeler, alınan/verilen kiralar, maaş, stopaj,
+SGK) burada parametrik olarak kapsanır. (Temettü artık bespoke — bkz.
+tests/test_dividend.py.)
 """
 
 import pytest
@@ -18,7 +19,6 @@ MODULES = [
     ("/api/accounting/recurring", "recurring", "Düzenli Ödeme", -1),
     ("/api/accounting/rent-income", "rent_income", "Alınan Kira", 1),
     ("/api/accounting/rent-expense", "rent_expense", "Verilen Kira", -1),
-    ("/api/accounting/dividend", "dividend", "Temettü", -1),
     ("/api/hr/salary", "salary", "Maaş", -1),
     ("/api/hr/withholding", "withholding", "Stopaj", -1),
     ("/api/hr/sgk", "sgk", "SGK", -1),
