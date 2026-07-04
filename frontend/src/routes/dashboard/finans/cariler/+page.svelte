@@ -90,24 +90,6 @@
 	let contactSaving = $state(false);
 	let copiedIban = $state<string | null>(null);
 
-	// Bank transactions linked to vendor
-	interface BankTx {
-		id: number;
-		date: string;
-		description: string;
-		amount: number;
-		type: string;
-		bank_name: string;
-		iban: string;
-		receipt_no: string | null;
-		tag_note: string | null;
-	}
-	let bankTxs = $state<BankTx[]>([]);
-	let bankTxLoading = $state(false);
-	let bankTxPage = $state(1);
-	let bankTxTotal = $state(0);
-	let bankTxPages = $state(1);
-
 	// Payment schedule
 	let schedule = $state<WeeklyPaymentGroup[]>([]);
 	let scheduleLoading = $state(false);
@@ -773,22 +755,6 @@
 		catch (e) { console.error(e); showToast('Silinemedi', 'error'); }
 	}
 
-	// ─── Bank Transactions ─────────────────────────────
-	async function loadBankTransactions(vendorId: number) {
-		bankTxLoading = true;
-		try {
-			const res = await api.get<any>(`/finance/cariler/vendors/${vendorId}/bank-transactions?page=${bankTxPage}&page_size=50`);
-			bankTxs = res.items;
-			bankTxTotal = res.total;
-			bankTxPages = res.pages;
-		} catch (err) {
-			console.error('Banka işlemleri alınamadı:', err);
-			bankTxs = [];
-		} finally {
-			bankTxLoading = false;
-		}
-	}
-
 	// ─── Payment Days Edit ─────────────────────────────
 	let editingPaymentDays = $state<number | null>(null);
 	let paymentDaysValue = $state(90);
@@ -1341,15 +1307,15 @@
 											{#if canUse}
 												<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
 													<div>
-														<label class="block text-[11px] text-gray-500 mb-1">Yetkili Kişi</label>
+														<span class="block text-[11px] text-gray-500 mb-1">Yetkili Kişi</span>
 														<Input size="sm" bind:value={contactForm.contact_person} placeholder="Ad Soyad" />
 													</div>
 													<div>
-														<label class="block text-[11px] text-gray-500 mb-1">Telefon</label>
+														<span class="block text-[11px] text-gray-500 mb-1">Telefon</span>
 														<Input size="sm" bind:value={contactForm.phone} placeholder="0212 000 00 00" />
 													</div>
 													<div>
-														<label class="block text-[11px] text-gray-500 mb-1">E-posta</label>
+														<span class="block text-[11px] text-gray-500 mb-1">E-posta</span>
 														<Input size="sm" bind:value={contactForm.email} placeholder="ornek@firma.com" />
 													</div>
 												</div>
@@ -1768,6 +1734,7 @@
 													</div>
 												{/each}
 											</div>
+										{/if}
 									</div>
 								{/if}
 							</div>
