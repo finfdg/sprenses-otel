@@ -587,22 +587,22 @@
 			expandedVendor = null;
 			vendorDetail = null;
 			vendorTransactions = [];
-			bankTxs = [];
+			vendorNotes = [];
 			detailTab = 'transactions';
 			return;
 		}
 		expandedVendor = vendorId;
 		vtxPage = 1;
-		bankTxPage = 1;
 		detailTab = 'transactions';
-		bankTxs = [];
-		bankTxTotal = 0;
 		vendorIbans = [];
+		vendorNotes = [];
+		noteDraft = '';
+		editingNoteId = null;
+		copiedIban = null;
 		ibanForm = { bank_name: '', iban: '', account_holder: '' };
 		await loadVendorDetail(vendorId);
 		loadVendorIbans(vendorId);
-		// Banka sayısını arka planda al (sekme badge'i için)
-		loadBankTransactions(vendorId);
+		loadVendorNotes(vendorId);
 	}
 
 	async function loadVendorDetail(vendorId: number) {
@@ -613,10 +613,122 @@
 			vendorTransactions = res.transactions.items;
 			vtxTotal = res.transactions.total;
 			vtxPages = res.transactions.pages;
+			// İletişim formunu detaydan doldur
+			contactForm = {
+				contact_person: res.vendor.contact_person || '',
+				phone: res.vendor.phone || '',
+				email: res.vendor.email || '',
+			};
 		} catch (err) {
 			console.error('Cari detay alınamadı:', err);
 		} finally {
 			vtxLoading = false;
+		}
+	}
+
+	// ─── Cari Notları ──────────────────────────────────
+	async function loadVendorNotes(vendorId: number) {
+		notesLoading = true;
+		try {
+			vendorNotes = await api.get<VendorNote[]>(`/finance/cariler/vendors/${vendorId}/notes`);
+		} catch (err) {
+			console.error('Cari notları alınamadı:', err);
+			vendorNotes = [];
+		} finally {
+			notesLoading = false;
+		}
+	}
+
+	async function addVendorNote(vendorId: number) {
+		const text = noteDraft.trim();
+		if (!text) return;
+		noteSaving = true;
+		try {
+			const note = await api.post<VendorNote>(`/finance/cariler/vendors/${vendorId}/notes`, { text });
+			vendorNotes = [note, ...vendorNotes];
+			noteDraft = '';
+		} catch (err: any) {
+			console.error('Not eklenemedi:', err);
+			showToast(err?.message || 'Not eklenemedi', 'error');
+		} finally {
+			noteSaving = false;
+		}
+	}
+
+	function startEditNote(note: VendorNote) {
+		editingNoteId = note.id;
+		editingNoteText = note.text;
+	}
+	function cancelEditNote() {
+		editingNoteId = null;
+		editingNoteText = '';
+	}
+	async function saveNoteEdit(vendorId: number, noteId: number) {
+		const text = editingNoteText.trim();
+		if (!text) return;
+		try {
+			const updated = await api.patch<VendorNote>(`/finance/cariler/vendors/${vendorId}/notes/${noteId}`, { text });
+			vendorNotes = vendorNotes.map(n => n.id === noteId ? updated : n);
+			editingNoteId = null;
+		} catch (err) {
+			console.error('Not güncellenemedi:', err);
+			showToast('Not güncellenemedi', 'error');
+		}
+	}
+	async function toggleNoteDone(vendorId: number, note: VendorNote) {
+		try {
+			const updated = await api.patch<VendorNote>(`/finance/cariler/vendors/${vendorId}/notes/${note.id}`, { done: !note.done });
+			vendorNotes = vendorNotes.map(n => n.id === note.id ? updated : n);
+		} catch (err) {
+			console.error('Not güncellenemedi:', err);
+			showToast('Not güncellenemedi', 'error');
+		}
+	}
+	function confirmDeleteNote(vendorId: number, noteId: number) {
+		askConfirm('Notu Sil', 'Bu not kalıcı olarak silinecek. Devam edilsin mi?', async () => {
+			try {
+				await api.delete(`/finance/cariler/vendors/${vendorId}/notes/${noteId}`);
+				vendorNotes = vendorNotes.filter(n => n.id !== noteId);
+				showToast('Not silindi', 'success');
+			} catch (err) {
+				console.error('Not silinemedi:', err);
+				showToast('Not silinemedi', 'error');
+			}
+		});
+	}
+
+	// ─── Firma İletişim Bilgileri ──────────────────────
+	async function saveContact(vendorId: number) {
+		contactSaving = true;
+		try {
+			await api.patch(`/finance/cariler/vendors/${vendorId}/contact`, {
+				contact_person: contactForm.contact_person.trim() || null,
+				phone: contactForm.phone.trim() || null,
+				email: contactForm.email.trim() || null,
+			});
+			if (vendorDetail && vendorDetail.id === vendorId) {
+				vendorDetail.contact_person = contactForm.contact_person.trim() || null;
+				vendorDetail.phone = contactForm.phone.trim() || null;
+				vendorDetail.email = contactForm.email.trim() || null;
+			}
+			showToast('İletişim bilgileri kaydedildi', 'success');
+		} catch (err: any) {
+			console.error('İletişim bilgileri kaydedilemedi:', err);
+			showToast(err?.message || 'Kaydedilemedi', 'error');
+		} finally {
+			contactSaving = false;
+		}
+	}
+
+	async function copyIban(iban: string) {
+		const clean = (iban || '').replace(/\s+/g, '');
+		try {
+			if (navigator.clipboard) await navigator.clipboard.writeText(clean);
+			copiedIban = clean;
+			setTimeout(() => { if (copiedIban === clean) copiedIban = null; }, 1600);
+		} catch (err) {
+			console.error('IBAN kopyalanamadı:', err);
+			showToast('IBAN kopyalanamadı', 'error');
 		}
 	}
 
@@ -628,6 +740,9 @@
 	function fmtIbanDisplay(s: string | null): string {
 		const v = (s || '').replace(/\s+/g, '');
 		return v ? (v.match(/.{1,4}/g) || []).join(' ') : '';
+	}
+	function ibanClean(s: string | null): string {
+		return (s || '').replace(/\s+/g, '');
 	}
 	async function loadVendorIbans(vendorId: number) {
 		try { vendorIbans = await api.get<VIban[]>(`/finance/cariler/vendors/${vendorId}/bank-accounts`); }
@@ -1193,6 +1308,63 @@
 									</div>
 								{:else}
 									<div class="px-3 sm:px-5 py-3 sm:py-4">
+										<!-- Özet kartlar (tasarım: Güncel Bakiye / Vadesi Geçmiş / Son Ödeme) -->
+										<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+											<div class="bg-teal-700 rounded-xl p-3.5 text-white">
+												<div class="text-[10px] uppercase tracking-wide text-teal-100/70">Güncel Bakiye</div>
+												<div class="mt-1 text-lg font-bold tabular-nums {(vendorDetail?.bakiye ?? 0) < 0 ? 'text-amber-300' : 'text-emerald-300'}">{formatCurrency(vendorDetail?.bakiye ?? 0)}</div>
+												<div class="text-[11px] text-teal-100/70 mt-0.5">{(vendorDetail?.bakiye ?? 0) < 0 ? 'ödenecek tutar' : 'hesap güncel'}</div>
+											</div>
+											<div class="bg-white rounded-xl border border-gray-200 p-3.5">
+												<div class="text-[10px] uppercase tracking-wide text-gray-500">Vadesi Geçmiş</div>
+												<div class="mt-1 text-lg font-bold tabular-nums {(vendorDetail?.overdue ?? 0) > 0 ? 'text-amber-600' : 'text-emerald-600'}">{formatCurrency(vendorDetail?.overdue ?? 0)}</div>
+												<div class="text-[11px] text-gray-500 mt-0.5">{(vendorDetail?.overdue ?? 0) > 0 ? `${vendorDetail?.overdue_count} fatura · acil takip` : 'gecikme yok'}</div>
+											</div>
+											<div class="bg-white rounded-xl border border-gray-200 p-3.5">
+												<div class="text-[10px] uppercase tracking-wide text-gray-500">Son Ödeme</div>
+												<div class="mt-1 text-lg font-bold tabular-nums text-emerald-600">{vendorDetail?.last_payment_amount != null ? formatCurrency(vendorDetail.last_payment_amount) : '—'}</div>
+												<div class="text-[11px] text-gray-500 mt-0.5">{vendorDetail?.last_payment_date ? formatDate(vendorDetail.last_payment_date) : 'kayıt yok'}</div>
+											</div>
+										</div>
+
+										<!-- Detay sekmeleri (tasarım: Hesap Hareketleri / Notlar / Firma Bilgileri) -->
+										<div class="flex items-center gap-1 border-b border-gray-200 mb-4 overflow-x-auto">
+											<button onclick={() => detailTab = 'transactions'} class="whitespace-nowrap inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer {detailTab === 'transactions' ? 'border-brass text-gray-900 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'}">Hesap Hareketleri <span class="text-[11px] tabular-nums opacity-70">{vtxTotal}</span></button>
+											<button onclick={() => detailTab = 'notes'} class="whitespace-nowrap inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer {detailTab === 'notes' ? 'border-brass text-gray-900 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'}">Notlar <span class="text-[11px] tabular-nums opacity-70">{vendorNotes.length}</span></button>
+											<button onclick={() => detailTab = 'contact'} class="whitespace-nowrap inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer {detailTab === 'contact' ? 'border-brass text-gray-900 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'}">Firma Bilgileri</button>
+										</div>
+
+										{#if detailTab === 'contact'}
+										<!-- İletişim Bilgileri -->
+										<div class="mb-4 bg-white rounded-xl border border-gray-200 p-4">
+											<h4 class="text-xs font-semibold uppercase tracking-wide text-teal-700 inline-flex items-center gap-1.5 mb-3"><User size={14} /> İletişim Bilgileri</h4>
+											{#if canUse}
+												<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+													<div>
+														<label class="block text-[11px] text-gray-500 mb-1">Yetkili Kişi</label>
+														<Input size="sm" bind:value={contactForm.contact_person} placeholder="Ad Soyad" />
+													</div>
+													<div>
+														<label class="block text-[11px] text-gray-500 mb-1">Telefon</label>
+														<Input size="sm" bind:value={contactForm.phone} placeholder="0212 000 00 00" />
+													</div>
+													<div>
+														<label class="block text-[11px] text-gray-500 mb-1">E-posta</label>
+														<Input size="sm" bind:value={contactForm.email} placeholder="ornek@firma.com" />
+													</div>
+												</div>
+												<div class="flex justify-end mt-3">
+													<Button size="sm" onclick={() => saveContact(vendor.id)} loading={contactSaving} disabled={contactSaving}><Check size={14} /> Kaydet</Button>
+												</div>
+											{:else}
+												<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+													<div><div class="text-[11px] text-gray-500">Yetkili Kişi</div><div class="text-gray-900 mt-0.5">{vendorDetail?.contact_person || '—'}</div></div>
+													<div><div class="text-[11px] text-gray-500">Telefon</div><div class="text-gray-900 mt-0.5 font-mono">{vendorDetail?.phone || '—'}</div></div>
+													<div><div class="text-[11px] text-gray-500">E-posta</div><div class="text-gray-900 mt-0.5 break-all">{vendorDetail?.email || '—'}</div></div>
+												</div>
+											{/if}
+										</div>
+
 										<!-- Banka / IBAN yönetimi (ödeme talimatında kullanılır) -->
 										{#if canUse}
 											<div class="mb-4 bg-white rounded-lg border border-gray-200 p-3">
@@ -1209,6 +1381,7 @@
 																	<span class="font-medium text-gray-800">{ba.bank_name || 'Banka'}</span>
 																	<span class="font-mono text-gray-500 ml-1">{fmtIbanDisplay(ba.iban)}</span>
 																</span>
+																<button onclick={() => copyIban(ba.iban)} class="touch-target inline-flex items-center justify-center shrink-0 {copiedIban === ibanClean(ba.iban) ? 'text-emerald-600' : 'text-gray-400 hover:text-teal-600'} cursor-pointer" title="IBAN kopyala">{#if copiedIban === ibanClean(ba.iban)}<Check size={14} />{:else}<Copy size={14} />{/if}</button>
 																<button onclick={() => deleteVendorIban(vendor.id, ba.id)} class="touch-target inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-red-500 cursor-pointer" title="Sil"><Trash2 size={14} /></button>
 															</div>
 														{/each}
@@ -1223,6 +1396,55 @@
 												</div>
 											</div>
 										{/if}
+										{/if}
+
+										{#if detailTab === 'notes'}
+										<div class="bg-white rounded-xl border border-gray-200 p-4">
+											{#if canUse}
+												<div class="flex gap-2 items-start mb-4">
+													<textarea bind:value={noteDraft} rows="2" placeholder="Bu cari hakkında görüşme notu ekle… (ödeme sözü, mutabakat, itiraz)" class="flex-1 resize-y min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brass focus:ring-1 focus:ring-brass/40"></textarea>
+													<Button size="sm" onclick={() => addVendorNote(vendor.id)} loading={noteSaving} disabled={noteSaving || !noteDraft.trim()} class="shrink-0"><Plus size={14} /> Not Ekle</Button>
+												</div>
+											{/if}
+											{#if notesLoading}
+												<div class="flex justify-center py-6 text-teal-700"><Loader2 size={18} class="animate-spin" /></div>
+											{:else if vendorNotes.length === 0}
+												<div class="text-center py-8 text-gray-500"><StickyNote size={28} class="mx-auto mb-2 text-gray-300" /><p class="text-sm">Henüz not yok. Görüşme sonrası buraya ekleyin.</p></div>
+											{:else}
+												<div class="divide-y divide-gray-100">
+													{#each vendorNotes as n (n.id)}
+														<div class="flex gap-3 py-3">
+															<button onclick={() => toggleNoteDone(vendor.id, n)} disabled={!canUse} title="Yapıldı işaretle" class="shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center transition-colors {n.done ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 hover:border-brass'} {canUse ? 'cursor-pointer' : 'cursor-default'}">{#if n.done}<Check size={13} />{/if}</button>
+															<div class="flex-1 min-w-0">
+																{#if editingNoteId === n.id}
+																	<textarea bind:value={editingNoteText} rows="2" class="w-full resize-y rounded-lg border border-brass px-3 py-2 text-sm text-gray-900 outline-none"></textarea>
+																	<div class="flex gap-2 mt-2">
+																		<Button size="sm" onclick={() => saveNoteEdit(vendor.id, n.id)}>Kaydet</Button>
+																		<Button size="sm" variant="secondary" onclick={cancelEditNote}>İptal</Button>
+																	</div>
+																{:else}
+																	<div class="text-sm leading-relaxed whitespace-pre-wrap {n.done ? 'text-gray-400 line-through' : 'text-gray-800'}">{n.text}</div>
+																	<div class="flex items-center gap-2 mt-1 text-[11px] text-gray-500 flex-wrap">
+																		{#if n.author_name}<span class="font-medium text-gray-600">{n.author_name}</span><span>·</span>{/if}
+																		<span class="font-mono">{formatDateTime(n.created_at)}</span>
+																		{#if n.done}<span class="text-emerald-600 font-medium">· Yapıldı</span>{/if}
+																	</div>
+																{/if}
+															</div>
+															{#if canUse && editingNoteId !== n.id}
+																<div class="flex gap-1 shrink-0">
+																	<button onclick={() => startEditNote(n)} title="Düzenle" class="touch-target inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:text-teal-700 hover:border-gray-300 cursor-pointer"><Pencil size={14} /></button>
+																	<button onclick={() => confirmDeleteNote(vendor.id, n.id)} title="Sil" class="touch-target inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 cursor-pointer"><Trash2 size={14} /></button>
+																</div>
+															{/if}
+														</div>
+													{/each}
+												</div>
+											{/if}
+										</div>
+										{/if}
+
+										{#if detailTab === 'transactions'}
 
 										<!-- Sayfalama -->
 										{#if vtxPages > 1}

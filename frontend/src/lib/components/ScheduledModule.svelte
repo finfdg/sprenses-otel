@@ -496,9 +496,12 @@
 		}
 		try {
 			const newPaid = !entry.is_paid;
+			// Varsayılan ödeme tarihi = planlı ödeme günü (entry_date), bugün DEĞİL —
+			// geçmiş ödemeleri toplu işaretlerken hepsi bugüne yığılmasın. Gereken durumda
+			// kullanıcı "Düzenle" ile gerçek tarihi girer.
 			const result = await api.patch<any>(`${apiPrefix}/entries/${entry.id}`, {
 				is_paid: newPaid,
-				paid_date: newPaid ? new Date().toISOString().split('T')[0] : null,
+				paid_date: newPaid ? (entry.paid_date || entry.entry_date) : null,
 			});
 			if (result?.requires_approval) {
 				showToast('İşlem onay sürecine alındı', 'info');

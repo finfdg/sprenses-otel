@@ -8,8 +8,6 @@ Kapatılan sapma: eski executor `create` yolu **`sync_recurring_from_vendors`'u 
 çağırıyordu) → onaylanan cari-bağlı düzenli ödeme gerçek faturayla senkronlanmıyordu; ayrıca fallback
 build'i `vendor_id`/`billing_offset_months`'u set etmiyordu.
 """
-from datetime import date
-
 from sqlalchemy.orm import Session
 
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
@@ -71,7 +69,10 @@ def apply_entry_update(db: Session, entry: ScheduledEntry, update_data: dict, di
     if not changes:
         return changes
     if update_data.get("is_paid") and not entry.paid_date:
-        entry.paid_date = date.today()
+        # Varsayılan ödeme tarihi = PLANLI ödeme günü (entry_date), bugün DEĞİL.
+        # Geçmiş ödemeleri sonradan toplu "Ödendi" işaretlerken hepsi "bugüne" yığılmasın;
+        # kalem planlandığı ay/günde nakit akımda kalır (kullanıcı isterse elle düzeltir).
+        entry.paid_date = entry.entry_date
     if "period_month" in changes or "period_year" in changes:
         entry.description = _build_description(
             entry.source_type, entry.definition.name, entry.definition.category,

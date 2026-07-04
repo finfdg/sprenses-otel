@@ -469,6 +469,9 @@ class TestEntryUpdate:
         data = resp.json()
         assert data["is_paid"] is True
         assert data["paid_date"] is not None
+        # REGRESYON: varsayılan ödeme tarihi PLANLI gün (entry_date) olmalı, bugün DEĞİL —
+        # geçmiş ödemeleri toplu işaretlerken hepsi "bugüne" yığılmasın.
+        assert data["paid_date"] == data["entry_date"]
 
     @pytest.mark.parametrize("prefix,source_type,label,direction", MODULES[:1], ids=MODULE_IDS[:1])
     def test_update_entry_amount(self, client, auth_headers, prefix, source_type, label, direction):
