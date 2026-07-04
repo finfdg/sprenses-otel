@@ -4,7 +4,7 @@
 	import { categoryColorMap, getColor } from '$lib/utils/colorMap';
 	import { getPaymentMethod } from '$lib/utils/paymentMethods';
 	import TagSelector from './TagSelector.svelte';
-	import { Landmark } from 'lucide-svelte';
+	import { Landmark, Upload } from 'lucide-svelte';
 
 	let {
 		item,

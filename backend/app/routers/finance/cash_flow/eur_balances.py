@@ -217,6 +217,16 @@ def compute_eur_balances(db: Session) -> dict:
             cc_expense_by_date[stmt.son_odeme_tarihi] += to_eur(kalan, "TRY", stmt.son_odeme_tarihi)
             all_date_set.add(stmt.son_odeme_tarihi)
 
+    # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — nakit akım
+    # tablosuyla aynı sayı EUR başlığında/projeksiyonda da görünsün (kullanıcı isteği 2026-07-04).
+    # Yalnız tutar taşıyan son-ödeme kalemleri (kesim hatırlatıcıları tutar 0 → etkisiz).
+    from app.services.cc_projection_service import due_reserve_projections
+    cc_projection_expense_by_date = defaultdict(float)
+    for proj in due_reserve_projections(db, today=today_date):
+        pdt = date_cls.fromisoformat(proj["date"])
+        cc_projection_expense_by_date[pdt] += to_eur(float(proj["amount"]), "TRY", pdt)
+        all_date_set.add(pdt)
+
     # CC tarihleri eklenmiş olabilir, yeniden sırala
     all_dates = sorted(all_date_set)
 
@@ -354,6 +364,7 @@ def compute_eur_balances(db: Session) -> dict:
                 cumulative_future_expense += pending_check_expense_by_date.get(dt, 0)
             cumulative_future_expense += credit_expense_by_date.get(dt, 0)
             cumulative_future_expense += cc_expense_by_date.get(dt, 0)
+            cumulative_future_expense += cc_projection_expense_by_date.get(dt, 0)
             # Cari: yalnız BUGÜN ve sonrası gelecek gidere girer; vadesi geçmiş (< bugün)
             # cari overdue_vendor_total'da bloke edildi → çift sayım olmasın
             if dt >= today_date:
@@ -371,6 +382,7 @@ def compute_eur_balances(db: Session) -> dict:
                    scheduled_income_by_date.get(dt, 0))
         exp_eur = (bank_expense_by_date.get(dt, 0) + check_expense_by_date.get(dt, 0) +
                    credit_expense_by_date.get(dt, 0) + cc_expense_by_date.get(dt, 0) +
+                   cc_projection_expense_by_date.get(dt, 0) +
                    vendor_expense_by_date.get(dt, 0) + scheduled_expense_by_date.get(dt, 0))
 
         daily[str(dt)] = {

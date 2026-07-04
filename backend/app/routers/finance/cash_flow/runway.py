@@ -288,6 +288,32 @@ def runway(
         else:
             outs.append(item)
 
+    # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — runway'e
+    # cari-ay OUT kalemi olarak eklenir → nakit akım tablosuyla aynı rezerv (kullanıcı isteği
+    # 2026-07-04). Kesim hatırlatıcıları (tutar 0) hariç (due_reserve_projections yalnız tutarlı).
+    from app.services.cc_projection_service import due_reserve_projections
+    for proj in due_reserve_projections(db, today=today):
+        due = date_cls.fromisoformat(proj["date"])
+        if due < today or due > month_end:
+            continue  # yalnız bu ay penceresi (bugün..ay sonu)
+        if due not in rate_cache:
+            rate_cache[due] = _get_eur_rate(db, due)
+        rate = rate_cache[due]
+        if not rate or rate <= 1.0:
+            skipped_no_rate += 1
+            continue
+        outs.append({
+            "id": f"cc_projection:{proj['card_id']}",
+            "date": proj["date"],
+            "name": f"{proj['description']} (Tahmini)",
+            "amount_eur": round(float(proj["amount"]) / rate, 2),
+            "source_type": "cc_payment",
+            "deferred": False,
+            "original_date": proj["date"],
+            "projected": True,
+        })
+    outs.sort(key=lambda x: x["date"])  # projeksiyonlar sona eklendi → tarih sırasına çek
+
     return {
         "month_label": f"{TR_MONTHS[today.month - 1]} {today.year}",
         "month_start": month_start.isoformat(),

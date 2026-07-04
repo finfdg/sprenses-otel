@@ -38,8 +38,12 @@ export interface CashFlowItem {
 	is_matched?: boolean;
 	/** Tahmini kredi kartı ekstresi (yüklenmemiş ay) — okuma-anında üretilir, DB'de yok */
 	is_projected?: boolean;
-	/** Tahmini ekstrenin hesap kesim tarihi (YYYY-MM-DD) — son ödeme = `date` */
+	/** Tahmini kalem türü: 'due' = son ödeme (tutar), 'cut' = kesim günü "Ekstre yükleyin" hatırlatıcısı */
+	projection_kind?: 'due' | 'cut';
+	/** Tahmini ekstrenin hesap kesim tarihi (YYYY-MM-DD) */
 	kesim_date?: string;
+	/** Tahmini ekstrenin son ödeme tarihi (YYYY-MM-DD) — cut kaleminde `date`=kesim olduğundan ayrı tutulur */
+	son_odeme_date?: string;
 	/** Cari ay projeksiyonu mu (tutar = kart limiti); değilse ileri ay (tutar = 0) */
 	is_current_month?: boolean;
 	/** Karta limit tanımlı mı — cari ay tahmini tutarı buna dayanır */

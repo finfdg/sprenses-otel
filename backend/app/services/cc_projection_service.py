@@ -79,15 +79,22 @@ def _derive_days(db: Session, card: CreditProduct) -> Optional[dict]:
     return {"cut_day": cut_day, "due_day": due_day, "offset": offset}
 
 
-def _projection_item(card: CreditProduct, due_date: date, cut_date: date,
-                     amount: float, is_current: bool, has_limit: bool, seq: int) -> dict:
-    """Frontend CashFlowItem şekliyle uyumlu tahmini kalem (null-safe alanlar dahil)."""
+def _projection_item(card: CreditProduct, *, kind: str, event_date: date, kesim_date: date,
+                     son_odeme_date: date, amount: float, is_current: bool,
+                     has_limit: bool, seq: int) -> dict:
+    """Frontend CashFlowItem şekliyle uyumlu tahmini kalem (null-safe alanlar dahil).
+
+    kind='due' → son ödeme kalemi (tutar = limit/0, kesim tarihinde ödenecek borç).
+    kind='cut' → hesap kesim günü "Ekstre yükleyin" hatırlatıcısı (tutar = 0, bilgi amaçlı).
+    """
     amt = round(amount, 2)
+    # due/cut için ayrı id aralığı → gerçek FE ve birbirleriyle çakışmaz ({#each} anahtarı)
+    base = 900_000_000 if kind == "due" else 910_000_000
     return {
-        # gerçek FE id'leriyle çakışmayan yüksek-aralık sentetik id (yalnız {#each} anahtarı)
-        "id": 900_000_000 + card.id * 1000 + seq,
-        "date": due_date.isoformat(),
-        "kesim_date": cut_date.isoformat(),
+        "id": base + card.id * 1000 + seq,
+        "date": event_date.isoformat(),
+        "kesim_date": kesim_date.isoformat(),
+        "son_odeme_date": son_odeme_date.isoformat(),
         "description": f"[Kredi Kartı] {card.name}",
         "amount": amt,
         "type": "expense",
@@ -96,6 +103,7 @@ def _projection_item(card: CreditProduct, due_date: date, cut_date: date,
         "bank_name": card.bank_name,
         "card_id": card.id,
         "is_projected": True,
+        "projection_kind": kind,  # 'due' | 'cut'
         "is_current_month": is_current,
         "has_limit": has_limit,
         "event_status": "projected",
@@ -116,6 +124,7 @@ def compute_cc_projections(db: Session, today: Optional[date] = None,
     """Tüm aktif kredi kartları için tahmini ekstre kalemleri (yüklü olmayan aylar)."""
     if today is None:
         today = date.today()
+    month_start = date(today.year, today.month, 1)
 
     cards = (
         db.query(CreditProduct)
@@ -149,8 +158,33 @@ def compute_cc_projections(db: Session, today: Optional[date] = None,
             cy, cm = _add_months(y, m, -days["offset"])
             cut_date = _clamp_day(cy, cm, days["cut_day"])
             is_current = i == 0
-            # Cari ay → limit (rezerv); ileri aylar → 0 (yalnız tarih göstergesi)
+            # Son ödeme kalemi: cari ay → limit (rezerv); ileri aylar → 0 (tarih göstergesi)
             amount = limit if is_current else 0.0
-            out.append(_projection_item(card, due_date, cut_date, amount, is_current, has_limit, i))
+            out.append(_projection_item(
+                card, kind="due", event_date=due_date, kesim_date=cut_date,
+                son_odeme_date=due_date, amount=amount, is_current=is_current,
+                has_limit=has_limit, seq=i,
+            ))
+            # Hesap kesim günü "Ekstre yükleyin" hatırlatıcısı (tutar 0). offset=1 kartta
+            # kesim önceki ay olabilir → geçmiş aya düşen hatırlatıcı eklenmez.
+            if cut_date >= month_start:
+                out.append(_projection_item(
+                    card, kind="cut", event_date=cut_date, kesim_date=cut_date,
+                    son_odeme_date=due_date, amount=0.0, is_current=is_current,
+                    has_limit=has_limit, seq=i,
+                ))
 
     return out
+
+
+def due_reserve_projections(db: Session, today: Optional[date] = None) -> List[dict]:
+    """Tutar TAŞIYAN son-ödeme projeksiyonları (cari ay limit rezervi).
+
+    EUR bakiye (`compute_eur_balances`) ve runway (`/cash-flow/runway`) bunları gerçek
+    gider gibi ekler → tablo ile aynı rezerv sayısını gösterirler. Kesim hatırlatıcıları
+    (tutar 0) ve ileri-ay 0 kalemleri hariç (yalnız `projection_kind='due'` + `amount>0`).
+    """
+    return [
+        p for p in compute_cc_projections(db, today=today)
+        if p["projection_kind"] == "due" and p["amount"] > 0
+    ]
