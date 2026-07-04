@@ -16,7 +16,7 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { projectRunway } from '$lib/utils/finance';
-	import { RotateCcw, ShieldCheck } from 'lucide-svelte';
+	import { RotateCcw, ShieldCheck, ChevronDown } from 'lucide-svelte';
 
 	type Flow = { id: string; date: string; name: string; amount_eur: number; source_type?: string };
 	type RunwayData = {
@@ -25,11 +25,20 @@
 	};
 
 	const MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+	// Kaynak türü → Türkçe grup başlığı (Nakit Akım gruplama etiketleriyle uyumlu)
+	const SRC_LABELS: Record<string, string> = {
+		vendor_payment: 'Cari Ödemeleri', credit: 'Kredi / Leasing Taksitleri',
+		cc_payment: 'KK Borç Ödemeleri', check: 'Verilen Çekler', salary: 'Maaş Ödemeleri',
+		sgk: 'SGK', tax: 'Vergiler', recurring: 'Düzenli Ödemeler', withholding: 'Stopajlar',
+		dividend: 'Temettü', rent_expense: 'Verilen Kiralar', advance: 'Avanslar',
+	};
 
 	let data = $state<RunwayData | null>(null);
 	let loading = $state(true);
 	// Ertelenen ödemelerin yeni tarihi (id → 'YYYY-MM-DD'); boşsa orijinal tarih
 	let dates = $state<Record<string, string>>({});
+	// Açık akordiyon grupları (key → bool)
+	let openGroups = $state<Record<string, boolean>>({});
 
 	function fmtEur(n: number): string {
 		return '€' + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(Math.abs(n)));
@@ -77,19 +86,47 @@
 		const negative = firstNeg !== null;
 		const defCount = effOut.filter((o) => o.changed).length;
 
-		// Eğri TÜM ödemeleri kullanır; ama ertelenebilir LİSTE yalnız en büyük N ödemeyi
-		// gösterir (gerçek veride yüzlerce küçük cari ödemesi olabilir — küçüğü ertelemek
-		// runway'i kayda değer oynatmaz + liste kullanılamaz hale gelir). Ertelenmiş olanlar
-		// tutar küçük olsa da listede kalır (kullanıcı geri alabilsin).
+		// Aynı GÜN + aynı KAYNAK türündeki ödemeleri akordiyon başlık altında grupla
+		// (Nakit Akım sayfasındaki gruplama deseni). 2+ üye → grup; tekse düz satır.
+		// Grup toptan ertelenir (tek tarih seçici tüm üyeleri taşır).
+		type EffOut = (typeof effOut)[number];
+		const groupsMap = new Map<string, EffOut[]>();
+		for (const o of effOut) {
+			const key = `${o.date}|${o.source_type ?? 'other'}`;
+			const arr = groupsMap.get(key);
+			if (arr) arr.push(o); else groupsMap.set(key, [o]);
+		}
+		type Unit =
+			| { kind: 'single'; out: EffOut; total: number }
+			| { kind: 'group'; key: string; label: string; day: string; members: EffOut[]; memberIds: string[]; total: number; effIso: string; effDay: number | null; changed: boolean };
+		const units: Unit[] = [];
+		for (const [key, members] of groupsMap) {
+			const total = members.reduce((s, m) => s + m.amount_eur, 0);
+			if (members.length >= 2) {
+				const first = members[0];
+				units.push({
+					kind: 'group', key, label: SRC_LABELS[first.source_type ?? ''] ?? first.name,
+					day: first.date, members, memberIds: members.map((m) => m.id),
+					total, effIso: first.effIso, effDay: first.effDay,
+					changed: members.some((m) => m.changed),
+				});
+			} else {
+				units.push({ kind: 'single', out: members[0], total });
+			}
+		}
+
+		// Eğri TÜM ödemeleri kullanır; liste en büyük N ünite gösterir (gerçek veride
+		// yüzlerce küçük ödeme olabilir). Ertelenmiş olanlar tutarı küçük olsa da kalır.
+		const unitDay = (u: Unit) => dayNum(u.kind === 'group' ? u.day : u.out.date);
+		const unitChanged = (u: Unit) => u.kind === 'group' ? u.changed : u.out.changed;
 		const TOP_N = 12;
-		const ranked = [...effOut].sort((a, b) => b.amount_eur - a.amount_eur);
-		const shownIds = new Set(ranked.slice(0, TOP_N).map((o) => o.id));
-		for (const o of effOut) if (o.changed) shownIds.add(o.id);
-		const shownOuts = effOut
-			.filter((o) => shownIds.has(o.id))
-			.sort((a, b) => dayNum(a.date) - dayNum(b.date));
-		const otherOuts = effOut.filter((o) => !shownIds.has(o.id));
-		const otherSum = otherOuts.reduce((s, o) => s + o.amount_eur, 0);
+		units.sort((a, b) => b.total - a.total);
+		const shown = new Set<Unit>(units.slice(0, TOP_N));
+		for (const u of units) if (unitChanged(u)) shown.add(u);
+		const shownUnits = [...shown].sort((a, b) => unitDay(a) - unitDay(b));
+		const otherUnits = units.filter((u) => !shown.has(u));
+		const otherCount = otherUnits.reduce((s, u) => s + (u.kind === 'group' ? u.members.length : 1), 0);
+		const otherSum = otherUnits.reduce((s, u) => s + u.total, 0);
 
 		return {
 			negative,
@@ -103,8 +140,8 @@
 			lowLabel: `${labelDate(`${ym}-${String(lowDay).padStart(2, '0')}`)} · ${signed(lowVal)}`,
 			endBal,
 			defCount,
-			shownOuts,
-			otherCount: otherOuts.length,
+			shownUnits,
+			otherCount,
 			otherSum,
 			totalOut: effOut.length,
 			firstLabel: labelDate(data.today),
@@ -118,6 +155,18 @@
 	function resetDate(id: string) {
 		delete dates[id];
 		dates = { ...dates };
+	}
+	// Grup: tek tarih seçici tüm üyeleri toptan erteler / sıfırlar
+	function setGroupDate(ids: string[], v: string) {
+		if (!v) return;
+		for (const id of ids) dates[id] = v;
+	}
+	function resetGroup(ids: string[]) {
+		for (const id of ids) delete dates[id];
+		dates = { ...dates };
+	}
+	function toggleGroup(key: string) {
+		openGroups[key] = !openGroups[key];
 	}
 
 	onMount(async () => {
@@ -189,42 +238,84 @@
 			</div>
 		{/if}
 
-		<!-- BU AY PLANLI ÖDEMELER (en büyükler — ertelenebilir) -->
+		<!-- BU AY PLANLI ÖDEMELER — gün+tür bazında gruplu, ertelenebilir -->
 		<div class="flex items-center justify-between mt-5 mb-1.5">
-			<div class="text-[11px] tracking-[1px] uppercase text-brass-dark font-bold">
-				Bu Ay Planlı Ödemeler{proj.totalOut > proj.shownOuts.length ? ` · en büyük ${proj.shownOuts.length}` : ''}
-			</div>
+			<div class="text-[11px] tracking-[1px] uppercase text-brass-dark font-bold">Bu Ay Planlı Ödemeler</div>
 			<div class="text-[11.5px] text-gray-500">{proj.defCount > 0 ? `${proj.defCount} ödeme ertelendi` : 'ödemeleri erteleyerek koruyun'}</div>
 		</div>
-		{#if proj.shownOuts.length === 0}
+		{#if proj.shownUnits.length === 0}
 			<p class="text-xs text-gray-500 py-3">Bu ay planlı ödeme yok.</p>
 		{/if}
-		{#each proj.shownOuts as o (o.id)}
-			{@const out = o.effDay === null}
-			<div class="flex items-center gap-2 sm:gap-3 py-2.5 border-b border-gray-100">
-				<span class="tabular-nums text-[11.5px] text-gray-500 w-11 shrink-0">{labelDate(o.date)}</span>
-				<div class="flex-1 min-w-0">
-					<div class="text-[13.5px] font-medium truncate {out ? 'text-gray-400 line-through' : 'text-gray-900'}">{o.name}</div>
-					{#if o.changed}
-						<div class="text-[10.5px] text-brass-dark">→ {labelDate(o.effIso)}{out ? ' tarihine ertelendi (gelecek aya)' : ' tarihine ertelendi'}</div>
+		{#each proj.shownUnits as u (u.kind === 'group' ? u.key : u.out.id)}
+			{#if u.kind === 'group'}
+				{@const gout = u.effDay === null}
+				<div class="border-b border-gray-100">
+					<div class="flex items-center gap-2 sm:gap-3 py-2.5">
+						<span class="tabular-nums text-[11.5px] text-gray-500 w-11 shrink-0">{labelDate(u.day)}</span>
+						<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
+							class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
+							<ChevronDown size={14} class="shrink-0 text-gray-500 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
+							<span class="text-[13.5px] font-semibold truncate {gout ? 'text-gray-400 line-through' : 'text-gray-900'}">{u.label}</span>
+							<span class="text-[11px] text-gray-500 shrink-0">{u.members.length} ödeme</span>
+						</button>
+						<span class="tabular-nums text-[13.5px] font-semibold w-[78px] text-right shrink-0 {gout ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(u.total)}</span>
+						<input
+							type="date"
+							value={u.effIso}
+							min={u.day}
+							max={`${data.month_start.slice(0, 4)}-12-31`}
+							onchange={(e) => setGroupDate(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
+							aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini toptan ertele`}
+							class="date-filter-input shrink-0 w-[128px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {u.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
+						/>
+						<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.changed}
+							title="Erteleme tarihini sıfırla" aria-label="Grup erteleme tarihini sıfırla"
+							class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
+							<RotateCcw size={13} />
+						</button>
+					</div>
+					{#if u.changed && !gout}
+						<div class="pl-[52px] pb-1.5 -mt-1 text-[10.5px] text-brass-dark">→ {labelDate(u.effIso)} tarihine ertelendi</div>
+					{/if}
+					{#if openGroups[u.key]}
+						<div class="pl-[52px] pb-2 space-y-1">
+							{#each u.members as m (m.id)}
+								<div class="flex items-center gap-2 text-[12px]">
+									<span class="text-gray-700 truncate">{m.name}</span>
+									<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{fmtEur(m.amount_eur)}</span>
+								</div>
+							{/each}
+						</div>
 					{/if}
 				</div>
-				<span class="tabular-nums text-[13.5px] font-semibold w-[78px] text-right shrink-0 {out ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(o.amount_eur)}</span>
-				<input
-					type="date"
-					value={o.effIso}
-					min={o.date}
-					max={`${data.month_start.slice(0, 4)}-12-31`}
-					onchange={(e) => setDate(o.id, (e.currentTarget as HTMLInputElement).value)}
-					aria-label={`${o.name} ödeme tarihini ertele`}
-					class="date-filter-input shrink-0 w-[128px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {o.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
-				/>
-				<button type="button" onclick={() => resetDate(o.id)} disabled={!o.changed}
-					title="Erteleme tarihini sıfırla" aria-label="Erteleme tarihini sıfırla"
-					class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
-					<RotateCcw size={13} />
-				</button>
-			</div>
+			{:else}
+				{@const o = u.out}
+				{@const out = o.effDay === null}
+				<div class="flex items-center gap-2 sm:gap-3 py-2.5 border-b border-gray-100">
+					<span class="tabular-nums text-[11.5px] text-gray-500 w-11 shrink-0">{labelDate(o.date)}</span>
+					<div class="flex-1 min-w-0">
+						<div class="text-[13.5px] font-medium truncate {out ? 'text-gray-400 line-through' : 'text-gray-900'}">{o.name}</div>
+						{#if o.changed}
+							<div class="text-[10.5px] text-brass-dark">→ {labelDate(o.effIso)}{out ? ' tarihine ertelendi (gelecek aya)' : ' tarihine ertelendi'}</div>
+						{/if}
+					</div>
+					<span class="tabular-nums text-[13.5px] font-semibold w-[78px] text-right shrink-0 {out ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(o.amount_eur)}</span>
+					<input
+						type="date"
+						value={o.effIso}
+						min={o.date}
+						max={`${data.month_start.slice(0, 4)}-12-31`}
+						onchange={(e) => setDate(o.id, (e.currentTarget as HTMLInputElement).value)}
+						aria-label={`${o.name} ödeme tarihini ertele`}
+						class="date-filter-input shrink-0 w-[128px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {o.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
+					/>
+					<button type="button" onclick={() => resetDate(o.id)} disabled={!o.changed}
+						title="Erteleme tarihini sıfırla" aria-label="Erteleme tarihini sıfırla"
+						class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
+						<RotateCcw size={13} />
+					</button>
+				</div>
+			{/if}
 		{/each}
 		{#if proj.otherCount > 0}
 			<p class="text-[11.5px] text-gray-500 pt-2">
