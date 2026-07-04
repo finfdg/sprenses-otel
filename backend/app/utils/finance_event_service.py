@@ -40,6 +40,8 @@ from app.models.finance_event import (
     SOURCE_CC_PAYMENT,
     SOURCE_CHECK,
     SOURCE_CREDIT,
+    SOURCE_DIVIDEND,
+    SOURCE_DIVIDEND_STOPAJ,
     SOURCE_VENDOR,
     FinanceEvent,
 )
@@ -341,6 +343,54 @@ class FinanceEventService:
             })
         except Exception as e:
             logger.error("upsert_scheduled_entry hatası id=%s: %s", entry.id, e)
+            raise
+
+    # ─── Kâr Payı Dağıtımı (Temettü) — taksit bazlı net + stopaj ──────────
+
+    def upsert_dividend_net(self, db: Session, installment, distribution, is_paid: bool) -> Optional[FinanceEvent]:
+        """DividendInstallment net bacağı → FinanceEvent (source_type 'dividend').
+
+        event_date = taksit vadesi; tutar = taksitin toplam net'i; ortaklara ödeme.
+        is_paid = taksitin TÜM pay-sahibi ödemeleri yapıldı mı (roll-up)."""
+        try:
+            label = installment.label or f"{installment.installment_no}. Taksit"
+            desc = f"[Temettü] {distribution.name} — {label} (Net)"
+            return self._upsert(db, SOURCE_DIVIDEND, installment.id, {
+                "event_date":   installment.due_date,
+                "amount":       abs(float(installment.net_amount)),
+                "direction":    DIRECTION_EXPENSE,
+                "currency":     "TRY",
+                "description":  desc,
+                "payment_method": "temettu",
+                "event_status": "paid" if is_paid else "pending",
+                "is_realized":  is_paid,
+                "is_matched":   False,
+            })
+        except Exception as e:
+            logger.error("upsert_dividend_net hatası installment_id=%s: %s", installment.id, e)
+            raise
+
+    def upsert_dividend_stopaj(self, db: Session, installment, distribution, stopaj_date, is_paid: bool) -> Optional[FinanceEvent]:
+        """DividendInstallment stopaj bacağı → FinanceEvent (source_type 'dividend_stopaj').
+
+        event_date = muhtasar ödeme günü (ertesi ayın 26'sı, servis hesaplar); tutar =
+        taksitin toplam stopajı; vergi dairesine. is_paid = tüm stopaj ödemeleri yapıldı mı."""
+        try:
+            label = installment.label or f"{installment.installment_no}. Taksit"
+            desc = f"[Temettü Stopaj] {distribution.name} — {label}"
+            return self._upsert(db, SOURCE_DIVIDEND_STOPAJ, installment.id, {
+                "event_date":   stopaj_date,
+                "amount":       abs(float(installment.stopaj_amount)),
+                "direction":    DIRECTION_EXPENSE,
+                "currency":     "TRY",
+                "description":  desc,
+                "payment_method": "stopaj",
+                "event_status": "paid" if is_paid else "pending",
+                "is_realized":  is_paid,
+                "is_matched":   False,
+            })
+        except Exception as e:
+            logger.error("upsert_dividend_stopaj hatası installment_id=%s: %s", installment.id, e)
             raise
 
     # ─── Silme & Eşleştirme ─────────────────────────────────────────────────

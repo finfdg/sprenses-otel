@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.constants import BroadcastModule, SourceType
+from app.routers.accounting.dividend import router as dividend_router
 from app.routers.accounting.fis_icmali import router as fis_icmali_router
 from app.routers.accounting.mizan import router as mizan_router
 from app.routers.scheduled_base import create_scheduled_router
@@ -36,13 +37,8 @@ rent_expense_router = create_scheduled_router(
     direction=-1,  # GİDER
 )
 
-dividend_router = create_scheduled_router(
-    source_type=SourceType.DIVIDEND,
-    permission_code="accounting.dividend",
-    entity_label="Temettü",
-    broadcast_module=BroadcastModule.ACCOUNTING,
-    direction=-1,  # GİDER
-)
+# Temettü (kâr payı dağıtımı) artık bespoke modül — fabrika DIŞI
+# (bkz. app/routers/accounting/dividend/). fis_icmali/mizan gibi carve-out.
 
 router = APIRouter()
 router.include_router(taxes_router, prefix="/taxes")

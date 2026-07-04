@@ -125,13 +125,18 @@ class SourceType:
     RECURRING = "recurring"
     RENT_INCOME = "rent_income"
     RENT_EXPENSE = "rent_expense"
-    DIVIDEND = "dividend"
     SALARY = "salary"
     WITHHOLDING = "withholding"
     SGK = "sgk"
 
+    # Kâr payı dağıtımı (bespoke modül — create_scheduled_router DEĞİL).
+    # DIVIDEND = net kalem (ortaklara), DIVIDEND_STOPAJ = stopaj kalemi (vergi dairesine).
+    DIVIDEND = "dividend"
+    DIVIDEND_STOPAJ = "dividend_stopaj"
+
     # create_scheduled_router fabrikasıyla üretilen tüm planlı source_type'lar
+    # (temettü artık fabrika DIŞI — bespoke; bu yüzden burada YOK)
     SCHEDULED = frozenset({
         TAX, RECURRING, RENT_INCOME, RENT_EXPENSE,
-        DIVIDEND, SALARY, WITHHOLDING, SGK,
+        SALARY, WITHHOLDING, SGK,
     })

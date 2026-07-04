@@ -19,6 +19,12 @@ from app.models.conversation import Conversation, ConversationMember
 from app.models.credit_card_statement import CreditCardStatement, CreditCardTransaction
 from app.models.credit_product import CreditPayment, CreditProduct
 from app.models.department import Department
+from app.models.dividend import (
+    DividendDistribution,
+    DividendInstallment,
+    DividendPayment,
+    DividendShareholder,
+)
 from app.models.error_log import ErrorLog
 from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import FinanceEvent
@@ -70,6 +76,8 @@ __all__ = [
     "FinanceEvent",
     "PaymentDeferral",
     "Department", "BudgetCategory", "Budget",
+    "DividendDistribution", "DividendShareholder",
+    "DividendInstallment", "DividendPayment",
     "ErrorLog",
     "Reservation", "ReservationUpload",
     "RoomType", "AgencyGroup", "AgencyCodeMap",

@@ -211,6 +211,34 @@ def t_account(
             })
         totals[fe.direction] += eur
 
+    # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — dönemi kapsayan
+    # son-ödeme kalemleri ÇIKIŞ "KK Borç Ödemeleri" grubuna eklenir → panel/nakit akım tablosu +
+    # EUR bakiye + runway ile aynı rezerv (kullanıcı isteği 2026-07-04; tek kaynak
+    # due_reserve_projections). Cari-ay dışı dönemlerde (geçmiş offset) due tarihi aralık dışıdır.
+    from app.services.cc_projection_service import due_reserve_projections
+    for proj in due_reserve_projections(db, today=date_cls.today()):
+        due = date_cls.fromisoformat(proj["date"])
+        if due < start or due > end:
+            continue
+        rate = _eur_rate_for(db, due, rate_cache)
+        if not rate:
+            skipped_no_rate += 1
+            continue
+        eur = float(proj["amount"]) / rate
+        label = SOURCE_LABELS["cc_payment"]
+        group = groups[DIRECTION_EXPENSE].setdefault(
+            label, {"label": label, "total_eur": 0.0, "item_count": 0, "items": []}
+        )
+        group["total_eur"] += eur
+        group["item_count"] += 1
+        if len(group["items"]) < MAX_ITEMS_PER_GROUP:
+            group["items"].append({
+                "name": f"{proj['description']} (Tahmini)",
+                "date": proj["date"],
+                "amount_eur": round(eur, 2),
+            })
+        totals[DIRECTION_EXPENSE] += eur
+
     def _finalize(direction: int) -> list:
         result = list(groups[direction].values())
         for g in result:

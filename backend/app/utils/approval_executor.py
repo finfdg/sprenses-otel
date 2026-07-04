@@ -134,14 +134,14 @@ def _make_crud_handler(load, create_fn, update_fn, delete_fn, not_found_msg,
     return handler
 
 
-# ── Scheduled modüller (8 modül) ──────────────────────────────
+# ── Scheduled modüller (7 modül) ──────────────────────────────
+# NOT: accounting.dividend fabrika DIŞIdır (bespoke — _handle_accounting_dividend).
 
 _SCHEDULED_SOURCE_MAP = {
     "accounting.taxes": (SourceType.TAX, -1),
     "accounting.recurring": (SourceType.RECURRING, -1),
     "accounting.rent_income": (SourceType.RENT_INCOME, 1),
     "accounting.rent_expense": (SourceType.RENT_EXPENSE, -1),
-    "accounting.dividend": (SourceType.DIVIDEND, -1),
     "hr.salary": (SourceType.SALARY, -1),
     "hr.withholding": (SourceType.WITHHOLDING, -1),
     "hr.sgk": (SourceType.SGK, -1),
@@ -324,6 +324,36 @@ def _handle_finance_krediler(db, action_type, entity_id, payload, actor_id):
         product = db.query(CreditProduct).filter(CreditProduct.id == entity_id).first()
         if product:
             credit_service.delete_product(db, product)
+
+
+def _handle_accounting_dividend(db, action_type, entity_id, payload, actor_id):
+    # Router endpoint'iyle BİREBİR aynı mantık (tek kaynak: app/services/dividend_service).
+    # Böylece onaylanan create'te de taksitler + 72 ödeme + net/stopaj finance_events üretilir.
+    from app.models.dividend import DividendDistribution, DividendPayment
+    from app.services import dividend_service
+
+    target = payload.pop("_target", "distribution")
+
+    if target == "payment":
+        payment = db.query(DividendPayment).filter(DividendPayment.id == entity_id).first()
+        if action_type == "update":
+            if not payment:
+                raise ValueError(f"Temettü ödemesi bulunamadı: {entity_id}")
+            dividend_service.apply_payment_update(db, payment, payload)
+        return
+
+    # Dağıtım CRUD
+    if action_type == "create":
+        dividend_service.create_distribution(db, payload, actor_id)
+    elif action_type == "update":
+        dist = db.query(DividendDistribution).filter(DividendDistribution.id == entity_id).first()
+        if not dist:
+            raise ValueError(f"Temettü dağıtımı bulunamadı: {entity_id}")
+        dividend_service.apply_distribution_update(db, dist, payload)
+    elif action_type == "delete":
+        dist = db.query(DividendDistribution).filter(DividendDistribution.id == entity_id).first()
+        if dist:
+            dividend_service.delete_distribution(db, dist)
 
 
 def _handle_finance_hakedis(db, action_type, entity_id, payload, actor_id):
@@ -679,6 +709,8 @@ _HANDLERS = {
     "finance.checks": _handle_finance_checks,
     "finance.cariler": _handle_finance_cariler,
     "finance.hakedis": _handle_finance_hakedis,
+    # Muhasebe — Temettü (kâr payı dağıtımı, bespoke — fabrika DIŞI)
+    "accounting.dividend": _handle_accounting_dividend,
     # Kalite
     "quality.templates": _handle_quality_templates,
     "quality.forms": _handle_quality_forms,
@@ -693,6 +725,6 @@ _HANDLERS = {
 # Uniform basit-CRUD modülleri (finance.banks/avanslar/departmanlar, sales.room_types)
 _HANDLERS.update(_make_simple_crud_handlers())
 
-# Scheduled modüller (8 adet)
+# Scheduled modüller (7 adet — temettü bespoke, yukarıda açık kayıtlı)
 for _code, (_src, _dir) in _SCHEDULED_SOURCE_MAP.items():
     _HANDLERS[_code] = _make_scheduled_handler(_src, _dir)

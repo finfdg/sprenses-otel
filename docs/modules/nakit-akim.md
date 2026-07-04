@@ -256,9 +256,10 @@ planlaması eksik kalmaz.
   kırpılır; son ödeme günü kesimden küçükse ödeme sonraki aya taşar.
 - **Kart limiti:** `CreditProduct.total_amount` (Garanti 100K, QNB 2M, VakıfBank 980K, YK 500K,
   **Halkbank 300K** — 2026-07-04 girildi). Limit yoksa cari ay tutarı 0.
-- **EUR başlığı + Nakit Koruma (runway):** cari-ay limit rezervi bu iki hesaba da eklenir
-  (`due_reserve_projections`; `compute_eur_balances` EUR gidere, `runway.py` cari-ay OUT'a) → tablo,
-  EUR başlığı ve runway aynı rezervi gösterir.
+- **EUR başlığı + Nakit Koruma (runway) + Panel T-Hesap:** cari-ay limit rezervi bu üç hesaba da
+  eklenir (`due_reserve_projections`; `compute_eur_balances` EUR gidere, `runway.py` cari-ay OUT'a,
+  `t_account.py` ÇIKIŞ "KK Borç Ödemeleri" grubuna) → tablo, EUR başlığı, runway ve Panel T-Hesap
+  aynı rezervi gösterir.
 - **Frontend:** `cashFlowCache.projectedItems` → `filteredItems`'a karışır (yalnız daraltıcı filtre
   yokken). `CashFlowItem` kesikli/soluk kart; `due`→"Tahmini · Ekstre yüklenmedi" + "Kesim · Son
   Ödeme" tarihleri, `cut`→"↑ Ekstre yükleyin"; tıklanamaz. Tahmini kalemler gün-içi KK grubuna

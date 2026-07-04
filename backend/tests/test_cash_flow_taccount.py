@@ -278,3 +278,44 @@ class TestTAccountPeriods:
         year = date.today().year
         assert body["start_date"] == f"{year}-01-01"
         assert body["end_date"] == f"{year}-12-31"
+
+
+class TestTAccountCcProjection:
+    """Yüklenmemiş cari ay kredi kartı ekstresi rezervi ÇIKIŞ 'KK Borç Ödemeleri'nde görünür."""
+
+    @staticmethod
+    def _current_month_card(db):
+        import calendar
+        import json
+
+        from app.models.credit_product import CreditProduct
+        today = date.today()
+        last = calendar.monthrange(today.year, today.month)[1]
+        # Son ödeme ay sonunda (>= bugün) → cari ay limit rezervi üretilir (deterministik)
+        card = CreditProduct(
+            type="kredi_karti", name="T-TEST KK", bank_name="T-Test Bank",
+            total_amount=100000, remaining_amount=0, status="active",
+            details=json.dumps({"ekstre_kesim_gunu": max(1, last - 1), "son_odeme_gunu": last}),
+        )
+        db.add(card)
+        db.commit()
+        return card
+
+    def test_monthly_includes_cc_projection_reserve(self, client, auth_headers, db):
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)  # 1 EUR = 50 TRY
+        self._current_month_card(db)
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+        kk = _group(body, "cikis", "KK Borç Ödemeleri")
+        assert kk is not None, "Tahmini KK rezervi ÇIKIŞ'ta bekleniyor"
+        # 100000 TRY / 50 = 2000 EUR; kalem "(Tahmini)" etiketli
+        assert any(it["amount_eur"] == 2000.0 and "(Tahmini)" in it["name"] for it in kk["items"])
+
+    def test_past_month_excludes_cc_projection(self, client, auth_headers, db):
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+        self._current_month_card(db)
+        # Geçmiş ay (offset=-1): tahmini rezerv cari ay kalemidir → görünmez
+        body = client.get(f"{URL}?period=monthly&offset=-1", headers=auth_headers).json()
+        assert _group(body, "cikis", "KK Borç Ödemeleri") is None

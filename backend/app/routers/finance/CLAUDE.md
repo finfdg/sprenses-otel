@@ -380,13 +380,16 @@ günü kesimden küçükse ödeme sonraki aya taşar). Ekstre yoksa `details.eks
 yüksek-aralık `id` = due:900M / cut:910M + card*1000+i, gerçek FE id'leriyle çakışmaz).
 **`is_matched=false`** → toplama girer (çift-sayım kalemi değil).
 
-**EUR bakiye + Runway'e de dahil (kullanıcı isteği 2026-07-04):** `cc_projection_service.
+**EUR bakiye + Runway + T-Hesap'a da dahil (kullanıcı isteği 2026-07-04):** `cc_projection_service.
 due_reserve_projections(db)` yalnız tutar taşıyan (cari ay limit) son-ödeme kalemlerini döner;
 - `compute_eur_balances` bunu `cc_projection_expense_by_date` olarak günlük EUR gidere + kümülatif
   gelecek gidere ekler → **EUR ay başlığı** rezervi içerir.
 - `runway.py` bunu cari-ay **OUT** kalemi olarak ekler (`projected:true`, "(Tahmini)" adıyla; kur
-  yoksa `skipped_no_rate`) → **Nakit Koruma** rezervi içerir. Kesim hatırlatıcıları (tutar 0) hariç.
-İki tüketici de aynı servisi çağırır → tablo/EUR/runway aynı rezerv sayısını gösterir (tek kaynak).
+  yoksa `skipped_no_rate`) → **Nakit Koruma** rezervi içerir.
+- `t_account.py` bunu, dönemi kapsayan due tarihleriyle **ÇIKIŞ "KK Borç Ödemeleri"** grubuna ekler
+  (Panel T-Hesap Cetveli). Cari-ay dışı (geçmiş offset) dönemlerde due tarihi aralık dışı → eklenmez.
+Kesim hatırlatıcıları (tutar 0) her üçünde de hariç. ÜÇ tüketici de aynı servisi çağırır → nakit akım
+tablosu / EUR başlığı / runway / T-Hesap aynı rezerv sayısını gösterir (tek kaynak).
 
 **Frontend:** `cashFlowCache.projectedItems` (`loadCashFlowProjections`, `loadAllCashFlow` +
 `refreshCashFlowFull`'a eklendi → ekstre yüklenince WS ile projeksiyon kaybolur). `+page.svelte`
