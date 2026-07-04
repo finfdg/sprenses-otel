@@ -19,7 +19,7 @@
 	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
 	import DeptAssignModal from '$lib/components/finance/cariler/DeptAssignModal.svelte';
 	import AddToListModal from '$lib/components/finance/cariler/AddToListModal.svelte';
-	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, ChevronUp, Check, X, Calendar, Download, Pencil, Copy, User, Phone, Mail, Building2, MessageSquarePlus, StickyNote } from 'lucide-svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, ChevronUp, Check, X, Calendar, Download, Pencil, Copy, User, Phone, Mail, Building2, MessageSquarePlus, StickyNote, ArrowLeft } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -61,6 +61,8 @@
 	let sortBy = $state<string | null>('hesap_adi');
 	let sortDir = $state<'asc' | 'desc'>('asc');
 	let hideZero = $state(false);
+	// Master-detail sol liste filtresi (tasarım çipleri)
+	let listFilter = $state<'all' | 'overdue' | 'balance'>('all');
 
 	// Vendor detail
 	let expandedVendor = $state<number | null>(null);
@@ -439,7 +441,8 @@
 				params.set('sort_by', sortBy);
 				params.set('sort_dir', sortDir);
 			}
-			if (hideZero) params.set('hide_zero', 'true');
+			if (listFilter === 'balance') params.set('hide_zero', 'true');
+			else if (listFilter === 'overdue') params.set('overdue_only', 'true');
 			const res = await api.get<any>(`/finance/cariler/vendors?${params}`);
 			vendors = res.items;
 			vendorTotal = res.total;
@@ -471,6 +474,25 @@
 		hideZero = !hideZero;
 		vendorPage = 1;
 		loadVendors();
+	}
+
+	// Master-detail: sol liste filtre çipleri (Tümü / Vadesi Geçmiş / Bakiyeli)
+	function setListFilter(f: 'all' | 'overdue' | 'balance') {
+		listFilter = f;
+		vendorPage = 1;
+		loadVendors();
+	}
+	// Master-detail: sağ panelde gösterilecek cariyi seç (null → seçimi temizle)
+	function selectVendor(id: number | null) {
+		if (id === null) {
+			expandedVendor = null;
+			vendorDetail = null;
+			vendorTransactions = [];
+			vendorNotes = [];
+			detailTab = 'transactions';
+			return;
+		}
+		if (expandedVendor !== id) toggleVendorDetail(id);
 	}
 
 	let searchTimeout: ReturnType<typeof setTimeout>;
@@ -688,7 +710,7 @@
 				phone: contactForm.phone.trim() || null,
 				email: contactForm.email.trim() || null,
 			});
-			if (vendorDetail && vendorDetail.id === vendorId) {
+			if (vendorDetail && vendorDetail!.id === vendorId) {
 				vendorDetail.contact_person = contactForm.contact_person.trim() || null;
 				vendorDetail.phone = contactForm.phone.trim() || null;
 				vendorDetail.email = contactForm.email.trim() || null;
@@ -780,7 +802,7 @@
 			// Listeyi güncelle
 			const v = vendors.find(v => v.id === vendorId);
 			if (v) v.payment_days = paymentDaysValue;
-			if (vendorDetail && vendorDetail.id === vendorId) {
+			if (vendorDetail && vendorDetail!.id === vendorId) {
 				vendorDetail.payment_days = paymentDaysValue;
 			}
 			editingPaymentDays = null;
@@ -814,7 +836,7 @@
 					await api.patch(`/finance/cariler/vendors/${vendor.id}/status`, { status: newStatus });
 					vendor.status = newStatus;
 					vendors = [...vendors];
-					if (vendorDetail && vendorDetail.id === vendor.id) {
+					if (vendorDetail && vendorDetail!.id === vendor.id) {
 						vendorDetail.status = newStatus;
 					}
 					showToast(`Firma durumu "${label}" olarak güncellendi`, 'success');
@@ -1041,233 +1063,78 @@
 
 	<!-- ═══ CARİLER ═══ -->
 	{#if activeView === 'vendors'}
-		<div class="space-y-4">
-			<!-- Arama + Filtre -->
-			<div class="flex items-center gap-3 flex-wrap">
-				<Input
-					type="search"
-					icon={Search}
-					bind:value={vendorSearch}
-					oninput={onSearchInput}
-					placeholder="Hesap kodu veya cari adı ara..."
-					fullWidth={false}
-					class="flex-1 max-w-md"
-				/>
-				<button
-					onclick={toggleHideZero}
-					class="flex items-center gap-2 px-3 py-2.5 text-sm border rounded-xl transition-colors
-						{hideZero ? 'bg-teal-50 border-teal-300 text-teal-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}"
-				>
-					<div class="relative w-8 h-4 rounded-full transition-colors {hideZero ? 'bg-teal-500' : 'bg-gray-300'}">
-						<div class="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform {hideZero ? 'translate-x-4' : 'translate-x-0.5'}"></div>
-					</div>
-					<span class="whitespace-nowrap">Sıfır bakiyeleri gizle</span>
-				</button>
-				<span class="text-sm text-gray-500">{vendorTotal} cari</span>
-			</div>
+		<div class="flex flex-col lg:flex-row gap-4 lg:items-start">
 
-			<!-- Tablo -->
-			{#if vendorsLoading}
-				<TableSkeleton rows={6} columns={4} />
-			{:else if vendors.length === 0}
-				<EmptyState icon={Users} title="Henüz cari kaydı bulunmuyor" description="Yukarıdan Excel dosyası yükleyerek başlayın" />
-			{:else}
-				<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-					<!-- Desktop Header -->
-					<div class="hidden lg:grid grid-cols-12 gap-2 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider select-none">
-						<div class="col-span-2">Hesap Kodu</div>
-						<button class="col-span-2 flex items-center gap-1 cursor-pointer hover:text-gray-700" onclick={() => toggleSort('hesap_adi')}>
-							Hesap Adı
-							{#if sortBy === 'hesap_adi'}
-								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
-							{/if}
-						</button>
-						<div class="col-span-1 text-center">Vade</div>
-						<div class="col-span-1 text-center">Durum</div>
-						<button class="col-span-2 flex items-center gap-1 justify-end cursor-pointer hover:text-gray-700" onclick={() => toggleSort('total_borc')}>
-							Borç
-							{#if sortBy === 'total_borc'}
-								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
-							{/if}
-						</button>
-						<button class="col-span-2 flex items-center gap-1 justify-end cursor-pointer hover:text-gray-700" onclick={() => toggleSort('total_alacak')}>
-							Alacak
-							{#if sortBy === 'total_alacak'}
-								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
-							{/if}
-						</button>
-						<button class="col-span-2 flex items-center gap-1 justify-end cursor-pointer hover:text-gray-700" onclick={() => toggleSort('bakiye')}>
-							Bakiye
-							{#if sortBy === 'bakiye'}
-								<ChevronUp size={12} class={sortDir === 'desc' ? 'rotate-180' : ''} />
-							{/if}
-						</button>
+			<!-- SOL: cari listesi (master-detail) -->
+			<div class="lg:w-[370px] lg:flex-none flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden {expandedVendor !== null ? 'hidden lg:flex' : 'flex'}">
+				<div class="p-3 sm:p-4 border-b border-gray-100 space-y-3">
+					<Input type="search" icon={Search} bind:value={vendorSearch} oninput={onSearchInput} placeholder="Tedarikçi ara..." />
+					<div class="flex items-center gap-1.5 flex-wrap">
+						{#each [{ k: 'all', label: 'Tümü' }, { k: 'overdue', label: 'Vadesi Geçmiş' }, { k: 'balance', label: 'Bakiyeli' }] as f (f.k)}
+							<button onclick={() => setListFilter(f.k as any)} class="px-2.5 py-1 rounded-lg text-xs border transition-colors cursor-pointer {listFilter === f.k ? 'bg-teal-700 border-teal-700 text-white font-semibold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}">{f.label}</button>
+						{/each}
+						<span class="ml-auto text-xs text-gray-500 tabular-nums">{vendorTotal} cari</span>
 					</div>
-
-					<!-- Mobil Sıralama Bar -->
-					<div class="flex lg:hidden items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200 overflow-x-auto">
-						<span class="text-[10px] font-medium text-gray-500 uppercase shrink-0">Sırala:</span>
-						{#each [{ key: 'hesap_adi', label: 'Ad' }, { key: 'total_borc', label: 'Borç' }, { key: 'total_alacak', label: 'Alacak' }, { key: 'bakiye', label: 'Bakiye' }] as col}
-							<button
-								onclick={() => toggleSort(col.key)}
-								class="text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap transition-colors
-									{sortBy === col.key ? 'bg-teal-100 text-teal-700' : 'text-gray-500 hover:bg-gray-100'}"
-							>
-								{col.label}
-								{#if sortBy === col.key}
-									<ChevronUp size={10} class="inline {sortDir === 'desc' ? 'rotate-180' : ''}" />
-								{/if}
+				</div>
+				<div class="flex-1 overflow-y-auto lg:max-h-[calc(100vh-360px)] p-2">
+					{#if vendorsLoading}
+						<div class="p-2"><TableSkeleton rows={8} columns={1} /></div>
+					{:else if vendors.length === 0}
+						<EmptyState icon={Users} title="Cari bulunamadı" description="Arama veya filtreyi değiştirin." />
+					{:else}
+						{#each vendors as vendor (vendor.id)}
+							{@const owe = vendor.bakiye < 0}
+							{@const hasUnmatched = vendor.unmatched_count > 0}
+							<button data-vendor-id={vendor.id} onclick={() => selectVendor(vendor.id)} class="w-full flex gap-2.5 text-left px-2.5 py-2.5 rounded-xl mb-1 border transition-colors cursor-pointer {expandedVendor === vendor.id ? 'bg-teal-50 border-teal-200' : 'border-transparent hover:bg-gray-50'}">
+								<div class="w-1 self-stretch rounded-full shrink-0 {vendor.status === 'odeme_yasaklisi' ? 'bg-red-400' : hasUnmatched ? 'bg-amber-400' : owe ? 'bg-brass' : 'bg-emerald-300'}"></div>
+								<div class="flex-1 min-w-0">
+									<div class="flex items-baseline justify-between gap-2">
+										<span class="text-[13px] font-semibold text-gray-900 truncate">{vendor.hesap_adi}</span>
+										<span class="tabular-nums text-[13px] font-semibold shrink-0 {owe ? 'text-rose-600' : 'text-emerald-600'}">{formatCurrency(vendor.bakiye)}</span>
+									</div>
+									<div class="flex items-center justify-between gap-2 mt-1">
+										<span class="font-mono text-[10px] text-gray-500 truncate">{vendor.hesap_kodu}</span>
+										<span class="text-[11px] shrink-0 {vendor.status === 'odeme_yasaklisi' ? 'text-red-600 font-medium' : hasUnmatched ? 'text-amber-600 font-medium' : 'text-gray-500'}">{vendor.status === 'odeme_yasaklisi' ? 'Ödeme yasaklı' : hasUnmatched ? vendor.unmatched_count + ' eşleşmemiş' : 'Vade ' + vendor.payment_days + ' gün'}</span>
+									</div>
+								</div>
 							</button>
 						{/each}
+					{/if}
+				</div>
+				{#if vendorPages > 1}
+					<div class="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
+						<button onclick={() => { vendorPage--; loadVendors(); }} disabled={vendorPage <= 1} class="px-2 py-1 rounded border border-gray-200 disabled:opacity-40 cursor-pointer">‹ Önceki</button>
+						<span class="tabular-nums">{vendorPage} / {vendorPages}</span>
+						<button onclick={() => { vendorPage++; loadVendors(); }} disabled={vendorPage >= vendorPages} class="px-2 py-1 rounded border border-gray-200 disabled:opacity-40 cursor-pointer">Sonraki ›</button>
 					</div>
+				{/if}
+			</div>
 
-					<!-- Rows -->
-					{#each vendors as vendor}
-						<!-- Desktop Row -->
-						{@const hasUnmatched = vendor.unmatched_count > 0}
-						<div data-vendor-id={vendor.id} class="group/row hidden lg:grid grid-cols-12 gap-2 px-5 py-3 text-sm border-b border-gray-100 hover:bg-gray-50 transition-colors
-							{expandedVendor === vendor.id ? 'bg-teal-50' : vendor.status === 'odeme_yasaklisi' ? 'bg-red-50' : hasUnmatched ? 'bg-amber-100/70' : ''}">
-							<button
-								onclick={() => toggleVendorDetail(vendor.id)}
-								class="col-span-2 text-gray-600 font-mono text-xs text-left cursor-pointer"
-							>{vendor.hesap_kodu}</button>
-							<button
-								onclick={() => toggleVendorDetail(vendor.id)}
-								class="col-span-2 text-gray-900 font-medium truncate text-left cursor-pointer"
-							>{vendor.hesap_adi}</button>
-							<div class="col-span-1 flex items-center justify-center">
-								{#if editingPaymentDays === vendor.id}
+			<!-- SAĞ: seçili cari detayı -->
+			<div class="flex-1 min-w-0 {expandedVendor === null ? 'hidden lg:block' : 'block'}">
+				{#if vendorDetail}
+					<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+					<div class="p-4 sm:p-5 border-b border-gray-100">
+						<button onclick={() => selectVendor(null)} class="lg:hidden mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-teal-700 cursor-pointer"><ArrowLeft size={16} /> Cari listesine dön</button>
+						<div class="flex items-start justify-between gap-3 flex-wrap">
+							<div class="min-w-0">
+								<h2 class="text-xl font-semibold text-gray-900 truncate">{vendorDetail.hesap_adi}</h2>
+								<div class="text-xs text-gray-500 mt-1">Cari kodu <span class="font-mono text-gray-700">{vendorDetail.hesap_kodu}</span></div>
+							</div>
+							<div class="flex items-center gap-2 flex-wrap">
+								<button onclick={() => { if (canUse) toggleVendorStatus(vendorDetail as any); }} disabled={!canUse || savingStatus} class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border {vendorDetail.status === 'odeme_yasaklisi' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'} {canUse ? 'cursor-pointer' : 'cursor-default'}">{vendorDetail.status === 'odeme_yasaklisi' ? 'Ödeme Yasaklısı' : 'Normal'}</button>
+								{#if editingPaymentDays === vendorDetail!.id}
 									<div class="flex items-center gap-1">
-										<Input
-											type="number"
-											size="sm"
-											fullWidth={false}
-											bind:value={paymentDaysValue}
-											min="0"
-											max="365"
-											onclick={(e) => e.stopPropagation()}
-											onkeydown={(e) => { if (e.key === 'Enter') savePaymentDays(vendor.id); if (e.key === 'Escape') cancelEditPaymentDays(); }}
-											class="w-14 text-center"
-										/>
-										<button
-											onclick={(e) => { e.stopPropagation(); savePaymentDays(vendor.id); }}
-											disabled={savingPaymentDays}
-											class="touch-target inline-flex items-center justify-center p-0.5 text-teal-600 hover:text-teal-800 disabled:opacity-50 cursor-pointer"
-											title="Kaydet"
-										>
-											<Check size={14} />
-										</button>
-										<button
-											onclick={(e) => { e.stopPropagation(); cancelEditPaymentDays(); }}
-											class="touch-target inline-flex items-center justify-center p-0.5 text-gray-500 hover:text-red-600 cursor-pointer"
-											title="İptal"
-										>
-											<X size={14} />
-										</button>
+										<Input type="number" size="sm" fullWidth={false} bind:value={paymentDaysValue} min="0" max="365" onkeydown={(e) => { if (e.key === 'Enter') savePaymentDays(vendorDetail!.id); if (e.key === 'Escape') cancelEditPaymentDays(); }} class="w-16 text-center" />
+										<button onclick={() => savePaymentDays(vendorDetail!.id)} disabled={savingPaymentDays} class="touch-target p-1 text-teal-600 hover:text-teal-800 cursor-pointer" title="Kaydet"><Check size={15} /></button>
+										<button onclick={cancelEditPaymentDays} class="touch-target p-1 text-gray-500 hover:text-red-600 cursor-pointer" title="İptal"><X size={15} /></button>
 									</div>
 								{:else}
-									<button
-										onclick={(e) => { e.stopPropagation(); if (canUse) startEditPaymentDays(vendor); }}
-										class="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-lg transition-colors
-											{vendor.payment_days !== 90
-												? vendor.payment_days < 90
-													? 'bg-blue-100 text-blue-700 font-semibold'
-													: 'bg-amber-100 text-amber-700 font-semibold'
-												: 'text-gray-600'}
-											{canUse ? 'hover:bg-teal-50 hover:text-teal-700 cursor-pointer' : 'cursor-default'}"
-										title={canUse ? 'Tıklayarak değiştir' : ''}
-									>
-										{vendor.payment_days}
-										<span class="text-[10px] {vendor.payment_days !== 90 ? 'opacity-70' : 'text-gray-500'}">gün</span>
-									</button>
-								{/if}
-							</div>
-							<div class="col-span-1 flex items-center justify-center">
-								<button
-									onclick={(e) => { e.stopPropagation(); if (canUse) toggleVendorStatus(vendor); }}
-									class="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-lg transition-colors
-										{vendor.status === 'odeme_yasaklisi'
-											? 'bg-red-100 text-red-700'
-											: 'bg-green-100 text-green-700'}
-										{canUse ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}"
-									title={canUse ? 'Tıklayarak değiştir' : ''}
-								>
-									{vendor.status === 'odeme_yasaklisi' ? 'Yasaklı' : 'Normal'}
-								</button>
-							</div>
-							<button
-								onclick={() => toggleVendorDetail(vendor.id)}
-								class="col-span-2 text-right text-rose-600 cursor-pointer"
-							>{formatCurrency(vendor.total_borc)}</button>
-							<button
-								onclick={() => toggleVendorDetail(vendor.id)}
-								class="col-span-2 text-right text-emerald-600 cursor-pointer"
-							>{formatCurrency(vendor.total_alacak)}</button>
-							<div class="col-span-2 flex items-center justify-end gap-1.5">
-								<button
-									onclick={() => toggleVendorDetail(vendor.id)}
-									class="text-right font-medium cursor-pointer {vendor.bakiye < 0 ? 'text-rose-600' : vendor.bakiye > 0 ? 'text-emerald-600' : 'text-gray-500'}"
-								>{formatCurrency(vendor.bakiye)}</button>
-								{#if canUse}
-									<button
-										onclick={(e) => { e.stopPropagation(); openAddToList(vendor); }}
-										class="shrink-0 p-1 rounded-md text-gray-500 hover:text-teal-600 hover:bg-teal-50 opacity-0 group-hover/row:opacity-100 transition-opacity"
-										title="Ödeme talimatına ekle"
-										aria-label="Ödeme talimatına ekle"
-									>
-										<Plus size={16} />
-									</button>
+									<button onclick={() => { if (canUse) startEditPaymentDays(vendorDetail as any); }} class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border {vendorDetail.payment_days !== 90 ? (vendorDetail.payment_days < 90 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-amber-50 border-amber-200 text-amber-700') : 'bg-gray-50 border-gray-200 text-gray-600'} {canUse ? 'cursor-pointer' : 'cursor-default'}"><Calendar size={13} /> Vade {vendorDetail.payment_days} gün</button>
 								{/if}
 							</div>
 						</div>
-
-						<!-- Mobil Row (Kart) -->
-						<div class="lg:hidden relative border-b border-gray-100
-								{expandedVendor === vendor.id ? 'bg-teal-50' : vendor.status === 'odeme_yasaklisi' ? 'bg-red-50' : hasUnmatched ? 'bg-amber-100/70' : ''}">
-							<button
-								onclick={() => toggleVendorDetail(vendor.id)}
-								class="w-full text-left px-4 py-3 active:bg-gray-50 transition-colors cursor-pointer"
-							>
-								<div class="flex items-start justify-between gap-2">
-									<div class="min-w-0 flex-1">
-										<p class="text-sm font-medium text-gray-900 truncate">{vendor.hesap_adi}</p>
-										<div class="flex items-center gap-2 mt-0.5 flex-wrap">
-											<span class="text-[10px] text-gray-500 font-mono">{vendor.hesap_kodu}</span>
-											<span class="text-[10px] text-gray-500">·</span>
-											<span class="text-[10px] px-1.5 py-0.5 rounded {vendor.payment_days !== 90
-											? vendor.payment_days < 90
-												? 'bg-blue-100 text-blue-700 font-semibold'
-												: 'bg-amber-100 text-amber-700 font-semibold'
-											: 'text-gray-500'}">{vendor.payment_days} gün vade</span>
-											{#if vendor.status === 'odeme_yasaklisi'}
-												<span class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold">Yasaklı</span>
-											{/if}
-										</div>
-									</div>
-									<span class="text-sm font-bold whitespace-nowrap {vendor.bakiye < 0 ? 'text-rose-600' : vendor.bakiye > 0 ? 'text-emerald-600' : 'text-gray-500'}">
-										{formatCurrency(vendor.bakiye)}
-									</span>
-								</div>
-								<div class="flex items-center gap-4 mt-1.5">
-									<span class="text-[11px] text-rose-500">B: {formatCurrency(vendor.total_borc)}</span>
-									<span class="text-[11px] text-emerald-500">A: {formatCurrency(vendor.total_alacak)}</span>
-								</div>
-							</button>
-							{#if canUse}
-								<button
-									onclick={(e) => { e.stopPropagation(); openAddToList(vendor); }}
-									class="absolute bottom-2.5 right-3 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-teal-50 text-teal-700 text-[11px] font-medium active:bg-teal-100"
-									aria-label="Ödeme talimatına ekle"
-								>
-									<Plus size={14} />
-									Talimat
-								</button>
-							{/if}
-						</div>
-
-						<!-- Detay -->
-						{#if expandedVendor === vendor.id}
-							<div class="bg-gray-50 border-b border-gray-200">
+					</div>
 								{#if vtxLoading}
 									<div class="flex items-center justify-center py-8 text-teal-700">
 										<Loader2 size={20} class="animate-spin" />
@@ -1320,7 +1187,7 @@
 													</div>
 												</div>
 												<div class="flex justify-end mt-3">
-													<Button size="sm" onclick={() => saveContact(vendor.id)} loading={contactSaving} disabled={contactSaving}><Check size={14} /> Kaydet</Button>
+													<Button size="sm" onclick={() => saveContact(vendorDetail!.id)} loading={contactSaving} disabled={contactSaving}><Check size={14} /> Kaydet</Button>
 												</div>
 											{:else}
 												<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
@@ -1342,13 +1209,13 @@
 													<div class="space-y-1.5 mb-2">
 														{#each vendorIbans as ba (ba.id)}
 															<div class="flex items-center gap-2 text-xs bg-gray-50 rounded px-2 py-1.5">
-																<button onclick={() => setDefaultIban(vendor.id, ba.id)} title={ba.is_default ? 'Varsayılan' : 'Varsayılan yap'} class="touch-target inline-flex items-center justify-center shrink-0 cursor-pointer {ba.is_default ? 'text-amber-500' : 'text-gray-400 hover:text-amber-400'}"><Star size={14} fill={ba.is_default ? 'currentColor' : 'none'} /></button>
+																<button onclick={() => setDefaultIban(vendorDetail!.id, ba.id)} title={ba.is_default ? 'Varsayılan' : 'Varsayılan yap'} class="touch-target inline-flex items-center justify-center shrink-0 cursor-pointer {ba.is_default ? 'text-amber-500' : 'text-gray-400 hover:text-amber-400'}"><Star size={14} fill={ba.is_default ? 'currentColor' : 'none'} /></button>
 																<span class="min-w-0 flex-1 truncate">
 																	<span class="font-medium text-gray-800">{ba.bank_name || 'Banka'}</span>
 																	<span class="font-mono text-gray-500 ml-1">{fmtIbanDisplay(ba.iban)}</span>
 																</span>
 																<button onclick={() => copyIban(ba.iban)} class="touch-target inline-flex items-center justify-center shrink-0 {copiedIban === ibanClean(ba.iban) ? 'text-emerald-600' : 'text-gray-400 hover:text-teal-600'} cursor-pointer" title="IBAN kopyala">{#if copiedIban === ibanClean(ba.iban)}<Check size={14} />{:else}<Copy size={14} />{/if}</button>
-																<button onclick={() => deleteVendorIban(vendor.id, ba.id)} class="touch-target inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-red-500 cursor-pointer" title="Sil"><Trash2 size={14} /></button>
+																<button onclick={() => deleteVendorIban(vendorDetail!.id, ba.id)} class="touch-target inline-flex items-center justify-center shrink-0 text-gray-400 hover:text-red-500 cursor-pointer" title="Sil"><Trash2 size={14} /></button>
 															</div>
 														{/each}
 													</div>
@@ -1358,7 +1225,7 @@
 												<div class="flex flex-col sm:flex-row gap-2">
 													<Input size="sm" fullWidth={false} bind:value={ibanForm.bank_name} placeholder="Banka (ör. Yapı Kredi)" class="sm:w-44" />
 													<Input size="sm" fullWidth={false} bind:value={ibanForm.iban} placeholder="TR.. IBAN" class="flex-1 font-mono" />
-													<Button size="sm" onclick={() => addVendorIban(vendor.id)} loading={ibanSaving} disabled={ibanSaving} class="shrink-0"><Plus size={13} /> Ekle</Button>
+													<Button size="sm" onclick={() => addVendorIban(vendorDetail!.id)} loading={ibanSaving} disabled={ibanSaving} class="shrink-0"><Plus size={13} /> Ekle</Button>
 												</div>
 											</div>
 										{/if}
@@ -1369,7 +1236,7 @@
 											{#if canUse}
 												<div class="flex gap-2 items-start mb-4">
 													<textarea bind:value={noteDraft} rows="2" placeholder="Bu cari hakkında görüşme notu ekle… (ödeme sözü, mutabakat, itiraz)" class="flex-1 resize-y min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-brass focus:ring-1 focus:ring-brass/40"></textarea>
-													<Button size="sm" onclick={() => addVendorNote(vendor.id)} loading={noteSaving} disabled={noteSaving || !noteDraft.trim()} class="shrink-0"><Plus size={14} /> Not Ekle</Button>
+													<Button size="sm" onclick={() => addVendorNote(vendorDetail!.id)} loading={noteSaving} disabled={noteSaving || !noteDraft.trim()} class="shrink-0"><Plus size={14} /> Not Ekle</Button>
 												</div>
 											{/if}
 											{#if notesLoading}
@@ -1380,12 +1247,12 @@
 												<div class="divide-y divide-gray-100">
 													{#each vendorNotes as n (n.id)}
 														<div class="flex gap-3 py-3">
-															<button onclick={() => toggleNoteDone(vendor.id, n)} disabled={!canUse} title="Yapıldı işaretle" class="shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center transition-colors {n.done ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 hover:border-brass'} {canUse ? 'cursor-pointer' : 'cursor-default'}">{#if n.done}<Check size={13} />{/if}</button>
+															<button onclick={() => toggleNoteDone(vendorDetail!.id, n)} disabled={!canUse} title="Yapıldı işaretle" class="shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center transition-colors {n.done ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 hover:border-brass'} {canUse ? 'cursor-pointer' : 'cursor-default'}">{#if n.done}<Check size={13} />{/if}</button>
 															<div class="flex-1 min-w-0">
 																{#if editingNoteId === n.id}
 																	<textarea bind:value={editingNoteText} rows="2" class="w-full resize-y rounded-lg border border-brass px-3 py-2 text-sm text-gray-900 outline-none"></textarea>
 																	<div class="flex gap-2 mt-2">
-																		<Button size="sm" onclick={() => saveNoteEdit(vendor.id, n.id)}>Kaydet</Button>
+																		<Button size="sm" onclick={() => saveNoteEdit(vendorDetail!.id, n.id)}>Kaydet</Button>
 																		<Button size="sm" variant="secondary" onclick={cancelEditNote}>İptal</Button>
 																	</div>
 																{:else}
@@ -1400,7 +1267,7 @@
 															{#if canUse && editingNoteId !== n.id}
 																<div class="flex gap-1 shrink-0">
 																	<button onclick={() => startEditNote(n)} title="Düzenle" class="touch-target inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:text-teal-700 hover:border-gray-300 cursor-pointer"><Pencil size={14} /></button>
-																	<button onclick={() => confirmDeleteNote(vendor.id, n.id)} title="Sil" class="touch-target inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 cursor-pointer"><Trash2 size={14} /></button>
+																	<button onclick={() => confirmDeleteNote(vendorDetail!.id, n.id)} title="Sil" class="touch-target inline-flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-500 hover:text-red-600 hover:border-red-200 cursor-pointer"><Trash2 size={14} /></button>
 																</div>
 															{/if}
 														</div>
@@ -1416,13 +1283,13 @@
 										{#if vtxPages > 1}
 											<div class="flex items-center justify-end gap-2 mb-2">
 												<button
-													onclick={() => { vtxPage--; loadVendorDetail(vendor.id); }}
+													onclick={() => { vtxPage--; loadVendorDetail(vendorDetail!.id); }}
 													disabled={vtxPage <= 1}
 													class="px-2 py-1 text-xs rounded border border-gray-200 disabled:opacity-40"
 												>&laquo;</button>
 												<span class="text-xs text-gray-500">{vtxPage}/{vtxPages}</span>
 												<button
-													onclick={() => { vtxPage++; loadVendorDetail(vendor.id); }}
+													onclick={() => { vtxPage++; loadVendorDetail(vendorDetail!.id); }}
 													disabled={vtxPage >= vtxPages}
 													class="px-2 py-1 text-xs rounded border border-gray-200 disabled:opacity-40"
 												>&raquo;</button>
@@ -1737,33 +1604,14 @@
 										{/if}
 									</div>
 								{/if}
-							</div>
-						{/if}
-					{/each}
+					</div>
+				{:else}
+					<div class="hidden lg:flex items-center justify-center bg-white rounded-2xl border border-gray-200 shadow-sm p-12 min-h-[420px]">
+						<EmptyState icon={Users} title="Bir cari seçin" description="Hesap hareketleri, notlar ve firma bilgileri için soldan bir cari seçin." />
+					</div>
+				{/if}
+			</div>
 
-					<!-- Pagination -->
-					{#if vendorPages > 1}
-						<div class="flex items-center justify-between px-5 py-3 bg-gray-50">
-							<span class="text-xs text-gray-500">
-								{(vendorPage - 1) * vendorPageSize + 1}-{Math.min(vendorPage * vendorPageSize, vendorTotal)} / {vendorTotal}
-							</span>
-							<div class="flex items-center gap-2">
-								<button
-									onclick={() => { vendorPage--; loadVendors(); }}
-									disabled={vendorPage <= 1}
-									class="px-3 py-1.5 text-xs rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-white"
-								>Önceki</button>
-								<span class="text-xs text-gray-500">{vendorPage} / {vendorPages}</span>
-								<button
-									onclick={() => { vendorPage++; loadVendors(); }}
-									disabled={vendorPage >= vendorPages}
-									class="px-3 py-1.5 text-xs rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-white"
-								>Sonraki</button>
-							</div>
-						</div>
-					{/if}
-				</div>
-			{/if}
 		</div>
 	{/if}
 

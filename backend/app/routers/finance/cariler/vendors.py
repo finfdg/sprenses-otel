@@ -110,6 +110,7 @@ def list_vendors(
     sort_by: Optional[str] = Query(None, pattern="^(hesap_adi|total_borc|total_alacak|bakiye)$"),
     sort_dir: Optional[str] = Query("asc", pattern="^(asc|desc)$"),
     hide_zero: bool = Query(False),
+    overdue_only: bool = Query(False, description="Yalnız vadesi geçmiş (eşleşmemiş, geçmiş vadeli) faturası olan cariler"),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("finance.cariler", "view")),
 ):
@@ -153,6 +154,17 @@ def list_vendors(
         query = query.having(
             (func.coalesce(func.sum(VendorTransaction.borc), 0) - func.coalesce(func.sum(VendorTransaction.alacak), 0)) != 0
         )
+
+    if overdue_only:
+        # Vadesi geçmiş = eşleşmemiş, vadesi bugünden önce olan fatura (alacak) toplamı > 0
+        overdue_sum = func.coalesce(func.sum(sa_case((
+            (VendorTransaction.alacak > 0)
+            & (VendorTransaction.match_number.is_(None))
+            & (VendorTransaction.payment_due_date.isnot(None))
+            & (VendorTransaction.payment_due_date < date.today()),
+            VendorTransaction.alacak,
+        ), else_=0)), 0)
+        query = query.having(overdue_sum > 0)
 
     hesap_adi_tr = collate(Vendor.hesap_adi, "tr-TR-x-icu")
     sort_map = {
