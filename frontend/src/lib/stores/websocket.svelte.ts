@@ -1,6 +1,6 @@
 // WebSocket bağlantı yönetimi — Svelte 5 runes modülü
 
-import type { WsEventType } from '$lib/constants/realtime';
+import { WS_EVENT, type WsEventType } from '$lib/constants/realtime';
 
 type EventHandler = (event: any) => void;
 
@@ -21,6 +21,8 @@ export const onlinePresence = $state<{ ids: Set<number>; names: Map<number, stri
 });
 
 let ws: WebSocket | null = null;
+// İlk 'connected' mi yoksa yeniden bağlanma mı? (reconnect'te finans sayfalarını tazele)
+let hasEverConnected = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -84,6 +86,21 @@ function emit(type: string, data: any): void {
 				console.error('WebSocket event handler hatası:', e);
 			}
 		});
+	}
+
+	// ─── Yeniden bağlanma sonrası veri tazeleme ───
+	// WS koparken (sunucu yeniden başladı, ağ dalgalandı vb.) gönderilen `finance_updated`
+	// event'leri kaçırılır → açık banka/nakit-akım/cari/çek/kredi vb. sayfası bayat kalırdı.
+	// Backend her başarılı (yeniden) bağlanmada `connected` mesajı yollar; İLK bağlantı
+	// DIŞINDA local `finance_updated` yeniden yayınlarız → tüm finans sayfaları (hepsi
+	// modülden bağımsız saf reload) kendini tazeler. İlk 'connected'te yayınlamayız
+	// (onMount zaten ilk yüklemeyi yaptı). Sales/quality gibi payload-bağımlı event'ler
+	// bilerek hariç tutulur (sentetik yeniden yayın yanlış toast/eşleşme üretebilir).
+	if (type === WS_EVENT.CONNECTED) {
+		if (hasEverConnected) {
+			emit(WS_EVENT.FINANCE_UPDATED, { type: WS_EVENT.FINANCE_UPDATED, reconnect: true });
+		}
+		hasEverConnected = true;
 	}
 }
 
