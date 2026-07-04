@@ -33,6 +33,14 @@ class TestLast4Extraction:
         assert _extract_last4_from_desc("") is None
         assert _extract_last4_from_desc(None) is None
 
+    def test_masked_pan_anywhere(self):
+        # Maskeli PAN açıklamanın ortasında + sonda referans no (mobil/internet havalesi)
+        assert _extract_last4_from_desc("Diğer Internet - Mobil INT 650837******7261 3006") == "7261"
+        assert _extract_last4_from_desc("Diğer Diğer OTO 650837****7261 GECIKMELI") == "7261"
+        # Yıldız (maske) yoksa düz sayı kart sayılmaz → yanlış-pozitif yok
+        assert _extract_last4_from_desc("EFT GIDEN HAVALE 3006") is None
+        assert _extract_last4_from_desc("MAAS ODEMESI 12345") is None
+
 
 class TestCcPaymentDesc:
     def test_positive(self):
@@ -128,4 +136,87 @@ class TestMatchCcToBank:
         s.is_paid = True
         s.paid_amount = 5000.0
         db.commit()
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+
+class TestMatchCcNoKeyword:
+    """Kelime-yok yolu (2026-07-04): maskeli PAN ile tanıma + YÜKSEK GÜVEN şartı
+    (TAM ödeme ≈ ekstre toplamı + ödeme tarihi ekstre penceresinde). Mobil/internet
+    havalesiyle yapılan kart ödemeleri açıklamada kart ifadesi taşımaz ama maskeli PAN
+    taşır; kelime kapısı kaldırıldı. Aşırı eşleşme (oto-ödeme kartlarındaki bol kısmi/
+    farklı-ay borcunun açık ekstrelere yığılması) tam-ödeme + pencere şartıyla engellenir.
+    """
+
+    @staticmethod
+    def _setup(db, *, amount, btx_date, last4="7261", toplam_borc=100000.0,
+               kesim=date(2026, 6, 26), son_odeme=date(2026, 6, 30), desc=None):
+        prod = CreditProduct(type="kredi_karti", name="Yapı Kredi World",
+                             details=json.dumps({"kart_no_son4": last4}))
+        db.add(prod)
+        db.flush()
+        stmt = CreditCardStatement(
+            credit_product_id=prod.id, kesim_tarihi=kesim,
+            son_odeme_tarihi=son_odeme, toplam_borc=toplam_borc,
+            is_paid=False, paid_amount=0,
+        )
+        acc = BankAccount(bank_name="Yapı Kredi", iban=f"TR{uuid4().hex}", currency="TRY")
+        db.add(acc)
+        db.add(stmt)
+        db.flush()
+        # Varsayılan açıklama: kart ifadesi YOK, maskeli PAN VAR (canlı örnek biçimi)
+        btx = BankTransaction(
+            account_id=acc.id, date=btx_date,
+            description=desc if desc is not None else f"Diğer Internet - Mobil INT 650837******{last4} 3006",
+            amount=-amount, balance=0, type="expense", tx_hash=f"test-ccnk-{uuid4().hex}",
+        )
+        db.add(btx)
+        db.commit()
+        return prod, stmt, btx
+
+    def test_masked_pan_full_payment_in_window_matches(self, db):
+        # Kelime yok ama maskeli PAN + tam ödeme + pencere içi → eşleşir (canlı btx 5722 → stmt 16)
+        prod, stmt, btx = self._setup(db, amount=100000.0, btx_date=date(2026, 6, 30))
+        assert _match_cc_to_bank(db)["matched"] == 1
+        db.expire_all()
+        assert db.get(CreditCardStatement, stmt.id).is_paid is True
+
+    def test_slight_overpayment_matches_and_caps(self, db):
+        # Ödeme toplamı %2 içinde aşarsa (faiz/masraf) tam ödeme sayılır; paid toplama kırpılır
+        prod, stmt, btx = self._setup(db, amount=101500.0, btx_date=date(2026, 6, 30),
+                                      toplam_borc=100000.0)  # +%1.5
+        assert _match_cc_to_bank(db)["matched"] == 1
+        db.expire_all()
+        s = db.get(CreditCardStatement, stmt.id)
+        assert s.is_paid is True
+        assert float(s.paid_amount) == 100000.0  # fazlası banka hareketinde kalır
+
+    def test_overpayment_beyond_tolerance_no_match(self, db):
+        # %2'yi aşan fazla ödeme (+%10) tam ödeme sayılmaz → eşleşmez
+        prod, stmt, _ = self._setup(db, amount=110000.0, btx_date=date(2026, 6, 30),
+                                    toplam_borc=100000.0)
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+    def test_partial_no_keyword_does_not_match(self, db):
+        # Kelime yok + kısmi ödeme (toplamın çok altında) → aşırı-eşleşme önleme, eşleşmez
+        prod, stmt, _ = self._setup(db, amount=30000.0, btx_date=date(2026, 6, 30),
+                                    toplam_borc=100000.0)
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+    def test_payment_before_kesim_no_match(self, db):
+        # Ödeme kesim tarihinden ÖNCE (farklı ay ödemesi) → pencere dışı, eşleşmez (canlı btx 5364)
+        prod, stmt, _ = self._setup(db, amount=100000.0, btx_date=date(2026, 6, 1),
+                                    kesim=date(2026, 6, 26), son_odeme=date(2026, 6, 30))
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+    def test_payment_long_after_due_no_match(self, db):
+        # Ödeme son ödemeden çok sonra (grace aşıldı) → pencere dışı, eşleşmez
+        prod, stmt, _ = self._setup(db, amount=100000.0, btx_date=date(2026, 8, 15),
+                                    kesim=date(2026, 6, 26), son_odeme=date(2026, 6, 30))
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+    def test_wrong_card_last4_no_match(self, db):
+        # Maskeli PAN var ama bilinen ekstre kartıyla eşleşmiyor → eşleşmez
+        prod, stmt, _ = self._setup(db, amount=100000.0, btx_date=date(2026, 6, 30),
+                                    last4="7261",
+                                    desc="Diğer Internet - Mobil INT 650837******9999 3006")
         assert _match_cc_to_bank(db)["matched"] == 0

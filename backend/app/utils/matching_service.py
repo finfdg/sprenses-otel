@@ -27,6 +27,14 @@ logger = logging.getLogger(__name__)
 
 # ─── Kredi Kartı ↔ Banka Eşleştirme ──────────────────────
 
+# CC ödemesi ekstre toplamını hafifçe aşabilir (faiz/gecikme/masraf/kur farkı) — bu oran
+# içinde kalan fazla ödeme yine "tam ödeme" sayılır (fazlası zaten banka hareketinde görünür).
+CC_OVERPAY_TOLERANCE = 0.02  # %2
+
+# Kelime-yok yolunda ödeme tarihi ekstre penceresinde olmalı: kesim tarihinden önce
+# (ekstre daha oluşmamış) veya son ödemeden bu kadar gün SONRAsına kadar (geç ödeme payı).
+CC_PAY_GRACE_DAYS = 25
+
 
 def _get_card_last4(product: CreditProduct) -> Optional[str]:
     """Kredi kartı ürününden son 4 haneyi çıkar."""
@@ -46,17 +54,21 @@ def _extract_last4_from_desc(description: str) -> Optional[str]:
     - '[Kart Ödemesi] K.Kartı Ödeme 5400 **** **** 1028'
     - 'VISA KART ODEME *1234'
     - 'KK BORC ODEME ...5678'
+    - 'Diğer Internet - Mobil INT 650837******7261 3006'  (maskeli PAN, sonda referans)
     """
     if not description:
         return None
 
     # "1028" gibi — son 4 rakam bloğu
-    # Kart ödemesi açıklamalarında son 4 hane genellikle en sondadır
+    # İlk kalıplar kart no'yu açıklamanın SONUNDA arar; son kalıp maskeli PAN'ı
+    # (yıldız bloğu + son 4) açıklamanın herhangi bir yerinde yakalar — mobil/internet
+    # havalesi açıklamalarında son 4'ten sonra referans no gelebilir (ör. "...7261 3006").
     patterns = [
         r'\*{3,4}\s*(\d{4})\s*$',          # **** 1028 veya ***1028
         r'\*(\d{4})\s*$',                    # *1028
         r'\.{3}(\d{4})\s*$',                # ...1028
         r'(\d{4})\s*\*{4}\s*\*{4}\s*(\d{4})',  # 5400 **** **** 1028
+        r'\*{2,}\s*(\d{4})(?!\d)',          # 650837******7261 — maskeli PAN (2+ yıldız + son 4)
     ]
     for pattern in patterns:
         m = re.search(pattern, description)
@@ -64,6 +76,22 @@ def _extract_last4_from_desc(description: str) -> Optional[str]:
             return m.group(m.lastindex)
 
     return None
+
+
+def _cc_payment_in_window(pay_date, stmt) -> bool:
+    """Ödeme tarihi ekstrenin makul ödeme penceresinde mi?
+
+    Kesim tarihinden ÖNCE (ekstre henüz oluşmamış) veya son ödemeden CC_PAY_GRACE_DAYS
+    gün SONRAsından ileri olan bir ödeme, o ekstrenin ödemesi olamaz → başka aya aittir.
+    Kelime-yok yolunda farklı-ayın ödemesinin açık ekstreye yanlış atanmasını engeller.
+    """
+    if pay_date is None:
+        return False
+    if stmt.kesim_tarihi and pay_date < stmt.kesim_tarihi:
+        return False
+    if stmt.son_odeme_tarihi and pay_date > stmt.son_odeme_tarihi + timedelta(days=CC_PAY_GRACE_DAYS):
+        return False
+    return True
 
 
 def _is_cc_payment_desc(description: str) -> bool:
@@ -131,14 +159,17 @@ def _match_cc_to_bank(db: Session) -> dict:
     details = []
 
     for btx in bank_expenses:
-        if not _is_cc_payment_desc(btx.description):
-            continue
-
         btx_last4 = _extract_last4_from_desc(btx.description)
+        # Kredi kartı ödemesi sinyali: açıklamada bilinen (ödenmemiş) bir kartın maskeli
+        # son-4 hanesi geçiyor. Kelime kapısı ("kart öd" vb.) KALDIRILDI (2026-07-04) —
+        # mobil/internet havalesiyle yapılan kart ödemelerinin açıklamasında kart ifadesi
+        # yoktur ama maskeli PAN vardır (ör. "Diğer Internet - Mobil INT 650837******7261").
+        # Yanlış-pozitifi aşağıdaki tutar eşleşmesi engeller (bilinen kart + tutar uyumu).
         if not btx_last4 or btx_last4 not in last4_to_stmts:
             continue
 
         payment_amount = abs(float(btx.amount))
+        has_keyword = _is_cc_payment_desc(btx.description)
 
         # En uygun ekstre bul: son_odeme_tarihi'ne en yakın + tutar eşleşen
         best_stmt = None
@@ -149,32 +180,46 @@ def _match_cc_to_bank(db: Session) -> dict:
             remaining = float(stmt.toplam_borc) - float(stmt.paid_amount or 0)
             if remaining <= 0.01:
                 continue
+            total_borc = float(stmt.toplam_borc)
 
-            # Tutar kontrolü: tam eşleşme veya kısmi (banka tutarı <= kalan borç)
-            if abs(payment_amount - remaining) < 0.01:
-                # Tam eşleşme — en iyi
-                best_stmt = stmt
-                best_prod = prod
-                best_remaining = remaining
-                break
-            elif abs(payment_amount - float(stmt.toplam_borc)) < 0.01:
-                # Toplam borç ile eşleşme
-                best_stmt = stmt
-                best_prod = prod
-                best_remaining = remaining
-                break
-            elif payment_amount <= remaining + 0.01:
-                # Kısmi ödeme — tarih yakınlığına bak
-                if best_stmt is None:
+            if has_keyword:
+                # Açıklamada kart ifadesi VAR — güvenilir sinyal; mevcut mantık (değişmedi):
+                # tam eşleşme (kalan/toplam) veya kısmi (tarih yakınlığıyla en uygun ekstre).
+                if abs(payment_amount - remaining) < 0.01:
                     best_stmt = stmt
                     best_prod = prod
                     best_remaining = remaining
-                elif stmt.son_odeme_tarihi and btx.date:
-                    # Son ödeme tarihine en yakın ekstre
-                    if best_stmt.son_odeme_tarihi is None or \
-                       abs((btx.date - stmt.son_odeme_tarihi).days) < abs((btx.date - best_stmt.son_odeme_tarihi).days):
+                    break
+                elif abs(payment_amount - total_borc) < 0.01:
+                    best_stmt = stmt
+                    best_prod = prod
+                    best_remaining = remaining
+                    break
+                elif payment_amount <= remaining + 0.01:
+                    # Kısmi ödeme — tarih yakınlığına bak
+                    if best_stmt is None:
                         best_stmt = stmt
                         best_prod = prod
+                        best_remaining = remaining
+                    elif stmt.son_odeme_tarihi and btx.date:
+                        # Son ödeme tarihine en yakın ekstre
+                        if best_stmt.son_odeme_tarihi is None or \
+                           abs((btx.date - stmt.son_odeme_tarihi).days) < abs((btx.date - best_stmt.son_odeme_tarihi).days):
+                            best_stmt = stmt
+                            best_prod = prod
+            else:
+                # Kelime YOK ama bilinen kart son-4'ü (ör. "Diğer Internet - Mobil INT
+                # ...7261"). Aşırı eşleşmeyi önlemek için YÜKSEK GÜVEN şartı: yalnız TAM
+                # ödeme (≈ ekstre toplamı; hafif fazla dahil) + ödeme tarihi ekstre
+                # penceresinde. Kısmi/farklı-ay ödemeleri (oto-ödeme kartlarında bol)
+                # elenir — bunlar açık ekstrelere yanlış atanıyordu.
+                if not _cc_payment_in_window(btx.date, stmt):
+                    continue
+                if total_borc - 1.0 <= payment_amount <= total_borc * (1 + CC_OVERPAY_TOLERANCE):
+                    best_stmt = stmt
+                    best_prod = prod
+                    best_remaining = remaining
+                    break
 
         if not best_stmt or not best_prod:
             continue
@@ -208,15 +253,10 @@ def _match_cc_to_bank(db: Session) -> dict:
             vendor_id=None,
         )
 
-        # CC ekstre tamamen ödendiyse, cc_payment finance_event'i gizle
-        if best_stmt.is_paid:
-            from app.models.finance_event import FinanceEvent
-            cc_fe = db.query(FinanceEvent).filter(
-                FinanceEvent.source_type == "cc_payment",
-                FinanceEvent.source_id == best_stmt.id,
-            ).first()
-            if cc_fe:
-                cc_fe.is_matched = True
+        # CC ekstre FE'sini yeniden hesapla (tek-kaynak upsert — çek düzeltmesiyle aynı
+        # desen): tam ödemede gizlenir (is_matched + event_status='paid'), kısmi ödemede
+        # kalan borç düşer. Elle is_matched set etmek event_status'ü bayat bırakıyordu.
+        finance_event_svc.upsert_cc_statement(db, best_stmt, best_prod)
 
         matched_count += 1
         card_name = best_prod.name

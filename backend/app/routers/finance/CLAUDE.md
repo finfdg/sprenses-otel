@@ -292,6 +292,53 @@ Test: `test_transaction_tags.py` (3 yeni). Detay: `docs/modules/transaction-tags
 
 ---
 
+## CC Ekstresi Otomatik Eşleştirme — Maskeli PAN + Tam Ödeme + Pencere (2026-07-04, YENİ)
+
+**Belirti:** Yapı Kredi World Kart (\*7261) ekstresi (stmt 16, ₺493.421,94, son ödeme 30.06)
+banka ödemesi yapılmasına rağmen nakit akımda "Bekliyor" kalıyordu. Kök neden `_match_cc_to_bank`
+(`utils/matching_service.py`) üç noktada bu ödemeyi atlıyordu:
+1. **Kelime kapısı:** `_is_cc_payment_desc` açıklamada "kart öd/kredi kartı/kk borç…" arıyordu;
+   ödemenin açıklaması **"Diğer Internet - Mobil INT 650837\*\*\*\*\*\*7261 3006"** — maskeli PAN var
+   ama kart ifadesi yok → hareket kart kelimesi bulunmadığından hiç değerlendirilmiyordu.
+2. **Son-4 çıkarımı:** `_extract_last4_from_desc` kalıpları son-4'ü açıklamanın SONUNDA (`$`)
+   ve tam 4/8 yıldızla arıyordu; maskeli PAN (6 yıldız + sonda referans " 3006") hiçbirine uymuyor →
+   `None`. (Aynı sebeple QNB stmt 8'in "\*\*\*\*\*\*6075" ödemesi de çıkarılamıyordu.)
+3. **Fazla ödeme:** banka ödemesi (₺493.469) ekstre toplamını ~47 TL **aşıyordu** (faiz/masraf);
+   matcher yalnız tam-eşit veya kısmi (ödeme ≤ borç) kabul ediyordu.
+
+**Çözüm (kelime kapısı KALDIRILDI, iki-yol + pencere):**
+- **Son-4 çıkarımı** genişletildi: `r'\*{2,}\s*(\d{4})(?!\d)'` maskeli PAN'ı (2+ yıldız + son 4)
+  açıklamanın herhangi bir yerinde yakalar. Yıldız (maske) şartı → düz sayılarda yanlış-pozitif yok.
+- **İki yol** (`_match_cc_to_bank` iç döngü):
+  - **Kelime VAR** (`_is_cc_payment_desc` True): mevcut mantık DEĞİŞMEDİ (tam kalan/toplam veya kısmi,
+    tarih-yakınlığı tiebreak). Güvenilir sinyal → geriye uyum korunur.
+  - **Kelime YOK ama bilinen kart son-4'ü:** YÜKSEK GÜVEN şartı — yalnız **TAM ödeme**
+    (`toplam-1 ≤ ödeme ≤ toplam×(1+%2)`, `CC_OVERPAY_TOLERANCE`) **+ ödeme tarihi pencerede**
+    (`_cc_payment_in_window`: `kesim ≤ ödeme ≤ son_ödeme + CC_PAY_GRACE_DAYS(25)`).
+- **Neden pencere şart:** Kart 7261 gibi oto-ödeme kartlarında aylara yayılmış bol kısmi/gecikmeli
+  banka borcu var; kelime kapısı kalkınca gevşek matcher bunları **açık ekstrelere yığıyordu**
+  (canlı kuru-çalışma: 13 eşleşme — stmt 16'ya 178K+493K, stmt 3'e 8 kısmi, farklı-ayların ödemeleri).
+  Pencere + tam-ödeme şartı 13→**2 doğru eşleşmeye** indirdi (5722→16, 3390→8); kesimden önceki
+  (farklı-ay) ve kısmi ödemeler elendi.
+- **Eşleşme sonrası** artık `finance_event_svc.upsert_cc_statement(db, stmt, prod)` çağrılır (elle
+  `cc_fe.is_matched=True` yerine — çek düzeltmesiyle aynı desen): tam ödemede FE gizlenir
+  (`is_matched` + `event_status='paid'`), kısmi ödemede kalan borç tazelenir (eskiden `event_status`
+  bayat kalıyordu).
+- **Canlı düzeltme:** matcher yeniden çalıştırıldı → stmt 16 + stmt 8 ödendi/gizlendi.
+
+**İkinci (uygulanMAYAN) neden — bayat overdue-gizleme:** `upsert_cc_statement` `is_past_due =
+son_ödeme < bugün` bunu YAZMA anında hesaplar; ekstre vadesi geçmeden yazıldıysa, vade geçince FE
+yeniden işlenmedikçe bayat "pending" kalır (günlük süpürme yok). Kullanıcı **kalıcı çözüm #1'i**
+(matcher genişletme) seçti; günlük overdue-tazeleme (#2) uygulanmadı — gerçek ödemeyi bağlamak
+(gizlemek yerine) tercih edildi.
+
+**Test:** `test_banks_cc_match.py` — `TestLast4Extraction::test_masked_pan_anywhere` +
+`TestMatchCcNoKeyword` (7: tam-ödeme+pencere eşleşir, hafif fazla kırpılır, %2-aşan/kısmi/kesim-öncesi/
+grace-sonrası/yanlış-kart eşleşmez). Kelime-yolu testleri değişmeden geçer (20 yeşil; geniş finans
+süiti 140 yeşil).
+
+---
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
