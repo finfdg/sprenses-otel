@@ -105,7 +105,9 @@ export function groupDaySourceItems(items: CashFlowItem[]): DayRenderUnit[] {
 	const groups: Partial<Record<string, Extract<DayRenderUnit, { kind: 'group' }>>> = {};
 
 	for (const item of items) {
-		if (!GROUPABLE_SOURCES.has(item.source)) {
+		// Tahmini (projeksiyon) kalemler gruplanmaz — her kart kendi "Tahmini" satırında
+		// görünür (kesim/son-ödeme tarihleri ve tahmini etiketi kalem üstünde okunur kalsın)
+		if (item.is_projected || !GROUPABLE_SOURCES.has(item.source)) {
 			units.push({ kind: 'item', item });
 			continue;
 		}

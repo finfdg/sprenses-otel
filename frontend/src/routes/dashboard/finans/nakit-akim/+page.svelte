@@ -79,6 +79,20 @@
 		if (tagFilter === 'untagged') result = result.filter(i => !i.category_id);
 		else if (tagFilter !== 'all') result = result.filter(i => i.category_id === tagFilter);
 		if (paymentMethodFilter) result = result.filter(i => i.payment_method === paymentMethodFilter);
+
+		// Tahmini kredi kartı ekstresi kalemleri (cari ay = limit, ileri aylar = 0) — yalnız
+		// daraltıcı filtre yokken göster (etiket 'all', arama boş, ödeme yöntemi yok/kredi_karti);
+		// tarih aralığına saygı göster (ileri aylar endDate ile sınırlanabilir).
+		const showProjected =
+			tagFilter === 'all' &&
+			(!paymentMethodFilter || paymentMethodFilter === 'kredi_karti') &&
+			!filterSearch.trim();
+		if (showProjected && cashFlowCache.projectedItems.length) {
+			const start = filterStartDate;
+			const end = filterEndDate;
+			const inRange = (d: string) => (!start || d >= start) && (!end || d <= end);
+			result = [...result, ...cashFlowCache.projectedItems.filter(p => inRange(p.date))];
+		}
 		return result;
 	});
 

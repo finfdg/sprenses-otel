@@ -339,6 +339,52 @@ süiti 140 yeşil).
 
 ---
 
+## Kredi Kartı Ekstresi Projeksiyonu — Nakit Akım (2026-07-04, YENİ)
+
+**İhtiyaç:** 5 kredi kartının ekstreleri her ay düzenli gelir ama hepsi sisteme yüklenmez.
+Yüklü olmasa da nakit akımda kartların **kesim + son ödeme tarihleri** ileri aylar için
+görünsün; cari ayın ekstresi henüz yoksa **worst-case rezerv** olarak kart limiti kadar borç
+yazılsın (nakit planlaması), ileri aylar ise yalnız tarih göstergesi (tutar 0).
+
+**Yaklaşım — OKUMA-ANINDA (materialize DEĞİL):** `app/services/cc_projection_service.py::
+compute_cc_projections(db, today, horizon_months=12)`. Kalıcı `finance_event` **YAZILMAZ** —
+tarih geçince bayat kalan FE sınıfı sorununu (aynı gün düzeltilen CC overdue-gizleme bug'ı)
+tekrar etmemek için bilinçli tercih. Endpoint `GET /cash-flow/cc-projections` (finance.cash_flow
+**view**, onaydan muaf GET; `cc_projections.py`). Frontend bunu ay akordiyonuna karıştırır.
+
+**Kural (kullanıcı kararı 2026-07-04):**
+- Her **aktif** kredi kartı için cari aydan itibaren **12 ay** ileri; o ay **gerçek (yüklü)
+  ekstresi yoksa** projeksiyon üretilir (gerçek ekstresi olan due-ay atlanır).
+- **Cari ay** → tutar = kart **LİMİTİ** (`CreditProduct.total_amount`); ay giderine **DAHİL**
+  (kullanıcı: "borç olarak yaz" → `groupByMonth` toplamına katılır, `is_projected` toplam-dışı
+  YAPILMADI). **Halkbank limiti girilmemişti (0) → 300.000 set edildi** (kullanıcı verdi).
+- **İleri aylar** → tutar = **0** (yalnız kesim/son-ödeme tarih göstergesi).
+
+**Kesim/son-ödeme günü türetme (`_derive_days`):** EN SON yüklü ekstrenin gerçek günleri
+(kullanıcı: "yüklü ekstrelere bakarak çıkart") + kesim↔son-ödeme ay farkı (`offset`; son ödeme
+günü kesimden küçükse ödeme sonraki aya taşar). Ekstre yoksa `details.ekstre_kesim_gunu`/
+`son_odeme_gunu` (Halkbank: 25/30). Hiçbiri yoksa kart atlanır. Gün ay-uzunluğuna kırpılır
+(31 → Şubat'ta 28/29).
+
+**Kalem şekli:** Frontend `CashFlowItem` ile uyumlu (source=`cc_payment`, `is_projected: true`,
+`is_current_month`, `kesim_date`, `has_limit`; sentetik yüksek-aralık `id` = 900_000_000+card*1000+i,
+gerçek FE id'leriyle çakışmaz). **`is_matched=false`** → toplama girer (çift-sayım kalemi değil).
+
+**Frontend:** `cashFlowCache.projectedItems` (`loadCashFlowProjections`, `loadAllCashFlow` +
+`refreshCashFlowFull`'a eklendi → ekstre yüklenince WS ile projeksiyon kaybolur). `+page.svelte`
+`filteredItems`'a karıştırır — **yalnız daraltıcı filtre yokken** (tag=all, arama boş, ödeme
+yöntemi yok/kredi_karti) + tarih aralığına saygılı. `groupDaySourceItems` tahmini kalemleri
+GRUPLAMAZ (her kart ayrı "Tahmini" satırında). `CashFlowItem` 3 varyantta: kesikli/soluk kart,
+"Tahmini · Ekstre yüklenmedi" rozeti, "Kesim DD.MM · Son Ödeme DD.MM", tıklanamaz (etiket/eşleştirme
+yok), "Etiketsiz" göstergesi gizli.
+
+**Test:** `tests/test_cc_projections.py` (11 — cari-ay-limit/ileri-0, ekstreden/details türetme,
+yüklü-ay atla, kapalı/günsüz kart atla, gün kırpma, offset, limitsiz-0, endpoint izin+items) +
+`finance.test.ts` (3 — projeksiyon toplama dahil, ileri-0 görünür, gruplanmaz). Detay:
+`docs/modules/nakit-akim.md`.
+
+---
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:

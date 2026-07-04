@@ -272,6 +272,7 @@ TEMPLATE:
 │   │   │   ├── department_service.py       # Departman CRUD (guard'lı HARD delete)
 │   │   │   ├── budget_service.py           # Bütçe kategori + kompozit-anahtar upsert (çift-bütçe drift'i kapatıldı)
 │   │   │   ├── room_type_service.py        # Oda tipi CRUD (delete rezervasyon-guard)
+│   │   │   ├── cc_projection_service.py     # Kredi kartı ekstresi projeksiyonu (nakit akım; okuma-anında, cari ay=limit/ileri ay=0)
 │   │   │   └── hr_service.py               # Devam/vardiya/çizelge CRUD (typed↔ISO-string coercion)
 │   │   └── websocket/
 │   │       └── manager.py       # WebSocket bağlantı yönetimi

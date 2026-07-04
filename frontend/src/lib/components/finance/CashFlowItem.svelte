@@ -33,7 +33,15 @@
 	let clickY = $state(0);
 
 	const isExpense = $derived(item.type === 'expense');
+	const isProjected = $derived(item.is_projected === true);
 	const isEur = $derived(item.currency !== 'TRY');
+
+	/** 'YYYY-MM-DD' → 'DD.MM' (tahmini ekstre kesim/son-ödeme rozetleri için) */
+	function shortDate(d: string | null | undefined): string {
+		if (!d) return '';
+		const parts = d.split('-');
+		return parts.length === 3 ? `${parts[2]}.${parts[1]}` : d;
+	}
 	const bgClass = $derived(isEur ? 'bg-blue-50 border-blue-200' : isExpense ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200');
 	const amountColor = $derived(isEur ? 'text-blue-600' : isExpense ? 'text-rose-600' : 'text-emerald-600');
 	const arrowBorderOuter = $derived(isEur ? (isExpense ? 'border-l-blue-200' : 'border-r-blue-200') : isExpense ? 'border-l-rose-200' : 'border-r-emerald-200');
@@ -50,6 +58,8 @@
 
 	function handleTagClick(e: MouseEvent) {
 		e.stopPropagation();
+		// Tahmini (projeksiyon) kalemler etkileşimsizdir — eşleştirme/etiketleme yok
+		if (isProjected) return;
 		// CC/credit satırına tıklayınca eşleştirme modunu başlat
 		if ((item.source === 'cc_payment' || item.source === 'credit') && onCCMatchStart) {
 			const type = item.source === 'cc_payment' ? 'cc' : 'credit';
@@ -66,10 +76,10 @@
 
 {#if variant === 'mobile'}
 	<!-- Mobil kart -->
-	{@const isInteractive = item.source !== 'check' && item.source !== 'vendor_payment'}
+	{@const isInteractive = item.source !== 'check' && item.source !== 'vendor_payment' && !isProjected}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
-		class="{item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-1.5 {isInteractive ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''}"
+		class="{item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-1.5 {isInteractive ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''} {isProjected ? 'border-dashed opacity-75' : ''}"
 		onclick={isInteractive ? handleTagClick : undefined}
 		onkeydown={isInteractive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTagClick(e as any); } } : undefined}
 		role={isInteractive ? 'button' : undefined}
@@ -82,6 +92,9 @@
 				<span class="text-[9px] font-medium text-emerald-600 bg-emerald-50 px-1 py-px rounded">Ödendi</span>
 			{/if}
 		</h4>
+		{#if isProjected}
+			<div class="text-[9px] text-gray-500 leading-tight mt-px">Tahmini · Kesim {shortDate(item.kesim_date)} · Son Öd. {shortDate(item.date)}</div>
+		{/if}
 		<div class="flex items-center justify-between mt-0.5 gap-1">
 			<span class="text-[10px] font-bold {amountColor}">{formatCompact(item.amount, item.currency)}</span>
 			<div class="flex items-center gap-0.5">
@@ -94,7 +107,7 @@
 			{#if item.category_name && item.category_color}
 				{@const c = colorMap[item.category_color] ?? colorMap.gray}
 				<span class="text-[10px] font-semibold {c.bg} {c.text} {c.border} border px-1 py-0.5 rounded truncate max-w-[60px]">{item.category_name}</span>
-			{:else}
+			{:else if !isProjected}
 				<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
 			{/if}
 			</div>
@@ -116,10 +129,10 @@
 	</div>
 {:else if narrow}
 	<!-- Masaüstü daraltılmış -->
-	{@const isInteractiveNarrow = item.source !== 'check' && item.source !== 'vendor_payment'}
+	{@const isInteractiveNarrow = item.source !== 'check' && item.source !== 'vendor_payment' && !isProjected}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
-		class="{item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-2 text-center {isInteractiveNarrow ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''}"
+		class="{item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-2 text-center {isInteractiveNarrow ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''} {isProjected ? 'border-dashed opacity-75' : ''}"
 		onclick={isInteractiveNarrow ? handleTagClick : undefined}
 		onkeydown={isInteractiveNarrow ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTagClick(e as any); } } : undefined}
 		role={isInteractiveNarrow ? 'button' : undefined}
@@ -128,7 +141,9 @@
 	>
 		<div class="text-[11px] font-medium text-gray-700 truncate">{item.description}</div>
 		<div class="text-xs font-bold {amountColor} mt-0.5">{formatCompact(item.amount, item.currency)}</div>
-		{#if item.category_name && item.category_color}
+		{#if isProjected}
+			<div class="text-[9px] text-gray-500">Tahmini · {shortDate(item.kesim_date)}→{shortDate(item.date)}</div>
+		{:else if item.category_name && item.category_color}
 			{@const c = colorMap[item.category_color] ?? colorMap.gray}
 			<span class="inline-block text-[10px] font-semibold {c.bg} {c.text} {c.border} border px-1 py-0.5 rounded mt-0.5">{item.category_name}</span>
 		{:else}
@@ -151,11 +166,11 @@
 	</div>
 {:else}
 	<!-- Masaüstü tam -->
-	{@const isInteractiveFull = item.source !== 'check' && item.source !== 'vendor_payment'}
+	{@const isInteractiveFull = item.source !== 'check' && item.source !== 'vendor_payment' && !isProjected}
 	<div class="group relative">
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 		<div
-			class="relative {item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-2xl {isExpense ? 'rounded-tr-sm' : 'rounded-tl-sm'} p-3 hover:shadow-md transition-shadow {isInteractiveFull ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''}"
+			class="relative {item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-2xl {isExpense ? 'rounded-tr-sm' : 'rounded-tl-sm'} p-3 hover:shadow-md transition-shadow {isInteractiveFull ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''} {isProjected ? 'border-dashed opacity-75' : ''}"
 			onclick={isInteractiveFull ? handleTagClick : undefined}
 			onkeydown={isInteractiveFull ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTagClick(e as any); } } : undefined}
 			role={isInteractiveFull ? 'button' : undefined}
@@ -199,7 +214,14 @@
 							{/if}
 						{:else if item.source === 'cc_payment'}
 							<span class="text-[10px] font-bold text-pink-600 bg-pink-100 px-1.5 py-0.5 rounded border border-pink-200">KK Borç Ödeme</span>
-							<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Bekliyor</span>
+							{#if isProjected}
+								<span class="text-[10px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">Tahmini · Ekstre yüklenmedi</span>
+								{#if item.kesim_date}
+									<span class="text-[10px] text-gray-500">Kesim {shortDate(item.kesim_date)} · Son Ödeme {shortDate(item.date)}</span>
+								{/if}
+							{:else}
+								<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Bekliyor</span>
+							{/if}
 						{:else if item.source === 'credit'}
 							<span class="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200">Kredi Taksit</span>
 							<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Bekliyor</span>
@@ -233,8 +255,8 @@
 									<span class="text-[10px] opacity-70">· {item.tag_note}</span>
 								{/if}
 							</span>
-						{:else}
-							<!-- Etiketlenmemiş göstergesi -->
+						{:else if !isProjected}
+							<!-- Etiketlenmemiş göstergesi (tahmini kalemler etiketlenmez) -->
 							<span class="flex items-center gap-1 text-[10px] text-amber-500">
 								<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
 								<span class="hidden sm:inline">Etiketsiz</span>

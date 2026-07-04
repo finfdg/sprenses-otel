@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from .cc_projections import router as cc_projections_router
 from .deferral import router as deferral_router
 from .eur_balances import router as eur_balances_router
 from .listing import router as listing_router
@@ -18,3 +19,4 @@ router.include_router(report_router)
 router.include_router(runway_router)
 router.include_router(t_account_router)
 router.include_router(deferral_router)
+router.include_router(cc_projections_router)

@@ -11,6 +11,8 @@ function getDefaultStartDate(): string {
 
 export const cashFlowCache = $state<{
 	items: CashFlowItem[];
+	/** Tahmini kredi kartı ekstresi kalemleri (yüklenmemiş aylar) — okuma-anında üretilir */
+	projectedItems: CashFlowItem[];
 	categories: TransactionCategory[];
 	untaggedCount: number;
 	eurBalances: any;
@@ -28,6 +30,7 @@ export const cashFlowCache = $state<{
 	};
 }>({
 	items: [],
+	projectedItems: [],
 	categories: [],
 	untaggedCount: 0,
 	eurBalances: null,
@@ -102,6 +105,16 @@ export async function loadCashFlowEurBalances() {
 	}
 }
 
+/** Tahmini kredi kartı ekstresi kalemleri (cari ay = limit, ileri aylar = 0) */
+export async function loadCashFlowProjections() {
+	try {
+		const res = await api.get<{ items: CashFlowItem[] }>('/finance/cash-flow/cc-projections');
+		cashFlowCache.projectedItems = res.items ?? [];
+	} catch (err) {
+		console.error('Kredi kartı projeksiyon hatası:', err);
+	}
+}
+
 /** Tüm verileri yükle (ilk yükleme veya force refresh) */
 export async function loadAllCashFlow(force = false) {
 	await Promise.all([
@@ -109,6 +122,7 @@ export async function loadAllCashFlow(force = false) {
 		loadCashFlowCategories(force),
 		loadCashFlowUntaggedCount(),
 		loadCashFlowEurBalances(),
+		loadCashFlowProjections(),
 	]);
 }
 
@@ -126,12 +140,14 @@ export async function refreshCashFlowFull() {
 		loadCashFlowItems(true),
 		loadCashFlowUntaggedCount(),
 		loadCashFlowEurBalances(),
+		loadCashFlowProjections(),
 	]);
 }
 
 /** Cache'i sıfırla (logout vb.) */
 export function invalidateCashFlowCache() {
 	cashFlowCache.items = [];
+	cashFlowCache.projectedItems = [];
 	cashFlowCache.categories = [];
 	cashFlowCache.untaggedCount = 0;
 	cashFlowCache.eurBalances = null;

@@ -234,3 +234,25 @@ listeden tamamen KAYBOLUYORDU. Kullanıcı isteğiyle davranış değişti:
 5. **`_build_response`** helper fonksiyonu ile tutarlı yanıt oluşturulur
 6. **Para formatı:** `Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' })`
 7. **Tarih formatı:** `toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })`
+
+## Kredi Kartı Ekstresi Projeksiyonu (2026-07-04)
+
+Yüklü ekstresi olmayan aylar için nakit akımda **tahmini** kredi kartı ekstre kalemleri gösterilir
+(kartların kesim + son ödeme takvimi + worst-case borç). Böylece 5 kart her ay yüklenmese de nakit
+planlaması eksik kalmaz.
+
+- **Endpoint:** `GET /finance/cash-flow/cc-projections` (view; okuma-anında, kalıcı FE yazmaz).
+  Servis: `app/services/cc_projection_service.py`.
+- **Kural (kullanıcı kararı):**
+  - **Cari ay**, gerçek ekstre yoksa → tutar = kart **limiti** (`total_amount`); worst-case rezerv,
+    ay giderine **DAHİL** (nakit bakiye/projeksiyon bunu düşer).
+  - **İleri aylar** (12 ay ufuk) → tutar = **0**; yalnız kesim + son ödeme tarih göstergesi.
+  - Gerçek (yüklü) ekstresi olan due-ay atlanır — ekstre yüklenince projeksiyon otomatik kaybolur (WS).
+- **Kesim/son-ödeme günü:** en son yüklü ekstreden türetilir (yoksa kart `details`); ay-uzunluğuna
+  kırpılır; son ödeme günü kesimden küçükse ödeme sonraki aya taşar.
+- **Kart limiti:** `CreditProduct.total_amount` (Garanti 100K, QNB 2M, VakıfBank 980K, YK 500K,
+  **Halkbank 300K** — 2026-07-04 girildi). Limit yoksa cari ay tutarı 0.
+- **Frontend:** `cashFlowCache.projectedItems` → `filteredItems`'a karışır (yalnız daraltıcı filtre
+  yokken). `CashFlowItem` kesikli/soluk kart + "Tahmini · Ekstre yüklenmedi" rozeti + "Kesim DD.MM ·
+  Son Ödeme DD.MM"; tıklanamaz. Tahmini kalemler gün-içi KK grubuna katılmaz (ayrı satır).
+- **Test:** `backend/tests/test_cc_projections.py` (11) + `finance.test.ts` projeksiyon testleri (3).

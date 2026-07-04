@@ -445,3 +445,35 @@ describe('projectRunway', () => {
 		expect(r.lowVal).toBe(50000);
 	});
 });
+
+// ─── Tahmini kredi kartı ekstresi projeksiyonu ──────────────
+describe('tahmini kredi kartı ekstresi projeksiyonu', () => {
+	it('groupByMonth: tahmini kalem (is_projected) ay/gün toplamına DAHİL edilir (kullanıcı kararı)', () => {
+		const items = [
+			makeItem({ id: 1, date: '2026-07-15', amount: 1000, type: 'expense', source: 'bank' }),
+			makeItem({ id: 900000001, date: '2026-07-30', amount: 300000, type: 'expense', source: 'cc_payment', is_projected: true, is_current_month: true }),
+		];
+		const result = groupByMonth(items);
+		// tahmini cari-ay limiti gerçek gidere eklenir → 1000 + 300000
+		expect(result[0].total_expense).toBe(301000);
+	});
+
+	it('groupByMonth: ileri ay tahmini (tutar 0) toplamı değiştirmez ama listede görünür', () => {
+		const items = [
+			makeItem({ id: 900000002, date: '2026-09-30', amount: 0, type: 'expense', source: 'cc_payment', is_projected: true, is_current_month: false }),
+		];
+		const result = groupByMonth(items);
+		expect(result[0].days[0].expenseItems).toHaveLength(1); // görünür (tarih göstergesi)
+		expect(result[0].total_expense).toBe(0);                // 0 tutar → toplam değişmez
+	});
+
+	it('groupDaySourceItems: tahmini KK kalemleri GRUPLANMAZ — her kart ayrı satırda kalır', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 900000003, date: '2026-07-30', amount: 300000, type: 'expense', source: 'cc_payment', is_projected: true }),
+			makeItem({ id: 900000004, date: '2026-07-30', amount: 500000, type: 'expense', source: 'cc_payment', is_projected: true }),
+		]);
+		// aynı gün 2 tahmini KK → normalde gruplanırdı; is_projected ile ayrı item kalır
+		expect(units).toHaveLength(2);
+		expect(units.every((u) => u.kind === 'item')).toBe(true);
+	});
+});

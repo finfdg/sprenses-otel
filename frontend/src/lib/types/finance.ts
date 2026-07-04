@@ -36,6 +36,16 @@ export interface CashFlowItem {
 	invoice_count: number | null;
 	/** Karşı kayıtla eşleşmiş (ör. ödenen çek) — bilgi amaçlı gösterilir, toplamlara katılmaz */
 	is_matched?: boolean;
+	/** Tahmini kredi kartı ekstresi (yüklenmemiş ay) — okuma-anında üretilir, DB'de yok */
+	is_projected?: boolean;
+	/** Tahmini ekstrenin hesap kesim tarihi (YYYY-MM-DD) — son ödeme = `date` */
+	kesim_date?: string;
+	/** Cari ay projeksiyonu mu (tutar = kart limiti); değilse ileri ay (tutar = 0) */
+	is_current_month?: boolean;
+	/** Karta limit tanımlı mı — cari ay tahmini tutarı buna dayanır */
+	has_limit?: boolean;
+	/** Projeksiyon kaynağı kredi kartı ürün id'si */
+	card_id?: number;
 }
 
 export interface Summary {
