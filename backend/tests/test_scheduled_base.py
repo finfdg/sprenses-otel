@@ -723,3 +723,46 @@ class TestPermissions:
         """Kimlik doğrulaması olmadan özet — 401/403."""
         resp = client.get("/api/accounting/taxes/summary/totals")
         assert resp.status_code in (401, 403)
+
+
+class TestPayNextMonth:
+    """pay_next_month: dönemin ödemesi bir sonraki ayın payment_day'inde yapılır (ör. Ocak → 10 Şubat)."""
+
+    PREFIX = "/api/accounting/recurring"
+
+    def test_payment_date_unit_shift_and_rollover(self):
+        from app.utils.entry_generator import _payment_date
+        assert _payment_date("recurring", 2026, 1, 10, pay_next_month=True) == date(2026, 2, 10)
+        assert _payment_date("recurring", 2026, 12, 10, pay_next_month=True) == date(2027, 1, 10)  # yıl geçişi
+        assert _payment_date("recurring", 2026, 1, 10, pay_next_month=False) == date(2026, 1, 10)  # aynı ay
+        # salary zaten kaynak-bazlı kayar (pay_next_month=False olsa da)
+        assert _payment_date("salary", 2026, 1, 10, pay_next_month=False) == date(2026, 2, 10)
+
+    def test_create_pay_next_month_shifts_dates(self, client, auth_headers):
+        resp = _create_definition(client, auth_headers, self.PREFIX,
+                                  payment_day=10, start_month=1, pay_next_month=True)
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["pay_next_month"] is True
+        entries = sorted(data["entries"], key=lambda e: e["period_month"])
+        assert entries[0]["period_month"] == 1 and entries[0]["entry_date"] == "2026-02-10"  # Ocak → 10 Şubat
+        assert entries[1]["entry_date"] == "2026-03-10"
+        dec = [e for e in entries if e["period_month"] == 12][0]
+        assert dec["entry_date"] == "2027-01-10"  # Aralık → 10 Ocak 2027
+
+    def test_create_default_same_month(self, client, auth_headers):
+        resp = _create_definition(client, auth_headers, self.PREFIX, payment_day=10, start_month=1)
+        data = resp.json()
+        assert data["pay_next_month"] is False
+        jan = [e for e in data["entries"] if e["period_month"] == 1][0]
+        assert jan["entry_date"] == "2026-01-10"  # varsayılan aynı ay
+
+    def test_update_pay_next_month_regenerates(self, client, auth_headers):
+        create = _create_definition(client, auth_headers, self.PREFIX, payment_day=10, start_month=1)
+        defn_id = create.json()["id"]
+        upd = client.patch(f"{self.PREFIX}/{defn_id}", json={"pay_next_month": True}, headers=auth_headers)
+        assert upd.status_code == 200, upd.text
+        detail = client.get(f"{self.PREFIX}/{defn_id}", headers=auth_headers).json()
+        assert detail["pay_next_month"] is True
+        jan = [e for e in detail["entries"] if e["period_month"] == 1][0]
+        assert jan["entry_date"] == "2026-02-10"  # güncellemede yeniden üretilip sonraki aya kaydı

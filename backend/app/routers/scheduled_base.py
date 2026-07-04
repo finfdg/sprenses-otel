@@ -74,6 +74,7 @@ def _defn_response(d: ScheduledDefinition, include_entries: bool = False) -> dic
         vendor_id=d.vendor_id,
         vendor_name=d.vendor.hesap_adi if d.vendor_id and d.vendor else None,
         billing_offset_months=d.billing_offset_months,
+        pay_next_month=d.pay_next_month,
         created_by=d.created_by,
         created_at=d.created_at,
     ).model_dump()
