@@ -59,6 +59,18 @@ SOURCE_LABELS = {
 
 UNTAGGED_LABEL = "Etiketsiz"
 
+# Faaliyet / Finansman ayrımı (Nakit Akım 3a tasarımı, 2026-07-04). Finansman = nakdi
+# etkileri olan ama faaliyet gelir/gideri OLMAYAN hareketler (avans = firmalardan alınan
+# yükümlülük, kredi = anapara/çekim). Diğer her şey faaliyet. Bu SALT bir yeniden-mercektir:
+# Net = Faaliyet Neti + Finansman Neti = total_in − total_out (toplam DEĞİŞMEZ, sapma yok).
+# NOT: kredi taksiti anapara+faiz olarak AYRIŞTIRILAMADIĞINDAN taksitin tamamı finansmanda
+# gösterilir (faiz kısmı finance_events'te ayrı tutulmuyor).
+FINANSMAN_SOURCES = {"advance", "credit"}
+
+
+def _section(source_type: str) -> str:
+    return "finansman" if source_type in FINANSMAN_SOURCES else "faaliyet"
+
 # Tarih gezgini ok tıklamaları art arda istek üretir — heavy_limiter (10/dk) gezinmeyi
 # boğuyordu (12 ay geriye = 12 istek); okuma-ağırlıklı bu endpoint için daha geniş pencere
 taccount_limiter = RateLimiter(max_requests=30, window_seconds=60)
@@ -200,7 +212,8 @@ def t_account(
 
         label = _group_label(fe)
         group = groups[fe.direction].setdefault(
-            label, {"label": label, "total_eur": 0.0, "item_count": 0, "items": []}
+            label, {"label": label, "total_eur": 0.0, "item_count": 0,
+                    "section": _section(fe.source_type), "items": []}
         )
         group["total_eur"] += eur
         group["item_count"] += 1
@@ -228,7 +241,8 @@ def t_account(
         eur = float(proj["amount"]) / rate
         label = SOURCE_LABELS["cc_payment"]
         group = groups[DIRECTION_EXPENSE].setdefault(
-            label, {"label": label, "total_eur": 0.0, "item_count": 0, "items": []}
+            label, {"label": label, "total_eur": 0.0, "item_count": 0,
+                    "section": "faaliyet", "items": []}
         )
         group["total_eur"] += eur
         group["item_count"] += 1
@@ -250,15 +264,29 @@ def t_account(
     total_in = round(totals[DIRECTION_INCOME], 2)
     total_out = round(totals[DIRECTION_EXPENSE], 2)
 
+    giris = _finalize(DIRECTION_INCOME)
+    cikis = _finalize(DIRECTION_EXPENSE)
+
+    # Faaliyet / Finansman neti (yalnız yeniden-mercek — net toplamı değiştirmez)
+    def _section_net(section: str) -> float:
+        inc = sum(g["total_eur"] for g in giris if g.get("section") == section)
+        exp = sum(g["total_eur"] for g in cikis if g.get("section") == section)
+        return round(inc - exp, 2)
+
+    faaliyet_net = _section_net("faaliyet")
+    finansman_net = _section_net("finansman")
+
     return {
         "period": period,
         "offset": offset,
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
-        "giris": _finalize(DIRECTION_INCOME),
-        "cikis": _finalize(DIRECTION_EXPENSE),
+        "giris": giris,
+        "cikis": cikis,
         "total_in_eur": total_in,
         "total_out_eur": total_out,
         "net_eur": round(total_in - total_out, 2),
+        "faaliyet_net_eur": faaliyet_net,
+        "finansman_net_eur": finansman_net,
         "skipped_no_rate": skipped_no_rate,
     }

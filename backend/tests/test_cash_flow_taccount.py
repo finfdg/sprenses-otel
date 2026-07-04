@@ -319,3 +319,38 @@ class TestTAccountCcProjection:
         # Geçmiş ay (offset=-1): tahmini rezerv cari ay kalemidir → görünmez
         body = client.get(f"{URL}?period=monthly&offset=-1", headers=auth_headers).json()
         assert _group(body, "cikis", "KK Borç Ödemeleri") is None
+
+
+class TestTAccountFaaliyetFinansman:
+    """Faaliyet / Finansman ayrımı (3a tasarımı) — salt yeniden-mercek, net değişmez."""
+
+    def test_section_labels_and_nets_reconcile(self, client, auth_headers, db):
+        today = date.today()
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)  # 1 EUR = 50 TRY
+
+        # Faaliyet geliri (banka kategori) + faaliyet gideri (cari ödeme)
+        _mk_fe(db, direction=1, amount=10000, category_name="T-FF KONAKLAMA")   # +200 EUR
+        _mk_fe(db, direction=-1, amount=5000, source_type="vendor_payment",
+               description="T-FF CARİ ÖDEME")                                    # -100 EUR faaliyet
+        # Finansman: alınan avans (income) + kredi taksiti (expense)
+        _mk_fe(db, direction=1, amount=4000, source_type="advance",
+               description="T-FF AVANS")                                         # +80 EUR finansman
+        _mk_fe(db, direction=-1, amount=2000, source_type="credit",
+               description="T-FF KREDİ TAKSİTİ")                                 # -40 EUR finansman
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+
+        # section alanı gruplarda var
+        avans = _group(body, "giris", "Avanslar")
+        kredi = _group(body, "cikis", "Kredi / Leasing Taksitleri")
+        cari = _group(body, "cikis", "Cari Ödemeleri")
+        assert avans and avans["section"] == "finansman"
+        assert kredi and kredi["section"] == "finansman"
+        assert cari and cari["section"] == "faaliyet"
+
+        # Net = Faaliyet Neti + Finansman Neti (mutabakat — yeniden-mercek toplamı değiştirmez)
+        assert "faaliyet_net_eur" in body and "finansman_net_eur" in body
+        assert round(body["faaliyet_net_eur"] + body["finansman_net_eur"], 2) == body["net_eur"]
+        # Finansman neti = +80 (avans) - 40 (kredi) = +40 EUR
+        assert body["finansman_net_eur"] == 40.0

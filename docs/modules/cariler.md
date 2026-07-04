@@ -15,11 +15,12 @@
 ### Backend
 | Dosya | Açıklama |
 |---|---|
-| `backend/app/models/vendor.py` | `Vendor` SQLAlchemy modeli |
+| `backend/app/models/vendor.py` | `Vendor` SQLAlchemy modeli (+ `contact_person`/`phone`/`email` iletişim kolonları) |
+| `backend/app/models/vendor_note.py` | `VendorNote` — cari görüşme/takip notları (`vendor_notes` tablosu) |
 | `backend/app/models/vendor_upload.py` | `VendorUpload` SQLAlchemy modeli |
 | `backend/app/models/vendor_transaction.py` | `VendorTransaction` SQLAlchemy modeli |
-| `backend/app/schemas/vendor.py` | Pydantic şemaları |
-| `backend/app/routers/finance/cariler/` | API endpoint'leri paketi (`__init__.py`, `uploads.py`, `vendors.py`, `payment_schedule.py`, `matching.py`, `sedna_import.py`, `bank_accounts.py`, `_helpers.py`) |
+| `backend/app/schemas/vendor.py` | Pydantic şemaları (+ `VendorNote*`, `VendorContactUpdate`) |
+| `backend/app/routers/finance/cariler/` | API endpoint'leri paketi (`__init__.py`, `uploads.py`, `vendors.py`, `notes.py`, `payment_schedule.py`, `matching.py`, `sedna_import.py`, `bank_accounts.py`, `_helpers.py`) |
 | `backend/app/models/vendor_bank_account.py` | `VendorBankAccount` (cari IBAN'ları) |
 | `backend/app/models/payment_instruction.py` + `backend/app/routers/finance/payment_instructions.py` | Ödeme Talimatı listeleri/kalemleri |
 | `backend/app/services/vendor_service.py` | Cari vade/durum güncelleme (router + onay executor ORTAK) |
@@ -318,3 +319,30 @@ Sedna ile birebir). İleride periyodik DB↔Sedna bakiye mutabakatı bu sınıf 
 - DB'deki `vendor_transactions.bakiye` kolonu Excel'den geldiği gibi saklanmaya devam eder (referans/denetim için), ancak API yanıtında **göstermeyiz** — kullanıcıya hep kümülatif değer döner
 - **Neden gerekti?** Muhasebe programının Excel'e yazdığı bakiye kendi iç işlem sıralamasına göre yürür (belge no, kayıt zamanı vb.); bu sıra bizim `date + id` sıramızla aynı olmayabilir → arka arkaya iki satırın bakiye farkı tek bir işlemin etkisini doğru yansıtmıyordu. Ör. Bens Pastacılık 24.04.2026 çek 7823811: Excel -414.849,99 saklamış, gerçekte kronolojik -642.300,89 (önceki bakiye -1.212.300,89 + 570.000 borç)
 - En yeni satırın kümülatif bakiyesi = cari toplam bakiyesi = `total_borc - total_alacak` (matematiksel tutarlılık garanti)
+
+---
+
+## Cari Detay — 3 Sekmeli Görünüm (2026-07-04, "Sprenses Tasarımlar")
+
+Genişletilen cari detayı 3 sekmeye bölündü + üstte 3 özet kart.
+
+### Özet kartlar
+- **Güncel Bakiye** (koyu lacivert kart) — `bakiye` (borç negatifse "ödenecek tutar" altın, aksi yeşil).
+- **Vadesi Geçmiş** — `overdue` = eşleşmemiş (`match_number IS NULL`) + `payment_due_date < bugün` fatura alacak toplamı; `overdue_count` fatura sayısı.
+- **Son Ödeme** — en yeni `borc > 0` kaydının tutarı + tarihi.
+
+Üçü de `GET /vendors/{id}` yanıtından gelir (tek sorgu; sayfalanan işlemlerden bağımsız, TÜM tarihçe).
+
+### Sekmeler
+| Sekme | İçerik |
+|---|---|
+| **Hesap Hareketleri** | Mevcut işlem tablosu (eşleştirme/departman/vade) — değişmedi |
+| **Notlar** | Cari görüşme/takip notları — ekle (textarea) / düzenle / sil / "yapıldı" işaretle. Yazan + tarih gösterilir. `use` yoksa salt-okuma |
+| **Firma Bilgileri** | İletişim (yetkili/telefon/e-posta — `use` düzenler, viewer okur) + Banka/IBAN listesi (her IBAN'da **kopyala** butonu) |
+
+### Notlar & İletişim — onay & audit
+- **Onaydan MUAF** (bilinçli): finansal etkileri yok, `finance_events`'e yazılmaz → payment_deferral / manuel-banka gibi operasyonel-özel istisna. `check_approval` çağrılmaz → executor handler gerekmez.
+- Yine de `require_permission(finance.cariler, use)` + audit (`vendor_note`/`vendor`) + WS broadcast (`CARILER, update`) uygulanır.
+- Vade/durum güncelleme ONAYA TABİ kalmaya devam eder (finansal); iletişim/not değildir.
+
+**Endpoint'ler:** `GET/POST /vendors/{id}/notes`, `PATCH/DELETE /vendors/{id}/notes/{note_id}`, `PATCH /vendors/{id}/contact`. **Migration:** `d8c3f1a2b4e6` (vendors +3 nullable kolon; `vendor_notes` tablosu). **Test:** `tests/test_vendor_notes.py` (9).

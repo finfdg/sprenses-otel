@@ -5,6 +5,46 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Cariler Yeniden Tasarımı — Notlar + Firma Bilgileri + Nakit Akım Faaliyet/Finansman (2026-07-04, YENİ)
+
+"Sprenses Tasarımlar" (GitHub) tasarım klasörünün uygulanması. İki parça:
+
+### 1) Cari detay = 3 sekme (Hesap Hareketleri / Notlar / Firma Bilgileri)
+
+- **Yeni model `VendorNote` (`vendor_notes` tablosu, migration `d8c3f1a2b4e6`):** cari görüşme/takip
+  notları — `text`, `author_id`(FK users SET NULL) + `author_name`(yazma anı snapshot), `done`
+  (yapıldı), `created_at`/`updated_at`. `vendor_id` FK CASCADE. `Vendor.notes` relationship.
+- **Yeni iletişim kolonları `vendors`:** `contact_person`, `phone`, `email` (hepsi nullable; Sedna'da
+  yok, elle girilir). Aynı migration.
+- **Endpoint'ler (`cariler/notes.py` + `vendors.py`):**
+  - `GET/POST /vendors/{id}/notes`, `PATCH/DELETE /vendors/{id}/notes/{note_id}` — not CRUD + `done` toggle.
+  - `PATCH /vendors/{id}/contact` — iletişim güncelle.
+  - `GET /vendors/{id}` yanıtına eklendi: `contact_person/phone/email` + özet kart metrikleri
+    **`overdue`/`overdue_count`** (eşleşmemiş + vadesi geçmiş fatura alacak toplamı) + **`last_payment_*`**
+    (en yeni borç kaydı = son ödeme).
+- **ONAY KARARI — notlar + iletişim ONAYDAN MUAF (bilinçli):** finansal etkileri yok
+  (finance_events'e YAZILMAZ) → payment_deferral / manuel-banka gibi operasyonel-özel istisna.
+  Yine de `require_permission(finance.cariler, use)` + `log_action` (entity_type `vendor_note`/`vendor`)
+  + `broadcast_finance_update(CARILER, "update")` uygulanır. **check_approval çağrılMAZ → executor
+  handler GEREKMEZ** (`test_all_approval_callers_have_executor_handler` yeni endpoint'leri kapsamaz).
+  Vade/durum (payment-days/status) onaya TABİ kalır (finansal); iletişim/not değil.
+- **Frontend (`cariler/+page.svelte`):** genişletilmiş cari detayı 3 sekmeye bölündü + 3 özet kart
+  (Güncel Bakiye koyu lacivert / Vadesi Geçmiş / Son Ödeme). Notlar sekmesi: textarea + ekle,
+  düzenle/sil/yapıldı, boş durum. Firma Bilgileri: iletişim formu (use) veya salt-okuma (viewer) +
+  Banka/IBAN listesi (her satırda **kopyala** butonu). Mevcut yükleme/eşleştirme/ödeme planı/
+  talimat görünümleri KORUNDU. Test: `tests/test_vendor_notes.py` (9).
+
+### 2) Nakit Akım "Faaliyet / Finansman" ayrımı (3a tasarımı) — T Hesap Cetveli
+
+`t-account` yanıtı **additive** genişletildi: her gruba `section` (`"finansman"` = `advance`/`credit`
+kaynakları, aksi `"faaliyet"`) + yanıta `faaliyet_net_eur`/`finansman_net_eur`. Bu **SALT yeniden-mercek**:
+`Net = Faaliyet Neti + Finansman Neti = total_in − total_out` (toplam DEĞİŞMEZ → mutabakat riski yok).
+Kredi taksiti anapara+faiz AYRIŞTIRILAMADIĞINDAN taksitin tamamı finansmanda. `CashFlowTAccount.svelte`
+finansman gruplarına rozet + (finansman hareketi varsa) Faaliyet Neti / Finansman bantları gösterir;
+runway zaten gömülü `NakitKoruma` ile sağlanıyor. Test: `test_cash_flow_taccount.py::TestTAccountFaaliyetFinansman`.
+
+---
+
 ## Kalıcı Öteleme + Overdue (Cuma roll-over KALDIRILDI) (2026-07-04, YENİ)
 
 Kullanıcı kararı: (1) Nakit Koruma'da bir kalemin "ötelemesi" artık **KALICI**; (2) vadesi geçen

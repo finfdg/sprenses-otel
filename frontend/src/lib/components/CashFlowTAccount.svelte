@@ -16,11 +16,12 @@
 	import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
 	type TItem = { name: string; date: string; amount_eur: number };
-	type TGroup = { label: string; total_eur: number; item_count: number; items: TItem[] };
+	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[] };
 	type TData = {
 		period: string; offset: number; start_date: string; end_date: string;
 		giris: TGroup[]; cikis: TGroup[];
-		total_in_eur: number; total_out_eur: number; net_eur: number; skipped_no_rate: number;
+		total_in_eur: number; total_out_eur: number; net_eur: number;
+		faaliyet_net_eur?: number; finansman_net_eur?: number; skipped_no_rate: number;
 	};
 
 	const PERIODS = [
@@ -203,6 +204,9 @@
 							class="w-full flex items-center gap-2 px-2 py-2 border-t border-gray-100 hover:bg-gray-50 cursor-pointer text-left touch-target">
 							<ChevronDown size={13} class="shrink-0 text-gray-500 transition-transform {open[k] ? '' : '-rotate-90'}" />
 							<span class="text-[13px] font-semibold text-gray-900 truncate">{g.label}</span>
+							{#if g.section === 'finansman'}
+								<span class="shrink-0 text-[9px] font-medium uppercase tracking-wide text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 py-0.5">Finansman</span>
+							{/if}
 							<span class="text-[11px] text-gray-500 shrink-0">{g.item_count} işlem</span>
 							<span class="ml-auto tabular-nums text-[13px] text-gray-800 shrink-0">{fmtEur(g.total_eur)}</span>
 						</button>
@@ -224,6 +228,24 @@
 				</div>
 			{/each}
 		</div>
+
+		<!-- Faaliyet / Finansman ayrımı (3a tasarımı) — yalnız finansman hareketi varsa -->
+		{#if (data.finansman_net_eur ?? 0) !== 0}
+			<div class="mt-3 space-y-2">
+				<div class="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-2.5">
+					<span class="text-xs sm:text-sm font-medium text-emerald-700">Faaliyet Neti <span class="font-normal text-gray-500">· gerçek nakit üretimi</span></span>
+					<span class="tabular-nums text-sm font-semibold {(data.faaliyet_net_eur ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}">
+						{(data.faaliyet_net_eur ?? 0) >= 0 ? '+' : '−'}{fmtEur(Math.abs(data.faaliyet_net_eur ?? 0))}
+					</span>
+				</div>
+				<div class="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-100 px-4 py-2.5">
+					<span class="text-xs sm:text-sm font-medium text-blue-700">Finansman <span class="font-normal text-gray-500">· avans & kredi (gider değil)</span></span>
+					<span class="tabular-nums text-sm font-semibold {(data.finansman_net_eur ?? 0) >= 0 ? 'text-blue-700' : 'text-red-600'}">
+						{(data.finansman_net_eur ?? 0) >= 0 ? '+' : '−'}{fmtEur(Math.abs(data.finansman_net_eur ?? 0))}
+					</span>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Net bant -->
 		<div class="mt-3 rounded-xl bg-teal-700 text-white flex items-center justify-between px-4 py-3">
