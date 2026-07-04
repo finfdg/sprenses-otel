@@ -189,6 +189,8 @@ def _handle_scheduled(db, action_type, entity_id, payload, actor_id, source_type
                 year=payload.get("year") or date.today().year,
                 notes=payload.get("notes"),
                 vendor_id=payload.get("vendor_id"),
+                billing_offset_months=payload.get("billing_offset_months", 0),
+                pay_next_month=payload.get("pay_next_month", False),
                 is_active=True,
                 created_by=actor_id,
             )
