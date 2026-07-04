@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatCompact, groupByMonth, getTodayKeys, monthKeysToDateRange, MONTH_NAMES } from './finance';
+import { formatCurrency, formatCompact, groupByMonth, getTodayKeys, monthKeysToDateRange, projectRunway, MONTH_NAMES } from './finance';
 import type { CashFlowItem } from '$lib/types/finance';
 
 // ─── Yardımcı: minimal CashFlowItem oluştur ─────────────────
@@ -399,5 +399,49 @@ describe('groupDaySourceItems — ödenen çekler ayrı grupta', () => {
 		]);
 		// İki tek üyeli "grup" da düz item'a iner (gruplamaya değmez kuralı)
 		expect(units.every((u) => u.kind === 'item')).toBe(true);
+	});
+});
+
+// ─── projectRunway (Nakit Koruma) ───────────────────────────
+describe('projectRunway', () => {
+	const inflows = [{ id: 'in1', date: '2026-07-18', amount_eur: 44000 }];
+	const outs = [
+		{ id: 'o1', date: '2026-07-08', amount_eur: 52000 },
+		{ id: 'o2', date: '2026-07-15', amount_eur: 60000 },
+	];
+
+	it('bugünden ay sonuna gün gün bakiye üretir', () => {
+		const r = projectRunway(96000, inflows, outs, '2026-07-04', '2026-07-31');
+		expect(r.byDay[0]).toEqual({ day: 4, bal: 96000 });      // ilk gün, hareket yok
+		expect(r.byDay.length).toBe(28);                          // 4..31
+		expect(r.endBal).toBe(96000 - 52000 - 60000 + 44000);     // 28000
+	});
+
+	it('bakiyenin ilk negatife düştüğü günü bulur', () => {
+		// 96000 −52000(8) = 44000 · −60000(15) = −16000 → 15'te negatif (18'de +44000 gelene dek)
+		const r = projectRunway(96000, inflows, outs, '2026-07-04', '2026-07-31');
+		expect(r.firstNeg).toBe(15);
+		expect(r.lowVal).toBe(-16000);
+		expect(r.lowDay).toBe(15);
+	});
+
+	it('ödeme ertelenince eğri düzelir (negatif kalkar)', () => {
+		// o2 (60000) 15→20'ye ertelenirse 18'deki +44000 önce gelir → negatif olmaz
+		const r = projectRunway(96000, inflows, outs, '2026-07-04', '2026-07-31', { o2: '2026-07-20' });
+		expect(r.firstNeg).toBeNull();
+		expect(r.endBal).toBe(28000); // toplam değişmez, yalnız zamanlama
+	});
+
+	it('ay dışına ertelenen ödeme projeksiyondan ÇIKAR (gelecek aya taşınır)', () => {
+		const r = projectRunway(96000, inflows, outs, '2026-07-04', '2026-07-31', { o2: '2026-08-05' });
+		expect(r.firstNeg).toBeNull();
+		expect(r.endBal).toBe(96000 - 52000 + 44000); // 88000 — o2 bu aydan çıktı
+	});
+
+	it('boş hareket setinde bakiye sabit kalır', () => {
+		const r = projectRunway(50000, [], [], '2026-07-30', '2026-07-31');
+		expect(r.endBal).toBe(50000);
+		expect(r.firstNeg).toBeNull();
+		expect(r.lowVal).toBe(50000);
 	});
 });

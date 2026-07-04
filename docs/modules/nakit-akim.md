@@ -24,6 +24,7 @@
 | `backend/app/routers/finance/cash_flow/matching.py` | Eşleştirme endpoint'leri (cari, kredi kartı, kredi) |
 | `backend/app/routers/finance/cash_flow/eur_balances.py` | EUR bakiye endpoint'i + `compute_eur_balances(db)` ortak çekirdeği |
 | `backend/app/routers/finance/cash_flow/report.py` | Nakit akım PDF raporu endpoint'i (ay/gün bazlı EUR tablosu) |
+| `backend/app/routers/finance/cash_flow/runway.py` | Runway / nakit koruma projeksiyonu endpoint'i (ay-içi planlı hareketler EUR) |
 | `backend/app/routers/finance/cash_flow/_helpers.py` | Ortak yardımcı fonksiyonlar |
 
 ### Frontend
@@ -69,6 +70,7 @@
 | `GET` | `/api/finance/cash-flow/eur-balances` | `view` | EUR bakiye özeti |
 | `GET` | `/api/finance/cash-flow/report/pdf` | `view` | Ay/gün bazlı nakit akım PDF raporu (`start_date`/`end_date` opsiyonel) |
 | `GET` | `/api/finance/cash-flow/t-account` | `view` | T hesap cetveli — `period=daily\|weekly\|monthly\|yearly` + `offset<=0`; giriş/çıkış grupları EUR (transfer hariç, `skipped_no_rate` sayaçlı) |
+| `GET` | `/api/finance/cash-flow/runway` | `view` | Runway / nakit koruma projeksiyonu — içinde bulunulan ay; `start_eur` bugünkü banka nakdi + ay-içi planlı hareketler (`inflows`/`outs`, EUR; transfer hariç, `skipped_no_rate` sayaçlı) |
 | `GET` | `/api/finance/cash-flow/credit-payments-unpaid` | `view` | Ödenmemiş kredi taksitleri listesi |
 | `GET` | `/api/finance/cash-flow/cc-statements-unpaid` | `view` | Ödenmemiş kredi kartı ekstreleri listesi |
 | `POST` | `/api/finance/cash-flow/match-vendor-tx` | `use` | Cari işlem eşleştirme |

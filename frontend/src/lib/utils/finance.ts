@@ -157,6 +157,52 @@ export function monthKeysToDateRange(keys: string[]): { start: string; end: stri
 	return { start: `${first}-01`, end: `${last}-${String(lastDay).padStart(2, '0')}` };
 }
 
+// ── Nakit Koruma (runway) projeksiyonu ──────────────────────
+export type RunwayFlow = { id: string; date: string; amount_eur: number };
+export type RunwayResult = {
+	byDay: { day: number; bal: number }[];
+	firstNeg: number | null; // bakiyenin ilk negatif olduğu gün-numarası (yoksa null)
+	lowVal: number;
+	lowDay: number;
+	endBal: number;
+};
+
+/** Bankadaki nakitten başlayıp [today..monthEnd] arası günlük bakiye projeksiyonu.
+ *  `dates` = erteleme override'ı (flowId → 'YYYY-MM-DD'); ay dışına ertelenen ödeme
+ *  projeksiyona GİRMEZ (borç gelecek aya taşınır). Saf fonksiyon — component'ten ayrı test edilir. */
+export function projectRunway(
+	startEur: number,
+	inflows: RunwayFlow[],
+	outs: RunwayFlow[],
+	todayISO: string,
+	monthEndISO: string,
+	dates: Record<string, string> = {},
+): RunwayResult {
+	const ym = todayISO.slice(0, 7);
+	const startDay = Number(todayISO.slice(8, 10));
+	const endDay = Number(monthEndISO.slice(8, 10));
+	const dayOf = (iso: string) => Number(iso.slice(8, 10));
+
+	const byDay: { day: number; bal: number }[] = [];
+	let bal = startEur;
+	for (let d = startDay; d <= endDay; d++) {
+		for (const i of inflows) if (i.date.slice(0, 7) === ym && dayOf(i.date) === d) bal += i.amount_eur;
+		for (const o of outs) {
+			const iso = dates[o.id] || o.date;
+			if (iso.slice(0, 7) === ym && dayOf(iso) === d) bal -= o.amount_eur; // ay dışına ertelenen atlanır
+		}
+		byDay.push({ day: d, bal: Math.round(bal * 100) / 100 });
+	}
+
+	let lowVal = Infinity, lowDay = startDay, firstNeg: number | null = null;
+	for (const p of byDay) {
+		if (p.bal < lowVal) { lowVal = p.bal; lowDay = p.day; }
+		if (firstNeg === null && p.bal < 0) firstNeg = p.day;
+	}
+	if (!byDay.length) lowVal = startEur;
+	return { byDay, firstNeg, lowVal, lowDay, endBal: byDay.length ? byDay[byDay.length - 1].bal : startEur };
+}
+
 export function getTodayKeys() {
 	const today = new Date();
 	const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;

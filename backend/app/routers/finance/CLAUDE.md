@@ -1003,6 +1003,7 @@ app/routers/finance/
 │   ├── matching.py      # Eşleştirme (cari, kredi kartı, kredi)
 │   ├── eur_balances.py  # EUR bakiye özeti + compute_eur_balances(db) ortak çekirdek
 │   ├── report.py        # Nakit akım PDF raporu (ay/gün bazlı EUR tablosu)
+│   ├── runway.py        # Runway / nakit koruma projeksiyonu (ay-içi planlı hareketler EUR)
 │   └── _helpers.py      # Ortak yardımcı fonksiyonlar
 ├── exchange_rates.py   # Döviz kurları
 └── transaction_tags.py # Etiketleme + kategori yönetimi

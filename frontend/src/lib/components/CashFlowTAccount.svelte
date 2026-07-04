@@ -12,7 +12,7 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-svelte';
+	import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
 	type TItem = { name: string; date: string; amount_eur: number };
 	type TGroup = { label: string; total_eur: number; item_count: number; items: TItem[] };
@@ -41,6 +41,10 @@
 	let data = $state<TData | null>(null);
 	let loading = $state(false);
 	let open = $state<Record<string, boolean>>({});
+	// Mobil (README): kapalıyken "Bugün" özet kartı (Giriş/Çıkış/Net mini kutular),
+	// dokununca tam T hesap açılır; masaüstünde her zaman tam görünüm
+	let expanded = $state(false);
+	let todaySummary = $state<TData | null>(null);
 	const cache = new Map<string, TData>();
 
 	function fmtEur(n: number): string {
@@ -98,16 +102,56 @@
 		open[`${side}:${label}`] = !open[`${side}:${label}`];
 	}
 
-	onMount(load);
+	onMount(() => {
+		load();
+		// Mobil özet kartı için bugünün Giriş/Çıkış/Net değerleri
+		api.get<TData>('/finance/cash-flow/t-account?period=daily&offset=0')
+			.then((r) => { cache.set('daily:0', r); todaySummary = r; })
+			.catch((err) => console.error('Günlük özet yüklenemedi:', err));
+	});
 </script>
 
 <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6">
 	<!-- Başlık -->
-	<div class="mb-4">
-		<h3 class="text-[17px] text-gray-900">Nakit Akım · T Hesap Cetveli</h3>
-		<p class="text-xs text-gray-500 mt-0.5">Hesap hareketleri · EUR · grup başlığına tıklayarak detayı açın</p>
+	<div class="mb-4 flex items-start justify-between gap-3">
+		<div>
+			<h3 class="text-[17px] text-gray-900">Nakit Akım · T Hesap Cetveli</h3>
+			<p class="text-xs text-gray-500 mt-0.5">
+				<span class="sm:hidden {expanded ? 'hidden' : ''}">Bugün · dokunarak detaylı cetveli açın</span>
+				<span class="{expanded ? '' : 'hidden'} sm:inline">Hesap hareketleri · EUR · grup başlığına tıklayarak detayı açın</span>
+			</p>
+		</div>
+		<!-- Mobil: tam görünümü kapat (yukarı ok) -->
+		<button type="button" onclick={() => (expanded = false)} aria-label="Özete dön"
+			class="sm:hidden {expanded ? '' : 'hidden'} touch-target w-9 h-9 -mt-1 -mr-1 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 cursor-pointer">
+			<ChevronUp size={18} />
+		</button>
 	</div>
 
+	<!-- MOBİL ÖZET KARTI (kapalıyken) — Bugün için Giriş/Çıkış/Net mini kutuları -->
+	<button type="button" onclick={() => (expanded = true)}
+		class="sm:hidden {expanded ? 'hidden' : ''} w-full text-left cursor-pointer">
+		<div class="grid grid-cols-3 gap-2">
+			<div class="rounded-xl bg-teal-50 border border-teal-100 px-3 py-2.5">
+				<div class="text-[10px] uppercase tracking-[0.5px] text-teal-600">Giriş</div>
+				<div class="tabular-nums text-sm font-semibold text-teal-700 mt-0.5">{todaySummary ? fmtEur(todaySummary.total_in_eur) : '…'}</div>
+			</div>
+			<div class="rounded-xl bg-brass-soft border border-brass/30 px-3 py-2.5">
+				<div class="text-[10px] uppercase tracking-[0.5px] text-brass-dark">Çıkış</div>
+				<div class="tabular-nums text-sm font-semibold text-brass-dark mt-0.5">{todaySummary ? fmtEur(todaySummary.total_out_eur) : '…'}</div>
+			</div>
+			<div class="rounded-xl bg-teal-700 px-3 py-2.5">
+				<div class="text-[10px] uppercase tracking-[0.5px] text-teal-200">Net</div>
+				<div class="tabular-nums text-sm font-semibold mt-0.5 {(todaySummary?.net_eur ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}">
+					{todaySummary ? (todaySummary.net_eur >= 0 ? '+' : '−') + fmtEur(Math.abs(todaySummary.net_eur)) : '…'}
+				</div>
+			</div>
+		</div>
+		<div class="mt-2 text-xs text-teal-600 font-medium flex items-center gap-1">Detaylı T hesap cetveli için dokun <ChevronRight size={13} /></div>
+	</button>
+
+	<!-- TAM GÖRÜNÜM (mobilde açıkken / masaüstünde her zaman) -->
+	<div class="{expanded ? '' : 'hidden'} sm:block">
 	<!-- Sekmeler -->
 	<SegmentedControl options={PERIODS} value={period} onchange={setPeriod} fullWidth ariaLabel="Dönem seçimi" class="mb-3" />
 
@@ -191,4 +235,5 @@
 			<p class="mt-2 text-[11px] text-amber-700">{data.skipped_no_rate} kalem kur bilgisi olmadığından hesaba katılamadı.</p>
 		{/if}
 	{/if}
+	</div>
 </div>
