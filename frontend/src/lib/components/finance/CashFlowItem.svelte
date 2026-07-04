@@ -34,6 +34,8 @@
 
 	const isExpense = $derived(item.type === 'expense');
 	const isProjected = $derived(item.is_projected === true);
+	// Kesim günü "Ekstre yükleyin" hatırlatıcısı (tutar yok) — son ödeme (due) kaleminden ayrı
+	const isCutReminder = $derived(isProjected && item.projection_kind === 'cut');
 	const isEur = $derived(item.currency !== 'TRY');
 
 	/** 'YYYY-MM-DD' → 'DD.MM' (tahmini ekstre kesim/son-ödeme rozetleri için) */
@@ -42,6 +44,11 @@
 		const parts = d.split('-');
 		return parts.length === 3 ? `${parts[2]}.${parts[1]}` : d;
 	}
+
+	// Tahmini kalemde kesim + son ödeme tarih özeti (cut kaleminde date=kesim → son_odeme_date kullan)
+	const projDates = $derived(
+		`Kesim ${shortDate(item.kesim_date)} · Son Öd. ${shortDate(item.son_odeme_date ?? item.date)}`
+	);
 	const bgClass = $derived(isEur ? 'bg-blue-50 border-blue-200' : isExpense ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200');
 	const amountColor = $derived(isEur ? 'text-blue-600' : isExpense ? 'text-rose-600' : 'text-emerald-600');
 	const arrowBorderOuter = $derived(isEur ? (isExpense ? 'border-l-blue-200' : 'border-r-blue-200') : isExpense ? 'border-l-rose-200' : 'border-r-emerald-200');
@@ -93,10 +100,14 @@
 			{/if}
 		</h4>
 		{#if isProjected}
-			<div class="text-[9px] text-gray-500 leading-tight mt-px">Tahmini · Kesim {shortDate(item.kesim_date)} · Son Öd. {shortDate(item.date)}</div>
+			<div class="text-[9px] leading-tight mt-px {isCutReminder ? 'text-amber-700 font-medium' : 'text-gray-500'}">{isCutReminder ? '↑ Ekstre yükleyin' : 'Tahmini'} · {projDates}</div>
 		{/if}
 		<div class="flex items-center justify-between mt-0.5 gap-1">
-			<span class="text-[10px] font-bold {amountColor}">{formatCompact(item.amount, item.currency)}</span>
+			{#if isCutReminder}
+				<span class="text-[10px] text-amber-700 font-medium">Ekstre bekleniyor</span>
+			{:else}
+				<span class="text-[10px] font-bold {amountColor}">{formatCompact(item.amount, item.currency)}</span>
+			{/if}
 			<div class="flex items-center gap-0.5">
 			{#if item.payment_method && item.payment_method !== 'diger' && !(item.source === 'vendor_payment' && item.payment_method === 'cari') && !(item.source === 'check' && item.payment_method === 'cek')}
 				{@const pm = getPaymentMethod(item.payment_method)}
@@ -140,9 +151,11 @@
 		aria-label={isInteractiveNarrow ? 'Etiket düzenle' : undefined}
 	>
 		<div class="text-[11px] font-medium text-gray-700 truncate">{item.description}</div>
-		<div class="text-xs font-bold {amountColor} mt-0.5">{formatCompact(item.amount, item.currency)}</div>
+		{#if !isCutReminder}
+			<div class="text-xs font-bold {amountColor} mt-0.5">{formatCompact(item.amount, item.currency)}</div>
+		{/if}
 		{#if isProjected}
-			<div class="text-[9px] text-gray-500">Tahmini · {shortDate(item.kesim_date)}→{shortDate(item.date)}</div>
+			<div class="text-[9px] {isCutReminder ? 'text-amber-700 font-medium' : 'text-gray-500'}">{isCutReminder ? '↑ Ekstre yükleyin' : 'Tahmini'} · {shortDate(item.kesim_date)}→{shortDate(item.son_odeme_date ?? item.date)}</div>
 		{:else if item.category_name && item.category_color}
 			{@const c = colorMap[item.category_color] ?? colorMap.gray}
 			<span class="inline-block text-[10px] font-semibold {c.bg} {c.text} {c.border} border px-1 py-0.5 rounded mt-0.5">{item.category_name}</span>
@@ -214,11 +227,12 @@
 							{/if}
 						{:else if item.source === 'cc_payment'}
 							<span class="text-[10px] font-bold text-pink-600 bg-pink-100 px-1.5 py-0.5 rounded border border-pink-200">KK Borç Ödeme</span>
-							{#if isProjected}
+							{#if isCutReminder}
+								<span class="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200 inline-flex items-center gap-1"><Upload size={10} />Ekstre yükleyin</span>
+								<span class="text-[10px] text-gray-500">{projDates}</span>
+							{:else if isProjected}
 								<span class="text-[10px] font-semibold text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">Tahmini · Ekstre yüklenmedi</span>
-								{#if item.kesim_date}
-									<span class="text-[10px] text-gray-500">Kesim {shortDate(item.kesim_date)} · Son Ödeme {shortDate(item.date)}</span>
-								{/if}
+								<span class="text-[10px] text-gray-500">{projDates}</span>
 							{:else}
 								<span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Bekliyor</span>
 							{/if}
@@ -273,9 +287,11 @@
 							Eşleştir
 						</button>
 					{/if}
-					<span class="text-base font-bold {amountColor} whitespace-nowrap">
-						{formatCurrency(item.amount, item.currency)}
-					</span>
+					{#if !isCutReminder}
+						<span class="text-base font-bold {amountColor} whitespace-nowrap">
+							{formatCurrency(item.amount, item.currency)}
+						</span>
+					{/if}
 				</div>
 			</div>
 			{#if isExpense}

@@ -10,7 +10,7 @@ from datetime import date
 
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CreditProduct
-from app.services.cc_projection_service import compute_cc_projections
+from app.services.cc_projection_service import compute_cc_projections, due_reserve_projections
 
 
 def _card(db, *, name="Test Kart", limit=100000.0, status="active", details=None):
@@ -34,13 +34,22 @@ def _stmt(db, card, *, kesim, son_odeme, toplam=50000.0):
     return s
 
 
+def _due(proj, card_id):
+    """Kartın son-ödeme (due) projeksiyon kalemleri (tarih sırasında)."""
+    return [p for p in proj if p["card_id"] == card_id and p["projection_kind"] == "due"]
+
+
+def _cut(proj, card_id):
+    """Kartın kesim (Ekstre yükleyin) hatırlatıcı kalemleri."""
+    return [p for p in proj if p["card_id"] == card_id and p["projection_kind"] == "cut"]
+
+
 class TestCcProjectionService:
     def test_current_month_uses_limit_future_zero(self, db):
         c = _card(db, limit=100000.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
-        proj = [p for p in compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=3)
-                if p["card_id"] == c.id]
-        assert len(proj) == 3
-        cur = proj[0]
+        due = _due(compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=3), c.id)
+        assert len(due) == 3
+        cur = due[0]
         assert cur["is_current_month"] is True
         assert cur["amount"] == 100000.0
         assert cur["date"] == "2026-07-15"
@@ -48,34 +57,42 @@ class TestCcProjectionService:
         assert cur["is_projected"] is True
         assert cur["source"] == "cc_payment"
         # ileri aylar → 0
-        assert proj[1]["amount"] == 0.0 and proj[1]["is_current_month"] is False
-        assert proj[1]["date"] == "2026-08-15"
-        assert proj[2]["amount"] == 0.0 and proj[2]["date"] == "2026-09-15"
+        assert due[1]["amount"] == 0.0 and due[1]["is_current_month"] is False
+        assert due[1]["date"] == "2026-08-15"
+        assert due[2]["amount"] == 0.0 and due[2]["date"] == "2026-09-15"
+
+    def test_cut_reminder_on_kesim_date(self, db):
+        # Her projeksiyon ayı için kesim günü "Ekstre yükleyin" hatırlatıcısı (tutar 0)
+        c = _card(db, limit=100000.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
+        proj = compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=2)
+        cut = _cut(proj, c.id)
+        assert len(cut) == 2
+        assert cut[0]["date"] == "2026-07-10"           # kesim günü
+        assert cut[0]["son_odeme_date"] == "2026-07-15"  # son ödeme ayrı alanda
+        assert cut[0]["amount"] == 0.0                   # hatırlatıcı — tutar yok
+        assert cut[0]["projection_kind"] == "cut"
 
     def test_derives_days_from_latest_statement(self, db):
         # details 10/15 ama EN SON ekstre 9/14 → ekstreden türetilir
         c = _card(db, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
         _stmt(db, c, kesim=date(2026, 5, 9), son_odeme=date(2026, 5, 14))
         _stmt(db, c, kesim=date(2026, 6, 9), son_odeme=date(2026, 6, 14))
-        proj = [p for p in compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=2)
-                if p["card_id"] == c.id]
-        assert proj[0]["kesim_date"] == "2026-07-09"
-        assert proj[0]["date"] == "2026-07-14"
+        due = _due(compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=2), c.id)
+        assert due[0]["kesim_date"] == "2026-07-09"
+        assert due[0]["date"] == "2026-07-14"
 
     def test_falls_back_to_details_without_statements(self, db):
         c = _card(db, details={"ekstre_kesim_gunu": 25, "son_odeme_gunu": 30})
-        proj = [p for p in compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=1)
-                if p["card_id"] == c.id]
-        assert proj[0]["kesim_date"] == "2026-07-25"
-        assert proj[0]["date"] == "2026-07-30"
+        due = _due(compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=1), c.id)
+        assert due[0]["kesim_date"] == "2026-07-25"
+        assert due[0]["date"] == "2026-07-30"
 
     def test_skips_month_with_real_statement(self, db):
         c = _card(db, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
         # Temmuz ekstresi zaten yüklü → cari ay projeksiyonu atlanır
         _stmt(db, c, kesim=date(2026, 7, 9), son_odeme=date(2026, 7, 15))
-        proj = [p for p in compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=3)
-                if p["card_id"] == c.id]
-        months = [p["date"][:7] for p in proj]
+        due = _due(compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=3), c.id)
+        months = [p["date"][:7] for p in due]
         assert "2026-07" not in months  # gerçek ekstre → projeksiyon yok
         assert "2026-08" in months
 
@@ -92,24 +109,42 @@ class TestCcProjectionService:
     def test_due_day_clamped_to_month_end(self, db):
         # son ödeme günü 31 → Şubat'ta 28'e kırpılır (2026 artık yıl değil)
         c = _card(db, details={"ekstre_kesim_gunu": 28, "son_odeme_gunu": 31})
-        proj = [p for p in compute_cc_projections(db, today=date(2026, 2, 1), horizon_months=1)
-                if p["card_id"] == c.id]
-        assert proj[0]["date"] == "2026-02-28"
+        due = _due(compute_cc_projections(db, today=date(2026, 2, 1), horizon_months=1), c.id)
+        assert due[0]["date"] == "2026-02-28"
 
     def test_due_next_month_when_due_day_before_cut(self, db):
         # kesim 26, son ödeme 5 → ödeme sonraki aya taşar (offset 1)
         c = _card(db, details={"ekstre_kesim_gunu": 26, "son_odeme_gunu": 5})
-        proj = [p for p in compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=1)
-                if p["card_id"] == c.id]
-        assert proj[0]["date"] == "2026-07-05"       # due-ay Temmuz
-        assert proj[0]["kesim_date"] == "2026-06-26"  # kesim bir önceki ay
+        proj = compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=1)
+        due = _due(proj, c.id)
+        assert due[0]["date"] == "2026-07-05"       # due-ay Temmuz
+        assert due[0]["kesim_date"] == "2026-06-26"  # kesim bir önceki ay
+        # kesim (06-26) cari aydan ÖNCE → "Ekstre yükleyin" hatırlatıcısı geçmiş aya düşmez
+        assert _cut(proj, c.id) == []
 
     def test_current_month_zero_when_no_limit(self, db):
         c = _card(db, limit=0.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
-        proj = [p for p in compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=1)
-                if p["card_id"] == c.id]
-        assert proj[0]["amount"] == 0.0
-        assert proj[0]["has_limit"] is False
+        due = _due(compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=1), c.id)
+        assert due[0]["amount"] == 0.0
+        assert due[0]["has_limit"] is False
+
+
+class TestDueReserveProjections:
+    """EUR bakiye + runway'in kullandığı yardımcı — yalnız tutar taşıyan (cari ay) due kalemleri."""
+
+    def test_only_current_month_due_with_amount(self, db):
+        c = _card(db, limit=100000.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
+        reserves = [p for p in due_reserve_projections(db, today=date(2026, 7, 4)) if p["card_id"] == c.id]
+        # yalnız 1 kalem: cari ay son ödemesi (limit); ileri-ay 0 ve kesim hatırlatıcıları hariç
+        assert len(reserves) == 1
+        assert reserves[0]["amount"] == 100000.0
+        assert reserves[0]["projection_kind"] == "due"
+        assert reserves[0]["date"] == "2026-07-15"
+
+    def test_empty_when_no_limit(self, db):
+        c = _card(db, limit=0.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
+        reserves = [p for p in due_reserve_projections(db, today=date(2026, 7, 4)) if p["card_id"] == c.id]
+        assert reserves == []  # limit 0 → rezerv yok
 
 
 class TestCcProjectionEndpoint:
