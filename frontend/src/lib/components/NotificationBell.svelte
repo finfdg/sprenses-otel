@@ -146,7 +146,7 @@
 	>
 		<Bell size={20} />
 		{#if unreadCount > 0}
-			<span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1">
+			<span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-brass text-teal-900 text-[10px] font-bold rounded-full px-1">
 				{unreadCount > 99 ? '99+' : unreadCount}
 			</span>
 		{/if}

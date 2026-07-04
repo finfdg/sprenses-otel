@@ -694,8 +694,20 @@ varsa paylaşılan bileşende yap → tüm modüllere yayılsın.
 - **Kanonik iskelete uymayan sayfalar:** Mesajlaşma (iki-panel sohbet + MessageInput autogrow), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli — StatCard/EmptyState beklenmez, ama Pagination/Skeleton uygulanır), Panel/Dashboard (karşılama, kendi başlığı), Login (bespoke auth — yine de AA), Nakit Akım iç accordion'u, public `/devam` kiosk (WS'siz sınırlı polling + tam-ekran), ve mizan/fis-icmali/roller-matrisi/vardiya-çizelgesi/KMH yoğun-matris tabloları (yatay-scroll doğru kalıp). Hepsi yine **Button/Lucide/AA/hata-yönetimi** ilkelerine uyar.
 - **Dekoratif/anlamlı küçük sapmalar:** döviz grafik lejantındaki teal-600 çizgi (grafik rengiyle eşleşir) ve stok/depolar `bg-amber-400` bar (üzerinde metin yok) salt dekoratiftir; yoğun tablo satır-aksiyonları ikon-only kalabilir; kalite şablon eşiği ve cariler vade günü `type="number"` (yüzde puanı/gün sayısı — para değil, MoneyInput gerekmez).
 
+> **TEMA (2026-07-04, panel yeniden tasarımı — kullanıcı kararı: TÜM UYGULAMA):** Görsel dil
+> **lacivert/altın**'a taşındı. Uygulama yöntemi **token yeniden eşlemesi** (`frontend/src/app.css`
+> `@theme`): sayfalardaki `teal-*`/`gray-*`/`cyan-*`/`white` sınıfları DEĞİŞMEDİ ama artık lacivert
+> (#1b2b45 primary) / sıcak krem-mürekkep tonlarını üretir; yeni `brass/brass-soft/brass-dark/
+> brass-light` utility'leri altın aksan içindir. Fontlar self-hosted (@fontsource): gövde IBM Plex
+> Sans, h1-h3 Spectral (serif), `.tabular-nums` IBM Plex Mono. **Yeni sayfa yazarken kural AYNI:
+> `teal-700` = primary yazmaya devam et** (görsel çıktı lacivert olur; kod-seviyesi konvansiyon
+> değişmedi). Sidebar koyu lacivert + pirinç rozetlidir. Tasarım kaynağı:
+> `design_handoff_panel_redesign` (repo kökündeki zip). Panel sayfası: KPI ızgarası + T Hesap
+> Cetveli (`CashFlowTAccount.svelte`, `GET /finance/cash-flow/t-account`) + Son Hareketler +
+> Bekleyen Onay kartı/modalı.
+
 Hızlı özet:
-- **Renk paleti:** Cyan/Teal (ana), Gray (nötr), Red (tehlike), Amber (uyarı), Green (başarı), Blue (bilgi)
+- **Renk paleti:** Lacivert/Altın (ana — token'lar `teal-*`→lacivert, `brass-*`=altın; yukarıdaki TEMA notu), Gray (nötr, sıcak tonlar), Red (tehlike), Amber (uyarı), Green (başarı), Blue (bilgi)
 - **Layout:** Sidebar (sol, açılır/kapanır) + Topbar (üst, kullanıcı dropdown + geri butonu)
 - **Buton:** `Button.svelte` — primary rengin tek kaynağı (teal-700, AA). Elle buton yazma. `variant`/`size`/`loading`/`fullWidth`/`class` (layout-only)
 - **Sayfa başlığı:** `PageHeader.svelte` — `<h1>` + açıklama + `actions` snippet (her sayfada zorunlu)

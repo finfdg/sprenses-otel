@@ -68,6 +68,7 @@
 | `GET` | `/api/finance/cash-flow/monthly-summary` | `view` | Aylık gelir/gider/bakiye özeti |
 | `GET` | `/api/finance/cash-flow/eur-balances` | `view` | EUR bakiye özeti |
 | `GET` | `/api/finance/cash-flow/report/pdf` | `view` | Ay/gün bazlı nakit akım PDF raporu (`start_date`/`end_date` opsiyonel) |
+| `GET` | `/api/finance/cash-flow/t-account` | `view` | T hesap cetveli — `period=daily\|weekly\|monthly\|yearly` + `offset<=0`; giriş/çıkış grupları EUR (transfer hariç, `skipped_no_rate` sayaçlı) |
 | `GET` | `/api/finance/cash-flow/credit-payments-unpaid` | `view` | Ödenmemiş kredi taksitleri listesi |
 | `GET` | `/api/finance/cash-flow/cc-statements-unpaid` | `view` | Ödenmemiş kredi kartı ekstreleri listesi |
 | `POST` | `/api/finance/cash-flow/match-vendor-tx` | `use` | Cari işlem eşleştirme |

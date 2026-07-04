@@ -183,18 +183,22 @@
 	});
 </script>
 
-<aside class="fixed inset-y-0 left-0 z-40 w-60 transform transition-transform duration-300 ease-in-out {sidebar.open ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 md:z-auto md:transition-all md:duration-300 {collapsed ? 'md:w-16' : 'md:w-60'} bg-white border-r border-gray-200 flex flex-col h-full shrink-0">
+<aside class="fixed inset-y-0 left-0 z-40 w-60 transform transition-transform duration-300 ease-in-out {sidebar.open ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 md:z-auto md:transition-all md:duration-300 {collapsed ? 'md:w-16' : 'md:w-60'} bg-teal-700 border-r border-teal-800 flex flex-col h-full shrink-0">
 	<!-- Logo + Collapse toggle -->
-	<div class="flex items-center justify-between px-3 py-4 border-b border-gray-100 {collapsed ? 'md:justify-center' : ''}">
-		{#if !collapsed}
-			<a href="/dashboard" class="pl-2">
-				<img src="/logo.svg" alt="Sprenses Hotel" class="h-7 opacity-90 hover:opacity-100 transition-opacity" />
-			</a>
-		{/if}
+	<div class="flex items-center justify-between px-3 py-4 border-b border-teal-600/50 {collapsed ? 'md:flex-col md:justify-center md:gap-2' : ''}">
+		<a href="/dashboard" class="flex items-center gap-2.5 {collapsed ? '' : 'pl-2'}" title="Sprenses — Panel">
+			<span class="w-8 h-8 rounded-lg bg-brass flex items-center justify-center shrink-0">
+				<span class="font-serif text-white text-lg font-semibold leading-none">S</span>
+			</span>
+			<span class="flex flex-col {collapsed ? 'md:hidden' : ''}">
+				<span class="font-serif text-white text-base font-semibold leading-tight">Sprenses</span>
+				<span class="text-[10px] tracking-[2px] text-teal-300 leading-tight">OTEL YÖNETİMİ</span>
+			</span>
+		</a>
 		<!-- Collapse butonu — sadece masaüstünde görünür -->
 		<button
 			onclick={toggleCollapse}
-			class="hidden md:flex items-center justify-center touch-target w-11 h-11 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+			class="hidden md:flex items-center justify-center touch-target w-11 h-11 rounded-lg text-teal-300 hover:text-white hover:bg-teal-600 transition-colors cursor-pointer"
 			title={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
 			aria-label={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
 		>
@@ -207,7 +211,7 @@
 		<!-- Mobilde kapat butonu -->
 		<button
 			onclick={closeSidebar}
-			class="flex md:hidden items-center justify-center touch-target w-11 h-11 -mr-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+			class="flex md:hidden items-center justify-center touch-target w-11 h-11 -mr-2 rounded-lg text-teal-300 hover:text-white hover:bg-teal-600 transition-colors cursor-pointer"
 			title="Menüyü kapat"
 			aria-label="Menüyü kapat"
 		>
@@ -220,10 +224,10 @@
 		<!-- Panel -->
 		<a
 			href="/dashboard"
-			class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'} {collapsed ? 'md:justify-center' : ''}"
+			class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard') ? 'bg-teal-600 text-white font-medium' : 'text-teal-200 hover:bg-teal-600/60 hover:text-white'} {collapsed ? 'md:justify-center' : ''}"
 			title={collapsed ? 'Panel' : ''}
 		>
-			<svg class="w-5 h-5 shrink-0 {isActive('/dashboard') ? 'text-teal-600' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+			<svg class="w-5 h-5 shrink-0 {isActive('/dashboard') ? 'text-brass-light' : 'text-teal-300'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 				{#each PANEL_ICON as d}<path stroke-linecap="round" stroke-linejoin="round" d={d} />{/each}
 			</svg>
 			<span class="{collapsed ? 'md:hidden' : ''}">Panel</span>
@@ -233,10 +237,10 @@
 		{#if hasPermission('yonetim.panel')}
 			<a
 				href="/dashboard/yonetim"
-				class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard/yonetim') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'} {collapsed ? 'md:justify-center' : ''}"
+				class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard/yonetim') ? 'bg-teal-600 text-white font-medium' : 'text-teal-200 hover:bg-teal-600/60 hover:text-white'} {collapsed ? 'md:justify-center' : ''}"
 				title={collapsed ? 'Yönetim Paneli' : ''}
 			>
-				<svg class="w-5 h-5 shrink-0 {isActive('/dashboard/yonetim') ? 'text-teal-600' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+				<svg class="w-5 h-5 shrink-0 {isActive('/dashboard/yonetim') ? 'text-brass-light' : 'text-teal-300'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M5.25 18l4.5-4.5 3 3 4.5-4.5M18 12.75V9" />
 				</svg>
 				<span class="{collapsed ? 'md:hidden' : ''}">Yönetim Paneli</span>
@@ -247,15 +251,15 @@
 		{#if hasPerm('messaging')}
 			<a
 				href="/dashboard/mesajlasma"
-				class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard/mesajlasma') ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'} {collapsed ? 'md:justify-center' : ''}"
+				class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard/mesajlasma') ? 'bg-teal-600 text-white font-medium' : 'text-teal-200 hover:bg-teal-600/60 hover:text-white'} {collapsed ? 'md:justify-center' : ''}"
 				title={collapsed ? 'Mesajlaşma' : ''}
 			>
 				<span class="relative">
-					<svg class="w-5 h-5 shrink-0 {isActive('/dashboard/mesajlasma') ? 'text-teal-600' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+					<svg class="w-5 h-5 shrink-0 {isActive('/dashboard/mesajlasma') ? 'text-brass-light' : 'text-teal-300'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 						{#each MESSAGING_ICON as d}<path stroke-linecap="round" stroke-linejoin="round" d={d} />{/each}
 					</svg>
 					{#if unreadCount > 0 && collapsed}
-						<span class="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-bold text-white bg-red-500 rounded-full leading-none">
+						<span class="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center px-1 text-[10px] font-bold text-teal-900 bg-brass rounded-full leading-none">
 							{unreadCount > 99 ? '99+' : unreadCount}
 						</span>
 					{/if}
@@ -263,7 +267,7 @@
 				<span class="flex-1 flex items-center justify-between {collapsed ? 'md:hidden' : ''}">
 					<span>Mesajlaşma</span>
 					{#if unreadCount > 0}
-						<span class="min-w-[20px] h-5 flex items-center justify-center px-1.5 text-[11px] font-bold text-white bg-red-500 rounded-full leading-none">
+						<span class="min-w-[20px] h-5 flex items-center justify-center px-1.5 text-[11px] font-bold text-teal-900 bg-brass rounded-full leading-none">
 							{unreadCount > 99 ? '99+' : unreadCount}
 						</span>
 					{/if}
@@ -275,21 +279,21 @@
 		{#each NAV_GROUPS as group (group.key)}
 			{#if groupVisible(group)}
 				<div class="pt-2 pb-1">
-					<div class="h-px bg-gray-100"></div>
+					<div class="h-px bg-teal-600/50"></div>
 				</div>
 
 				<button
 					onclick={() => toggleGroup(group.key)}
-					class="w-full flex items-center {collapsed ? 'md:justify-center' : 'justify-between'} px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer {isGroupActive(group.prefix) ? 'text-teal-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}"
+					class="w-full flex items-center {collapsed ? 'md:justify-center' : 'justify-between'} px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer {isGroupActive(group.prefix) ? 'text-white' : 'text-teal-200 hover:bg-teal-600/60 hover:text-white'}"
 					title={collapsed ? group.label : ''}
 				>
 					<span class="flex items-center gap-3">
-						<svg class="w-5 h-5 shrink-0 {isGroupActive(group.prefix) ? 'text-teal-600' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+						<svg class="w-5 h-5 shrink-0 {isGroupActive(group.prefix) ? 'text-brass-light' : 'text-teal-300'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 							{#each group.icon as d}<path stroke-linecap="round" stroke-linejoin="round" d={d} />{/each}
 						</svg>
 						<span class="{collapsed ? 'md:hidden' : ''} font-medium">{group.label}</span>
 					</span>
-					<ChevronDown class="w-4 h-4 text-gray-500 transition-transform {expandedGroups[group.key] ? 'rotate-180' : ''} {collapsed ? 'md:hidden' : ''}" />
+					<ChevronDown class="w-4 h-4 text-teal-300 transition-transform {expandedGroups[group.key] ? 'rotate-180' : ''} {collapsed ? 'md:hidden' : ''}" />
 				</button>
 
 				{#if expandedGroups[group.key] && !collapsed}
@@ -298,9 +302,9 @@
 							{#if hasPerm(it.code)}
 								<a
 									href={it.href}
-									class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors {itemActive(it) ? 'bg-teal-50 text-teal-700 font-medium' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'}"
+									class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors {itemActive(it) ? 'bg-teal-600 text-white font-medium' : 'text-teal-300 hover:bg-teal-600/60 hover:text-white'}"
 								>
-									<svg class="w-4 h-4 shrink-0 {itemActive(it) ? 'text-teal-600' : 'text-gray-500'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+									<svg class="w-4 h-4 shrink-0 {itemActive(it) ? 'text-brass-light' : 'text-teal-300'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
 										{#each it.icon as d}<path stroke-linecap="round" stroke-linejoin="round" d={d} />{/each}
 									</svg>
 									{it.label}
@@ -314,7 +318,7 @@
 	</nav>
 
 	<!-- Bottom: version -->
-	<div class="px-3 py-3 border-t border-gray-100">
-		<p class="text-xs text-gray-500 pl-2 {collapsed ? 'md:hidden' : ''}">Sprenses v1.0</p>
+	<div class="px-3 py-3 border-t border-teal-600/50">
+		<p class="text-xs text-teal-300 pl-2 {collapsed ? 'md:hidden' : ''}">Sprenses v1.0</p>
 	</div>
 </aside>

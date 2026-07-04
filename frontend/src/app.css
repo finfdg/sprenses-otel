@@ -1,5 +1,97 @@
 @import "tailwindcss";
 
+/* ── Lacivert/Altın tema fontları (self-hosted, CSP-safe — Google Fonts CDN'i YOK)
+   Spectral: başlık serif'i · IBM Plex Sans: gövde · IBM Plex Mono: para/sayı
+   latin-ext: Türkçe karakterler (ğ ş ı İ ö ü ç) için zorunlu */
+@import "@fontsource/spectral/latin-ext-600.css";
+@import "@fontsource/spectral/latin-600.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-400.css";
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-500.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-600.css";
+@import "@fontsource/ibm-plex-sans/latin-600.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-700.css";
+@import "@fontsource/ibm-plex-sans/latin-700.css";
+@import "@fontsource/ibm-plex-mono/latin-ext-500.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-ext-600.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+
+/* ── Lacivert/Altın tema — TÜM UYGULAMA token yeniden eşlemesi (2026-07-04 panel
+   yeniden tasarımı, design_handoff_panel_redesign — kullanıcı kararı: komple retheme).
+   Sayfalardaki mevcut `teal-*`/`gray-*`/`white` sınıfları DEĞİŞTİRİLMEDEN tüm
+   uygulamayı yeni palete taşımak için Tailwind 4 token'ları yeniden tanımlanır:
+   - teal skalası → LACİVERT (primary #1b2b45; Button/focus-ring/aktif durumlar)
+   - gray skalası → sıcak mürekkep tonları (kanvas #f4f0e7, kenarlık #e9e0cd, ink #232733)
+   - white → kart zemini #fffdf7 (krem)
+   - cyan → yumuşak lacivert (bilgi çipleri)
+   - brass-* → pirinç/altın aksan (yeni; rozet/vurgu için bg-brass, text-brass-dark…)
+   Semantik renkler (red/amber/green/blue) DOKUNULMADI. Kontrast: lacivert-700 beyaz
+   üzerinde 13:1, brass-dark krem üzerinde 5.2:1 (AA). */
+@theme {
+	--font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+	--font-serif: "Spectral", Georgia, serif;
+	--font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+	--color-white: #fffdf7;
+
+	--color-gray-50: #f4f0e7;
+	--color-gray-100: #efe8d8;
+	--color-gray-200: #e9e0cd;
+	--color-gray-300: #d9cfb8;
+	--color-gray-400: #a09a88;
+	--color-gray-500: #746f5d; /* AA: #fffdf7 üzerinde ≥4.5:1 (ikincil metnin en açık tonu) */
+	--color-gray-600: #6b6657;
+	--color-gray-700: #4f4b40;
+	--color-gray-800: #35322b;
+	--color-gray-900: #232733;
+
+	--color-teal-50: #eef2f8;
+	--color-teal-100: #dfe6f1;
+	--color-teal-200: #c3cde0;
+	--color-teal-300: #9fb0cb;
+	--color-teal-400: #8496b3;
+	--color-teal-500: #56719a;
+	--color-teal-600: #2c4269;
+	--color-teal-700: #1b2b45;
+	--color-teal-800: #16233a;
+	--color-teal-900: #101a2c;
+
+	--color-cyan-50: #eef2f8;
+	--color-cyan-100: #dfe6f1;
+	--color-cyan-200: #c3cde0;
+	--color-cyan-300: #9fb0cb;
+	--color-cyan-400: #8496b3;
+	--color-cyan-500: #56719a;
+	--color-cyan-600: #2c4269;
+	--color-cyan-700: #1b2b45;
+	--color-cyan-800: #16233a;
+	--color-cyan-900: #101a2c;
+
+	/* Pirinç/altın aksan (tasarım paketindeki roller) */
+	--color-brass: #bd9a45;
+	--color-brass-soft: #f4ecd4;
+	--color-brass-dark: #6d571b; /* AA: brass-soft (#f4ecd4) üzerinde ≥4.5:1 */
+	--color-brass-light: #e8c979;
+}
+
+/* Gövde fontu + kanvas zemini */
+html, body {
+	font-family: var(--font-sans);
+}
+
+/* Başlıklar serif (Spectral 600) — tasarım dili; kart başlıkları h1-h3/PageHeader'dan gelir */
+h1, h2, h3 {
+	font-family: var(--font-serif);
+	font-weight: 600;
+}
+
+/* Tüm para/sayısal değerler mono — kod tabanında sayısal hücreler .tabular-nums kullanır */
+.tabular-nums {
+	font-family: var(--font-mono);
+}
+
 /* Mobilde input odağında tarayıcı zoom'unu engelle (iOS Safari vb.)
    font-size < 16px olursa tarayıcı otomatik yakınlaştırır */
 @media screen and (max-width: 639px) {

@@ -287,8 +287,8 @@
 			onclick={() => userMenuOpen = !userMenuOpen}
 			class="flex items-center gap-2 px-2 md:px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
 		>
-			<div class="w-7 h-7 rounded-full bg-teal-100 flex items-center justify-center">
-				<span class="text-xs font-semibold text-teal-700">
+			<div class="w-7 h-7 rounded-full bg-teal-700 flex items-center justify-center">
+				<span class="text-xs font-semibold text-white">
 					{authState.user?.first_name?.charAt(0)?.toUpperCase() || '?'}
 				</span>
 			</div>

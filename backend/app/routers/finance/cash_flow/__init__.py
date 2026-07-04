@@ -6,9 +6,11 @@ from .eur_balances import router as eur_balances_router
 from .listing import router as listing_router
 from .matching import router as matching_router
 from .report import router as report_router
+from .t_account import router as t_account_router
 
 router = APIRouter()
 router.include_router(listing_router)
 router.include_router(eur_balances_router)
 router.include_router(matching_router)
 router.include_router(report_router)
+router.include_router(t_account_router)
