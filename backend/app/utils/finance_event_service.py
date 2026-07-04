@@ -140,8 +140,16 @@ class FinanceEventService:
             if getattr(check, "status", None) == "cancelled":
                 self.invalidate(db, SOURCE_CHECK, check.id)
                 return None
-            display_date = bank_tx.date if bank_tx else check.due_date
-            is_matched   = bank_tx is not None
+            # Çek nakit akımda HER ZAMAN vadesinde gösterilir (2026-07-03): ödenip
+            # bankayla eşleşince de vadesindeki yerinde "Ödendi" rozetiyle kalır
+            # (banka bacağı gerçek ödeme tarihinde ayrıca görünür; gün/ay toplamlarına
+            # yalnız o katılır — is_matched bayrağı frontend'de toplam-dışı bırakır).
+            display_date = check.due_date
+            # bank_tx parametresiz çağrılar (cari eşleştirme, banka tahmini) daha önce
+            # BANKAYLA eşleşmiş çekin is_matched'ını yanlışlıkla False'a düşürüyordu
+            # → çift sayım (2026-07-04 denetim bulgusu: prod'da 12 çek). Çekin kendi
+            # bank_transaction_id'si de eşleşmişlik kanıtıdır.
+            is_matched   = bank_tx is not None or getattr(check, "bank_transaction_id", None) is not None
 
             return self._upsert(db, SOURCE_CHECK, check.id, {
                 "event_date":      display_date,

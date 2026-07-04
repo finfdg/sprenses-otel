@@ -326,6 +326,10 @@ def _match_checks_to_bank(db: Session) -> dict:
             db.flush()
             # finance_events: çek is_matched=True, banka is_realized=True
             finance_event_svc.match(db, "bank", best_match.id, "check", check.id)
+            # FE'nin event_status/bank_name'ini de tazele — match() yalnız is_matched
+            # set eder; durum 'pending' kalırsa ödenen çek nakit akımda "Ödendi"
+            # rozetiyle GÖRÜNMEZ (2026-07-04 denetim bulgusu: prod'da 41 çek)
+            finance_event_svc.upsert_check(db, check, best_match)
 
     return {
         "matched": matched_count,

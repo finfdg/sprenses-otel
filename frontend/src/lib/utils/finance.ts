@@ -49,17 +49,20 @@ export function groupByMonth(items: CashFlowItem[]): MonthGroup[] {
 		}
 
 		const amountForBalance = item.amount;
+		// Toplam-dışı: dahili transferler + karşı kayıtla eşleşmiş bilgi satırları
+		// (ör. ödenen çek "Ödendi" rozetiyle listede kalır ama para banka bacağında sayılır)
 		const isTransfer = item.category_name && TRANSFER_CATEGORIES.has(item.category_name);
+		const excludeFromTotals = isTransfer || item.is_matched === true;
 
 		if (item.type === 'income') {
 			dayMap[monthKey][dayKey].incomeItems.push(item);
-			if (!isTransfer) {
+			if (!excludeFromTotals) {
 				dayMap[monthKey][dayKey].total_income += amountForBalance;
 				groups[monthKey].total_income += amountForBalance;
 			}
 		} else {
 			dayMap[monthKey][dayKey].expenseItems.push(item);
-			if (!isTransfer) {
+			if (!excludeFromTotals) {
 				dayMap[monthKey][dayKey].total_expense += amountForBalance;
 				groups[monthKey].total_expense += amountForBalance;
 			}
@@ -100,7 +103,9 @@ export function groupDaySourceItems(items: CashFlowItem[]): DayRenderUnit[] {
 	const groups: Partial<Record<GroupableSource, Extract<DayRenderUnit, { kind: 'group' }>>> = {};
 
 	for (const item of items) {
-		if (!GROUPABLE_SOURCES.has(item.source)) {
+		// Eşleşmiş bilgi satırları (ör. ödenen çek) grup kartına ve grup toplamına
+		// girmez — tek başına "Ödendi" rozetiyle gösterilir
+		if (!GROUPABLE_SOURCES.has(item.source) || item.is_matched === true) {
 			units.push({ kind: 'item', item });
 			continue;
 		}

@@ -3,7 +3,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import case, extract, func
+from sqlalchemy import and_, case, extract, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -15,6 +15,7 @@ from app.models.check import Check
 from app.models.finance_event import (
     DIRECTION_EXPENSE,
     DIRECTION_INCOME,
+    SOURCE_CHECK,
     FinanceEvent,
 )
 from app.models.user import User
@@ -80,10 +81,20 @@ def list_cash_flows(
     """Tüm nakit akım — finance_events tablosundan tek sorgu, SQL sayfalama."""
     heavy_limiter.check(f"cashflow-{current_user.id}")
 
+    # Çift sayım gizlemesi (is_matched=True saklanır) ÇEKTE görsel olarak kaldırıldı
+    # (2026-07-03 kullanıcı isteği): ödenen çek listeden KALDIRILMAZ, "Ödendi" rozetiyle
+    # bilgi amaçlı kalır — is_matched bayrağıyla döner, frontend toplamlara KATMAZ
+    # (para hareketi banka bacağında zaten sayılıyor; diğer kaynaklar gizli kalır).
     query = (
         db.query(FinanceEvent)
         .filter(
-            FinanceEvent.is_matched == False,
+            or_(
+                FinanceEvent.is_matched == False,
+                and_(
+                    FinanceEvent.source_type == SOURCE_CHECK,
+                    FinanceEvent.event_status == "paid",
+                ),
+            ),
             FinanceEvent.event_date >= MIN_DATE,
         )
     )

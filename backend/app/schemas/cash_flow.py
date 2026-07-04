@@ -35,6 +35,9 @@ class CashFlowResponse(BaseModel):
     vendor_code: Optional[str] = None
     amount_try: Optional[float] = None
     invoice_count: Optional[int] = None
+    # Karşı kayıtla eşleşmiş (çift sayım gizlemesine tabi) — listede BİLGİ amaçlı
+    # gösterilir, gün/ay toplamlarına KATILMAZ (ör. ödenen çek "Ödendi" rozetiyle kalır)
+    is_matched: bool = False
 
     class Config:
         from_attributes = True

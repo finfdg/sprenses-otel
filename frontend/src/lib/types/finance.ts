@@ -34,6 +34,8 @@ export interface CashFlowItem {
 	match_number: number | null;
 	amount_try: number | null;
 	invoice_count: number | null;
+	/** Karşı kayıtla eşleşmiş (ör. ödenen çek) — bilgi amaçlı gösterilir, toplamlara katılmaz */
+	is_matched?: boolean;
 }
 
 export interface Summary {

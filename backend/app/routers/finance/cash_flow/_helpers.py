@@ -198,6 +198,7 @@ def _fe_to_response(fe: FinanceEvent) -> dict:
         check_status=fe.event_status,
         vendor_code=fe.vendor_code,
         amount_try=float(fe.amount_try) if fe.amount_try else (float(fe.amount) if fe.currency == "TRY" else None),
+        is_matched=bool(fe.is_matched),
     ).model_dump()
 
 

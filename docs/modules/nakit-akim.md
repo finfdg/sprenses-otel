@@ -195,6 +195,25 @@ Tüm CRUD işlemleri `audit_logs` tablosuna kaydedilir:
 - **Kaydedilen eylemler:** `create`, `update`, `delete`
 - **details:** `"{type}: {title} - {amount}"` (create/delete için)
 
+## Ödenen Çekler Listede Kalır — "Ödendi" Rozeti (2026-07-03)
+
+Eskiden bankayla eşleşen (ödenen) çek, çift sayım gizlemesi (`is_matched=TRUE`) yüzünden
+listeden tamamen KAYBOLUYORDU. Kullanıcı isteğiyle davranış değişti:
+
+- **Görünürlük:** `GET /cash-flow/` eşleşmiş ÇEK kayıtlarını da döndürür
+  (`OR (source_type='check' AND event_status='paid')`); yanıtta `is_matched: true` bayrağı.
+  Çek DIŞI eşleşmiş kaynaklar (kredi, KK) eskisi gibi gizli.
+- **Çift sayım korunur:** frontend `is_matched` kayıtları gün/ay toplamlarına ve gün içi
+  çek grup kartının toplamına KATMAZ (`groupByMonth` + `groupDaySourceItems`); para
+  hareketi banka bacağında sayılır. EUR başlık toplamları (`eur-balances`) değişmedi.
+- **Görsel:** yeşil "Ödendi" rozeti (CashFlowItem'da zaten vardı) + kart `opacity-70`.
+- **Tarih:** çek FE'si HER ZAMAN **vade tarihinde** gösterilir (`upsert_check`
+  display_date=due_date; eskiden eşleşince banka tarihine taşınırdı). Mevcut 32 eşleşmiş
+  FE 2026-07-03'te vadeye geri çekildi (tek seferlik UPDATE). Banka adı eşleşen hareketin
+  bankası olmaya devam eder.
+- Test: `test_finance.py::TestPaidChecksVisible` (liste + vade-tarihi) ve
+  `finance.test.ts` ("is_matched toplam-dışı", grup kartı dışı).
+
 ## Geliştirme Kuralları
 
 1. **Type alanı** yalnızca `"income"` veya `"expense"` olabilir — Pydantic şemasında regex ile kontrol edilir

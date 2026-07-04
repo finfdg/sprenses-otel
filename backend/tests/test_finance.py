@@ -688,3 +688,138 @@ class TestRemovalCandidates:
         assert data["deleted"] == 0
         assert data["skipped"] == 2
         assert any("bulunamadı" in r for r in data["skipped_reasons"])
+
+
+class TestPaidChecksVisible:
+    """Ödenen (bankayla eşleşmiş) çekler nakit akımda kalır (2026-07-03 kullanıcı isteği).
+
+    Çift sayım korunur: kayıt is_matched=True bayrağıyla döner — frontend toplamlara
+    KATMAZ, 'Ödendi' rozetiyle bilgi amaçlı gösterir. Çek DIŞI eşleşmiş kaynaklar
+    (kredi vb.) eskisi gibi gizli kalır. Çek FE'si her zaman VADE tarihinde durur.
+    """
+
+    @staticmethod
+    def _mk_fe(db, **overrides):
+        from datetime import date as d
+
+        from app.models.finance_event import FinanceEvent
+
+        defaults = dict(
+            event_date=d(2026, 6, 25), amount=10000, direction=-1, currency="TRY",
+            source_type="check", source_id=990001, description="TEST ÇEK FİRMASI",
+            check_no="0099001", event_status="paid", payment_method="cek",
+            is_matched=True, is_realized=True,
+        )
+        defaults.update(overrides)
+        fe = FinanceEvent(**defaults)
+        db.add(fe)
+        db.flush()
+        return fe
+
+    def test_matched_paid_check_stays_visible_with_flag(self, client, auth_headers, db):
+        self._mk_fe(db, source_id=990001)  # ödenen + eşleşen çek → görünür
+        self._mk_fe(db, source_id=990002, event_status="pending",
+                    is_matched=False, is_realized=False)  # bekleyen çek → görünür
+        self._mk_fe(db, source_id=990003, source_type="credit", check_no=None,
+                    description="TEST KREDİ", is_matched=True)  # eşleşmiş kredi → GİZLİ
+        db.commit()
+
+        r = client.get(
+            "/api/finance/cash-flow/?page_size=2000&start_date=2026-06-25&end_date=2026-06-25",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        by = {(i["source"], i["id"]): i for i in r.json()["items"]}
+
+        paid = by.get(("check", 990001))
+        assert paid is not None, "Ödenen çek listede kalmalı"
+        assert paid["is_matched"] is True
+        assert paid["check_status"] == "paid"
+
+        pending = by.get(("check", 990002))
+        assert pending is not None
+        assert pending["is_matched"] is False
+
+        assert ("credit", 990003) not in by, "Çek dışı eşleşmiş kayıt gizli kalmalı"
+
+    def test_upsert_check_keeps_due_date_when_matched(self, client, auth_headers, db):
+        """Bankayla eşleşen çekin FE'si ödeme tarihine TAŞINMAZ — vadesinde kalır."""
+        from datetime import date as d
+
+        from app.models.bank_account import BankAccount
+        from app.models.bank_transaction import BankTransaction
+        from app.models.check import Check, CheckUpload
+        from app.models.finance_event import FinanceEvent
+        from app.utils.finance_event_service import finance_event_svc
+
+        up = CheckUpload(file_name="seed", file_url="x")
+        db.add(up)
+        db.flush()
+        chk = Check(upload_id=up.id, check_no="DUEDATE1", vendor_code="320.99.09.0001",
+                    vendor_name="VADE TEST", due_date=d(2026, 7, 25), amount_tl=75000,
+                    currency="TL", amount_currency=75000, transaction_type="Verilen Çek",
+                    status="paid")
+        acc = BankAccount(bank_name="Vade Test Bank", iban="TR990000000000000000000099",
+                          currency="TRY", is_active=True)
+        db.add_all([chk, acc])
+        db.flush()
+        btx = BankTransaction(account_id=acc.id, date=d(2026, 7, 20), amount=-75000,
+                              type="expense", description="ÇEK ÖDEMESİ",
+                              tx_hash="duedate-test-hash")
+        db.add(btx)
+        db.flush()
+        chk.bank_transaction_id = btx.id
+
+        finance_event_svc.upsert_check(db, chk, btx)
+        db.commit()
+
+        fe = db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "check", FinanceEvent.source_id == chk.id
+        ).first()
+        assert fe is not None
+        assert fe.is_matched is True
+        assert fe.event_date == d(2026, 7, 25), "FE vade tarihinde kalmalı (banka tarihi değil)"
+        assert fe.bank_name == "Vade Test Bank"  # banka bilgisi eşleşen hareketten gelir
+
+    def test_auto_matcher_marks_fe_paid(self, client, auth_headers, db):
+        """Ekstre otomatik eşleştiricisi (_match_checks_to_bank) çeki 'paid' yaparken
+        FE event_status'u da 'paid' olmalı — yoksa ödenen çek listede 'Ödendi'
+        rozetiyle GÖRÜNMEZ (2026-07-04 denetim bulgusu: match() yalnız is_matched
+        set ediyordu, FE 'pending' kalıyordu)."""
+        from datetime import date as d
+
+        from app.models.bank_account import BankAccount
+        from app.models.bank_transaction import BankTransaction
+        from app.models.check import Check, CheckUpload
+        from app.models.finance_event import FinanceEvent
+        from app.utils.finance_event_service import finance_event_svc
+        from app.utils.matching_service import _match_checks_to_bank
+
+        up = CheckUpload(file_name="seed", file_url="x")
+        db.add(up)
+        db.flush()
+        chk = Check(upload_id=up.id, check_no="7799001", vendor_code="320.99.08.0001",
+                    vendor_name="OTOMATCH TEST", due_date=d(2026, 7, 10), amount_tl=42000,
+                    currency="TL", amount_currency=42000, transaction_type="Verilen Çek",
+                    status="pending")
+        acc = BankAccount(bank_name="Match Test Bank", iban="TR990000000000000000000098",
+                          currency="TRY", is_active=True)
+        db.add_all([chk, acc])
+        db.flush()
+        finance_event_svc.upsert_check(db, chk)  # bekleyen çek FE'si (pending)
+        btx = BankTransaction(account_id=acc.id, date=d(2026, 7, 9), amount=-42000,
+                              type="expense", description="TAKAS 7799001 CEK ODEME",
+                              tx_hash="automatch-test-hash")
+        db.add(btx)
+        db.flush()
+
+        res = _match_checks_to_bank(db)
+        db.commit()
+        assert res["matched"] >= 1
+
+        fe = db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "check", FinanceEvent.source_id == chk.id
+        ).first()
+        assert fe.is_matched is True
+        assert fe.event_status == "paid", "Otomatik eşleşen çekin FE durumu 'paid' olmalı"
+        assert fe.event_date == d(2026, 7, 10)  # vadesinde kalır

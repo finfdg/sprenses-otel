@@ -346,3 +346,41 @@ describe('monthKeysToDateRange', () => {
 		expect(monthKeysToDateRange([])).toBeNull();
 	});
 });
+
+// ─── is_matched (ödenen çek) toplam-dışı bırakma ────────────
+describe('groupByMonth — is_matched bilgi satırları', () => {
+	it('eşleşmiş (ödenen) çek listede kalır ama gün/ay toplamına katılmaz', () => {
+		const items = [
+			makeItem({ id: 1, date: '2026-07-02', amount: 1000, type: 'expense', source: 'bank' }),
+			makeItem({ id: 2, date: '2026-07-02', amount: 1000, type: 'expense', source: 'check', is_matched: true, check_status: 'paid' }),
+		];
+		const result = groupByMonth(items);
+
+		expect(result[0].days[0].expenseItems).toHaveLength(2); // ikisi de görünür
+		expect(result[0].days[0].total_expense).toBe(1000);     // yalnız banka bacağı sayılır
+		expect(result[0].total_expense).toBe(1000);
+	});
+
+	it('eşleşmemiş bekleyen çek toplamda sayılmaya devam eder', () => {
+		const items = [
+			makeItem({ id: 1, date: '2026-07-05', amount: 500, type: 'expense', source: 'check', is_matched: false, check_status: 'pending' }),
+		];
+		const result = groupByMonth(items);
+		expect(result[0].total_expense).toBe(500);
+	});
+});
+
+describe('groupDaySourceItems — is_matched grup dışı', () => {
+	it('ödenen çek grup kartına ve grup toplamına girmez, tek başına gösterilir', () => {
+		const units = groupDaySourceItems([
+			makeItem({ id: 1, date: '2026-07-02', amount: 100, type: 'expense', source: 'check' }),
+			makeItem({ id: 2, date: '2026-07-02', amount: 200, type: 'expense', source: 'check' }),
+			makeItem({ id: 3, date: '2026-07-02', amount: 999, type: 'expense', source: 'check', is_matched: true, check_status: 'paid' }),
+		]);
+		const group = units.find((u) => u.kind === 'group') as any;
+		expect(group.count).toBe(2);          // yalnız bekleyen çekler
+		expect(group.totalTry).toBe(300);     // ödenen çek toplama girmedi
+		const singles = units.filter((u) => u.kind === 'item') as any[];
+		expect(singles.map((u) => u.item.id)).toContain(3);
+	});
+});

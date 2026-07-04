@@ -257,7 +257,9 @@
 				}
 			}
 
-			cashFlowCache.untaggedCount = items.filter(i => !i.category_id).length;
+			// Yalnız BANKA işlemleri etiketlenebilir — backend /tags/untagged-count ile aynı evren
+			// (çek/cari/kredi satırları kategorisizdir; hepsini saymak rozeti şişirir)
+			cashFlowCache.untaggedCount = items.filter(i => i.source === 'bank' && !i.category_id).length;
 			showToast(categoryId ? 'Etiket atandı' : 'Etiket kaldırıldı', 'success');
 
 			// EUR bakiyeleri güncelle (gün/ay başlıkları)

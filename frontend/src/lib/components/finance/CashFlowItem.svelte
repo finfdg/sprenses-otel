@@ -69,7 +69,7 @@
 	{@const isInteractive = item.source !== 'check' && item.source !== 'vendor_payment'}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
-		class="{item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-1.5 {isInteractive ? 'cursor-pointer' : ''}"
+		class="{item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-1.5 {isInteractive ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''}"
 		onclick={isInteractive ? handleTagClick : undefined}
 		onkeydown={isInteractive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTagClick(e as any); } } : undefined}
 		role={isInteractive ? 'button' : undefined}
@@ -78,6 +78,9 @@
 	>
 		<h4 class="font-semibold text-gray-800 text-[10px] leading-tight truncate">
 			{#if item.source === 'check'}📄 {:else if item.source === 'vendor_payment'}🏢 {/if}{item.description}
+			{#if item.source === 'check' && item.check_status === 'paid'}
+				<span class="text-[9px] font-medium text-emerald-600 bg-emerald-50 px-1 py-px rounded">Ödendi</span>
+			{/if}
 		</h4>
 		<div class="flex items-center justify-between mt-0.5 gap-1">
 			<span class="text-[10px] font-bold {amountColor}">{formatCompact(item.amount, item.currency)}</span>
@@ -116,7 +119,7 @@
 	{@const isInteractiveNarrow = item.source !== 'check' && item.source !== 'vendor_payment'}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
-		class="{item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-2 text-center {isInteractiveNarrow ? 'cursor-pointer' : ''}"
+		class="{item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-xl p-2 text-center {isInteractiveNarrow ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''}"
 		onclick={isInteractiveNarrow ? handleTagClick : undefined}
 		onkeydown={isInteractiveNarrow ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTagClick(e as any); } } : undefined}
 		role={isInteractiveNarrow ? 'button' : undefined}
@@ -152,7 +155,7 @@
 	<div class="group relative">
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 		<div
-			class="relative {item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-2xl {isExpense ? 'rounded-tr-sm' : 'rounded-tl-sm'} p-3 hover:shadow-md transition-shadow {isInteractiveFull ? 'cursor-pointer' : ''}"
+			class="relative {item.source === 'check' ? 'bg-orange-50 border-orange-200' : item.source === 'vendor_payment' ? 'bg-purple-50 border-purple-200' : item.source === 'cc_payment' ? 'bg-pink-50 border-pink-200' : item.source === 'credit' ? 'bg-indigo-50 border-indigo-200' : bgClass} border rounded-2xl {isExpense ? 'rounded-tr-sm' : 'rounded-tl-sm'} p-3 hover:shadow-md transition-shadow {isInteractiveFull ? 'cursor-pointer' : ''} {item.is_matched ? 'opacity-70' : ''}"
 			onclick={isInteractiveFull ? handleTagClick : undefined}
 			onkeydown={isInteractiveFull ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTagClick(e as any); } } : undefined}
 			role={isInteractiveFull ? 'button' : undefined}

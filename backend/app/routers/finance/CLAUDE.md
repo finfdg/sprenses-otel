@@ -555,6 +555,30 @@ finance_event_svc.unmatch(db, "check", check_id)
 
 Nakit akım sorgusu `WHERE is_matched = FALSE` ile sadece aktif kayıtları döner.
 
+**ÇEK İSTİSNASI (2026-07-03 kullanıcı isteği):** Ödenen (bankayla eşleşmiş) çekler listeden
+KALDIRILMAZ — `list_cash_flows` sorgusu `OR (source_type='check' AND event_status='paid')`
+ile bunları da döndürür; kayıt `is_matched=true` bayrağı taşır. Frontend bunları **toplamlara
+KATMAZ** (`groupByMonth` + `groupDaySourceItems` is_matched'i toplam/grup-dışı bırakır) ve
+"Ödendi" rozeti + soluk kartla bilgi amaçlı gösterir. Para hareketi banka bacağında sayılmaya
+devam eder (çift sayım korunur). **Çek FE'si artık HER ZAMAN vade tarihinde durur**
+(`upsert_check` display_date = due_date; eskiden eşleşince banka tarihine taşınıyordu —
+32 mevcut FE 2026-07-03'te vadeye geri çekildi). Test: `test_finance.py::TestPaidChecksVisible`
++ `finance.test.ts` is_matched testleri.
+
+**Denetim düzeltmeleri (2026-07-04, aynı özellik):**
+- `_match_checks_to_bank` (ekstre otomatik eşleştirme) match() sonrası artık
+  **`upsert_check(db, check, best_match)`** de çağırır — match() yalnız is_matched set
+  ediyordu, FE `event_status='pending'` kalınca ödenen çek listede görünmüyordu
+  (prod'da 41 çek; backfill ile checks tablosundan senkronlandı, toplam 101 ödenen çek
+  görünür oldu). Test: `test_auto_matcher_marks_fe_paid`.
+- `upsert_check` **is_matched fallback**: bank_tx parametresiz çağrılar (cari-çek
+  eşleştirmesi, banka tahmini) bankayla eşleşmiş çekin is_matched'ını False'a
+  düşürüyordu → **çift sayım** (prod'da 12 çek). Artık `check.bank_transaction_id`
+  doluysa da is_matched=True.
+- `nakit-akim/+page.svelte` etiket sonrası `untaggedCount`'ı yalnız `source==='bank'`
+  item'lardan sayar (backend `/tags/untagged-count` evreniyle aynı — çek/cari/kredi
+  satırları kategorisiz olduğundan rozeti şişiriyordu).
+
 **Kritik Kural:** `is_matched = True` **sadece çift sayım durumlarında** kullanılır:
 - Banka hareketi + Çek aynı para → çek `is_matched=True` (banka görünür)
 - Banka hareketi + Kredi ödemesi aynı para → kredi `is_matched=True`
