@@ -19,7 +19,7 @@
 	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
 	import DeptAssignModal from '$lib/components/finance/cariler/DeptAssignModal.svelte';
 	import AddToListModal from '$lib/components/finance/cariler/AddToListModal.svelte';
-	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, ChevronUp, Check, X, Calendar, Download, Pencil, Copy, User, Phone, Mail, Building2, MessageSquarePlus, StickyNote, ArrowLeft } from 'lucide-svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, Check, X, Calendar, Download, Pencil, Copy, User, StickyNote, ArrowLeft } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -60,8 +60,7 @@
 	// Sorting & filtering
 	let sortBy = $state<string | null>('hesap_adi');
 	let sortDir = $state<'asc' | 'desc'>('asc');
-	let hideZero = $state(false);
-	// Master-detail sol liste filtresi (tasarım çipleri)
+	// Master-detail sol liste filtresi (tasarım çipleri: Tümü / Vadesi Geçmiş / Bakiyeli)
 	let listFilter = $state<'all' | 'overdue' | 'balance'>('all');
 
 	// Vendor detail
@@ -452,28 +451,6 @@
 		} finally {
 			vendorsLoading = false;
 		}
-	}
-
-	function toggleSort(column: string) {
-		if (sortBy === column) {
-			if (sortDir === 'asc') {
-				sortDir = 'desc';
-			} else {
-				sortBy = null;
-				sortDir = 'asc';
-			}
-		} else {
-			sortBy = column;
-			sortDir = 'asc';
-		}
-		vendorPage = 1;
-		loadVendors();
-	}
-
-	function toggleHideZero() {
-		hideZero = !hideZero;
-		vendorPage = 1;
-		loadVendors();
 	}
 
 	// Master-detail: sol liste filtre çipleri (Tümü / Vadesi Geçmiş / Bakiyeli)

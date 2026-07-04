@@ -322,9 +322,18 @@ Sedna ile birebir). İleride periyodik DB↔Sedna bakiye mutabakatı bu sınıf 
 
 ---
 
-## Cari Detay — 3 Sekmeli Görünüm (2026-07-04, "Sprenses Tasarımlar")
+## Cariler — Master-Detail + 3 Sekmeli Detay (2026-07-04, "Sprenses Tasarımlar")
 
-Genişletilen cari detayı 3 sekmeye bölündü + üstte 3 özet kart.
+"Cariler" alt-görünümü **master-detail** düzeninde (tasarım): **sol** dar cari listesi
+(arama + filtre çipleri **Tümü / Vadesi Geçmiş / Bakiyeli** + vurgu-çubuklu kompakt satırlar:
+ad · bakiye · kod · durum/eşleşmemiş/vade), **sağ** seçili carinin detayı. Mobilde liste↔detay
+geçişli (detayda "Cari listesine dön"). Yükleme / Ödeme Planı / Ödeme Talimatı üst sekmeleri korunur.
+
+**"Vadesi Geçmiş" çipi** → `GET /vendors?overdue_only=true` (eşleşmemiş + geçmiş vadeli fatura
+toplamı > 0 olan cariler). **Bakiyeli** → `hide_zero=true`. Sağ panel başlığında **durum toggle** +
+**vade düzenle** satır-içi kontrolleri yer alır.
+
+Seçili carinin detayı 3 sekmeye bölünmüştür + üstte 3 özet kart.
 
 ### Özet kartlar
 - **Güncel Bakiye** (koyu lacivert kart) — `bakiye` (borç negatifse "ödenecek tutar" altın, aksi yeşil).

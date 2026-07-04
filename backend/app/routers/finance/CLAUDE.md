@@ -28,11 +28,17 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
   + `broadcast_finance_update(CARILER, "update")` uygulanır. **check_approval çağrılMAZ → executor
   handler GEREKMEZ** (`test_all_approval_callers_have_executor_handler` yeni endpoint'leri kapsamaz).
   Vade/durum (payment-days/status) onaya TABİ kalır (finansal); iletişim/not değil.
-- **Frontend (`cariler/+page.svelte`):** genişletilmiş cari detayı 3 sekmeye bölündü + 3 özet kart
-  (Güncel Bakiye koyu lacivert / Vadesi Geçmiş / Son Ödeme). Notlar sekmesi: textarea + ekle,
-  düzenle/sil/yapıldı, boş durum. Firma Bilgileri: iletişim formu (use) veya salt-okuma (viewer) +
-  Banka/IBAN listesi (her satırda **kopyala** butonu). Mevcut yükleme/eşleştirme/ödeme planı/
-  talimat görünümleri KORUNDU. Test: `tests/test_vendor_notes.py` (9).
+- **Frontend (`cariler/+page.svelte`) — MASTER-DETAIL (kullanıcı isteği 2026-07-04):** "Cariler"
+  alt-görünümü tasarımdaki gibi **sol dar liste + sağ detay** düzenine çevrildi (eski tam-genişlik
+  tablo + aç-kapa akordiyon kaldırıldı). SOL: arama + **filtre çipleri (Tümü / Vadesi Geçmiş /
+  Bakiyeli)** + vurgu-çubuklu kompakt satırlar (ad + bakiye + kod + durum/eşleşmemiş/vade). SAĞ:
+  seçili carinin başlığı (ad + kod + **durum toggle** + **vade düzenle**) + 3 özet kart (Güncel
+  Bakiye koyu lacivert / Vadesi Geçmiş / Son Ödeme) + 3 sekme. Mobilde liste↔detay geçişli
+  (detayda "Cari listesine dön"). Yükleme/Ödeme Planı/Ödeme Talimatı üst sekmeleri KORUNDU.
+  - **"Vadesi Geçmiş" çipi backend filtresi:** `GET /vendors?overdue_only=true` — eşleşmemiş
+    (`match_number IS NULL`) + `payment_due_date < bugün` fatura (alacak) toplamı > 0 olan cariler
+    (HAVING). `hide_zero` "Bakiyeli", filtresiz "Tümü". Test: `test_vendor_notes.py::test_list_overdue_only_filter`.
+- Detay sekmesi/notlar/firma bilgileri: `tests/test_vendor_notes.py` (11).
 
 ### 2) Nakit Akım "Faaliyet / Finansman" ayrımı (3a tasarımı) — T Hesap Cetveli
 

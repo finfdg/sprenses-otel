@@ -1,8 +1,10 @@
 """KMH (Kredili Mevduat Hesabı) faiz hesaplama servisi.
 
 KMH taksitli kredi gibi sabit ödeme planı tutmaz. Bağlı banka hesabının bakiyesi
-negatife düştüğünde "adat" (gün × bakiye) üzerinden faiz birikir, ay sonunda
-biriken faiz + BSMV + komisyon ödenir.
+negatife düştüğünde "adat" (gün × bakiye) üzerinden faiz birikir; banka bunu
+**ÇEYREKLİK** (üç ayda bir, çeyrek sonunda: 31 Mart / 30 Haziran / 30 Eylül / 31 Aralık)
+biriken faiz + BSMV + komisyon olarak hesaptan tahsil eder (kullanıcı kararı 2026-07-04;
+canlı QNB KMH faizi 30 Haziran'da ₺9.910 + BSMV olarak tek seferde çekildi).
 
 Algoritma:
   Adat        = SUM_over_each_day(|negatif_bakiye_o_gün|)
@@ -11,9 +13,14 @@ Algoritma:
   Komisyon    = Faiz × commission_rate / 100
   Toplam Borç = Faiz + BSMV + Komisyon
 
-Çoklu ay desteği: KMH başlangıcından bugüne kadar her ay için ayrı tahakkuk
-hesaplanır. Geçmiş aylar kapalı (gerçekleşen adat), mevcut ay projeksiyonlu
-(bugünkü borç ay sonuna kadar sürerse). Periods listesi ay ay döner.
+Çoklu çeyrek desteği: KMH başlangıcından bugüne kadar her ÇEYREK için ayrı tahakkuk
+hesaplanır. Geçmiş çeyrekler kapalı (gerçekleşen adat), mevcut çeyrek projeksiyonlu
+(bugünkü borç çeyrek sonuna kadar sürerse). Periods listesi çeyrek çeyrek döner.
+
+**Nakit akım (sync_kmh_to_finance_events):** yalnız MEVCUT çeyreğin projeksiyonu yansıtılır.
+Geçmiş çeyrekler bankaca zaten tahsil edildi (gerçek "Faiz Tahakkuku" banka hareketi asıl
+kaynak) → sistem projeksiyonu eklenirse ÇİFT SAYIM olur; bu yüzden geçmiş çeyrekler
+nakit akıma girmez. Gelecek çeyrekler yalnız KMH detay sayfasında tahmin olarak kalır.
 """
 
 import logging

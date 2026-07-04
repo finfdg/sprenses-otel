@@ -162,3 +162,37 @@ def test_detail_summary_metrics(client, auth_headers, db):
     assert detail["overdue_count"] == 1
     assert detail["last_payment_amount"] == 12000.0
     assert detail["last_payment_date"] == (today - timedelta(days=2)).isoformat()
+
+
+# ─── Liste overdue_only filtresi (master-detail "Vadesi Geçmiş" çipi) ─────
+
+def test_list_overdue_only_filter(client, auth_headers, db):
+    upload = VendorUpload(file_name="s.xlsx", file_url="/tmp/s.xlsx", uploaded_by=1,
+                          total_vendors=1, total_transactions=0, new_transactions=0,
+                          skipped_transactions=0)
+    db.add(upload)
+    db.flush()
+    today = date.today()
+    past = today - timedelta(days=5)
+    future = today + timedelta(days=30)
+    tag = uuid.uuid4().hex[:6]
+
+    # A: vadesi geçmiş eşleşmemiş fatura → overdue listesinde OLMALI
+    va = Vendor(hesap_kodu=f"320.OA.{tag}", hesap_adi="Overdue Cari")
+    db.add(va); db.flush()
+    db.add(VendorTransaction(vendor_id=va.id, upload_id=upload.id, date=past,
+                             borc=0, alacak=9000, payment_due_date=past,
+                             match_number=None, bakiye=0, tx_hash=uuid.uuid4().hex))
+    # B: yalnız gelecekte vadeli fatura → overdue listesinde OLMAMALI
+    vb = Vendor(hesap_kodu=f"320.OB.{tag}", hesap_adi="Guncel Cari")
+    db.add(vb); db.flush()
+    db.add(VendorTransaction(vendor_id=vb.id, upload_id=upload.id, date=today,
+                             borc=0, alacak=5000, payment_due_date=future,
+                             match_number=None, bakiye=0, tx_hash=uuid.uuid4().hex))
+    db.commit()
+
+    r = client.get("/api/finance/cariler/vendors?overdue_only=true&page_size=500", headers=auth_headers)
+    assert r.status_code == 200
+    codes = {it["hesap_kodu"] for it in r.json()["items"]}
+    assert f"320.OA.{tag}" in codes
+    assert f"320.OB.{tag}" not in codes

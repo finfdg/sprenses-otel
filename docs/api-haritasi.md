@@ -77,6 +77,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `DELETE /api/finance/cariler/uploads/{id}` — Yükleme sil
 - `POST /api/finance/cariler/transactions/bulk-delete` — Toplu işlem silme (kaynakta olmayan kayıtlar için; korumalı kayıtlar atlanır)
 - `GET /api/finance/cariler/vendors` — Cari listesi (paginated, arama)
+- `GET /api/finance/cariler/vendors` — Cari listesi (paginated, arama, `sort_by`/`sort_dir`, `hide_zero`, **`overdue_only`** = yalnız vadesi geçmiş eşleşmemiş faturalı cariler — master-detail "Vadesi Geçmiş" çipi)
 - `GET /api/finance/cariler/vendors/{id}` — Cari detay + işlemler (+ `contact_person/phone/email` + özet metrikler `overdue`/`overdue_count`/`last_payment_amount`/`last_payment_date`)
 - `PATCH /api/finance/cariler/vendors/{id}/contact` — **Firma iletişim** (yetkili/telefon/e-posta) güncelle. Finansal etkisi yok → **onaydan muaf** (use + audit + broadcast)
 - `GET/POST /api/finance/cariler/vendors/{id}/notes` · `PATCH/DELETE /api/finance/cariler/vendors/{id}/notes/{note_id}` — **Cari notları** (görüşme/takip; ekle/düzenle/sil/`done` toggle). Onaydan muaf; use + audit (`vendor_note`) + broadcast
