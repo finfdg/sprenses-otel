@@ -248,8 +248,10 @@ planlaması eksik kalmaz.
     ay giderine **DAHİL** (nakit bakiye/projeksiyon bunu düşer).
   - **İleri aylar** (12 ay ufuk) → tutar = **0**; yalnız kesim + son ödeme tarih göstergesi.
   - Gerçek (yüklü) ekstresi olan due-ay atlanır — ekstre yüklenince projeksiyon otomatik kaybolur (WS).
-- **Kesim günü "Ekstre yükleyin" hatırlatıcısı (`projection_kind='cut'`):** her projeksiyon ayının
-  hesap kesim gününde amber "↑ Ekstre yükleyin" uyarısı (tutar 0). Son ödeme kalemi ayrı (`'due'`).
+- **"Ekstre yükleyin" günlük hatırlatıcısı (`projection_kind='cut'`):** YALNIZ **cari ayda**, kesim
+  gününden (veya bugünden) son ödeme gününe kadar **her gün** amber "↑ Ekstre yükleyin" (tutar 0).
+  Ekstre yüklenince o ay komple atlanır → hatırlatıcı kaybolur; ileri aylarda çıkmaz. Son ödeme
+  kalemi ayrı (`'due'`).
 - **Kesim/son-ödeme günü:** en son yüklü ekstreden türetilir (yoksa kart `details`); ay-uzunluğuna
   kırpılır; son ödeme günü kesimden küçükse ödeme sonraki aya taşar.
 - **Kart limiti:** `CreditProduct.total_amount` (Garanti 100K, QNB 2M, VakıfBank 980K, YK 500K,

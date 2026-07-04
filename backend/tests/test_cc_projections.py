@@ -61,16 +61,34 @@ class TestCcProjectionService:
         assert due[1]["date"] == "2026-08-15"
         assert due[2]["amount"] == 0.0 and due[2]["date"] == "2026-09-15"
 
-    def test_cut_reminder_on_kesim_date(self, db):
-        # Her projeksiyon ayı için kesim günü "Ekstre yükleyin" hatırlatıcısı (tutar 0)
+    def test_cut_reminder_daily_current_month_only(self, db):
+        # Kesim 10, son ödeme 15, bugün 07-04 → hatırlatıcı 07-10..07-15 HER GÜN (6 kalem),
+        # YALNIZ cari ay (ileri aylarda kesim hatırlatıcısı yok)
         c = _card(db, limit=100000.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
+        cut = _cut(compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=3), c.id)
+        dates = sorted(p["date"] for p in cut)
+        assert dates == ["2026-07-10", "2026-07-11", "2026-07-12", "2026-07-13", "2026-07-14", "2026-07-15"]
+        assert all(p["amount"] == 0.0 and p["son_odeme_date"] == "2026-07-15" for p in cut)
+        assert all(p["date"][:7] == "2026-07" for p in cut)  # ileri aylarda YOK
+
+    def test_cut_reminder_starts_today_if_cut_passed(self, db):
+        # Bugün kesimden sonra (07-12), son ödeme 15 → hatırlatıcı bugünden (07-12) 07-15'e (4 gün)
+        c = _card(db, limit=100000.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
+        cut = _cut(compute_cc_projections(db, today=date(2026, 7, 12), horizon_months=1), c.id)
+        assert sorted(p["date"] for p in cut) == ["2026-07-12", "2026-07-13", "2026-07-14", "2026-07-15"]
+
+    def test_cut_reminder_none_after_due(self, db):
+        # Bugün son ödemeyi geçmiş (07-20 > 15) → "Ekstre yükleyin" hatırlatıcısı YOK
+        c = _card(db, limit=100000.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
+        cut = _cut(compute_cc_projections(db, today=date(2026, 7, 20), horizon_months=1), c.id)
+        assert cut == []
+
+    def test_cut_reminder_gone_when_statement_uploaded(self, db):
+        # Cari ay ekstresi yüklüyse o ay komple atlanır → kesim hatırlatıcısı da çıkmaz
+        c = _card(db, limit=100000.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})
+        _stmt(db, c, kesim=date(2026, 7, 9), son_odeme=date(2026, 7, 15))
         proj = compute_cc_projections(db, today=date(2026, 7, 4), horizon_months=2)
-        cut = _cut(proj, c.id)
-        assert len(cut) == 2
-        assert cut[0]["date"] == "2026-07-10"           # kesim günü
-        assert cut[0]["son_odeme_date"] == "2026-07-15"  # son ödeme ayrı alanda
-        assert cut[0]["amount"] == 0.0                   # hatırlatıcı — tutar yok
-        assert cut[0]["projection_kind"] == "cut"
+        assert _cut(proj, c.id) == []
 
     def test_derives_days_from_latest_statement(self, db):
         # details 10/15 ama EN SON ekstre 9/14 → ekstreden türetilir
@@ -119,8 +137,9 @@ class TestCcProjectionService:
         due = _due(proj, c.id)
         assert due[0]["date"] == "2026-07-05"       # due-ay Temmuz
         assert due[0]["kesim_date"] == "2026-06-26"  # kesim bir önceki ay
-        # kesim (06-26) cari aydan ÖNCE → "Ekstre yükleyin" hatırlatıcısı geçmiş aya düşmez
-        assert _cut(proj, c.id) == []
+        # kesim geçen ay (06-26) ama son ödeme bu ay (07-05) → hatırlatıcı bugünden (07-04)
+        # son ödemeye (07-05) kadar cari ayda çıkar (geçmiş aya düşmez, bugünden başlar)
+        assert sorted(p["date"] for p in _cut(proj, c.id)) == ["2026-07-04", "2026-07-05"]
 
     def test_current_month_zero_when_no_limit(self, db):
         c = _card(db, limit=0.0, details={"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15})

@@ -10,6 +10,9 @@ Kural (kullanıcı kararı 2026-07-04):
   senaryo rezervi; nakit planlamasında ayın giderine dahil (kullanıcı: "borç olarak yaz").
 - **İleri aylar** → tutar = **0** (yalnız kesim + son ödeme tarihi göstergesi).
 - Gerçek (yüklü) ekstresi olan due-ay atlanır — mevcut `upsert_cc_statement` mekanizması gösterir.
+- **Kesim "Ekstre yükleyin" hatırlatıcısı (`projection_kind='cut'`):** YALNIZ cari ayda; kesim
+  gününden (veya bugünden, sonraysa) son ödeme gününe kadar HER GÜN bir kalem (tutar 0). Ekstre
+  yüklenince o ay komple atlanır → hatırlatıcı da kaybolur. İleri aylarda hatırlatıcı YOK.
 - Yalnız **aktif** kredi kartları (`type='kredi_karti'`, `status='active'`).
 
 Bu servis router'dan import ETMEZ (services/ → model, tek yön). Router (`cc_projections.py`)
@@ -18,7 +21,7 @@ bu fonksiyonu çağırır.
 
 import calendar
 import json
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -124,7 +127,6 @@ def compute_cc_projections(db: Session, today: Optional[date] = None,
     """Tüm aktif kredi kartları için tahmini ekstre kalemleri (yüklü olmayan aylar)."""
     if today is None:
         today = date.today()
-    month_start = date(today.year, today.month, 1)
 
     cards = (
         db.query(CreditProduct)
@@ -165,14 +167,19 @@ def compute_cc_projections(db: Session, today: Optional[date] = None,
                 son_odeme_date=due_date, amount=amount, is_current=is_current,
                 has_limit=has_limit, seq=i,
             ))
-            # Hesap kesim günü "Ekstre yükleyin" hatırlatıcısı (tutar 0). offset=1 kartta
-            # kesim önceki ay olabilir → geçmiş aya düşen hatırlatıcı eklenmez.
-            if cut_date >= month_start:
-                out.append(_projection_item(
-                    card, kind="cut", event_date=cut_date, kesim_date=cut_date,
-                    son_odeme_date=due_date, amount=0.0, is_current=is_current,
-                    has_limit=has_limit, seq=i,
-                ))
+            # "Ekstre yükleyin" GÜNLÜK hatırlatıcı — YALNIZ cari ayda (kullanıcı isteği
+            # 2026-07-04): kesim gününden (veya bugünden, hangisi sonraysa) son ödeme gününe
+            # kadar HER GÜN bir kalem. Ekstre yüklenince o ay `real_due`'ya girip komple
+            # atlanır → hatırlatıcı da otomatik kaybolur. İleri aylarda hatırlatıcı ÜRETİLMEZ.
+            if is_current:
+                d = max(cut_date, today)
+                while d <= due_date:
+                    out.append(_projection_item(
+                        card, kind="cut", event_date=d, kesim_date=cut_date,
+                        son_odeme_date=due_date, amount=0.0, is_current=True,
+                        has_limit=has_limit, seq=d.day,
+                    ))
+                    d += timedelta(days=1)
 
     return out
 

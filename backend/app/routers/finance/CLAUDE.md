@@ -367,11 +367,13 @@ günü kesimden küçükse ödeme sonraki aya taşar). Ekstre yoksa `details.eks
 (31 → Şubat'ta 28/29).
 
 **İKİ kalem türü (`projection_kind`):**
-- **`due`** — son ödeme kalemi (tarih=son ödeme; tutar=limit[cari ay]/0[ileri]).
-- **`cut`** — hesap **kesim günü "Ekstre yükleyin" hatırlatıcısı** (tarih=kesim; tutar=**0**;
-  kullanıcı isteği 2026-07-04). Her projeksiyon ayı için üretilir; `offset=1` kartta kesim önceki
-  aya düşerse (geçmiş) o hatırlatıcı **eklenmez** (`cut_date >= ay başı` şartı). Frontend'de
-  amber "↑ Ekstre yükleyin" rozeti + tutarsız gösterilir.
+- **`due`** — son ödeme kalemi (tarih=son ödeme; tutar=limit[cari ay]/0[ileri]). 12 ay üretilir.
+- **`cut`** — **"Ekstre yükleyin" GÜNLÜK hatırlatıcısı** (tutar=**0**; kullanıcı isteği 2026-07-04):
+  **YALNIZ cari ayda**, kesim gününden (veya bugünden, hangisi sonraysa) son ödeme gününe kadar
+  **HER GÜN** bir kalem (`event_date=o gün`, `kesim_date`/`son_odeme_date` sabit; `id` = 910M+card*
+  1000+gün). Son ödeme geçince biter; **ekstre yüklenince** o ay `real_due`'ya girip komple atlanır
+  → hatırlatıcı da kaybolur. **İleri aylarda kesim hatırlatıcısı YOK.** Frontend'de amber
+  "↑ Ekstre yükleyin" (tutarsız).
 
 **Kalem şekli:** Frontend `CashFlowItem` ile uyumlu (source=`cc_payment`, `is_projected: true`,
 `projection_kind`, `is_current_month`, `kesim_date`, `son_odeme_date`, `has_limit`; sentetik
