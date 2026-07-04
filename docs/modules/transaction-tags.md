@@ -101,6 +101,28 @@ Bu sayede nakit akım raporunda kategori bazlı gruplama yapılabilir.
 
 ---
 
+## Virman / Döviz Satım Karşı Bacak Eşleme — Kur-Duyarlı (2026-07-03 düzeltmesi)
+
+`Virman` ve `Döviz Satım` etiketlerinde karşı banka bacağı otomatik bulunup aynı
+`match_number` ile etiketlenir (`transaction_tags._find_pair_counterpart`):
+
+- **Virman:** karşı bacak yalnız **AYNI para birimli** hesaplarda aranır — tutar
+  birebir, yoksa ±%2 (en yakın tutarlı aday seçilir).
+- **Döviz Satım:** bacaklar **FARKLI para birimli** hesaplardadır (ör. EUR çıkış ↔ TL
+  giriş) — ham tutarlar karşılaştırılamaz. İki bacağın **TL değeri** (o günün TCMB
+  `forex_selling` kuru; TL bacak ×1) **±%5** içinde eşleşmelidir; aynı birimdeki
+  hareketler aday bile olamaz. Kur kaydı yoksa **eşleme yapılmaz** (yanlış eşlemektense
+  yalnız seçilen işlem etiketlenir).
+- **Neden (canlı hata, 02.07.2026):** eski mantık kur gözetmeden aynı tarihte ±%2 ham
+  tutar arıyordu → €36.428,78 döviz satışına, gerçek TL bacağı (₺1.939.941,82) yerine
+  aynı EUR hesaba aynı gün gelen €36.781,33'lük acente havalesi (TRAVE) eşlendi (#481).
+  TL bacağı ham tutarda hiçbir zaman bulunamazdı. Yanlış kayıt elle düzeltildi (#482).
+- Test: `test_transaction_tags.py` — `test_virman_pairs_same_currency_only`,
+  `test_doviz_satim_pairs_cross_currency_leg` (canlı vakayı birebir üretir),
+  `test_doviz_satim_without_rate_does_not_pair`.
+
+---
+
 ## Otomatik Etiketleme Kuralları
 
 `run_auto_tag()` fonksiyonu şu kurallara göre çalışır:

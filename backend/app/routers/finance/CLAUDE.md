@@ -216,6 +216,18 @@ Tahsilat → Kalan Hak Ediş (eski Net Açık) → Vadesi Geçen (+gecikme rozet
 **Ay Sonu Plan** (`monthly_due`: ay içi vadesi dolan + kümülatif; gecikmiş geçmiş aylar
 kümülatife devreder; satırda ilk 3 ay, detayda tam tablo). Test: `TestOrganizedRowFields` (3).
 
+## Virman/Döviz Satım Pair — Kur-Duyarlı Eşleme (2026-07-03 düzeltmesi)
+
+`tag_transaction`'daki karşı-bacak araması kur gözetmiyordu (aynı tarih + ±%2 HAM tutar):
+€36.428,78 döviz satışına TL bacağı (₺1,94M) yerine aynı gün aynı EUR hesaba gelen
+€36.781,33 acente havalesi eşlendi (canlı hata #481, elle #482'ye düzeltildi).
+Yeni `_find_pair_counterpart`: **Virman** = yalnız AYNI birimli hesaplar (birebir → ±%2,
+en yakın aday); **Döviz Satım** = yalnız FARKLI birimli hesaplar + iki bacağın TL değeri
+(TCMB forex_selling, o gün) ±%5 (`FX_PAIR_TOLERANCE`) — kur yoksa eşleme YAPILMAZ.
+Test: `test_transaction_tags.py` (3 yeni). Detay: `docs/modules/transaction-tags.md`.
+
+---
+
 ## Denetim Sonrası İyileştirmeler (2026-06-19)
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:

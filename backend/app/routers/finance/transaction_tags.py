@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
+from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
+from app.models.exchange_rate import ExchangeRate
 from app.models.transaction_category import TransactionCategory
 from app.models.user import User
 from app.models.vendor import Vendor
@@ -34,7 +36,93 @@ from app.utils.finance_helpers import MIN_DATE, validate_category
 # Eşleştirme numarası ve ödeme yöntemi seçimi gerektiren kategoriler
 CATEGORIES_WITH_MATCH = {"Cari", "Personel", "Vergi/SGK", "Kira", "Elektrik Faturası", "Su Faturası", "Aidat", "İade"}
 
+# Karşı banka bacağı otomatik eşlenen kategoriler
+CATEGORIES_AUTO_PAIR = {"Virman", "Döviz Satım"}
+
+# Döviz Satım bacak eşlemesinde TL-değeri toleransı — banka müşteri kuru TCMB
+# forex_selling'den birkaç puan sapabilir (canlı örnek: banka 53,253 ↔ TCMB ~53,4)
+FX_PAIR_TOLERANCE = 0.05
+
 router = APIRouter()
+
+
+def _norm_currency(cur: Optional[str]) -> str:
+    c = (cur or "TRY").strip().upper()
+    return "TRY" if c in ("TL", "TRY") else c
+
+
+def _rate_for(db: Session, currency: str, on_date) -> Optional[float]:
+    """Para biriminin TL kuru — o tarihteki (veya öncesindeki son) TCMB forex_selling."""
+    cur = _norm_currency(currency)
+    if cur == "TRY":
+        return 1.0
+    r = (
+        db.query(ExchangeRate)
+        .filter(ExchangeRate.currency_code == cur, ExchangeRate.date <= on_date)
+        .order_by(ExchangeRate.date.desc())
+        .first()
+    )
+    if not r or not r.forex_selling:
+        return None
+    unit = float(r.unit or 1) or 1
+    return float(r.forex_selling) / unit
+
+
+def _find_pair_counterpart(db: Session, tx: BankTransaction, cat_name: str) -> Optional[BankTransaction]:
+    """Virman / Döviz Satım karşı banka bacağını bul.
+
+    - **Virman:** AYNI para birimli hesaplar arası — tutar birebir, yoksa ±%2.
+    - **Döviz Satım:** bacaklar FARKLI para birimli hesaplardadır (ör. EUR çıkış ↔ TL
+      giriş); ham tutarlar karşılaştırılamaz — iki bacağın TL değeri TCMB kuruyla
+      ±%5 içinde eşleşmelidir. (2026-07-03 bulgusu: kur gözetmeyen eski ±%2 ham-tutar
+      araması, €36.428 satışına gerçek TL bacağı (₺1,94M) yerine aynı gün gelen
+      €36.781'lik acente havalesini eşledi — TL bacağı ham tutarda asla bulunamazdı.)
+    Birden çok aday varsa tutarı en yakın olan seçilir (.first() keyfîliği yerine).
+    """
+    opposite_type = "income" if tx.type == "expense" else "expense"
+    candidates = (
+        db.query(BankTransaction)
+        .filter(
+            BankTransaction.date == tx.date,
+            BankTransaction.type == opposite_type,
+            BankTransaction.id != tx.id,
+            BankTransaction.category_id.is_(None),
+        )
+        .all()
+    )
+    if not candidates:
+        return None
+
+    acc_cur = {a.id: _norm_currency(a.currency) for a in db.query(BankAccount).all()}
+    tx_cur = acc_cur.get(tx.account_id, "TRY")
+    amt = abs(float(tx.amount))
+
+    if cat_name == "Virman":
+        same_cur = [c for c in candidates if acc_cur.get(c.account_id, "TRY") == tx_cur]
+        exact = [c for c in same_cur if abs(abs(float(c.amount)) - amt) < 0.01]
+        if exact:
+            return exact[0]
+        close = [c for c in same_cur if amt * 0.98 <= abs(float(c.amount)) <= amt * 1.02]
+        return min(close, key=lambda c: abs(abs(float(c.amount)) - amt)) if close else None
+
+    # Döviz Satım — karşı bacak FARKLI para birimli hesapta, TL-değeri kurla eşleşmeli
+    tx_rate = _rate_for(db, tx_cur, tx.date)
+    if tx_rate is None or amt <= 0:
+        return None
+    tx_tl_value = amt * tx_rate
+    best = None
+    best_diff = None
+    for c in candidates:
+        c_cur = acc_cur.get(c.account_id, "TRY")
+        if c_cur == tx_cur:
+            continue  # aynı birimdeki hareket döviz bozma bacağı olamaz (TRAVE vakası)
+        c_rate = _rate_for(db, c_cur, tx.date)
+        if c_rate is None:
+            continue
+        diff = abs(abs(float(c.amount)) * c_rate - tx_tl_value) / tx_tl_value
+        if diff <= FX_PAIR_TOLERANCE and (best_diff is None or diff < best_diff):
+            best, best_diff = c, diff
+    return best
 
 
 @router.get("/tags/categories")
@@ -232,36 +320,10 @@ def tag_transaction(
                 vendor_tx.payment_method = data.payment_method
 
     # Virman / Döviz Satım: karşı taraftaki işlemi de otomatik etiketle
-    CATEGORIES_AUTO_PAIR = {"Virman", "Döviz Satım"}
+    # (kur-duyarlı arama — Virman aynı birim, Döviz Satım farklı birim + TCMB TL-değeri)
     counterpart = None
     if cat_name and cat_name in CATEGORIES_AUTO_PAIR:
-        opposite_type = "income" if tx.type == "expense" else "expense"
-        counterpart = (
-            db.query(BankTransaction)
-            .filter(
-                BankTransaction.date == tx.date,
-                BankTransaction.type == opposite_type,
-                func.abs(BankTransaction.amount) == func.abs(tx.amount),
-                BankTransaction.id != tx.id,
-                BankTransaction.category_id.is_(None),
-            )
-            .first()
-        )
-        if not counterpart:
-            # Tutam tam eşleşmiyorsa %2 toleransla ara
-            amt = abs(float(tx.amount))
-            counterpart = (
-                db.query(BankTransaction)
-                .filter(
-                    BankTransaction.date == tx.date,
-                    BankTransaction.type == opposite_type,
-                    func.abs(BankTransaction.amount) >= amt * 0.98,
-                    func.abs(BankTransaction.amount) <= amt * 1.02,
-                    BankTransaction.id != tx.id,
-                    BankTransaction.category_id.is_(None),
-                )
-                .first()
-            )
+        counterpart = _find_pair_counterpart(db, tx, cat_name)
         if counterpart:
             if not match_number:
                 match_number = _next_match_number(db)

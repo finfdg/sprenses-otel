@@ -328,3 +328,79 @@ def test_payment_methods_list(client, auth_headers):
     assert isinstance(data, dict)
     # En azından bir ödeme yöntemi olmalı
     assert len(data) > 0
+
+# ─── Virman / Döviz Satım karşı bacak eşleme (2026-07-03 düzeltmesi) ──────
+
+
+def test_virman_pairs_same_currency_only(client, auth_headers, db):
+    """Virman: karşı bacak AYNI para birimli hesapta aranır — başka birimdeki
+    hesapta duran eşit SAYILI işlem eşlenmez."""
+    tl1 = _seed_account(db)
+    tl2 = _seed_account(db, iban="TR000000000000000000000002")
+    eur = _seed_account(db, iban="TR000000000000000000000003", currency="EUR")
+    cat = _seed_category(db, name="Virman")
+    out_tx = _seed_tx(db, tl1.id, amount=Decimal("-5000"), type="expense", seq=1)
+    decoy = _seed_tx(db, eur.id, amount=Decimal("5000"), type="income", seq=2)
+    leg = _seed_tx(db, tl2.id, amount=Decimal("5000"), type="income", seq=3)
+    db.commit()
+
+    r = client.patch(f"{PREFIX}/transactions/{out_tx.id}", headers=auth_headers,
+                     json={"category_id": cat.id, "tag_note": None, "vendor_id": None})
+    assert r.status_code == 200, r.text
+    assert r.json()["paired_tx_id"] == leg.id
+    db.expire_all()
+    assert db.query(BankTransaction).filter_by(id=leg.id).first().category_id == cat.id
+    assert db.query(BankTransaction).filter_by(id=decoy.id).first().category_id is None
+
+
+def test_doviz_satim_pairs_cross_currency_leg(client, auth_headers, db):
+    """Döviz Satım (canlı vaka 2026-07-03): €36.428,78 satış bacağına, aynı gün
+    AYNI EUR hesaba gelen yakın tutarlı acente havalesi DEĞİL, farklı birimdeki
+    (TL) kur-uyumlu bacak (₺1.939.941,82 ≈ €36.428,78 × 53,25) eşlenmelidir.
+    Eski ham-tutar ±%2 araması havaleyi eşliyordu."""
+    from app.models.exchange_rate import ExchangeRate
+
+    eur_acc = _seed_account(db, iban="TR000000000000000000000004", currency="EUR")
+    tl_acc = _seed_account(db, iban="TR000000000000000000000005")
+    cat = _seed_category(db, name="Döviz Satım")
+    db.query(ExchangeRate).filter(ExchangeRate.currency_code == "EUR").delete()
+    db.add(ExchangeRate(currency_code="EUR", date=date(2026, 4, 1), unit=1,
+                        forex_buying=53.0, forex_selling=53.4))
+    db.flush()
+    sell = _seed_tx(db, eur_acc.id, amount=Decimal("-36428.78"), type="expense", seq=1)
+    havale = _seed_tx(db, eur_acc.id, amount=Decimal("36781.33"), type="income", seq=2)
+    tl_leg = _seed_tx(db, tl_acc.id, amount=Decimal("1939941.82"), type="income", seq=3)
+    db.commit()
+
+    r = client.patch(f"{PREFIX}/transactions/{sell.id}", headers=auth_headers,
+                     json={"category_id": cat.id, "tag_note": None, "vendor_id": None})
+    assert r.status_code == 200, r.text
+    assert r.json()["paired_tx_id"] == tl_leg.id
+    db.expire_all()
+    assert db.query(BankTransaction).filter_by(id=tl_leg.id).first().category_id == cat.id
+    assert db.query(BankTransaction).filter_by(id=havale.id).first().category_id is None
+    mn = db.query(BankTransaction).filter_by(id=sell.id).first().match_number
+    assert mn is not None
+    assert db.query(BankTransaction).filter_by(id=tl_leg.id).first().match_number == mn
+
+
+def test_doviz_satim_without_rate_does_not_pair(client, auth_headers, db):
+    """Kur kaydı yoksa Döviz Satım karşı bacağı eşlenmez — yanlış eşlemektense
+    yalnız seçilen işlem etiketlenir."""
+    from app.models.exchange_rate import ExchangeRate
+
+    usd_acc = _seed_account(db, iban="TR000000000000000000000006", currency="USD")
+    tl_acc = _seed_account(db, iban="TR000000000000000000000007")
+    cat = _seed_category(db, name="Döviz Satım")
+    db.query(ExchangeRate).filter(ExchangeRate.currency_code == "USD").delete()
+    db.flush()
+    sell = _seed_tx(db, usd_acc.id, amount=Decimal("-1000"), type="expense", seq=1)
+    _seed_tx(db, tl_acc.id, amount=Decimal("41000"), type="income", seq=2)
+    db.commit()
+
+    r = client.patch(f"{PREFIX}/transactions/{sell.id}", headers=auth_headers,
+                     json={"category_id": cat.id, "tag_note": None, "vendor_id": None})
+    assert r.status_code == 200, r.text
+    assert r.json()["paired_tx_id"] is None
+    db.expire_all()
+    assert db.query(BankTransaction).filter_by(id=sell.id).first().category_id == cat.id
