@@ -1052,6 +1052,19 @@
 			</div>
 		{/if}
 
+		{#if sourceType !== 'salary' && sourceType !== 'sgk' && sourceType !== 'withholding'}
+			<div>
+				<label class="flex items-start gap-2 cursor-pointer">
+					<input type="checkbox" bind:checked={form.pay_next_month}
+						class="mt-0.5 w-4 h-4 rounded border-gray-300 accent-teal-700 focus:ring-teal-500 cursor-pointer" />
+					<span class="text-sm text-gray-700">
+						Ödeme bir sonraki ay yapılır
+						<span class="block text-[11px] text-gray-500">Dönemin ödemesi bir sonraki ayın ödeme gününde yapılır (ör. Ocak dönemi → 10 Şubat).</span>
+					</span>
+				</label>
+			</div>
+		{/if}
+
 		<div>
 			<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">Notlar</label>
 			<Textarea id="notes" bind:value={form.notes} rows={2} placeholder="İsteğe bağlı notlar" />
