@@ -20,6 +20,23 @@ export interface VendorDetail {
 	total_borc: number;
 	total_alacak: number;
 	bakiye: number;
+	contact_person: string | null;
+	phone: string | null;
+	email: string | null;
+	overdue: number;
+	overdue_count: number;
+	last_payment_amount: number | null;
+	last_payment_date: string | null;
+}
+
+export interface VendorNote {
+	id: number;
+	vendor_id: number;
+	text: string;
+	author_name: string | null;
+	done: boolean;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface VendorTransaction {

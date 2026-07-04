@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import type {
 		Vendor, VendorDetail, VendorTransaction, VendorUpload,
-		VendorUploadResult, WeeklyPaymentGroup, RemovalCandidate, BulkDeleteResult
+		VendorUploadResult, WeeklyPaymentGroup, RemovalCandidate, BulkDeleteResult, VendorNote
 	} from '$lib/types/vendor';
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
@@ -19,7 +19,7 @@
 	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
 	import DeptAssignModal from '$lib/components/finance/cariler/DeptAssignModal.svelte';
 	import AddToListModal from '$lib/components/finance/cariler/AddToListModal.svelte';
-	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, ChevronUp, Check, X, Calendar, Download } from 'lucide-svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, ChevronUp, Check, X, Calendar, Download, Pencil, Copy, User, Phone, Mail, Building2, MessageSquarePlus, StickyNote } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -74,8 +74,21 @@
 	// Summary
 	let summary = $state<{ total_borc: number; total_alacak: number; bakiye: number; vendor_count: number; negative_count: number; negative_total: number } | null>(null);
 
-	// Vendor detail tabs
-	let detailTab = $state<'transactions' | 'bank'>('transactions');
+	// Vendor detail tabs (tasarım: Hesap Hareketleri / Notlar / Firma Bilgileri)
+	let detailTab = $state<'transactions' | 'notes' | 'contact'>('transactions');
+
+	// Notlar
+	let vendorNotes = $state<VendorNote[]>([]);
+	let notesLoading = $state(false);
+	let noteDraft = $state('');
+	let noteSaving = $state(false);
+	let editingNoteId = $state<number | null>(null);
+	let editingNoteText = $state('');
+
+	// Firma iletişim bilgileri
+	let contactForm = $state({ contact_person: '', phone: '', email: '' });
+	let contactSaving = $state(false);
+	let copiedIban = $state<string | null>(null);
 
 	// Bank transactions linked to vendor
 	interface BankTx {
