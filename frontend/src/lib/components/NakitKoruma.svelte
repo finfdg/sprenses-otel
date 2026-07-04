@@ -53,6 +53,10 @@
 	function dayNum(iso: string): number {
 		return Number(iso.split('-')[2]);
 	}
+	// Üye detay adını sadeleştir: baştaki "[Maaş] "/"[Taksitli Kredi] " ön ekini at
+	function cleanName(name: string): string {
+		return name.replace(/^\[[^\]]*\]\s*/, '');
+	}
 
 	// Projeksiyon — dates (erteleme) değişince canlı yeniden hesaplanır
 	const proj = $derived.by(() => {
@@ -86,9 +90,9 @@
 		const negative = firstNeg !== null;
 		const defCount = effOut.filter((o) => o.changed).length;
 
-		// Aynı GÜN + aynı KAYNAK türündeki ödemeleri akordiyon başlık altında grupla
-		// (Nakit Akım sayfasındaki gruplama deseni). 2+ üye → grup; tekse düz satır.
-		// Grup toptan ertelenir (tek tarih seçici tüm üyeleri taşır).
+		// Her ödemeyi GÜN + KAYNAK türü bazında sade başlık altında grupla (tek üye olsa
+		// da — çek/kredi/maaş/SGK hepsi düzenli başlık altında). Grup toptan ertelenir
+		// (tek tarih seçici tüm üyeleri taşır); verbose ad detayda (aç/kapa) gösterilir.
 		type EffOut = (typeof effOut)[number];
 		const groupsMap = new Map<string, EffOut[]>();
 		for (const o of effOut) {
@@ -96,36 +100,28 @@
 			const arr = groupsMap.get(key);
 			if (arr) arr.push(o); else groupsMap.set(key, [o]);
 		}
-		type Unit =
-			| { kind: 'single'; out: EffOut; total: number }
-			| { kind: 'group'; key: string; label: string; day: string; members: EffOut[]; memberIds: string[]; total: number; effIso: string; effDay: number | null; changed: boolean };
+		type Unit = { key: string; label: string; day: string; members: EffOut[]; memberIds: string[]; total: number; effIso: string; effDay: number | null; changed: boolean };
 		const units: Unit[] = [];
 		for (const [key, members] of groupsMap) {
-			const total = members.reduce((s, m) => s + m.amount_eur, 0);
-			if (members.length >= 2) {
-				const first = members[0];
-				units.push({
-					kind: 'group', key, label: SRC_LABELS[first.source_type ?? ''] ?? first.name,
-					day: first.date, members, memberIds: members.map((m) => m.id),
-					total, effIso: first.effIso, effDay: first.effDay,
-					changed: members.some((m) => m.changed),
-				});
-			} else {
-				units.push({ kind: 'single', out: members[0], total });
-			}
+			const first = members[0];
+			units.push({
+				key, label: SRC_LABELS[first.source_type ?? ''] ?? cleanName(first.name),
+				day: first.date, members, memberIds: members.map((m) => m.id),
+				total: members.reduce((s, m) => s + m.amount_eur, 0),
+				effIso: first.effIso, effDay: first.effDay,
+				changed: members.some((m) => m.changed),
+			});
 		}
 
-		// Eğri TÜM ödemeleri kullanır; liste en büyük N ünite gösterir (gerçek veride
-		// yüzlerce küçük ödeme olabilir). Ertelenmiş olanlar tutarı küçük olsa da kalır.
-		const unitDay = (u: Unit) => dayNum(u.kind === 'group' ? u.day : u.out.date);
-		const unitChanged = (u: Unit) => u.kind === 'group' ? u.changed : u.out.changed;
-		const TOP_N = 12;
+		// Eğri TÜM ödemeleri kullanır; liste en büyük N ünite gösterir. Ertelenmiş olanlar
+		// tutarı küçük olsa da kalır (kullanıcı geri alabilsin).
+		const TOP_N = 20;
 		units.sort((a, b) => b.total - a.total);
 		const shown = new Set<Unit>(units.slice(0, TOP_N));
-		for (const u of units) if (unitChanged(u)) shown.add(u);
-		const shownUnits = [...shown].sort((a, b) => unitDay(a) - unitDay(b));
+		for (const u of units) if (u.changed) shown.add(u);
+		const shownUnits = [...shown].sort((a, b) => dayNum(a.day) - dayNum(b.day));
 		const otherUnits = units.filter((u) => !shown.has(u));
-		const otherCount = otherUnits.reduce((s, u) => s + (u.kind === 'group' ? u.members.length : 1), 0);
+		const otherCount = otherUnits.reduce((s, u) => s + u.members.length, 0);
 		const otherSum = otherUnits.reduce((s, u) => s + u.total, 0);
 
 		return {
@@ -149,13 +145,6 @@
 		};
 	});
 
-	function setDate(id: string, v: string) {
-		if (v) dates[id] = v;
-	}
-	function resetDate(id: string) {
-		delete dates[id];
-		dates = { ...dates };
-	}
 	// Grup: tek tarih seçici tüm üyeleri toptan erteler / sıfırlar
 	function setGroupDate(ids: string[], v: string) {
 		if (!v) return;
@@ -246,76 +235,48 @@
 		{#if proj.shownUnits.length === 0}
 			<p class="text-xs text-gray-500 py-3">Bu ay planlı ödeme yok.</p>
 		{/if}
-		{#each proj.shownUnits as u (u.kind === 'group' ? u.key : u.out.id)}
-			{#if u.kind === 'group'}
-				{@const gout = u.effDay === null}
-				<div class="border-b border-gray-100">
-					<div class="flex items-center gap-2 sm:gap-3 py-2.5">
-						<span class="tabular-nums text-[11.5px] text-gray-500 w-11 shrink-0">{labelDate(u.day)}</span>
-						<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
-							class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
-							<ChevronDown size={14} class="shrink-0 text-gray-500 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
-							<span class="text-[13.5px] font-semibold truncate {gout ? 'text-gray-400 line-through' : 'text-gray-900'}">{u.label}</span>
-							<span class="text-[11px] text-gray-500 shrink-0">{u.members.length} ödeme</span>
-						</button>
-						<span class="tabular-nums text-[13.5px] font-semibold w-[78px] text-right shrink-0 {gout ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(u.total)}</span>
-						<input
-							type="date"
-							value={u.effIso}
-							min={u.day}
-							max={`${data.month_start.slice(0, 4)}-12-31`}
-							onchange={(e) => setGroupDate(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
-							aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini toptan ertele`}
-							class="date-filter-input shrink-0 w-[128px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {u.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
-						/>
-						<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.changed}
-							title="Erteleme tarihini sıfırla" aria-label="Grup erteleme tarihini sıfırla"
-							class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
-							<RotateCcw size={13} />
-						</button>
-					</div>
-					{#if u.changed && !gout}
-						<div class="pl-[52px] pb-1.5 -mt-1 text-[10.5px] text-brass-dark">→ {labelDate(u.effIso)} tarihine ertelendi</div>
-					{/if}
-					{#if openGroups[u.key]}
-						<div class="pl-[52px] pb-2 space-y-1">
-							{#each u.members as m (m.id)}
-								<div class="flex items-center gap-2 text-[12px]">
-									<span class="text-gray-700 truncate">{m.name}</span>
-									<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{fmtEur(m.amount_eur)}</span>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
-			{:else}
-				{@const o = u.out}
-				{@const out = o.effDay === null}
-				<div class="flex items-center gap-2 sm:gap-3 py-2.5 border-b border-gray-100">
-					<span class="tabular-nums text-[11.5px] text-gray-500 w-11 shrink-0">{labelDate(o.date)}</span>
-					<div class="flex-1 min-w-0">
-						<div class="text-[13.5px] font-medium truncate {out ? 'text-gray-400 line-through' : 'text-gray-900'}">{o.name}</div>
-						{#if o.changed}
-							<div class="text-[10.5px] text-brass-dark">→ {labelDate(o.effIso)}{out ? ' tarihine ertelendi (gelecek aya)' : ' tarihine ertelendi'}</div>
-						{/if}
-					</div>
-					<span class="tabular-nums text-[13.5px] font-semibold w-[78px] text-right shrink-0 {out ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(o.amount_eur)}</span>
+		{#each proj.shownUnits as u (u.key)}
+			{@const gout = u.effDay === null}
+			{@const multi = u.members.length > 1}
+			<div class="border-b border-gray-100">
+				<div class="flex items-center gap-2 sm:gap-3 py-2.5">
+					<span class="tabular-nums text-[11.5px] text-gray-500 w-11 shrink-0">{labelDate(u.day)}</span>
+					<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
+						class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
+						<ChevronDown size={14} class="shrink-0 text-gray-500 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
+						<span class="text-[13.5px] font-semibold truncate {gout ? 'text-gray-400 line-through' : 'text-gray-900'}">{u.label}</span>
+						{#if multi}<span class="text-[11px] text-gray-500 shrink-0">{u.members.length} ödeme</span>{/if}
+					</button>
+					<span class="tabular-nums text-[13.5px] font-semibold w-[78px] text-right shrink-0 {gout ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(u.total)}</span>
 					<input
 						type="date"
-						value={o.effIso}
-						min={o.date}
+						value={u.effIso}
+						min={u.day}
 						max={`${data.month_start.slice(0, 4)}-12-31`}
-						onchange={(e) => setDate(o.id, (e.currentTarget as HTMLInputElement).value)}
-						aria-label={`${o.name} ödeme tarihini ertele`}
-						class="date-filter-input shrink-0 w-[128px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {o.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
+						onchange={(e) => setGroupDate(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
+						aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini ertele`}
+						class="date-filter-input shrink-0 w-[128px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {u.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
 					/>
-					<button type="button" onclick={() => resetDate(o.id)} disabled={!o.changed}
+					<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.changed}
 						title="Erteleme tarihini sıfırla" aria-label="Erteleme tarihini sıfırla"
 						class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
 						<RotateCcw size={13} />
 					</button>
 				</div>
-			{/if}
+				{#if u.changed}
+					<div class="pl-[52px] pb-1.5 -mt-1 text-[10.5px] text-brass-dark">→ {labelDate(u.effIso)}{gout ? ' tarihine ertelendi (gelecek aya)' : ' tarihine ertelendi'}</div>
+				{/if}
+				{#if openGroups[u.key]}
+					<div class="pl-[52px] pb-2 space-y-1">
+						{#each u.members as m (m.id)}
+							<div class="flex items-center gap-2 text-[12px]">
+								<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
+								<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{fmtEur(m.amount_eur)}</span>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
 		{/each}
 		{#if proj.otherCount > 0}
 			<p class="text-[11.5px] text-gray-500 pt-2">
