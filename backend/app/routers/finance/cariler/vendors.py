@@ -1,6 +1,7 @@
-"""Cari listesi, detay, banka işlemleri, özet ve vade güncelleme."""
+"""Cari listesi, detay, banka işlemleri, özet ve vade/durum/iletişim güncelleme."""
 
 import math
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -18,6 +19,7 @@ from app.models.user import User
 from app.models.vendor import STATUS_PAYMENT_BANNED, VENDOR_STATUS_CHOICES, Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.schemas.vendor import (
+    VendorContactUpdate,
     VendorDetailResponse,
     VendorPaymentDaysUpdate,
     VendorResponse,
@@ -245,6 +247,37 @@ def get_vendor_detail(
         item["bakiye"] = float(rb) if rb is not None else None
         items.append(item)
 
+    # ── Özet kart metrikleri (tasarım: Vadesi Geçmiş / Son Ödeme) ──
+    # Vadesi geçmiş = ödenmemiş (eşleşmemiş) vadesi dolmuş fatura satırları toplamı.
+    today = date.today()
+    overdue_row = (
+        db.query(
+            func.coalesce(func.sum(VendorTransaction.alacak), 0),
+            func.count(VendorTransaction.id),
+        )
+        .filter(
+            VendorTransaction.vendor_id == vendor_id,
+            VendorTransaction.alacak > 0,
+            VendorTransaction.match_number.is_(None),
+            VendorTransaction.payment_due_date.isnot(None),
+            VendorTransaction.payment_due_date < today,
+        )
+        .first()
+    )
+    overdue = float(overdue_row[0]) if overdue_row else 0.0
+    overdue_count = int(overdue_row[1]) if overdue_row else 0
+
+    # Son ödeme = en yeni borç (ödeme) kaydı.
+    last_pay = (
+        db.query(VendorTransaction)
+        .filter(
+            VendorTransaction.vendor_id == vendor_id,
+            VendorTransaction.borc > 0,
+        )
+        .order_by(VendorTransaction.date.desc(), VendorTransaction.id.desc())
+        .first()
+    )
+
     return {
         "vendor": VendorDetailResponse(
             id=vendor.id,
@@ -255,6 +288,13 @@ def get_vendor_detail(
             total_borc=total_borc,
             total_alacak=total_alacak,
             bakiye=total_borc - total_alacak,
+            contact_person=vendor.contact_person,
+            phone=vendor.phone,
+            email=vendor.email,
+            overdue=overdue,
+            overdue_count=overdue_count,
+            last_payment_amount=float(last_pay.borc) if last_pay else None,
+            last_payment_date=last_pay.date if last_pay else None,
         ).model_dump(),
         "transactions": {
             "items": items,
@@ -404,3 +444,49 @@ def update_vendor_status(
     broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "update")
 
     return {"status": vendor.status}
+
+
+# ─── Firma İletişim Bilgileri Güncelleme ─────────────────
+
+@router.patch("/vendors/{vendor_id}/contact")
+def update_vendor_contact(
+    vendor_id: int,
+    body: VendorContactUpdate,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cariler", "use")),
+):
+    """Cari iletişim bilgilerini (yetkili/telefon/e-posta) güncelle.
+
+    Finansal etkisi yok (finance_events'e dokunmaz) → onaydan muaf (payment_deferral/
+    manuel-banka gibi operasyonel-özel istisna); use + audit + broadcast uygulanır.
+    """
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Cari bulunamadı")
+
+    fields = body.model_dump(exclude_unset=True)
+    for key, value in fields.items():
+        setattr(vendor, key, (value.strip() if isinstance(value, str) and value.strip() else None) if value is not None else None)
+
+    try:
+        log_action(
+            db, current_user.id, "update", "vendor",
+            entity_id=vendor_id,
+            details=f"İletişim bilgileri güncellendi ({', '.join(fields.keys())})",
+            ip_address=get_client_ip(request),
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("İletişim güncelleme hatası (vendor_id=%s): %s", vendor_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="İletişim bilgileri güncellenirken bir hata oluştu.")
+
+    broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "update")
+
+    return {
+        "contact_person": vendor.contact_person,
+        "phone": vendor.phone,
+        "email": vendor.email,
+    }

@@ -68,8 +68,9 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 **Dönem vs Ödeme Tarihi ayrımı:**
 - `period_month/period_year` = "hangi ayın kaydı" (ör. Nisan 2026 maaşı)
 - `entry_date` = gerçek ödeme tarihi (nakit akımda ne zaman görünecek)
-- `salary`, `sgk`, `withholding` için otomatik kural: dönemin ödemesi **bir sonraki ayın** `payment_day`'inde yapılır (ör. Nisan maaşı 5 Mayıs'ta ödenir).
-- Diğer kaynak tipler (`tax`, `recurring`, `rent_*`, `dividend`) için `entry_date` aynı ayın içindedir, `period_month` = `entry_date` ayı.
+- `salary`, `sgk`, `withholding` için otomatik kural: dönemin ödemesi **bir sonraki ayın** `payment_day`'inde yapılır (ör. Nisan maaşı 5 Mayıs'ta ödenir) — `entry_generator.SHIFT_NEXT_MONTH_SOURCES`.
+- Diğer kaynak tipler (`tax`, `recurring`, `rent_*`, `dividend`) için `entry_date` **varsayılan** aynı aydadır.
+- **Tanım-bazlı `pay_next_month` (2026-07-04):** Bu türlerde de tanımda **"Ödeme bir sonraki ay yapılır"** işaretlenirse dönemin ödemesi bir sonraki ayın `payment_day`'inde yapılır (ör. Elektrik Ocak dönemi → 10 Şubat; faturalar tüketimden sonraki ay ödenir). `ScheduledDefinition.pay_next_month` (migration `b4f7e2a9c1d3`) → `_payment_date(..., pay_next_month)`; `_REGEN_FIELDS`'te olduğundan **değişince girişler yeniden üretilir** (yeni tarihler). UI: ScheduledModule tanım formunda checkbox (salary/sgk/withholding'de gösterilmez — zaten kaynak-bazlı kayar). **Canlı:** "2026 Elektrik" (id 8, `payment_day=10`) `pay_next_month=True` yapıldı; 12 girişi (ödenmişler dahil) +1 ay kaydırıldı. Test: `test_scheduled_base.py::TestPayNextMonth`.
 
 **Açıklama formatı (nakit akımda görünür):**
 - `[Maaş] Nisan 2026 — 2026 Maaş` — prefix + dönem + definition adı

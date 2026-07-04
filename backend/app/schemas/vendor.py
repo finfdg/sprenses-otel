@@ -62,6 +62,15 @@ class VendorDetailResponse(BaseModel):
     total_borc: float
     total_alacak: float
     bakiye: float
+    # İletişim (Firma Bilgileri sekmesi)
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    # Özet kart metrikleri (tasarım: Güncel Bakiye / Vadesi Geçmiş / Son Ödeme)
+    overdue: float = 0.0
+    overdue_count: int = 0
+    last_payment_amount: Optional[float] = None
+    last_payment_date: Optional[date] = None
 
     class Config:
         from_attributes = True
@@ -73,6 +82,36 @@ class VendorPaymentDaysUpdate(BaseModel):
 
 class VendorStatusUpdate(BaseModel):
     status: str
+
+
+class VendorContactUpdate(BaseModel):
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+
+# ─── Cari Notu (Notlar sekmesi) ─────────────────────────
+
+class VendorNoteCreate(BaseModel):
+    text: str
+
+
+class VendorNoteUpdate(BaseModel):
+    text: Optional[str] = None
+    done: Optional[bool] = None
+
+
+class VendorNoteResponse(BaseModel):
+    id: int
+    vendor_id: int
+    text: str
+    author_name: Optional[str] = None
+    done: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ─── VendorTransaction ──────────────────────────────────
