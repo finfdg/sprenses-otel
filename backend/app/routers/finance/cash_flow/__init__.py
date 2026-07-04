@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from .deferral import router as deferral_router
 from .eur_balances import router as eur_balances_router
 from .listing import router as listing_router
 from .matching import router as matching_router
@@ -16,3 +17,4 @@ router.include_router(matching_router)
 router.include_router(report_router)
 router.include_router(runway_router)
 router.include_router(t_account_router)
+router.include_router(deferral_router)

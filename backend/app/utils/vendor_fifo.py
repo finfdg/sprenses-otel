@@ -20,6 +20,12 @@ from app.models.vendor_transaction import VendorTransaction
 
 
 def _next_friday(d: date_type) -> date_type:
+    """Verilen tarihten SONRAKİ Cuma'ya hizala (vade GÜNÜ hizalaması).
+
+    NOT: Bu, fatura tarihinden vade hesaplarken (fatura + payment_days) hesaplanan
+    HAM vade gününü Cuma'ya yuvarlar — "ödeme günü Cuma"dır kuralı. Bu KORUNUR.
+    Vadesi GEÇEN faturayı ileri aktarmakla (kaldırıldı) KARIŞTIRILMAMALIDIR.
+    """
     days_ahead = 4 - d.weekday()
     if days_ahead <= 0:
         days_ahead += 7
@@ -34,15 +40,26 @@ def coming_friday(d: date_type) -> date_type:
     return d + timedelta(days=days_ahead)
 
 
-def effective_due_date(payment_due_date: date_type) -> date_type:
-    """Vadesi geçmiş faturayı sonraki Cuma'ya kaydır.
+def effective_due_date(payment_due_date, vtx_id=None, deferral_map=None):
+    """Faturanın EFEKTİF ödeme tarihi.
 
-    Ödenmemiş tutarlar orijinal vade tarihinde takılı kalmak yerine
-    bir sonraki Cuma'nın listesine dahil edilir.
+    2026-07-04 (kullanıcı kararı): **Vadesi geçen faturanın sonraki Cuma'ya AKTARILMASI
+    GLOBAL KALDIRILDI.** Ödenmemiş fatura artık ORİJİNAL vade tarihinde kalır (geçmişte
+    görünür — gerçek durum). Yalnızca KALICI ÖTELEME (payment_deferrals) uygulanır:
+    kullanıcı bir kalemi bilinçli ileri çekmişse o tarih döner.
+
+    Cuma'ya yuvarlama (`_next_friday`) fatura tarihinden vade hesabında (fatura +
+    payment_days) HÂLÂ geçerli — o AYRI bir kural ("vade günü Cuma"). Burada YOK.
+
+    deferral_map: (source_type, source_id) → deferred_to (opsiyonel; verilirse SELECT'siz).
     """
-    today = date_type.today()
-    if payment_due_date < today:
-        return coming_friday(today)
+    if vtx_id is not None:
+        if deferral_map is not None:
+            deferred = deferral_map.get(("vendor_payment", vtx_id))
+        else:
+            deferred = None
+        if deferred is not None:
+            return deferred
     return payment_due_date
 
 
@@ -191,10 +208,11 @@ def _get_vendor_payment_days(db: Session, vendor_ids: List[int]) -> Dict[int, in
 
 class ScheduleInvoice:
     """Ödeme planı fatura satırı."""
-    __slots__ = ("vendor_id", "date", "evrak_no", "transaction_type",
+    __slots__ = ("vtx_id", "vendor_id", "date", "evrak_no", "transaction_type",
                  "alacak", "hesap_kodu", "hesap_adi", "payment_due_date")
 
     def __init__(self, row, calc_due: Optional[date_type] = None):
+        self.vtx_id = row.id
         self.vendor_id = row.vendor_id
         self.date = row.date
         self.evrak_no = row.evrak_no
@@ -300,9 +318,14 @@ def get_payment_schedule(
                 else:
                     schedule_items.append((inv, inv_amount))
 
-    # 5) Vadesi geçmiş faturaları sonraki Cuma'ya kaydır
+    # 5) KALICI ÖTELEME uygula (Cuma roll-over KALDIRILDI 2026-07-04 — vadesi geçen
+    #    fatura orijinal tarihinde kalır; yalnız kullanıcı ötelediyse ileri çekilir).
+    from app.services.deferral_service import get_deferral_map
+    deferral_map = get_deferral_map(db)
     for inv, _amt in schedule_items:
-        inv.payment_due_date = effective_due_date(inv.payment_due_date)
+        inv.payment_due_date = effective_due_date(
+            inv.payment_due_date, vtx_id=inv.vtx_id, deferral_map=deferral_map
+        )
 
     # 6) Tarih filtresi
     if from_date:

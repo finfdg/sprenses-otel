@@ -70,7 +70,8 @@
 | `GET` | `/api/finance/cash-flow/eur-balances` | `view` | EUR bakiye özeti |
 | `GET` | `/api/finance/cash-flow/report/pdf` | `view` | Ay/gün bazlı nakit akım PDF raporu (`start_date`/`end_date` opsiyonel) |
 | `GET` | `/api/finance/cash-flow/t-account` | `view` | T hesap cetveli — `period=daily\|weekly\|monthly\|yearly` + `offset<=0`; giriş/çıkış grupları EUR (transfer hariç, `skipped_no_rate` sayaçlı) |
-| `GET` | `/api/finance/cash-flow/runway` | `view` | Runway / nakit koruma projeksiyonu — içinde bulunulan ay; `start_eur` bugünkü banka nakdi + ay-içi planlı hareketler (`inflows`/`outs`, EUR; transfer hariç, `skipped_no_rate` sayaçlı) |
+| `GET` | `/api/finance/cash-flow/runway` | `view` | Runway / nakit koruma projeksiyonu — içinde bulunulan ay; `start_eur` bugünkü banka nakdi + ay-içi planlı hareketler (`inflows`/`outs`, EUR; transfer hariç, `skipped_no_rate` sayaçlı). `overdue` = vadesi geçen ödenmemiş kalemler (orijinal tarih); her out/overdue/inflow kaleminde `deferred: bool` + `original_date` |
+| `POST` | `/api/finance/cash-flow/defer` | `use` | Bir ödeme kalemini KALICI öteler / öteleme kaldırır (onaysız+audit+WS; body `{source_type, source_id, deferred_to: "YYYY-MM-DD"\|null}`; null→siler; bank HARİÇ) |
 | `GET` | `/api/finance/cash-flow/credit-payments-unpaid` | `view` | Ödenmemiş kredi taksitleri listesi |
 | `GET` | `/api/finance/cash-flow/cc-statements-unpaid` | `view` | Ödenmemiş kredi kartı ekstreleri listesi |
 | `POST` | `/api/finance/cash-flow/match-vendor-tx` | `use` | Cari işlem eşleştirme |

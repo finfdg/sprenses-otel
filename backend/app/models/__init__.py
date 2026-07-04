@@ -25,6 +25,7 @@ from app.models.finance_event import FinanceEvent
 from app.models.message import Message
 from app.models.module import Module
 from app.models.notification import Notification
+from app.models.payment_deferral import PaymentDeferral
 from app.models.push_subscription import PushSubscription
 from app.models.receivable_term import ReceivableTerm
 from app.models.reservation import Reservation, ReservationUpload
@@ -67,6 +68,7 @@ __all__ = [
     "CreditCardStatement", "CreditCardTransaction",
     "Advance",
     "FinanceEvent",
+    "PaymentDeferral",
     "Department", "BudgetCategory", "Budget",
     "ErrorLog",
     "Reservation", "ReservationUpload",

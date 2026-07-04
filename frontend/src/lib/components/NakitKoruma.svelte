@@ -1,38 +1,33 @@
 <!--
-	NakitKoruma.svelte — Nakit Koruma · Ödeme Erteleme (Runway projeksiyonu).
+	NakitKoruma.svelte — Nakit Koruma · Ödeme Erteleme (Runway) + Vadesi Geçenler.
 
-	Panelde Nakit Akım T Hesap'ın altında yer alır. Bankadaki nakitten başlayıp ay
-	içindeki planlı hareketleri (tahsilatlar +, ödemeler −) gün gün projekte eder;
-	bakiyenin negatife düştüğü günü gösterir. Kullanıcı bir ödemeyi ileri bir tarihe
-	**erteleyerek** (tarih seçici) eğriyi canlı güncelleyip negatifi önleyebilir.
-
-	Erteleme şimdilik YALNIZ projeksiyon (what-if) — borç silmez, kaydı kalıcı
-	değiştirmez (ay dışına ertelenen ödeme bu ayın projeksiyonundan çıkar). Kalıcı
-	`deferred_to` yazımı ayrı bir iş (backend PATCH + onay akışı).
-	Veri: GET /finance/cash-flow/runway. Tasarım: design_handoff_panel_redesign.
+	Bankadaki nakitten ay-sonuna gün gün projeksiyon; bakiyenin negatife düştüğü gün
+	uyarısı. Ödemeler gün+tür bazında gruplu; tarih seçiciyle **kalıcı ötelenir**
+	(POST /finance/cash-flow/defer → tüm açık ekranlara WS ile yansır). Vadesi geçmiş
+	ödenmemiş kalemler "Vadesi Geçenler" başlığı altında (Cuma roll-over kaldırıldı).
+	Erteleme yalnız finance.cash_flow USE yetkisi olanlara açık. Tasarım: lacivert/altın.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
+	import { onWsEvent } from '$lib/stores/websocket.svelte';
+	import { WS_EVENT } from '$lib/constants/realtime';
 	import { projectRunway } from '$lib/utils/finance';
-	import { RotateCcw, ShieldCheck, ChevronDown } from 'lucide-svelte';
+	import { RotateCcw, ShieldCheck, ChevronDown, AlertTriangle } from 'lucide-svelte';
 
-	// embedded=true → dış kart kabuğu yok (Nakit Akım kartının içinde ayraçla gösterilir)
-	let { embedded = false }: { embedded?: boolean } = $props();
-	// Erteleme (tarih değiştirme) yalnız finance.cash_flow KULLANIM yetkisi olanlara açık;
-	// yetkisizler runway'i salt-görünüm olarak görür (tarih seçici/sıfırla gizli).
-	const canDefer = hasPermission('finance.cash_flow', 'use');
-
-	type Flow = { id: string; date: string; name: string; amount_eur: number; source_type?: string };
+	type Flow = { id: string; date: string; name: string; amount_eur: number; source_type?: string; deferred?: boolean; original_date?: string };
 	type RunwayData = {
 		month_label: string; month_start: string; month_end: string; today: string;
-		start_eur: number; inflows: Flow[]; outs: Flow[]; skipped_no_rate: number;
+		start_eur: number; inflows: Flow[]; outs: Flow[]; overdue: Flow[]; skipped_no_rate: number;
 	};
 
+	let { embedded = false }: { embedded?: boolean } = $props();
+	// Erteleme (öteleme) yalnız finance.cash_flow KULLANIM yetkisi olanlara açık.
+	const canDefer = hasPermission('finance.cash_flow', 'use');
+
 	const MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-	// Kaynak türü → Türkçe grup başlığı (Nakit Akım gruplama etiketleriyle uyumlu)
 	const SRC_LABELS: Record<string, string> = {
 		vendor_payment: 'Cari Ödemeleri', credit: 'Kredi / Leasing Taksitleri',
 		cc_payment: 'KK Borç Ödemeleri', check: 'Verilen Çekler', salary: 'Maaş Ödemeleri',
@@ -42,9 +37,7 @@
 
 	let data = $state<RunwayData | null>(null);
 	let loading = $state(true);
-	// Ertelenen ödemelerin yeni tarihi (id → 'YYYY-MM-DD'); boşsa orijinal tarih
-	let dates = $state<Record<string, string>>({});
-	// Açık akordiyon grupları (key → bool)
+	let mutating = $state(false); // öteleme POST'u sürerken
 	let openGroups = $state<Record<string, boolean>>({});
 
 	function fmtEur(n: number): string {
@@ -60,101 +53,90 @@
 	function dayNum(iso: string): number {
 		return Number(iso.split('-')[2]);
 	}
-	// Üye detay adını sadeleştir: baştaki "[Maaş] "/"[Taksitli Kredi] " ön ekini at
 	function cleanName(name: string): string {
 		return name.replace(/^\[[^\]]*\]\s*/, '');
 	}
 
-	// Projeksiyon — dates (erteleme) değişince canlı yeniden hesaplanır
-	const proj = $derived.by(() => {
-		if (!data) return null;
-		const startDay = dayNum(data.today);
-		const endDay = dayNum(data.month_end);
-		const ym = data.month_start.slice(0, 7); // 'YYYY-MM'
+	type Unit = { key: string; label: string; day: string; members: Flow[]; memberIds: string[]; total: number; deferred: boolean; overdue: boolean };
 
-		// Etkin ödeme tarihleri (erteleme uygulanmış); ay içinde mi?
-		const effOut = data.outs.map((o) => {
-			const iso = dates[o.id] || o.date;
-			const inMonth = iso.slice(0, 7) === ym;
-			return { ...o, effIso: iso, effDay: inMonth ? dayNum(iso) : null, changed: iso !== o.date };
-		});
-
-		// Gün gün bakiye projeksiyonu (saf, testli helper — ay dışına ertelenen çıkar)
-		const { byDay, firstNeg, lowVal, lowDay, endBal } =
-			projectRunway(data.start_eur, data.inflows, data.outs, data.today, data.month_end, dates);
-
-		// SVG ölçek
-		const vals = byDay.map((p) => p.bal);
-		const hi = Math.max(data.start_eur, ...vals);
-		const lo = Math.min(0, ...vals);
-		const pad = (hi - lo) * 0.14 || 1;
-		const top = 12, bottom = 108;
-		const span = endDay - startDay || 1;
-		const mapX = (d: number) => ((d - startDay) / span) * 620;
-		const mapY = (v: number) => bottom - ((v - (lo - pad)) / ((hi + pad) - (lo - pad))) * (bottom - top);
-		const pts = byDay.map((p) => `${mapX(p.day).toFixed(1)},${mapY(p.bal).toFixed(1)}`).join(' ');
-
-		const negative = firstNeg !== null;
-		const defCount = effOut.filter((o) => o.changed).length;
-
-		// Her ödemeyi GÜN + KAYNAK türü bazında sade başlık altında grupla (tek üye olsa
-		// da — çek/kredi/maaş/SGK hepsi düzenli başlık altında). Grup toptan ertelenir
-		// (tek tarih seçici tüm üyeleri taşır); verbose ad detayda (aç/kapa) gösterilir.
-		type EffOut = (typeof effOut)[number];
-		const groupsMap = new Map<string, EffOut[]>();
-		for (const o of effOut) {
-			const key = `${o.date}|${o.source_type ?? 'other'}`;
-			const arr = groupsMap.get(key);
-			if (arr) arr.push(o); else groupsMap.set(key, [o]);
+	// Kalemleri gün + kaynak türü bazında grupla (tek üye olsa da başlık altında)
+	function groupUnits(items: Flow[], overdue: boolean): Unit[] {
+		const map = new Map<string, Flow[]>();
+		for (const o of items) {
+			const key = `${overdue ? 'od:' : ''}${o.date}|${o.source_type ?? 'other'}`;
+			const arr = map.get(key);
+			if (arr) arr.push(o); else map.set(key, [o]);
 		}
-		type Unit = { key: string; label: string; day: string; members: EffOut[]; memberIds: string[]; total: number; effIso: string; effDay: number | null; changed: boolean };
 		const units: Unit[] = [];
-		for (const [key, members] of groupsMap) {
+		for (const [key, members] of map) {
 			const first = members[0];
 			units.push({
 				key, label: SRC_LABELS[first.source_type ?? ''] ?? cleanName(first.name),
 				day: first.date, members, memberIds: members.map((m) => m.id),
 				total: members.reduce((s, m) => s + m.amount_eur, 0),
-				effIso: first.effIso, effDay: first.effDay,
-				changed: members.some((m) => m.changed),
+				deferred: members.some((m) => m.deferred),
+				overdue,
 			});
 		}
+		return units.sort((a, b) => a.day.localeCompare(b.day));
+	}
 
-		// Eğri TÜM ödemeleri kullanır; liste en büyük N ünite gösterir. Ertelenmiş olanlar
-		// tutarı küçük olsa da kalır (kullanıcı geri alabilsin).
+	// Projeksiyon — outs + overdue (vadesi geçen bugüne çekilir; hâlâ ödenecek borç)
+	const proj = $derived.by(() => {
+		if (!data) return null;
+		const today = data.today;
+		const projOuts: { id: string; date: string; amount_eur: number }[] = [
+			...data.outs.map((o) => ({ id: o.id, date: o.date, amount_eur: o.amount_eur })),
+			// vadesi geçenler → bugün öденecekmiş gibi projeksiyona girer
+			...data.overdue.map((o) => ({ id: o.id, date: today, amount_eur: o.amount_eur })),
+		];
+		const r = projectRunway(data.start_eur, data.inflows, projOuts, today, data.month_end, {});
+
+		const vals = r.byDay.map((p) => p.bal);
+		const hi = Math.max(data.start_eur, ...vals);
+		const lo = Math.min(0, ...vals);
+		const pad = (hi - lo) * 0.14 || 1;
+		const top = 12, bottom = 108;
+		const startDay = dayNum(today), endDay = dayNum(data.month_end);
+		const span = endDay - startDay || 1;
+		const mapX = (d: number) => ((d - startDay) / span) * 620;
+		const mapY = (v: number) => bottom - ((v - (lo - pad)) / ((hi + pad) - (lo - pad))) * (bottom - top);
+		const pts = r.byDay.map((p) => `${mapX(p.day).toFixed(1)},${mapY(p.bal).toFixed(1)}`).join(' ');
+
+		const ym = today.slice(0, 7);
+		const negative = r.firstNeg !== null;
+
+		// Gösterilecek üniteler: outs (tarihe göre) + top-N
+		const outUnits = groupUnits(data.outs, false);
+		const overdueUnits = groupUnits(data.overdue, true);
 		const TOP_N = 20;
-		units.sort((a, b) => b.total - a.total);
-		const shown = new Set<Unit>(units.slice(0, TOP_N));
-		for (const u of units) if (u.changed) shown.add(u);
-		const shownUnits = [...shown].sort((a, b) => dayNum(a.day) - dayNum(b.day));
-		const otherUnits = units.filter((u) => !shown.has(u));
-		const otherCount = otherUnits.reduce((s, u) => s + u.members.length, 0);
-		const otherSum = otherUnits.reduce((s, u) => s + u.total, 0);
+		outUnits.sort((a, b) => b.total - a.total);
+		const shownOut = new Set<Unit>(outUnits.slice(0, TOP_N));
+		const otherOut = outUnits.filter((u) => !shownOut.has(u));
+		const shownOutUnits = [...shownOut].sort((a, b) => a.day.localeCompare(b.day));
 
 		return {
 			negative,
 			statusText: negative
-				? `${firstNeg} ${MONTHS_SHORT[Number(ym.slice(5, 7)) - 1]}'de bakiye negatife düşüyor`
+				? `${r.firstNeg} ${MONTHS_SHORT[Number(ym.slice(5, 7)) - 1]}'de bakiye negatife düşüyor`
 				: 'Ay boyunca nakit pozitif kalıyor',
 			pts,
 			zeroY: mapY(0).toFixed(1),
-			lowX: mapX(lowDay).toFixed(1),
-			lowY: mapY(lowVal).toFixed(1),
-			lowLabel: `${labelDate(`${ym}-${String(lowDay).padStart(2, '0')}`)} · ${signed(lowVal)}`,
-			endBal,
-			defCount,
-			shownUnits,
-			otherCount,
-			otherSum,
-			totalOut: effOut.length,
-			firstLabel: labelDate(data.today),
+			lowX: mapX(r.lowDay).toFixed(1),
+			lowY: mapY(r.lowVal).toFixed(1),
+			lowLabel: `${labelDate(`${ym}-${String(r.lowDay).padStart(2, '0')}`)} · ${signed(r.lowVal)}`,
+			endBal: r.endBal,
+			shownOutUnits,
+			overdueUnits,
+			overdueTotal: data.overdue.reduce((s, o) => s + o.amount_eur, 0),
+			otherCount: otherOut.reduce((s, u) => s + u.members.length, 0),
+			otherSum: otherOut.reduce((s, u) => s + u.total, 0),
+			firstLabel: labelDate(today),
 			lastLabel: labelDate(data.month_end),
 		};
 	});
 
-	// Grup: tek tarih seçici tüm üyeleri toptan erteler / sıfırlar
-	// Beklenen tahsilatlar: aynı gün + aynı tür → tek çip (tekse asıl ad, çoksa "N tahsilat").
-	// Ertelenemez (referans) olduğundan çip biçimi korunur, akordiyon yok.
+	// Beklenen tahsilatlar — aynı gün+tür tek çip
 	const groupedInflows = $derived.by(() => {
 		if (!data) return [];
 		const map = new Map<string, Flow[]>();
@@ -175,19 +157,7 @@
 		return out.sort((a, b) => dayNum(a.date) - dayNum(b.date));
 	});
 
-	function setGroupDate(ids: string[], v: string) {
-		if (!v) return;
-		for (const id of ids) dates[id] = v;
-	}
-	function resetGroup(ids: string[]) {
-		for (const id of ids) delete dates[id];
-		dates = { ...dates };
-	}
-	function toggleGroup(key: string) {
-		openGroups[key] = !openGroups[key];
-	}
-
-	onMount(async () => {
+	async function load() {
 		try {
 			data = await api.get<RunwayData>('/finance/cash-flow/runway');
 		} catch (err) {
@@ -196,11 +166,50 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function parseId(id: string): { source_type: string; source_id: number } {
+		const i = id.lastIndexOf(':');
+		return { source_type: id.slice(0, i), source_id: Number(id.slice(i + 1)) };
+	}
+
+	// Grubu KALICI ötele/geri al — TEK batch isteği (büyük grupta N POST değil), sonra tazele.
+	async function mutateGroup(memberIds: string[], deferredTo: string | null, okMsg: string) {
+		if (mutating) return;
+		mutating = true;
+		try {
+			const items = memberIds.map(parseId);
+			await api.post('/finance/cash-flow/defer-batch', { items, deferred_to: deferredTo });
+			await load();
+			showToast(okMsg, 'success');
+		} catch (err: any) {
+			console.error('Öteleme işlemi başarısız:', err);
+			showToast(err?.message || 'İşlem başarısız', 'error');
+		} finally {
+			mutating = false;
+		}
+	}
+	function deferGroup(memberIds: string[], newDate: string) {
+		if (!newDate) return;
+		mutateGroup(memberIds, newDate, 'Ödeme ertelendi');
+	}
+	function resetGroup(memberIds: string[]) {
+		mutateGroup(memberIds, null, 'Öteleme geri alındı');
+	}
+	function toggleGroup(key: string) {
+		openGroups[key] = !openGroups[key];
+	}
+
+	let unsubWs: (() => void) | null = null;
+	onMount(() => {
+		load();
+		// Başka kullanıcı öteleme yapınca / finans değişince tazele
+		unsubWs = onWsEvent(WS_EVENT.FINANCE_UPDATED, () => load());
+		return () => unsubWs?.();
 	});
 </script>
 
 <div class={embedded ? 'mt-5 pt-5 border-t border-gray-200' : 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6'}>
-	<!-- Başlık -->
 	<div class="flex items-start justify-between gap-3 mb-4">
 		<div>
 			<h3 class="text-[17px] text-gray-900 flex items-center gap-2"><ShieldCheck size={18} class="text-teal-700" /> Nakit Koruma · Ödeme Erteleme</h3>
@@ -215,7 +224,7 @@
 		<div class="h-40 bg-gray-100 rounded-xl animate-pulse" aria-hidden="true"></div>
 	{:else if data && proj}
 		<!-- RUNWAY DURUM KARTI -->
-		<div class="rounded-2xl bg-teal-700 px-5 py-4 text-teal-100">
+		<div class="rounded-2xl bg-teal-700 px-5 py-4 text-teal-100 {mutating ? 'opacity-70' : ''}">
 			<div class="flex items-start justify-between gap-4">
 				<div>
 					<div class="text-[10px] uppercase tracking-[0.6px] text-teal-300">Bankadaki Nakit</div>
@@ -228,7 +237,6 @@
 					</div>
 				</div>
 			</div>
-			<!-- Projeksiyon eğrisi -->
 			<div class="mt-3">
 				<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" role="img" aria-label="Nakit projeksiyon eğrisi">
 					<line x1="0" y1={proj.zeroY} x2="620" y2={proj.zeroY} stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
@@ -242,7 +250,50 @@
 			<div class="text-[11.5px] text-teal-200 mt-2">En düşük bakiye: <span class="text-brass-light font-semibold">{proj.lowLabel}</span></div>
 		</div>
 
-		<!-- BEKLENEN TAHSİLATLAR — aynı gün+tür gruplu çipler -->
+		<!-- VADESİ GEÇENLER -->
+		{#if proj.overdueUnits.length > 0}
+			<div class="mt-4 flex items-center gap-2 text-[11px] tracking-[1px] uppercase text-red-700 font-bold">
+				<AlertTriangle size={13} /> Vadesi Geçenler · {fmtEur(proj.overdueTotal)}
+			</div>
+			<div class="mt-1.5 rounded-xl border border-red-200 bg-red-50/40 divide-y divide-red-100">
+				{#each proj.overdueUnits as u (u.key)}
+					{@const multi = u.members.length > 1}
+					<div class="px-2.5 py-2.5">
+						<div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-3">
+							<span class="tabular-nums text-[11.5px] text-red-600 w-10 shrink-0">{labelDate(u.day)}</span>
+							<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
+								class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
+								<ChevronDown size={14} class="shrink-0 text-red-400 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
+								<span class="text-[13px] sm:text-[13.5px] font-semibold truncate text-gray-900">{u.label}</span>
+								{#if multi}<span class="text-[11px] text-red-500 shrink-0">{u.members.length} ödeme</span>{/if}
+							</button>
+							<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 text-red-700">−{fmtEur(u.total)}</span>
+							{#if canDefer}
+								<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+									<input type="date" value="" min={data.today} max={`${data.month_start.slice(0, 4)}-12-31`}
+										disabled={mutating}
+										onchange={(e) => deferGroup(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
+										aria-label={`${u.label} vadesi geçen ödemeyi ileri tarihe ötele`}
+										class="date-filter-input shrink-0 w-[130px] rounded-lg border border-gray-200 bg-white text-gray-700 px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50" />
+								</div>
+							{/if}
+						</div>
+						{#if openGroups[u.key]}
+							<div class="pl-10 pt-1.5 space-y-1">
+								{#each u.members as m (m.id)}
+									<div class="flex items-center gap-2 text-[12px]">
+										<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
+										<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{fmtEur(m.amount_eur)}</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		<!-- BEKLENEN TAHSİLATLAR -->
 		{#if groupedInflows.length > 0}
 			<div class="mt-4 text-[11px] tracking-[1px] uppercase text-green-700 font-bold">Beklenen Tahsilatlar</div>
 			<div class="flex gap-2 flex-wrap mt-2">
@@ -256,57 +307,50 @@
 			</div>
 		{/if}
 
-		<!-- BU AY PLANLI ÖDEMELER — gün+tür bazında gruplu, ertelenebilir -->
+		<!-- BU AY PLANLI ÖDEMELER -->
 		<div class="flex items-center justify-between mt-5 mb-1.5">
 			<div class="text-[11px] tracking-[1px] uppercase text-brass-dark font-bold">Bu Ay Planlı Ödemeler</div>
-			<div class="text-[11.5px] text-gray-500">
-				{#if canDefer}{proj.defCount > 0 ? `${proj.defCount} ödeme ertelendi` : 'ödemeleri erteleyerek koruyun'}{/if}
-			</div>
+			<div class="text-[11.5px] text-gray-500">{canDefer ? 'tarih seçerek öteleyin' : ''}</div>
 		</div>
-		{#if proj.shownUnits.length === 0}
+		{#if proj.shownOutUnits.length === 0}
 			<p class="text-xs text-gray-500 py-3">Bu ay planlı ödeme yok.</p>
 		{/if}
-		{#each proj.shownUnits as u (u.key)}
-			{@const gout = u.effDay === null}
+		{#each proj.shownOutUnits as u (u.key)}
 			{@const multi = u.members.length > 1}
 			<div class="border-b border-gray-100 py-2.5">
-				<!-- flex-wrap: mobilde tarih seçici + sıfırla alt satıra kayar (isim/tarih üst üste gelmez) -->
 				<div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-3">
 					<span class="tabular-nums text-[11.5px] text-gray-500 w-10 shrink-0">{labelDate(u.day)}</span>
 					<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
 						class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
 						<ChevronDown size={14} class="shrink-0 text-gray-500 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
-						<span class="text-[13px] sm:text-[13.5px] font-semibold truncate {gout ? 'text-gray-400 line-through' : 'text-gray-900'}">{u.label}</span>
+						<span class="text-[13px] sm:text-[13.5px] font-semibold truncate text-gray-900">{u.label}</span>
 						{#if multi}<span class="text-[11px] text-gray-500 shrink-0">{u.members.length} ödeme</span>{/if}
 					</button>
-					<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 {gout ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(u.total)}</span>
+					<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 text-brass-dark">−{fmtEur(u.total)}</span>
 					{#if canDefer}
 						<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-							<input
-								type="date"
-								value={u.effIso}
-								min={u.day}
-								max={`${data.month_start.slice(0, 4)}-12-31`}
-								onchange={(e) => setGroupDate(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
-								aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini ertele`}
-								class="date-filter-input shrink-0 w-[130px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {u.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
-							/>
-							<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.changed}
-								title="Erteleme tarihini sıfırla" aria-label="Erteleme tarihini sıfırla"
+							<input type="date" value={u.day} min={data.today} max={`${data.month_start.slice(0, 4)}-12-31`}
+								disabled={mutating}
+								onchange={(e) => deferGroup(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
+								aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini ötele`}
+								class="date-filter-input shrink-0 w-[130px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50 {u.deferred ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}" />
+							<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.deferred || mutating}
+								title="Ötelemeyi geri al" aria-label="Ötelemeyi geri al"
 								class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
 								<RotateCcw size={13} />
 							</button>
 						</div>
 					{/if}
 				</div>
-				{#if u.changed}
-					<div class="pl-10 pt-1 text-[10.5px] text-brass-dark">→ {labelDate(u.effIso)}{gout ? ' tarihine ertelendi (gelecek aya)' : ' tarihine ertelendi'}</div>
+				{#if u.deferred}
+					<div class="pl-10 pt-1 text-[10.5px] text-brass-dark">→ {labelDate(u.day)} tarihine ertelendi</div>
 				{/if}
 				{#if openGroups[u.key]}
 					<div class="pl-10 pt-1.5 space-y-1">
 						{#each u.members as m (m.id)}
 							<div class="flex items-center gap-2 text-[12px]">
 								<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
+								{#if m.deferred && m.original_date}<span class="text-[10px] text-gray-400">(asıl {labelDate(m.original_date)})</span>{/if}
 								<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{fmtEur(m.amount_eur)}</span>
 							</div>
 						{/each}
@@ -326,10 +370,10 @@
 			<span class="tabular-nums text-lg font-semibold {proj.endBal >= 0 ? 'text-emerald-300' : 'text-red-300'}">{signed(proj.endBal)}</span>
 		</div>
 		<p class="text-[11.5px] text-gray-500 mt-2.5 leading-relaxed">
-			Ertelenen ödemeler bu ayın nakit projeksiyonundan çıkarılır — borç ortadan kalkmaz, yalnızca zamanlaması değişir.
-			Bu bir <strong>planlama önizlemesidir</strong>; ödeme tarihini kalıcı değiştirmez. Tahsilat tarafında yalnızca
-			<strong>kayıtlı beklenen girişler</strong> yer alır (günlük gerçekleşen oda geliri bu projeksiyona dahil değildir),
-			bu yüzden gerçek nakit durumu daha olumlu olabilir.
+			Öteleme <strong>kalıcıdır</strong> ve tüm kullanıcılara yansır — ödemenin vade tarihi ileri çekilir
+			(borç ortadan kalkmaz, yalnızca zamanlaması değişir). Vadesi geçen ödemeler artık otomatik olarak
+			bir sonraki Cuma'ya kaydırılmaz; ödenene veya ötelenene kadar "Vadesi Geçenler" altında kalır.
+			Tahsilat tarafında yalnızca kayıtlı beklenen girişler yer alır (günlük gerçekleşen oda geliri hariç).
 		</p>
 		{#if data.skipped_no_rate > 0}
 			<p class="text-[11px] text-amber-700 mt-1">{data.skipped_no_rate} kalem kur bilgisi olmadığından hesaba katılamadı.</p>

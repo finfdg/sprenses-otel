@@ -3,7 +3,12 @@
 FIFO sonrası tam ödenmiş faturalar → finance_event silinir
 Kısmi ödenmiş faturalar → tutarı güncellenir
 Ödenmemişler → olduğu gibi kalır
-Vadesi geçmiş faturalar → sonraki Cuma'ya kaydırılır
+Vadesi geçen faturalar → ORİJİNAL tarihinde kalır (Cuma roll-over kaldırıldı 2026-07-04);
+yalnız KALICI ÖTELEME (payment_deferrals) varsa ertelenmiş tarihe çekilir.
+
+NOT: Bu fonksiyon FinanceEvent'i ORM ile DOĞRUDAN yazar (upsert_vendor_tx üzerinden
+DEĞİL) → merkezî `_upsert` deferral override'ı BURADA çalışmaz; öteleme bu yüzden
+`effective_due_date(..., deferral_map)` ile burada da uygulanır.
 """
 import logging
 
@@ -12,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.models.finance_event import FinanceEvent
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
+from app.services.deferral_service import get_deferral_map
 from app.utils.vendor_fifo import calculate_fifo_amounts, effective_due_date
 
 logger = logging.getLogger(__name__)
@@ -24,6 +30,7 @@ def sync_vendor_finance_events(db: Session) -> dict:
         {"created": int, "updated": int, "removed": int}
     """
     fifo = calculate_fifo_amounts(db)
+    deferral_map = get_deferral_map(db)
 
     # Mevcut vendor_payment finance_events
     existing_fes = (
@@ -63,17 +70,21 @@ def sync_vendor_finance_events(db: Session) -> dict:
             if fe.is_matched:
                 fe.is_matched = False
                 updated += 1
-            # Vadesi geçmiş → sonraki Cuma'ya kaydır
+            # Öteleme varsa ertelenmiş tarih; yoksa orijinal vade (Cuma roll-over yok)
             if vtx_info:
                 vtx_obj = vtx_info[0]
-                eff_date = effective_due_date(vtx_obj.payment_due_date)
+                eff_date = effective_due_date(
+                    vtx_obj.payment_due_date, vtx_id=vtx_id, deferral_map=deferral_map
+                )
                 if fe.event_date != eff_date:
                     fe.event_date = eff_date
                     updated += 1
         elif vtx_info:
-            # Yeni — oluştur (vadesi geçmişse sonraki Cuma'ya kaydır)
+            # Yeni — oluştur (öteleme varsa ertelenmiş tarihe çek)
             vtx, hesap_adi, hesap_kodu = vtx_info
-            eff_date = effective_due_date(vtx.payment_due_date)
+            eff_date = effective_due_date(
+                vtx.payment_due_date, vtx_id=vtx_id, deferral_map=deferral_map
+            )
             new_fe = FinanceEvent(
                 source_type="vendor_payment",
                 source_id=vtx_id,

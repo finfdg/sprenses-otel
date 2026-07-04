@@ -40,7 +40,8 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/finance/cash-flow/eur-balances` — EUR bakiye özeti
 - `GET /api/finance/cash-flow/report/pdf` — Ay/gün bazlı nakit akım PDF raporu (view; `start_date`/`end_date` opsiyonel; sayılar `compute_eur_balances` ile ekranla ortak)
 - `GET /api/finance/cash-flow/t-account` — T hesap cetveli (view; `period=daily|weekly|monthly|yearly` + `offset<=0`; dönemin giriş/çıkış grupları EUR karşılığıyla, transfer kategorileri hariç, kur bulunamayan kalem `skipped_no_rate` sayacına düşer)
-- `GET /api/finance/cash-flow/runway` — Nakit koruma / runway projeksiyonu (view; içinde bulunulan ay için `start_eur` bugünkü toplam banka nakdi + bugün→ay sonu planlı [gerçekleşmemiş+eşleşmemiş] `inflows`/`outs` EUR kalemleri, transfer hariç, kur yok→`skipped_no_rate`)
+- `GET /api/finance/cash-flow/runway` — Nakit koruma / runway projeksiyonu (view; içinde bulunulan ay için `start_eur` bugünkü toplam banka nakdi + bugün→ay sonu planlı [gerçekleşmemiş+eşleşmemiş] `inflows`/`outs` EUR kalemleri, transfer hariç, kur yok→`skipped_no_rate`; ayrıca `overdue` = vadesi geçen ödenmemiş kalemler orijinal tarihlerinde; her out/overdue/inflow kaleminde `deferred: bool` + `original_date`)
+- `POST /api/finance/cash-flow/defer` — Bir ödeme kalemini KALICI öteler / öteleme kaldırır (use; onaysız+audit+WS; body `{source_type, source_id, deferred_to: "YYYY-MM-DD"|null}`; null→öteleme siler; `source_type` deferrable kümede [bank HARİÇ]; yanıt `{ok, deferred_to, cleared}`)
 - `GET /api/finance/cash-flow/credit-payments-unpaid` — Ödenmemiş kredi taksitleri
 - `GET /api/finance/cash-flow/cc-statements-unpaid` — Ödenmemiş kredi kartı ekstreleri
 - `POST /api/finance/cash-flow/match-vendor-tx` — Cari işlem eşleştirme

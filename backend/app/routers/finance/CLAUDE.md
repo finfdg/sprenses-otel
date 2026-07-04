@@ -5,6 +5,70 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Kalıcı Öteleme + Overdue (Cuma roll-over KALDIRILDI) (2026-07-04, YENİ)
+
+Kullanıcı kararı: (1) Nakit Koruma'da bir kalemin "ötelemesi" artık **KALICI**; (2) vadesi geçen
+cari ödemelerinin **"sonraki Cuma'ya kaydırılması" GLOBAL KALDIRILDI** (fatura orijinal/geçmiş
+tarihinde kalır — gerçek durum). Doğrudan uygulanır (**onaysız** — bilinçli; finance.cash_flow
+**use** + audit + WS broadcast).
+
+**Model + tablo:** `payment_deferrals` (migration `a6fb877d2af1`) — TEK tablo, tüm ödeme türleri.
+Doğal anahtar `(source_type, source_id)` (`uq_payment_deferrals_source`). `deferred_to Date NOT NULL`,
+`created_by` FK users SET NULL, `note` Text. Model `app/models/payment_deferral.py`.
+
+**Service `app/services/deferral_service.py`:**
+- `get_deferral_map(db)` → `{(source_type, source_id): deferred_to}` — **modül-içi dict cache**'li
+  (`_deferral_cache`; `finance_event_service` FIFO cache deseni). `_upsert` her FE'de çağırır →
+  cache olmadan bulk Sedna sync yavaşlar. `apply`/`clear` `invalidate_deferral_cache()` çağırır.
+  Test izolasyonu: conftest her test başında invalidate eder (DB SAVEPOINT rollback ile sızmasın).
+- `apply_deferral` (upsert), `clear_deferral` (sil) — commit ETMEZ (çağıran eder).
+- `resync_deferred_event(db, st, sid)` — kaynağı bulup uygun `upsert_*`'ı çağırır → FE `event_date`
+  hemen yansır. vendor_payment→`sync_vendor_finance_events`, check→`upsert_check`, credit→
+  `upsert_credit_payment`, cc_payment→`upsert_cc_statement`, scheduled türleri→`upsert_scheduled_entry`
+  (direction eşlemesi `_SCHEDULED_DIRECTION`; rent_income=+1, gerisi=-1).
+- `DEFERRABLE_SOURCE_TYPES` — **bank HARİÇ** (gerçekleşmiş nakit; en kalabalık FE türü → lookup dışı).
+
+**MERKEZÎ override — `finance_event_service._upsert`:** başta `if source_type != SOURCE_BANK and
+"event_date" in fields:` → deferral_map'ten bakar, varsa `fields["event_date"] = deferred_to` (lazy
+import → circular kır). Böylece **TÜM türler tek yerden** ertelenmiş tarihi alır; Sedna sync / FIFO
+yeniden yazımı ötelemeyi korur (kalıcılık buradan gelir). **İSTİSNA:** `sync_vendor_finance_events`
+FE'yi ORM ile DOĞRUDAN yazar (`_upsert` üzerinden DEĞİL) → orada override çalışmaz; öteleme
+`effective_due_date(..., deferral_map)` ile o modülde de ayrıca uygulanır.
+- Not: `_upsert` `ON CONFLICT DO UPDATE` SQL düzeyinde yazar → identity-map'teki python nesnesi
+  bayat kalabilir (öteleme sonrası eski `event_date`). Dönüşte `db.expire(event)` eklendi (lazy;
+  okunmayan hot-path'te ekstra sorgu yok) → dönüş değeri artık taze.
+
+**Cuma roll-over kaldırma — NELERİ değiştirdim/koruduğum (KRİTİK ayrım):**
+- `vendor_fifo.effective_due_date(payment_due_date, vtx_id=None, deferral_map=None)`: eski
+  `if payment_due_date < today: return coming_friday(today)` **SİLİNDİ** → vadesi geçen fatura
+  ORİJİNAL tarihinde kalır. Yalnız KALICI ÖTELEME uygulanır (deferral_map'te varsa deferred_to döner).
+- **`_next_friday(raw_due)` KORUNDU** (vendor_fifo:116,282 + payment_schedule.py:113) — bu AYRI bir
+  kural: `payment_due_date` BOŞ olduğunda fatura tarihinden vade hesaplarken (`fatura + payment_days`)
+  ham vade gününü Cuma'ya HİZALAR ("ödeme günü Cuma"). Vadesi geçeni ileri AKTARMAKLA (kaldırıldı)
+  karıştırılmamalı. `coming_friday` artık çağrılmıyor (tanım korundu; re-import kırmasın).
+- Çağıranlar güncellendi: `sync_vendor_fifo.py` (new+update yolları deferral_map ile), `vendor_fifo.
+  get_payment_schedule`, `cariler/payment_schedule.py` router (ScheduleInvoice/InvoiceRow'a `vtx_id`
+  eklendi). **Çek/kredi `_next_friday`/vade kuralına DOKUNULMADI** — yalnız vendor overdue-roll kalktı.
+
+**Endpoint `cash_flow/deferral.py` — `POST /cash-flow/defer`:** body `{source_type, source_id,
+deferred_to: str|null, note?}`. deferred_to null→`clear_deferral`, değilse→`apply_deferral`; sonra
+`resync_deferred_event` → `db.commit` → audit (entity_type=`payment_deferral`) → `broadcast_finance_
+update(CASH_FLOW, "update")`. Validasyon: source_type deferrable kümede (yoksa 400), tarih YYYY-MM-DD
+(bozuk→400). Yanıt `{ok, deferred_to, cleared}`.
+
+**Runway (`cash_flow/runway.py`) güncellendi:** pencere `[today, month_end]` yerine `[MIN_DATE,
+month_end]` çekilir, sonra Python'da bölünür: `event_date < today` → **`overdue`** dizisi (vadesi
+geçen ödenmemiş — Cuma roll kalktığı için artık geçmişte durur), aksi halde `inflows`/`outs`. Her
+out/overdue/inflow kalemine `deferred: bool` (payment_deferrals'ta var mı) + `original_date` (ötelenmişse
+kaynağın öteleme-öncesi doğal vadesi `_natural_date` ile; değilse event_date). inflow'da `source_type`
+gösterilmez (geriye uyum).
+
+**Test:** `tests/test_payment_deferral.py` (21 test — service apply/clear/cache, `_upsert` override
+[credit/bank-hariç], `effective_due_date` overdue-orijinal + deferral, endpoint 401/403/viewer-403/400/
+200 + FE event_date değişimi + clear-geri-döner + audit, runway overdue + deferred/original_date).
+
+---
+
 ## Nakit Akım PDF Raporu (2026-07-03, YENİ)
 
 Nakit Akım sayfasındaki **"PDF Rapor"** butonu (PageHeader actions) ekrandaki ayların

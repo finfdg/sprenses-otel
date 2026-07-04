@@ -316,6 +316,16 @@ def compute_eur_balances(db: Session) -> dict:
                 amt = float(c.amount_tl)
             overdue_check_total += to_eur(amt, curr, c.due_date)
 
+    # Vadesi geçmiş ödenmemiş CARİ ödemeleri → bloke tutar (2026-07-04). Cuma roll-over
+    # kaldırıldığından bu kalemler artık GEÇMİŞ event_date'te durur; çekteki gibi bugünkü
+    # bakiyeden düşülmezse projeksiyondan sessizce KAYBOLURDU (bakiye şişerdi). Gelecek
+    # döngüsü yalnız dt > today ekler (aşağıda) → çift sayım yok.
+    overdue_vendor_total = 0.0
+    for vfe in vendor_fe_payments:
+        if vfe.event_date < today_date:
+            overdue_vendor_total += to_eur(float(vfe.amount), vfe.currency or "TRY", vfe.event_date)
+    overdue_total = overdue_check_total + overdue_vendor_total
+
     daily = {}
     for dt in all_dates:
         # Banka bakiyelerini güncelle
@@ -332,8 +342,8 @@ def compute_eur_balances(db: Session) -> dict:
                     bank_eur += to_eur(effective_bal, acc_map[acc_id].currency, dt)
             last_known_bank_eur = round(bank_eur, 2)
             if dt >= today_date:
-                # Bugün veya sonrası: vadesi gelmiş ödenmemiş çekleri bloke olarak düş
-                total_balance = round(last_known_bank_eur - overdue_check_total, 2)
+                # Bugün veya sonrası: vadesi gelmiş ödenmemiş çek + cari bloke olarak düş
+                total_balance = round(last_known_bank_eur - overdue_total, 2)
             else:
                 # Geçmiş banka tarihleri: gerçek bakiye aynen kalır
                 total_balance = last_known_bank_eur
@@ -344,12 +354,15 @@ def compute_eur_balances(db: Session) -> dict:
                 cumulative_future_expense += pending_check_expense_by_date.get(dt, 0)
             cumulative_future_expense += credit_expense_by_date.get(dt, 0)
             cumulative_future_expense += cc_expense_by_date.get(dt, 0)
-            cumulative_future_expense += vendor_expense_by_date.get(dt, 0)
+            # Cari: yalnız BUGÜN ve sonrası gelecek gidere girer; vadesi geçmiş (< bugün)
+            # cari overdue_vendor_total'da bloke edildi → çift sayım olmasın
+            if dt >= today_date:
+                cumulative_future_expense += vendor_expense_by_date.get(dt, 0)
             cumulative_future_expense += scheduled_expense_by_date.get(dt, 0)
             # Bekleyen avanslar ve planlı gelirler gelir olarak eklenir (giderden düşülür)
             cumulative_future_expense -= advance_income_by_date.get(dt, 0)
             cumulative_future_expense -= scheduled_income_by_date.get(dt, 0)
-            total_balance = round(last_known_bank_eur - overdue_check_total - cumulative_future_expense, 2)
+            total_balance = round(last_known_bank_eur - overdue_total - cumulative_future_expense, 2)
         else:
             total_balance = last_known_bank_eur
 

@@ -92,6 +92,7 @@ def get_payment_schedule(
     class InvoiceRow:
         """Fatura satırını temsil eden yardımcı sınıf."""
         def __init__(self, row, calc_due: Optional[date_type] = None):
+            self.vtx_id = row.id
             self.vendor_id = row.vendor_id
             self.date = row.date
             self.evrak_no = row.evrak_no
@@ -150,10 +151,15 @@ def get_payment_schedule(
                 else:
                     schedule_items.append((inv, inv_amount))
 
-    # 5) Vadesi geçmiş faturaları sonraki Cuma'ya kaydır
+    # 5) KALICI ÖTELEME uygula (Cuma roll-over KALDIRILDI 2026-07-04 — vadesi geçen
+    #    fatura orijinal tarihinde kalır; yalnız kullanıcı ötelediyse ileri çekilir).
+    from app.services.deferral_service import get_deferral_map
     from app.utils.vendor_fifo import effective_due_date
+    deferral_map = get_deferral_map(db)
     for inv, _amt in schedule_items:
-        inv.payment_due_date = effective_due_date(inv.payment_due_date)
+        inv.payment_due_date = effective_due_date(
+            inv.payment_due_date, vtx_id=inv.vtx_id, deferral_map=deferral_map
+        )
 
     # 6) Tarih filtresi
     if from_date:

@@ -65,6 +65,17 @@ class FinanceEventService:
         PostgreSQL INSERT ON CONFLICT ile tek sorguda yazar; ORM identity map
         üzerinden nesneyi döndürür — çift sorgu yok.
         """
+        # ─── KALICI ÖTELEME (deferral) — merkezî override ────────────────────
+        # Bir kalem ileri bir tarihe ötelenmişse event_date ertelenmiş tarihe çekilir.
+        # TÜM türler tek yerden geçer → Sedna sync / FIFO yeniden yazımı ötelemeyi korur.
+        # "bank" HARİÇ: banka hareketi gerçekleşmiş nakittir, en kalabalık FE türüdür
+        # → gereksiz lookup olmasın. (lazy import: circular import'u kır.)
+        if source_type != SOURCE_BANK and "event_date" in fields:
+            from app.services.deferral_service import get_deferral_map
+            deferred_to = get_deferral_map(db).get((source_type, source_id))
+            if deferred_to is not None:
+                fields["event_date"] = deferred_to
+
         now = datetime.now(TZ_ISTANBUL)
         fields["source_type"] = source_type
         fields["source_id"]   = source_id
@@ -94,6 +105,12 @@ class FinanceEventService:
         if event is None:
             # Nadir durum: session cache'de yoksa tek nokta sorgusu
             event = db.query(FinanceEvent).filter(FinanceEvent.id == row[0]).first()
+        elif event in db:
+            # ON CONFLICT DO UPDATE SQL düzeyinde yazar; kayıt identity map'te zaten
+            # varsa (yeniden upsert) python nesnesi BAYAT kalır (ör. event_date deferral
+            # sonrası eski değeri gösterir). expire → sonraki erişimde tazelenir (lazy;
+            # dönüş değeri okunmayan hot-path'te ekstra sorgu yok).
+            db.expire(event)
         return event
 
     # ─── Kaynak Bazlı Upsert'ler ────────────────────────────────────────────

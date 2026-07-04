@@ -30,10 +30,12 @@ from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import (
+    DIRECTION_EXPENSE,
     DIRECTION_INCOME,
     SOURCE_BANK,
     FinanceEvent,
 )
+from app.models.payment_deferral import PaymentDeferral
 from app.models.user import User
 from app.utils.finance_helpers import MIN_DATE
 
@@ -177,6 +179,36 @@ def _item_name(fe: FinanceEvent) -> str:
     )
 
 
+def _natural_date(db: Session, source_type: str, source_id: int):
+    """Kaynağın öteleme ÖNCESİ doğal vade tarihi (yalnız ötelenmiş kalemler için sorgulanır).
+
+    Cuma roll-over kaldırıldığı için ötelemeden başka hiçbir şey FE'yi doğal tarihinden
+    kaydırmaz → ötelenmemiş kalemde event_date zaten doğal tarihtir (bu fn çağrılmaz).
+    """
+    if source_type == "check":
+        from app.models.check import Check
+        c = db.query(Check.due_date).filter(Check.id == source_id).first()
+        return c[0] if c else None
+    if source_type == "credit":
+        from app.models.credit_product import CreditPayment
+        p = db.query(CreditPayment.due_date).filter(CreditPayment.id == source_id).first()
+        return p[0] if p else None
+    if source_type == "cc_payment":
+        from app.models.credit_card_statement import CreditCardStatement
+        s = db.query(CreditCardStatement.son_odeme_tarihi).filter(
+            CreditCardStatement.id == source_id).first()
+        return s[0] if s else None
+    if source_type == "vendor_payment":
+        from app.models.vendor_transaction import VendorTransaction
+        v = db.query(VendorTransaction.payment_due_date).filter(
+            VendorTransaction.id == source_id).first()
+        return v[0] if v else None
+    # scheduled türleri: entry_date (paid_date ödeme tarihi olurdu ama öteleme = planlı)
+    from app.models.scheduled import ScheduledEntry
+    e = db.query(ScheduledEntry.entry_date).filter(ScheduledEntry.id == source_id).first()
+    return e[0] if e else None
+
+
 @router.get("/cash-flow/runway")
 def runway(
     db: Session = Depends(get_db),
@@ -192,15 +224,16 @@ def runway(
 
     start_eur = _compute_start_eur(db)
 
-    # Gelecekteki/planlı hareketler: gerçekleşmemiş + eşleşmemiş, bugün..ay sonu
-    # (gerçekleşenler bankada zaten var; eşleşmişler çift sayım). Transfer hariç.
+    # Planlı/ödenmemiş hareketler: gerçekleşmemiş + eşleşmemiş. Transfer hariç.
+    # İKİ pencere: (1) bugün..ay sonu → inflows/outs; (2) VADESİ GEÇEN (< bugün, MIN_DATE
+    # üstü) ödenmemiş → overdue. Cuma roll-over kaldırıldığından vadesi geçen kalemler
+    # artık orijinal (geçmiş) tarihlerinde durur → ayrı "Vadesi Geçenler" başlığı.
     events = (
         db.query(FinanceEvent)
         .filter(
             FinanceEvent.is_matched == False,
             FinanceEvent.is_realized == False,
             FinanceEvent.event_date >= MIN_DATE,
-            FinanceEvent.event_date >= today,
             FinanceEvent.event_date <= month_end,
             # NULL kategori NOT IN'de UNKNOWN döner → or_ ile açıkça korunur
             or_(
@@ -212,8 +245,15 @@ def runway(
         .all()
     )
 
+    # Ötelenmiş kalemler kümesi — kalemlere `deferred` bayrağı + `original_date` için
+    deferred_set = {
+        (st, sid)
+        for st, sid in db.query(PaymentDeferral.source_type, PaymentDeferral.source_id).all()
+    }
+
     inflows: list = []
     outs: list = []
+    overdue: list = []
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, float] = {}
 
@@ -222,16 +262,30 @@ def runway(
         if eur is None:
             skipped_no_rate += 1
             continue
+        key = (fe.source_type, fe.source_id)
+        is_deferred = key in deferred_set
+        original_date = (
+            _natural_date(db, fe.source_type, fe.source_id) if is_deferred else fe.event_date
+        )
         item = {
             "id": f"{fe.source_type}:{fe.source_id}",
             "date": fe.event_date.isoformat(),
             "name": _item_name(fe),
             "amount_eur": round(eur, 2),
+            "source_type": fe.source_type,
+            "deferred": is_deferred,
+            "original_date": original_date.isoformat() if original_date else None,
         }
-        if fe.direction == DIRECTION_INCOME:
+        if fe.event_date < today:
+            # "Vadesi Geçenler" = ödeme (GİDER) kalemleri. Vadesi geçmiş GELİR
+            # (gelmemiş kira/tahsilat gibi) belirsiz → runway'e katılmaz (kırmızı
+            # "vadesi geçen ödeme" olarak gösterilmesi yanlış olur).
+            if fe.direction == DIRECTION_EXPENSE:
+                overdue.append(item)
+        elif fe.direction == DIRECTION_INCOME:
+            item.pop("source_type")  # inflow'da source_type gösterilmiyordu (geriye uyum)
             inflows.append(item)
         else:
-            item["source_type"] = fe.source_type
             outs.append(item)
 
     return {
@@ -242,5 +296,6 @@ def runway(
         "start_eur": start_eur,
         "inflows": inflows,
         "outs": outs,
+        "overdue": overdue,
         "skipped_no_rate": skipped_no_rate,
     }
