@@ -248,11 +248,17 @@ planlaması eksik kalmaz.
     ay giderine **DAHİL** (nakit bakiye/projeksiyon bunu düşer).
   - **İleri aylar** (12 ay ufuk) → tutar = **0**; yalnız kesim + son ödeme tarih göstergesi.
   - Gerçek (yüklü) ekstresi olan due-ay atlanır — ekstre yüklenince projeksiyon otomatik kaybolur (WS).
+- **Kesim günü "Ekstre yükleyin" hatırlatıcısı (`projection_kind='cut'`):** her projeksiyon ayının
+  hesap kesim gününde amber "↑ Ekstre yükleyin" uyarısı (tutar 0). Son ödeme kalemi ayrı (`'due'`).
 - **Kesim/son-ödeme günü:** en son yüklü ekstreden türetilir (yoksa kart `details`); ay-uzunluğuna
   kırpılır; son ödeme günü kesimden küçükse ödeme sonraki aya taşar.
 - **Kart limiti:** `CreditProduct.total_amount` (Garanti 100K, QNB 2M, VakıfBank 980K, YK 500K,
   **Halkbank 300K** — 2026-07-04 girildi). Limit yoksa cari ay tutarı 0.
+- **EUR başlığı + Nakit Koruma (runway):** cari-ay limit rezervi bu iki hesaba da eklenir
+  (`due_reserve_projections`; `compute_eur_balances` EUR gidere, `runway.py` cari-ay OUT'a) → tablo,
+  EUR başlığı ve runway aynı rezervi gösterir.
 - **Frontend:** `cashFlowCache.projectedItems` → `filteredItems`'a karışır (yalnız daraltıcı filtre
-  yokken). `CashFlowItem` kesikli/soluk kart + "Tahmini · Ekstre yüklenmedi" rozeti + "Kesim DD.MM ·
-  Son Ödeme DD.MM"; tıklanamaz. Tahmini kalemler gün-içi KK grubuna katılmaz (ayrı satır).
-- **Test:** `backend/tests/test_cc_projections.py` (11) + `finance.test.ts` projeksiyon testleri (3).
+  yokken). `CashFlowItem` kesikli/soluk kart; `due`→"Tahmini · Ekstre yüklenmedi" + "Kesim · Son
+  Ödeme" tarihleri, `cut`→"↑ Ekstre yükleyin"; tıklanamaz. Tahmini kalemler gün-içi KK grubuna
+  katılmaz (ayrı satır).
+- **Test:** `backend/tests/test_cc_projections.py` (16) + `finance.test.ts` projeksiyon testleri (3).

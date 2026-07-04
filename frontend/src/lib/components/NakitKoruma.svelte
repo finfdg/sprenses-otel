@@ -17,7 +17,7 @@
 	import { projectRunway } from '$lib/utils/finance';
 	import { RotateCcw, ShieldCheck, ChevronDown, AlertTriangle } from 'lucide-svelte';
 
-	type Flow = { id: string; date: string; name: string; amount_eur: number; source_type?: string; deferred?: boolean; original_date?: string };
+	type Flow = { id: string; date: string; name: string; amount_eur: number; source_type?: string; deferred?: boolean; original_date?: string; projected?: boolean };
 	type RunwayData = {
 		month_label: string; month_start: string; month_end: string; today: string;
 		start_eur: number; inflows: Flow[]; outs: Flow[]; overdue: Flow[]; skipped_no_rate: number;
@@ -57,7 +57,7 @@
 		return name.replace(/^\[[^\]]*\]\s*/, '');
 	}
 
-	type Unit = { key: string; label: string; day: string; members: Flow[]; memberIds: string[]; total: number; deferred: boolean; overdue: boolean };
+	type Unit = { key: string; label: string; day: string; members: Flow[]; memberIds: string[]; deferIds: string[]; deferrable: boolean; total: number; deferred: boolean; overdue: boolean };
 
 	// Kalemleri gün + kaynak türü bazında grupla (tek üye olsa da başlık altında)
 	function groupUnits(items: Flow[], overdue: boolean): Unit[] {
@@ -70,9 +70,12 @@
 		const units: Unit[] = [];
 		for (const [key, members] of map) {
 			const first = members[0];
+			// Tahmini (projected) kalemler ötelenemez → yalnız gerçek üyeler defer edilir
+			const deferIds = members.filter((m) => !m.projected).map((m) => m.id);
 			units.push({
 				key, label: SRC_LABELS[first.source_type ?? ''] ?? cleanName(first.name),
 				day: first.date, members, memberIds: members.map((m) => m.id),
+				deferIds, deferrable: deferIds.length > 0,
 				total: members.reduce((s, m) => s + m.amount_eur, 0),
 				deferred: members.some((m) => m.deferred),
 				overdue,
@@ -268,11 +271,11 @@
 								{#if multi}<span class="text-[11px] text-red-500 shrink-0">{u.members.length} ödeme</span>{/if}
 							</button>
 							<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 text-red-700">−{fmtEur(u.total)}</span>
-							{#if canDefer}
+							{#if canDefer && u.deferrable}
 								<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
 									<input type="date" value="" min={data.today} max={`${data.month_start.slice(0, 4)}-12-31`}
 										disabled={mutating}
-										onchange={(e) => deferGroup(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
+										onchange={(e) => deferGroup(u.deferIds, (e.currentTarget as HTMLInputElement).value)}
 										aria-label={`${u.label} vadesi geçen ödemeyi ileri tarihe ötele`}
 										class="date-filter-input shrink-0 w-[130px] rounded-lg border border-gray-200 bg-white text-gray-700 px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50" />
 								</div>
@@ -327,14 +330,14 @@
 						{#if multi}<span class="text-[11px] text-gray-500 shrink-0">{u.members.length} ödeme</span>{/if}
 					</button>
 					<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 text-brass-dark">−{fmtEur(u.total)}</span>
-					{#if canDefer}
+					{#if canDefer && u.deferrable}
 						<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
 							<input type="date" value={u.day} min={data.today} max={`${data.month_start.slice(0, 4)}-12-31`}
 								disabled={mutating}
-								onchange={(e) => deferGroup(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
+								onchange={(e) => deferGroup(u.deferIds, (e.currentTarget as HTMLInputElement).value)}
 								aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini ötele`}
 								class="date-filter-input shrink-0 w-[130px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50 {u.deferred ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}" />
-							<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.deferred || mutating}
+							<button type="button" onclick={() => resetGroup(u.deferIds)} disabled={!u.deferred || mutating}
 								title="Ötelemeyi geri al" aria-label="Ötelemeyi geri al"
 								class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
 								<RotateCcw size={13} />

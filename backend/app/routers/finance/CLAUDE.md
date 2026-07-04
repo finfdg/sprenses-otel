@@ -366,21 +366,37 @@ günü kesimden küçükse ödeme sonraki aya taşar). Ekstre yoksa `details.eks
 `son_odeme_gunu` (Halkbank: 25/30). Hiçbiri yoksa kart atlanır. Gün ay-uzunluğuna kırpılır
 (31 → Şubat'ta 28/29).
 
+**İKİ kalem türü (`projection_kind`):**
+- **`due`** — son ödeme kalemi (tarih=son ödeme; tutar=limit[cari ay]/0[ileri]).
+- **`cut`** — hesap **kesim günü "Ekstre yükleyin" hatırlatıcısı** (tarih=kesim; tutar=**0**;
+  kullanıcı isteği 2026-07-04). Her projeksiyon ayı için üretilir; `offset=1` kartta kesim önceki
+  aya düşerse (geçmiş) o hatırlatıcı **eklenmez** (`cut_date >= ay başı` şartı). Frontend'de
+  amber "↑ Ekstre yükleyin" rozeti + tutarsız gösterilir.
+
 **Kalem şekli:** Frontend `CashFlowItem` ile uyumlu (source=`cc_payment`, `is_projected: true`,
-`is_current_month`, `kesim_date`, `has_limit`; sentetik yüksek-aralık `id` = 900_000_000+card*1000+i,
-gerçek FE id'leriyle çakışmaz). **`is_matched=false`** → toplama girer (çift-sayım kalemi değil).
+`projection_kind`, `is_current_month`, `kesim_date`, `son_odeme_date`, `has_limit`; sentetik
+yüksek-aralık `id` = due:900M / cut:910M + card*1000+i, gerçek FE id'leriyle çakışmaz).
+**`is_matched=false`** → toplama girer (çift-sayım kalemi değil).
+
+**EUR bakiye + Runway'e de dahil (kullanıcı isteği 2026-07-04):** `cc_projection_service.
+due_reserve_projections(db)` yalnız tutar taşıyan (cari ay limit) son-ödeme kalemlerini döner;
+- `compute_eur_balances` bunu `cc_projection_expense_by_date` olarak günlük EUR gidere + kümülatif
+  gelecek gidere ekler → **EUR ay başlığı** rezervi içerir.
+- `runway.py` bunu cari-ay **OUT** kalemi olarak ekler (`projected:true`, "(Tahmini)" adıyla; kur
+  yoksa `skipped_no_rate`) → **Nakit Koruma** rezervi içerir. Kesim hatırlatıcıları (tutar 0) hariç.
+İki tüketici de aynı servisi çağırır → tablo/EUR/runway aynı rezerv sayısını gösterir (tek kaynak).
 
 **Frontend:** `cashFlowCache.projectedItems` (`loadCashFlowProjections`, `loadAllCashFlow` +
 `refreshCashFlowFull`'a eklendi → ekstre yüklenince WS ile projeksiyon kaybolur). `+page.svelte`
 `filteredItems`'a karıştırır — **yalnız daraltıcı filtre yokken** (tag=all, arama boş, ödeme
 yöntemi yok/kredi_karti) + tarih aralığına saygılı. `groupDaySourceItems` tahmini kalemleri
-GRUPLAMAZ (her kart ayrı "Tahmini" satırında). `CashFlowItem` 3 varyantta: kesikli/soluk kart,
-"Tahmini · Ekstre yüklenmedi" rozeti, "Kesim DD.MM · Son Ödeme DD.MM", tıklanamaz (etiket/eşleştirme
-yok), "Etiketsiz" göstergesi gizli.
+GRUPLAMAZ (her kart ayrı satırda). `CashFlowItem` 3 varyantta: kesikli/soluk kart; `due`→"Tahmini ·
+Ekstre yüklenmedi" + "Kesim DD.MM · Son Ödeme DD.MM", `cut`→amber "↑ Ekstre yükleyin"; tıklanamaz,
+"Etiketsiz" göstergesi gizli. EUR başlığı/runway backend'den beslendiği için otomatik yansır.
 
-**Test:** `tests/test_cc_projections.py` (11 — cari-ay-limit/ileri-0, ekstreden/details türetme,
-yüklü-ay atla, kapalı/günsüz kart atla, gün kırpma, offset, limitsiz-0, endpoint izin+items) +
-`finance.test.ts` (3 — projeksiyon toplama dahil, ileri-0 görünür, gruplanmaz). Detay:
+**Test:** `tests/test_cc_projections.py` (16 — cari-ay-limit/ileri-0, kesim hatırlatıcı,
+ekstreden/details türetme, yüklü-ay atla, kapalı/günsüz kart atla, gün kırpma, offset+cut-atla,
+limitsiz-0, `due_reserve_projections`, endpoint izin+items) + `finance.test.ts` (3). Detay:
 `docs/modules/nakit-akim.md`.
 
 ---
