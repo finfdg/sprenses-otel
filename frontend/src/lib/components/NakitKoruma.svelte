@@ -15,8 +15,15 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { projectRunway } from '$lib/utils/finance';
 	import { RotateCcw, ShieldCheck, ChevronDown } from 'lucide-svelte';
+
+	// embedded=true → dış kart kabuğu yok (Nakit Akım kartının içinde ayraçla gösterilir)
+	let { embedded = false }: { embedded?: boolean } = $props();
+	// Erteleme (tarih değiştirme) yalnız finance.cash_flow KULLANIM yetkisi olanlara açık;
+	// yetkisizler runway'i salt-görünüm olarak görür (tarih seçici/sıfırla gizli).
+	const canDefer = hasPermission('finance.cash_flow', 'use');
 
 	type Flow = { id: string; date: string; name: string; amount_eur: number; source_type?: string };
 	type RunwayData = {
@@ -192,7 +199,7 @@
 	});
 </script>
 
-<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6">
+<div class={embedded ? 'mt-5 pt-5 border-t border-gray-200' : 'bg-white border border-gray-200 rounded-2xl shadow-sm p-4 sm:p-6'}>
 	<!-- Başlık -->
 	<div class="flex items-start justify-between gap-3 mb-4">
 		<div>
@@ -252,7 +259,9 @@
 		<!-- BU AY PLANLI ÖDEMELER — gün+tür bazında gruplu, ertelenebilir -->
 		<div class="flex items-center justify-between mt-5 mb-1.5">
 			<div class="text-[11px] tracking-[1px] uppercase text-brass-dark font-bold">Bu Ay Planlı Ödemeler</div>
-			<div class="text-[11.5px] text-gray-500">{proj.defCount > 0 ? `${proj.defCount} ödeme ertelendi` : 'ödemeleri erteleyerek koruyun'}</div>
+			<div class="text-[11.5px] text-gray-500">
+				{#if canDefer}{proj.defCount > 0 ? `${proj.defCount} ödeme ertelendi` : 'ödemeleri erteleyerek koruyun'}{/if}
+			</div>
 		</div>
 		{#if proj.shownUnits.length === 0}
 			<p class="text-xs text-gray-500 py-3">Bu ay planlı ödeme yok.</p>
@@ -260,36 +269,41 @@
 		{#each proj.shownUnits as u (u.key)}
 			{@const gout = u.effDay === null}
 			{@const multi = u.members.length > 1}
-			<div class="border-b border-gray-100">
-				<div class="flex items-center gap-2 sm:gap-3 py-2.5">
-					<span class="tabular-nums text-[11.5px] text-gray-500 w-11 shrink-0">{labelDate(u.day)}</span>
+			<div class="border-b border-gray-100 py-2.5">
+				<!-- flex-wrap: mobilde tarih seçici + sıfırla alt satıra kayar (isim/tarih üst üste gelmez) -->
+				<div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-3">
+					<span class="tabular-nums text-[11.5px] text-gray-500 w-10 shrink-0">{labelDate(u.day)}</span>
 					<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
 						class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
 						<ChevronDown size={14} class="shrink-0 text-gray-500 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
-						<span class="text-[13.5px] font-semibold truncate {gout ? 'text-gray-400 line-through' : 'text-gray-900'}">{u.label}</span>
+						<span class="text-[13px] sm:text-[13.5px] font-semibold truncate {gout ? 'text-gray-400 line-through' : 'text-gray-900'}">{u.label}</span>
 						{#if multi}<span class="text-[11px] text-gray-500 shrink-0">{u.members.length} ödeme</span>{/if}
 					</button>
-					<span class="tabular-nums text-[13.5px] font-semibold w-[78px] text-right shrink-0 {gout ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(u.total)}</span>
-					<input
-						type="date"
-						value={u.effIso}
-						min={u.day}
-						max={`${data.month_start.slice(0, 4)}-12-31`}
-						onchange={(e) => setGroupDate(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
-						aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini ertele`}
-						class="date-filter-input shrink-0 w-[128px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {u.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
-					/>
-					<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.changed}
-						title="Erteleme tarihini sıfırla" aria-label="Erteleme tarihini sıfırla"
-						class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
-						<RotateCcw size={13} />
-					</button>
+					<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 {gout ? 'text-gray-400 line-through' : 'text-brass-dark'}">−{fmtEur(u.total)}</span>
+					{#if canDefer}
+						<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+							<input
+								type="date"
+								value={u.effIso}
+								min={u.day}
+								max={`${data.month_start.slice(0, 4)}-12-31`}
+								onchange={(e) => setGroupDate(u.memberIds, (e.currentTarget as HTMLInputElement).value)}
+								aria-label={`${u.label} (${labelDate(u.day)}) ödemelerini ertele`}
+								class="date-filter-input shrink-0 w-[130px] rounded-lg border px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none {u.changed ? 'border-brass/50 bg-brass-soft text-brass-dark' : 'border-gray-200 bg-white text-gray-700'}"
+							/>
+							<button type="button" onclick={() => resetGroup(u.memberIds)} disabled={!u.changed}
+								title="Erteleme tarihini sıfırla" aria-label="Erteleme tarihini sıfırla"
+								class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-brass-dark cursor-pointer disabled:opacity-30 disabled:cursor-default hover:bg-gray-50">
+								<RotateCcw size={13} />
+							</button>
+						</div>
+					{/if}
 				</div>
 				{#if u.changed}
-					<div class="pl-[52px] pb-1.5 -mt-1 text-[10.5px] text-brass-dark">→ {labelDate(u.effIso)}{gout ? ' tarihine ertelendi (gelecek aya)' : ' tarihine ertelendi'}</div>
+					<div class="pl-10 pt-1 text-[10.5px] text-brass-dark">→ {labelDate(u.effIso)}{gout ? ' tarihine ertelendi (gelecek aya)' : ' tarihine ertelendi'}</div>
 				{/if}
 				{#if openGroups[u.key]}
-					<div class="pl-[52px] pb-2 space-y-1">
+					<div class="pl-10 pt-1.5 space-y-1">
 						{#each u.members as m (m.id)}
 							<div class="flex items-center gap-2 text-[12px]">
 								<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
@@ -302,7 +316,7 @@
 		{/each}
 		{#if proj.otherCount > 0}
 			<p class="text-[11.5px] text-gray-500 pt-2">
-				+{proj.otherCount} daha küçük ödeme (toplam {fmtEur(proj.otherSum)}) — projeksiyona dahil, erteleme için Nakit Akım sayfasını kullanın.
+				+{proj.otherCount} daha küçük ödeme (toplam {fmtEur(proj.otherSum)}) — projeksiyona dahildir.
 			</p>
 		{/if}
 

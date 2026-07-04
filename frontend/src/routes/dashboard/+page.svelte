@@ -5,7 +5,6 @@
 	import { onMount } from 'svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import CashFlowTAccount from '$lib/components/CashFlowTAccount.svelte';
-	import NakitKoruma from '$lib/components/NakitKoruma.svelte';
 	import { CheckCircle2, ArrowRight } from 'lucide-svelte';
 
 	// ── İzinler
@@ -255,14 +254,9 @@
 		</div>
 	{/if}
 
-	<!-- Nakit Akım · T Hesap Cetveli -->
+	<!-- Nakit Akım · T Hesap Cetveli (Nakit Koruma / runway en altında gömülü) -->
 	{#if canFinance}
 		<CashFlowTAccount />
-	{/if}
-
-	<!-- Nakit Koruma · Ödeme Erteleme (runway) -->
-	{#if canFinance}
-		<NakitKoruma />
 	{/if}
 
 	<!-- Son Hareketler -->

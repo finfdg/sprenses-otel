@@ -12,6 +12,7 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import NakitKoruma from '$lib/components/NakitKoruma.svelte';
 	import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
 	type TItem = { name: string; date: string; amount_eur: number };
@@ -235,5 +236,8 @@
 			<p class="mt-2 text-[11px] text-amber-700">{data.skipped_no_rate} kalem kur bilgisi olmadığından hesaba katılamadı.</p>
 		{/if}
 	{/if}
+
+		<!-- Nakit Koruma · Ödeme Erteleme — Nakit Akım kartının içinde, en altta -->
+		<NakitKoruma embedded />
 	</div>
 </div>
