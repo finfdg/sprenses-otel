@@ -44,7 +44,11 @@ sw.addEventListener('install', (event: ExtendableEvent) => {
 	);
 });
 
-// Activate: clean up old caches & reload all open tabs to pick up new code
+// Activate: eski cache'leri temizle + kontrolü devral (clients.claim).
+// NOT: Açık sekmeleri BURADA `navigate()` ile YENİDEN YÜKLEMEYİZ — sayfa tarafındaki
+// `controllerchange` dinleyicisi (routes/+layout.svelte) tek ve kontrollü bir reload
+// yapar. İkisi birlikte olunca sayfa arka arkaya 2 kez yükleniyor ve giriş sırasında
+// "göz kırpma"/titreme oluşuyordu (2026-07-05 düzeltmesi). Tek reload yeterli.
 sw.addEventListener('activate', (event: ExtendableEvent) => {
 	event.waitUntil(
 		caches
@@ -57,14 +61,6 @@ sw.addEventListener('activate', (event: ExtendableEvent) => {
 				)
 			)
 			.then(() => sw.clients.claim())
-			.then(() => sw.clients.matchAll({ type: 'window' }))
-			.then((windowClients) => {
-				// Yeni versiyon aktifleştiğinde tüm açık sekmeleri yenile
-				// böylece eski JavaScript kodu çalışmaya devam etmez
-				for (const client of windowClients) {
-					(client as WindowClient).navigate(client.url);
-				}
-			})
 	);
 });
 
