@@ -62,9 +62,19 @@
 		const sym = CUR_SYM[currency] || (currency + ' ');
 		return sym + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
 	}
-	function fmtDateShort(iso: string): string {
-		const [, m, d] = iso.split('-').map(Number);
-		return `${d} ${MONTHS_SHORT[m - 1]}`;
+	// Açılan grubun kalemlerini tarih başlığı altında grupla (kalemler backend'den tarih sıralı gelir)
+	function groupItemsByDate(items: TItem[]): { date: string; label: string; items: TItem[] }[] {
+		const out: { date: string; label: string; items: TItem[] }[] = [];
+		let cur: { date: string; label: string; items: TItem[] } | null = null;
+		for (const it of items) {
+			if (!cur || cur.date !== it.date) {
+				const [y, m, d] = it.date.split('-').map(Number);
+				cur = { date: it.date, label: `${d} ${MONTHS[m - 1]} ${y}`, items: [] };
+				out.push(cur);
+			}
+			cur.items.push(it);
+		}
+		return out;
 	}
 
 	// Dönem etiketi — start/end_date'ten (README biçimleri)
@@ -232,13 +242,16 @@
 						</button>
 						{#if open[k]}
 							<div class="pb-1">
-								{#each g.items as it, i (i)}
-									<div class="flex items-center gap-2 pl-8 pr-2 py-1 text-[12px]">
-										<span class="text-gray-700 truncate">{it.name}</span>
-										<span class="text-gray-500 shrink-0">· {fmtDateShort(it.date)}</span>
-										<!-- Kalem kendi para biriminde (₺/€…); kolon/grup toplamı EUR konsolide -->
-										<span class="ml-auto tabular-nums text-gray-700 shrink-0">{fmtNative(it.amount_native, it.currency)}</span>
-									</div>
+								{#each groupItemsByDate(g.items) as day (day.date)}
+									<!-- Tarih başlığı — o günün kalemleri altında gruplanır -->
+									<div class="pl-8 pr-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 border-t border-gray-100">{day.label}</div>
+									{#each day.items as it, i (i)}
+										<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
+											<span class="text-gray-700 truncate">{it.name}</span>
+											<!-- Kalem kendi para biriminde (₺/€…); kolon/grup toplamı EUR konsolide -->
+											<span class="ml-auto tabular-nums text-gray-700 shrink-0">{fmtNative(it.amount_native, it.currency)}</span>
+										</div>
+									{/each}
 								{/each}
 								{#if g.item_count > g.items.length}
 									<p class="pl-8 pr-2 py-1 text-[11px] text-gray-500">+{g.item_count - g.items.length} kalem daha (Nakit Akım sayfasında tümü)</p>
