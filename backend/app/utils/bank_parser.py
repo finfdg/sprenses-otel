@@ -238,17 +238,17 @@ def _extract_header(text: str) -> ParsedHeader:
     header = ParsedHeader()
     flat = re.sub(r"\s+", " ", text)
 
-    # ─── IBAN ───
-    digits_only = re.sub(r"(?<=\d)\s+(?=\d)", "", flat)
-    m = re.search(r"IBAN\s*:?\s*\d?\s*(TR\d{24})", digits_only)
+    # ─── IBAN — BBAN alfanümerik olabilir (Halkbank harf içeren hesap no) ───
+    digits_only = re.sub(r"(?<=[A-Z0-9])\s+(?=[A-Z0-9])", "", flat, flags=re.IGNORECASE)
+    m = re.search(r"IBAN\s*:?\s*\d?\s*(TR\d{2}[A-Z0-9]{22})", digits_only, re.IGNORECASE)
     if not m:
         iban_pos = digits_only.upper().find("IBAN")
         if iban_pos >= 0:
-            m = re.search(r"(TR\d{24})", digits_only[iban_pos:iban_pos + 80])
+            m = re.search(r"(TR\d{2}[A-Z0-9]{22})", digits_only[iban_pos:iban_pos + 80], re.IGNORECASE)
     if not m:
-        m = re.search(r"(TR\d{24})", digits_only)
+        m = re.search(r"(TR\d{2}[A-Z0-9]{22})", digits_only, re.IGNORECASE)
     if m:
-        header.iban = m.group(1)
+        header.iban = m.group(1).upper()
 
     # ─── Döviz Cinsi ───
     flat_norm = _normalize_tr(flat)
@@ -720,12 +720,13 @@ def parse_excel(file_path: str) -> ParseResult:
             continue
         row_text = " ".join(str(c) for c in row if c)
 
-        # IBAN
+        # IBAN — BBAN alfanümerik olabilir (Halkbank hesap no'da harf: "2L001751" →
+        # IBAN "TR37...002L001751"); yalnız-rakam desen ("TR\d{24}") bunları kaçırıyordu.
         if not result.header.iban:
-            iban_clean = re.sub(r"(?<=\d)\s+(?=\d)", "", row_text)
-            m = re.search(r"(TR\d{24})", iban_clean)
+            iban_clean = re.sub(r"(?<=[A-Z0-9])\s+(?=[A-Z0-9])", "", row_text, flags=re.IGNORECASE)
+            m = re.search(r"(TR\d{2}[A-Z0-9]{22})", iban_clean, re.IGNORECASE)
             if m:
-                result.header.iban = m.group(1)
+                result.header.iban = m.group(1).upper()
 
         # Döviz
         if not result.header.currency:

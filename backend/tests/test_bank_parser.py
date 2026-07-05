@@ -304,3 +304,37 @@ class TestParseExcelIntegration:
                         header=["Kolon1", "Kolon2"], data_rows=[["a", "b"]])
         res = parse_excel(p)
         assert res.transactions == []
+
+    def test_halkbank_alphanumeric_iban(self, tmp_path):
+        """REGRESYON (2026-07-05): BBAN'da harf içeren Halkbank IBAN'ı (hesap no '2L001751' →
+        'TR37...002L001751') 'TR\\d{24}' deseniyle çıkarılamıyordu → oto-yükleme hesabı
+        bulamıyordu. Desen alfanümerik BBAN kabul etmeli."""
+        p = _write_xlsx(
+            tmp_path / "halk_pos.xlsx",
+            meta_rows=[
+                ["MURAT-A TURİZM"],
+                ["IBAN", "TR37000120013760002L001751"],
+                ["Şube: 1376 SİDE ŞUBESİ / ANTALYA"],
+            ],
+            header=["İşlem Tarihi", "Hesaba Giriş Tarihi", "Açıklama", "İşlem Tutarı", "Yeni Bakiye"],
+            data_rows=[
+                [datetime(2026, 7, 3), datetime(2026, 7, 4), "POSH/N005 A P POS Satış", 50000.00, 315000.86],
+                [datetime(2026, 7, 3), datetime(2026, 7, 4), "POSH/N016 A P POS Satış", 40000.00, 355000.86],
+                [datetime(2026, 7, 3), datetime(2026, 7, 4), "POSH/WB02 A P POS Satış", 60000.00, 415000.86],
+            ],
+        )
+        res = parse_excel(p)
+        assert res.header.iban == "TR37000120013760002L001751"  # harf içeren BBAN çıkarıldı
+        assert len(res.transactions) == 3
+        assert all(t.type == "income" for t in res.transactions)  # bakiye artıyor → giriş
+
+    def test_spaced_alphanumeric_iban(self, tmp_path):
+        """Boşluklu + harfli IBAN de birleştirilip çıkarılmalı (harf sınırındaki boşluk dahil)."""
+        p = _write_xlsx(
+            tmp_path / "halk_eur.xlsx",
+            meta_rows=[["IBAN: TR31 0001 2001 3760 002A 0008 95", "EUR"]],
+            header=["Tarih", "Açıklama", "Tutar", "Bakiye"],
+            data_rows=[[datetime(2026, 6, 1), "GELEN", 100.0, 100.0]],
+        )
+        res = parse_excel(p)
+        assert res.header.iban == "TR31000120013760002A000895"
