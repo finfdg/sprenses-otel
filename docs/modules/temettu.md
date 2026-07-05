@@ -47,19 +47,22 @@ bazında (ör. 12 ortak × 6 taksit = 72) ödeme satırı ayrı takip edilir.
 görünümünden gelir (Excel Özet TOPLAM ile birebir: net 17.000.000,01). Taksit/ödeme satırları taksit sheet'leriyle
 birebir (Σ = 16.999.999,98). İki görünüm de kendi Excel karşılığıyla eşleşir.
 
-## Nakit Akım (finance_events) — Net + Stopaj Ayrı
+## Nakit Akım (finance_events) — ÖDEME (kişi-kişi) bazlı Net + Stopaj
 
-Her taksit **2 ayrı çıkış** üretir (`SOURCE_DIVIDEND` net + `SOURCE_DIVIDEND_STOPAJ` stopaj, ikisi de
-`installment.id` ile anahtarlı, yön −1):
+**finance_event TAKSİT değil ÖDEME satırı (`dividend_payments`, `payment.id`) anahtarlıdır** (2026-07-05
+kullanıcı kararı). Her ödeme (pay sahibi × taksit) **2 ayrı çıkış** üretir → nakit akımda **her ortak
+ayrı satır**, kısmi ödemeler ayırt edilir (ör. 12×6 dağıtım = 72 net + 72 stopaj FE):
 
-| Kalem | source_type | event_date | tutar | ödendi kuralı |
+| Kalem | source_type | event_date | tutar | durum |
 |---|---|---|---|---|
-| Net (ortaklara) | `dividend` | taksit `due_date` | taksit net toplamı | taksitteki **tüm** `is_paid` |
-| Stopaj (vergi dairesi) | `dividend_stopaj` | ertesi ay **26'sı** (muhtasar) | taksit stopaj toplamı | taksitteki **tüm** `stopaj_paid` |
+| Net (ortağa) | `dividend` | **gerçek ödeme tarihi** (`paid_date`) — yoksa taksit `due_date` | ödemenin net'i | `is_paid` |
+| Stopaj (vergi dairesi) | `dividend_stopaj` | net'in **efektif ödeme ayının ertesi ayı 26** (muhtasar) — stopaj ödendiyse `stopaj_paid_date` | ödemenin stopajı | `stopaj_paid` |
 
-`upsert_dividend_net` / `upsert_dividend_stopaj` (`finance_event_service.py`). Pay sahibi ödemesi
-işaretlenince (`apply_payment_update`) ilgili taksitin iki olayı **roll-up** edilir (kısmi → pending,
-tamamı → paid/realized). `stopaj_amount == 0` ise stopaj olayı invalidate edilir (hayalet yok).
+`_payment_events(db, payment, shareholder, installment, distribution)` (`dividend_service.py`) →
+`upsert_dividend_net`/`upsert_dividend_stopaj` (`finance_event_service.py`). **Kritik kural:** net
+gerçek ödeme tarihine kayarsa (ör. 30.06 planlı → 03.07 fiili, ay geçer) **stopaj da bir sonraki aya
+sarkar** (Haziran değil Temmuz ödemesi → Ağustos 26 muhtasar). Ödeme roll-up YOK — her ödeme bağımsız;
+kısmi ödeme yapılan ortak "paid", diğerleri "pending" görünür. `stopaj_amount == 0` → stopaj olayı invalidate.
 
 ## API Endpoint'leri
 

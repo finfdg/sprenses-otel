@@ -770,8 +770,8 @@ def my_endpoint(background_tasks: BackgroundTasks, ...):
 | Alınan kira | `"rent_income"` | `upsert_scheduled_entry(db, entry, direction=1)` |
 | Verilen kira | `"rent_expense"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
 | SGK | `"sgk"` | `upsert_scheduled_entry(db, entry, direction=-1)` |
-| Temettü net | `"dividend"` | `upsert_dividend_net(db, installment, dist, is_paid)` (bespoke — taksit.id anahtarlı) |
-| Temettü stopaj | `"dividend_stopaj"` | `upsert_dividend_stopaj(db, installment, dist, stopaj_date, is_paid)` (ertesi ay 26 muhtasar) |
+| Temettü net | `"dividend"` | `upsert_dividend_net(db, payment, desc, event_date)` (bespoke — **payment.id** anahtarlı, kişi-kişi; event_date = gerçek ödeme tarihi veya taksit vadesi) |
+| Temettü stopaj | `"dividend_stopaj"` | `upsert_dividend_stopaj(db, payment, desc, event_date)` (net'in efektif ödeme ayının ertesi ayı 26; net geç ödenip ay geçerse stopaj da kayar) |
 
 ---
 
