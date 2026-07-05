@@ -115,7 +115,6 @@ def test_server_info_returns_metrics_shape(client, auth_headers):
         "sprenses-api",
         "sprenses-frontend",
         "sprenses-exchange-rates",
-        "sprenses-quality-forms",
         "postgresql",
         "nginx",
     }

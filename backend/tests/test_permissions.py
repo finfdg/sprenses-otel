@@ -119,8 +119,6 @@ VIEWER_FORBIDDEN_MUTATIONS = [
     ("DELETE", "/api/hr/sgk/999999"),                      # hr.sgk
     ("DELETE", "/api/hr/shifts/999999"),                   # hr.shifts
     ("DELETE", "/api/hr/shift-schedule/999999"),           # hr.shift_schedule
-    ("DELETE", "/api/quality/templates/999999"),           # quality.templates
-    ("DELETE", "/api/quality/forms/999999"),               # quality.forms
     ("DELETE", "/api/sales/room-types/999999"),            # sales.room_types
     ("DELETE", "/api/sales/reservations/uploads/999999"),  # sales.hotel_reservation
     ("DELETE", "/api/system/users/999999"),                # system.users

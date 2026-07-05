@@ -17,7 +17,7 @@
 
 ## Veri Modeli
 - **`modules`**: id, code (unique), name, parent_id (self-FK, hiyerarşi), icon, sort_order, is_active
-- **Kök modüller:** `panel`, `messaging`, `finance`, `accounting`, `hr`, `quality`, `system`
+- **Kök modüller:** `panel`, `messaging`, `finance`, `accounting`, `hr`, `system`
 - **Alt modüller:** `finance.cash_flow`, `finance.banks`, `accounting.taxes` vb.
 
 ## API Endpoint'leri

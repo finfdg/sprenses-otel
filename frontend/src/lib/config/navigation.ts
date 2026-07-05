@@ -83,13 +83,6 @@ export const MESSAGING_ICON = ['M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0
 
 export const NAV_GROUPS: NavGroup[] = [
 	{
-		key: 'quality', label: 'Kalite', prefix: '/dashboard/kalite', icon: [I.clipboard],
-		items: [
-			{ code: 'quality.templates', label: 'Şablonlar', href: '/dashboard/kalite/sablonlar', icon: [I.doc] },
-			{ code: 'quality.forms', label: 'Formlar', href: '/dashboard/kalite/formlar', icon: [I.docCheck], prefixActive: true },
-		],
-	},
-	{
 		key: 'finance', label: 'Finans', prefix: '/dashboard/finans', icon: [I.money],
 		items: [
 			{ code: 'finance.cash_flow', label: 'Nakit Akım', href: '/dashboard/finans/nakit-akim', icon: [I.trendUp] },

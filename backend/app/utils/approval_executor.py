@@ -111,7 +111,7 @@ def _make_crud_handler(load, create_fn, update_fn, delete_fn, not_found_msg,
 
     Yalnız basit-CRUD modülleri için (banks/avanslar/departmanlar/room_types) — özel
     mantıklı handler'lar (krediler `_target`, butce upsert, checks iptal kademesi,
-    quality, scheduled) açık yazılır. `create_takes_actor`, `create_fn`'in `actor_id`
+    scheduled) açık yazılır. `create_takes_actor`, `create_fn`'in `actor_id`
     alıp almadığını AÇIKÇA kodlar (departmanlar/room_types almaz; banks/avanslar alır) —
     bu imza farkı eski drift bug'larının (D2-4) kaynağıydı, gizlenmez. `load(db, id)`
     güncelleme/silmede varlığı çeker (lazy model import'u burada kalır).
@@ -494,76 +494,6 @@ def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):
         vendor_service.apply_vendor_update(db, vendor, payload)
 
 
-# ── Kalite modülleri ──────────────────────────────────────────
-
-def _handle_quality_templates(db, action_type, entity_id, payload, actor_id):
-    from app.models.quality_template import QualityTemplate
-    from app.models.quality_template_assignee import QualityTemplateAssignee
-    from app.models.quality_template_section import QualityTemplateSection
-    from app.services import quality_service
-
-    if action_type == "create":
-        sections_data = payload.pop("sections", [])
-        assignees_data = payload.pop("assignees", [])
-        tpl = QualityTemplate(
-            name=payload.get("name", ""),
-            description=payload.get("description"),
-            frequency=payload.get("frequency", "daily"),
-            footer_text=payload.get("footer_text"),
-            increase_threshold=payload.get("increase_threshold", 10.0),
-            decrease_threshold=payload.get("decrease_threshold", 10.0),
-            is_active=payload.get("is_active", True),
-            created_by=actor_id,
-        )
-        db.add(tpl)
-        db.flush()
-        quality_service.save_sections(db, tpl.id, sections_data)
-        quality_service.save_assignees(db, tpl.id, assignees_data)
-
-    elif action_type == "update":
-        tpl = db.query(QualityTemplate).filter(QualityTemplate.id == entity_id).first()
-        if not tpl:
-            raise ValueError(f"Şablon bulunamadı: {entity_id}")
-        sections_data = payload.pop("sections", None)
-        assignees_data = payload.pop("assignees", None)
-        _apply_fields(tpl, payload)
-        if sections_data is not None:
-            db.query(QualityTemplateSection).filter(
-                QualityTemplateSection.template_id == entity_id
-            ).delete()
-            db.flush()
-            quality_service.save_sections(db, entity_id, sections_data)
-        if assignees_data is not None:
-            db.query(QualityTemplateAssignee).filter(
-                QualityTemplateAssignee.template_id == entity_id
-            ).delete()
-            db.flush()
-            quality_service.save_assignees(db, entity_id, assignees_data)
-
-    elif action_type == "delete":
-        tpl = db.query(QualityTemplate).filter(QualityTemplate.id == entity_id).first()
-        if tpl:
-            db.delete(tpl)
-
-
-def _handle_quality_forms(db, action_type, entity_id, payload, actor_id):
-    from app.models.quality_form import QualityForm
-    from app.services import quality_service
-
-    if action_type == "create":
-        quality_service.create_form(
-            db,
-            template_id=payload.get("template_id"),
-            period_date=payload.get("period_date"),
-            notes=payload.get("notes"),
-        )
-
-    elif action_type == "delete":
-        form = db.query(QualityForm).filter(QualityForm.id == entity_id).first()
-        if form:
-            quality_service.delete_form(db, form)
-
-
 def _handle_attendance(db, action_type, entity_id, payload, actor_id):
     """Onaylanan elle giriş/çıkış (hr.attendance) → AttendanceLog oluştur/güncelle/sil.
 
@@ -713,9 +643,6 @@ _HANDLERS = {
     "finance.hakedis": _handle_finance_hakedis,
     # Muhasebe — Temettü (kâr payı dağıtımı, bespoke — fabrika DIŞI)
     "accounting.dividend": _handle_accounting_dividend,
-    # Kalite
-    "quality.templates": _handle_quality_templates,
-    "quality.forms": _handle_quality_forms,
     # İK — Devam Takip (elle giriş/çıkış)
     "hr.attendance": _handle_attendance,
     # İK — Vardiya tanımları

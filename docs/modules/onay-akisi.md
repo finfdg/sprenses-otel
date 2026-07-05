@@ -268,7 +268,7 @@ yan-etki yok), elle handler yazmak yerine `_make_crud_handler` factory kullanıl
 - **Açık (elle) tutulanlar:** özel mantıklı handler'lar — `finance.krediler` (`_target` ürün/ödeme),
   `finance.butce` (kompozit-anahtar upsert + `target=department/category`), `finance.checks` (iptal
   kademesi), `finance.departmanlar` (**butce `target=department` yeniden kullandığından** açık
-  fonksiyon), quality/scheduled/hr. Bunlar factory'ye alınmaz.
+  fonksiyon), scheduled/hr. Bunlar factory'ye alınmaz.
 
 ### Alt Kayıtlar İçin `_target` Pattern'ı
 
@@ -310,8 +310,6 @@ Onay kontrolü entegre edilmiş modüller:
 | `hr.salary` | definition CRUD + entry update |
 | `hr.withholding` | definition CRUD + entry update |
 | `hr.sgk` | definition CRUD + entry update |
-| `quality.templates` | create, update, delete |
-| `quality.forms` | create, delete |
 
 ## Bildirim Entegrasyonu
 

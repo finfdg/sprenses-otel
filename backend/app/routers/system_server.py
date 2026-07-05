@@ -24,7 +24,6 @@ ALLOWED_SERVICES = [
     "sprenses-api",
     "sprenses-frontend",
     "sprenses-exchange-rates",
-    "sprenses-quality-forms",
     "postgresql",
     "nginx",
 ]

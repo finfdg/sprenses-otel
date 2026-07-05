@@ -49,7 +49,7 @@
 - Onaylanan talepler `approval_executor.py`'deki handler ile uygulanır — yeni modül için handler eklenmeli
   - **Handler, router endpoint'inin davranışını BİREBİR yansıtmalı** (yalnız model alanları değil): payload anahtarları model kolonlarıyla aynı olmalı, zorunlu kolonlar set edilmeli, ve router'ın yan etkileri (finance_events upsert, eşleşme kaldırma, FIFO/sync, açıklama yeniden üretimi) handler'da da uygulanmalı. Handler yalnız onay onaylanınca çalıştığından sapmalar sessiz kalır.
     - **TERCİH EDİLEN ÇÖZÜM (D1-2, 2026-06-22) — ortak service:** Bu sapma sınıfını yapısal olarak engellemek için mutasyon mantığını bir **domain service**'e çıkar; hem router endpoint'i hem executor handler'ı AYNI fonksiyonu çağırsın. Referans: `app/services/credit_service.py` (`create_product`/`apply_product_update`/`delete_product`/`apply_payment_update`/`delete_payment`) — `finance.krediler` router'ı (`products.py`/`payments.py`) ve `_handle_finance_krediler` ikisi de buradan çağırır. Bu, eski elle-tekrar handler'daki D2-4 bug'larını kapattı: `payment.product_id` (yanlış kolon → AttributeError) + onayda BCH/KMH planı/finance_events üretilmemesi. **Onay payload'ı JSON'a serileşir (`json.dumps(..., default=str)`) → tarihler string olur; service tüketicisi `date.fromisoformat` ile coerce etmeli** (`credit_service._coerce_date`). Yeni handler'lar bu deseni izlemeli.
-  - **Test katmanları (2026-06-17 genişletildi):** `tests/test_approval_system.py::TestExecutorImportIntegrity` üç AST testi — (a) `from app...import` çözümü, (b) `Model(kwarg=...)` alan geçerliliği, (c) **`check_approval` çağıran HER modülün handler'ı var** (`test_all_approval_callers_have_executor_handler`). **AMA** AST testleri payload-anahtar uyuşmazlığını, eksik-zorunlu-kolonu, çift-serileştirmeyi ve eksik yan-etkiyi YAKALAYAMAZ → yeni handler için **modül-bazlı uçtan-uca onay regresyon testi** de eklenmeli (örnekler: `test_create_room_type_via_approval_regression`, `test_check_status_via_approval_regression`, `test_quality_template_via_approval_regression`). Bu hata sınıfı tarama denetiminde finance.checks/quality.templates/sales.room_types'ta bulundu (2026-06-17).
+  - **Test katmanları (2026-06-17 genişletildi):** `tests/test_approval_system.py::TestExecutorImportIntegrity` üç AST testi — (a) `from app...import` çözümü, (b) `Model(kwarg=...)` alan geçerliliği, (c) **`check_approval` çağıran HER modülün handler'ı var** (`test_all_approval_callers_have_executor_handler`). **AMA** AST testleri payload-anahtar uyuşmazlığını, eksik-zorunlu-kolonu, çift-serileştirmeyi ve eksik yan-etkiyi YAKALAYAMAZ → yeni handler için **modül-bazlı uçtan-uca onay regresyon testi** de eklenmeli (örnekler: `test_create_room_type_via_approval_regression`, `test_check_status_via_approval_regression`). Bu hata sınıfı tarama denetiminde finance.checks/sales.room_types'ta bulundu (2026-06-17).
   - Tüm onay motoru (workflow + talep + executor) `tests/test_approval_system.py` ile test edilir (uçtan-uca onay→uygula + modül regresyonları dahil)
 - Detaylı bilgi: `docs/modules/onay-akisi.md`
 
@@ -224,7 +224,7 @@ TEMPLATE:
 │   │   │                        # CreditPayment, CreditCardStatement, Advance,
 │   │   │                        # Department, Budget, BudgetCategory, FinanceEvent,
 │   │   │                        # ScheduledDefinition, ScheduledEntry, ExchangeRate,
-│   │   │                        # TransactionCategory, QualityTemplate, QualityForm,
+│   │   │                        # TransactionCategory,
 │   │   │                        # Reservation, ReservationUpload, RoomType
 │   │   ├── schemas/             # Pydantic şemaları (user, role, module, message,
 │   │   │                        # push, pagination, check, credit, budget, scheduled)
@@ -240,7 +240,6 @@ TEMPLATE:
 │   │   │                        #   rent_income, rent_expense, dividend altmodüllerini
 │   │   │                        #   `create_scheduled_router(module_code, ...)` fabrikasıyla üretir
 │   │   │                        # hr/__init__.py          — salary, withholding, sgk altmodülleri (aynı fabrika)
-│   │   │                        # quality/ (templates, forms, scheduler)
 │   │   │                        # sales/ (reservations, room_types, agency_groups, flights)
 │   │   │                        # approval/ (workflows, requests) — sistem onay akışı
 │   │   │                        # finance/bank_instructions — EFT/havale/döviz PDF üretim
@@ -265,7 +264,6 @@ TEMPLATE:
 │   │   │   ├── vendor_service.py          # Cari vade/durum güncelleme + FE sync (router + onay executor ORTAK)
 │   │   │   ├── check_service.py           # Çek durum güncelleme + iptal kademesi (router + onay executor ORTAK)
 │   │   │   ├── scheduled_service.py       # Planlı gelir/gider tanım+giriş (8 modül; router fabrikası + executor ORTAK)
-│   │   │   ├── quality_service.py         # Kalite şablon bölüm/alan/atama kaydetme (router + executor ORTAK)
 │   │   │   ├── system_service.py          # Kullanıcı/rol/modül CRUD + cache + oturum (router + executor ORTAK)
 │   │   │   ├── advance_service.py          # Avans CRUD + finance_events
 │   │   │   ├── bank_account_service.py     # Banka hesabı CRUD
@@ -287,7 +285,7 @@ TEMPLATE:
 │   │   ├── test_finance.py, test_finance_performance.py
 │   │   ├── test_scheduled_base.py   # Muhasebe + İK (8 modül)
 │   │   ├── test_credits.py, test_checks.py, test_budget.py, test_onay.py
-│   │   ├── test_advances.py, test_quality_module.py
+│   │   ├── test_advances.py
 │   │   ├── test_approval_system.py  # Sistem onay akışı motoru (workflow/talep/executor)
 │   │   ├── test_security.py         # CSP başlığı + logo/SVG XSS sertleştirme
 │   │   ├── test_notifications.py    # Bildirim testleri
@@ -309,7 +307,6 @@ TEMPLATE:
 │   │   │       │                         # Nakit Akım, Avanslar, Döviz, Bütçe, Onay
 │   │   │       ├── muhasebe/             # Vergiler, Düzenli Ödemeler, Kiralar, Temettü
 │   │   │       ├── ik/                   # Maaş, Stopaj, SGK
-│   │   │       ├── kalite/               # Şablonlar, Formlar
 │   │   │       └── sistem/               # Kullanıcılar, Roller, Modüller,
 │   │   │                                 # Audit Loglar, Hata Logları
 │   │   ├── lib/
@@ -405,7 +402,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 
 - **DB adı:** sprenses
 - **Kullanıcı:** sprenses
-- **Tablolar (69):** stock_depots, stock_products, stock_movements, personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, vendor_bank_accounts, vendor_notes, sales_invoices, sales_collections, sales_advances, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, quality_templates, quality_template_sections, quality_template_fields, quality_template_assignees, quality_forms, quality_form_values, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items, payment_deferrals, dividend_distributions, dividend_shareholders, dividend_installments, dividend_payments
+- **Tablolar (63):** stock_depots, stock_products, stock_movements, personnel, attendance_logs, attendance_settings, shift_definitions, shift_assignments, users, roles, modules, role_module_permissions, conversations, conversation_members, messages, audit_logs, push_subscriptions, notifications, error_logs, vendors, vendor_uploads, vendor_transactions, vendor_bank_accounts, vendor_notes, sales_invoices, sales_collections, sales_advances, transaction_categories, bank_accounts, bank_statements, bank_transactions, checks, check_uploads, credit_products, credit_payments, credit_card_statements, credit_card_transactions, advances, departments, budgets, budget_categories, finance_events, scheduled_definitions, scheduled_entries, exchange_rates, cash_flows, reservations, reservation_uploads, room_types, agency_groups, approval_workflows, approval_workflow_requestor_roles, approval_workflow_approver_roles, approval_workflow_steps, approval_requests, approval_request_logs, payment_instruction_lists, payment_instruction_items, payment_deferrals, dividend_distributions, dividend_shareholders, dividend_installments, dividend_payments
 - **Saat dilimi:** Europe/Istanbul (her bağlantıda SET edilir)
 - **Migrations:** `cd backend && source venv/bin/activate && alembic upgrade head`
 - **Otomatik yedek (2026-06-22, denetim D15-1 — tek Kritik):** Günlük `pg_dump -Fc` → `/var/backups/sprenses-db/` (`scripts/db-backup.sh`, systemd `sprenses-db-backup.timer` 03:00 Istanbul, bütünlük doğrulamalı, 30-yedek rotasyon). Geri yükleme + **restore tatbikatı**: `scripts/db-restore.sh` (argümansız = en son yedeği geçici DB'ye yükle/say/sil; `<dump> sprenses` = üretime, `EVET` onaylı). **Kod yedeği (git/Stop hook) ≠ DB yedeği** — bu ayrı. **Off-site (S3) opt-in/pasif** (`SPRENSES_BACKUP_S3`, IAM role gerekir) → tam disk/instance-kaybı koruması için kurulmalı. Detay: `docs/modules/yedekleme.md`.
@@ -424,7 +421,6 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 - Finans (finance) → Nakit Akım (finance.cash_flow), Cariler (finance.cariler), Satış Faturaları (finance.sales_invoices), Hak Ediş Takibi (finance.hakedis), Bankalar (finance.banks), Çekler (finance.checks), Krediler (finance.krediler), Avanslar (finance.avanslar), Döviz (finance.doviz), Bütçe (finance.butce), Onay (finance.onay)
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali), Mizan (accounting.mizan)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
-- Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup), Dokümanlar (system.docs)
 - Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Acente Mahsup & Nakit Akım (sales.acente_mahsup), Oda Tipleri (sales.room_types)
 - Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
@@ -505,7 +501,6 @@ PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --data-only \
 **Test altyapı notları:**
 - Token çıkarma: `conftest.py` içindeki `extract_token(response)` helper'ı HttpOnly cookie'den token alır
 - Test ortamında `CORS_ORIGINS=http://testserver` set edilir → `secure=False` cookie → TestClient cookie geri döner
-- `integration_quality.py` — Production API'ye karşı çalışan entegrasyon scripti (pytest tarafından toplanmaz)
 - Rate limiter'lar her test öncesi otomatik sıfırlanır (`autouse` fixture)
 - **Test DB izolasyonu zorunlu:** `conftest.py` `DATABASE_URL` set edilmemişse veya adı `_test` içermiyorsa testleri durdurur. Bilerek prod-benzeri DB kullanılacaksa `ALLOW_PROD_DB_TESTS=1` ile bypass edilir (önerilmez).
 - **Onay akışı sigortası:** `_disable_admin_approval_workflows` autouse fixture'ı her test başında admin rolünün requestor olduğu aktif workflow'ları SAVEPOINT içinde deaktive eder — CRUD testlerinin onay akışı yüzünden sessizce 202'ye düşmesini engeller. Onay akışını test edenler kendi workflow'larını yarattığı için etkilenmez.
@@ -608,7 +603,6 @@ Her modül dosyası şu bölümleri içermelidir:
 | Stok / Depo Maliyet | `docs/modules/stok.md` |
 | Yönetim Paneli + Maliyet Kontrol | `docs/modules/yonetim-paneli.md` |
 | Panel (Dashboard) | `docs/modules/panel.md` |
-| Kalite (Şablonlar + Formlar) | `docs/modules/kalite.md` |
 | Sistem — Sunucu İzleme | `docs/modules/sunucu.md` |
 | SSH Tünel Güvenliği | `docs/modules/ssh-tunel-guvenligi.md` |
 
@@ -696,7 +690,7 @@ varsa paylaşılan bileşende yap → tüm modüllere yayılsın.
 ### Bilinçli İstisnalar (sapma DEĞİL)
 
 - **Kanonik iskelete uymayan sayfalar:** Mesajlaşma (iki-panel sohbet + MessageInput autogrow), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli — StatCard/EmptyState beklenmez, ama Pagination/Skeleton uygulanır), Panel/Dashboard (karşılama, kendi başlığı), Login (bespoke auth — yine de AA), Nakit Akım iç accordion'u, public `/devam` kiosk (WS'siz sınırlı polling + tam-ekran), ve mizan/fis-icmali/roller-matrisi/vardiya-çizelgesi/KMH yoğun-matris tabloları (yatay-scroll doğru kalıp). Hepsi yine **Button/Lucide/AA/hata-yönetimi** ilkelerine uyar.
-- **Dekoratif/anlamlı küçük sapmalar:** döviz grafik lejantındaki teal-600 çizgi (grafik rengiyle eşleşir) ve stok/depolar `bg-amber-400` bar (üzerinde metin yok) salt dekoratiftir; yoğun tablo satır-aksiyonları ikon-only kalabilir; kalite şablon eşiği ve cariler vade günü `type="number"` (yüzde puanı/gün sayısı — para değil, MoneyInput gerekmez).
+- **Dekoratif/anlamlı küçük sapmalar:** döviz grafik lejantındaki teal-600 çizgi (grafik rengiyle eşleşir) ve stok/depolar `bg-amber-400` bar (üzerinde metin yok) salt dekoratiftir; yoğun tablo satır-aksiyonları ikon-only kalabilir; cariler vade günü `type="number"` (yüzde puanı/gün sayısı — para değil, MoneyInput gerekmez).
 
 > **TEMA (2026-07-04, panel yeniden tasarımı — kullanıcı kararı: TÜM UYGULAMA):** Görsel dil
 > **lacivert/altın**'a taşındı. Uygulama yöntemi **token yeniden eşlemesi** (`frontend/src/app.css`

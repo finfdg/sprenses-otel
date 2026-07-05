@@ -257,16 +257,6 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 ### Finans — Departmanlar
 - `GET/POST/PATCH/DELETE /api/finance/departmanlar/` — Departman CRUD
 
-### Kalite Yönetimi
-- `GET/POST/PATCH/DELETE /api/quality/templates/` — Kalite şablonu CRUD
-- `POST /api/quality/templates/{id}/logo` · `DELETE /api/quality/templates/{id}/logo` — Şablon logosu yükle/sil
-- `GET/POST /api/quality/forms/` — Kalite formu listele/oluştur
-- `GET /api/quality/forms/{id}` · `DELETE /api/quality/forms/{id}` — Form detay / sil
-- `PATCH /api/quality/forms/{id}/fill` — Form doldur (POST değil, PATCH)
-- `POST /api/quality/forms/{id}/submit` — Form gönder
-- `POST /api/quality/forms/{id}/review` — Form onayla/reddet
-- `POST /api/quality/forms/{id}/reopen` — Formu yeniden aç
-- `GET /api/quality/forms/{id}/pdf` — Onaylı form PDF
 
 ### Diğer
 - `GET /api/health` — Sağlık kontrolü

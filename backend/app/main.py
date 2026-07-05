@@ -23,7 +23,6 @@ from app.routers import (
     messages,
     notifications,
     push,
-    quality,
     sales,
     shift_schedule,
     shifts,
@@ -193,7 +192,6 @@ app.include_router(push.router, prefix="/api/push", tags=["push"])
 app.include_router(audit.router, prefix="/api/system/audit-logs", tags=["audit"])
 app.include_router(error_logs.router, prefix="/api/system/error-logs", tags=["error-logs"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
-app.include_router(quality.router, prefix="/api/quality", tags=["quality"])
 app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 app.include_router(accounting.router, prefix="/api/accounting", tags=["accounting"])
 app.include_router(hr.router, prefix="/api/hr", tags=["hr"])

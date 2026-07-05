@@ -13,13 +13,12 @@
 
 // WebSocket event `type` değerleri (backend yayını ↔ frontend onWsEvent)
 export const WS_EVENT = {
-	// Finans / satış / onay / kalite — gerçek zamanlı veri akışı
+	// Finans / satış / onay — gerçek zamanlı veri akışı
 	FINANCE_UPDATED: 'finance_updated',
 	SALES_UPDATED: 'sales_updated',
 	APPROVAL_UPDATED: 'approval_updated',
 	APPROVAL_STATUS_CHANGED: 'approval_status_changed',
 	BANK_STATEMENT_UPLOADED: 'bank_statement_uploaded',
-	QUALITY_FORM_UPDATE: 'quality_form_update',
 	ATTENDANCE_UPDATED: 'attendance_updated',
 	SHIFT_SCHEDULE_UPDATED: 'shift_schedule_updated',
 	PERMISSION_CHANGED: 'permission_changed',

@@ -583,54 +583,6 @@ class TestApprovalExecutor:
         db.expire_all()
         assert db.get(Check, chk_id).status == "paid"  # ARTIK uygulanıyor (eskiden sessiz no-op)
 
-    def test_quality_template_via_approval_regression(self, db):
-        """REGRESYON: _save_template_assignees zorunlu assignment_type'ı atlıyordu (NOT NULL → 500) +
-        _save_template_sections alan bayraklarını/birimi düşürüyordu (2026-06-17 tarama bulgusu)."""
-        from app.models.quality_template import QualityTemplate
-        from app.models.quality_template_assignee import QualityTemplateAssignee
-        from app.models.quality_template_field import QualityTemplateField
-        from app.models.quality_template_section import QualityTemplateSection
-
-        _, req_role, req_client = _make_actor(db, {
-            "quality.templates": {"view": True, "use": True},
-            "system.approval": {"view": True, "use": False},
-        })
-        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
-        _make_workflow(db, "quality.templates", req_role, app_role)
-
-        name = f"Şablon {uuid4().hex[:6]}"
-        r = req_client.post("/api/quality/templates/", json={
-            "name": name, "frequency": "daily",
-            "sections": [{"name": "Bölüm", "sort_order": 0, "fields": [
-                {"label": "Elektrik", "field_type": "number", "unit": "kWh",
-                 "is_resource": True, "is_meter": True, "sort_order": 0},
-            ]}],
-            "assignees": [{"assignment_type": "filler", "role_id": req_role}],
-        })
-        assert r.status_code == 202, f"onaya düşmeli: {r.text}"
-        req_id = r.json()["request_id"]
-
-        db.expire_all()
-        assert db.query(QualityTemplate).filter(QualityTemplate.name == name).first() is None
-
-        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
-        assert ap.status_code == 200, f"eksik assignment_type → 500 verirdi: {ap.text}"
-
-        db.expire_all()
-        tpl = db.query(QualityTemplate).filter(QualityTemplate.name == name).first()
-        assert tpl is not None, "Onay sonrası şablon oluşmalı"
-        sec = db.query(QualityTemplateSection).filter(
-            QualityTemplateSection.template_id == tpl.id).first()
-        fld = db.query(QualityTemplateField).filter(
-            QualityTemplateField.section_id == sec.id).first()
-        # Alan bayrakları/birim korunmalı (eski handler düşürüyordu)
-        assert fld.is_resource is True and fld.is_meter is True and fld.unit == "kWh"
-        # Assignee assignment_type + role_id set edilmeli (eskiden NOT NULL/CHECK crash)
-        asg = db.query(QualityTemplateAssignee).filter(
-            QualityTemplateAssignee.template_id == tpl.id).first()
-        assert asg.assignment_type == "filler" and asg.role_id == req_role
-
-
 # ─────────────────── Liste / durum endpoint'leri ───────────────────
 
 class TestApprovalListEndpoints:
@@ -1615,7 +1567,7 @@ class TestExecutorImportIntegrity:
 
         Bu handler'lar yalnızca ilgili modülün onayı onaylandığında çalıştığı ve
         kapsam düşük olduğu için yanlış import yolları fark edilmeden kalabiliyordu
-        (banks→bank_transaction, krediler→credit, quality→quality). Her biri o
+        (banks→bank_transaction, krediler→credit). Her biri o
         modülün onayını onaylayınca ImportError → 500'e yol açıyordu. Bu test, AST ile
         executor'daki her `from app...import` ifadesini çözerek bu hata sınıfını korur.
         """
@@ -1641,7 +1593,7 @@ class TestExecutorImportIntegrity:
         """Executor'da kurulan her SQLAlchemy modelinin kwarg'ları gerçek kolon/ilişki
         olmalı. 'Model alanını tahmin etme' hatalarını kalıcı yakalar — departmanlar
         (eksik code + olmayan description), krediler (details_json), butce (amount,
-        parent_id), quality (title, options_json, assigned_to/created_by) hepsi bu sınıftı.
+        parent_id) hepsi bu sınıftı.
         Modeller executor'ın kendi lazy import'larından dinamik çözülür."""
         import ast
         import importlib
