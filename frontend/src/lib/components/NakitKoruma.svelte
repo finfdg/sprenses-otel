@@ -39,6 +39,22 @@
 	let loading = $state(true);
 	let mutating = $state(false); // öteleme POST'u sürerken
 	let openGroups = $state<Record<string, boolean>>({});
+	// Runway grafiği hover — dokunulan günün izdüşümü + bakiye ipucu
+	let hoverIdx = $state<number | null>(null);
+
+	function onChartMove(ev: PointerEvent) {
+		const bd = proj?.byDay;
+		if (!bd || !bd.length) return;
+		const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+		if (!rect.width) return;
+		const frac = (ev.clientX - rect.left) / rect.width;
+		let idx = Math.round(frac * (bd.length - 1));
+		idx = Math.max(0, Math.min(bd.length - 1, idx));
+		if (idx !== hoverIdx) hoverIdx = idx;
+	}
+	function onChartLeave() {
+		if (hoverIdx !== null) hoverIdx = null;
+	}
 
 	function fmtEur(n: number): string {
 		return '€' + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(Math.abs(n)));
@@ -124,6 +140,14 @@
 				? `${r.firstNeg} ${MONTHS_SHORT[Number(ym.slice(5, 7)) - 1]}'de bakiye negatife düşüyor`
 				: 'Ay boyunca nakit pozitif kalıyor',
 			pts,
+			// Grafik üzerinde hover için gün gün konum (yüzde) + bakiye
+			ym,
+			byDay: r.byDay.map((p) => ({
+				day: p.day,
+				bal: p.bal,
+				xPct: (mapX(p.day) / 620) * 100,
+				yPct: (mapY(p.bal) / 120) * 100,
+			})),
 			zeroY: mapY(0).toFixed(1),
 			lowX: mapX(r.lowDay).toFixed(1),
 			lowY: mapY(r.lowVal).toFixed(1),
@@ -241,11 +265,29 @@
 				</div>
 			</div>
 			<div class="mt-3">
-				<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" role="img" aria-label="Nakit projeksiyon eğrisi">
-					<line x1="0" y1={proj.zeroY} x2="620" y2={proj.zeroY} stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
-					<polyline points={proj.pts} fill="none" stroke={proj.negative ? '#e8a06a' : '#8fd0a8'} stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-					<circle cx={proj.lowX} cy={proj.lowY} r="4.5" fill="#e8c979" />
-				</svg>
+				<div class="relative" style="touch-action:none" onpointermove={onChartMove} onpointerdown={onChartMove} onpointerleave={onChartLeave}>
+					<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" role="img" aria-label="Nakit projeksiyon eğrisi">
+						<line x1="0" y1={proj.zeroY} x2="620" y2={proj.zeroY} stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
+						<polyline points={proj.pts} fill="none" stroke={proj.negative ? '#e8a06a' : '#8fd0a8'} stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+						<circle cx={proj.lowX} cy={proj.lowY} r="4.5" fill="#e8c979" />
+					</svg>
+					{#if hoverIdx !== null && proj.byDay[hoverIdx]}
+						{@const h = proj.byDay[hoverIdx]}
+						{@const tipLeft = Math.max(14, Math.min(86, h.xPct))}
+						{@const hIso = `${proj.ym}-${String(h.day).padStart(2, '0')}`}
+						<!-- dikey izdüşüm çizgisi -->
+						<div class="absolute inset-y-0 w-px bg-teal-100/40 pointer-events-none" style="left:{h.xPct}%"></div>
+						<!-- nokta -->
+						<div class="absolute w-[9px] h-[9px] rounded-full bg-white border-2 border-teal-700 pointer-events-none"
+							style="left:{h.xPct}%;top:{h.yPct}%;transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(232,236,243,.18)"></div>
+						<!-- ipucu: gün + bakiye -->
+						<div class="absolute pointer-events-none rounded-lg border px-2 py-1 whitespace-nowrap"
+							style="left:{tipLeft}%;top:{h.yPct}%;transform:translate(-50%,calc(-100% - 12px));background:#0f1b30;border-color:#2c405f;box-shadow:0 6px 18px -6px rgba(0,0,0,.6)">
+							<div class="tabular-nums text-[9.5px] text-teal-300 tracking-[0.4px]">{labelDate(hIso)}</div>
+							<div class="tabular-nums text-[13px] font-semibold" style="color:{h.bal >= 0 ? '#8fd0a8' : '#f0a58f'}">{signed(h.bal)}</div>
+						</div>
+					{/if}
+				</div>
 				<div class="flex justify-between tabular-nums text-[9.5px] text-teal-300 mt-1">
 					<span>{proj.firstLabel}</span><span>{proj.lastLabel}</span>
 				</div>

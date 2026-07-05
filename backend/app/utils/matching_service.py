@@ -55,20 +55,23 @@ def _extract_last4_from_desc(description: str) -> Optional[str]:
     - 'VISA KART ODEME *1234'
     - 'KK BORC ODEME ...5678'
     - 'Diğer Internet - Mobil INT 650837******7261 3006'  (maskeli PAN, sonda referans)
+    - 'Kart İşlemleri - 6075 ile biten QNB Corporate ödemesi - Virman'  (yazılı son-4, yıldızsız)
     """
     if not description:
         return None
 
     # "1028" gibi — son 4 rakam bloğu
-    # İlk kalıplar kart no'yu açıklamanın SONUNDA arar; son kalıp maskeli PAN'ı
+    # İlk kalıplar kart no'yu açıklamanın SONUNDA arar; sonraki kalıp maskeli PAN'ı
     # (yıldız bloğu + son 4) açıklamanın herhangi bir yerinde yakalar — mobil/internet
     # havalesi açıklamalarında son 4'ten sonra referans no gelebilir (ör. "...7261 3006").
+    # Son kalıp yazıyla verilen "…{son4} ile biten…" desenini (yıldızsız) yakalar (ör. QNB Corporate).
     patterns = [
         r'\*{3,4}\s*(\d{4})\s*$',          # **** 1028 veya ***1028
         r'\*(\d{4})\s*$',                    # *1028
         r'\.{3}(\d{4})\s*$',                # ...1028
         r'(\d{4})\s*\*{4}\s*\*{4}\s*(\d{4})',  # 5400 **** **** 1028
         r'\*{2,}\s*(\d{4})(?!\d)',          # 650837******7261 — maskeli PAN (2+ yıldız + son 4)
+        r'(\d{4})\s+ile\s+biten',           # "6075 ile biten …" — yazılı kart son-4 (yıldızsız)
     ]
     for pattern in patterns:
         m = re.search(pattern, description)
@@ -101,7 +104,16 @@ def _is_cc_payment_desc(description: str) -> bool:
     desc_lower = description.lower()
     keywords = ["kart öd", "kart od", "k.kartı", "k.karti", "kk borc", "kk borç",
                 "kredi kartı", "kredi karti", "credit card", "visa kart", "mastercard"]
-    return any(kw in desc_lower for kw in keywords)
+    if any(kw in desc_lower for kw in keywords):
+        return True
+    # Bankanın yazıyla kart-no verdiği ödeme deseni: "…{son4} ile biten … ödeme(si)"
+    # (ör. QNB Corporate "Virman" ödemeleri — yıldızlı PAN yok). Kısmi ödemelerin de
+    # eşleşebilmesi için (kelime yolu partial'a izin verir) bu güvenilir imzayı tanı;
+    # son-4 kapısı + tutar eşleşmesi yanlış-pozitifi engeller. "öde" şartı kart aidatı/
+    # ücretini dışarıda bırakır (kısmi tutarla yanlış ekstre düşülmesin).
+    if "ile biten" in desc_lower and "öde" in desc_lower:
+        return True
+    return False
 
 
 def _match_cc_to_bank(db: Session) -> dict:
