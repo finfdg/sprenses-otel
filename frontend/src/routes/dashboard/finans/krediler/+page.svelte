@@ -157,6 +157,11 @@
 		if (a >= 1_000) return '€' + Math.round(v / 1_000) + 'K';
 		return '€' + Math.round(v);
 	}
+	// Detay KPI değeri dar panelde tek satıra sığsın diye uzunluğa göre fontu küçültür (kırpma yerine).
+	function kpiSize(v: string): string {
+		const n = v.length;
+		return n > 18 ? 'text-xs' : n > 15 ? 'text-sm' : n > 12 ? 'text-base' : 'text-lg';
+	}
 
 	// ─── Döviz ──────────────────────────────────────────────
 	let eurRate = $derived(latestRates?.rates.find(r => r.currency_code === 'EUR')?.forex_selling ?? null);
@@ -793,11 +798,11 @@
 					<EmptyState icon={CreditCard} title="Henüz kredi ürünü yok" description={canUse ? 'Yeni kredi eklemek için yukarıdaki butonu kullanın' : ''} />
 				</div>
 			{:else}
-				<div class="md:flex md:min-h-[560px]">
+				<div class="lg:flex lg:min-h-[560px]">
 					<!-- SOL: kredi listesi -->
-					<div class="{mobileShowDetail ? 'hidden md:flex' : 'flex'} md:flex flex-col w-full md:w-[372px] md:flex-none md:border-r border-gray-200 bg-gray-50">
+					<div class="{mobileShowDetail ? 'hidden lg:flex' : 'flex'} lg:flex flex-col w-full lg:w-[340px] lg:flex-none lg:border-r border-gray-200 bg-gray-50">
 						<div class="px-4 pt-3.5 pb-2 text-[10.5px] tracking-wider uppercase text-gray-500 font-bold">Aktif Krediler · vadeye göre</div>
-						<div class="flex-1 md:overflow-y-auto px-3 pb-4 space-y-1">
+						<div class="flex-1 lg:overflow-y-auto px-3 pb-4 space-y-1">
 							{#each activeCredits as c (c.id)}
 								{@const days = daysToNext(c)}
 								{@const chip = dueChip(days)}
@@ -855,15 +860,17 @@
 					</div>
 
 					<!-- SAĞ: detay -->
-					<div class="{mobileShowDetail ? 'block' : 'hidden md:block'} flex-1 min-w-0 md:overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
+					<div class="{mobileShowDetail ? 'block' : 'hidden lg:block'} flex-1 min-w-0 lg:overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
 						{#if !selected}
 							<div class="h-full flex items-center justify-center py-16">
 								<EmptyState icon={CreditCard} title="Kredi seçin" description="Detayı görüntülemek için soldaki listeden bir kredi seçin" />
 							</div>
 						{:else}
 							{@const p = selected}
+							{@const kalanStr = fmt(p.remaining_amount, p.currency)}
+							{@const sonrakiStr = p.next_payment_amount ? fmt(p.next_payment_amount, p.currency) : (p.type === 'kredi_karti' ? 'Ekstre' : '—')}
 							<!-- Mobil geri -->
-							<button onclick={backToList} class="md:hidden inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 mb-3 cursor-pointer">
+							<button onclick={backToList} class="lg:hidden inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 mb-3 cursor-pointer">
 								<ChevronLeft size={15} /> Kredi listesine dön
 							</button>
 
@@ -899,25 +906,25 @@
 							</div>
 
 							<!-- Detay KPI -->
-							<div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mt-4">
-								<div class="bg-teal-700 rounded-xl px-3.5 py-3">
+							<div class="grid grid-cols-2 xl:grid-cols-4 gap-2.5 mt-4">
+								<div class="bg-teal-700 rounded-xl px-3.5 py-3 min-w-0">
 									<div class="text-[9.5px] tracking-wide uppercase text-teal-400">Kalan Anapara</div>
-									<div class="tabular-nums text-base sm:text-lg font-semibold text-brass-light mt-1">{fmt(p.remaining_amount, p.currency)}</div>
+									<div class="tabular-nums {kpiSize(kalanStr)} font-semibold text-brass-light mt-1 whitespace-nowrap overflow-hidden">{kalanStr}</div>
 									<div class="text-[10.5px] text-teal-300 mt-0.5">≈{shortEur(toEur(p.remaining_amount, p.currency))}</div>
 								</div>
-								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
+								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3 min-w-0">
 									<div class="text-[9.5px] tracking-wide uppercase text-gray-500">Faiz Oranı</div>
-									<div class="tabular-nums text-base sm:text-lg font-semibold text-gray-900 mt-1">{p.interest_rate ? `%${p.interest_rate}` : '—'}</div>
+									<div class="tabular-nums text-lg font-semibold text-gray-900 mt-1 whitespace-nowrap">{p.interest_rate ? `%${p.interest_rate}` : '—'}</div>
 									<div class="text-[10.5px] text-gray-500 mt-0.5">{p.interest_rate ? 'yıllık' + (p.currency === 'EUR' ? ' · EUR' : '') : 'kart / rotatif'}</div>
 								</div>
-								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
+								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3 min-w-0">
 									<div class="text-[9.5px] tracking-wide uppercase text-gray-500">Sonraki Taksit</div>
-									<div class="tabular-nums text-base sm:text-lg font-semibold text-gray-900 mt-1">{p.next_payment_amount ? fmt(p.next_payment_amount, p.currency) : (p.type === 'kredi_karti' ? 'Ekstre' : '—')}</div>
+									<div class="tabular-nums {kpiSize(sonrakiStr)} font-semibold text-gray-900 mt-1 whitespace-nowrap overflow-hidden">{sonrakiStr}</div>
 									<div class="text-[10.5px] text-gray-500 mt-0.5">{p.next_payment_date ? fmtDate(p.next_payment_date) : (p.type === 'kmh' ? 'rotatif' : '—')}</div>
 								</div>
-								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
+								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3 min-w-0">
 									<div class="text-[9.5px] tracking-wide uppercase text-gray-500">İlerleme</div>
-									<div class="tabular-nums text-base sm:text-lg font-semibold text-gray-900 mt-1">{p.payment_count ? `${p.paid_count}/${p.payment_count}` : '—'}</div>
+									<div class="tabular-nums text-lg font-semibold text-gray-900 mt-1 whitespace-nowrap">{p.payment_count ? `${p.paid_count}/${p.payment_count}` : '—'}</div>
 									<div class="text-[10.5px] text-gray-500 mt-0.5">{p.payment_count ? 'taksit ödendi' : 'plansız'}</div>
 								</div>
 							</div>
@@ -978,13 +985,18 @@
 														<div>
 															{#each grp.pays as pay (pay.id)}
 																{@const overdue = !pay.is_paid && pay.due_date < TODAY_ISO}
-																<div class="grid grid-cols-[64px_1fr_auto] sm:grid-cols-[70px_1fr_92px_92px_100px_auto] gap-x-2 sm:gap-x-3 gap-y-0.5 items-center px-4 py-2.5 border-t border-gray-100 {overdue ? 'bg-red-50/50' : pay.is_paid ? 'bg-emerald-50/40' : ''}">
+																<div class="grid grid-cols-[60px_1fr_auto] xl:grid-cols-[68px_1fr_104px_104px_120px_auto] gap-x-2 xl:gap-x-3 gap-y-0.5 items-center px-3 sm:px-4 py-2.5 border-t border-gray-100 {overdue ? 'bg-red-50/50' : pay.is_paid ? 'bg-emerald-50/40' : ''}">
 																	<span class="tabular-nums text-[11.5px] text-gray-500">{fmtDate(pay.due_date)}</span>
-																	<span class="text-xs text-gray-600 truncate">Taksit {pay.installment_no || '—'}</span>
-																	<span class="hidden sm:block text-right tabular-nums text-[11.5px]" style="color:#2f6b52">{fmt(pay.principal, p.currency)}</span>
-																	<span class="hidden sm:block text-right tabular-nums text-[11.5px] text-brass-dark">{fmt(pay.interest, p.currency)}</span>
-																	<span class="text-right tabular-nums text-[12.5px] font-semibold text-gray-900 col-start-3 sm:col-start-auto">{fmt(pay.amount, p.currency)}</span>
-																	<span class="text-right col-span-3 sm:col-span-1 flex sm:block justify-end mt-1 sm:mt-0">
+																	<div class="min-w-0">
+																			<span class="text-xs text-gray-600">Taksit {pay.installment_no || '—'}</span>
+																			{#if pay.principal != null || pay.interest != null}
+																				<div class="text-[10px] text-gray-500 tabular-nums xl:hidden">Anapara {fmt(pay.principal, p.currency)} · Faiz {fmt(pay.interest, p.currency)}</div>
+																			{/if}
+																		</div>
+																	<span class="hidden xl:block text-right tabular-nums text-[11.5px] whitespace-nowrap" style="color:#2f6b52">{fmt(pay.principal, p.currency)}</span>
+																	<span class="hidden xl:block text-right tabular-nums text-[11.5px] text-brass-dark whitespace-nowrap">{fmt(pay.interest, p.currency)}</span>
+																	<span class="text-right tabular-nums text-[12.5px] font-semibold text-gray-900 whitespace-nowrap col-start-3 xl:col-start-auto">{fmt(pay.amount, p.currency)}</span>
+																	<span class="text-right col-span-3 xl:col-span-1 flex xl:block justify-end mt-1 xl:mt-0">
 																		{#if canUse && p.status !== 'closed'}
 																			<button onclick={() => togglePaid(pay)} class="text-[10.5px] font-semibold px-2.5 py-1 rounded cursor-pointer {pay.is_paid ? 'text-emerald-700 bg-emerald-50' : overdue ? 'text-red-700 bg-red-50' : 'text-brass-dark bg-brass-soft'}" title={pay.is_paid ? 'Geri al' : 'Ödendi işaretle'}>
 																				{pay.is_paid ? 'Ödendi' : overdue ? 'Gecikmiş' : 'Bekliyor'}
@@ -998,7 +1010,7 @@
 																	</span>
 																</div>
 															{/each}
-															<div class="hidden sm:grid grid-cols-[70px_1fr_92px_92px_100px_auto] gap-x-3 px-4 pt-1.5 pb-1 text-[9px] tracking-wide uppercase text-gray-500 border-t border-gray-100">
+															<div class="hidden xl:grid grid-cols-[68px_1fr_104px_104px_120px_auto] gap-x-3 px-4 pt-1.5 pb-1 text-[9px] tracking-wide uppercase text-gray-500 border-t border-gray-100">
 																<span></span><span></span><span class="text-right">Anapara</span><span class="text-right">Faiz</span><span class="text-right">Taksit</span><span class="text-right">Durum</span>
 															</div>
 														</div>
@@ -1010,17 +1022,17 @@
 								{/if}
 							{:else}
 								<!-- ── Bilgiler sekmesi ── -->
-								<div class="mt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+								<div class="mt-3.5 grid grid-cols-1 xl:grid-cols-2 gap-3">
 									<div class="bg-white border border-gray-200 rounded-xl px-4 py-4">
 										<div class="text-[10.5px] tracking-wide uppercase text-brass-dark font-bold mb-3">Maliyet &amp; Oranlar</div>
 										{#each infoCost as r}
-											<div class="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0"><span class="text-[12.5px] text-gray-600">{r.k}</span><span class="tabular-nums text-[12.5px] text-gray-900">{r.v}</span></div>
+											<div class="flex items-center justify-between gap-3 py-1.5 border-b border-gray-100 last:border-0"><span class="text-[12.5px] text-gray-600 shrink-0">{r.k}</span><span class="tabular-nums text-[12.5px] text-gray-900 text-right min-w-0">{r.v}</span></div>
 										{/each}
 									</div>
 									<div class="bg-white border border-gray-200 rounded-xl px-4 py-4">
 										<div class="text-[10.5px] tracking-wide uppercase font-bold mb-3" style="color:#3a5573">Koşullar &amp; Teminat</div>
 										{#each infoTerms as r}
-											<div class="flex items-start justify-between gap-3 py-1.5 border-b border-gray-100 last:border-0"><span class="text-[12.5px] text-gray-600 shrink-0">{r.k}</span><span class="text-[12.5px] text-gray-900 text-right">{r.v}</span></div>
+											<div class="flex items-start justify-between gap-3 py-1.5 border-b border-gray-100 last:border-0"><span class="text-[12.5px] text-gray-600 shrink-0">{r.k}</span><span class="text-[12.5px] text-gray-900 text-right min-w-0 break-words">{r.v}</span></div>
 										{/each}
 									</div>
 								</div>
@@ -1168,7 +1180,7 @@
 		</div>
 	{:else}
 		{@const cur = kmhStatus.current_period}
-		<div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-4 mb-4">
+		<div class="grid grid-cols-2 xl:grid-cols-4 gap-2.5 mt-4 mb-4">
 			<div class="bg-white border border-gray-200 rounded-xl p-3">
 				<div class="text-[10px] text-gray-500 uppercase tracking-wide">Açık Borç</div>
 				<div class="tabular-nums text-lg font-bold {kmhStatus.current_debt > 0 ? 'text-red-600' : 'text-gray-700'} mt-0.5">{fmt(kmhStatus.current_debt)}</div>
@@ -1306,7 +1318,7 @@
 					</div>
 					{#if ccExpandedStmtId === stmt.id && ccExpandedStmt}
 						<div class="border-t border-gray-100 bg-gray-50 px-3 py-3">
-							<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+							<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
 								<div class="bg-white rounded-lg p-2.5 border border-gray-100"><div class="text-[10px] text-gray-500">Önceki Bakiye</div><div class="tabular-nums text-sm font-semibold text-gray-700">{fmt(ccExpandedStmt.onceki_bakiye)}</div></div>
 								<div class="bg-white rounded-lg p-2.5 border border-gray-100"><div class="text-[10px] text-gray-500">Dönem Harcama</div><div class="tabular-nums text-sm font-semibold text-red-600">{fmt(ccExpandedStmt.donem_harcama)}</div></div>
 								<div class="bg-white rounded-lg p-2.5 border border-gray-100"><div class="text-[10px] text-gray-500">Faiz / Ücret</div><div class="tabular-nums text-sm font-semibold text-orange-600">{fmt(ccExpandedStmt.faiz_ucret)}</div></div>

@@ -72,6 +72,14 @@ sayar (`next_payment_amount` dolu); kredi kartının tüm bakiyesini KATMAZ (şi
 planlı taksit tutarını, kartta ise son-ödeme (`end_date`) kalan bakiyesini sayar. EUR konsolidasyon TCMB
 `forex_selling` ile; kur yoksa `—` + "bazı kurlar eksik".
 
+**Dar-panel taşma düzeltmesi (2026-07-05, kullanıcı bulgusu):** Dış kart `overflow-hidden` (yuvarlak köşe)
+olduğundan, sol menü açıkken daralan detay panelinde **kırılamayan** dizeler (mono para tutarları, tarihler,
+tek-kelime banka adları) sığmayıp sert kırpılıyordu ("₺6.340." gibi). Kök çözüm: (1) master-detail yan-yana
+**yalnız ≥`lg`** (1024px); altında tam-genişlik liste↔detay (iPad'de detay tam açılır). (2) Detay KPI değeri
+uzunluğa göre fontu küçültür (`kpiSize`, kırpma yerine) + `grid-cols-2 xl:grid-cols-4`. (3) Ödeme planı dar
+panelde kompakt 3-kolon (Anapara/Faiz alt satırda), tam 6-kolon tablo yalnız `xl`. (4) Bilgiler kartları
+`xl`'e kadar tek sütun; sayısal değerlere `min-w-0`. KMH/kart özet ızgaraları da `xl:grid-cols-4`.
+
 **Denetim (4-boyut düşmanca Workflow, 2026-07-05) sonrası uygulanan düzeltmeler:** WCAG AA — veri taşıyan
 `text-gray-400` → `gray-500` (en açık gövde tonu kuralı); görünüm 'krediler'e dönünce seçili detay tazelenir
 (WS başka görünümdeyken güncellerse bayat plan göstermez); "Yeniden Aç" onayı artık yıkıcı-olmayan (kırmızı
