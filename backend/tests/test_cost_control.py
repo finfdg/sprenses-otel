@@ -1,6 +1,6 @@
-"""Maliyet Kontrol + Yönetim Paneli — operasyonel KPI füzyonu (stok tüketim ÷ doluluk).
+"""Maliyet Kontrol — operasyonel KPI füzyonu (stok tüketim ÷ doluluk).
 
-occupancy_metrics + operational-kpi + price-variance + yonetim endpoint'leri.
+occupancy_metrics + operational-kpi + price-variance endpoint'leri.
 """
 from datetime import date
 
@@ -11,7 +11,6 @@ from app.models.vendor_upload import VendorUpload
 from app.utils.occupancy import occupancy_metrics
 
 PREFIX = "/api/stok"
-YPREFIX = "/api/yonetim"
 
 
 def _seed_occupancy(db):
@@ -129,24 +128,3 @@ def test_product_purchases_pdf_turkish_name(db, client, auth_headers):
     assert r.headers["content-type"] == "application/pdf"
     assert r.content[:5] == b"%PDF-"
 
-
-def test_yonetim_dashboard(db, client, auth_headers):
-    """Dashboard tüm bölümleri döndürür + doluluk/maliyet füzyonu içerir."""
-    _seed_occupancy(db)
-    _seed_stock_consume(db, {"2026-03": 400})
-    j = client.get(f"{YPREFIX}/dashboard", headers=auth_headers).json()
-    assert "occupancy" in j and "cost" in j and "finance" in j and "gop_approx_try" in j
-    assert j["cost"]["cost_per_guest_night_try"] == 100.0
-    assert j["food_cost_pct"] is None  # all-inclusive: ayrı F&B geliri yok → kavramsal olarak N/A
-
-
-def test_yonetim_alerts_and_classification(db, client, auth_headers):
-    j = client.get(f"{YPREFIX}/alerts", headers=auth_headers).json()
-    assert "price_variance" in j and "supplier_debt_top" in j and "critical_stock" in j
-    c = client.get(f"{YPREFIX}/cost-classification", headers=auth_headers).json()
-    assert len(c["items"]) == 3 and {x["key"] for x in c["items"]} == {"variable", "semi", "fixed"}
-
-
-def test_yonetim_requires_permission(client, no_perm_user_headers):
-    assert client.get(f"{YPREFIX}/dashboard", headers=no_perm_user_headers).status_code == 403
-    assert client.get(f"{YPREFIX}/alerts", headers=no_perm_user_headers).status_code == 403

@@ -15,9 +15,6 @@ class Settings(BaseSettings):
     vapid_mailto: str = "mailto:admin@sprenses.com"
     cors_origins: str = "https://sprenses.com"
     internal_secret: str
-    # Travelpayouts (uçak rezervasyon — opsiyonel)
-    travelpayouts_token: str = ""
-    travelpayouts_marker: str = ""
     # Sedna SQL Server (cari içe aktarma — ters SSH tüneli üzerinden, opsiyonel)
     # Bağlantı yalnızca "Sedna'dan İçe Aktar" tetiklenince kurulur; uygulamanın
     # normal işleyişi bu bağlantıya bağlı DEĞİLDİR (tünel kapalıysa import hata verir).

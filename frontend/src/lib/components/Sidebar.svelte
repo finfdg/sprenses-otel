@@ -233,19 +233,6 @@
 			<span class="{collapsed ? 'md:hidden' : ''}">Panel</span>
 		</a>
 
-		<!-- Yönetim Paneli (GM/Finans üst düzey KPI) -->
-		{#if hasPermission('yonetim.panel')}
-			<a
-				href="/dashboard/yonetim"
-				class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard/yonetim') ? 'bg-teal-600 text-white font-medium' : 'text-teal-200 hover:bg-teal-600/60 hover:text-white'} {collapsed ? 'md:justify-center' : ''}"
-				title={collapsed ? 'Yönetim Paneli' : ''}
-			>
-				<svg class="w-5 h-5 shrink-0 {isActive('/dashboard/yonetim') ? 'text-brass-light' : 'text-teal-300'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M5.25 18l4.5-4.5 3 3 4.5-4.5M18 12.75V9" />
-				</svg>
-				<span class="{collapsed ? 'md:hidden' : ''}">Yönetim Paneli</span>
-			</a>
-		{/if}
 
 		<!-- Mesajlaşma (özel: okunmamış badge) -->
 		{#if hasPerm('messaging')}

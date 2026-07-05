@@ -137,7 +137,6 @@
 		'/dashboard/ik/sgk': 'SGK',
 		'/dashboard/satis/otel-rezervasyon': 'Otel Rezervasyon',
 		'/dashboard/satis/oda-tipleri': 'Oda Tipleri',
-		'/dashboard/satis/ucak-rezervasyon': 'Uçak Rezervasyon',
 		'/dashboard/sistem/kullanicilar': 'Kullanıcılar',
 		'/dashboard/sistem/roller': 'Roller',
 		'/dashboard/sistem/moduller': 'Modüller',

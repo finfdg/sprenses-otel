@@ -114,7 +114,7 @@ def _compute(db: Session):
 
 # ─── _compute TTL cache ─────────────────────────────────
 # _compute her çağrıda iki tam tabloyu (faturalar + tahsilatlar) belleğe çekip FIFO yapar.
-# 4 endpoint (list/summary/advances + yonetim/dashboard) aynı sonucu kullanır ve veri yalnız
+# 3 endpoint (list/summary/advances) aynı sonucu kullanır ve veri yalnız
 # Sedna içe aktarmada değişir → 30sn süreç-içi cache tekrar hesaplamayı önler (mizan deseni).
 _COMPUTE_TTL = 30.0  # saniye
 _compute_cache: dict = {"ts": 0.0, "data": None}

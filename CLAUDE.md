@@ -422,9 +422,8 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali), Mizan (accounting.mizan)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup), Dokümanlar (system.docs)
-- Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Acente Mahsup & Nakit Akım (sales.acente_mahsup), Oda Tipleri (sales.room_types)
+- Satış (sales) → Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Acente Mahsup & Nakit Akım (sales.acente_mahsup), Oda Tipleri (sales.room_types)
 - Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
-- Yönetim Paneli (yonetim) → Panel (yonetim.panel — GM/Finans 10 KPI + uyarılar)
 
 ## Giriş Bilgileri
 
@@ -443,8 +442,6 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 | `VAPID_PUBLIC_KEY` | Push bildirim genel anahtarı |
 | `VAPID_MAILTO` | Push bildirim e-posta |
 | `CORS_ORIGINS` | İzin verilen origin'ler (virgülle ayrılmış) |
-| `TRAVELPAYOUTS_TOKEN` | Travelpayouts (Aviasales) affiliate API token — uçak rezervasyon arama için (opsiyonel, yoksa mock veri) |
-| `TRAVELPAYOUTS_MARKER` | Travelpayouts affiliate partner ID (komisyon takibi için, opsiyonel) |
 | `SEDNA_PASSWORD` | Sedna SQL Server (muhasebe) cari içe aktarma şifresi — boşsa özellik kapalı. Host/port/db/user/charset/prefix `config.py`'de varsayılan (tünel `127.0.0.1:11433`, db `SednaPrensesMhs2026`, user `prenses\btadmin`, charset `CP1254`, prefix `320`) |
 
 ## Nginx Konfigürasyonu
@@ -589,7 +586,6 @@ Her modül dosyası şu bölümleri içermelidir:
 | Bildirimler | `docs/modules/bildirimler.md` |
 | Push Bildirim | `docs/modules/push-bildirim.md` |
 | WebSocket Altyapısı | `docs/modules/websocket.md` |
-| Uçak Rezervasyon | `docs/modules/ucak-rezervasyon.md` |
 | Otel Rezervasyon | `docs/modules/otel-rezervasyon.md` |
 | Günlük Hareketler (rezervasyon/iptal) | `docs/modules/gunluk-hareketler.md` |
 | Acente Mahsup & Nakit Akım | `docs/modules/acente-mahsup.md` |
@@ -601,7 +597,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Satış Faturaları | `docs/modules/satis-faturalari.md` |
 | Hak Ediş Takibi | `docs/modules/hakedis.md` |
 | Stok / Depo Maliyet | `docs/modules/stok.md` |
-| Yönetim Paneli + Maliyet Kontrol | `docs/modules/yonetim-paneli.md` |
+| Maliyet Kontrol | `docs/modules/yonetim-paneli.md` |
 | Panel (Dashboard) | `docs/modules/panel.md` |
 | Sistem — Sunucu İzleme | `docs/modules/sunucu.md` |
 | SSH Tünel Güvenliği | `docs/modules/ssh-tunel-guvenligi.md` |
@@ -689,7 +685,7 @@ varsa paylaşılan bileşende yap → tüm modüllere yayılsın.
 
 ### Bilinçli İstisnalar (sapma DEĞİL)
 
-- **Kanonik iskelete uymayan sayfalar:** Mesajlaşma (iki-panel sohbet + MessageInput autogrow), Uçak Rezervasyon (gömülü widget), Döviz (salt-okunur kur paneli — StatCard/EmptyState beklenmez, ama Pagination/Skeleton uygulanır), Panel/Dashboard (karşılama, kendi başlığı), Login (bespoke auth — yine de AA), Nakit Akım iç accordion'u, public `/devam` kiosk (WS'siz sınırlı polling + tam-ekran), ve mizan/fis-icmali/roller-matrisi/vardiya-çizelgesi/KMH yoğun-matris tabloları (yatay-scroll doğru kalıp). Hepsi yine **Button/Lucide/AA/hata-yönetimi** ilkelerine uyar.
+- **Kanonik iskelete uymayan sayfalar:** Mesajlaşma (iki-panel sohbet + MessageInput autogrow), Döviz (salt-okunur kur paneli — StatCard/EmptyState beklenmez, ama Pagination/Skeleton uygulanır), Panel/Dashboard (karşılama, kendi başlığı), Login (bespoke auth — yine de AA), Nakit Akım iç accordion'u, public `/devam` kiosk (WS'siz sınırlı polling + tam-ekran), ve mizan/fis-icmali/roller-matrisi/vardiya-çizelgesi/KMH yoğun-matris tabloları (yatay-scroll doğru kalıp). Hepsi yine **Button/Lucide/AA/hata-yönetimi** ilkelerine uyar.
 - **Dekoratif/anlamlı küçük sapmalar:** döviz grafik lejantındaki teal-600 çizgi (grafik rengiyle eşleşir) ve stok/depolar `bg-amber-400` bar (üzerinde metin yok) salt dekoratiftir; yoğun tablo satır-aksiyonları ikon-only kalabilir; cariler vade günü `type="number"` (yüzde puanı/gün sayısı — para değil, MoneyInput gerekmez).
 
 > **TEMA (2026-07-04, panel yeniden tasarımı — kullanıcı kararı: TÜM UYGULAMA):** Görsel dil

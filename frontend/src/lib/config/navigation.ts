@@ -129,7 +129,6 @@ export const NAV_GROUPS: NavGroup[] = [
 			{ code: 'sales.daily_reservations', label: 'Günlük Hareketler', href: '/dashboard/satis/gunluk-hareketler', icon: [I.calendarDays] },
 			{ code: 'sales.acente_mahsup', label: 'Acente Mahsup & Nakit Akım', href: '/dashboard/satis/acente-mahsup', icon: [I.scale] },
 			{ code: 'sales.room_types', label: 'Oda Tipleri', href: '/dashboard/satis/oda-tipleri', icon: [I.bed] },
-			{ code: 'sales.flight', label: 'Uçak Rezervasyon', href: '/dashboard/satis/ucak-rezervasyon', icon: [I.plane] },
 		],
 	},
 	{
@@ -165,7 +164,6 @@ export const NAV_GROUPS: NavGroup[] = [
 export function requiredModuleForPath(pathname: string): string | null {
 	const routes: Array<{ href: string; code: string }> = [
 		{ href: '/dashboard/mesajlasma', code: 'messaging' },
-		{ href: '/dashboard/yonetim', code: 'yonetim.panel' },
 	];
 	for (const g of NAV_GROUPS) {
 		for (const it of g.items) routes.push({ href: it.href, code: it.code });

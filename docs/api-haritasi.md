@@ -357,17 +357,6 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `POST /api/system/approval/status/bulk` — Toplu durum sorgu
 - `GET /api/system/approval/status/{entity_type}/{entity_id}` — Tek kaydın onay durumu
 
-### Satış — Uçak Rezervasyon
-- **Yaklaşım:** Travelpayouts/Aviasales **JS Widget** embed (REST API yerine)
-- **Sayfa:** `frontend/src/routes/dashboard/satis/ucak-rezervasyon/+page.svelte` — Aviasales arama form widget'ını host eder
-- **Widget URL:** `https://tp.media/content?shmarker=722928&promo_id=7879&campaign_id=100&locale=tr&currency=try&...&color_button=%230d9488` (teal tema, TR locale, TRY currency)
-- **Affiliate marker:** 722928 (Travelpayouts) — komisyon takibi widget içinde otomatik
-- **Veri kalitesi:** Aviasales'in tam arama motoru — Skyscanner kalitesinde 20-30+ uçuş, gerçek zamanlı fiyatlar
-- **Backend client'ı (`utils/travelpayouts_client.py`) ve `routers/sales/flights.py` yedekte korunur** — gelecekte API tabanlı yaklaşıma dönmek istersek hazır
-- **Neden API değil widget:** Travelpayouts Flight Search API v1 50.000 MAU şartı koyar (otel sitesi için ulaşılmaz), v3 `prices_for_dates` tek yönde rota başına 1 sonuç döner (yetersiz). Widget her iki sorunu çözer — sınırsız arama + gerçek veri + sıfır maliyet.
-- **TURSAB gerekmez:** Widget bilet satmıyor, sadece arama gösteriyor; tıklayan misafir Aviasales'te satın alıyor (biz affiliate)
-- Detaylı bilgi: `docs/modules/ucak-rezervasyon.md`
-
 ### Stok / Depo (Maliyet Kontrol) — prefix `/api/stok`
 - `GET /sedna-status` — Sedna stok içe aktarma etkin mi (`{configured}`)
 - `POST /sedna-import` — **Sedna depo/stok hareketleri içe aktarma** (ürün + depo + hareket; stok.maliyet use, audit'li, onaydan muaf — Sedna import)
@@ -383,10 +372,4 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /product-purchases/{product_id}` — Ürün alım geçmişi (tedarikçi/fiyat)
 - `GET /product-purchases/{product_id}/pdf` — Ürün alım geçmişi PDF
 - Salt-okuma GET'ler + tek Sedna-import mutasyonu → onay akışı kapsam dışı. Detay: `docs/modules/stok.md`
-
-### Yönetim Paneli (GM/Finans) — prefix `/api/yonetim`
-- `GET /dashboard` — Üst düzey KPI: doluluk + operasyonel maliyet + oda geliri + tedarikçi borcu + acente avansı + GOP yaklaşığı
-- `GET /cost-classification` — Sabit / yarı-değişken / değişken maliyet sınıflama (başabaş göstergesi, yıllık TRY)
-- `GET /alerts` — Yönetim uyarıları: fiyat sapması, en yüksek tedarikçi borçları, kritik stok
-- Salt-okuma (mevcut modüllerin verisini birleştirir, yeni hesap yok) → onay akışı kapsam dışı. İzin: `yonetim.panel` view. Detay: `docs/modules/yonetim-paneli.md`
 
