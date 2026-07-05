@@ -203,21 +203,35 @@ def compute_settlement(
             "realized": m in realized_months,
         })
 
+    # ── Avans mahsup matrisi (grup × ay) ─────────────────────
+    # GERÇEKLEŞEN aylardaki faturalar GERÇEK 'consumed' (faturayla kapatılmış) avansla,
+    # İLERİ aylardaki faturalar 'remaining' (kalan/peşin) avansla FIFO (erken ay önce)
+    # mahsup edilir. Böylece mahsup edilen kısım vadede TEKRAR tahsil edilmez
+    # (avans zaten nakde alınmış, açılış bakiyesine dahil).
+    mahsup: dict = {gid: [0.0] * 12 for gid in gmeta}
+    for gid in gmeta:
+        left_past = adv_consumed[gid]
+        for m in realized_months:  # sıralı (range 0..11 kaynaklı → artan)
+            ap = min(left_past, proj[gid][m])
+            left_past -= ap
+            mahsup[gid][m] = ap
+        left_fwd = round(max(0.0, adv_received[gid] - adv_consumed[gid]), 2)
+        for m in forward_months:
+            ap = min(left_fwd, proj[gid][m])
+            left_fwd -= ap
+            mahsup[gid][m] = ap
+    mahsup_total = round(sum(mahsup[gid][m] for gid in gmeta for m in range(12)), 2)
+
     # ── Nakit akım projeksiyonu (tab 5) ──────────────────────
-    # Grup cirosu, vadesine göre ileri aya kaydırılarak tahsilat ayına yazılır.
-    # Avans mahsubu (consumed) en erken faturalardan FIFO düşülür → o kısım vadede
-    # tekrar tahsil edilmez (avans zaten nakde alınmış, açılışa dahil).
+    # Grup cirosu, vadesine göre ileri aya kaydırılarak tahsilat ayına yazılır
+    # (mahsup edilen kısım hariç).
     coll = [0.0] * 15   # 0-11 = yıl ayları; 12-14 = ertesi yıla taşan tahsilat
     for gid in gmeta:
         off = max(0, round(gmeta[gid]["term_days"] / 30.0))
-        adv_left = adv_consumed[gid]
         for m in range(12):
-            r = proj[gid][m]
-            applied = min(adv_left, r)
-            adv_left -= applied
             slot = m + off
             if slot < len(coll):
-                coll[slot] += r - applied
+                coll[slot] += proj[gid][m] - mahsup[gid][m]
 
     # Açılıştan itibaren kümülatif bakiye (Ara ayında kickback düşülür)
     balances = [round(opening_cash, 2)]
@@ -257,28 +271,24 @@ def compute_settlement(
 
     # ── Projeksiyon faturaları (tab 4) ───────────────────────
     # Her grup × ciro-lu ay için bir satır: tutar = o ayın grup cirosu,
-    # mahsup = grup avans-mahsubundan FIFO (en erken ay önce), net = tutar − mahsup.
+    # mahsup = avans mahsup matrisinden, net = tutar − mahsup.
     invoices = []
     for gid in gmeta:
         off = max(0, round(gmeta[gid]["term_days"] / 30.0))
-        adv_left = adv_consumed[gid]
         for m in range(12):
             amt = round(proj[gid][m], 2)
             if amt <= 0.01:
                 continue
-            mahsup = round(min(adv_left, amt), 2)
-            adv_left -= mahsup
-            net = round(amt - mahsup, 2)
+            mah = round(mahsup[gid][m], 2)
+            net = round(amt - mah, 2)
             due_m = m + off
             future = not _is_realized(m)
             if net <= 0.01:
                 status = "mahsup"       # avansla kapandı
             elif future:
                 status = "planned"      # ileri konaklama
-            elif due_m < today.month - 1 or year < today.year:
-                status = "collected"    # vadesi geçti → tahsil varsayılır
             else:
-                status = "pending"      # kesildi, vade gelmedi
+                status = "collected"    # geçmiş konaklama → tahsil varsayılır
             invoices.append({
                 "agency_id": gid,
                 "agency": gmeta[gid]["name"],
@@ -288,7 +298,7 @@ def compute_settlement(
                 "due_month": (due_m % 12) + 1,
                 "due_name": _MONTHS_SHORT[due_m % 12],
                 "amount": amt,
-                "mahsup": mahsup,
+                "mahsup": mah,
                 "net": net,
                 "status": status,
             })
@@ -318,8 +328,8 @@ def compute_settlement(
         "funnel": {
             "revenue": grand_total,
             "invoiced": grand_total,
-            "advance_offset": advance_applied_total,
-            "net_collection": round(grand_total - advance_applied_total, 2),
+            "advance_offset": mahsup_total,
+            "net_collection": round(grand_total - mahsup_total, 2),
             "kickback": kickback_total,
         },
         "agencies": agencies,

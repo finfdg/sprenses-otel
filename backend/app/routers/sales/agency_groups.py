@@ -20,11 +20,16 @@ router = APIRouter(prefix="/agency-groups", tags=["agency-groups"])
 class AgencyGroupCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     members: List[str] = Field(default_factory=list)
+    # Acente Mahsup & Nakit Akım projeksiyon konfigü
+    term_days: int = Field(default=30, ge=0, le=365)
+    kickback_percent: float = Field(default=0, ge=0, le=100)
 
 
 class AgencyGroupUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     members: Optional[List[str]] = None
+    term_days: Optional[int] = Field(default=None, ge=0, le=365)
+    kickback_percent: Optional[float] = Field(default=None, ge=0, le=100)
 
 
 class AgencyAssignRequest(BaseModel):
@@ -37,6 +42,8 @@ class AgencyGroupResponse(BaseModel):
     id: int
     name: str
     members: List[str]
+    term_days: int
+    kickback_percent: float
 
     class Config:
         from_attributes = True
@@ -73,13 +80,16 @@ def create_group(
     if existing:
         raise HTTPException(status_code=409, detail="Bu isimde bir grup zaten mevcut")
 
-    group = AgencyGroup(name=data.name.strip().upper(), members=data.members)
+    group = AgencyGroup(name=data.name.strip().upper(), members=data.members,
+                        term_days=data.term_days, kickback_percent=data.kickback_percent)
     db.add(group)
     db.commit()
     db.refresh(group)
 
     log_action(db, current_user.id, "create", "agency_group", group.id,
-               json.dumps({"name": group.name, "members": group.members}, ensure_ascii=False))
+               json.dumps({"name": group.name, "members": group.members,
+                           "term_days": group.term_days,
+                           "kickback_percent": float(group.kickback_percent)}, ensure_ascii=False))
     return group
 
 
@@ -107,11 +117,18 @@ def update_group(
         # Boş ve tekrar eden değerleri temizle
         group.members = list(dict.fromkeys(m.strip() for m in data.members if m.strip()))
 
+    if data.term_days is not None:
+        group.term_days = data.term_days
+    if data.kickback_percent is not None:
+        group.kickback_percent = data.kickback_percent
+
     db.commit()
     db.refresh(group)
 
     log_action(db, current_user.id, "update", "agency_group", group.id,
-               json.dumps({"name": group.name, "members": group.members}, ensure_ascii=False))
+               json.dumps({"name": group.name, "members": group.members,
+                           "term_days": group.term_days,
+                           "kickback_percent": float(group.kickback_percent)}, ensure_ascii=False))
     return group
 
 

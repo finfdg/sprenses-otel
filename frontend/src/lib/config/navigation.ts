@@ -134,6 +134,7 @@ export const NAV_GROUPS: NavGroup[] = [
 		items: [
 			{ code: 'sales.hotel_reservation', label: 'Otel Rezervasyon', href: '/dashboard/satis/otel-rezervasyon', icon: [I.home] },
 			{ code: 'sales.daily_reservations', label: 'Günlük Hareketler', href: '/dashboard/satis/gunluk-hareketler', icon: [I.calendarDays] },
+			{ code: 'sales.acente_mahsup', label: 'Acente Mahsup & Nakit Akım', href: '/dashboard/satis/acente-mahsup', icon: [I.scale] },
 			{ code: 'sales.room_types', label: 'Oda Tipleri', href: '/dashboard/satis/oda-tipleri', icon: [I.bed] },
 			{ code: 'sales.flight', label: 'Uçak Rezervasyon', href: '/dashboard/satis/ucak-rezervasyon', icon: [I.plane] },
 		],
