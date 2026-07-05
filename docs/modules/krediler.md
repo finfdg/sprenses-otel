@@ -56,7 +56,10 @@ endpoint'lerden beslenir. [[lacivert-altin-tema]] token yeniden eşlemesini kull
      ilerleme + vade rozeti) + altta "Kapalı" bölümü. SAĞ = seçili kredi detayı (4 KPI + kullandırım→vade
      zaman çizgisi + **Ödeme Planı / Bilgiler** sekmeleri). Mobilde liste↔detay geçişli (geri butonu).
    - **Taksit Takvimi:** tüm aktif kredilerin taksitleri ay ay akordiyon (TL/EUR ayrı toplanır) — `upcoming-payments?days=365&include_paid=true`.
-   - **Banka Dağılımı:** banka bazlı EUR konsolide kartlar + kullandırım→vade çizgi çubukları; krediye tıkla → Krediler görünümünde seçilir.
+   - **Banka Dağılımı:** banka bazlı EUR konsolide (kalan borç) kartlar + kullandırım→vade çizgi çubukları;
+     krediye tıkla → Krediler görünümünde seçilir. **Kural (2026-07-05, kullanıcı kararı):** kredi kartları
+     kalan borcu 0 olsa da **limitiyle + "borç yok" rozetiyle** gösterilir (aktif banka imkânı); diğer krediler
+     yalnız kalan borcu > 0 ise listelenir. Kart €0 borç kattığından banka toplamını değiştirmez.
 
 **Tip-bazlı detay (Plan sekmesi):** `taksitli/spot/bch/leasing` → ay-ay ödeme planı akordiyonu (ödendi
 toggle · taksit sil · + Taksit); `kmh` → çeyreklik KMH görünümü (stat kart + tahakkuk tablosu + hareketler

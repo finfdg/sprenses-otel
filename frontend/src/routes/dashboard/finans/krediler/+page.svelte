@@ -305,7 +305,9 @@
 	let bankGroups = $derived.by(() => {
 		const groups: Record<string, any[]> = {};
 		for (const p of activeCredits) {
-			if ((p.remaining_amount || 0) <= 0) continue;
+			// Kredi kartları borcu 0 olsa da gösterilir (aktif banka imkânı/limiti);
+			// diğer krediler yalnız kalan borcu varsa dahil olur.
+			if ((p.remaining_amount || 0) <= 0 && p.type !== 'kredi_karti') continue;
 			const bank = p.bank_name || p.company || 'Atanmamış';
 			if (!groups[bank]) groups[bank] = [];
 			groups[bank].push(p);
@@ -325,7 +327,7 @@
 					hasMissingRate: enriched.some(it => it._eur == null),
 				};
 			})
-			.filter(g => g.totalEur > 0)
+			.filter(g => g.totalEur > 0 || g.items.some((it: any) => it.type === 'kredi_karti'))
 			.sort((a, b) => b.totalEur - a.totalEur);
 	});
 
@@ -1121,16 +1123,17 @@
 									{#each g.items as c (c.id)}
 										{@const tl = creditTimeline(c)}
 										{@const days = daysToNext(c)}
-										{@const chip = dueChip(days)}
 										{@const isEur = c.currency === 'EUR'}
+										{@const zeroCard = c.type === 'kredi_karti' && (c.remaining_amount || 0) <= 0}
+										{@const chip = zeroCard ? { label: 'borç yok', cls: 'text-gray-600 bg-gray-100' } : dueChip(days)}
 										<button onclick={() => jumpToCredit(c)} class="w-full text-left cursor-pointer group">
 											<div class="flex items-baseline justify-between gap-2 mb-1.5">
 												<span class="text-xs text-gray-700 truncate group-hover:text-gray-900">{c.name}</span>
-												<span class="tabular-nums text-[11.5px] shrink-0" style="color:{CUR_TEXT(isEur)}">{fmt(c.remaining_amount, c.currency)}</span>
+												<span class="tabular-nums text-[11.5px] shrink-0" style="color:{CUR_TEXT(isEur)}">{zeroCard ? fmt(c.total_amount, c.currency) : fmt(c.remaining_amount, c.currency)}{#if zeroCard}<span class="text-gray-500 font-normal"> limit</span>{/if}</span>
 											</div>
 											<div class="flex items-center gap-2">
 												<span class="flex-1 relative h-2 bg-gray-200 rounded-full">
-													{#if tl.hasVade}
+													{#if tl.hasVade && !zeroCard}
 														<span class="absolute left-0 top-0 bottom-0 rounded-full {(isEur ? TIER_FILL_EUR : TIER_FILL)[tl.tier]}" style="width:{Math.max(4, tl.progress * 100)}%"></span>
 														<span class="absolute -top-0.5 -bottom-0.5 w-0.5 rounded-full bg-gray-900" style="left:{tl.progress * 100}%"></span>
 													{:else}
