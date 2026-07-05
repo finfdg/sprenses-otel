@@ -35,7 +35,6 @@
 		'sprenses-api': 'Backend API',
 		'sprenses-frontend': 'Frontend',
 		'sprenses-exchange-rates': 'Döviz Kuru Cron',
-		'sprenses-quality-forms': 'Kalite Form Cron',
 		'postgresql': 'PostgreSQL',
 		'nginx': 'Nginx',
 	};

@@ -94,7 +94,7 @@ function emit(type: string, data: any): void {
 	// Backend her başarılı (yeniden) bağlanmada `connected` mesajı yollar; İLK bağlantı
 	// DIŞINDA local `finance_updated` yeniden yayınlarız → tüm finans sayfaları (hepsi
 	// modülden bağımsız saf reload) kendini tazeler. İlk 'connected'te yayınlamayız
-	// (onMount zaten ilk yüklemeyi yaptı). Sales/quality gibi payload-bağımlı event'ler
+	// (onMount zaten ilk yüklemeyi yaptı). Sales gibi payload-bağımlı event'ler
 	// bilerek hariç tutulur (sentetik yeniden yayın yanlış toast/eşleşme üretebilir).
 	if (type === WS_EVENT.CONNECTED) {
 		if (hasEverConnected) {

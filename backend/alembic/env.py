@@ -12,8 +12,6 @@ from app.database import Base
 from app.models import (
     User, Role, Module, RoleModulePermission,
     Conversation, ConversationMember, Message, PushSubscription,
-    QualityTemplate, QualityTemplateSection, QualityTemplateField,
-    QualityTemplateAssignee, QualityForm, QualityFormValue,
     CreditCardStatement, CreditCardTransaction,
 )
 # Models not in __init__ but needed for FK resolution

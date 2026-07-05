@@ -117,8 +117,6 @@
 	const routeTitles: Record<string, string> = {
 		'/dashboard': 'Panel',
 		'/dashboard/mesajlasma': 'Mesajlaşma',
-		'/dashboard/kalite/sablonlar': 'Şablonlar',
-		'/dashboard/kalite/formlar': 'Formlar',
 		'/dashboard/finans/nakit-akim': 'Nakit Akım',
 		'/dashboard/finans/bankalar': 'Bankalar',
 		'/dashboard/finans/doviz': 'Döviz Kurları',

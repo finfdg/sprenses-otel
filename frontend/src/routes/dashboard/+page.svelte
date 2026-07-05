@@ -35,7 +35,7 @@
 		'accounting.recurring': 'Düzenli Ödeme', 'accounting.rent_income': 'Alınan Kira',
 		'accounting.rent_expense': 'Verilen Kira', 'accounting.dividend': 'Temettü',
 		'hr.salary': 'Maaş', 'hr.withholding': 'Stopaj', 'hr.sgk': 'SGK',
-		'sales.room_types': 'Oda Tipi', 'quality.templates': 'Kalite Şablonu',
+		'sales.room_types': 'Oda Tipi',
 		'system.users': 'Kullanıcı', 'system.roles': 'Rol', 'system.modules': 'Modül',
 	};
 	const ACTION_LABELS: Record<string, string> = { create: 'Yeni', update: 'Güncelleme', delete: 'Silme' };
