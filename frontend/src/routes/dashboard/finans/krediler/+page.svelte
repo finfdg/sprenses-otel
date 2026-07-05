@@ -1070,19 +1070,19 @@
 											<div class="text-[10px] text-gray-500 mt-0.5">Kullan. limit: {fmt(kmhStatus.available_limit)}</div>
 										</div>
 										<div class="bg-white border border-gray-200 rounded-xl p-3">
-											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Bu Ay Adat</div>
+											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Bu Çeyrek Adat</div>
 											<div class="text-lg sm:text-xl font-bold text-gray-700 mt-0.5">{cur ? fmt(cur.past_adat) : '0'}</div>
 											<div class="text-[10px] text-gray-500 mt-0.5">{cur?.period_start ?? ''} → bugün</div>
 										</div>
 										<div class="bg-white border border-gray-200 rounded-xl p-3">
-											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Bu Ay Birikmiş</div>
+											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Bu Çeyrek Birikmiş</div>
 											<div class="text-lg sm:text-xl font-bold text-amber-600 mt-0.5">{cur ? fmt(cur.accrued_total) : '0'}</div>
 											<div class="text-[10px] text-gray-500 mt-0.5">Faiz {cur ? fmt(cur.accrued_interest) : '0'} + BSMV+Kom.</div>
 										</div>
 										<div class="bg-white border border-gray-200 rounded-xl p-3 border-l-4 border-l-teal-500">
-											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Tahmini Ay Sonu</div>
+											<div class="text-[10px] text-gray-500 uppercase tracking-wider">Tahmini Çeyrek Sonu</div>
 											<div class="text-lg sm:text-xl font-bold text-teal-700 mt-0.5">{cur ? fmt(cur.projected_total_due) : '0'}</div>
-											<div class="text-[10px] text-gray-500 mt-0.5">Tüm aylar: {fmt(kmhStatus.total_projected)} ₺</div>
+											<div class="text-[10px] text-gray-500 mt-0.5">Tüm çeyrekler: {fmt(kmhStatus.total_projected)} ₺</div>
 										</div>
 									</div>
 
@@ -1098,14 +1098,14 @@
 									{#if kmhStatus.periods && kmhStatus.periods.length > 0}
 										<div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
 											<div class="px-3 py-2 border-b border-gray-100 bg-gray-50">
-												<span class="text-xs font-semibold text-gray-700">Aylık Tahakkuklar ({kmhStatus.periods.length} ay)</span>
+												<span class="text-xs font-semibold text-gray-700">Çeyreklik Tahakkuklar ({kmhStatus.periods.length} çeyrek)</span>
 												<span class="text-[10px] text-gray-500 ml-2">Toplam birikmiş: <span class="font-semibold text-amber-600">{fmt(kmhStatus.total_accrued)} ₺</span> · Toplam tahmini: <span class="font-semibold text-teal-700">{fmt(kmhStatus.total_projected)} ₺</span></span>
 											</div>
 											<div class="overflow-x-auto">
 												<table class="w-full text-xs">
 													<thead class="bg-gray-50 text-[10px] text-gray-500 uppercase tracking-wider">
 														<tr>
-															<th class="text-left px-3 py-1.5">Ay</th>
+															<th class="text-left px-3 py-1.5">Çeyrek</th>
 															<th class="text-right px-3 py-1.5">Devir Bakiye</th>
 															<th class="text-right px-3 py-1.5">Adat (geçmiş)</th>
 															<th class="text-right px-3 py-1.5">Adat (proj.)</th>
@@ -1120,7 +1120,7 @@
 															<tr class="border-t border-gray-100 {pp.is_current ? 'bg-teal-50/40 font-medium' : ''}">
 																<td class="px-3 py-1.5 text-gray-700 whitespace-nowrap">
 																	{pp.month_label}
-																	{#if pp.is_current}<span class="text-[10px] text-teal-700 ml-1">[bu ay]</span>{/if}
+																	{#if pp.is_current}<span class="text-[10px] text-teal-700 ml-1">[bu çeyrek]</span>{/if}
 																</td>
 																<td class="px-3 py-1.5 text-right {pp.carry_balance < 0 ? 'text-red-600' : 'text-gray-500'} whitespace-nowrap">{fmt(pp.carry_balance)}</td>
 																<td class="px-3 py-1.5 text-right text-gray-700 whitespace-nowrap">{fmt(pp.past_adat)}</td>

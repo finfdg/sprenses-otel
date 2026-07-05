@@ -50,6 +50,31 @@ def _next_month_first(d: date) -> date:
     return date(d.year, d.month + 1, 1)
 
 
+def _quarter_num(d: date) -> int:
+    """Verilen tarihin çeyreği (1-4)."""
+    return (d.month - 1) // 3 + 1
+
+
+def _quarter_first(d: date) -> date:
+    """Verilen tarihin ait olduğu çeyreğin ilk günü (1 Oca/1 Nis/1 Tem/1 Eki)."""
+    q = (d.month - 1) // 3
+    return date(d.year, q * 3 + 1, 1)
+
+
+def _quarter_last(d: date) -> date:
+    """Verilen tarihin ait olduğu çeyreğin son günü (31 Mar/30 Haz/30 Eyl/31 Ara)."""
+    q = (d.month - 1) // 3
+    return _last_day_of_month(date(d.year, q * 3 + 3, 1))
+
+
+def _next_quarter_first(d: date) -> date:
+    """Verilen tarihin ait olduğu çeyreğin SONRAKİ çeyreğinin ilk günü."""
+    qf = _quarter_first(d)
+    if qf.month == 10:  # Q4 → sonraki yıl Q1
+        return date(qf.year + 1, 1, 1)
+    return date(qf.year, qf.month + 3, 1)
+
+
 def _build_daily_balance_series(
     txs: list, start: date, end: date, initial_balance: float = 0.0
 ) -> dict:
@@ -196,7 +221,9 @@ def _calculate_for_period(
     return {
         "year": period_start.year,
         "month": period_start.month,
-        "month_label": f"{period_start.strftime('%Y-%m')}",
+        "quarter": _quarter_num(period_start),
+        # "month_label" adı korundu (frontend tüketimi) ama artık ÇEYREK etiketi: "2026-Ç3"
+        "month_label": f"{period_start.year}-Ç{_quarter_num(period_start)}",
         "period_start": period_start.isoformat(),
         "period_end": period_end.isoformat(),
         "is_current": is_current,
@@ -241,29 +268,29 @@ def calculate_kmh_status(credit: CreditProduct, db: Session) -> Optional[dict]:
     raw_today, _ = _get_initial_balance(db, credit.linked_account_id, today + timedelta(days=1))
     initial_balance_today = raw_today - blocked_amount
 
-    # KMH start ayından bugünün ayına kadar her ay için ayrı period hesapla
+    # KMH start çeyreğinden bugünün çeyreğine kadar her ÇEYREK için ayrı period hesapla
     periods = []
-    cursor_month_first = kmh_start.replace(day=1)
-    today_month_first = today.replace(day=1)
+    cursor_q_first = _quarter_first(kmh_start)
+    today_q_first = _quarter_first(today)
 
-    while cursor_month_first <= today_month_first:
-        # Bu ay için period: KMH start sonrası ya da ay başı (hangisi sonraysa)
-        period_start = max(kmh_start, cursor_month_first)
-        period_end = _last_day_of_month(cursor_month_first)
+    while cursor_q_first <= today_q_first:
+        # Bu çeyrek için period: KMH start sonrası ya da çeyrek başı (hangisi sonraysa)
+        period_start = max(kmh_start, cursor_q_first)
+        period_end = _quarter_last(cursor_q_first)
         period_data = _calculate_for_period(credit, db, period_start, period_end, today, blocked_amount)
         periods.append(period_data)
-        cursor_month_first = _next_month_first(cursor_month_first)
+        cursor_q_first = _next_quarter_first(cursor_q_first)
 
-    # Bu aydan sonraki 12 ay için projeksiyon (mevcut bakiyenin devam ettiği varsayılır)
-    for _ in range(12):
-        period_start = cursor_month_first
-        period_end = _last_day_of_month(cursor_month_first)
-        # Future ay için bitiş tarihi KMH end_date'i geçmemeli
+    # Bu çeyrekten sonraki 4 çeyrek (≈1 yıl) projeksiyon (mevcut bakiyenin devam ettiği varsayılır)
+    for _ in range(4):
+        period_start = cursor_q_first
+        period_end = _quarter_last(cursor_q_first)
+        # Future çeyrek için bitiş tarihi KMH end_date'i geçmemeli
         if credit.end_date and period_start > credit.end_date:
             break
         period_data = _calculate_for_period(credit, db, period_start, period_end, today, blocked_amount)
         periods.append(period_data)
-        cursor_month_first = _next_month_first(cursor_month_first)
+        cursor_q_first = _next_quarter_first(cursor_q_first)
 
     # Genel toplamlar
     total_accrued = sum(p["accrued_total"] for p in periods)
@@ -300,16 +327,19 @@ def calculate_kmh_status(credit: CreditProduct, db: Session) -> Optional[dict]:
 
 
 def sync_kmh_to_finance_events(credit: CreditProduct, db: Session) -> int:
-    """KMH'nin geçmiş + mevcut ay tahakkuklarını credit_payment + finance_event olarak senkronize et.
+    """KMH'nin YALNIZ MEVCUT ÇEYREK tahakkukunu credit_payment + finance_event olarak yansıtır.
 
-    Sadece bugüne kadar olan periodlar (geçmiş ay + mevcut ay) yansıtılır.
-    Gelecek 12 ay sadece KMH detay sayfasında "tahmini" olarak kalır,
-    nakit akıma henüz girmez (henüz tahakkuk olmadı).
+    **Geçmiş çeyrekler nakit akıma GİRMEZ** (kullanıcı kararı 2026-07-04): banka KMH faizini
+    çeyrek sonunda gerçek bir "Faiz Tahakkuku" banka hareketi olarak tahsil eder — o asıl
+    kaynaktır; sistem geçmiş çeyrek projeksiyonu da eklerse aynı faiz İKİ KEZ sayılır (canlı
+    QNB'de olan buydu). Gelecek çeyrekler henüz tahakkuk etmedi (yalnız KMH detay sayfasında
+    tahmin). Böylece mevcut çeyreğin çeyrek-sonu tahmini nakit akımda görünür; geçmiş çeyrekler
+    yalnız bankanın gerçek çekimiyle sayılır.
 
     Strateji: KMH için tüm credit_payment'ları sil ve yeniden oluştur (idempotent).
     finance_events otomatik upsert_credit_payment ile güncellenir.
 
-    Returns: oluşturulan payment sayısı.
+    Returns: oluşturulan payment sayısı (0 veya 1 — mevcut çeyrek).
     """
     if credit.type != "kmh" or not credit.linked_account_id:
         return 0
@@ -332,10 +362,11 @@ def sync_kmh_to_finance_events(credit: CreditProduct, db: Session) -> int:
         db.delete(old)
     db.flush()
 
-    # Sadece geçmiş + mevcut ay tahakkuklarını oluştur (gelecek aylar dahil değil)
+    # YALNIZ MEVCUT çeyreğin projeksiyonunu oluştur (geçmiş = bankaca tahsil edildi → çift
+    # sayım; gelecek = henüz tahakkuk yok). Böylece nakit akım geçmiş KMH faizini iki kez saymaz.
     created = 0
     for p in status["periods"]:
-        if p["is_future"]:
+        if not p["is_current"]:
             continue
         # Sıfır tahakkuk için kayıt oluşturma (boş satır olur)
         if p["projected_total_due"] <= 0.01:
@@ -351,7 +382,7 @@ def sync_kmh_to_finance_events(credit: CreditProduct, db: Session) -> int:
             bsmv=p["projected_bsmv"],
             commission=p["projected_commission"],
             is_paid=False,
-            notes=f"KMH ay sonu tahakkuku — {p['month_label']} ({'mevcut' if p['is_current'] else 'kapalı'})",
+            notes=f"KMH çeyrek sonu tahakkuku (tahmini) — {p['month_label']}",
         )
         db.add(new_pay)
         db.flush()

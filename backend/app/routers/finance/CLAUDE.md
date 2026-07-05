@@ -819,10 +819,12 @@ devam eder (çift sayım korunur). **Çek FE'si artık HER ZAMAN vade tarihinde 
 
 ---
 
-## KMH (Kredili Mevduat Hesabı) — Adat Bazlı Faiz
+## KMH (Kredili Mevduat Hesabı) — Adat Bazlı Faiz (ÇEYREKLİK, 2026-07-04)
 
 KMH `taksitli kredi` mantığında değildir. Bağlı banka hesabının (`linked_account_id`)
-bakiyesi negatife düştüğünde "adat" üzerinden faiz birikir, ay sonu tahakkuk eder.
+bakiyesi negatife düştüğünde "adat" üzerinden faiz birikir; banka bunu **ÇEYREKLİK**
+(üç ayda bir, çeyrek sonunda: 31 Mar / 30 Haz / 30 Eyl / 31 Ara) tahsil eder (kullanıcı
+kararı 2026-07-04; canlı QNB KMH faizi 30 Haz'da tek "Faiz Tahakkuku" olarak çekildi).
 
 **Algoritma** (`utils/kmh_calculator.py:calculate_kmh_status`):
 ```
@@ -837,18 +839,31 @@ Toplam Borç = Faiz + BSMV + Komisyon
 ticari yıl kullanır. 365 ile bölmek (Avrupa/ABD standardı) yaklaşık %1.4 daha düşük
 faiz çıkarır — bu farklı bir hesap olur, banka ekstresiyle uyuşmaz.
 
-**Period:** Her ay bağımsız hesaplanır. `period_start = max(ay_başı, KMH.start_date)`,
-`period_end = ay_son_gün`. Bugüne kadar gerçekleşen adat (`past_adat`) + bugünden
-ay sonuna kadar **mevcut bakiyenin devam ettiği varsayılan** projeksiyon (`future_adat`).
+**Period (ÇEYREK):** Her ÇEYREK bağımsız hesaplanır. `period_start = max(çeyrek_başı,
+KMH.start_date)`, `period_end = çeyrek_son_gün` (`_quarter_first`/`_quarter_last`/
+`_next_quarter_first`). Bugüne kadar gerçekleşen adat (`past_adat`) + bugünden çeyrek
+sonuna kadar **mevcut bakiyenin devam ettiği varsayılan** projeksiyon (`future_adat`).
+`month_label` artık çeyrek etiketi ("2026-Ç3"); ek `quarter` alanı (1-4). Döngü:
+KMH-start çeyreği → bugünün çeyreği + 4 gelecek çeyrek projeksiyonu.
+
+**Nakit akım — YALNIZ MEVCUT ÇEYREK (çift sayım engeli, KRİTİK):** `sync_kmh_to_finance_events`
+yalnız **mevcut çeyreğin** çeyrek-sonu projeksiyonunu credit_payment+FE olarak yansıtır.
+**Geçmiş çeyrekler nakit akıma GİRMEZ** — banka KMH faizini çeyrek sonunda gerçek bir
+"Faiz Tahakkuku" banka hareketi olarak zaten tahsil eder (o asıl kaynak); sistem geçmiş
+çeyrek projeksiyonu da eklerse aynı faiz İKİ KEZ sayılır (canlı QNB hatası: Mart-Haziran
+aylık projeksiyonları ₺9.198 **+** bankanın 30 Haz ₺9.910 çekimi ikisi de nakit akımda,
+Mart "vadesi geçen" görünüyordu). Gelecek çeyrekler yalnız KMH detay sayfasında tahmin.
+Endpoint her görüntülemede idempotent re-sync eder.
 
 **Forward fill:** Period başlangıcı öncesi son tx'in bakiyesi `initial_balance` olarak
-alınır (önceki ay devrinden gelen bakiye dikkate alınır).
+alınır (önceki çeyrek devrinden gelen bakiye dikkate alınır).
 
 **Frontend:** `/dashboard/finans/krediler` — `type='kmh'` kredisi genişletildiğinde
-ödeme planı yerine 4 stat kart + bu ayki hareketler tablosu gösterilir
-(`GET /api/finance/krediler/{id}/kmh-status`).
+ödeme planı yerine 4 stat kart (Bu Çeyrek Adat/Birikmiş/Tahmini Çeyrek Sonu) +
+Çeyreklik Tahakkuklar tablosu + hareketler gösterilir (`GET .../kmh-status`).
 
 **KMH için zorunlu:** `linked_account_id` (bank_accounts FK). Yoksa endpoint 400 döner.
+**Test:** `tests/test_kmh.py` (çeyrek yardımcıları + çeyreklik period hizalaması + sync yalnız-mevcut-çeyrek).
 
 ---
 
