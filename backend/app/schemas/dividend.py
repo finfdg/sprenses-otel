@@ -45,6 +45,7 @@ class DividendPaymentUpdate(BaseModel):
     paid_date: Optional[date] = None
     stopaj_paid: Optional[bool] = None
     stopaj_paid_date: Optional[date] = None
+    bank_transaction_id: Optional[int] = None  # net ödemenin banka hareketiyle eşleşmesi (çift sayım engeli)
     notes: Optional[str] = None
 
 
@@ -93,6 +94,7 @@ class DividendPaymentResponse(BaseModel):
     paid_date: Optional[date] = None
     stopaj_paid: bool
     stopaj_paid_date: Optional[date] = None
+    bank_transaction_id: Optional[int] = None
     notes: Optional[str] = None
 
 

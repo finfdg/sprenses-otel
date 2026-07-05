@@ -146,7 +146,7 @@ def build_detail_response(
             installment_no=inst.installment_no if inst else None,
             gross_amount=float(p.gross_amount), stopaj_amount=float(p.stopaj_amount),
             net_amount=float(p.net_amount), is_paid=p.is_paid, paid_date=p.paid_date,
-            stopaj_paid=p.stopaj_paid, stopaj_paid_date=p.stopaj_paid_date, notes=p.notes,
+            stopaj_paid=p.stopaj_paid, stopaj_paid_date=p.stopaj_paid_date, bank_transaction_id=p.bank_transaction_id, notes=p.notes,
         ).model_dump())
 
     resp["shareholders"] = [_shareholder_resp(s) for s in shareholders]
@@ -163,5 +163,5 @@ def payment_response(p: DividendPayment, shareholder_name: Optional[str] = None,
         installment_no=installment_no,
         gross_amount=float(p.gross_amount), stopaj_amount=float(p.stopaj_amount),
         net_amount=float(p.net_amount), is_paid=p.is_paid, paid_date=p.paid_date,
-        stopaj_paid=p.stopaj_paid, stopaj_paid_date=p.stopaj_paid_date, notes=p.notes,
+        stopaj_paid=p.stopaj_paid, stopaj_paid_date=p.stopaj_paid_date, bank_transaction_id=p.bank_transaction_id, notes=p.notes,
     ).model_dump()

@@ -64,6 +64,13 @@ gerçek ödeme tarihine kayarsa (ör. 30.06 planlı → 03.07 fiili, ay geçer) 
 sarkar** (Haziran değil Temmuz ödemesi → Ağustos 26 muhtasar). Ödeme roll-up YOK — her ödeme bağımsız;
 kısmi ödeme yapılan ortak "paid", diğerleri "pending" görünür. `stopaj_amount == 0` → stopaj olayı invalidate.
 
+**Banka eşleştirme (çift sayım engeli, 2026-07-05):** `dividend_payments.bank_transaction_id` — net
+ödemenin yapıldığı banka hareketi. Doluysa `upsert_dividend_net` **is_matched=True** yapar → net
+finance_event nakit akımda **gizlenir**, gerçek banka çıkışı (bank FE) sayılır (çek/kredi deseniyle
+aynı; migration `e1a4c7f9b2d6`). Ödeme yine Temettü modülünde "ödendi" görünür (durum `is_paid`'ten).
+`PATCH /payments/{id}` body'sine `bank_transaction_id` verilerek bağlanır. Stopaj bacağı ayrı bir
+yükümlülük (muhtasar) olduğundan **eşleştirilmez** — kendi ödeme tarihine kadar bekler.
+
 ## API Endpoint'leri
 
 | Method | Path | İzin | Açıklama |

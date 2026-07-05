@@ -351,7 +351,10 @@ class FinanceEventService:
     # hesaplanır (net = gerçek/planlı ödeme tarihi; stopaj = muhtasar veya gerçek ödeme tarihi).
 
     def upsert_dividend_net(self, db: Session, payment, description: str, event_date) -> Optional[FinanceEvent]:
-        """DividendPayment net bacağı → FinanceEvent (source_type 'dividend')."""
+        """DividendPayment net bacağı → FinanceEvent (source_type 'dividend').
+
+        Banka eşleşmesi varsa (payment.bank_transaction_id) is_matched=True → nakit akımda gizlenir
+        (banka bacağı gerçek çıkışı temsil eder; çift sayım engellenir)."""
         try:
             return self._upsert(db, SOURCE_DIVIDEND, payment.id, {
                 "event_date":   event_date,
@@ -362,7 +365,7 @@ class FinanceEventService:
                 "payment_method": "temettu",
                 "event_status": "paid" if payment.is_paid else "pending",
                 "is_realized":  payment.is_paid,
-                "is_matched":   False,
+                "is_matched":   payment.bank_transaction_id is not None,
             })
         except Exception as e:
             logger.error("upsert_dividend_net hatası payment_id=%s: %s", payment.id, e)

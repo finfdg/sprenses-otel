@@ -164,6 +164,32 @@ class TestFinanceEvents:
         assert fe_paid.event_status == "paid"
         assert fe_other.event_status == "pending"  # diğeri etkilenmedi
 
+    def test_bank_match_hides_net_fe(self, client, auth_headers, db):
+        """Ödeme banka hareketine bağlanınca (bank_transaction_id) net FE is_matched=True →
+        nakit akımda gizli (banka bacağı sayılır, çift sayım engellenir). Ödeme yine 'ödendi'."""
+        from datetime import date
+        from uuid import uuid4
+        from app.models.bank_account import BankAccount
+        from app.models.bank_transaction import BankTransaction
+
+        data = _create(client, auth_headers).json()
+        p = self._pay1(data)
+        acc = BankAccount(bank_name="Test", iban=f"TR{uuid4().hex}", currency="TRY")
+        db.add(acc); db.flush()
+        btx = BankTransaction(account_id=acc.id, date=date(2025, 7, 2), description="Temettü EFT",
+                              amount=-float(p["net_amount"]), balance=0, type="expense",
+                              tx_hash=f"tdiv-{uuid4().hex}")
+        db.add(btx); db.commit()
+
+        r = client.patch(f"{PREFIX}/payments/{p['id']}",
+                         json={"is_paid": True, "paid_date": "2025-07-02", "bank_transaction_id": btx.id},
+                         headers=auth_headers)
+        assert r.status_code == 200, r.text
+        db.expire_all()
+        fe = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND, source_id=p["id"]).one()
+        assert fe.is_matched is True       # banka bacağı sayılır → temettü net FE gizli
+        assert fe.event_status == "paid"   # ödeme yine "ödendi"
+
     def test_dividend_event_deferral_resync(self, client, auth_headers, db):
         """Öteleme: temettü FE'si ödeme (payment.id) anahtarlı → resync dividend branch'ine gider."""
         from datetime import date, timedelta
