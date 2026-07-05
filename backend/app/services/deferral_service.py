@@ -184,12 +184,18 @@ def resync_deferred_event(db: Session, source_type: str, source_id: int) -> None
         return
 
     if source_type in ("dividend", "dividend_stopaj"):
-        # Bespoke temettü — source_id = dividend_installments.id (ScheduledEntry DEĞİL)
-        from app.models.dividend import DividendInstallment
-        from app.services.dividend_service import _upsert_installment_events
-        inst = db.query(DividendInstallment).filter(DividendInstallment.id == source_id).first()
-        if inst and inst.distribution:
-            _upsert_installment_events(db, inst, inst.distribution)
+        # Bespoke temettü — source_id = dividend_payments.id (pay sahibi × taksit; ScheduledEntry DEĞİL)
+        from app.models.dividend import (
+            DividendDistribution, DividendInstallment, DividendPayment, DividendShareholder,
+        )
+        from app.services.dividend_service import _payment_events
+        pay = db.query(DividendPayment).filter(DividendPayment.id == source_id).first()
+        if pay:
+            inst = db.get(DividendInstallment, pay.installment_id)
+            sh = db.get(DividendShareholder, pay.shareholder_id)
+            dist = db.get(DividendDistribution, pay.distribution_id)
+            if inst and sh and dist:
+                _payment_events(db, pay, sh, inst, dist)
         return
 
     if source_type in _SCHEDULED_DIRECTION:

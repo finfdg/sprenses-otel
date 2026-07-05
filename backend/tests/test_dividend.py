@@ -107,103 +107,86 @@ class TestCreateGeneration:
 # ─── finance_events ─────────────────────────────────────────
 
 class TestFinanceEvents:
+    """finance_events ÖDEME (pay sahibi × taksit) bazlıdır — kişi-kişi görünürlük + kısmi ödeme ayrımı."""
 
-    def test_events_created_on_create(self, client, auth_headers, db):
+    def test_events_created_per_payment(self, client, auth_headers, db):
         data = _create(client, auth_headers).json()
-        inst_ids = [i["id"] for i in data["installments"]]
+        pay_ids = [p["id"] for p in data["payments"]]
+        assert len(pay_ids) == 72  # 12 ortak × 6 taksit
         net = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND,
-            FinanceEvent.source_id.in_(inst_ids),
+            FinanceEvent.source_type == SOURCE_DIVIDEND, FinanceEvent.source_id.in_(pay_ids),
         ).all()
         stopaj = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND_STOPAJ,
-            FinanceEvent.source_id.in_(inst_ids),
+            FinanceEvent.source_type == SOURCE_DIVIDEND_STOPAJ, FinanceEvent.source_id.in_(pay_ids),
         ).all()
-        assert len(net) == 6
-        assert len(stopaj) == 6
+        assert len(net) == 72
+        assert len(stopaj) == 72
         assert all(e.event_status == "pending" and e.direction == -1 for e in net)
-        assert all(e.event_status == "pending" for e in stopaj)
+        # açıklama pay sahibi adını taşır (kişi-kişi görünürlük)
+        assert any("RECEP ÖZDEN" in (e.description or "") for e in net)
 
-    def test_net_event_date_is_due_date(self, client, auth_headers, db):
-        data = _create(client, auth_headers).json()
+    def _pay1(self, data, name="MEVLÜT ÖZDEN"):
         inst1 = next(i for i in data["installments"] if i["installment_no"] == 1)
-        net = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND,
-            FinanceEvent.source_id == inst1["id"],
-        ).one()
-        assert net.event_date.isoformat() == "2025-06-30"
+        return next(p for p in data["payments"]
+                    if p["installment_id"] == inst1["id"] and p["shareholder_name"] == name)
 
-    def test_stopaj_event_date_is_next_month_26th(self, client, auth_headers, db):
+    def test_unpaid_net_date_is_due_and_stopaj_next_month_26(self, client, auth_headers, db):
         data = _create(client, auth_headers).json()
-        inst1 = next(i for i in data["installments"] if i["installment_no"] == 1)
-        stopaj = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND_STOPAJ,
-            FinanceEvent.source_id == inst1["id"],
-        ).one()
-        assert stopaj.event_date.isoformat() == "2025-07-26"
+        p = self._pay1(data)
+        net = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND, source_id=p["id"]).one()
+        stopaj = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND_STOPAJ, source_id=p["id"]).one()
+        assert net.event_date.isoformat() == "2025-06-30"   # taksit vadesi
+        assert stopaj.event_date.isoformat() == "2025-07-26"  # ertesi ay 26
 
-    def test_net_toggle_rolls_up_installment_event(self, client, auth_headers, db):
+    def test_paid_late_moves_net_and_shifts_stopaj_month(self, client, auth_headers, db):
+        """Gerçek ödeme 3 gün geç (03.07) → net o tarihe kayar, stopaj bir SONRAKİ aya (Ağustos 26) sarkar."""
         data = _create(client, auth_headers).json()
-        inst1 = next(i for i in data["installments"] if i["installment_no"] == 1)
-        pays1 = [p for p in data["payments"] if p["installment_id"] == inst1["id"]]
-        assert len(pays1) == 12
-
-        # 11 ödeme → hâlâ pending (kısmi)
-        for p in pays1[:11]:
-            r = client.patch(f"{PREFIX}/payments/{p['id']}", json={"is_paid": True}, headers=auth_headers)
-            assert r.status_code == 200, r.text
+        p = self._pay1(data)
+        r = client.patch(f"{PREFIX}/payments/{p['id']}",
+                         json={"is_paid": True, "paid_date": "2025-07-03"}, headers=auth_headers)
+        assert r.status_code == 200, r.text
         db.expire_all()
-        fe = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND, FinanceEvent.source_id == inst1["id"],
-        ).one()
-        assert fe.event_status == "pending" and fe.is_realized is False
+        net = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND, source_id=p["id"]).one()
+        stopaj = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND_STOPAJ, source_id=p["id"]).one()
+        assert net.event_date.isoformat() == "2025-07-03"
+        assert net.event_status == "paid" and net.is_realized is True
+        assert stopaj.event_date.isoformat() == "2025-08-26"  # Haziran değil, Temmuz ödemesi → Ağustos muhtasar
 
-        # 12. ödeme → tamamı ödendi → paid/realized
-        client.patch(f"{PREFIX}/payments/{pays1[11]['id']}", json={"is_paid": True}, headers=auth_headers)
-        db.expire_all()
-        fe = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND, FinanceEvent.source_id == inst1["id"],
-        ).one()
-        assert fe.event_status == "paid" and fe.is_realized is True
-
-    def test_stopaj_toggle_rolls_up_stopaj_event(self, client, auth_headers, db):
+    def test_partial_payment_is_independent(self, client, auth_headers, db):
+        """Bir ödemeyi işaretlemek diğerlerini ETKİLEMEZ (kısmi ödeme ayrımı)."""
         data = _create(client, auth_headers).json()
-        inst1 = next(i for i in data["installments"] if i["installment_no"] == 1)
-        pays1 = [p for p in data["payments"] if p["installment_id"] == inst1["id"]]
-        for p in pays1:
-            client.patch(f"{PREFIX}/payments/{p['id']}", json={"stopaj_paid": True}, headers=auth_headers)
+        p_paid = self._pay1(data, "MEVLÜT ÖZDEN")
+        p_other = self._pay1(data, "RECEP ÖZDEN")
+        client.patch(f"{PREFIX}/payments/{p_paid['id']}", json={"is_paid": True}, headers=auth_headers)
         db.expire_all()
-        fe = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND_STOPAJ, FinanceEvent.source_id == inst1["id"],
-        ).one()
-        assert fe.event_status == "paid" and fe.is_realized is True
+        fe_paid = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND, source_id=p_paid["id"]).one()
+        fe_other = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND, source_id=p_other["id"]).one()
+        assert fe_paid.event_status == "paid"
+        assert fe_other.event_status == "pending"  # diğeri etkilenmedi
 
     def test_dividend_event_deferral_resync(self, client, auth_headers, db):
-        """Öteleme: temettü FE'si bespoke (installment.id anahtarlı) → resync ScheduledEntry'ye
-        DEĞİL dividend branch'ine gitmeli; ertelenmiş tarih FE.event_date'e yansımalı."""
+        """Öteleme: temettü FE'si ödeme (payment.id) anahtarlı → resync dividend branch'ine gider."""
         from datetime import date, timedelta
         from app.services import deferral_service
 
         data = _create(client, auth_headers).json()
-        inst1 = next(i for i in data["installments"] if i["installment_no"] == 1)
+        p = self._pay1(data)
         new_date = date.today() + timedelta(days=400)
         try:
-            deferral_service.apply_deferral(db, SOURCE_DIVIDEND, inst1["id"], new_date, user_id=None)
-            deferral_service.resync_deferred_event(db, SOURCE_DIVIDEND, inst1["id"])
+            deferral_service.apply_deferral(db, SOURCE_DIVIDEND, p["id"], new_date, user_id=None)
+            deferral_service.resync_deferred_event(db, SOURCE_DIVIDEND, p["id"])
             db.flush()
             db.expire_all()
-            fe = db.query(FinanceEvent).filter(
-                FinanceEvent.source_type == SOURCE_DIVIDEND, FinanceEvent.source_id == inst1["id"],
-            ).one()
+            fe = db.query(FinanceEvent).filter_by(source_type=SOURCE_DIVIDEND, source_id=p["id"]).one()
             assert fe.event_date == new_date
         finally:
-            deferral_service.clear_deferral(db, SOURCE_DIVIDEND, inst1["id"])
+            deferral_service.clear_deferral(db, SOURCE_DIVIDEND, p["id"])
             deferral_service.invalidate_deferral_cache()
 
     def test_delete_invalidates_events_and_cascades(self, client, auth_headers, db):
         data = _create(client, auth_headers).json()
         dist_id = data["id"]
-        inst_ids = [i["id"] for i in data["installments"]]
+        pay_ids = [p["id"] for p in data["payments"]]
 
         r = client.delete(f"{PREFIX}/{dist_id}", headers=auth_headers)
         assert r.status_code == 200, r.text
@@ -211,7 +194,7 @@ class TestFinanceEvents:
 
         fe = db.query(FinanceEvent).filter(
             FinanceEvent.source_type.in_([SOURCE_DIVIDEND, SOURCE_DIVIDEND_STOPAJ]),
-            FinanceEvent.source_id.in_(inst_ids),
+            FinanceEvent.source_id.in_(pay_ids),
         ).count()
         assert fe == 0
         assert db.query(DividendDistribution).filter_by(id=dist_id).first() is None
@@ -233,13 +216,13 @@ class TestMetadataAndList:
     def test_cancel_removes_events(self, client, auth_headers, db):
         data = _create(client, auth_headers).json()
         dist_id = data["id"]
-        inst_ids = [i["id"] for i in data["installments"]]
+        pay_ids = [p["id"] for p in data["payments"]]
         r = client.patch(f"{PREFIX}/{dist_id}", json={"status": "cancelled"}, headers=auth_headers)
         assert r.status_code == 200, r.text
         db.expire_all()
         fe = db.query(FinanceEvent).filter(
             FinanceEvent.source_type.in_([SOURCE_DIVIDEND, SOURCE_DIVIDEND_STOPAJ]),
-            FinanceEvent.source_id.in_(inst_ids),
+            FinanceEvent.source_id.in_(pay_ids),
         ).count()
         assert fe == 0
 

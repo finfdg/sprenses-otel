@@ -205,9 +205,12 @@ def _natural_date(db: Session, source_type: str, source_id: int):
             VendorTransaction.id == source_id).first()
         return v[0] if v else None
     if source_type in ("dividend", "dividend_stopaj"):
-        from app.models.dividend import DividendInstallment
-        i = db.query(DividendInstallment.due_date).filter(
-            DividendInstallment.id == source_id).first()
+        # source_id = dividend_payments.id → doğal tarih = taksit vadesi (net) / muhtasar (stopaj)
+        from app.models.dividend import DividendInstallment, DividendPayment
+        pay = db.query(DividendPayment.installment_id).filter(DividendPayment.id == source_id).first()
+        if not pay:
+            return None
+        i = db.query(DividendInstallment.due_date).filter(DividendInstallment.id == pay[0]).first()
         if not i:
             return None
         if source_type == "dividend_stopaj":

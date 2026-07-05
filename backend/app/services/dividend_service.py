@@ -17,7 +17,6 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import List
 
-from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models.dividend import (
@@ -85,32 +84,49 @@ def _resolve_due_dates(data: dict, count: int) -> List[date]:
     return _month_ends(first, count)
 
 
-def _installment_rollup(db: Session, installment_id: int) -> tuple:
-    """Taksitin ödeme satırları üzerinden (all_net_paid, all_stopaj_paid, net_paid, stopaj_paid, total)."""
-    total, net_paid, stopaj_paid = db.query(
-        func.count(DividendPayment.id),
-        func.coalesce(func.sum(case((DividendPayment.is_paid, 1), else_=0)), 0),
-        func.coalesce(func.sum(case((DividendPayment.stopaj_paid, 1), else_=0)), 0),
-    ).filter(DividendPayment.installment_id == installment_id).one()
-    total = int(total or 0)
-    net_paid = int(net_paid or 0)
-    stopaj_paid = int(stopaj_paid or 0)
-    all_net = total > 0 and net_paid == total
-    all_stopaj = total > 0 and stopaj_paid == total
-    return all_net, all_stopaj, net_paid, stopaj_paid, total
+def _payment_events(db: Session, payment: DividendPayment, shareholder: DividendShareholder,
+                    installment: DividendInstallment, distribution: DividendDistribution) -> None:
+    """Bir ödeme satırının (pay sahibi × taksit) net + stopaj finance_event'lerini tazele.
 
+    Kişi-kişi görünürlük + kısmi ödeme ayrımı: finance_event ÖDEME satırı (payment.id) anahtarlı.
+    - Net event_date: ödendiyse GERÇEK ödeme tarihi (paid_date), değilse taksit vadesi (planlı).
+    - Stopaj event_date: net'in efektif (gerçek/planlı) ödeme ayının ERTESİ ayının 26'sı (muhtasar);
+      stopaj gerçekten ödendiyse stopaj_paid_date. → net 3 gün geç ödenip ay geçerse stopaj da kayar.
+    """
+    label = installment.label or f"{installment.installment_no}. Taksit"
+    net_effective = payment.paid_date if (payment.is_paid and payment.paid_date) else installment.due_date
+    net_desc = f"[Temettü] {distribution.name} — {shareholder.name} ({label})"
+    finance_event_svc.upsert_dividend_net(db, payment, net_desc, net_effective)
 
-def _upsert_installment_events(db: Session, installment: DividendInstallment, distribution: DividendDistribution) -> None:
-    """Taksitin net + stopaj finance_event'lerini roll-up durumuyla tazele."""
-    all_net, all_stopaj, _, _, _ = _installment_rollup(db, installment.id)
-    finance_event_svc.upsert_dividend_net(db, installment, distribution, all_net)
-    if float(installment.stopaj_amount or 0) > 0:
-        finance_event_svc.upsert_dividend_stopaj(
-            db, installment, distribution, _derive_stopaj_date(installment.due_date), all_stopaj,
+    if float(payment.stopaj_amount or 0) > 0:
+        stopaj_date = (
+            payment.stopaj_paid_date if (payment.stopaj_paid and payment.stopaj_paid_date)
+            else _derive_stopaj_date(net_effective)
         )
+        st_desc = f"[Temettü Stopaj] {distribution.name} — {shareholder.name} ({label})"
+        finance_event_svc.upsert_dividend_stopaj(db, payment, st_desc, stopaj_date)
     else:
-        # Stopaj yoksa hayalet olay bırakma
-        finance_event_svc.invalidate(db, SOURCE_DIVIDEND_STOPAJ, installment.id)
+        finance_event_svc.invalidate(db, SOURCE_DIVIDEND_STOPAJ, payment.id)
+
+
+def _reupsert_all_payment_events(db: Session, distribution: DividendDistribution) -> None:
+    """Dağıtımın tüm ödeme satırlarının net+stopaj finance_event'lerini yeniden üret."""
+    rows = (
+        db.query(DividendPayment, DividendShareholder, DividendInstallment)
+        .join(DividendShareholder, DividendShareholder.id == DividendPayment.shareholder_id)
+        .join(DividendInstallment, DividendInstallment.id == DividendPayment.installment_id)
+        .filter(DividendPayment.distribution_id == distribution.id)
+        .all()
+    )
+    for pay, sh, inst in rows:
+        _payment_events(db, pay, sh, inst, distribution)
+
+
+def _invalidate_all_payment_events(db: Session, distribution_id: int) -> None:
+    """Dağıtımın tüm ödeme satırlarının net+stopaj finance_event'lerini kaldır."""
+    for (pid,) in db.query(DividendPayment.id).filter(DividendPayment.distribution_id == distribution_id).all():
+        finance_event_svc.invalidate(db, SOURCE_DIVIDEND, pid)
+        finance_event_svc.invalidate(db, SOURCE_DIVIDEND_STOPAJ, pid)
 
 
 # ─── Ortak CRUD mutasyonları (router + onay executor ORTAK) ──────────
@@ -198,6 +214,7 @@ def create_distribution(db: Session, data: dict, actor_id) -> DividendDistributi
 
     # ── 72 ödeme (sahip × taksit); son taksit sahip-artığını absorbe eder ──
     inst_totals = [[Decimal("0"), Decimal("0"), Decimal("0")] for _ in range(count)]  # gross, stopaj, net
+    pay_refs: List[tuple] = []  # (payment, shareholder, installment) — flush sonrası FE üretimi için
     for sh in sh_models:
         sh_gross = Decimal(str(sh.gross_dividend))
         per = _q2(sh_gross / count)
@@ -210,12 +227,14 @@ def create_distribution(db: Session, data: dict, actor_id) -> DividendDistributi
                 allocated += per
             st = _q2(g * rate)
             nt = _q2(g - st)
-            db.add(DividendPayment(
+            pay = DividendPayment(
                 distribution_id=dist.id,
                 installment_id=inst_models[i].id,
                 shareholder_id=sh.id,
                 gross_amount=g, stopaj_amount=st, net_amount=nt,
-            ))
+            )
+            db.add(pay)
+            pay_refs.append((pay, sh, inst_models[i]))
             inst_totals[i][0] += g
             inst_totals[i][1] += st
             inst_totals[i][2] += nt
@@ -227,8 +246,9 @@ def create_distribution(db: Session, data: dict, actor_id) -> DividendDistributi
         inst_models[i].net_amount = inst_totals[i][2]
     db.flush()
 
-    for inst in inst_models:
-        _upsert_installment_events(db, inst, dist)
+    # finance_events — ödeme (pay sahibi × taksit) başına net + stopaj (kişi-kişi görünürlük)
+    for pay, sh, inst in pay_refs:
+        _payment_events(db, pay, sh, inst, dist)
 
     return dist
 
@@ -247,44 +267,40 @@ def apply_distribution_update(db: Session, dist: DividendDistribution, update_da
     new_status = dist.status
     if old_status != new_status:
         if new_status == "cancelled":
-            for inst in dist.installments:
-                finance_event_svc.invalidate(db, SOURCE_DIVIDEND, inst.id)
-                finance_event_svc.invalidate(db, SOURCE_DIVIDEND_STOPAJ, inst.id)
+            _invalidate_all_payment_events(db, dist.id)
         elif old_status == "cancelled":
-            for inst in dist.installments:
-                _upsert_installment_events(db, inst, dist)
+            _reupsert_all_payment_events(db, dist)
 
 
 def apply_payment_update(db: Session, payment: DividendPayment, update_data: dict) -> None:
-    """Ödeme satırının net/stopaj ödendi durumunu uygula + tarih damgala + taksit olaylarını roll-up et."""
+    """Ödeme satırının net/stopaj ödendi durumunu uygula + tarih damgala + o ödemenin
+    net + stopaj finance_event'lerini tazele (kişi-kişi; kısmi ödeme ayrı görünür)."""
+    inst = db.get(DividendInstallment, payment.installment_id)
+    sh = db.get(DividendShareholder, payment.shareholder_id)
+    dist = db.get(DividendDistribution, payment.distribution_id)
+
     data = dict(update_data)
     for dk in ("paid_date", "stopaj_paid_date"):
         if dk in data:
             data[dk] = _coerce_date(data[dk])
     for key, value in data.items():
         setattr(payment, key, value)
-    # Otomatik tarih damgası
+    # Otomatik tarih damgası — net ödendi ama tarih verilmediyse PLANLI vade (bugün DEĞİL;
+    # geçmiş ödemeleri toplu işaretlerken bugüne yığılmasın, gerçek tarih banka eşleşmesiyle gelir).
     if "is_paid" in data:
         if payment.is_paid and not payment.paid_date:
-            payment.paid_date = date.today()
+            payment.paid_date = inst.due_date if inst else date.today()
         elif not payment.is_paid and "paid_date" not in data:
             payment.paid_date = None
-    if "stopaj_paid" in data:
-        if payment.stopaj_paid and not payment.stopaj_paid_date:
-            payment.stopaj_paid_date = date.today()
-        elif not payment.stopaj_paid and "stopaj_paid_date" not in data:
-            payment.stopaj_paid_date = None
+    if "stopaj_paid" in data and not payment.stopaj_paid and "stopaj_paid_date" not in data:
+        payment.stopaj_paid_date = None  # ödenmemişse tarihi temizle (muhtasar tarihine bırak)
     db.flush()
 
-    inst = db.get(DividendInstallment, payment.installment_id)
-    dist = db.get(DividendDistribution, payment.distribution_id)
-    if inst and dist:
-        _upsert_installment_events(db, inst, dist)
+    if inst and sh and dist:
+        _payment_events(db, payment, sh, inst, dist)
 
 
 def delete_distribution(db: Session, dist: DividendDistribution) -> None:
-    """Dağıtımı sil — önce taksit finance_event'lerini invalidate et (CASCADE çocukları siler)."""
-    for inst in dist.installments:
-        finance_event_svc.invalidate(db, SOURCE_DIVIDEND, inst.id)
-        finance_event_svc.invalidate(db, SOURCE_DIVIDEND_STOPAJ, inst.id)
+    """Dağıtımı sil — önce ödeme finance_event'lerini invalidate et (CASCADE çocukları siler)."""
+    _invalidate_all_payment_events(db, dist.id)
     db.delete(dist)

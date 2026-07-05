@@ -345,52 +345,45 @@ class FinanceEventService:
             logger.error("upsert_scheduled_entry hatası id=%s: %s", entry.id, e)
             raise
 
-    # ─── Kâr Payı Dağıtımı (Temettü) — taksit bazlı net + stopaj ──────────
+    # ─── Kâr Payı Dağıtımı (Temettü) — ÖDEME (pay sahibi × taksit) bazlı net + stopaj ──────────
+    # Kişi-kişi görünürlük + kısmi ödeme ayrımı için finance_event TAKSİT değil ÖDEME satırı
+    # (dividend_payments) anahtarıdır. source_id = payment.id. Tarih/açıklama servis tarafından
+    # hesaplanır (net = gerçek/planlı ödeme tarihi; stopaj = muhtasar veya gerçek ödeme tarihi).
 
-    def upsert_dividend_net(self, db: Session, installment, distribution, is_paid: bool) -> Optional[FinanceEvent]:
-        """DividendInstallment net bacağı → FinanceEvent (source_type 'dividend').
-
-        event_date = taksit vadesi; tutar = taksitin toplam net'i; ortaklara ödeme.
-        is_paid = taksitin TÜM pay-sahibi ödemeleri yapıldı mı (roll-up)."""
+    def upsert_dividend_net(self, db: Session, payment, description: str, event_date) -> Optional[FinanceEvent]:
+        """DividendPayment net bacağı → FinanceEvent (source_type 'dividend')."""
         try:
-            label = installment.label or f"{installment.installment_no}. Taksit"
-            desc = f"[Temettü] {distribution.name} — {label} (Net)"
-            return self._upsert(db, SOURCE_DIVIDEND, installment.id, {
-                "event_date":   installment.due_date,
-                "amount":       abs(float(installment.net_amount)),
+            return self._upsert(db, SOURCE_DIVIDEND, payment.id, {
+                "event_date":   event_date,
+                "amount":       abs(float(payment.net_amount)),
                 "direction":    DIRECTION_EXPENSE,
                 "currency":     "TRY",
-                "description":  desc,
+                "description":  description,
                 "payment_method": "temettu",
-                "event_status": "paid" if is_paid else "pending",
-                "is_realized":  is_paid,
+                "event_status": "paid" if payment.is_paid else "pending",
+                "is_realized":  payment.is_paid,
                 "is_matched":   False,
             })
         except Exception as e:
-            logger.error("upsert_dividend_net hatası installment_id=%s: %s", installment.id, e)
+            logger.error("upsert_dividend_net hatası payment_id=%s: %s", payment.id, e)
             raise
 
-    def upsert_dividend_stopaj(self, db: Session, installment, distribution, stopaj_date, is_paid: bool) -> Optional[FinanceEvent]:
-        """DividendInstallment stopaj bacağı → FinanceEvent (source_type 'dividend_stopaj').
-
-        event_date = muhtasar ödeme günü (ertesi ayın 26'sı, servis hesaplar); tutar =
-        taksitin toplam stopajı; vergi dairesine. is_paid = tüm stopaj ödemeleri yapıldı mı."""
+    def upsert_dividend_stopaj(self, db: Session, payment, description: str, event_date) -> Optional[FinanceEvent]:
+        """DividendPayment stopaj bacağı → FinanceEvent (source_type 'dividend_stopaj')."""
         try:
-            label = installment.label or f"{installment.installment_no}. Taksit"
-            desc = f"[Temettü Stopaj] {distribution.name} — {label}"
-            return self._upsert(db, SOURCE_DIVIDEND_STOPAJ, installment.id, {
-                "event_date":   stopaj_date,
-                "amount":       abs(float(installment.stopaj_amount)),
+            return self._upsert(db, SOURCE_DIVIDEND_STOPAJ, payment.id, {
+                "event_date":   event_date,
+                "amount":       abs(float(payment.stopaj_amount)),
                 "direction":    DIRECTION_EXPENSE,
                 "currency":     "TRY",
-                "description":  desc,
+                "description":  description,
                 "payment_method": "stopaj",
-                "event_status": "paid" if is_paid else "pending",
-                "is_realized":  is_paid,
+                "event_status": "paid" if payment.stopaj_paid else "pending",
+                "is_realized":  payment.stopaj_paid,
                 "is_matched":   False,
             })
         except Exception as e:
-            logger.error("upsert_dividend_stopaj hatası installment_id=%s: %s", installment.id, e)
+            logger.error("upsert_dividend_stopaj hatası payment_id=%s: %s", payment.id, e)
             raise
 
     # ─── Silme & Eşleştirme ─────────────────────────────────────────────────

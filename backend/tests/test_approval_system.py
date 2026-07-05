@@ -918,13 +918,14 @@ class TestApprovalExecutorMoreModules:
         assert dist is not None
         insts = db.query(DividendInstallment).filter_by(distribution_id=dist.id).all()
         assert len(insts) == 3
-        assert db.query(DividendPayment).filter_by(distribution_id=dist.id).count() == 6  # 2×3
-        inst_ids = [i.id for i in insts]
+        pay_ids = [pid for (pid,) in db.query(DividendPayment.id).filter_by(distribution_id=dist.id).all()]
+        assert len(pay_ids) == 6  # 2 ortak × 3 taksit
+        # finance_events ÖDEME bazlı (kişi-kişi): 6 net + 6 stopaj
         net = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND, FinanceEvent.source_id.in_(inst_ids)).count()
+            FinanceEvent.source_type == SOURCE_DIVIDEND, FinanceEvent.source_id.in_(pay_ids)).count()
         stopaj = db.query(FinanceEvent).filter(
-            FinanceEvent.source_type == SOURCE_DIVIDEND_STOPAJ, FinanceEvent.source_id.in_(inst_ids)).count()
-        assert net == 3 and stopaj == 3
+            FinanceEvent.source_type == SOURCE_DIVIDEND_STOPAJ, FinanceEvent.source_id.in_(pay_ids)).count()
+        assert net == 6 and stopaj == 6
 
     def test_dividend_payment_toggle_via_approval(self, db):
         """Temettü ödeme (net) toggle onay yolu → _target=payment dalı is_paid'i uygular."""
