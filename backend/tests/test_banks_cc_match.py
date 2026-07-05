@@ -41,6 +41,12 @@ class TestLast4Extraction:
         assert _extract_last4_from_desc("EFT GIDEN HAVALE 3006") is None
         assert _extract_last4_from_desc("MAAS ODEMESI 12345") is None
 
+    def test_written_last4_ile_biten(self):
+        # Yazıyla verilen kart son-4'ü (yıldızsız) — QNB Corporate "…{son4} ile biten …" deseni
+        assert _extract_last4_from_desc("Kart İşlemleri - 6075 ile biten QNB Corporate ödemesi - Virman") == "6075"
+        assert _extract_last4_from_desc("979203 6075 ile biten kart") == "6075"  # önünde başka rakam olsa da son-4
+        assert _extract_last4_from_desc("EFT ile biten") is None  # rakam yoksa eşleşmez
+
 
 class TestCcPaymentDesc:
     def test_positive(self):
@@ -49,11 +55,17 @@ class TestCcPaymentDesc:
         assert _is_cc_payment_desc("VISA KART ODEME *1234") is True     # "visa kart" / "kart od"
         assert _is_cc_payment_desc("Kredi Karti Odeme") is True         # "kredi karti" (ASCII)
 
+    def test_positive_ile_biten_odeme(self):
+        # "…{son4} ile biten … ödeme(si)" — QNB Corporate yazılı kart-no ödemesi (kısmi eşleşme için kelime yolu)
+        assert _is_cc_payment_desc("Kart İşlemleri - 6075 ile biten QNB Corporate ödemesi - Virman") is True
+
     def test_negative(self):
         assert _is_cc_payment_desc("Market alışverişi") is False
         assert _is_cc_payment_desc("EFT - tedarikçi ödemesi") is False
         assert _is_cc_payment_desc("") is False
         assert _is_cc_payment_desc(None) is False
+        # "ile biten" var ama "ödeme" yok → kart-ödemesi kelimesi sayılmaz (aidat/virman kısmi yanlış-eşleşme olmasın)
+        assert _is_cc_payment_desc("6075 ile biten hesaba virman") is False
 
 
 class TestGetCardLast4:
@@ -219,4 +231,61 @@ class TestMatchCcNoKeyword:
         prod, stmt, _ = self._setup(db, amount=100000.0, btx_date=date(2026, 6, 30),
                                     last4="7261",
                                     desc="Diğer Internet - Mobil INT 650837******9999 3006")
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+
+class TestMatchCcWrittenLast4:
+    """Yazıyla kart-no verilen ödeme deseni (QNB Corporate "…{son4} ile biten … ödemesi - Virman").
+    Kelime yolu (partial'a izin verir) → hem TAM (Şubat/Mart) hem KISMİ (Nisan) ödeme eşleşir.
+    Canlı bulgu (2026-07-05): QNB *6075 Şub/Mar tam, Nisan kısmi ödemeler eşleşmemişti (matcher
+    ne 'kart' kelimesini ne yıldızsız son-4'ü tanıyordu). Ürün details.kart_no_son4='6075'.
+    """
+
+    @staticmethod
+    def _setup(db, *, amount, toplam_borc, last4="6075",
+               kesim=date(2026, 4, 9), son_odeme=date(2026, 4, 14), btx_date=date(2026, 4, 14)):
+        prod = CreditProduct(type="kredi_karti", name="QNB Corporate Kart",
+                             details=json.dumps({"kart_no_son4": last4}))
+        db.add(prod)
+        db.flush()
+        stmt = CreditCardStatement(
+            credit_product_id=prod.id, kesim_tarihi=kesim, son_odeme_tarihi=son_odeme,
+            toplam_borc=toplam_borc, is_paid=False, paid_amount=0,
+        )
+        acc = BankAccount(bank_name="QNB", iban=f"TR{uuid4().hex}", currency="TRY")
+        db.add(acc)
+        db.add(stmt)
+        db.flush()
+        btx = BankTransaction(
+            account_id=acc.id, date=btx_date,
+            description=f"Kart İşlemleri - {last4} ile biten QNB Corporate ödemesi - Virman",
+            amount=-amount, balance=0, type="expense", tx_hash=f"test-ccw-{uuid4().hex}",
+        )
+        db.add(btx)
+        db.commit()
+        return prod, stmt, btx
+
+    def test_full_payment_matches_and_marks_paid(self, db):
+        # Şubat/Mart deseni: birebir tutar → tam eşleşme, is_paid=True
+        prod, stmt, btx = self._setup(db, amount=1052051.11, toplam_borc=1052051.11)
+        assert _match_cc_to_bank(db)["matched"] == 1
+        db.expire_all()
+        s = db.get(CreditCardStatement, stmt.id)
+        assert s.is_paid is True
+        assert float(s.paid_amount) == 1052051.11
+
+    def test_partial_payment_matches_and_reduces(self, db):
+        # Nisan deseni: kısmi ödeme (kelime yolu partial'a izin verir) → paid_amount artar, is_paid=False
+        prod, stmt, btx = self._setup(db, amount=272000.0, toplam_borc=778215.89)
+        assert _match_cc_to_bank(db)["matched"] == 1
+        db.expire_all()
+        s = db.get(CreditCardStatement, stmt.id)
+        assert s.is_paid is False
+        assert float(s.paid_amount) == 272000.0
+
+    def test_virman_without_odeme_partial_no_match(self, db):
+        # "ile biten" var ama "ödeme" yok (saf virman) → kelime yok → kısmi eşleşmez (güvenlik)
+        prod, stmt, btx = self._setup(db, amount=272000.0, toplam_borc=778215.89)
+        btx.description = "Kart İşlemleri - 6075 ile biten hesaba virman"
+        db.commit()
         assert _match_cc_to_bank(db)["matched"] == 0

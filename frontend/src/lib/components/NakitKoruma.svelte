@@ -265,8 +265,9 @@
 				</div>
 			</div>
 			<div class="mt-3">
-				<div class="relative" style="touch-action:none" onpointermove={onChartMove} onpointerdown={onChartMove} onpointerleave={onChartLeave}>
-					<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" role="img" aria-label="Nakit projeksiyon eğrisi">
+				<div class="relative" style="touch-action:none" role="img" aria-label="Nakit projeksiyon eğrisi — üzerinde gezinerek gün ve bakiye görün"
+					onpointermove={onChartMove} onpointerdown={onChartMove} onpointerleave={onChartLeave}>
+					<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" aria-hidden="true">
 						<line x1="0" y1={proj.zeroY} x2="620" y2={proj.zeroY} stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
 						<polyline points={proj.pts} fill="none" stroke={proj.negative ? '#e8a06a' : '#8fd0a8'} stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
 						<circle cx={proj.lowX} cy={proj.lowY} r="4.5" fill="#e8c979" />
