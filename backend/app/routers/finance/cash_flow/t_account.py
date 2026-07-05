@@ -171,7 +171,7 @@ def _item_name(fe: FinanceEvent) -> str:
 @router.get("/cash-flow/t-account")
 def t_account(
     period: str = Query("monthly", pattern="^(daily|weekly|monthly|yearly)$"),
-    offset: int = Query(0, le=0, ge=-120, description="0=bu dönem, negatif=geçmiş dönem"),
+    offset: int = Query(0, le=24, ge=-120, description="0=bu dönem, negatif=geçmiş, pozitif=gelecek dönem"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.cash_flow", "view")),
 ):
@@ -199,6 +199,8 @@ def t_account(
 
     groups = {DIRECTION_INCOME: {}, DIRECTION_EXPENSE: {}}
     totals = {DIRECTION_INCOME: 0.0, DIRECTION_EXPENSE: 0.0}
+    # is_realized (gerçekleşmiş — ör. banka hareketi) EUR toplamı; kalan = bekleyen (planlı)
+    realized = {DIRECTION_INCOME: 0.0, DIRECTION_EXPENSE: 0.0}
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, Optional[float]] = {}
 
@@ -222,8 +224,13 @@ def t_account(
                 "name": _item_name(fe),
                 "date": fe.event_date.isoformat(),
                 "amount_eur": round(eur, 2),
+                # Kalem kendi para biriminde de dönülür (detay native gösterir; grup/kolon toplamı EUR)
+                "amount_native": round(float(fe.amount), 2),
+                "currency": (fe.currency or "TRY").upper(),
             })
         totals[fe.direction] += eur
+        if fe.is_realized:
+            realized[fe.direction] += eur
 
     # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — dönemi kapsayan
     # son-ödeme kalemleri ÇIKIŞ "KK Borç Ödemeleri" grubuna eklenir → panel/nakit akım tablosu +
@@ -251,6 +258,8 @@ def t_account(
                 "name": f"{proj['description']} (Tahmini)",
                 "date": proj["date"],
                 "amount_eur": round(eur, 2),
+                "amount_native": round(float(proj["amount"]), 2),
+                "currency": "TRY",
             })
         totals[DIRECTION_EXPENSE] += eur
 
@@ -285,6 +294,8 @@ def t_account(
         "cikis": cikis,
         "total_in_eur": total_in,
         "total_out_eur": total_out,
+        "realized_in_eur": round(realized[DIRECTION_INCOME], 2),
+        "realized_out_eur": round(realized[DIRECTION_EXPENSE], 2),
         "net_eur": round(total_in - total_out, 2),
         "faaliyet_net_eur": faaliyet_net,
         "finansman_net_eur": finansman_net,

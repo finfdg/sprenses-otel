@@ -100,15 +100,15 @@
 		return units.sort((a, b) => a.day.localeCompare(b.day));
 	}
 
-	// Projeksiyon — outs + overdue (vadesi geçen bugüne çekilir; hâlâ ödenecek borç)
+	// Projeksiyon — YALNIZ vadesi gelmemiş (bugün..ay sonu) çıkışlar + gelirler.
+	// Vadesi GEÇEN ödenmemiş kalemler bakiye çizgisine KATILMAZ (kullanıcı kararı 2026-07-05):
+	// henüz ödenmediği için nakit çıkışı olmamıştır → grafiği aşağı çekmemeli. Yine de aşağıda
+	// "Vadesi Geçenler" başlığında (overdueUnits/overdueTotal) ayrı bir uyarı olarak listelenir.
 	const proj = $derived.by(() => {
 		if (!data) return null;
 		const today = data.today;
-		const projOuts: { id: string; date: string; amount_eur: number }[] = [
-			...data.outs.map((o) => ({ id: o.id, date: o.date, amount_eur: o.amount_eur })),
-			// vadesi geçenler → bugün öденecekmiş gibi projeksiyona girer
-			...data.overdue.map((o) => ({ id: o.id, date: today, amount_eur: o.amount_eur })),
-		];
+		const projOuts: { id: string; date: string; amount_eur: number }[] =
+			data.outs.map((o) => ({ id: o.id, date: o.date, amount_eur: o.amount_eur }));
 		const r = projectRunway(data.start_eur, data.inflows, projOuts, today, data.month_end, {});
 
 		const vals = r.byDay.map((p) => p.bal);

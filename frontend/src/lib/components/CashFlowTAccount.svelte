@@ -15,14 +15,18 @@
 	import NakitKoruma from '$lib/components/NakitKoruma.svelte';
 	import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
-	type TItem = { name: string; date: string; amount_eur: number };
+	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string };
 	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[] };
 	type TData = {
 		period: string; offset: number; start_date: string; end_date: string;
 		giris: TGroup[]; cikis: TGroup[];
 		total_in_eur: number; total_out_eur: number; net_eur: number;
+		realized_in_eur?: number; realized_out_eur?: number;
 		faaliyet_net_eur?: number; finansman_net_eur?: number; skipped_no_rate: number;
 	};
+
+	// İleri (gelecek dönem) navigasyon üst sınırı — backend le=24 ile aynı
+	const MAX_FUTURE_OFFSET = 24;
 
 	const PERIODS = [
 		{ value: 'daily', label: 'Günlük' },
@@ -51,6 +55,12 @@
 
 	function fmtEur(n: number): string {
 		return '€' + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
+	}
+	// Kalem kendi para biriminde (detay satırı) — grup/kolon toplamı EUR kalır
+	const CUR_SYM: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
+	function fmtNative(n: number, currency: string): string {
+		const sym = CUR_SYM[currency] || (currency + ' ');
+		return sym + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
 	}
 	function fmtDateShort(iso: string): string {
 		const [, m, d] = iso.split('-').map(Number);
@@ -94,7 +104,7 @@
 		load();
 	}
 	function nav(delta: number) {
-		if (delta > 0 && offsets[period] >= 0) return; // ileri, şimdiki dönemde durur
+		if (delta > 0 && offsets[period] >= MAX_FUTURE_OFFSET) return; // ileri üst sınır (gelecek dönem)
 		if (delta < 0 && offsets[period] <= -120) return; // backend alt sınırı (ge=-120)
 		offsets[period] += delta;
 		open = {};
@@ -167,7 +177,7 @@
 			<div class="tabular-nums text-sm font-semibold text-gray-900">{periodLabel || '…'}</div>
 			<div class="text-[10px] tracking-[1.5px] text-gray-500">{PERIOD_TYPE_LABEL[period]}</div>
 		</div>
-		<button type="button" onclick={() => nav(1)} aria-label="Sonraki dönem" disabled={offsets[period] >= 0}
+		<button type="button" onclick={() => nav(1)} aria-label="Sonraki dönem" disabled={offsets[period] >= MAX_FUTURE_OFFSET}
 			class="touch-target w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent">
 			<ChevronRight size={16} />
 		</button>
@@ -183,16 +193,26 @@
 		<!-- T-account gövdesi: üst 2px lacivert çizgi; ortada dikey ayraç (masaüstü) -->
 		<div class="border-t-2 border-teal-700 grid grid-cols-1 sm:grid-cols-2 {loading ? 'opacity-60' : ''}">
 			{#each [
-				{ side: 'giris', title: 'Giriş', groups: data.giris, total: data.total_in_eur, accent: 'bg-teal-600', totalCls: 'text-teal-600' },
-				{ side: 'cikis', title: 'Çıkış', groups: data.cikis, total: data.total_out_eur, accent: 'bg-brass', totalCls: 'text-brass-dark' },
+				{ side: 'giris', title: 'Giriş', groups: data.giris, total: data.total_in_eur, realized: data.realized_in_eur ?? 0, accent: 'bg-teal-600', totalCls: 'text-teal-600' },
+				{ side: 'cikis', title: 'Çıkış', groups: data.cikis, total: data.total_out_eur, realized: data.realized_out_eur ?? 0, accent: 'bg-brass', totalCls: 'text-brass-dark' },
 			] as col (col.side)}
 				<div class="{col.side === 'cikis' ? 'sm:border-l-2 sm:border-teal-700 border-t-2 border-teal-700 sm:border-t-0' : ''} px-0 sm:px-3 py-2 {col.side === 'giris' ? 'sm:pr-3 sm:pl-0' : ''}">
-					<!-- Sütun başlığı -->
-					<div class="flex items-center justify-between px-2 py-1.5">
-						<span class="flex items-center gap-2 text-xs font-semibold tracking-wide uppercase text-gray-700">
-							<span class="w-2.5 h-2.5 rounded-sm {col.accent}"></span>{col.title}
-						</span>
-						<span class="tabular-nums text-sm font-semibold {col.totalCls}">{fmtEur(col.total)}</span>
+					<!-- Sütun başlığı (Giriş/Çıkış — büyük punto) -->
+					<div class="px-2 py-1.5">
+						<div class="flex items-center justify-between gap-2">
+							<span class="flex items-center gap-2 text-base sm:text-lg font-semibold tracking-wide uppercase text-gray-800">
+								<span class="w-3.5 h-3.5 rounded-sm {col.accent}"></span>{col.title}
+							</span>
+							<span class="tabular-nums text-lg sm:text-xl font-semibold {col.totalCls}">{fmtEur(col.total)}</span>
+						</div>
+						<!-- Gerçekleşen (banka vb. — zaten oldu) vs bekleyen (planlı) ayrımı -->
+						{#if col.realized > 0}
+							<div class="flex justify-end items-center gap-2 mt-0.5 text-[11px]">
+								<span class="text-emerald-600 tabular-nums">✓ Gerçekleşen {fmtEur(col.realized)}</span>
+								<span class="text-gray-400">·</span>
+								<span class="text-gray-500 tabular-nums">Bekleyen {fmtEur(col.total - col.realized)}</span>
+							</div>
+						{/if}
 					</div>
 					<!-- Gruplar -->
 					{#if col.groups.length === 0}
@@ -216,7 +236,8 @@
 									<div class="flex items-center gap-2 pl-8 pr-2 py-1 text-[12px]">
 										<span class="text-gray-700 truncate">{it.name}</span>
 										<span class="text-gray-500 shrink-0">· {fmtDateShort(it.date)}</span>
-										<span class="ml-auto tabular-nums text-gray-600 shrink-0">{fmtEur(it.amount_eur)}</span>
+										<!-- Kalem kendi para biriminde (₺/€…); kolon/grup toplamı EUR konsolide -->
+										<span class="ml-auto tabular-nums text-gray-700 shrink-0">{fmtNative(it.amount_native, it.currency)}</span>
 									</div>
 								{/each}
 								{#if g.item_count > g.items.length}

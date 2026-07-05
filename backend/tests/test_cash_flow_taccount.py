@@ -88,9 +88,10 @@ class TestTAccountAuth:
     def test_invalid_period_rejected(self, client, auth_headers):
         assert client.get(f"{URL}?period=hourly", headers=auth_headers).status_code == 422
 
-    def test_positive_offset_rejected(self, client, auth_headers):
-        """offset yalnız 0 veya negatif (geçmiş) olabilir."""
-        assert client.get(f"{URL}?offset=1", headers=auth_headers).status_code == 422
+    def test_offset_bounds(self, client, auth_headers):
+        """offset -120 (geçmiş) .. +24 (gelecek) aralığında; dışı 422."""
+        assert client.get(f"{URL}?offset=24", headers=auth_headers).status_code == 200
+        assert client.get(f"{URL}?offset=25", headers=auth_headers).status_code == 422
         assert client.get(f"{URL}?offset=-121", headers=auth_headers).status_code == 422
 
 
