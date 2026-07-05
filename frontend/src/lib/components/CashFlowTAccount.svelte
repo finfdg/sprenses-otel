@@ -263,24 +263,6 @@
 			{/each}
 		</div>
 
-		<!-- Faaliyet / Finansman ayrımı (3a tasarımı) — yalnız finansman hareketi varsa -->
-		{#if (data.finansman_net_eur ?? 0) !== 0}
-			<div class="mt-3 space-y-2">
-				<div class="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-2.5">
-					<span class="text-xs sm:text-sm font-medium text-emerald-700">Faaliyet Neti <span class="font-normal text-gray-500">· gerçek nakit üretimi</span></span>
-					<span class="tabular-nums text-sm font-semibold {(data.faaliyet_net_eur ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}">
-						{(data.faaliyet_net_eur ?? 0) >= 0 ? '+' : '−'}{fmtEur(Math.abs(data.faaliyet_net_eur ?? 0))}
-					</span>
-				</div>
-				<div class="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-100 px-4 py-2.5">
-					<span class="text-xs sm:text-sm font-medium text-blue-700">Finansman <span class="font-normal text-gray-500">· avans & kredi (gider değil)</span></span>
-					<span class="tabular-nums text-sm font-semibold {(data.finansman_net_eur ?? 0) >= 0 ? 'text-blue-700' : 'text-red-600'}">
-						{(data.finansman_net_eur ?? 0) >= 0 ? '+' : '−'}{fmtEur(Math.abs(data.finansman_net_eur ?? 0))}
-					</span>
-				</div>
-			</div>
-		{/if}
-
 		<!-- Net bant -->
 		<div class="mt-3 rounded-xl bg-teal-700 text-white flex items-center justify-between px-4 py-3">
 			<span class="text-xs sm:text-sm">Net Nakit Akım · {periodLabel}</span>
