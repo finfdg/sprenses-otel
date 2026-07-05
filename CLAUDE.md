@@ -426,7 +426,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Kalite (quality) → Şablonlar (quality.templates), Formlar (quality.forms)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup), Dokümanlar (system.docs)
-- Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Oda Tipleri (sales.room_types)
+- Satış (sales) → Uçak Rezervasyon (sales.flight), Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Acente Mahsup & Nakit Akım (sales.acente_mahsup), Oda Tipleri (sales.room_types)
 - Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
 - Yönetim Paneli (yonetim) → Panel (yonetim.panel — GM/Finans 10 KPI + uyarılar)
 
@@ -597,6 +597,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Uçak Rezervasyon | `docs/modules/ucak-rezervasyon.md` |
 | Otel Rezervasyon | `docs/modules/otel-rezervasyon.md` |
 | Günlük Hareketler (rezervasyon/iptal) | `docs/modules/gunluk-hareketler.md` |
+| Acente Mahsup & Nakit Akım | `docs/modules/acente-mahsup.md` |
 | Oda Tipleri | `docs/modules/oda-tipleri.md` |
 | Yedekleme | `docs/modules/yedekleme.md` |
 | Sistem — Dokümanlar | `docs/modules/sistem-dokumanlar.md` |

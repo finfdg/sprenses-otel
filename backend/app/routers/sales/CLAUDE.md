@@ -1,8 +1,23 @@
 # Satış Modülü — Geliştirici Rehberi
 
 Satış alt modülleri: `reservations/` (otel rezervasyon + günlük hareketler), `room_types`,
-`agency_groups`, `flights` (uçak — widget tabanlı, yedek API client). Bu dosya satış
+`agency_groups`, `flights` (uçak — widget tabanlı, yedek API client), `acente_mahsup`
+(Acente Mahsup & Nakit Akım — salt-okuma projeksiyon panosu). Bu dosya satış
 modülüne katkı kurallarını içerir.
+
+## Acente Mahsup & Nakit Akım (`acente_mahsup.py`, `sales.acente_mahsup`)
+
+- **Salt-okuma projeksiyon** (GET-only, 60sn TTL cache, `require_permission view`) → onay/broadcast
+  kapsam dışı (Yönetim Paneli deseni). Mutasyon YOK.
+- Motor: `services/agency_settlement_service.compute_settlement()` — rezervasyon cirosu (EUR,
+  **çıkış ayında** tanınır) + `agency_groups` konfigü (`term_days`/`kickback_percent`) + gerçek
+  avanslar (`receivable_service.compute_receivables` grup satırları, güncel kurla EUR) + yıl sonu
+  hedef senaryosu → 5 sekmelik payload.
+- **Vade/kickback konfigü `agency_groups`'tadır** (bu modül eklerken 2 kolon eklendi); düzenleme
+  mevcut `PATCH /agency-groups/{id}` (`sales.hotel_reservation` use) ile. Yeni mutasyon endpoint'i
+  eklenmedi → ayrı executor handler gerekmez.
+- Hak Ediş'ten (finance.hakedis, TL gerçek fatura yaşlandırması) **bağımsız**: burası ileri
+  projeksiyon + kickback/hedef senaryo. Detay: `docs/modules/acente-mahsup.md`.
 
 ## Yapı
 

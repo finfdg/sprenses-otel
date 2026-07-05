@@ -211,7 +211,7 @@
 	</div>
 
 	{#if loading && !data}
-		<TableSkeleton rows={6} cols={5} />
+		<TableSkeleton rows={6} columns={5} />
 	{:else if data}
 		<!-- KPI kartları -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -533,7 +533,7 @@
 <!-- Acente Ayarları Modalı -->
 <Modal bind:show={showSettings} title="Acente Ayarları — Vade & Kickback" maxWidth="max-w-2xl">
 	{#if groupsLoading}
-		<TableSkeleton rows={4} cols={3} />
+		<TableSkeleton rows={4} columns={3} />
 	{:else if groups.length === 0}
 		<EmptyState icon={Inbox} title="Acente grubu yok" description="Önce Otel Rezervasyon sayfasından acente grupları oluşturun." />
 	{:else}

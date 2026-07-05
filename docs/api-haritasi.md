@@ -321,10 +321,13 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 ### Satış — Acente Grupları
 - `GET /api/sales/agency-groups/` — Grup listesi (üye acenteler dahil)
 - `POST /api/sales/agency-groups/` — Yeni grup
-- `PATCH /api/sales/agency-groups/{id}` — Grup adı / üyeleri güncelle
+- `PATCH /api/sales/agency-groups/{id}` — Grup adı / üyeleri + **`term_days` (vade) / `kickback_percent`** güncelle (Acente Mahsup konfigü)
 - `DELETE /api/sales/agency-groups/{id}` — Grubu sil
 - `POST /api/sales/agency-groups/assign` — Atomik atama (acente ↔ grup) — drag-drop için
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md` (acente gruplama bölümü)
+
+### Satış — Acente Mahsup & Nakit Akım (projeksiyon panosu)
+- `GET /api/sales/acente-mahsup/` — Rezervasyon cirosu (EUR, çıkış ayında tanınır) + acente konfigü (vade/kickback) + gerçek avanslar + yıl sonu hedef senaryosu → 5 sekmelik projeksiyon (funnel, acente tablosu, aylık ciro, projeksiyon faturaları, nakit akım). Query: `year`, `year_target` (boş=gerçek), `opening_cash`. Salt-okuma (`sales.acente_mahsup` view), 60sn TTL cache, onaydan muaf. Hak Ediş'ten bağımsız ileri projeksiyon. Detay: `docs/modules/acente-mahsup.md`
 
 ### Finans — Banka Talimatları (PDF üretim)
 - `POST /api/finance/bank-instructions/transfer` — EFT/Havale/Transfer PDF'i (kaynak/hedef hesap + tutar)
