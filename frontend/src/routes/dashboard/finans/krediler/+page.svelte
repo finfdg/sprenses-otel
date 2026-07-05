@@ -41,6 +41,12 @@
 	};
 	function typeStyle(t: string) { return TYPE_STYLE[t] || TYPE_STYLE.spot_kredi; }
 
+	// Para-birimi vurgu renkleri (tasarım paleti). TL = brass (#bd9a45, --color-brass token);
+	// EUR = tasarıma özel mavi (#5b7fa6, token setinde YOK — lacivert temayla uyumlu "doğal hedge"
+	// aksanı). Koşullu kullanıldığından utility yerine sabit hex — tip rozetleri gibi bilinçli istisna.
+	const CUR_BAR = (isEur: boolean) => (isEur ? '#5b7fa6' : '#bd9a45');   // vurgu çubuğu / ilerleme / nokta
+	const CUR_TEXT = (isEur: boolean) => (isEur ? '#3a5573' : '#6d571b');  // tutar metni (AA: açık zeminde ≥4.5:1)
+
 	const AY_KISA = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	const AY_UZUN = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
@@ -89,17 +95,21 @@
 
 	// Taksit takvimi akordiyon
 	let openCalMonths = $state<Set<string>>(new Set());
+	let calInitialized = $state(false);  // ilk-açılış yalnız bir kez (kullanıcı tüm ayları kapatabilsin)
 
 	// PDF
 	let pdfLoading = $state(false);
 	let pdfModal: PdfPreviewModal | undefined = $state();
 
-	// Silme onayı
-	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({
-		show: false, title: '', message: '', onConfirm: () => {},
+	// Onay diyaloğu (silme = yıkıcı kırmızı; diğer onaylar confirmText/danger ile özelleştirilir)
+	let confirmState = $state<{ show: boolean; title: string; message: string; confirmText: string; danger: boolean; onConfirm: () => void | Promise<void> }>({
+		show: false, title: '', message: '', confirmText: 'Sil', danger: true, onConfirm: () => {},
 	});
+	function askConfirm(title: string, message: string, onConfirm: () => void | Promise<void>, opts?: { confirmText?: string; danger?: boolean }) {
+		confirmState = { show: true, title, message, confirmText: opts?.confirmText ?? 'Sil', danger: opts?.danger ?? true, onConfirm };
+	}
 	function askDelete(title: string, message: string, onConfirm: () => void | Promise<void>) {
-		confirmState = { show: true, title, message, onConfirm };
+		askConfirm(title, message, onConfirm);
 	}
 
 	// Ürün ekle/düzenle modal
@@ -219,21 +229,25 @@
 		let missingRate = false;
 		const curMonth = _now.getMonth(), curYear = _now.getFullYear();
 		for (const p of activeCredits) {
-			const e = toEur(p.remaining_amount || 0, p.currency || 'TRY');
+			const cur = p.currency || 'TRY';
+			const e = toEur(p.remaining_amount || 0, cur);
 			if (e == null) { missingRate = true; } else {
 				totalEur += e;
 				if (p.currency === 'EUR') eurEur += e; else tlEur += e;
 			}
+			// Bu Ay Ödenecek: yalnız gerçek planlı taksitler (kartın tüm bakiyesi şişirmesin)
+			if (p.next_payment_date && p.next_payment_amount) {
+				const nde = new Date(p.next_payment_date + 'T00:00:00');
+				const eAmt = toEur(p.next_payment_amount, cur);
+				if (eAmt != null && nde.getMonth() === curMonth && nde.getFullYear() === curYear) thisMonth += eAmt;
+			}
+			// Vadesi Yaklaşan (≤30g): planlı taksit tutarı, kartta son-ödeme kalan bakiyesi
 			const nd = nextDueDate(p);
-			const nextAmt = p.next_payment_amount ?? (p.type === 'kredi_karti' ? p.remaining_amount : null);
-			if (nd && nextAmt) {
-				const nde = new Date(nd + 'T00:00:00');
-				const eAmt = toEur(nextAmt, p.currency || 'TRY');
-				if (eAmt != null) {
-					if (nde.getMonth() === curMonth && nde.getFullYear() === curYear) thisMonth += eAmt;
-					const days = daysToNext(p);
-					if (days != null && days >= 0 && days <= 30) { soon += eAmt; soonCount++; }
-				}
+			const soonAmt = p.next_payment_amount ?? (p.type === 'kredi_karti' ? p.remaining_amount : null);
+			if (nd && soonAmt) {
+				const eAmt = toEur(soonAmt, cur);
+				const days = daysToNext(p);
+				if (eAmt != null && days != null && days >= 0 && days <= 30) { soon += eAmt; soonCount++; }
 			}
 		}
 		const pct = (v: number) => (totalEur > 0 ? Math.round((v / totalEur) * 100) : 0);
@@ -452,15 +466,22 @@
 
 	// Takvim akordiyon: ilk (en yakın) ay açık başlar
 	$effect(() => {
-		if (view === 'takvim' && upcoming.length > 0 && openCalMonths.size === 0) {
+		if (view === 'takvim' && !calInitialized && upcoming.length > 0) {
 			const first = calMonths[0]?.ym;
-			if (first) openCalMonths = new Set([first]);
+			if (first) { openCalMonths = new Set([first]); calInitialized = true; }
 		}
 	});
 	function toggleCalMonth(ym: string) {
 		const next = new Set(openCalMonths);
 		if (next.has(ym)) next.delete(ym); else next.add(ym);
 		openCalMonths = next;
+	}
+
+	// Görünüm değiştir — 'krediler'e dönünce seçili detayı tazele (WS başka görünümdeyken
+	// güncellediyse bayat ödeme planı/KMH/ekstre göstermesin)
+	async function changeView(v: string) {
+		view = v as 'krediler' | 'takvim' | 'banka';
+		if (v === 'krediler') await refreshSelection();
 	}
 
 	// Banka görünümünden krediye tıkla → Krediler görünümünde seç
@@ -517,7 +538,7 @@
 				ccStatements = ccStatements.filter(s => s.id !== stmtId);
 				if (ccExpandedStmtId === stmtId) { ccExpandedStmtId = null; ccExpandedStmt = null; }
 				await loadData();
-			} catch (e) { console.error('Ekstre silme hatası:', e); }
+			} catch (e: any) { console.error('Ekstre silme hatası:', e); showToast(e?.message || 'Ekstre silinemedi', 'error'); }
 		});
 	}
 	function getStmtStatus(stmt: any): { label: string; bg: string; text: string } {
@@ -580,7 +601,7 @@
 				await api.delete(`/finance/krediler/${id}`);
 				if (selectedId === id) { selectedId = null; mobileShowDetail = false; }
 				await loadData();
-			} catch (e) { console.error('Silme hatası:', e); }
+			} catch (e: any) { console.error('Silme hatası:', e); showToast(e?.message || 'Kredi silinemedi', 'error'); }
 		});
 	}
 
@@ -629,7 +650,7 @@
 					products = [...products];
 				}
 			}
-		} catch (e) { console.error('Ödeme güncelleme hatası:', e); }
+		} catch (e: any) { console.error('Ödeme güncelleme hatası:', e); showToast(e?.message || 'Taksit güncellenemedi', 'error'); }
 	}
 	function deletePayment(paymentId: number) {
 		askDelete('Ödemeyi Sil', 'Bu ödemeyi silmek istediğinize emin misiniz?', async () => {
@@ -637,7 +658,7 @@
 				await api.delete(`/finance/krediler/payments/${paymentId}`);
 				selPayments = selPayments.filter(p => p.id !== paymentId);
 				await loadData();
-			} catch (e) { console.error('Ödeme silme hatası:', e); }
+			} catch (e: any) { console.error('Ödeme silme hatası:', e); showToast(e?.message || 'Taksit silinemedi', 'error'); }
 		});
 	}
 
@@ -658,7 +679,7 @@
 		}
 	}
 	function reopenProduct(p: any) {
-		askDelete('Krediyi Yeniden Aç', `"${p.name}" yeniden açılacak ve ödenmemiş taksitler nakit akıma geri eklenecek. Devam edilsin mi?`, async () => {
+		askConfirm('Krediyi Yeniden Aç', `"${p.name}" yeniden açılacak ve ödenmemiş taksitler nakit akıma geri eklenecek. Devam edilsin mi?`, async () => {
 			try {
 				await api.post(`/finance/krediler/${p.id}/reopen`, {});
 				showToast('Kredi yeniden açıldı', 'success');
@@ -667,7 +688,7 @@
 				console.error('Yeniden açma hatası:', e);
 				showToast(e?.message || 'Kredi yeniden açılamadı', 'error');
 			}
-		});
+		}, { confirmText: 'Yeniden Aç', danger: false });
 	}
 
 	// ─── PDF ────────────────────────────────────────────────
@@ -750,7 +771,7 @@
 
 		<!-- ═══ Görünüm segmenti + aksiyonlar ═══ -->
 		<div class="flex items-center justify-between gap-3 px-3 sm:px-5 py-2.5 bg-gray-50 border-b border-gray-200 flex-wrap">
-			<SegmentedControl options={VIEW_OPTIONS} value={view} onchange={(v) => (view = v as any)} ariaLabel="Görünüm" />
+			<SegmentedControl options={VIEW_OPTIONS} value={view} onchange={changeView} ariaLabel="Görünüm" />
 			<div class="flex gap-2">
 				<Button variant="secondary" size="sm" onclick={downloadPdf} disabled={pdfLoading} title="Kredileri PDF rapor olarak indir">
 					<FileDown size={15} /> <span class="hidden sm:inline">{pdfLoading ? 'Hazırlanıyor…' : 'PDF Rapor'}</span>
@@ -785,22 +806,22 @@
 									onclick={() => selectCredit(c)}
 									class="w-full flex gap-3 text-left px-3 py-2.5 rounded-xl cursor-pointer border transition-colors {sel ? 'border-gray-300 bg-white shadow-sm' : 'border-transparent hover:bg-white/70'}"
 								>
-									<div class="w-[3px] self-stretch rounded-full shrink-0" style="background:{isEur ? '#5b7fa6' : '#bd9a45'}"></div>
+									<div class="w-[3px] self-stretch rounded-full shrink-0" style="background:{CUR_BAR(isEur)}"></div>
 									<div class="flex-1 min-w-0">
 										<div class="flex items-baseline justify-between gap-2">
 											<span class="text-[13.5px] font-semibold text-gray-900 truncate">{c.name}</span>
-											<span class="tabular-nums text-xs font-semibold shrink-0" style="color:{isEur ? '#3a5573' : '#6d571b'}">{fmt(c.remaining_amount, c.currency)}</span>
+											<span class="tabular-nums text-xs font-semibold shrink-0" style="color:{CUR_TEXT(isEur)}">{fmt(c.remaining_amount, c.currency)}</span>
 										</div>
 										<div class="flex items-center justify-between gap-2 mt-1">
 											<span class="flex items-center gap-1.5 min-w-0">
 												<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap" style="color:{typeStyle(c.type).fg};background:{typeStyle(c.type).bg}">{c.type_label}</span>
 												<span class="text-[11px] text-gray-500 truncate">{c.bank_name || c.company || ''}</span>
 											</span>
-											<span class="tabular-nums text-[10.5px] text-gray-400 shrink-0">≈{shortEur(toEur(c.remaining_amount, c.currency))}</span>
+											<span class="tabular-nums text-[10.5px] text-gray-500 shrink-0">≈{shortEur(toEur(c.remaining_amount, c.currency))}</span>
 										</div>
 										<div class="flex items-center gap-2 mt-1.5">
 											<span class="flex-1 h-[5px] rounded-full bg-gray-200 overflow-hidden">
-												<span class="block h-full rounded-full" style="width:{Math.max(3, prog)}%;background:{isEur ? '#5b7fa6' : '#bd9a45'}"></span>
+												<span class="block h-full rounded-full" style="width:{Math.max(3, prog)}%;background:{CUR_BAR(isEur)}"></span>
 											</span>
 											<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap {chip.cls}">{chip.label}</span>
 											{#if cardNeedsStatement(c)}<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 whitespace-nowrap">Ekstre?</span>{/if}
@@ -810,7 +831,7 @@
 							{/each}
 
 							{#if closedCredits.length > 0}
-								<div class="px-1 pt-3 pb-1 text-[10.5px] tracking-wider uppercase text-gray-400 font-bold">Kapalı</div>
+								<div class="px-1 pt-3 pb-1 text-[10.5px] tracking-wider uppercase text-gray-500 font-bold">Kapalı</div>
 								{#each closedCredits as c (c.id)}
 									{@const sel = c.id === selectedId}
 									<button
@@ -820,10 +841,10 @@
 										<div class="w-[3px] self-stretch rounded-full shrink-0 bg-gray-300"></div>
 										<div class="flex-1 min-w-0">
 											<div class="flex items-baseline justify-between gap-2">
-												<span class="text-[13px] font-medium text-gray-400 line-through truncate">{c.name}</span>
+												<span class="text-[13px] font-medium text-gray-500 line-through truncate">{c.name}</span>
 												<span class="text-[10px] font-semibold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded shrink-0">Kapalı</span>
 											</div>
-											<div class="text-[11px] text-gray-400 mt-1">{c.bank_name || c.company || ''}{c.closed_date ? ` · ${fmtDate(c.closed_date)} kapatıldı` : ''}</div>
+											<div class="text-[11px] text-gray-500 mt-1">{c.bank_name || c.company || ''}{c.closed_date ? ` · ${fmtDate(c.closed_date)} kapatıldı` : ''}</div>
 										</div>
 									</button>
 								{/each}
@@ -854,7 +875,7 @@
 										{#if p.status === 'closed'}<span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-200 text-gray-600">Kapalı</span>{/if}
 									</div>
 									<div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
-										<span class="flex items-center gap-1.5"><Landmark size={13} class="text-gray-400" />{p.bank_name || p.company || '—'}</span>
+										<span class="flex items-center gap-1.5"><Landmark size={13} class="text-gray-500" />{p.bank_name || p.company || '—'}</span>
 										<span>Kullandırım <span class="tabular-nums text-gray-700">{fmtDate(p.start_date)}</span></span>
 										<span>Vade <span class="tabular-nums text-gray-700">{p.end_date ? fmtDate(p.end_date) : 'Vadesiz'}</span></span>
 									</div>
@@ -883,19 +904,19 @@
 									<div class="text-[10.5px] text-teal-300 mt-0.5">≈{shortEur(toEur(p.remaining_amount, p.currency))}</div>
 								</div>
 								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
-									<div class="text-[9.5px] tracking-wide uppercase text-gray-400">Faiz Oranı</div>
+									<div class="text-[9.5px] tracking-wide uppercase text-gray-500">Faiz Oranı</div>
 									<div class="tabular-nums text-base sm:text-lg font-semibold text-gray-900 mt-1">{p.interest_rate ? `%${p.interest_rate}` : '—'}</div>
-									<div class="text-[10.5px] text-gray-400 mt-0.5">{p.interest_rate ? 'yıllık' + (p.currency === 'EUR' ? ' · EUR' : '') : 'kart / rotatif'}</div>
+									<div class="text-[10.5px] text-gray-500 mt-0.5">{p.interest_rate ? 'yıllık' + (p.currency === 'EUR' ? ' · EUR' : '') : 'kart / rotatif'}</div>
 								</div>
 								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
-									<div class="text-[9.5px] tracking-wide uppercase text-gray-400">Sonraki Taksit</div>
+									<div class="text-[9.5px] tracking-wide uppercase text-gray-500">Sonraki Taksit</div>
 									<div class="tabular-nums text-base sm:text-lg font-semibold text-gray-900 mt-1">{p.next_payment_amount ? fmt(p.next_payment_amount, p.currency) : (p.type === 'kredi_karti' ? 'Ekstre' : '—')}</div>
-									<div class="text-[10.5px] text-gray-400 mt-0.5">{p.next_payment_date ? fmtDate(p.next_payment_date) : (p.type === 'kmh' ? 'rotatif' : '—')}</div>
+									<div class="text-[10.5px] text-gray-500 mt-0.5">{p.next_payment_date ? fmtDate(p.next_payment_date) : (p.type === 'kmh' ? 'rotatif' : '—')}</div>
 								</div>
 								<div class="bg-white border border-gray-200 rounded-xl px-3.5 py-3">
-									<div class="text-[9.5px] tracking-wide uppercase text-gray-400">İlerleme</div>
+									<div class="text-[9.5px] tracking-wide uppercase text-gray-500">İlerleme</div>
 									<div class="tabular-nums text-base sm:text-lg font-semibold text-gray-900 mt-1">{p.payment_count ? `${p.paid_count}/${p.payment_count}` : '—'}</div>
-									<div class="text-[10.5px] text-gray-400 mt-0.5">{p.payment_count ? 'taksit ödendi' : 'plansız'}</div>
+									<div class="text-[10.5px] text-gray-500 mt-0.5">{p.payment_count ? 'taksit ödendi' : 'plansız'}</div>
 								</div>
 							</div>
 
@@ -933,7 +954,7 @@
 										</div>
 									{/if}
 									{#if selPayments.length === 0}
-										<div class="mt-3 bg-white border border-dashed border-gray-300 rounded-xl px-6 py-8 text-center text-gray-400 text-sm">Ödeme planı yok</div>
+										<div class="mt-3 bg-white border border-dashed border-gray-300 rounded-xl px-6 py-8 text-center text-gray-500 text-sm">Ödeme planı yok</div>
 									{:else}
 										<div class="mt-3 space-y-2">
 											{#each selPaymentMonths as grp (grp.ym)}
@@ -975,7 +996,7 @@
 																	</span>
 																</div>
 															{/each}
-															<div class="hidden sm:grid grid-cols-[70px_1fr_92px_92px_100px_auto] gap-x-3 px-4 pt-1.5 pb-1 text-[9px] tracking-wide uppercase text-gray-400 border-t border-gray-100">
+															<div class="hidden sm:grid grid-cols-[70px_1fr_92px_92px_100px_auto] gap-x-3 px-4 pt-1.5 pb-1 text-[9px] tracking-wide uppercase text-gray-500 border-t border-gray-100">
 																<span></span><span></span><span class="text-right">Anapara</span><span class="text-right">Faiz</span><span class="text-right">Taksit</span><span class="text-right">Durum</span>
 															</div>
 														</div>
@@ -1033,7 +1054,7 @@
 									<span class="flex-1"></span>
 									<span class="text-right">
 										{#if monthTotalLabel(grp.unpaidTotals)}
-											<span class="block text-[9px] uppercase tracking-wide text-gray-400">Kalan</span>
+											<span class="block text-[9px] uppercase tracking-wide text-gray-500">Kalan</span>
 											<span class="tabular-nums text-[13px] font-semibold text-gray-900">{monthTotalLabel(grp.unpaidTotals)}</span>
 										{:else}
 											<span class="tabular-nums text-[13px] font-semibold text-emerald-600">Tamamı ödendi</span>
@@ -1047,9 +1068,9 @@
 											{@const isEur = u.currency === 'EUR'}
 											<div class="grid grid-cols-[64px_1fr_auto_auto] sm:grid-cols-[72px_1.4fr_1fr_120px_96px] gap-x-3 items-center px-4 py-2.5 border-t border-gray-100 {u.is_paid ? 'bg-emerald-50/30' : ''}">
 												<span class="tabular-nums text-[11.5px] text-gray-500">{fmtDate(u.due_date)}</span>
-												<span class="flex items-center gap-2 min-w-0"><span class="w-2 h-2 rounded-sm shrink-0" style="background:{isEur ? '#5b7fa6' : '#bd9a45'}"></span><span class="text-[12.5px] font-medium text-gray-900 truncate">{u.product_name}</span></span>
+												<span class="flex items-center gap-2 min-w-0"><span class="w-2 h-2 rounded-sm shrink-0" style="background:{CUR_BAR(isEur)}"></span><span class="text-[12.5px] font-medium text-gray-900 truncate">{u.product_name}</span></span>
 												<span class="text-[11.5px] text-gray-500 truncate hidden sm:block">{u.bank_name || ''}</span>
-												<span class="tabular-nums text-right text-[13px] font-semibold" style="color:{isEur ? '#3a5573' : '#6d571b'}">{fmt(u.amount, u.currency)}</span>
+												<span class="tabular-nums text-right text-[13px] font-semibold" style="color:{CUR_TEXT(isEur)}">{fmt(u.amount, u.currency)}</span>
 												<span class="text-right">
 													<span class="text-[10px] font-semibold px-2 py-0.5 rounded {u.is_paid ? 'text-emerald-700 bg-emerald-50' : overdue ? 'text-red-700 bg-red-50' : 'text-brass-dark bg-brass-soft'}">{u.is_paid ? 'Ödendi' : overdue ? 'Gecikmiş' : 'Bekliyor'}</span>
 												</span>
@@ -1093,7 +1114,7 @@
 									</div>
 									<div class="text-right shrink-0 ml-2">
 										<div class="tabular-nums text-sm font-semibold text-gray-900">{shortEur(g.totalEur)}</div>
-										<div class="text-[10px] text-gray-400">{g.count} kredi{g.hasMissingRate ? ' · kur eksik' : ''}</div>
+										<div class="text-[10px] text-gray-500">{g.count} kredi{g.hasMissingRate ? ' · kur eksik' : ''}</div>
 									</div>
 								</div>
 								<div class="space-y-3">
@@ -1105,7 +1126,7 @@
 										<button onclick={() => jumpToCredit(c)} class="w-full text-left cursor-pointer group">
 											<div class="flex items-baseline justify-between gap-2 mb-1.5">
 												<span class="text-xs text-gray-700 truncate group-hover:text-gray-900">{c.name}</span>
-												<span class="tabular-nums text-[11.5px] shrink-0" style="color:{isEur ? '#3a5573' : '#6d571b'}">{fmt(c.remaining_amount, c.currency)}</span>
+												<span class="tabular-nums text-[11.5px] shrink-0" style="color:{CUR_TEXT(isEur)}">{fmt(c.remaining_amount, c.currency)}</span>
 											</div>
 											<div class="flex items-center gap-2">
 												<span class="flex-1 relative h-2 bg-gray-200 rounded-full">
@@ -1134,7 +1155,7 @@
 <!-- ═══ Snippet: KMH görünümü ═══ -->
 {#snippet kmhView(p: any)}
 	{#if !kmhStatus}
-		<p class="mt-4 text-sm text-gray-500 py-6 text-center">KMH durumu yükleniyor…</p>
+		<div class="mt-4"><TableSkeleton rows={4} columns={2} showHeader={false} /></div>
 	{:else if kmhStatus.error}
 		<div class="mt-4 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
 			{kmhStatus.error}
@@ -1260,7 +1281,7 @@
 		</div>
 	{/if}
 	{#if ccStatements.length === 0}
-		<div class="mt-2 bg-white border border-dashed border-gray-300 rounded-xl px-6 py-8 text-center text-gray-400 text-sm">Henüz yüklenmiş ekstre yok</div>
+		<div class="mt-2 bg-white border border-dashed border-gray-300 rounded-xl px-6 py-8 text-center text-gray-500 text-sm">Henüz yüklenmiş ekstre yok</div>
 	{:else}
 		<div class="mt-2 space-y-2">
 			{#each ccStatements as stmt (stmt.id)}
@@ -1332,7 +1353,7 @@
 			</div>
 		</div>
 		<div>
-			<label for="k-name" class="text-xs text-gray-500 mb-1 block">Ürün Adı</label>
+			<label for="k-name" class="text-xs text-gray-500 mb-1 block">Ürün Adı <span class="text-red-500">*</span></label>
 			<Input id="k-name" bind:value={form.name} size="sm" placeholder="ör: Ziraat TL Taksitli Kredi" required />
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1376,11 +1397,11 @@
 <Modal bind:show={showPaymentModal} title="Taksit Planı Oluştur" maxWidth="max-w-md">
 	<form onsubmit={(e) => { e.preventDefault(); generatePayments(); }} class="space-y-4">
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-			<div><label for="kp-count" class="text-xs text-gray-500 mb-1 block">Taksit Sayısı</label><Input id="kp-count" type="number" min="1" max="120" bind:value={paymentForm.count} size="sm" required /></div>
-			<div><label for="kp-start" class="text-xs text-gray-500 mb-1 block">İlk Taksit Tarihi</label><Input id="kp-start" type="date" bind:value={paymentForm.start_date} size="sm" required /></div>
+			<div><label for="kp-count" class="text-xs text-gray-500 mb-1 block">Taksit Sayısı <span class="text-red-500">*</span></label><Input id="kp-count" type="number" min="1" max="120" bind:value={paymentForm.count} size="sm" required /></div>
+			<div><label for="kp-start" class="text-xs text-gray-500 mb-1 block">İlk Taksit Tarihi <span class="text-red-500">*</span></label><Input id="kp-start" type="date" bind:value={paymentForm.start_date} size="sm" required /></div>
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-			<div><label for="kp-amount" class="text-xs text-gray-500 mb-1 block">Taksit Tutarı</label><MoneyInput id="kp-amount" bind:value={paymentForm.amount} currency={selected?.currency || 'TRY'} min={0} placeholder="0,00" required /></div>
+			<div><label for="kp-amount" class="text-xs text-gray-500 mb-1 block">Taksit Tutarı <span class="text-red-500">*</span></label><MoneyInput id="kp-amount" bind:value={paymentForm.amount} currency={selected?.currency || 'TRY'} min={0} placeholder="0,00" required /></div>
 			<div><label for="kp-principal" class="text-xs text-gray-500 mb-1 block">Anapara</label><MoneyInput id="kp-principal" bind:value={paymentForm.principal} currency={selected?.currency || 'TRY'} min={0} placeholder="0,00" /></div>
 		</div>
 		<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1407,6 +1428,6 @@
 	</div>
 </Modal>
 
-<ConfirmDialog bind:show={confirmState.show} title={confirmState.title} message={confirmState.message} confirmText="Sil" cancelText="Vazgeç" danger={true} onConfirm={confirmState.onConfirm} />
+<ConfirmDialog bind:show={confirmState.show} title={confirmState.title} message={confirmState.message} confirmText={confirmState.confirmText} cancelText="Vazgeç" danger={confirmState.danger} onConfirm={confirmState.onConfirm} />
 
 <PdfPreviewModal bind:this={pdfModal} />

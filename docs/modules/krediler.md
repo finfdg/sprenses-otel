@@ -35,7 +35,46 @@
 ### Frontend
 | Dosya | Açıklama |
 |---|---|
-| `src/routes/dashboard/finans/krediler/+page.svelte` | Ana sayfa — ürün listesi, ödeme planı, kart ekstresi |
+| `src/routes/dashboard/finans/krediler/+page.svelte` | Ana sayfa — lacivert/altın master-detail + 3 görünüm (aşağıda) |
+
+---
+
+## Yeniden Tasarım — Lacivert/Altın Master-Detail + 3 Görünüm (2026-07-05)
+
+GitHub'a yüklenen tasarım paketinin (`Krediler Yeniden Tasarım.dc.html` + `Krediler Mobil.dc.html`,
+claude.ai/design) uygulanması. **Frontend-only** — backend sözleşmesi değişmedi; sayfa mevcut
+endpoint'lerden beslenir. [[lacivert-altin-tema]] token yeniden eşlemesini kullanır (`teal-700`=lacivert,
+`brass-*`=altın); sayfa kodu `teal-700`/`brass-light` sınıflarıyla yazılır, görsel çıktı lacivert/altındır.
+
+**Düzen — tek beyaz kart içinde (kullanıcı Cariler dersi: tasarım uygulanınca DÜZEN dönüşür):**
+1. **Lacivert KPI hero** (`bg-teal-700`) — eyebrow + serif H1 "Kredi Portföyü & Ödeme Planı" + canlı kur/tarih
+   + **5 KPI**: Toplam Borç EUR (altın) · TL Krediler · EUR Krediler · Bu Ay Ödenecek · Vadesi Yaklaşan (≤30g, mercan).
+   KPI'lar **frontend'de** hesaplanır (ürün listesi + TCMB kuru; ayrı endpoint yok).
+2. **Görünüm segmenti** (`SegmentedControl`) + PDF Rapor + Yeni Kredi.
+3. **Görünümler:**
+   - **Krediler (master-detail):** SOL = aktif krediler **vadeye göre** sıralı (vurgu çubuğu + tip rozeti +
+     ilerleme + vade rozeti) + altta "Kapalı" bölümü. SAĞ = seçili kredi detayı (4 KPI + kullandırım→vade
+     zaman çizgisi + **Ödeme Planı / Bilgiler** sekmeleri). Mobilde liste↔detay geçişli (geri butonu).
+   - **Taksit Takvimi:** tüm aktif kredilerin taksitleri ay ay akordiyon (TL/EUR ayrı toplanır) — `upcoming-payments?days=365&include_paid=true`.
+   - **Banka Dağılımı:** banka bazlı EUR konsolide kartlar + kullandırım→vade çizgi çubukları; krediye tıkla → Krediler görünümünde seçilir.
+
+**Tip-bazlı detay (Plan sekmesi):** `taksitli/spot/bch/leasing` → ay-ay ödeme planı akordiyonu (ödendi
+toggle · taksit sil · + Taksit); `kmh` → çeyreklik KMH görünümü (stat kart + tahakkuk tablosu + hareketler
++ devir); `kredi_karti` → ekstre sürükle-bırak yükleme + ekstre listesi/detayı. **Korunan tüm özellikler:**
+ürün CRUD, taksit yönetimi, KMH, kart ekstresi, kapat/yeniden-aç, PDF (`PdfPreviewModal`), onay akışı, WS
+`finance_updated` canlı yenileme.
+
+**KPI hesap kuralı (tasarım mockup'ıyla hizalı):** "Bu Ay Ödenecek" **yalnız gerçek planlı taksitleri**
+sayar (`next_payment_amount` dolu); kredi kartının tüm bakiyesini KATMAZ (şişme engeli). "Vadesi Yaklaşan"
+planlı taksit tutarını, kartta ise son-ödeme (`end_date`) kalan bakiyesini sayar. EUR konsolidasyon TCMB
+`forex_selling` ile; kur yoksa `—` + "bazı kurlar eksik".
+
+**Denetim (4-boyut düşmanca Workflow, 2026-07-05) sonrası uygulanan düzeltmeler:** WCAG AA — veri taşıyan
+`text-gray-400` → `gray-500` (en açık gövde tonu kuralı); görünüm 'krediler'e dönünce seçili detay tazelenir
+(WS başka görünümdeyken güncellerse bayat plan göstermez); "Yeniden Aç" onayı artık yıkıcı-olmayan (kırmızı
+"Sil" yerine); silme/güncelleme catch'lerine `showToast`; zorunlu alanlara kırmızı `*`; takvimde tüm ayları
+kapatma engeli kalktı (`calInitialized`); KMH yüklemede skeleton; para-birimi vurgu renkleri tek yorumlu
+sabitte (`CUR_BAR`/`CUR_TEXT` — TL=brass token, EUR=tasarıma özel mavi, bilinçli hex istisnası).
 
 ---
 
