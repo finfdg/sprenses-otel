@@ -177,6 +177,24 @@ class TestTAccountGrouping:
         assert "T-EŞLEŞMİŞ ÇEK" not in all_names
         assert "T-EŞLEŞMİŞ BANKA" not in all_names
 
+    def test_overdue_unpaid_expense_excluded_realized_kept(self, client, auth_headers, db):
+        """Vadesi geçmiş ÖDENMEMİŞ (is_realized=False) çıkış cetvele GİRMEZ (Vadesi Geçenler'de);
+        vadesi geçmiş GERÇEKLEŞMİŞ (banka) çıkış GİRER. Geçen ay = tamamen bugünden önce (deterministik)."""
+        _reset_eur_rates(db)
+        today = date.today()
+        mid_last = (today.replace(day=1) - timedelta(days=1)).replace(day=15)  # geçen ay 15'i
+        _mk_rate(db, mid_last, 40.0)
+        _mk_fe(db, event_date=mid_last, direction=-1, is_realized=False,
+               source_type="vendor_payment", amount=5000, description="ODENMEMIS CARI")
+        _mk_fe(db, event_date=mid_last, direction=-1, is_realized=True,
+               source_type="bank", amount=3000, description="BANKA GERCEKLESEN")
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=-1", headers=auth_headers).json()
+        names = [i["name"] for g in body["cikis"] for i in g["items"]]
+        assert "ODENMEMIS CARI" not in names     # vadesi geçmiş ödenmemiş → hariç
+        assert "BANKA GERCEKLESEN" in names       # gerçekleşmiş → dahil
+
 
 class TestTAccountEurConversion:
     def test_try_amount_divided_by_rate(self, client, auth_headers, db):

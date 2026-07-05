@@ -178,7 +178,8 @@ def t_account(
     """Dönem bazlı T hesap cetveli — giriş/çıkış grupları, EUR karşılıklarıyla."""
     taccount_limiter.check(f"cashflow-taccount-{current_user.id}")
 
-    start, end = _period_range(period, offset, date_cls.today())
+    today = date_cls.today()
+    start, end = _period_range(period, offset, today)
 
     events = (
         db.query(FinanceEvent)
@@ -206,6 +207,11 @@ def t_account(
 
     for fe in events:
         if fe.direction not in groups:
+            continue
+        # Vadesi geçmiş ÖDENMEMİŞ çıkışlar bu listeye GİRMEZ (kullanıcı kararı 2026-07-05):
+        # ödendiyse gerçek banka hareketi zaten realized olarak listede görünür; ödenmediyse
+        # "Vadesi Geçenler" (Nakit Koruma) listesinde takip edilir → ikileme/şişme önlenir.
+        if fe.direction == DIRECTION_EXPENSE and not fe.is_realized and fe.event_date < today:
             continue
         eur = _event_eur(db, fe, rate_cache)
         if eur is None:
@@ -237,7 +243,7 @@ def t_account(
     # EUR bakiye + runway ile aynı rezerv (kullanıcı isteği 2026-07-04; tek kaynak
     # due_reserve_projections). Cari-ay dışı dönemlerde (geçmiş offset) due tarihi aralık dışıdır.
     from app.services.cc_projection_service import due_reserve_projections
-    for proj in due_reserve_projections(db, today=date_cls.today()):
+    for proj in due_reserve_projections(db, today=today):
         due = date_cls.fromisoformat(proj["date"])
         if due < start or due > end:
             continue
