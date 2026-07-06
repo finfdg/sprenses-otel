@@ -254,6 +254,18 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
   bu alanlar değişince `regenerate_entries` çağırır → **ödenmemiş elle girişleri silip sabit tutarla
   yeniden üretir** (yapılandırma tablosu bozulur). Yalnız tek taksitin düzenlenmesi (`PATCH /entries/{id}`,
   ör. "Ödendi" işaretleme) güvenlidir. Tutar değişecekse ilgili girişi tek tek düzenle.
+- **Taksit gerçek banka hareketiyle ödendiğinde — çift sayım kuralı (2026-07-06):** Bir yapılandırma
+  taksiti gerçekte bir banka hareketinden ödenirse (ekstresi sistemde), taksiti yalnız `is_paid=True`
+  yapmak **çift sayım** üretir: paid scheduled FE `is_realized=True` olup T-Hesap'a girer, ama banka
+  hareketi FE'si de aynı çıkışı gösterir (t_account.py yorumu: "ödendiyse gerçek banka hareketi zaten
+  realized görünür"). **Doğru yöntem:** (1) `entry.is_paid=True` + `paid_date` = gerçek ödeme tarihi,
+  (2) `finance_event_svc.upsert_scheduled_entry` (event_status=paid), (3) `finance_event_svc.match(db,
+  "bank", <bank_tx_id>, "sgk", <entry_id>)` → scheduled FE `is_matched=True` (nakit akımda gizlenir),
+  banka bacağı gerçek nakdi temsil eder. İlk uygulama: SGK Yapılandırma 1. taksiti (₺105.000, 25.06.2026)
+  VakıfBank "SGK MOSİP Tahsilatı" hareketiyle (Sicil No 25510010110326930071178000) eşleştirildi.
+  **UYARI:** scheduled entry'nin `bank_transaction_id` kolonu YOK → bu eşleşme kalıcı-bağ değildir;
+  entry yeniden upsert edilirse (`upsert_scheduled_entry` `is_matched=False` yazar) gizleme bozulur,
+  yeniden match gerekir.
 - Uygulamalar (`MURAT-A TURİZM A.Ş.`, tümü `pending`, taranmış resmi ödeme planlarından):
   - **SGK** (KART 00000441, 48 taksit, ₺7.799.133,30) — yıl-bazlı 5 tanım (2026-2030).
   - **Vergi — İKİ AYRI plan** (SERİ:B No:20, Manavgat V.D., aynı vade takvimi 30.09.2026→31.08.2029,
