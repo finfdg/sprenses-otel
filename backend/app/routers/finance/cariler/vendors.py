@@ -1,7 +1,6 @@
 """Cari listesi, detay, banka işlemleri, özet ve vade/durum/iletişim güncelleme."""
 
 import math
-from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -31,6 +30,7 @@ from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.services import vendor_service
 from app.utils.pagination import page_meta
+from app.utils.vendor_fifo import calculate_overdue_by_vendor
 
 from ._helpers import _build_dept_cat_user_maps, _build_tx_response, logger
 
@@ -156,15 +156,10 @@ def list_vendors(
         )
 
     if overdue_only:
-        # Vadesi geçmiş = eşleşmemiş, vadesi bugünden önce olan fatura (alacak) toplamı > 0
-        overdue_sum = func.coalesce(func.sum(sa_case((
-            (VendorTransaction.alacak > 0)
-            & (VendorTransaction.match_number.is_(None))
-            & (VendorTransaction.payment_due_date.isnot(None))
-            & (VendorTransaction.payment_due_date < date.today()),
-            VendorTransaction.alacak,
-        ), else_=0)), 0)
-        query = query.having(overdue_sum > 0)
+        # Vadesi geçmiş = NET ödenmemiş+gecikmiş faturası olan cariler (detay kartıyla aynı
+        # FIFO kaynağı → çip ile kart tutarlı). Brüt SQL toplamı yerine net FIFO kümesi.
+        overdue_ids = [vid for vid, (amt, _cnt) in calculate_overdue_by_vendor(db).items() if amt > 0]
+        query = query.filter(Vendor.id.in_(overdue_ids or [-1]))
 
     hesap_adi_tr = collate(Vendor.hesap_adi, "tr-TR-x-icu")
     sort_map = {
@@ -260,24 +255,12 @@ def get_vendor_detail(
         items.append(item)
 
     # ── Özet kart metrikleri (tasarım: Vadesi Geçmiş / Son Ödeme) ──
-    # Vadesi geçmiş = ödenmemiş (eşleşmemiş) vadesi dolmuş fatura satırları toplamı.
-    today = date.today()
-    overdue_row = (
-        db.query(
-            func.coalesce(func.sum(VendorTransaction.alacak), 0),
-            func.count(VendorTransaction.id),
-        )
-        .filter(
-            VendorTransaction.vendor_id == vendor_id,
-            VendorTransaction.alacak > 0,
-            VendorTransaction.match_number.is_(None),
-            VendorTransaction.payment_due_date.isnot(None),
-            VendorTransaction.payment_due_date < today,
-        )
-        .first()
-    )
-    overdue = float(overdue_row[0]) if overdue_row else 0.0
-    overdue_count = int(overdue_row[1]) if overdue_row else 0
+    # Vadesi geçmiş = NET ödenmemiş, vadesi dolmuş fatura payı (Ödeme Planı ile aynı FIFO
+    # kaynağından). Brüt fatura toplamı DEĞİL — ödemeler en eski faturalardan düşülür, kalan
+    # gecikmiş kısım net borçla sınırlıdır. (Eski brüt hesap net bakiyeden kat kat büyük
+    # çıkabiliyordu; ör. net −558K'ya karşı brüt 1.57M.)
+    overdue_map = calculate_overdue_by_vendor(db, vendor_ids=[vendor_id])
+    overdue, overdue_count = overdue_map.get(vendor_id, (0.0, 0))
 
     # Son ödeme = en yeni borç (ödeme) kaydı.
     last_pay = (

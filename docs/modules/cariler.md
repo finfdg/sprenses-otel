@@ -329,15 +329,15 @@ Sedna ile birebir). İleride periyodik DB↔Sedna bakiye mutabakatı bu sınıf 
 ad · bakiye · kod · durum/eşleşmemiş/vade), **sağ** seçili carinin detayı. Mobilde liste↔detay
 geçişli (detayda "Cari listesine dön"). Yükleme / Ödeme Planı / Ödeme Talimatı üst sekmeleri korunur.
 
-**"Vadesi Geçmiş" çipi** → `GET /vendors?overdue_only=true` (eşleşmemiş + geçmiş vadeli fatura
-toplamı > 0 olan cariler). **Bakiyeli** → `hide_zero=true`. Sağ panel başlığında **durum toggle** +
-**vade düzenle** satır-içi kontrolleri yer alır.
+**"Vadesi Geçmiş" çipi** → `GET /vendors?overdue_only=true` (NET vadesi geçmiş tutarı > 0 olan
+cariler — detay kartıyla aynı FIFO kaynağı). **Bakiyeli** → `hide_zero=true`. Sağ panel başlığında
+**durum toggle** + **vade düzenle** satır-içi kontrolleri yer alır.
 
 Seçili carinin detayı 3 sekmeye bölünmüştür + üstte 3 özet kart.
 
 ### Özet kartlar
 - **Güncel Bakiye** (koyu lacivert kart) — `bakiye` (borç negatifse "ödenecek tutar" altın, aksi yeşil).
-- **Vadesi Geçmiş** — `overdue` = eşleşmemiş (`match_number IS NULL`) + `payment_due_date < bugün` fatura alacak toplamı; `overdue_count` fatura sayısı.
+- **Vadesi Geçmiş** — `overdue` = **NET** ödenmemiş+gecikmiş tutar (Ödeme Planı ile aynı FIFO: ödemeler en eski faturalardan düşülür, kalan gecikmiş pay toplanır); `overdue_count` gecikmiş fatura sayısı. **Brüt fatura toplamı DEĞİL** — gecikmiş tutar net borcu aşamaz (2026-07-06 düzeltmesi; `vendor_fifo.calculate_overdue_by_vendor`).
 - **Son Ödeme** — en yeni `borc > 0` kaydının tutarı + tarihi.
 
 Üçü de `GET /vendors/{id}` yanıtından gelir (tek sorgu; sayfalanan işlemlerden bağımsız, TÜM tarihçe).

@@ -162,6 +162,77 @@ def calculate_fifo_amounts(db: Session) -> Dict[int, float]:
     return result
 
 
+def calculate_overdue_by_vendor(
+    db: Session,
+    today: Optional[date_type] = None,
+    vendor_ids: Optional[List[int]] = None,
+) -> Dict[int, Tuple[float, int]]:
+    """Her cari için NET vadesi geçmiş tutarı + fatura sayısı.
+
+    `calculate_fifo_amounts` (Ödeme Planı + nakit akım ile AYNI kaynak) ile hesaplanan
+    ödenmemiş fatura paylarından, efektif vadesi BUGÜNDEN ÖNCE olanları toplar. Böylece
+    cari detayındaki "Vadesi Geçmiş" kartı, brüt eşleşmemiş-fatura toplamı yerine gerçek
+    ödenmemiş-ve-gecikmiş tutarı gösterir — Ödeme Planı'nın geçmiş-vadeli kısmıyla birebir
+    tutarlı. (Ödemeler en eski faturalardan düşüldüğü için gecikmiş kısım net borçla sınırlı
+    kalır; yasaklı/borçsuz cariler FIFO kaynağında zaten yer almaz.)
+
+    vendor_ids verilirse yalnız o carilere ait sonuç döner (detay sayfası tek cariyi okur).
+
+    Returns:
+        dict[vendor_id → (overdue_amount, overdue_count)]  — yalnız overdue > 0 olan cariler.
+    """
+    from app.services.deferral_service import get_deferral_map
+
+    if today is None:
+        today = date_type.today()
+
+    fifo = calculate_fifo_amounts(db)  # {vtx_id: ödenmemiş tutar}
+    if not fifo:
+        return {}
+
+    rows = (
+        db.query(
+            VendorTransaction.id,
+            VendorTransaction.vendor_id,
+            VendorTransaction.date,
+            VendorTransaction.payment_due_date,
+        )
+        .filter(VendorTransaction.id.in_(list(fifo.keys())))
+        .all()
+    )
+    if vendor_ids is not None:
+        vid_set = set(vendor_ids)
+        rows = [r for r in rows if r.vendor_id in vid_set]
+    if not rows:
+        return {}
+
+    # payment_due_date boş faturalar için vade günü (FIFO ile aynı: date + payment_days → Cuma)
+    need_days = {r.vendor_id for r in rows if not r.payment_due_date and r.date}
+    pay_days_map = _get_vendor_payment_days(db, list(need_days)) if need_days else {}
+
+    deferral_map = get_deferral_map(db)
+
+    MIN_AMOUNT = 0.01
+    acc: Dict[int, Tuple[float, int]] = {}
+    for r in rows:
+        amount = fifo.get(r.id, 0.0)
+        if amount < MIN_AMOUNT:
+            continue
+        if r.payment_due_date:
+            due = r.payment_due_date
+        elif r.date:
+            pay_days = pay_days_map.get(r.vendor_id, 90)
+            due = _next_friday(r.date + timedelta(days=pay_days))
+        else:
+            continue
+        due = effective_due_date(due, vtx_id=r.id, deferral_map=deferral_map)
+        if due < today:
+            amt, cnt = acc.get(r.vendor_id, (0.0, 0))
+            acc[r.vendor_id] = (amt + float(amount), cnt + 1)
+
+    return {vid: (round(a, 2), c) for vid, (a, c) in acc.items()}
+
+
 # ─── Ödeme Planı ────────────────────────────────────────
 
 

@@ -403,7 +403,8 @@
 			<table class="w-full text-xs sm:text-sm">
 				<thead>
 					<tr class="text-gray-600 border-b border-gray-200 bg-gray-50 sticky top-0">
-						<th class="text-left font-medium px-2 py-2">Voucher</th>
+						<th class="text-right font-medium px-2 py-2 w-8">#</th>
+							<th class="text-left font-medium px-2 py-2">Voucher</th>
 						<th class="text-left font-medium px-2 py-2">Acente</th>
 						<th class="text-left font-medium px-2 py-2">Ülke</th>
 						<th class="text-left font-medium px-2 py-2">Oda</th>
@@ -414,8 +415,9 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each detailItems as it (it.rec_id)}
+					{#each detailItems as it, i (it.rec_id)}
 						<tr class="border-b border-gray-100 align-top {detailTab === 'new' && it.is_cancelled ? 'opacity-60' : ''}">
+							<td class="px-2 py-2 tabular-nums text-right text-gray-500">{i + 1}</td>
 							<td class="px-2 py-2 tabular-nums text-gray-600 whitespace-nowrap">{it.voucher || '—'}</td>
 							<td class="px-2 py-2 text-gray-800 font-medium max-w-[180px]">
 								<span class="block truncate" title={it.agency}>{it.agency || '—'}</span>

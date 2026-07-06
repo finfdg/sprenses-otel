@@ -20,7 +20,7 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
   - `GET/POST /vendors/{id}/notes`, `PATCH/DELETE /vendors/{id}/notes/{note_id}` — not CRUD + `done` toggle.
   - `PATCH /vendors/{id}/contact` — iletişim güncelle.
   - `GET /vendors/{id}` yanıtına eklendi: `contact_person/phone/email` + özet kart metrikleri
-    **`overdue`/`overdue_count`** (eşleşmemiş + vadesi geçmiş fatura alacak toplamı) + **`last_payment_*`**
+    **`overdue`/`overdue_count`** (NET vadesi geçmiş — aşağıya bkz) + **`last_payment_*`**
     (en yeni borç kaydı = son ödeme).
 - **ONAY KARARI — notlar + iletişim ONAYDAN MUAF (bilinçli):** finansal etkileri yok
   (finance_events'e YAZILMAZ) → payment_deferral / manuel-banka gibi operasyonel-özel istisna.
@@ -35,10 +35,35 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
   seçili carinin başlığı (ad + kod + **durum toggle** + **vade düzenle**) + 3 özet kart (Güncel
   Bakiye koyu lacivert / Vadesi Geçmiş / Son Ödeme) + 3 sekme. Mobilde liste↔detay geçişli
   (detayda "Cari listesine dön"). Yükleme/Ödeme Planı/Ödeme Talimatı üst sekmeleri KORUNDU.
-  - **"Vadesi Geçmiş" çipi backend filtresi:** `GET /vendors?overdue_only=true` — eşleşmemiş
-    (`match_number IS NULL`) + `payment_due_date < bugün` fatura (alacak) toplamı > 0 olan cariler
-    (HAVING). `hide_zero` "Bakiyeli", filtresiz "Tümü". Test: `test_vendor_notes.py::test_list_overdue_only_filter`.
+  - **"Vadesi Geçmiş" çipi backend filtresi:** `GET /vendors?overdue_only=true` — NET vadesi geçmiş
+    tutarı > 0 olan cariler (detay kartıyla aynı FIFO kaynağı → çip ile kart tutarlı).
+    `hide_zero` "Bakiyeli", filtresiz "Tümü". Test: `test_vendor_notes.py::test_list_overdue_only_filter`.
 - Detay sekmesi/notlar/firma bilgileri: `tests/test_vendor_notes.py` (11).
+
+#### "Vadesi Geçmiş" = NET (FIFO), brüt DEĞİL (2026-07-06, kullanıcı bulgusu)
+
+**Belirti:** Cari detayındaki "Vadesi Geçmiş" kartı, "Güncel Bakiye"den kat kat büyük çıkıyordu
+(canlı: net −₺558.909'a karşı vadesi geçmiş ₺1.572.579). Kullanıcı "verilen çek/ödemeler
+gecikmeyi kapatmıyor mu?" diye sordu.
+
+**Kök neden:** Kart iki AYRI mantık kullanıyordu — Güncel Bakiye NET (`Σborç − Σalacak`), ama
+Vadesi Geçmiş BRÜT: eşleşmemiş (`match_number IS NULL`) + `payment_due_date < bugün` **alacak
+satırlarının ham toplamı**. Ödemeleri (borç) hiç düşmüyordu → gerçek net borçtan çok büyük.
+Bu, Ödeme Planı için 2024'te zaten düzeltilen "brüt fatura toplamı" sorununun kartta tekrarıydı.
+
+**Çözüm — tek kaynak FIFO:** `vendor_fifo.calculate_overdue_by_vendor(db, today=None, vendor_ids=None)`
+eklendi. Ödeme Planı + nakit akımla **AYNI** `calculate_fifo_amounts` çıktısını kullanır (ödemeler
+en eski faturalardan düşülür), sonra efektif vadesi bugünden önce olan ödenmemiş fatura paylarını
+toplar. Böylece kart = Ödeme Planı'nın geçmiş-vadeli kısmı → gecikmiş tutar net borcu **aşamaz**.
+- Detay endpoint'i (`vendors.py`) bu fonksiyonu `vendor_ids=[vendor_id]` ile çağırır.
+- Liste `overdue_only` çipi de aynı fonksiyondan net-overdue cari kümesini alıp `Vendor.id.in_(...)`
+  ile süzer (eski HAVING brüt SQL yerine) → çip ile kart tutarlı.
+- **Davranış değişimi (bilinçli):** yasaklı/borçsuz cariler artık overdue göstermez (FIFO
+  kaynağında yer almazlar); eşleşmiş-fatura özel-durumu yok (FIFO net borç üzerinden çalışır,
+  ödeme planıyla aynı). Kalıcı öteleme (`payment_deferrals`) efektif vadeye uygulanır.
+- Test: `test_vendor_notes.py::test_detail_summary_metrics` (net FIFO) +
+  `test_overdue_is_net_capped_by_balance` (brüt 300K'ya karşı net 50K) + `test_list_overdue_only_filter`
+  (net-ödenmiş cari çipe girmez).
 
 ### 2) Nakit Akım "Faaliyet / Finansman" ayrımı (3a tasarımı) — T Hesap Cetveli
 

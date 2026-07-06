@@ -126,6 +126,10 @@ def test_contact_requires_use(client, viewer_user_headers, vendor):
 # ─── Özet kart metrikleri (overdue + son ödeme) ──────────
 
 def test_detail_summary_metrics(client, auth_headers, db):
+    """Vadesi Geçmiş = NET (FIFO) ödenmemiş+gecikmiş tutar — brüt fatura toplamı DEĞİL.
+
+    Ödemeler en eski faturalardan düşülür (FIFO); geriye kalan gecikmiş kısım raporlanır.
+    """
     upload = VendorUpload(file_name="s.xlsx", file_url="/tmp/s.xlsx", uploaded_by=1,
                           total_vendors=1, total_transactions=0, new_transactions=0,
                           skipped_transactions=0)
@@ -136,8 +140,6 @@ def test_detail_summary_metrics(client, auth_headers, db):
     db.flush()
 
     today = date.today()
-    past = today - timedelta(days=10)
-    future = today + timedelta(days=30)
 
     def mk(d, borc, alacak, due=None, match=None, tag=""):
         db.add(VendorTransaction(
@@ -146,22 +148,58 @@ def test_detail_summary_metrics(client, auth_headers, db):
             tx_hash=uuid.uuid4().hex, description=tag,
         ))
 
-    # vadesi geçmiş eşleşmemiş fatura → overdue'ya girer
-    mk(past, 0, 18600, due=past)
-    # vadesi gelecekte → overdue DEĞİL
-    mk(today, 0, 5000, due=future)
-    # vadesi geçmiş ama eşleşmiş (ödenmiş) → overdue DEĞİL
-    mk(past, 0, 2000, due=past, match=55)
-    # ödeme (borç) kayıtları → son ödeme en yenisi
-    mk(today - timedelta(days=20), 8500, 0)
-    mk(today - timedelta(days=2), 12000, 0)
+    # Faturalar (alacak): A ve B vadesi geçmiş, C gelecekte
+    mk(today - timedelta(days=25), 0, 10000, due=today - timedelta(days=20))  # A
+    mk(today - timedelta(days=10), 0, 8000, due=today - timedelta(days=5))    # B
+    mk(today, 0, 5000, due=today + timedelta(days=30))                        # C (gelecek)
+    # Ödemeler (borç) toplam 12000 → net borç = 23000 - 12000 = 11000
+    mk(today - timedelta(days=25), 3000, 0)
+    mk(today - timedelta(days=2), 9000, 0)  # son ödeme
+    db.commit()
+
+    # FIFO: 12000 ödeme en eskiyi (A=10000) tam, B'nin 2000'ini kapatır →
+    #   kalan ödenmemiş: B=6000 (vadesi geçmiş) + C=5000 (gelecek).
+    #   Vadesi geçmiş NET = 6000 (brüt olsa 10000+8000 = 18000 olurdu).
+    detail = client.get(f"{C}/vendors/{v.id}", headers=auth_headers).json()["vendor"]
+    assert detail["overdue"] == 6000.0
+    assert detail["overdue_count"] == 1
+    assert detail["last_payment_amount"] == 9000.0
+    assert detail["last_payment_date"] == (today - timedelta(days=2)).isoformat()
+
+
+def test_overdue_is_net_capped_by_balance(client, auth_headers, db):
+    """Regresyon: çok sayıda geçmiş-vadeli fatura + ödemeler → overdue NET bakiyeyle sınırlı.
+
+    Kullanıcı bulgusu (2026-07-06): eski brüt hesap net bakiyeden kat kat büyük çıkıyordu
+    (ör. brüt 300K'ya karşı gerçek net borç 50K). Overdue artık net borcu aşamaz.
+    """
+    upload = VendorUpload(file_name="s.xlsx", file_url="/tmp/s.xlsx", uploaded_by=1,
+                          total_vendors=1, total_transactions=0, new_transactions=0,
+                          skipped_transactions=0)
+    db.add(upload)
+    db.flush()
+    v = Vendor(hesap_kodu="320.CAP." + uuid.uuid4().hex[:6], hesap_adi="Kapak Cari")
+    db.add(v)
+    db.flush()
+    today = date.today()
+
+    def mk(d, borc, alacak, due=None):
+        db.add(VendorTransaction(
+            vendor_id=v.id, upload_id=upload.id, date=d, borc=borc, alacak=alacak,
+            payment_due_date=due, match_number=None, bakiye=0, tx_hash=uuid.uuid4().hex,
+        ))
+
+    # 3 geçmiş-vadeli fatura × 100000 = 300000 brüt; ödemeler 250000 → net borç 50000
+    mk(today - timedelta(days=40), 0, 100000, due=today - timedelta(days=30))
+    mk(today - timedelta(days=30), 0, 100000, due=today - timedelta(days=20))
+    mk(today - timedelta(days=20), 0, 100000, due=today - timedelta(days=10))
+    mk(today - timedelta(days=15), 250000, 0)
     db.commit()
 
     detail = client.get(f"{C}/vendors/{v.id}", headers=auth_headers).json()["vendor"]
-    assert detail["overdue"] == 18600.0
+    assert detail["bakiye"] == -50000.0
+    assert detail["overdue"] == 50000.0  # brüt 300000 DEĞİL — net borçla sınırlı
     assert detail["overdue_count"] == 1
-    assert detail["last_payment_amount"] == 12000.0
-    assert detail["last_payment_date"] == (today - timedelta(days=2)).isoformat()
 
 
 # ─── Liste overdue_only filtresi (master-detail "Vadesi Geçmiş" çipi) ─────
@@ -189,6 +227,15 @@ def test_list_overdue_only_filter(client, auth_headers, db):
     db.add(VendorTransaction(vendor_id=vb.id, upload_id=upload.id, date=today,
                              borc=0, alacak=5000, payment_due_date=future,
                              match_number=None, bakiye=0, tx_hash=uuid.uuid4().hex))
+    # C: vadesi geçmiş fatura ama ödemeyle tam kapanmış (net 0) → overdue'da OLMAMALI (net FIFO)
+    vc = Vendor(hesap_kodu=f"320.OC.{tag}", hesap_adi="Odenmis Cari")
+    db.add(vc); db.flush()
+    db.add(VendorTransaction(vendor_id=vc.id, upload_id=upload.id, date=past,
+                             borc=0, alacak=7000, payment_due_date=past,
+                             match_number=None, bakiye=0, tx_hash=uuid.uuid4().hex))
+    db.add(VendorTransaction(vendor_id=vc.id, upload_id=upload.id, date=past,
+                             borc=7000, alacak=0, payment_due_date=None,
+                             match_number=None, bakiye=0, tx_hash=uuid.uuid4().hex))
     db.commit()
 
     r = client.get("/api/finance/cariler/vendors?overdue_only=true&page_size=500", headers=auth_headers)
@@ -196,3 +243,4 @@ def test_list_overdue_only_filter(client, auth_headers, db):
     codes = {it["hesap_kodu"] for it in r.json()["items"]}
     assert f"320.OA.{tag}" in codes
     assert f"320.OB.{tag}" not in codes
+    assert f"320.OC.{tag}" not in codes
