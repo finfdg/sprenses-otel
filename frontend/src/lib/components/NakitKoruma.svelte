@@ -298,6 +298,53 @@
 	{#if loading}
 		<div class="h-40 bg-gray-100 rounded-xl animate-pulse" aria-hidden="true"></div>
 	{:else if data && proj}
+		<!-- VADESİ GEÇENLER — Net Nakit Akım'ın hemen altında (en öncelikli uyarı, kullanıcı isteği 2026-07-06) -->
+		{#if proj.overdueUnits.length > 0}
+			<div class="flex items-center gap-2 text-[11px] tracking-[1px] uppercase text-red-700 font-bold">
+				<AlertTriangle size={13} /> Vadesi Geçenler · {fmtEur(proj.overdueTotal)}
+			</div>
+			<div class="mt-1.5 mb-4 rounded-xl border border-red-200 bg-red-50/40 divide-y divide-red-100">
+				{#each proj.overdueUnits as u (u.key)}
+					{@const multi = u.members.length > 1}
+					<div class="px-2.5 py-2.5">
+						<div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-3">
+							<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
+								class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
+								<ChevronDown size={14} class="shrink-0 text-red-400 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
+								<span class="text-[13px] sm:text-[13.5px] font-semibold truncate text-gray-900">{u.label}</span>
+								{#if multi}<span class="text-[11px] text-red-500 shrink-0">{u.members.length} ödeme</span>{/if}
+							</button>
+							<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 text-red-700">−{fmtEur(u.total)}</span>
+							{#if canDefer && u.deferrable}
+								<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+									<input type="date" value="" min={data.today} max={`${data.month_start.slice(0, 4)}-12-31`}
+										disabled={mutating}
+										onchange={(e) => deferGroup(u.deferIds, (e.currentTarget as HTMLInputElement).value)}
+										aria-label={`${u.label} vadesi geçen ödemeyi ileri tarihe ötele`}
+										class="date-filter-input shrink-0 w-[130px] rounded-lg border border-gray-200 bg-white text-gray-700 px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50" />
+								</div>
+							{/if}
+						</div>
+						{#if openGroups[u.key]}
+							<div class="pl-5 pt-1.5">
+								{#each groupMembersByDate(u.members) as day (day.date)}
+									<!-- Aynı başlık altında birleşen farklı tarihler — gün alt-başlığı -->
+									<div class="pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400">{day.label}</div>
+									{#each day.items as m (m.id)}
+										<div class="flex items-center gap-2 text-[12px] py-0.5">
+											<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
+											<!-- Kalem kendi para biriminde (₺/€…); grup toplamı ve başlıklar EUR -->
+											<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
+										</div>
+									{/each}
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+
 		<!-- RUNWAY DURUM KARTI -->
 		<div class="rounded-2xl bg-teal-700 px-5 py-4 text-teal-100 {mutating ? 'opacity-70' : ''}">
 			<div class="flex items-start justify-between gap-4">
@@ -343,53 +390,6 @@
 			</div>
 			<div class="text-[11.5px] text-teal-200 mt-2">En düşük bakiye: <span class="text-brass-light font-semibold">{proj.lowLabel}</span></div>
 		</div>
-
-		<!-- VADESİ GEÇENLER -->
-		{#if proj.overdueUnits.length > 0}
-			<div class="mt-4 flex items-center gap-2 text-[11px] tracking-[1px] uppercase text-red-700 font-bold">
-				<AlertTriangle size={13} /> Vadesi Geçenler · {fmtEur(proj.overdueTotal)}
-			</div>
-			<div class="mt-1.5 rounded-xl border border-red-200 bg-red-50/40 divide-y divide-red-100">
-				{#each proj.overdueUnits as u (u.key)}
-					{@const multi = u.members.length > 1}
-					<div class="px-2.5 py-2.5">
-						<div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-3">
-							<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
-								class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
-								<ChevronDown size={14} class="shrink-0 text-red-400 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
-								<span class="text-[13px] sm:text-[13.5px] font-semibold truncate text-gray-900">{u.label}</span>
-								{#if multi}<span class="text-[11px] text-red-500 shrink-0">{u.members.length} ödeme</span>{/if}
-							</button>
-							<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 text-red-700">−{fmtEur(u.total)}</span>
-							{#if canDefer && u.deferrable}
-								<div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-									<input type="date" value="" min={data.today} max={`${data.month_start.slice(0, 4)}-12-31`}
-										disabled={mutating}
-										onchange={(e) => deferGroup(u.deferIds, (e.currentTarget as HTMLInputElement).value)}
-										aria-label={`${u.label} vadesi geçen ödemeyi ileri tarihe ötele`}
-										class="date-filter-input shrink-0 w-[130px] rounded-lg border border-gray-200 bg-white text-gray-700 px-2 py-1.5 text-[11.5px] cursor-pointer focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-50" />
-								</div>
-							{/if}
-						</div>
-						{#if openGroups[u.key]}
-							<div class="pl-5 pt-1.5">
-								{#each groupMembersByDate(u.members) as day (day.date)}
-									<!-- Aynı başlık altında birleşen farklı tarihler — gün alt-başlığı -->
-									<div class="pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400">{day.label}</div>
-									{#each day.items as m (m.id)}
-										<div class="flex items-center gap-2 text-[12px] py-0.5">
-											<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
-											<!-- Kalem kendi para biriminde (₺/€…); grup toplamı ve başlıklar EUR -->
-											<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
-										</div>
-									{/each}
-								{/each}
-							</div>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		{/if}
 
 		<!-- BEKLENEN TAHSİLATLAR -->
 		{#if groupedInflows.length > 0}
