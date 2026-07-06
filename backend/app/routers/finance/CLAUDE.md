@@ -80,14 +80,20 @@ para biriminde** — `t-account` item'ına `amount_native` + `currency` eklendi;
 (2) **Gerçekleşen vs bekleyen** — yanıta `realized_in_eur`/`realized_out_eur` (is_realized=banka vb.);
 kolon başlığında "✓ Gerçekleşen €X · Bekleyen €Y" (toplam DEĞİŞMEZ, salt bilgilendirme; kullanıcının
 "gerçekleşti, kalan bu kadar" isteği).
-**Gerçekleşen AYRI listede (2026-07-06, kullanıcı isteği):** başlıktaki "✓ Gerçekleşen €X" artık
-TIKLANABİLİR toggle — açılınca ödenmiş kalemler kolon başına ayrı (emerald çerçeveli) panelde listelenir;
-**ana grup listesi yalnız BEKLEYENLERİ gösterir** (ödenen kredi taksiti gibi realized kalemler ana listeyi
-şişirmesin). Backend additive: grup `realized_eur`/`realized_count` sayaçları + item `is_realized`.
-Frontend `splitGroups()` bölmeyi SAYAÇLARDAN yapar (items `MAX_ITEMS_PER_GROUP`=100 ile kırpık olabilir —
-itemlardan sayma YANLIŞ olur); `groupRows` snippet'i iki listede ortak markup; open-state anahtarına
-variant (`bekleyen`/`gerceklesen`) girer (aynı etiket iki listede çakışmasın). Kolon toplamları/Net
-DEĞİŞMEZ (salt yeniden düzen). Test: `TestTAccountRealizedSplit` (sayaçlar + item bayrakları + Σgrup==kolon). (3) Giriş/Çıkış başlık puntosu büyütüldü. (4) **Gelecek dönem
+**Bekleyen/Gerçekleşen SEGMENTİ + Tarih görünümü (2026-07-06, tasarım "Nakit Akım T-Hesap.dc.html"):**
+Her sütunda İKİ bağımsız sütun-içi kontrol (backend additive — grup `realized_eur`/`realized_count`
+sayaçları + item `is_realized`; kolon toplamları/Net DEĞİŞMEZ):
+- **Segment (Bekleyen | ✓ Gerçekleşen):** iki-satırlı segment (etiket + EUR tutar); **aynı liste
+  YERİNDE değişir** (ayrı panel açılmaz). Varsayılan **Bekleyen**; dönem/gezinme değişince sıfırlanır.
+  Bölme SAYAÇLARDAN yapılır (`catGroups`) — items `MAX_ITEMS_PER_GROUP`=100 ile kırpık olabildiğinden
+  itemlardan sayma yanlış olur. Ödenen kredi taksiti gibi realized kalemler varsayılan (bekleyen) listeyi şişirmez.
+- **Tarih görünümü:** sütun başlığı (takvim ikonlu) toggle — kategori-gruplama ↔ **gün-gruplama** arası.
+  Açıkken `dateBuckets(groups, realized)` segment'e göre TÜM kalemleri düzleştirir, güne göre gruplar
+  (her satır: kategori etiketi + kalem adı + native tutar), 40 gün cap + "+N gün daha".
+- Renk: gelir **emerald** (yeşil), gider **brass** (altın); net bandı `teal-700` (lacivert) + Faaliyet/
+  Finansman neti çipleri. open-state anahtarı `side:realized:label` (segmentler arası çakışmaz).
+Test: `TestTAccountRealizedSplit` (sayaçlar + item bayrakları + Σgrup==kolon) + `TestTAccountItemOrdering`
+(items tarih sıralı — tarih görünümü keyed-each mükerrer anahtar donmasına karşı). (3) Giriş/Çıkış başlık puntosu büyütüldü. (4) **Gelecek dönem
 navigasyonu** — offset `le=0`→`le=24` (frontend `MAX_FUTURE_OFFSET=24`); sağ ok artık ileri ay/hafta/
 gün/yıl açar (planlı çek/kredi/scheduled/cc-projeksiyon gelecekte görünür). Test: `test_offset_bounds`
 (−120..+24). Toplam 16 yeşil.
