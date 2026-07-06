@@ -20,6 +20,7 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import NakitKoruma from '$lib/components/NakitKoruma.svelte';
+	import { aggregateRows, AGGREGATE_LABELS, type CashRow } from '$lib/utils/cashflow';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
 	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean };
@@ -33,8 +34,10 @@
 	};
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
-	type DateItem = TItem & { cat: string };
-	type DateDay = { date: string; label: string; items: DateItem[]; totalEur: number };
+	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
+	type DateRow = { name: string; amountLabel: string; count: number };
+	type DateCat = { label: string; totalEur: number; count: number; rows: DateRow[] };
+	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
 	// İleri (gelecek dönem) navigasyon üst sınırı — backend le=24 ile aynı
 	const MAX_FUTURE_OFFSET = 24;
@@ -86,6 +89,10 @@
 		const sym = CUR_SYM[currency] || (currency + ' ');
 		return sym + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
 	}
+	// Toplu/tekil satır tutarı: tek para birimi → native (₺/€…); karışık (currency=null) → EUR toplam
+	function rowAmountLabel(row: CashRow): string {
+		return row.currency ? fmtNative(row.amount_native, row.currency) : fmtEur(row.amount_eur);
+	}
 
 	// ── Segment bölme (kategori görünümü) — sayaç-bazlı (items kırpık olabilir) ──
 	function catGroups(groups: TGroup[], realized: boolean): TGroup[] {
@@ -123,24 +130,42 @@
 		return out;
 	}
 
-	// ── Tarih görünümü — segment'e göre TÜM kalemleri düzleştir, güne göre grupla (kategori etiketi taşır) ──
+	// ── Tarih görünümü — segment'e göre kalemleri düzleştir; GÜN → KATEGORİ alt-grubu → satır.
+	// Kategori "Cari Ödemeleri" ise satırlar firma bazında TOPLU (aggregateRows), diğerlerinde her kalem AYRI.
 	function dateBuckets(groups: TGroup[], realized: boolean): { days: DateDay[]; hasMore: boolean; moreText: string } {
-		const flat: DateItem[] = [];
+		const flat: (TItem & { cat: string })[] = [];
 		for (const g of groups) for (const it of g.items) if (!!it.is_realized === realized) flat.push({ ...it, cat: g.label });
 		flat.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-		const byDate = new Map<string, DateDay>();
-		const days: DateDay[] = [];
+
+		const byDate = new Map<string, { date: string; label: string; totalEur: number; catMap: Map<string, (TItem & { cat: string })[]> }>();
+		const dayOrder: string[] = [];
 		for (const it of flat) {
-			let cur = byDate.get(it.date);
-			if (!cur) {
+			let day = byDate.get(it.date);
+			if (!day) {
 				const [y, m, d] = it.date.split('-').map(Number);
-				cur = { date: it.date, label: `${d} ${MONTHS[m - 1]} ${y}`, items: [], totalEur: 0 };
-				byDate.set(it.date, cur);
-				days.push(cur);
+				day = { date: it.date, label: `${d} ${MONTHS[m - 1]} ${y}`, totalEur: 0, catMap: new Map() };
+				byDate.set(it.date, day);
+				dayOrder.push(it.date);
 			}
-			cur.items.push(it);
-			cur.totalEur += it.amount_eur;
+			day.totalEur += it.amount_eur;
+			let catItems = day.catMap.get(it.cat);
+			if (!catItems) { catItems = []; day.catMap.set(it.cat, catItems); }
+			catItems.push(it);
 		}
+
+		const days: DateDay[] = dayOrder.map((d) => {
+			const day = byDate.get(d)!;
+			const cats: DateCat[] = [...day.catMap.entries()]
+				.map(([label, items]) => ({
+					label,
+					totalEur: items.reduce((s, it) => s + it.amount_eur, 0),
+					count: items.length,
+					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r), count: r.count })),
+				}))
+				.sort((a, b) => b.totalEur - a.totalEur);
+			return { date: day.date, label: day.label, totalEur: day.totalEur, cats };
+		});
+
 		if (days.length > MAX_DATE_DAYS) {
 			const extra = days.length - MAX_DATE_DAYS;
 			return { days: days.slice(0, MAX_DATE_DAYS), hasMore: true, moreText: `+${extra} gün daha (Nakit Akım sayfasında tümü)` };
@@ -318,10 +343,14 @@
 								<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{day.label}</span>
 								<span class="tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(day.totalEur)}</span>
 							</div>
-							{#each day.items as it, i (i)}
+							<!-- Cari grubunda aynı firma birden çok ödeme → tek toplu satır; diğerlerinde her kalem ayrı -->
+							{#each aggregateRows(day.items, AGGREGATE_LABELS.has(g.label)) as row, i (i)}
 								<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
-									<span class="text-gray-700 truncate">{it.name}</span>
-									<span class="ml-auto tabular-nums text-gray-700 shrink-0">{fmtNative(it.amount_native, it.currency)}</span>
+									<span class="text-gray-700 truncate">{row.name}</span>
+									{#if row.count > 1}
+										<span class="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-100 rounded px-1 py-0.5">{row.count} ödeme</span>
+									{/if}
+									<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
 								</div>
 							{/each}
 						{/each}
@@ -333,21 +362,29 @@
 			{/each}
 		{/snippet}
 
-		<!-- Tarih görünümü: gün başlıkları altında tüm kalemler (kategori etiketiyle) -->
+		<!-- Tarih görünümü: GÜN başlığı → KATEGORİ alt-başlığı (etiket + işlem sayısı + alt toplam) → satırlar
+		     (cari: firma bazında toplu "N ödeme" rozetli; kredi/çek: her kalem ayrı) -->
 		{#snippet dateRows(dv: { days: DateDay[]; hasMore: boolean; moreText: string })}
 			{#each dv.days as day (day.date)}
 				<div class="flex items-center justify-between gap-2 px-2 py-2 border-t border-gray-100 bg-gray-50">
 					<span class="text-[11px] font-bold uppercase tracking-wide text-gray-700">{day.label}</span>
 					<span class="tabular-nums text-[11px] font-semibold text-gray-600 shrink-0">{fmtEur(day.totalEur)}</span>
 				</div>
-				{#each day.items as it, i (i)}
-					<div class="flex items-center gap-3 pl-4 pr-2 py-1.5 border-t border-gray-50">
-						<div class="min-w-0 flex-1">
-							<div class="text-[12.5px] text-gray-800 truncate">{it.cat}</div>
-							<div class="text-[10px] text-gray-500 truncate">{it.name}</div>
-						</div>
-						<span class="tabular-nums text-[12.5px] text-gray-700 shrink-0">{fmtNative(it.amount_native, it.currency)}</span>
+				{#each day.cats as cat (cat.label)}
+					<div class="flex items-center gap-2 pl-4 pr-2 pt-2 pb-0.5">
+						<span class="text-[11px] font-semibold text-gray-700 truncate">{cat.label}</span>
+						<span class="text-[10px] text-gray-500 shrink-0">{cat.count} işlem</span>
+						<span class="ml-auto tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(cat.totalEur)}</span>
 					</div>
+					{#each cat.rows as row, i (i)}
+						<div class="flex items-center gap-2 pl-7 pr-2 py-1">
+							<span class="text-[12px] text-gray-700 truncate">{row.name}</span>
+							{#if row.count > 1}
+								<span class="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-100 rounded px-1 py-0.5">{row.count} ödeme</span>
+							{/if}
+							<span class="ml-auto tabular-nums text-[12px] text-gray-700 shrink-0">{row.amountLabel}</span>
+						</div>
+					{/each}
 				{/each}
 			{/each}
 			{#if dv.hasMore}

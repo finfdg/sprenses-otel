@@ -89,8 +89,13 @@ sayaçları + item `is_realized`; kolon toplamları/Net DEĞİŞMEZ):
   Bölme SAYAÇLARDAN yapılır (`catGroups`) — items `MAX_ITEMS_PER_GROUP`=100 ile kırpık olabildiğinden
   itemlardan sayma yanlış olur. Ödenen kredi taksiti gibi realized kalemler varsayılan (bekleyen) listeyi şişirmez.
 - **Tarih görünümü:** sütun başlığı (takvim ikonlu) toggle — kategori-gruplama ↔ **gün-gruplama** arası.
-  Açıkken `dateBuckets(groups, realized)` segment'e göre TÜM kalemleri düzleştirir, güne göre gruplar
-  (her satır: kategori etiketi + kalem adı + native tutar), 40 gün cap + "+N gün daha".
+  Açıkken `dateBuckets(groups, realized)` segment'e göre kalemleri **GÜN → KATEGORİ alt-grubu → satır**
+  yapısına dizer (gün başlığı + gün toplamı; her kategori alt-başlığı işlem sayısı + alt toplam), 40 gün cap.
+- **Cari firma birleştirme (kullanıcı isteği 2026-07-06):** "Cari Ödemeleri" grubunda aynı firmaya aynı
+  gün birden çok ödeme → **tek toplu satır** ("N ödeme" rozeti; native yalnız para birimi tekse, karışıksa
+  EUR). Kredi/çek gibi diğer türler **AYRI** kalır (bir bankanın taksitleri / bir firmanın çekleri ayrı).
+  Saf mantık `lib/utils/cashflow.ts::aggregateRows` (+ `AGGREGATE_LABELS` = {"Cari Ödemeleri"}); HEM tarih
+  görünümü HEM kategori-accordion gün-detayı bunu kullanır. Test: `cashflow.test.ts` (8).
 - Renk: gelir **emerald** (yeşil), gider **brass** (altın); net bandı `teal-700` (lacivert) + Faaliyet/
   Finansman neti çipleri. open-state anahtarı `side:realized:label` (segmentler arası çakışmaz).
 Test: `TestTAccountRealizedSplit` (sayaçlar + item bayrakları + Σgrup==kolon) + `TestTAccountItemOrdering`
