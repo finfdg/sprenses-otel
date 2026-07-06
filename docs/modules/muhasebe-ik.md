@@ -235,3 +235,24 @@ Onay gereken "create" işlemlerinde kayıt `is_active=False` olarak veritabanın
 - `backend/app/utils/approval_executor.py` — `_handle_scheduled` create handler + `cleanup_rejected_or_cancelled()`
 - `backend/app/routers/approval/requests.py` — reject/cancel endpoint'lerinde cleanup çağrısı
 - `frontend/src/lib/components/ScheduledModule.svelte` — Pasif kayıt gösterimi (turuncu tema, expand engeli)
+
+## Çok Yıllı Yapılandırma / Değişken Tutarlı Ödeme Planı Modellemesi (2026-07-06)
+
+Vergi/SGK **yapılandırma (tecil) ödeme planları** modülün "tek yıl + sabit aylık tutar"
+varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit farklı tutardadır**
+(tecil faizi her ay arttığından "Toplam Tutar" büyür). Bu tür planlar şöyle modellenir:
+
+- **Yıl başına bir `ScheduledDefinition`** (liste/özet endpoint'leri `ScheduledDefinition.year`
+  ile filtreler → her yıl kendi tanımını görmeli). Örn. SGK 2026-2030 = 5 tanım, vergi 2026-2029 = 4 tanım.
+  Tanımlar **aynı `name`** taşır (yalnız `year` farklı) → modülde tek plan gibi görünür.
+- **Her taksit için elle `ScheduledEntry`** — `entry_date` = resmi ödeme günü, `amount` = belgedeki
+  **Toplam Tutar** sütunu (taksit tutarı + tecil faizi), `period_month/year` = ödeme ayının
+  takvim ay/yılı. `generate_entries` KULLANILMAZ (o sabit `defn.amount`'u tek `payment_day`'e yazar;
+  değişken tutar/tarihleri bozar). Her giriş sonrası `finance_event_svc.upsert_scheduled_entry(..., direction=-1)`.
+- **DİKKAT — düzenleme regen riski:** Bu tanımların `amount`/`frequency`/`payment_day`/`start_month`/
+  `pay_next_month` alanı UI'dan **düzenlenmemelidir** — `scheduled_service.apply_definition_update`
+  bu alanlar değişince `regenerate_entries` çağırır → **ödenmemiş elle girişleri silip sabit tutarla
+  yeniden üretir** (yapılandırma tablosu bozulur). Yalnız tek taksitin düzenlenmesi (`PATCH /entries/{id}`,
+  ör. "Ödendi" işaretleme) güvenlidir. Tutar değişecekse ilgili girişi tek tek düzenle.
+- İlk uygulama: `MURAT-A TURİZM A.Ş.` SGK (KART 00000441, 48 taksit, ₺7.799.133,30) + Manavgat V.D.
+  vergi (SERİ:B No:20, 36 taksit) — taranmış resmi ödeme planlarından oluşturuldu, tümü `pending`.
