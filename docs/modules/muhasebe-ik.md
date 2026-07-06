@@ -254,9 +254,15 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
   bu alanlar değişince `regenerate_entries` çağırır → **ödenmemiş elle girişleri silip sabit tutarla
   yeniden üretir** (yapılandırma tablosu bozulur). Yalnız tek taksitin düzenlenmesi (`PATCH /entries/{id}`,
   ör. "Ödendi" işaretleme) güvenlidir. Tutar değişecekse ilgili girişi tek tek düzenle.
-- İlk uygulama: `MURAT-A TURİZM A.Ş.` SGK (KART 00000441, 48 taksit, ₺7.799.133,30) — taranmış
-  resmi SGK ödeme planından oluşturuldu, tümü `pending`, yıl-bazlı 5 tanım (2026-2030).
-  (Vergi SERİ:B No:20 planı önce oluşturuldu, sonra iki ayrı/eksik plan olduğu anlaşılınca geri alındı.)
+- Uygulamalar (`MURAT-A TURİZM A.Ş.`, tümü `pending`, taranmış resmi ödeme planlarından):
+  - **SGK** (KART 00000441, 48 taksit, ₺7.799.133,30) — yıl-bazlı 5 tanım (2026-2030).
+  - **Vergi — İKİ AYRI plan** (SERİ:B No:20, Manavgat V.D., aynı vade takvimi 30.09.2026→31.08.2029,
+    her biri yıl-bazlı 4 tanım 2026-2029): **Plan A** (Dosya …Ldh0000001, borç ₺3.313.038,93,
+    36×₺92.028, genel Toplam ₺5.015.163,41) + **Plan B** (Dosya …Ldh0000002, borç ₺98.375,72,
+    36×₺2.732, genel Toplam ₺148.917,61). **Ders:** İlk taranan vergi belgesi iki planın sayfalarını
+    karıştırmıştı (Plan A sayfa 1 + Plan B sayfa 2) → tek-plan sanılıp oluşturulmuş, sonra geri alınıp
+    tam belgelerle iki ayrı plan olarak yeniden yapıldı. Farklı **Tecil Dosya Numarası** ayırt edicidir;
+    sayfa-2 "Toplam" satırı (36×taksit) tek-sayfanın kendi planına ait olduğunun kanıtıdır.
 
 ### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
 
