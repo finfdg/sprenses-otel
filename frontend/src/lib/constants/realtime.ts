@@ -28,6 +28,7 @@ export const WS_EVENT = {
 	FORCE_LOGOUT: 'force_logout',
 	SESSION_EXPIRED: 'session_expired',
 	USER_STATUS: 'user_status',
+	USER_EMAIL_VERIFIED: 'user_email_verified',
 
 	// Bildirim
 	NOTIFICATION: 'notification',

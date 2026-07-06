@@ -37,6 +37,7 @@ CRUD (POST/PATCH/DELETE) endpoint'leri `check_approval(db, "system.users", entit
 - **Token güvenliği:** İmza `SECRET_KEY` ile; `purpose=email_verify` kontrolü; token içindeki e-posta kullanıcının **o anki** e-postasıyla eşleşmeli (e-posta değişmişse bağlantı geçersiz). Zaten doğrulanmışsa idempotent.
 - **E-posta değişince sıfırlanır:** `apply_user_update` — e-posta değiştiğinde `email_verified=False`, `email_verified_at=None` (yeni adres yeniden doğrulanmalı). Bu davranış hem router hem onay executor'da ortak servis üzerinden geçerli.
 - **UI:** Kullanıcı satırında rozet — **E-posta teyitli** (yeşil) / **E-posta teyit bekliyor** (amber) / **E-posta yok** (gri). Teyitsiz + e-postalı kullanıcıda "Teyit gönder" butonu.
+- **Anlık güncelleme (WS, polling yok):** Teyit başka bir cihaz/sayfada (public `/eposta-teyit`) gerçekleştiği için, `verify-email` başarılı olunca backend `WSEvent.USER_EMAIL_VERIFIED` (`user_email_verified`) event'ini **tüm bağlı istemcilere** yayınlar (`send_to_all_sync`). Kullanıcılar sayfası bu event'e abonedir (`onWsEvent`) → rozet **sayfa yenilenmeden** yeşile döner. Sabit iki tarafta: `constants.py::WSEvent` + `lib/constants/realtime.ts::WS_EVENT`.
 - **SMTP bağımlılığı:** `send-verification`, SMTP kapalıysa (`SMTP_PASSWORD` boş) 503 döner. Detay: `docs/modules/eposta-bildirim.md`.
 - **Test:** `tests/test_email_verification.py` (token roundtrip/amaç, send-verification izin/404/400/503/başarı, public verify geçerli/geçersiz/e-posta-değişti/idempotent, e-posta değişince sıfırlama).
 

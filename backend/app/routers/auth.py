@@ -182,8 +182,20 @@ def verify_email(data: EmailVerifyRequest, request: Request, db: Session = Depen
     if not user.email_verified:
         user.email_verified = True
         user.email_verified_at = datetime.now(tz_istanbul)
+        verified_at = user.email_verified_at
         client_ip = get_client_ip(request)
         log_action(db, user.id, "verify_email", "user", entity_id=user.id, ip_address=client_ip)
         db.commit()
+
+        # Kullanıcı listesini açık tutan yöneticilere anlık bildir (WS — polling yerine)
+        try:
+            manager.send_to_all_sync({
+                "type": WSEvent.USER_EMAIL_VERIFIED,
+                "user_id": user.id,
+                "email_verified": True,
+                "email_verified_at": str(verified_at) if verified_at else None,
+            })
+        except Exception as e:
+            logger.debug("E-posta teyit WS broadcast hatası user_id=%d: %s", user.id, e)
 
     return {"detail": "E-posta adresiniz doğrulandı", "email": user.email}

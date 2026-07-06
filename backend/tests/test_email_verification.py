@@ -114,6 +114,18 @@ class TestVerifyEmailPublic:
         resp = client.post(f"{AUTH_PREFIX}/verify-email", json={"token": token})
         assert resp.status_code == 200
 
+    def test_verify_broadcasts_ws_event(self, client, db):
+        u = _make_user(db, username="ve_ws", email="wsverify@sprenses.com")
+        token = create_email_verification_token(u.id, u.email)
+        with patch("app.routers.auth.manager.send_to_all_sync") as bc:
+            resp = client.post(f"{AUTH_PREFIX}/verify-email", json={"token": token})
+        assert resp.status_code == 200
+        bc.assert_called_once()
+        payload = bc.call_args.args[0]
+        assert payload["type"] == "user_email_verified"
+        assert payload["user_id"] == u.id
+        assert payload["email_verified"] is True
+
 
 class TestEmailChangeResetsVerified:
     def test_update_email_resets_verified(self, client, auth_headers, db):

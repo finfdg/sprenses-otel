@@ -4,6 +4,7 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onlinePresence, onWsEvent } from '$lib/stores/websocket.svelte';
+	import { WS_EVENT } from '$lib/constants/realtime';
 	import { validateRequired, validateEmail, validatePassword } from '$lib/utils/validation';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -197,13 +198,23 @@
 	onMount(() => {
 		loadData();
 		// Kullanıcı offline olduğunda last_online_at'i anında güncelle
-		const unsub = onWsEvent('user_status', (data: any) => {
+		const unsubStatus = onWsEvent('user_status', (data: any) => {
 			if (!data.is_online && typeof data.user_id === 'number') {
 				const idx = users.findIndex((u) => u.id === data.user_id);
 				if (idx !== -1) users[idx].last_online_at = new Date().toISOString();
 			}
 		});
-		return unsub;
+		// E-posta teyit edilince (başka cihaz/sayfada) listeyi anlık güncelle — polling yok
+		const unsubVerified = onWsEvent(WS_EVENT.USER_EMAIL_VERIFIED, (data: any) => {
+			if (typeof data.user_id === 'number') {
+				const idx = users.findIndex((u) => u.id === data.user_id);
+				if (idx !== -1) {
+					users[idx].email_verified = true;
+					users[idx].email_verified_at = data.email_verified_at ?? new Date().toISOString();
+				}
+			}
+		});
+		return () => { unsubStatus(); unsubVerified(); };
 	});
 </script>
 

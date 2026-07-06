@@ -55,6 +55,7 @@ class WSEvent:
     FORCE_LOGOUT = "force_logout"
     SESSION_EXPIRED = "session_expired"
     USER_STATUS = "user_status"
+    USER_EMAIL_VERIFIED = "user_email_verified"  # e-posta teyidi → kullanıcı listesi canlı tazeleme
 
     # Bildirim
     NOTIFICATION = "notification"
