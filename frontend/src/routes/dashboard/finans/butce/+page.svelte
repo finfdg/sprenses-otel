@@ -40,8 +40,8 @@
 	let catForm = $state({ name: '', type: 'expense' as 'expense' | 'income' });
 	let editingCatId = $state<number | null>(null);
 
-	// ── Yıl seçenekleri ──
-	const yearOptions = [2025, 2026, 2027, 2028];
+	// ── Yıl seçenekleri (veriden türetilir; sabit dizi DEĞİL — gelecekteki yıllar gizlenmesin) ──
+	let yearOptions = $state<number[]>([]);
 
 	// ── Filtrelenmiş kategoriler ──
 	let filteredCategories = $derived(
@@ -166,6 +166,21 @@
 			monthlySummary = Array.isArray(res) ? res : (res.items ?? []);
 		} catch (err) {
 			console.error('Aylık özet yükleme hatası:', err);
+		}
+	}
+
+	// Yıl seçici: bütçe kaydı olan yılları backend'den al, cari yıl ±1 penceresiyle birleştir
+	// (boş modülde de kullanılabilir aralık kalsın; gelecekteki yıllar gizlenmesin).
+	async function loadYears() {
+		const cy = new Date().getFullYear();
+		const base = [cy - 1, cy, cy + 1, selectedYear];
+		try {
+			const res = await api.get<any>('/finance/butce/years');
+			const fromData: number[] = Array.isArray(res?.years) ? res.years : [];
+			yearOptions = Array.from(new Set([...base, ...fromData])).sort((a, b) => a - b);
+		} catch (err) {
+			console.error('Yıl listesi yüklenemedi:', err);
+			yearOptions = Array.from(new Set(base)).sort((a, b) => a - b);
 		}
 	}
 
@@ -327,9 +342,11 @@
 	let unsubFinance: (() => void) | null = null;
 
 	onMount(async () => {
+		loadYears();
 		await loadAllData();
 
 		unsubFinance = onWsEvent('finance_updated', () => {
+			loadYears();
 			loadAllData();
 		});
 	});

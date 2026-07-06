@@ -26,7 +26,8 @@
 	// Sabitler
 	const STATUS_LABELS: Record<string, string> = { active: 'Aktif', cancelled: 'İptal' };
 	const STATUS_BADGE: Record<string, BadgeType> = { active: 'success', cancelled: 'neutral' };
-	const YEARS = [2024, 2025, 2026, 2027, 2028];
+	// Yıl seçenekleri veriden türetilir (sabit dizi DEĞİL — gelecekteki yıllar gizlenmesin).
+	let YEARS = $state<number[]>([]);
 
 	// Türetilmiş
 	let canUse = $derived(hasPermission('accounting.dividend', 'use'));
@@ -104,6 +105,21 @@
 			totalNet: rows.reduce((a, r) => a + r.net, 0),
 		};
 	});
+
+	// ── Yıl seçici: dağıtımı olan yılları backend'den al, cari yıl ±1 penceresiyle birleştir
+	// (boş modülde de kullanılabilir aralık kalsın; gelecekteki yıllar gizlenmesin). ──
+	async function loadYears() {
+		const cy = new Date().getFullYear();
+		const base = [cy - 1, cy, cy + 1];
+		try {
+			const res = await api.get<any>('/accounting/dividend/years');
+			const fromData: number[] = Array.isArray(res?.years) ? res.years : [];
+			YEARS = Array.from(new Set([...base, ...fromData])).sort((a, b) => a - b);
+		} catch (err) {
+			console.error('Yıl listesi yüklenemedi:', err);
+			YEARS = Array.from(new Set(base)).sort((a, b) => a - b);
+		}
+	}
 
 	// ── Veri yükleme ──
 	async function loadData() {
@@ -284,9 +300,11 @@
 	// Lifecycle
 	let unsub: (() => void) | null = null;
 	onMount(() => {
+		loadYears();
 		loadData();
 		unsub = onWsEvent('finance_updated', (msg: any) => {
 			if (!msg?.module || msg.module === 'accounting') {
+				loadYears();
 				loadData();
 				if (expandedId) loadDetail(expandedId);
 			}

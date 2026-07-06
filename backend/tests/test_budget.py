@@ -202,3 +202,30 @@ class TestBudgetSummary:
     def test_summary_without_auth(self, client):
         resp = client.get(f"{PREFIX}/summary?year=2099")
         assert resp.status_code in (401, 403)
+
+
+# ─── YIL SEÇİCİ ───────────────────────────────────────────────
+
+
+class TestBudgetYears:
+    """Yıl seçici veriden türetilir — gelecekteki (sabit dizi dışı) yıl gizlenmemeli."""
+
+    def test_years_includes_future_data_year(self, client, auth_headers):
+        dept_id = _get_or_create_department(client, auth_headers)
+        if not dept_id:
+            pytest.skip("Departman oluşturulamadı")
+        cat_id = _create_category(client, auth_headers, name="Yıl Kat").json()["id"]
+        # Sabit dizinin (eski [2025..2028]) dışında bir gelecek yıl
+        _create_budget(client, auth_headers, dept_id, cat_id, year=2099, month=6, planned_amount=1234)
+
+        resp = client.get(f"{PREFIX}/years", headers=auth_headers)
+        assert resp.status_code == 200
+        years = resp.json()["years"]
+        assert isinstance(years, list)
+        assert 2099 in years
+        # Artan sıralı
+        assert years == sorted(years)
+
+    def test_years_without_auth(self, client):
+        resp = client.get(f"{PREFIX}/years")
+        assert resp.status_code in (401, 403)

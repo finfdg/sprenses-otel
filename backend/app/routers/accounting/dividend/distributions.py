@@ -76,6 +76,21 @@ def list_distributions(
     )
 
 
+# ─── YEARS (yıl seçici için — veri olan tüm yıllar) ──
+# NOT: "/{distribution_id}" (path param) rotasından ÖNCE tanımlanmalı; aksi halde
+# FastAPI "years" segmentini int distribution_id olarak çözmeye çalışır.
+
+@router.get("/years")
+def list_years(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(PERM, "view")),
+):
+    """Kâr payı dağıtımı olan distinct yılları döner (yıl seçici sabit aralığa
+    takılmasın; gelecekteki yıllara ait dağıtım menüden erişilebilsin)."""
+    rows = db.query(DividendDistribution.year).distinct().all()
+    return {"years": sorted(r[0] for r in rows if r[0] is not None)}
+
+
 # ─── GET (detail) ─────────────────────────────────────
 
 @router.get("/{distribution_id}")

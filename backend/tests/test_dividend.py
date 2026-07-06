@@ -265,6 +265,32 @@ class TestMetadataAndList:
         assert r.status_code == 422  # pydantic gt=0
 
 
+# ─── YIL SEÇİCİ ─────────────────────────────────────────────
+
+class TestYears:
+    """Yıl seçici veriden türetilir — gelecekteki (sabit dizi dışı) yıl gizlenmemeli."""
+
+    def test_years_includes_future_data_year(self, client, auth_headers):
+        # Sabit dizinin (eski [2024..2028]) dışında bir gelecek yıl
+        _create(client, auth_headers, year=2099)
+        r = client.get(f"{PREFIX}/years", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        years = r.json()["years"]
+        assert isinstance(years, list)
+        assert 2099 in years
+        assert years == sorted(years)  # artan sıralı
+
+    def test_years_route_not_shadowed_by_detail(self, client, auth_headers):
+        """'/years' rotası '/{distribution_id}' path-param'ından ÖNCE tanımlı olmalı;
+        aksi halde FastAPI 'years'i int'e çözmeye çalışır → 422."""
+        r = client.get(f"{PREFIX}/years", headers=auth_headers)
+        assert r.status_code == 200
+        assert "years" in r.json()
+
+    def test_years_without_auth(self, client):
+        assert client.get(f"{PREFIX}/years").status_code in (401, 403)
+
+
 # ─── RBAC ───────────────────────────────────────────────────
 
 class TestRBAC:

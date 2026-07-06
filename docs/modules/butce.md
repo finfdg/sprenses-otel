@@ -64,6 +64,7 @@ Unique constraint: `(department_id, category_id, year, month)`
 | POST | / | use | Bütçe upsert (tek kayıt) |
 | POST | /bulk | use | Toplu bütçe upsert |
 | DELETE | /{budget_id} | use | Bütçe kaydı sil |
+| GET | /years | view | Bütçe kaydı olan distinct yıllar (yıl seçici — sabit dizi değil) |
 | GET | /summary | view | Yıllık departman bazlı özet |
 | GET | /monthly-summary | view | 12 aylık gelir/gider dağılımı |
 
@@ -90,3 +91,13 @@ Unique constraint: `(department_id, category_id, year, month)`
 ### finance_events Entegrasyonu
 - Bütçe modülü şu an `finance_events` tablosuna yazmaz (para hareketi değil, planlama verisi)
 - İleride gerçekleşen bütçe ile nakit akım karşılaştırması yapılabilir
+
+### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
+- Yıl açılır menüsü eskiden **`[2025, 2026, 2027, 2028]` sabit dizisiydi** → dizinin dışındaki
+  (gelecek) yıllara ait bütçe menüde görünmüyor, erişilemiyordu (SGK'da yaşanan gizli-yıl hatasının aynısı).
+- **Çözüm — veriden türet:** `GET /finance/butce/years` distinct `Budget.year` döner. Budget'ta
+  GET `/{id}` rotası yok (yalnız DELETE) → yıl rotası ÖZET bölümünde tanımlı; yine de path-param
+  çakışması olmadan güvenli.
+- Frontend `loadYears()` bu endpoint'i çeker, **cari yıl ±1 + `selectedYear`** penceresiyle birleştirir
+  (`yearOptions`); `onMount` + `finance_updated` WS event'inde yenilenir; fetch hata verirse base
+  pencereye düşer. Referans desen: `ScheduledModule.svelte` / `docs/modules/muhasebe-ik.md` "Yıl seçici — dinamik".

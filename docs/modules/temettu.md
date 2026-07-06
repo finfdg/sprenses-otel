@@ -76,6 +76,7 @@ yükümlülük (muhtasar) olduğundan **eşleştirilmez** — kendi ödeme tarih
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/accounting/dividend/` | view | Liste (page/page_size/year/status/search; N+1'siz özet) |
+| GET | `/accounting/dividend/years` | view | Dağıtımı olan distinct yıllar (yıl seçici; **`/{id}`'den ÖNCE tanımlı**) |
 | GET | `/accounting/dividend/{id}` | view | Detay (sahipler + taksitler + 72 ödeme) |
 | POST | `/accounting/dividend/` | use | Dağıtım oluştur (header + shareholders[name,share_value]) |
 | PATCH | `/accounting/dividend/{id}` | use | Metadata (name/decision_date/status/notes); status=cancelled → FE kaldırır |
@@ -107,8 +108,17 @@ yeniden hesaplar). WS `finance_updated` (module=accounting) → yeniden yükle.
 
 - Para hesabı **Decimal + ROUND_HALF_UP**; float aritmetiği yok. Yanıtta `float()` (Numeric→float).
 - Rota sırası: `payments` (`/payments/{id}`) `distributions` (`/{id}`) wildcard'ından **önce** mount.
+- **`GET /years` `/{distribution_id}` path-param'ından ÖNCE tanımlı** (`distributions.py`) — aksi halde
+  FastAPI "years"i int'e çözmeye çalışır → 422 (test: `test_dividend.py::TestYears::test_years_route_not_shadowed_by_detail`).
 - Ödeme mutasyonu `{"_target":"payment"}` gönderir; dağıtım mutasyonu göndermez.
 - Yeni `source_type` = migration (DB'de saklanır, değiştirilemez).
+
+### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
+Frontend yıl menüsü eskiden **`[2024..2028]` sabit dizisiydi** → gelecekteki yıllara ait dağıtım
+gizli/erişilemez (SGK gizli-yıl hatasının aynısı). Çözüm: `GET /accounting/dividend/years` (distinct
+`DividendDistribution.year`); `temettu/+page.svelte` `loadYears()` cari yıl ±1 penceresiyle birleştirip
+(`YEARS`) hem filtre hem oluştur-modalı dropdown'unu doldurur; `onMount` + `finance_updated` WS'te
+yenilenir, fetch hata verirse base pencereye düşer. Referans: `docs/modules/muhasebe-ik.md` "Yıl seçici — dinamik".
 
 ## Test
 

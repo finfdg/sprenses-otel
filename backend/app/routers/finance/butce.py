@@ -400,6 +400,17 @@ def delete_budget(
 # ═══════════════════════════════════════════════════════
 
 
+@router.get("/years")
+def list_years(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.butce", "view")),
+):
+    """Bütçe kaydı olan distinct yılları döner (yıl seçici sabit aralığa
+    takılmasın; gelecekteki yıllara ait bütçe menüden erişilebilsin)."""
+    rows = db.query(Budget.year).distinct().all()
+    return {"years": sorted(r[0] for r in rows if r[0] is not None)}
+
+
 @router.get("/summary")
 def annual_summary(
     year: int = Query(...),
