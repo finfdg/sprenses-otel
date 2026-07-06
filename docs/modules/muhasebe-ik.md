@@ -298,10 +298,11 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
       **Düzenli Ödemeler'i tek kaynak** seçti → cari **`status='odeme_yasaklisi'`** yapıldı (`apply_vendor_update`
       → `sync_vendor_finance_events` vendor_payment FE'sini SİLDİ → nakit akımdan çıktı). Gerçek yasak DEĞİL;
       cariye açıklama **notu** eklendi. Cari modülde görünmeye devam eder, yalnız nakit akım/ödeme planı dışı.
-      **AÇIK KALEM:** cari 18.05'te taksitlerle eşleşmeyen **₺159.193** bir Allianz ödemesi içeriyor →
-      düzenli-ödeme bekleyeni (₺1.235.995) cariye göre gerçek kalanı (~₺1.076.802) ~159K fazla gösterir;
-      bu ödemenin bu poliçeye mi başka Allianz işine mi (önceki poliçe 0001-1110-01121299) ait olduğu
-      netleşince bir taksit daha ödenmiş işaretlenebilir.
+      **159K kalemi ÇÖZÜLDÜ (kullanıcı doğruladı):** cari 18.05'teki **₺159.193** ödeme **BU poliçeye
+      ait DEĞİL — başka bir Allianz işi**. Dolayısıyla düzenli-ödeme planı bu poliçe için **doğru**
+      (bekleyen ₺1.235.995 = 4–8. taksit; taksit düzeltmesi YAPILMADI). Sedna bu poliçe-dışı ödemeyi
+      (+DASK ₺3.066) poliçenin faturasına borç yazıp netini düşürdüğünden **cari bu poliçeyi olduğundan
+      AZ gösteriyordu** (~₺1.076.802) → cariyi nakit-akım-dışı bırakmak doğruluk açısından da doğru karar.
 
 ### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
 
