@@ -139,12 +139,17 @@
 	<!-- Başlık -->
 	<div class="mb-4 flex items-start justify-between gap-3">
 		<div>
-			<h3 class="text-[17px] text-gray-900">Nakit Akım · T Hesap Cetveli</h3>
+			<h3 class="text-[17px] text-gray-900">Nakit Akım</h3>
 			<p class="text-xs text-gray-500 mt-0.5">
-				<span class="sm:hidden {expanded ? 'hidden' : ''}">Bugün · dokunarak detaylı cetveli açın</span>
+				<span class="sm:hidden {expanded ? 'hidden' : ''}">Bugün</span>
 				<span class="{expanded ? '' : 'hidden'} sm:inline">Hesap hareketleri · EUR · grup başlığına tıklayarak detayı açın</span>
 			</p>
 		</div>
+		<!-- Mobil: kapalıyken "detay için dokun" ipucu (sağ üst köşe) -->
+		<button type="button" onclick={() => (expanded = true)} aria-label="Detayı aç"
+			class="sm:hidden {expanded ? 'hidden' : ''} shrink-0 -mt-0.5 flex items-center gap-1 text-xs text-teal-700 font-medium cursor-pointer">
+			detay için dokun <ChevronRight size={14} />
+		</button>
 		<!-- Mobil: tam görünümü kapat (yukarı ok) -->
 		<button type="button" onclick={() => (expanded = false)} aria-label="Özete dön"
 			class="sm:hidden {expanded ? '' : 'hidden'} touch-target w-9 h-9 -mt-1 -mr-1 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 cursor-pointer">
@@ -171,7 +176,6 @@
 				</div>
 			</div>
 		</div>
-		<div class="mt-2 text-xs text-teal-600 font-medium flex items-center gap-1">Detaylı T hesap cetveli için dokun <ChevronRight size={13} /></div>
 	</button>
 
 	<!-- TAM GÖRÜNÜM (mobilde açıkken / masaüstünde her zaman) -->
