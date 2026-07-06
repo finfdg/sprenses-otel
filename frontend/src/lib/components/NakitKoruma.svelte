@@ -17,7 +17,7 @@
 	import { projectRunway } from '$lib/utils/finance';
 	import { RotateCcw, ShieldCheck, ChevronDown, AlertTriangle } from 'lucide-svelte';
 
-	type Flow = { id: string; date: string; name: string; amount_eur: number; source_type?: string; deferred?: boolean; original_date?: string; projected?: boolean };
+	type Flow = { id: string; date: string; name: string; amount_eur: number; amount_native?: number; currency?: string; source_type?: string; deferred?: boolean; original_date?: string; projected?: boolean };
 	type RunwayData = {
 		month_label: string; month_start: string; month_end: string; today: string;
 		start_eur: number; inflows: Flow[]; outs: Flow[]; overdue: Flow[]; skipped_no_rate: number;
@@ -61,6 +61,12 @@
 	}
 	function signed(n: number): string {
 		return (n >= 0 ? '+' : '−') + fmtEur(n);
+	}
+	// Detay kalemi kendi para biriminde (₺/€…); grup toplamı ve başlıklar EUR kalır
+	const CUR_SYM: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
+	function fmtNative(n: number, currency?: string): string {
+		const sym = CUR_SYM[currency ?? 'TRY'] || (currency + ' ');
+		return sym + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(Math.abs(n)));
 	}
 	function labelDate(iso: string): string {
 		const [, m, d] = iso.split('-').map(Number);
@@ -329,7 +335,8 @@
 								{#each u.members as m (m.id)}
 									<div class="flex items-center gap-2 text-[12px]">
 										<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
-										<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{fmtEur(m.amount_eur)}</span>
+										<!-- Kalem kendi para biriminde (₺/€…); grup toplamı ve başlıklar EUR -->
+										<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
 									</div>
 								{/each}
 							</div>

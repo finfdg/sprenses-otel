@@ -286,6 +286,9 @@ def runway(
             "date": fe.event_date.isoformat(),
             "name": _item_name(fe),
             "amount_eur": round(eur, 2),
+            # Kalem kendi para biriminde de dönülür (detay satırı native; grup/toplam EUR)
+            "amount_native": round(float(fe.amount), 2),
+            "currency": (fe.currency or "TRY").upper(),
             "source_type": fe.source_type,
             "deferred": is_deferred,
             "original_date": original_date.isoformat() if original_date else None,
@@ -321,6 +324,8 @@ def runway(
             "date": proj["date"],
             "name": f"{proj['description']} (Tahmini)",
             "amount_eur": round(float(proj["amount"]) / rate, 2),
+            "amount_native": round(float(proj["amount"]), 2),
+            "currency": "TRY",
             "source_type": "cc_payment",
             "deferred": False,
             "original_date": proj["date"],
