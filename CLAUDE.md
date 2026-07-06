@@ -444,6 +444,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 | `VAPID_MAILTO` | Push bildirim e-posta |
 | `CORS_ORIGINS` | İzin verilen origin'ler (virgülle ayrılmış) |
 | `SEDNA_PASSWORD` | Sedna SQL Server (muhasebe) cari içe aktarma şifresi — boşsa özellik kapalı. Host/port/db/user/charset/prefix `config.py`'de varsayılan (tünel `127.0.0.1:11433`, db `SednaPrensesMhs2026`, user `prenses\btadmin`, charset `CP1254`, prefix `320`) |
+| `SMTP_PASSWORD` | Giden e-posta (bildirim) SMTP şifresi — boşsa e-posta gönderimi kapalı. Host/port/user `config.py`'de varsayılan (`smtp.turkticaret.net:465` SSL, `bilgi@sprenses.com`). Detay: `docs/modules/eposta-bildirim.md` |
 
 ## Nginx Konfigürasyonu
 
@@ -592,6 +593,7 @@ Her modül dosyası şu bölümleri içermelidir:
 | Acente Mahsup & Nakit Akım | `docs/modules/acente-mahsup.md` |
 | Oda Tipleri | `docs/modules/oda-tipleri.md` |
 | Yedekleme | `docs/modules/yedekleme.md` |
+| E-posta Bildirim (SMTP) | `docs/modules/eposta-bildirim.md` |
 | Sistem — Dokümanlar | `docs/modules/sistem-dokumanlar.md` |
 | Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
 | Vardiyalar (Shift) | `docs/modules/vardiyalar.md` |
