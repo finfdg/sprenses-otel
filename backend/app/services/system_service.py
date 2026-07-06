@@ -49,9 +49,14 @@ def apply_user_update(db: Session, user: User, update_data: dict) -> dict:
             data["hashed_password"] = hash_password(pwd)
     old_role_id = user.role_id
     old_is_active = user.is_active
+    old_email = user.email
     for key, value in data.items():
         if hasattr(user, key):
             setattr(user, key, value)
+    # E-posta değiştiyse teyit durumunu sıfırla (yeni adres henüz doğrulanmadı)
+    if user.email != old_email:
+        user.email_verified = False
+        user.email_verified_at = None
     disabled = old_is_active and not user.is_active
     if disabled:
         user.active_session_id = None  # devre dışı → oturumu kapat (router ile birebir)

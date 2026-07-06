@@ -23,6 +23,12 @@ class User(Base):
     last_name: Mapped[str] = mapped_column(String(100))
     role_id: Mapped[int] = mapped_column(Integer, ForeignKey("roles.id"), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    email_verified_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     active_session_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     last_online_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

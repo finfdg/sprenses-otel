@@ -13,7 +13,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
-	import { Plus, Pencil, KeyRound, Trash2, Users, Eye, EyeOff } from 'lucide-svelte';
+	import { Plus, Pencil, KeyRound, Trash2, Users, Eye, EyeOff, MailCheck } from 'lucide-svelte';
 
 	const canUse = hasPermission('system.users', 'use');
 
@@ -21,6 +21,7 @@
 	interface UserItem {
 		id: number; username: string; email: string; first_name: string; last_name: string;
 		role_id: number; role: Role | null; is_active: boolean; created_at: string; last_online_at: string | null;
+		email_verified: boolean; email_verified_at: string | null;
 	}
 
 	function isOnline(userId: number): boolean {
@@ -179,6 +180,20 @@
 		}
 	}
 
+	let verifyingId = $state<number | null>(null);
+	async function sendVerification(u: UserItem) {
+		verifyingId = u.id;
+		try {
+			await api.post(`/system/users/${u.id}/send-verification`, {});
+			showToast(`Teyit e-postası gönderildi: ${u.email}`, 'success');
+		} catch (err: any) {
+			console.error('Teyit e-postası gönderilemedi:', err);
+			showToast(err?.message || 'Teyit e-postası gönderilemedi', 'error');
+		} finally {
+			verifyingId = null;
+		}
+	}
+
 	onMount(() => {
 		loadData();
 		// Kullanıcı offline olduğunda last_online_at'i anında güncelle
@@ -241,6 +256,15 @@
 							{#if !u.is_active}
 								<StatusBadge type="neutral">Pasif</StatusBadge>
 							{/if}
+							{#if u.email}
+								{#if u.email_verified}
+									<StatusBadge type="success">E-posta teyitli</StatusBadge>
+								{:else}
+									<StatusBadge type="warning">E-posta teyit bekliyor</StatusBadge>
+								{/if}
+							{:else}
+								<span class="text-xs text-gray-500">E-posta yok</span>
+							{/if}
 							{#if isOnline(u.id)}
 								<span class="text-xs text-green-600 font-medium">● Çevrimiçi</span>
 							{:else}
@@ -251,7 +275,10 @@
 						</div>
 					</div>
 					{#if canUse}
-						<div class="flex items-center gap-2 shrink-0">
+						<div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+							{#if u.email && !u.email_verified}
+								<Button variant="secondary" size="sm" loading={verifyingId === u.id} onclick={() => sendVerification(u)} title="Teyit e-postası gönder"><MailCheck size={14} /> Teyit gönder</Button>
+							{/if}
 							<Button variant="secondary" size="sm" onclick={() => openEdit(u)}><Pencil size={14} /> Düzenle</Button>
 							<Button variant="secondary" size="sm" onclick={() => openReset(u)} title="Şifre sıfırla"><KeyRound size={14} /> Şifre</Button>
 							<Button variant="danger" size="sm" onclick={() => askDelete(u)}><Trash2 size={14} /> Sil</Button>

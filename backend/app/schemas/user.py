@@ -40,6 +40,8 @@ class UserResponse(BaseModel):
     role_id: int
     role: Optional[RoleBrief] = None
     is_active: bool
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     created_at: datetime
     last_online_at: Optional[datetime] = None
     permissions: List[ModulePermission] = []
@@ -80,6 +82,10 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = Field(default=None, max_length=100)
     role_id: Optional[int] = None
     is_active: Optional[bool] = None
+
+
+class EmailVerifyRequest(BaseModel):
+    token: str = Field(max_length=2048)
 
 
 class PasswordReset(BaseModel):

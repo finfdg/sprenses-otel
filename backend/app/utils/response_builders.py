@@ -36,6 +36,8 @@ def _user_to_response(user: User, permissions: List[ModulePermission]) -> UserRe
         role_id=user.role_id,
         role=RoleBrief(id=user.role_rel.id, name=user.role_rel.name) if user.role_rel else None,
         is_active=user.is_active,
+        email_verified=user.email_verified,
+        email_verified_at=user.email_verified_at,
         created_at=user.created_at,
         last_online_at=user.last_online_at,
         permissions=permissions,

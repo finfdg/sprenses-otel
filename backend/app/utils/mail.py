@@ -13,6 +13,7 @@ içinde doğrudan çağırma — arka plan thread'inde çalıştır (bkz. utils/
 import logging
 import smtplib
 import ssl
+import threading
 from email.message import EmailMessage
 from email.utils import formataddr
 from typing import Optional
@@ -70,3 +71,22 @@ def send_email(
     except Exception as e:
         logger.error("E-posta gönderilemedi (to=%s): %s", to, e)
         return False
+
+
+def send_email_background(
+    to: str,
+    subject: str,
+    body_html: str,
+    body_text: Optional[str] = None,
+) -> None:
+    """send_email'i arka plan thread'inde çalıştır (ana isteği bloklamaz).
+
+    SMTP kapalıysa hiç thread açmaz (no-op).
+    """
+    if not is_mail_enabled():
+        return
+    threading.Thread(
+        target=send_email,
+        kwargs={"to": to, "subject": subject, "body_html": body_html, "body_text": body_text},
+        daemon=True,
+    ).start()

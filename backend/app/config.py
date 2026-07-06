@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     vapid_public_key: str = ""
     vapid_mailto: str = "mailto:admin@sprenses.com"
     cors_origins: str = "https://sprenses.com"
+    public_base_url: str = "https://sprenses.com"  # e-posta bağlantılarında kullanılır
     internal_secret: str
     # Sedna SQL Server (cari içe aktarma — ters SSH tüneli üzerinden, opsiyonel)
     # Bağlantı yalnızca "Sedna'dan İçe Aktar" tetiklenince kurulur; uygulamanın

@@ -1,8 +1,10 @@
-"""Kimlik doğrulama endpoint'leri — giriş, kayıt, şifre değiştirme, çıkış."""
+"""Kimlik doğrulama endpoint'leri — giriş, kayıt, şifre değiştirme, çıkış, e-posta teyidi."""
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from jose import JWTError
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -11,10 +13,17 @@ from app.database import get_db
 from app.middleware.auth import COOKIE_NAME, get_current_user
 from app.middleware.rate_limit import get_client_ip, login_limiter
 from app.models.user import User
-from app.schemas.user import PasswordChange, TokenResponse, UserLogin, UserResponse
+from app.schemas.user import EmailVerifyRequest, PasswordChange, TokenResponse, UserLogin, UserResponse
 from app.utils.audit import log_action
 from app.utils.response_builders import build_user_response
-from app.utils.security import create_access_token, generate_session_id, hash_password, verify_password
+from app.utils.security import (
+    create_access_token,
+    decode_email_verification_token,
+    generate_session_id,
+    hash_password,
+    tz_istanbul,
+    verify_password,
+)
 from app.websocket.manager import manager
 
 
@@ -148,3 +157,33 @@ def logout(
     log_action(db, current_user.id, "logout", "auth", ip_address=client_ip)
     db.commit()
     return {"detail": "Başarıyla çıkış yapıldı"}
+
+
+@router.post("/verify-email")
+def verify_email(data: EmailVerifyRequest, request: Request, db: Session = Depends(get_db)):
+    """E-posta teyit bağlantısını doğrula — PUBLIC (giriş gerektirmez).
+
+    Token imzalıdır ve içindeki e-posta, kullanıcının O ANKİ e-postasıyla eşleşmelidir
+    (token üretildikten sonra e-posta değiştiyse bağlantı geçersizdir). Zaten doğrulanmışsa
+    idempotent olarak başarı döner.
+    """
+    try:
+        payload = decode_email_verification_token(data.token)
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Bağlantı geçersiz veya süresi dolmuş")
+
+    user = db.query(User).filter(User.id == payload["user_id"]).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Bağlantı geçersiz")
+    # Token üretildiğinden bu yana e-posta değişmişse bağlantı artık geçerli değil
+    if not user.email or user.email != payload.get("email"):
+        raise HTTPException(status_code=400, detail="Bu bağlantı artık geçerli değil (e-posta değişmiş)")
+
+    if not user.email_verified:
+        user.email_verified = True
+        user.email_verified_at = datetime.now(tz_istanbul)
+        client_ip = get_client_ip(request)
+        log_action(db, user.id, "verify_email", "user", entity_id=user.id, ip_address=client_ip)
+        db.commit()
+
+    return {"detail": "E-posta adresiniz doğrulandı", "email": user.email}

@@ -11,11 +11,13 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/auth/me` — Mevcut kullanıcı bilgisi
 - `POST /api/auth/change-password` — Şifre değiştirme (kendi şifresi)
 - `POST /api/auth/logout` — Çıkış (cookie temizle + oturum sonlandır)
+- `POST /api/auth/verify-email` — **PUBLIC** e-posta teyit bağlantısını doğrula (imzalı token; 400=geçersiz/süresi dolmuş/e-posta değişti). UI: `/eposta-teyit?token=…`
 - **NOT:** Public self-service `POST /api/auth/register` **güvenlik nedeniyle kaldırıldı** (2026-06-19) — internete açık kayıt yetkisiz veri okuma yüzeyi yaratıyordu. Kullanıcılar yalnızca admin tarafından `POST /api/system/users/` ile oluşturulur.
 
 ### Sistem Yönetimi
 - `GET/POST/PATCH/DELETE /api/system/users/` — Kullanıcı CRUD (paginated)
 - `POST /api/system/users/{id}/reset-password` — Şifre sıfırlama (admin)
+- `POST /api/system/users/{id}/send-verification` — E-posta teyit bağlantısı gönder (izin: `system.users` use; 400=e-posta yok, 503=SMTP kapalı; onaydan muaf)
 - `GET/POST/PATCH/DELETE /api/system/roles/` — Rol CRUD (izin matrisi dahil)
 - `GET/POST/PATCH/DELETE /api/system/modules/` — Modül CRUD
 - `GET /api/system/modules/tree` — Modül ağacı (hiyerarşik)

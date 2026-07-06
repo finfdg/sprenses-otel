@@ -467,7 +467,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 ## Audit Log Sistemi
 
 - **Tablo:** `audit_logs`
-- **Kaydedilen eylemler:** login, register, change_password, reset_password, create, update, delete
+- **Kaydedilen eylemler:** login, register, change_password, reset_password, send_verification, verify_email, create, update, delete
 - **Alanlar:** user_id, action, entity_type, entity_id, details, ip_address, created_at
 - **API:** `GET /api/system/audit-logs/` (paginated, action/entity_type/user_id filtresi)
 - **Kullanım:** `log_action(db, user_id, action, entity_type, entity_id, details, ip_address)`

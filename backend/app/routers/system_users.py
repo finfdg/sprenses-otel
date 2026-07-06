@@ -5,6 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import settings
 from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
@@ -14,14 +15,41 @@ from app.models.user import User
 from app.schemas.user import PasswordReset, UserCreate, UserResponse, UserUpdate
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.utils.mail import is_mail_enabled, send_email_background
 from app.utils.response_builders import build_user_response, build_user_responses_batch
-from app.utils.security import hash_password
+from app.utils.security import create_email_verification_token, hash_password
 from app.services import system_service
 from app.utils.sql_search import like_pattern
 from app.websocket.manager import manager
 from app.utils.pagination import page_meta
 
 router = APIRouter()
+
+
+def _send_verification_email(user: User) -> None:
+    """Kullanıcının tanımlı e-posta adresine teyit bağlantılı e-posta gönder (arka plan)."""
+    token = create_email_verification_token(user.id, user.email)
+    link = "%s/eposta-teyit?token=%s" % (settings.public_base_url.rstrip("/"), token)
+    body_html = (
+        '<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:560px;">'
+        '<h2 style="font-size:18px;">E-posta adresinizi doğrulayın</h2>'
+        "<p>Merhaba %s,</p>"
+        "<p>Sprenses Otel Yönetim Sistemi'nde hesabınıza tanımlı bu e-posta adresini "
+        "doğrulamak için aşağıdaki butona tıklayın. Bağlantı 48 saat geçerlidir.</p>"
+        '<p style="margin:20px 0;">'
+        '<a href="%s" style="background:#1b2b45;color:#ffffff;text-decoration:none;'
+        'padding:10px 18px;border-radius:8px;display:inline-block;font-size:14px;">'
+        "E-postamı doğrula</a></p>"
+        '<p style="color:#6b7280;font-size:12px;">Bu isteği siz yapmadıysanız bu e-postayı '
+        "yok sayabilirsiniz.</p>"
+        "</div>"
+    ) % (user.full_name, link)
+    send_email_background(
+        to=user.email,
+        subject="Sprenses Otel — E-posta Doğrulama",
+        body_html=body_html,
+        body_text="E-posta adresinizi doğrulamak için: %s" % link,
+    )
 
 
 @router.get("/")
@@ -206,3 +234,35 @@ async def reset_password(
     db.commit()
 
     return {"detail": "Şifre başarıyla sıfırlandı"}
+
+
+@router.post("/{user_id}/send-verification", status_code=status.HTTP_200_OK)
+def send_verification(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("system.users", "use")),
+):
+    """Kullanıcının tanımlı e-posta adresine teyit (doğrulama) e-postası gönder.
+
+    ONAY İSTİSNASI: Entity CRUD mutasyonu değil, operasyonel bir doğrulama işlemidir
+    (reset-password gibi) → `check_approval`'dan geçmez; `log_action` ile izlenir.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    if not user.email:
+        raise HTTPException(status_code=400, detail="Bu kullanıcının tanımlı bir e-posta adresi yok")
+    if not is_mail_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="E-posta (SMTP) yapılandırılmamış — .env dosyasında SMTP_PASSWORD tanımlayın",
+        )
+
+    _send_verification_email(user)
+
+    client_ip = get_client_ip(request)
+    log_action(db, current_user.id, "send_verification", "user", entity_id=user_id, ip_address=client_ip)
+    db.commit()
+
+    return {"detail": "Teyit e-postası gönderildi", "email": user.email}
