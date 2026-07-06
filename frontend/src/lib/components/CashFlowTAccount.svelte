@@ -35,8 +35,8 @@
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
 	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
-	type DateRow = { name: string; amountLabel: string; count: number };
-	type DateCat = { label: string; totalEur: number; count: number; rows: DateRow[] };
+	type DateRow = { name: string; amountLabel: string };
+	type DateCat = { label: string; totalEur: number; rows: DateRow[] };
 	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
 	// İleri (gelecek dönem) navigasyon üst sınırı — backend le=24 ile aynı
@@ -159,8 +159,7 @@
 				.map(([label, items]) => ({
 					label,
 					totalEur: items.reduce((s, it) => s + it.amount_eur, 0),
-					count: items.length,
-					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r), count: r.count })),
+					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r) })),
 				}))
 				.sort((a, b) => b.totalEur - a.totalEur);
 			return { date: day.date, label: day.label, totalEur: day.totalEur, cats };
@@ -347,9 +346,6 @@
 							{#each aggregateRows(day.items, AGGREGATE_LABELS.has(g.label)) as row, i (i)}
 								<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
 									<span class="text-gray-700 truncate">{row.name}</span>
-									{#if row.count > 1}
-										<span class="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-100 rounded px-1 py-0.5">{row.count} ödeme</span>
-									{/if}
 									<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
 								</div>
 							{/each}
@@ -373,15 +369,11 @@
 				{#each day.cats as cat (cat.label)}
 					<div class="flex items-center gap-2 pl-4 pr-2 pt-2 pb-0.5">
 						<span class="text-[11px] font-semibold text-gray-700 truncate">{cat.label}</span>
-						<span class="text-[10px] text-gray-500 shrink-0">{cat.count} işlem</span>
 						<span class="ml-auto tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(cat.totalEur)}</span>
 					</div>
 					{#each cat.rows as row, i (i)}
 						<div class="flex items-center gap-2 pl-7 pr-2 py-1">
 							<span class="text-[12px] text-gray-700 truncate">{row.name}</span>
-							{#if row.count > 1}
-								<span class="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-100 rounded px-1 py-0.5">{row.count} ödeme</span>
-							{/if}
 							<span class="ml-auto tabular-nums text-[12px] text-gray-700 shrink-0">{row.amountLabel}</span>
 						</div>
 					{/each}
