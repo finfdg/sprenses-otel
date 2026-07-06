@@ -88,13 +88,22 @@ Kanonik liste iskeleti (tasarım sistemi): PageHeader → StatCard×4 → filtre
   (giriş→çıkış, gece; iptallerde "Kayıt: … · girişe X gün kala iptal") · Pax · Tutar €
   (EUR-dışı ham tutar alt satırda) — misafir adı kolonu bilinçli olarak yoktur
 - **Aylık Doluluk Etkisi grafiği** (`MonthlyOccupancyChart.svelte`, modal tablosunun üstünde):
-  o günkü rezervasyonlar konaklama tarihlerine (`checkin_date`→`checkout_date`) göre ay ay
-  **oda-gece** (room-nights) olarak dağıtılıp bar grafiğinde gösterilir. Her gece ilgili ayın
-  kovasına 1 eklenir; misafir-gece (`pax×gece`) ve giriş adedi hover `<title>` ile verilir.
-  Renk sekmeye bağlı: gelen = lacivert (`--color-teal-700`), iptal = kırmızı (`--color-red-500`).
-  **Frontend-only hesap** (ek endpoint yok) — `detailItems`'tan türetilir; sekme değişince
-  (`mode={detailTab}`) grafik de gelen↔iptal etkisine döner. Inline SVG renkleri tema takip
-  etsin diye `@theme` CSS değişkenlerini (`var(--color-*)`) kullanır, sabit hex değil.
+  Otel Rezervasyon'daki "Aylık Doluluk Dağılımı" tarzı **yatay bar** (photo-2 stili). Her ay için
+  otelin o ayki **mevcut doluluğu** lacivert (`bg-teal-700`) çubukla çizilir; tıklanan günün o aya
+  kattığı **oda-gece** çubuğun **UCUNDA farklı renkle** vurgulanır — gelen = pirinç/altın
+  (`bg-brass`), iptal = kırmızı (`bg-red-500`).
+  - **Taban veri:** `/sales/reservations/summary` (`monthly[]` = `capacity_nights`/`room_nights`/
+    `occupancy_pct` + `kpi.total_capacity`). Modal ilk açılışta **tek sefer** çekilir (`occLoaded`
+    guard), tıklanan güne bağlı değil → yeniden kullanılır. İzin: `sales.hotel_reservation` view —
+    yoksa **403 sessiz** (console.error, toast yok), grafik yalnız bugünün katkısını gösterir
+    (uyarı satırı belirir). `403` dışı hata → toast.
+  - **Bugünün katkısı** `detailItems`'tan istemci tarafında hesaplanır (her gece ilgili ayın
+    kovasına +1 oda-gece). Segment yerleşimi: **gelen** → tip mevcut doluluğun İÇİNDE, ucunda
+    (`navy = occ−today`, `brass = today`); **iptal** → dolulukta olmadığından çubuğun ARDINA
+    (kayıp) eklenir (`navy = occ`, `red = today`, `≤100` kırpılır). Sekme değişince
+    (`mode={detailTab}`) grafik de gelen↔iptal etkisine döner.
+  - Renkler `@theme` token'larından gelir → lacivert/altın tema ile uyumlu. Hover `title`'ı
+    ay bazında mevcut/kapasite oda-gece + bugünün delta'sını (rez adedi dahil) verir.
 - **Durumlar:** loading `TableSkeleton` · Sedna yok / hareket yok `EmptyState` · hata `console.error` + toast
 - Tutar formatı: tabloda `Intl` EUR 0 hane (`tabular-nums`), modalda 2 hane
 

@@ -41,6 +41,11 @@
 	let detailItems = $state<any[]>([]);
 	let detailCounts = $state({ new: 0, cancelled: 0 });
 
+	// State — doluluk taban verisi (Aylık Doluluk Etkisi grafiği için, tek sefer çekilir)
+	let occMonthly = $state<any[]>([]);
+	let occCapacity = $state(0);
+	let occLoaded = $state(false);
+
 	// Türetilmiş
 	let totals = $derived(data.totals);
 	let hasActivity = $derived(data.days.some((d: any) => d.new.count || d.cancelled.count));
@@ -117,12 +122,30 @@
 		}
 	}
 
+	// Doluluk taban verisi — otelin aylık mevcut doluluğu (grafik çubuklarının tabanı).
+	// Tıklanan güne bağlı değil → tek sefer çekilip yeniden kullanılır.
+	async function loadOccupancy() {
+		try {
+			const r = await api.get<any>('/sales/reservations/summary');
+			occMonthly = r.monthly || [];
+			occCapacity = r.kpi?.total_capacity || 0;
+			occLoaded = true;
+		} catch (e: any) {
+			// Kritik değil: taban yüklenemezse (ör. 403 — otel rezervasyon görme izni yok)
+			// grafik yalnız bugünün katkısını gösterir + kart içinde görünür uyarı satırı
+			// belirir. Bu yüzden toast yerine yalnız console.error (gürültü engellenir).
+			console.error('Doluluk taban verisi yüklenemedi:', e);
+			occLoaded = true;
+		}
+	}
+
 	function openDetail(day: any, tab: 'new' | 'cancelled') {
 		detailDate = day.date;
 		detailCounts = { new: day.new.count, cancelled: day.cancelled.count };
 		detailTab = tab;
 		detailOpen = true;
 		loadDetail();
+		if (!occLoaded) loadOccupancy();
 	}
 
 	function setTab(t: 'new' | 'cancelled') {
@@ -401,7 +424,7 @@
 			{detailItems.length} rezervasyon · toplam {eur2.format(detailItems.reduce((s, i) => s + (i.eur || 0), 0))}
 		</div>
 		<div class="mb-3">
-			<MonthlyOccupancyChart items={detailItems} mode={detailTab} />
+			<MonthlyOccupancyChart items={detailItems} mode={detailTab} monthly={occMonthly} capacity={occCapacity} />
 		</div>
 		<div class="max-h-[60vh] overflow-y-auto overflow-x-auto -mx-1">
 			<table class="w-full text-xs sm:text-sm">

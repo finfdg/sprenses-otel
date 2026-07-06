@@ -1,40 +1,47 @@
 <script lang="ts">
-	// Aylık Doluluk Etkisi grafiği — tıklanan günün rezervasyonlarını konaklama
-	// tarihlerine göre ay ay "oda-gece" (room-nights) olarak dağıtıp bar grafiğinde gösterir.
+	// Aylık Doluluk Etkisi — Otel Rezervasyon'daki "Aylık Doluluk Dağılımı" tarzı yatay
+	// bar. Her ay için otelin MEVCUT doluluğu lacivert çubukla çizilir; tıklanan günün
+	// gelen/iptal rezervasyonlarının o aya kattığı oda-gece, çubuğun UCUNDA farklı renkle
+	// (gelen = pirinç/altın, iptal = kırmızı) gösterilir. Doluluk taban verisi
+	// `/sales/reservations/summary` (monthly + kapasite) ile gelir; bugünün katkısı
+	// modaldeki `items`'tan istemci tarafında hesaplanır (ek endpoint yok).
 	import { BarChart3 } from 'lucide-svelte';
 
 	// Sabitler
 	const MONTHS_TR = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-	const CHART_W = 760;
-	const CHART_H = 220;
-	const PAD = { top: 20, right: 16, bottom: 44, left: 46 };
-	const PLOT_W = CHART_W - PAD.left - PAD.right;
-	const PLOT_H = CHART_H - PAD.top - PAD.bottom;
-	const BASE_Y = PAD.top + PLOT_H;
 
 	// Props
-	let { items = [], mode = 'new' }: { items: any[]; mode: 'new' | 'cancelled' } = $props();
+	let {
+		items = [],
+		mode = 'new',
+		monthly = [],
+		capacity = 0,
+	}: {
+		items: any[];
+		mode: 'new' | 'cancelled';
+		monthly: any[];
+		capacity: number;
+	} = $props();
 
-	// Türetilmiş — ay kovaları (oda-gece + misafir-gece + giriş adedi)
+	// Türetilmiş
 	let buckets = $derived(computeBuckets(items));
-	let maxNights = $derived(Math.max(1, ...buckets.map((b) => b.nights)));
+	let rows = $derived(buildRows(buckets, monthly, capacity, mode));
 	let totalNights = $derived(buckets.reduce((s, b) => s + b.nights, 0));
 	let totalPax = $derived(buckets.reduce((s, b) => s + b.pax, 0));
-	let slot = $derived(buckets.length ? PLOT_W / buckets.length : PLOT_W);
-	let barW = $derived(Math.min(slot * 0.6, 56));
-	let yTicks = $derived([0, 0.5, 1].map((f) => ({ v: Math.round(maxNights * f), y: BASE_Y - f * PLOT_H })));
-	let barFill = $derived(mode === 'new' ? 'var(--color-teal-700)' : 'var(--color-red-500)');
-	let valFill = $derived(mode === 'new' ? 'var(--color-teal-800)' : 'var(--color-red-600)');
 
 	// Yardımcı fonksiyonlar
 	function keyOf(d: Date): string {
 		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 	}
-	function labelOf(d: Date): string {
-		return `${MONTHS_TR[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`;
+	function labelFromKey(key: string): string {
+		const [y, m] = key.split('-').map(Number);
+		return `${MONTHS_TR[m - 1]} ${String(y).slice(2)}`;
+	}
+	function fmtInt(n: number): string {
+		return Math.round(n).toLocaleString('tr-TR');
 	}
 	function computeBuckets(list: any[]) {
-		const map = new Map<string, { key: string; label: string; nights: number; pax: number; count: number }>();
+		const map = new Map<string, { key: string; nights: number; pax: number; count: number }>();
 		for (const it of list) {
 			if (!it.checkin_date || !it.checkout_date) continue;
 			const ci = new Date(it.checkin_date + 'T00:00:00');
@@ -47,7 +54,7 @@
 				const k = keyOf(d);
 				let b = map.get(k);
 				if (!b) {
-					b = { key: k, label: labelOf(d), nights: 0, pax: 0, count: 0 };
+					b = { key: k, nights: 0, pax: 0, count: 0 };
 					map.set(k, b);
 				}
 				b.nights += 1;
@@ -59,59 +66,107 @@
 		}
 		return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
 	}
-	function barX(i: number): number {
-		return PAD.left + slot * i + (slot - barW) / 2;
-	}
-	function barH(v: number): number {
-		return (v / maxNights) * PLOT_H;
+	function buildRows(bkts: any[], base: any[], cap: number, m: 'new' | 'cancelled') {
+		const baseMap = new Map((base || []).map((row: any) => [row.month, row]));
+		return bkts.map((b) => {
+			const [y, mo] = b.key.split('-').map(Number);
+			const daysInMonth = new Date(y, mo, 0).getDate();
+			const bm = baseMap.get(b.key);
+			const capacityNights = bm?.capacity_nights ?? cap * daysInMonth;
+			const occRoomNights = bm?.room_nights ?? 0;
+			const occPct = capacityNights > 0 ? (occRoomNights / capacityNights) * 100 : 0;
+			const todayPct = capacityNights > 0 ? (b.nights / capacityNights) * 100 : 0;
+			let navyW: number;
+			let tipW: number;
+			if (m === 'new') {
+				// Bugünün katkısı mevcut doluluğun UCUNDA (içinde) vurgulanır
+				tipW = Math.min(todayPct, Math.max(occPct, todayPct));
+				navyW = Math.max(occPct - todayPct, 0);
+			} else {
+				// İptaller mevcut dolulukta değil → çubuğun ardına (kayıp) eklenir
+				navyW = occPct;
+				tipW = Math.min(todayPct, Math.max(100 - occPct, 0));
+			}
+			return {
+				key: b.key,
+				label: labelFromKey(b.key),
+				occPct,
+				occRoomNights,
+				capacityNights,
+				todayNights: b.nights,
+				todayPax: b.pax,
+				count: b.count,
+				navyW: Math.min(navyW, 100),
+				tipW: Math.min(tipW, 100),
+			};
+		});
 	}
 </script>
 
 <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
-	<div class="flex items-center justify-between mb-1.5">
+	<div class="flex items-center justify-between mb-1">
 		<div class="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
 			<BarChart3 size={16} class={mode === 'new' ? 'text-teal-700' : 'text-red-600'} />
 			Aylık Doluluk Etkisi
 		</div>
 		<span class="text-xs text-gray-500 tabular-nums">
-			{totalNights.toLocaleString('tr-TR')} oda-gece · {buckets.length} ay
+			{fmtInt(totalNights)} oda-gece · {rows.length} ay
 		</span>
 	</div>
 
-	{#if buckets.length === 0}
+	{#if rows.length === 0}
 		<p class="py-6 text-center text-gray-500 text-xs">Konaklama tarihi olan rezervasyon bulunmuyor.</p>
 	{:else}
-		<svg viewBox="0 0 {CHART_W} {CHART_H}" width="100%" class="block" role="img"
-			aria-label="Aylık oda-gece dağılımı grafiği">
-			<!-- Y ekseni ızgara + etiket -->
-			{#each yTicks as t}
-				<line x1={PAD.left} y1={t.y} x2={CHART_W - PAD.right} y2={t.y}
-					stroke="var(--color-gray-200)" stroke-width="1" />
-				<text x={PAD.left - 8} y={t.y + 4} text-anchor="end"
-					font-size="10" fill="var(--color-gray-500)">{t.v}</text>
+		<!-- Lejant -->
+		<div class="flex items-center gap-4 text-[11px] text-gray-500 mb-2.5">
+			<span class="inline-flex items-center gap-1.5">
+				<span class="w-2.5 h-2.5 rounded-sm bg-teal-700"></span> Mevcut doluluk
+			</span>
+			<span class="inline-flex items-center gap-1.5">
+				<span class="w-2.5 h-2.5 rounded-sm {mode === 'new' ? 'bg-brass' : 'bg-red-500'}"></span>
+				{mode === 'new' ? 'Bu günün katkısı' : 'Bu gün iptal (kayıp)'}
+			</span>
+		</div>
+
+		<!-- Bar'lar -->
+		<div class="space-y-2">
+			{#each rows as r (r.key)}
+				<div class="flex items-center gap-2 sm:gap-3">
+					<div class="w-12 sm:w-14 shrink-0 text-xs text-gray-600 font-medium tabular-nums">{r.label}</div>
+					<div
+						class="flex-1 min-w-0 bg-gray-100 rounded-full h-7 relative overflow-hidden flex"
+						title="{r.label}: mevcut %{r.occPct.toFixed(0)} ({fmtInt(r.occRoomNights)}/{fmtInt(r.capacityNights)} oda-gece) · bu gün {mode === 'new' ? '+' : '−'}{fmtInt(r.todayNights)} oda-gece ({r.count} rez)"
+					>
+						<div class="h-full bg-teal-700" style="width: {r.navyW.toFixed(1)}%"></div>
+						<div class="h-full {mode === 'new' ? 'bg-brass' : 'bg-red-500'}" style="width: {r.tipW.toFixed(1)}%"></div>
+						<div class="absolute inset-0 flex items-center px-2.5 text-[11px]">
+							<span
+								class="font-medium truncate"
+								class:text-white={r.occPct >= 25}
+								class:text-gray-700={r.occPct < 25}
+							>{fmtInt(r.occRoomNights)} dolu</span>
+						</div>
+					</div>
+					<div class="w-20 sm:w-24 shrink-0 text-right leading-tight">
+						<div class="text-xs font-semibold text-gray-700 tabular-nums">%{r.occPct.toFixed(0)}</div>
+						<div class="text-[11px] font-semibold tabular-nums {mode === 'new' ? 'text-brass-dark' : 'text-red-600'}">
+							{mode === 'new' ? '+' : '−'}{fmtInt(r.todayNights)} gece
+						</div>
+					</div>
+				</div>
 			{/each}
+		</div>
 
-			<!-- Bar'lar -->
-			{#each buckets as b, i (b.key)}
-				<g>
-					<title>{b.label}: {b.nights} oda-gece · {b.pax} misafir-gece · {b.count} giriş</title>
-					<rect x={barX(i)} y={BASE_Y - barH(b.nights)} width={barW} height={barH(b.nights)}
-						rx="3" fill={barFill} />
-					<text x={barX(i) + barW / 2} y={BASE_Y - barH(b.nights) - 5} text-anchor="middle"
-						font-size="10" font-weight="600" fill={valFill}>{b.nights}</text>
-					<text x={barX(i) + barW / 2} y={BASE_Y + 15} text-anchor="middle"
-						font-size="10" fill="var(--color-gray-500)">{b.label}</text>
-				</g>
-			{/each}
-
-			<!-- Taban çizgisi -->
-			<line x1={PAD.left} y1={BASE_Y} x2={CHART_W - PAD.right} y2={BASE_Y}
-				stroke="var(--color-gray-300)" stroke-width="1" />
-		</svg>
-
-		<p class="text-[11px] text-gray-500 mt-1">
-			Bu günkü {mode === 'new' ? 'gelen' : 'iptal edilen'} rezervasyonların konaklama tarihlerine göre
-			ay ay oda-gece dağılımı ({totalPax.toLocaleString('tr-TR')} misafir-gece).
+		<p class="text-[11px] text-gray-500 mt-2.5">
+			Lacivert çubuk otelin o ayki mevcut doluluğu; uçtaki
+			<span class="font-medium {mode === 'new' ? 'text-brass-dark' : 'text-red-600'}">
+				{mode === 'new' ? 'pirinç' : 'kırmızı'}
+			</span>
+			kısım bu günkü {mode === 'new' ? 'gelen' : 'iptal edilen'} rezervasyonların oda-gece etkisidir
+			({totalPax.toLocaleString('tr-TR')} misafir-gece).
+			{#if capacity === 0}
+				<span class="block mt-0.5 text-amber-600">Doluluk taban verisi yüklenemedi — yalnızca bu günün katkısı gösteriliyor.</span>
+			{/if}
 		</p>
 	{/if}
 </div>

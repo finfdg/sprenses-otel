@@ -270,7 +270,13 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
     (tutar-doğrulama: peşinat + 8 taksit = brüt prim ✓). Peşinat/taksit ayrımı `notes`'ta; `vendor_id=NULL`
     (cari senkronu yok — Sedna 320 carisiyle ilgisiz). `payment_day=18`/`start_month=3` gerçeğe uygun set
     edildi ama **girişler elle** (regen etmeyin — peşinat ayrı tutar + Aralık girişi olmadığından
-    `generate_entries` bozardı). Tüm girişler `pending` (henüz ödenmedi).
+    `generate_entries` bozardı).
+    - **Ödeme mutabakatı (Yapı Kredi TL, hesap 3):** Peşinat + 1. Taksit **20.04.2026 toplu**
+      ₺906.400,22 (banka tx 4779, açıklama "…01151205 ALLIANZ SİGORTA") · 2. Taksit 18.05 (tx 5146) ·
+      3. Taksit 18.06 (tx 5590). Bu 4 giriş "Ödendi" işaretlendi ve **banka hareketleriyle `match()`
+      edildi → recurring FE'leri `is_matched=True` (GİZLİ), banka bacağı görünür** (çift-sayım yok,
+      ödenen-çek deseni). Toplu ödemede iki giriş (peşinat+1.taksit) TEK banka tx'ine (4779) eşlendi
+      (2→1). 4.–8. Taksit (18.07→18.11) `pending`, nakit-akım projeksiyonunda görünür.
 
 ### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
 
