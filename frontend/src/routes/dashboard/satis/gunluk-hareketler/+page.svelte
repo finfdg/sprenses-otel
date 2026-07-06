@@ -6,6 +6,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import MonthlyOccupancyChart from '$lib/components/MonthlyOccupancyChart.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
@@ -398,6 +399,9 @@
 	{:else}
 		<div class="text-xs text-gray-500 mb-2">
 			{detailItems.length} rezervasyon · toplam {eur2.format(detailItems.reduce((s, i) => s + (i.eur || 0), 0))}
+		</div>
+		<div class="mb-3">
+			<MonthlyOccupancyChart items={detailItems} mode={detailTab} />
 		</div>
 		<div class="max-h-[60vh] overflow-y-auto overflow-x-auto -mx-1">
 			<table class="w-full text-xs sm:text-sm">

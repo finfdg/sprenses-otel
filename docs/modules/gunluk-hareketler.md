@@ -87,6 +87,14 @@ Kanonik liste iskeleti (tasarım sistemi): PageHeader → StatCard×4 → filtre
   **# (sıra no, `{#each}` index+1)** · Voucher · Acente (sonradan-iptal rozeti burada) · Ülke · Oda · Pansiyon · Konaklama
   (giriş→çıkış, gece; iptallerde "Kayıt: … · girişe X gün kala iptal") · Pax · Tutar €
   (EUR-dışı ham tutar alt satırda) — misafir adı kolonu bilinçli olarak yoktur
+- **Aylık Doluluk Etkisi grafiği** (`MonthlyOccupancyChart.svelte`, modal tablosunun üstünde):
+  o günkü rezervasyonlar konaklama tarihlerine (`checkin_date`→`checkout_date`) göre ay ay
+  **oda-gece** (room-nights) olarak dağıtılıp bar grafiğinde gösterilir. Her gece ilgili ayın
+  kovasına 1 eklenir; misafir-gece (`pax×gece`) ve giriş adedi hover `<title>` ile verilir.
+  Renk sekmeye bağlı: gelen = lacivert (`--color-teal-700`), iptal = kırmızı (`--color-red-500`).
+  **Frontend-only hesap** (ek endpoint yok) — `detailItems`'tan türetilir; sekme değişince
+  (`mode={detailTab}`) grafik de gelen↔iptal etkisine döner. Inline SVG renkleri tema takip
+  etsin diye `@theme` CSS değişkenlerini (`var(--color-*)`) kullanır, sabit hex değil.
 - **Durumlar:** loading `TableSkeleton` · Sedna yok / hareket yok `EmptyState` · hata `console.error` + toast
 - Tutar formatı: tabloda `Intl` EUR 0 hane (`tabular-nums`), modalda 2 hane
 
