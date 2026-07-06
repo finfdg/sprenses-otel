@@ -164,6 +164,22 @@ Modül tipine göre seçilir ama modül içinde tutarlı kalır:
 - Kart içinde: en önemli 3-4 alan + aksiyon butonları
 - Tailwind: `md:table` / `max-md:grid` veya ayrı template bloku
 
+### Mobil Belge Kilidi — `app-shell-lock` (2026-07-06, Topbar takılma düzeltmesi)
+- **Belirti:** iOS'ta (Safari sekmesi + PWA standalone) Topbar bazen sayfayla yukarı kayıp
+  ekran dışında **takılı** kalıyordu. İki kök neden: (1) kök layout `min-h-screen` (100vh =
+  iOS büyük viewport) > dashboard kabuğu `h-dvh` → belge araç-çubuğu farkı kadar kaydırılabilir;
+  iç scroller ucundaki rubber-band belgeye zincirlenir. (2) iOS klavyesi input odağında
+  `overflow-hidden`'a RAĞMEN belgeyi kaydırır ve kapanınca geri almaz.
+- **Mekanizma:** `dashboard/+layout.svelte` onMount'ta `<html>`'e **`app-shell-lock`** sınıfı
+  ekler (app.css: `height:100%; overflow:hidden; overscroll-behavior:none`) + klavye kapanınca
+  (`visualViewport resize` + `focusout`, event-driven — polling DEĞİL) odak form alanında değilse
+  `window.scrollTo(0,0)` ile ofseti sıfırlar. Cleanup'ta ikisi de kaldırılır.
+- **Kural:** Dashboard içi sayfalar belgeyi (window/document) KAYDIRMAMALI — scroll yalnız iç
+  `<main>` / container'larda. `scrollIntoView` kullanan sayfa, çağrının kullanıcı eylemiyle
+  tetiklendiğinden emin olmalı (WS event'i ile eylemsiz kaydırma YASAK — bankalar sayfasındaki
+  `bank_statement_uploaded` handler'ı yalnız **yükleyenin kendi sekmesinde** hesabı açar+kaydırır,
+  `uploader_id === authState.user.id` guard'ı). Login/kiosk (`/devam`) doğal akışta kalır (kilit yok).
+
 ## 4. CRUD & Formlar
 
 ### Modal (Modal.svelte)

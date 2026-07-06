@@ -131,6 +131,20 @@ input[type="date"] {
 	}
 }
 
+/* Dashboard uygulama kabuğu — belge (html/body) scroll kilidi.
+   iOS Safari'de kök layout'un min-h-screen'i (100vh = büyük viewport) dashboard
+   kabuğunun h-dvh'sinden büyük olduğundan belge araç-çubuğu farkı kadar
+   kaydırılabiliyor; iç scroller ucundaki rubber-band de belgeye zincirleniyordu.
+   Belge kayınca statik Topbar ekran dışında takılı kalıyordu (2026-07-06 bulgusu).
+   Sınıf yalnız dashboard'dayken eklenir (dashboard/+layout.svelte onMount);
+   login / kiosk (/devam) gibi doğal-akışlı sayfalar etkilenmez. */
+html.app-shell-lock,
+html.app-shell-lock body {
+	height: 100%;
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+
 /* iOS notch / safe-area — viewport-fit=cover ile birlikte içerik altına uzar
    `.safe-top` / `.safe-bottom` / `.safe-x` sınıflarıyla padding eklenir */
 .safe-top {

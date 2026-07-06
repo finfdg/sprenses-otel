@@ -3,7 +3,7 @@
 	import type { LatestRates } from '$lib/types/exchange-rate';
 	import { page } from '$app/stores';
 	import { api } from '$lib/api';
-	import { hasPermission } from '$lib/stores/auth.svelte';
+	import { hasPermission, authState } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -470,10 +470,14 @@
 	$effect(() => {
 		const unsubscribe = onWsEvent('bank_statement_uploaded', (data: any) => {
 			const accountId = data.account_id;
+			// Hesabı otomatik aç + kaydır YALNIZ yükleyenin kendi sekmesinde —
+			// başkasının yüklemesi bu kullanıcının sayfasını eylemsiz kaydırmasın
+			// (mobilde belge/scroll kayması bulgusu, 2026-07-06). Eski event'te
+			// uploader_id yoksa güvenli tarafta kal: kaydırma yapma, yalnız yenile.
+			const isUploader = data.uploader_id != null && data.uploader_id === authState.user?.id;
 
-			// Hesap listesini yenile ve ilgili hesabı aç
 			loadAccounts().then(() => {
-				if (accountId) {
+				if (accountId && isUploader) {
 					openAccountById(accountId);
 				}
 			});

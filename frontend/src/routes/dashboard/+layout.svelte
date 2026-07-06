@@ -36,6 +36,31 @@
 	});
 
 	onMount(() => {
+		// ── Belge kilidi + iOS klavye ofset telafisi (Topbar takılma düzeltmesi) ──
+		// (1) html/body kilidi: iOS Safari'de belge kaydırılabiliyor (kök min-h-screen
+		//     100vh > h-dvh taşması + rubber-band chaining) → Topbar belgeyle çıkıp
+		//     takılı kalıyordu. CSS: app.css `.app-shell-lock`.
+		document.documentElement.classList.add('app-shell-lock');
+		// (2) iOS klavyesi input odağında overflow-hidden'a RAĞMEN belgeyi kaydırır
+		//     ve kapanınca çoğu zaman geri almaz (PWA standalone dahil). Klavye
+		//     kapanışını visualViewport resize + focusout ile yakala (event-driven —
+		//     polling değil), odak bir form alanında DEĞİLSE ofseti sıfırla.
+		const resetViewportScroll = () => {
+			const a = document.activeElement;
+			if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; // yazma sürüyor
+			if (window.scrollY !== 0 || (window.visualViewport?.offsetTop ?? 0) > 0) {
+				window.scrollTo(0, 0);
+			}
+		};
+		let focusoutTimer: ReturnType<typeof setTimeout> | undefined;
+		const onFocusOut = () => {
+			// iOS klavye kapanış animasyonunun bitmesini bekle
+			clearTimeout(focusoutTimer);
+			focusoutTimer = setTimeout(resetViewportScroll, 250);
+		};
+		window.visualViewport?.addEventListener('resize', resetViewportScroll);
+		window.addEventListener('focusout', onFocusOut);
+
 		if (!loadAuth()) {
 			goto('/');
 		} else {
@@ -129,6 +154,10 @@
 		document.addEventListener('keydown', unlock, { once: true });
 
 		return () => {
+			document.documentElement.classList.remove('app-shell-lock');
+			window.visualViewport?.removeEventListener('resize', resetViewportScroll);
+			window.removeEventListener('focusout', onFocusOut);
+			clearTimeout(focusoutTimer);
 			document.removeEventListener('click', unlock);
 			document.removeEventListener('keydown', unlock);
 			wsUnsubscribers.forEach(unsub => unsub());

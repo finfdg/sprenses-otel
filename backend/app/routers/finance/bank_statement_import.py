@@ -376,6 +376,9 @@ async def _post_upload_processing(
             "new_transactions": result.get("new_transactions"),
             "skipped_transactions": result.get("skipped_transactions"),
             "uploader_name": f"{current_user.first_name} {current_user.last_name}",
+            # Frontend guard'ı: hesabı otomatik aç+kaydır YALNIZ yükleyenin sekmesinde
+            # yapılır (başkasının yüklemesi izleyicinin sayfasını eylemsiz kaydırmasın)
+            "uploader_id": current_user.id,
         }
         await _notify_bank_upload(db, viewer_ids, ws_event, current_user.id, background_tasks)
 
