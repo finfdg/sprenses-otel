@@ -282,59 +282,6 @@ class TestTAccountItemOrdering:
         assert dates[0] == d_early.isoformat()  # projeksiyon kronolojik yerine oturdu
 
 
-class TestTAccountCurve:
-    """Kümülatif nakit akışı eğrisi (`curve`) — günlük net'in (gelir−gider) koşan toplamı,
-    kronolojik sıralı, dönem net_eur'unda biter (grafik dönem/offset ile değişsin diye)."""
-
-    def test_curve_sorted_and_ends_at_net(self, client, auth_headers, db):
-        _reset_eur_rates(db)
-        _mk_rate(db, MIN_DATE, 50)
-        today = date.today()
-        m1 = date(today.year, today.month, min(10, 28))
-        m2 = date(today.year, today.month, min(20, 28))
-        _mk_fe(db, direction=1, amount=10000, event_date=m1, is_realized=True, category_name="T-CURVE", description="G1")
-        _mk_fe(db, direction=-1, amount=4000, event_date=m2, is_realized=True, category_name="T-CURVE", description="C2")
-        db.commit()
-
-        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
-        curve = body["curve"]
-        assert isinstance(curve, list) and len(curve) >= 2
-        dates = [c["date"] for c in curve]
-        assert dates == sorted(dates)                              # kronolojik
-        assert abs(curve[-1]["cum"] - body["net_eur"]) < 0.5       # net'te biter
-        assert m1.isoformat() in dates and m2.isoformat() in dates
-
-    def test_curve_excludes_overdue_unpaid_like_totals(self, client, auth_headers, db):
-        """Eğri, T-Hesap'a girmeyen vadesi-geçmiş ödenmemiş gideri de DIŞLAR (net ile tutarlı)."""
-        _reset_eur_rates(db)
-        today = date.today()
-        mid_last = (today.replace(day=1) - timedelta(days=1)).replace(day=15)
-        _mk_rate(db, mid_last, 40.0)
-        _mk_fe(db, event_date=mid_last, direction=-1, is_realized=False,
-               source_type="vendor_payment", amount=5000, description="ODENMEMIS")
-        _mk_fe(db, event_date=mid_last, direction=-1, is_realized=True,
-               source_type="bank", amount=3000, description="GERCEKLESEN")
-        db.commit()
-        body = client.get(f"{URL}?period=monthly&offset=-1", headers=auth_headers).json()
-        # Yalnız gerçekleşen −75 EUR (3000/40) eğriye girer; ödenmemiş hariç → cum == net
-        assert abs(body["curve"][-1]["cum"] - body["net_eur"]) < 0.5
-
-    def test_start_balance_anchor_past_period(self, client, auth_headers, db):
-        """Bankadaki-nakit runway anchor'ı: tamamen geçmiş dönemde cum_today = tüm net →
-        start_balance_eur = start_eur − net_eur (dönem sonu bakiyesi = bugünkü nakit)."""
-        _reset_eur_rates(db)
-        _mk_rate(db, MIN_DATE, 50)
-        today = date.today()
-        mid_last = (today.replace(day=1) - timedelta(days=1)).replace(day=15)
-        _mk_rate(db, mid_last, 50)
-        _mk_fe(db, event_date=mid_last, direction=1, is_realized=True, amount=5000,
-               category_name="T-ANCHOR", description="X")
-        db.commit()
-        b = client.get(f"{URL}?period=monthly&offset=-1", headers=auth_headers).json()
-        assert "start_eur" in b and "start_balance_eur" in b
-        assert abs(b["start_balance_eur"] - (b["start_eur"] - b["net_eur"])) < 0.5
-
-
 class TestTAccountEurConversion:
     def test_try_amount_divided_by_rate(self, client, auth_headers, db):
         """53 kur → 5300 TRY = 100 EUR; EUR kalem aynen; amount_try öncelikli."""

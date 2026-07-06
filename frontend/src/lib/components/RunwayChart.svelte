@@ -1,21 +1,17 @@
 <!--
 	RunwayChart.svelte — Bankadaki nakit "runway" bakiye eğrisi (EUR), DÖNEM-DUYARLI.
 
-	Panel Nakit Akım kartının ÜSTÜNDE. Veri T-Hesap yanıtından gelir → dönem sekmesi (günlük/
-	haftalık/aylık/yıllık) ve ileri/geri gezinmeyle BİRLİKTE değişir. Eğri MUTLAK banka bakiyesini
-	gösterir: balance(gün) = `start_balance_eur` (dönem başı bakiye) + `cum(gün)` (dönem içi kümülatif
-	net). Dönem bugünü içeriyorsa balance(bugün) = `start_eur` (bugünkü banka nakdi) → gerçek runway;
-	bakiye 0 çizgisinin altına düşerse "negatife düşüyor" uyarısı. (2026-07-06: eski sabit "bu ay"
-	runway → dönem-duyarlı T-Hesap eğrisi; kullanıcı isteğiyle bankadaki-nakit hissi geri getirildi.)
+	Panel Nakit Akım kartının ÜSTÜNDE. Veri `eur_balances.daily`'den gelir (Nakit Akım sayfasıyla
+	AYNI kaynak → iki görünüm tutarlı; GERÇEK günlük banka bakiyesi: geçmiş=fiili, gelecek=projeksiyon).
+	Seçili dönemin (`startDate..endDate`) günlük bakiyeleri dilimlenip çizilir → dönem sekmesi ve
+	ileri/geri gezinmeyle değişir. Bakiye 0 çizgisinin altına düşerse "negatife düşüyor" uyarısı.
+	(2026-07-06: önce T-Hesap akışından geriye-hesaplanıyordu → geçmiş bakiyeler yanlış çıkıyordu
+	[1 Tem gerçek €6.822 iken −€14.916 gösteriyordu]; eur_balances gerçek bakiyeye geçildi.)
 -->
 <script lang="ts">
-	type CurvePoint = { date: string; cum: number };
-	type ChartData = {
-		start_date: string; end_date: string;
-		net_eur: number; curve?: CurvePoint[];
-		start_eur?: number; start_balance_eur?: number;
-	};
-	let { data }: { data: ChartData | null } = $props();
+	type DayBal = { balance_eur: number };
+	type Balances = { daily?: Record<string, DayBal>; total_balance_eur?: number } | null;
+	let { balances, startDate, endDate }: { balances: Balances; startDate?: string; endDate?: string } = $props();
 
 	const MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	function fmtEur(n: number): string {
@@ -32,16 +28,18 @@
 	let hoverIdx = $state<number | null>(null);
 
 	const proj = $derived.by(() => {
-		if (!data || !data.curve || data.curve.length === 0) return null;
-		const startBal = data.start_balance_eur ?? 0;
-		const startT = new Date(data.start_date + 'T00:00:00').getTime();
-		const endT = new Date(data.end_date + 'T00:00:00').getTime();
+		const daily = balances?.daily;
+		if (!daily || !startDate || !endDate) return null;
+		// Seçili dönem içindeki hareketli günlerin GERÇEK banka bakiyeleri (tarih sıralı)
+		const pts0 = Object.keys(daily)
+			.filter((d) => d >= startDate && d <= endDate)
+			.sort()
+			.map((d) => ({ t: new Date(d + 'T00:00:00').getTime(), bal: daily[d].balance_eur, date: d }));
+		if (pts0.length === 0) return null;
+
+		const startT = new Date(startDate + 'T00:00:00').getTime();
+		const endT = new Date(endDate + 'T00:00:00').getTime();
 		const spanMs = Math.max(1, endT - startT);
-		// MUTLAK bakiye noktaları: dönem başı (start_balance) + her hareketli günde start_balance + cum
-		const pts0 = [
-			{ t: startT, bal: startBal, date: data.start_date },
-			...data.curve.map((p) => ({ t: new Date(p.date + 'T00:00:00').getTime(), bal: startBal + p.cum, date: p.date })),
-		];
 		const vals = pts0.map((p) => p.bal);
 		const hi = Math.max(0, ...vals);
 		const lo = Math.min(0, ...vals);
@@ -55,10 +53,10 @@
 		for (const p of pts0) if (p.bal < low.bal) low = p;
 		const negative = low.bal < 0;
 		const endBal = pts0[pts0.length - 1].bal;
+		const startEur = balances?.total_balance_eur ?? pts0[pts0.length - 1].bal;
 
 		return {
-			pts, negative,
-			startEur: data.start_eur ?? startBal,
+			pts, negative, startEur,
 			statusText: negative
 				? `${labelIso(low.date)}'de bakiye negatife düşüyor`
 				: 'Dönem boyunca nakit pozitif kalıyor',
@@ -71,8 +69,8 @@
 				date: p.date, bal: p.bal,
 				xPct: (mapX(p.t) / 620) * 100, yPct: (mapY(p.bal) / 120) * 100,
 			})),
-			firstLabel: labelIso(data.start_date),
-			lastLabel: labelIso(data.end_date),
+			firstLabel: labelIso(startDate),
+			lastLabel: labelIso(endDate),
 		};
 	});
 
@@ -94,10 +92,10 @@
 	}
 </script>
 
-{#if !data}
+{#if !balances}
 	<div class="h-[168px] bg-gray-100 rounded-2xl animate-pulse mb-4" aria-hidden="true"></div>
 {:else if proj}
-	<!-- Bankadaki nakit runway — mutlak bakiye eğrisi (seçili dönem) -->
+	<!-- Bankadaki nakit runway — gerçek günlük banka bakiyesi (seçili dönem) -->
 	<div class="rounded-2xl bg-teal-700 px-5 py-4 text-teal-100 mb-4">
 		<div class="flex items-start justify-between gap-4">
 			<div>

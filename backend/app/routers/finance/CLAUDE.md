@@ -77,15 +77,12 @@ runway zaten gömülü `NakitKoruma` ile sağlanıyor. Test: `test_cash_flow_tac
 **T Hesap iyileştirmeleri (2026-07-05, kullanıcı isteği — 4 madde):** (1) **Detay kalemleri kendi
 para biriminde** — `t-account` item'ına `amount_native` + `currency` eklendi; frontend detay satırı
 `fmtNative` ile ₺/€ gösterir (grup/kolon toplamı EUR konsolide KALIR — karışık-para karşılaştırması için).
-(1b) **Bankadaki-nakit runway eğrisi (`curve` + anchor, 2026-07-06)** — yanıta `curve: [{date, cum}]`
-(dönem içi günlük net'in koşan toplamı, kronolojik, `net_eur`'da biter; TÜM dahil olaylardan → `daily_net`,
-item-cap'ten BAĞIMSIZ) + **`start_eur`** (bugünkü toplam banka nakdi, `_compute_start_eur` paket-içi import)
-+ **`start_balance_eur`** (dönem BAŞI bakiye = `start_eur − Σ cum(gün≤bugün)`) eklendi. Panel `RunwayChart`
-**mutlak bakiye** çizer: `balance(gün) = start_balance_eur + cum(gün)`. Dönem bugünü içeriyorsa
-`balance(bugün)=start_eur` → **gerçek runway** (bakiye 0 altına düşerse negatif uyarısı); grafik
-**dönem/offset ile değişir** (eski runway endpoint sabit "bu ay" idi). Geçmiş/gelecek dönemde anchor
-yaklaşıktır (dönemler-arası akış ayrı sorgulanmaz — ana kullanım cari dönem). Vadesi-geçmiş-ödenmemiş
-gider T-Hesap'a girmediğinden eğriye de girmez. Test: `TestTAccountCurve`.
+(1b) **Panel runway grafiği `eur_balances`'tan beslenir (2026-07-06):** Panel `RunwayChart` seçili
+dönemin bankadaki-nakit bakiye eğrisini **`compute_eur_balances().daily`**'den çizer (Nakit Akım
+sayfasıyla AYNI kaynak → iki görünüm tutarlı; geçmiş=gerçek banka bakiyesi, gelecek=projeksiyon),
+`start_date..end_date` ile dilimlenir. **T-Hesap yanıtı BU İŞ İÇİN `curve`/`start_eur`/`start_balance_eur`
+DÖNDÜRMEZ** — ilk denemede T-Hesap kümülatif akışından geriye-hesaplama yapılmıştı ama geçmiş
+bakiyeleri yanlış veriyordu (1 Tem gerçek €6.822 iken −€14.916); o eklemeler geri alındı.
 (2) **Gerçekleşen vs bekleyen** — yanıta `realized_in_eur`/`realized_out_eur` (is_realized=banka vb.);
 kolon başlığında "✓ Gerçekleşen €X · Bekleyen €Y" (toplam DEĞİŞMEZ, salt bilgilendirme; kullanıcının
 "gerçekleşti, kalan bu kadar" isteği).

@@ -21,6 +21,7 @@
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import RunwayChart from '$lib/components/RunwayChart.svelte';
 	import OverdueList from '$lib/components/OverdueList.svelte';
+	import { cashFlowCache, loadCashFlowEurBalances } from '$lib/stores/cashflow.svelte';
 	import { aggregateRows, AGGREGATE_LABELS, type CashRow } from '$lib/utils/cashflow';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
@@ -31,9 +32,7 @@
 		giris: TGroup[]; cikis: TGroup[];
 		total_in_eur: number; total_out_eur: number; net_eur: number;
 		realized_in_eur?: number; realized_out_eur?: number;
-		faaliyet_net_eur?: number; finansman_net_eur?: number;
-		curve?: { date: string; cum: number }[];
-		start_eur?: number; start_balance_eur?: number; skipped_no_rate: number;
+		faaliyet_net_eur?: number; finansman_net_eur?: number; skipped_no_rate: number;
 	};
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
@@ -243,6 +242,8 @@
 
 	onMount(() => {
 		load();
+		// Runway grafiği için gerçek günlük banka bakiyeleri (eur_balances — Nakit Akım sayfasıyla ortak kaynak)
+		if (!cashFlowCache.eurBalances) loadCashFlowEurBalances();
 		// Mobil özet kartı için bugünün Giriş/Çıkış/Net değerleri
 		api.get<TData>('/finance/cash-flow/t-account?period=daily&offset=0')
 			.then((r) => { cache.set('daily:0', r); todaySummary = r; })
@@ -271,8 +272,8 @@
 		</button>
 	</div>
 
-	<!-- Dönem kümülatif nakit akışı grafiği — başlığın hemen altında; dönem/offset ile değişir -->
-	<RunwayChart {data} />
+	<!-- Bankadaki nakit runway grafiği — gerçek günlük bakiye (eur_balances), dönem aralığına göre dilimlenir -->
+	<RunwayChart balances={cashFlowCache.eurBalances} startDate={data?.start_date} endDate={data?.end_date} />
 
 	<!-- MOBİL ÖZET KARTI (kapalıyken) — Bugün için Giriş/Çıkış/Net mini kutuları -->
 	<button type="button" onclick={() => (expanded = true)}

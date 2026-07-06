@@ -204,9 +204,6 @@ def t_account(
     realized = {DIRECTION_INCOME: 0.0, DIRECTION_EXPENSE: 0.0}
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, Optional[float]] = {}
-    # Dönem içi günlük net (gelir − gider, EUR) → kümülatif eğri (grafik). TÜM dahil olaylardan
-    # birikir (item cap'ten BAĞIMSIZ → doğru); dönem/offset değiştikçe eğri de değişir.
-    daily_net: Dict[date_cls, float] = {}
 
     for fe in events:
         if fe.direction not in groups:
@@ -248,7 +245,6 @@ def t_account(
         totals[fe.direction] += eur
         if fe.is_realized:
             realized[fe.direction] += eur
-        daily_net[fe.event_date] = daily_net.get(fe.event_date, 0.0) + fe.direction * eur
 
     # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — dönemi kapsayan
     # son-ödeme kalemleri ÇIKIŞ "KK Borç Ödemeleri" grubuna eklenir → panel/nakit akım tablosu +
@@ -282,26 +278,6 @@ def t_account(
                 "is_realized": False,  # projeksiyon = her zaman bekleyen rezerv
             })
         totals[DIRECTION_EXPENSE] += eur
-        daily_net[due] = daily_net.get(due, 0.0) + DIRECTION_EXPENSE * eur
-
-    # Kümülatif nakit akışı eğrisi — dönem başından itibaren günlük net'in koşan toplamı (EUR).
-    # 0'dan başlar, dönem sonunda net_eur'a ulaşır → net bandıyla tutarlı. Yalnız hareketli günler.
-    curve = []
-    _cum = 0.0
-    for d in sorted(daily_net.keys()):
-        _cum += daily_net[d]
-        curve.append({"date": d.isoformat(), "cum": round(_cum, 2)})
-
-    # Bankadaki nakit "runway" anchor'ı: frontend mutlak bakiye eğrisini
-    # balance(gün) = start_balance_eur + cum(gün) ile çizer. `start_eur` = BUGÜNKÜ toplam banka
-    # nakdi (EUR); `start_balance_eur` = dönem BAŞINDAKİ bakiye = start_eur − (dönem başından bugüne
-    # dahil net akış). Böylece dönem bugünü içeriyorsa balance(bugün)=start_eur (gerçek runway).
-    # Dönem tamamen geçmiş/gelecekse cum_today 0 veya net'e sabitlenir → yaklaşık (dönemler-arası
-    # akış ayrı sorgulanmaz; ana kullanım cari dönem). (_compute_start_eur paket-içi import.)
-    from .runway import _compute_start_eur
-    start_eur = _compute_start_eur(db)
-    cum_today = sum(v for d, v in daily_net.items() if d <= today)
-    start_balance_eur = round(start_eur - cum_today, 2)
 
     def _finalize(direction: int) -> list:
         result = list(groups[direction].values())
@@ -343,8 +319,5 @@ def t_account(
         "net_eur": round(total_in - total_out, 2),
         "faaliyet_net_eur": faaliyet_net,
         "finansman_net_eur": finansman_net,
-        "curve": curve,
-        "start_eur": start_eur,
-        "start_balance_eur": start_balance_eur,
         "skipped_no_rate": skipped_no_rate,
     }
