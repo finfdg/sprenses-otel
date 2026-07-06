@@ -83,8 +83,9 @@ kolon başlığında "✓ Gerçekleşen €X · Bekleyen €Y" (toplam DEĞİŞM
 **Bekleyen/Gerçekleşen SEGMENTİ + Tarih görünümü (2026-07-06, tasarım "Nakit Akım T-Hesap.dc.html"):**
 Her sütunda İKİ bağımsız sütun-içi kontrol (backend additive — grup `realized_eur`/`realized_count`
 sayaçları + item `is_realized`; kolon toplamları/Net DEĞİŞMEZ):
-- **Segment (Bekleyen | ✓ Gerçekleşen):** iki-satırlı segment (etiket + EUR tutar); **aynı liste
-  YERİNDE değişir** (ayrı panel açılmaz). Varsayılan **Bekleyen**; dönem/gezinme değişince sıfırlanır.
+- **Segment (✓ Gerçekleşen | Bekleyen):** iki-satırlı segment (etiket + EUR tutar); **aynı liste
+  YERİNDE değişir** (ayrı panel açılmaz). Gerçekleşen solda, Bekleyen sağda. Varsayılan aktif **Bekleyen**;
+  dönem/gezinme değişince sıfırlanır.
   Bölme SAYAÇLARDAN yapılır (`catGroups`) — items `MAX_ITEMS_PER_GROUP`=100 ile kırpık olabildiğinden
   itemlardan sayma yanlış olur. Ödenen kredi taksiti gibi realized kalemler varsayılan (bekleyen) listeyi şişirmez.
 - **Tarih görünümü:** sütun başlığı (takvim ikonlu) toggle — kategori-gruplama ↔ **gün-gruplama** arası.

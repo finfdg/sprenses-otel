@@ -376,18 +376,18 @@
 						<span class="tabular-nums text-lg sm:text-xl font-semibold {col.totalCls}">{fmtEur(col.side === 'giris' ? data.total_in_eur : data.total_out_eur)}</span>
 					</button>
 
-					<!-- SEGMENT: Bekleyen | ✓ Gerçekleşen (yerinde swap; ayrı panel yok) -->
+					<!-- SEGMENT: ✓ Gerçekleşen | Bekleyen (yerinde swap; ayrı panel yok) -->
 					{#if st.hasData}
 						<div role="tablist" aria-label="{col.title} durum" class="flex gap-1 bg-gray-100 rounded-lg p-1 mx-2 mt-1 mb-2">
-							<button type="button" role="tab" aria-selected={!realized} onclick={() => setSegment(col.side, 'bekleyen')}
-								class="touch-target flex-1 flex flex-col items-start gap-0 px-2.5 py-1 rounded-md cursor-pointer transition-colors {!realized ? 'bg-white shadow-sm' : 'hover:bg-white/50'}">
-								<span class="text-[9.5px] uppercase tracking-wide {!realized ? 'text-gray-700' : 'text-gray-500'}">Bekleyen</span>
-								<span class="tabular-nums text-[12.5px] font-semibold {!realized ? 'text-gray-900' : 'text-gray-500'}">{fmtEur(st.pending)}</span>
-							</button>
 							<button type="button" role="tab" aria-selected={realized} onclick={() => setSegment(col.side, 'gerceklesen')}
 								class="touch-target flex-1 flex flex-col items-start gap-0 px-2.5 py-1 rounded-md cursor-pointer transition-colors {realized ? 'bg-white shadow-sm' : 'hover:bg-white/50'}">
 								<span class="text-[9.5px] uppercase tracking-wide text-emerald-700">✓ Gerçekleşen</span>
 								<span class="tabular-nums text-[12.5px] font-semibold text-emerald-700">{fmtEur(st.realized)}</span>
+							</button>
+							<button type="button" role="tab" aria-selected={!realized} onclick={() => setSegment(col.side, 'bekleyen')}
+								class="touch-target flex-1 flex flex-col items-start gap-0 px-2.5 py-1 rounded-md cursor-pointer transition-colors {!realized ? 'bg-white shadow-sm' : 'hover:bg-white/50'}">
+								<span class="text-[9.5px] uppercase tracking-wide {!realized ? 'text-gray-700' : 'text-gray-500'}">Bekleyen</span>
+								<span class="tabular-nums text-[12.5px] font-semibold {!realized ? 'text-gray-900' : 'text-gray-500'}">{fmtEur(st.pending)}</span>
 							</button>
 						</div>
 					{/if}
