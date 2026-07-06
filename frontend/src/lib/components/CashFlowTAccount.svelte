@@ -80,9 +80,6 @@
 	function fmtEur(n: number): string {
 		return '€' + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
 	}
-	function signedEur(n: number): string {
-		return (n < 0 ? '−' : '+') + fmtEur(Math.abs(n));
-	}
 	// Kalem kendi para biriminde (detay satırı) — grup/kolon toplamı EUR kalır
 	const CUR_SYM: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
 	function fmtNative(n: number, currency: string): string {
@@ -329,9 +326,6 @@
 					class="w-full flex items-center gap-2 px-2 py-2 border-t border-gray-100 hover:bg-gray-50 cursor-pointer text-left touch-target">
 					<ChevronDown size={13} class="shrink-0 text-gray-500 transition-transform {open[k] ? '' : '-rotate-90'}" />
 					<span class="text-[13px] font-semibold text-gray-900 truncate">{g.label}</span>
-					{#if g.section === 'finansman'}
-						<span class="shrink-0 text-[9px] font-medium uppercase tracking-wide text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 py-0.5">Finansman</span>
-					{/if}
 					<span class="text-[11px] text-gray-500 shrink-0">{g.item_count} işlem</span>
 					<span class="ml-auto tabular-nums text-[13px] text-gray-800 shrink-0">{fmtEur(g.total_eur)}</span>
 				</button>
@@ -435,26 +429,12 @@
 			{/each}
 		</div>
 
-		<!-- Net bant + Faaliyet/Finansman neti -->
-		<div class="mt-3 rounded-xl bg-teal-700 text-white px-4 py-3">
-			<div class="flex items-center justify-between gap-3">
-				<span class="text-xs sm:text-sm text-gray-200">Net Nakit Akım · {periodLabel}</span>
-				<span class="tabular-nums text-lg font-semibold {data.net_eur >= 0 ? 'text-emerald-300' : 'text-red-300'}">
-					{data.net_eur >= 0 ? '+' : '−'}{fmtEur(Math.abs(data.net_eur))}
-				</span>
-			</div>
-			{#if (data.faaliyet_net_eur ?? 0) !== 0 || (data.finansman_net_eur ?? 0) !== 0}
-				<div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 pt-2 border-t border-white/15 text-[11px]">
-					<span class="flex items-center gap-1.5 text-gray-300">
-						<span class="w-2 h-2 rounded-sm bg-emerald-400"></span>Faaliyet neti
-						<span class="tabular-nums font-semibold {(data.faaliyet_net_eur ?? 0) >= 0 ? 'text-emerald-300' : 'text-red-300'}">{signedEur(data.faaliyet_net_eur ?? 0)}</span>
-					</span>
-					<span class="flex items-center gap-1.5 text-gray-300">
-						<span class="w-2 h-2 rounded-sm bg-blue-400"></span>Finansman neti
-						<span class="tabular-nums font-semibold {(data.finansman_net_eur ?? 0) >= 0 ? 'text-blue-200' : 'text-red-300'}">{signedEur(data.finansman_net_eur ?? 0)}</span>
-					</span>
-				</div>
-			{/if}
+		<!-- Net bant -->
+		<div class="mt-3 rounded-xl bg-teal-700 text-white flex items-center justify-between gap-3 px-4 py-3">
+			<span class="text-xs sm:text-sm text-gray-200">Net Nakit Akım · {periodLabel}</span>
+			<span class="tabular-nums text-lg font-semibold {data.net_eur >= 0 ? 'text-emerald-300' : 'text-red-300'}">
+				{data.net_eur >= 0 ? '+' : '−'}{fmtEur(Math.abs(data.net_eur))}
+			</span>
 		</div>
 		{#if data.skipped_no_rate > 0}
 			<p class="mt-2 text-[11px] text-amber-700">{data.skipped_no_rate} kalem kur bilgisi olmadığından hesaba katılamadı.</p>

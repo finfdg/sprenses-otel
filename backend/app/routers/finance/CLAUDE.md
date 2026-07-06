@@ -96,8 +96,11 @@ sayaçları + item `is_realized`; kolon toplamları/Net DEĞİŞMEZ):
   EUR). Kredi/çek gibi diğer türler **AYRI** kalır (bir bankanın taksitleri / bir firmanın çekleri ayrı).
   Saf mantık `lib/utils/cashflow.ts::aggregateRows` (+ `AGGREGATE_LABELS` = {"Cari Ödemeleri"}); HEM tarih
   görünümü HEM kategori-accordion gün-detayı bunu kullanır. Test: `cashflow.test.ts` (8).
-- Renk: gelir **emerald** (yeşil), gider **brass** (altın); net bandı `teal-700` (lacivert) + Faaliyet/
-  Finansman neti çipleri. open-state anahtarı `side:realized:label` (segmentler arası çakışmaz).
+- Renk: gelir **emerald** (yeşil), gider **brass** (altın); net bandı `teal-700` (lacivert). open-state
+  anahtarı `side:realized:label` (segmentler arası çakışmaz).
+- **Finansman gösterimi KALDIRILDI (kullanıcı isteği 2026-07-06):** grup başlığındaki "FİNANSMAN"
+  rozeti + net bandındaki "Faaliyet neti / Finansman neti" çipleri frontend'den kaldırıldı. **Backend
+  hâlâ döndürür** (`section`, `faaliyet_net_eur`, `finansman_net_eur`) — salt gösterim kaldırıldı, veri/test durur.
 Test: `TestTAccountRealizedSplit` (sayaçlar + item bayrakları + Σgrup==kolon) + `TestTAccountItemOrdering`
 (items tarih sıralı — tarih görünümü keyed-each mükerrer anahtar donmasına karşı). (3) Giriş/Çıkış başlık puntosu büyütüldü. (4) **Gelecek dönem
 navigasyonu** — offset `le=0`→`le=24` (frontend `MAX_FUTURE_OFFSET=24`); sağ ok artık ileri ay/hafta/
