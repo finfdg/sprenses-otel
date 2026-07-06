@@ -254,5 +254,21 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
   bu alanlar değişince `regenerate_entries` çağırır → **ödenmemiş elle girişleri silip sabit tutarla
   yeniden üretir** (yapılandırma tablosu bozulur). Yalnız tek taksitin düzenlenmesi (`PATCH /entries/{id}`,
   ör. "Ödendi" işaretleme) güvenlidir. Tutar değişecekse ilgili girişi tek tek düzenle.
-- İlk uygulama: `MURAT-A TURİZM A.Ş.` SGK (KART 00000441, 48 taksit, ₺7.799.133,30) + Manavgat V.D.
-  vergi (SERİ:B No:20, 36 taksit) — taranmış resmi ödeme planlarından oluşturuldu, tümü `pending`.
+- İlk uygulama: `MURAT-A TURİZM A.Ş.` SGK (KART 00000441, 48 taksit, ₺7.799.133,30) — taranmış
+  resmi SGK ödeme planından oluşturuldu, tümü `pending`, yıl-bazlı 5 tanım (2026-2030).
+  (Vergi SERİ:B No:20 planı önce oluşturuldu, sonra iki ayrı/eksik plan olduğu anlaşılınca geri alındı.)
+
+### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
+
+`ScheduledModule.svelte` yıl açılır menüsü **`[2025, 2026, 2027]` olarak sabit yazılıydı** → çok yıllı
+verinin (ör. SGK yapılandırması 2028-2030) yılları menüde görünmüyor, o yıllardaki taksitlere
+erişilemiyordu (veri var ama seçici gizliyor — 8 planlı modülün tümü için latent hata).
+
+**Çözüm:** Yıl listesi artık **veriden türetilir** (single source of truth):
+- Backend: `create_scheduled_router` fabrikasına `GET /years` eklendi → o `source_type` için distinct
+  `ScheduledDefinition.year` döner. **`/{defn_id}` path-param rotasından ÖNCE tanımlı** (yoksa FastAPI
+  "years"i int defn_id sanar). Tüm 8 modül (taxes/recurring/rent×2/salary/withholding/sgk; dividend ayrı
+  router → 404'te frontend zarifçe fallback yapar) otomatik alır.
+- Frontend: `loadYears()` `${apiPrefix}/years`'i çeker, cari yıl ±1 penceresiyle birleştirip (`availableYears`)
+  dropdown'u doldurur; `onMount` + `finance_updated` WS event'inde yenilenir. Fetch hata verirse base
+  pencereye düşer (boş/erişimsiz modülde de kullanılabilir kalır).

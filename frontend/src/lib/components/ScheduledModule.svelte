@@ -63,6 +63,7 @@
 	let loading = $state(true);
 	let total = $state(0);
 	let selectedYear = $state(new Date().getFullYear());
+	let availableYears = $state<number[]>([]);
 	let syncingVendors = $state(false);
 
 	// Cari ile senkronize et (yalnız vendor-sync etkin modüller, ör. düzenli ödemeler)
@@ -312,6 +313,21 @@
 		return MONTH_NAMES[month - 1] + ' ' + year;
 	}
 
+	// Yıl seçici: veri olan yılları backend'den al, cari yıl ±1 penceresiyle birleştir
+	// (boş modülde de kullanılabilir aralık kalsın; çok yıllı veri gizlenmesin).
+	async function loadYears() {
+		const cy = new Date().getFullYear();
+		const base = [cy - 1, cy, cy + 1, selectedYear];
+		try {
+			const res = await api.get<any>(`${apiPrefix}/years`);
+			const fromData: number[] = Array.isArray(res?.years) ? res.years : [];
+			availableYears = Array.from(new Set([...base, ...fromData])).sort((a, b) => a - b);
+		} catch (err) {
+			console.error('Yıl listesi yüklenemedi:', err);
+			availableYears = Array.from(new Set(base)).sort((a, b) => a - b);
+		}
+	}
+
 	async function loadData() {
 		loading = true;
 		try {
@@ -533,8 +549,9 @@
 	let unsubFinance: (() => void) | null = null;
 
 	onMount(() => {
+		loadYears();
 		loadData();
-		unsubFinance = onWsEvent('finance_updated', () => { loadData(); });
+		unsubFinance = onWsEvent('finance_updated', () => { loadYears(); loadData(); });
 	});
 
 	onDestroy(() => { unsubFinance?.(); });
@@ -596,7 +613,7 @@
 				size="sm"
 				fullWidth={false}
 			>
-				{#each [2025, 2026, 2027] as y (y)}
+				{#each availableYears as y (y)}
 					<option value={y}>{y}</option>
 				{/each}
 			</Select>

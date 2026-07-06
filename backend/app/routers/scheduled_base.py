@@ -127,6 +127,25 @@ def create_scheduled_router(
 
         return page_meta([_defn_response(d, include_entries=True) for d in items], total, page, page_size)
 
+    # ─── YEARS (yıl seçici için — veri olan tüm yıllar) ──
+    # NOT: "/{defn_id}" (path param) rotasından ÖNCE tanımlanmalı; aksi halde
+    # FastAPI "years" segmentini int defn_id olarak çözmeye çalışır.
+
+    @router.get("/years")
+    def list_years(
+        db: Session = Depends(get_db),
+        _: User = Depends(require_permission(permission_code, "view")),
+    ):
+        """Bu modülde tanımı olan distinct yılları döner (yıl seçici sabit aralığa
+        takılmasın; çok yıllı yapılandırma taksitleri gizlenmesin)."""
+        rows = (
+            db.query(ScheduledDefinition.year)
+            .filter(ScheduledDefinition.source_type == source_type)
+            .distinct()
+            .all()
+        )
+        return {"years": sorted(r[0] for r in rows if r[0] is not None)}
+
     # ─── GET (detail) ────────────────────────────────────
 
     @router.get("/{defn_id}")
