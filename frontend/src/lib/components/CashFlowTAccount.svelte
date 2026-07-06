@@ -19,7 +19,8 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import NakitKoruma from '$lib/components/NakitKoruma.svelte';
+	import RunwayChart from '$lib/components/RunwayChart.svelte';
+	import OverdueList from '$lib/components/OverdueList.svelte';
 	import { aggregateRows, AGGREGATE_LABELS, type CashRow } from '$lib/utils/cashflow';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
@@ -252,10 +253,9 @@
 	<div class="mb-4 flex items-start justify-between gap-3">
 		<div>
 			<h3 class="text-[17px] text-gray-900">Nakit Akım</h3>
-			<p class="text-xs text-gray-500 mt-0.5">
-				<span class="sm:hidden {expanded ? 'hidden' : ''}">Bugün</span>
-				<span class="{expanded ? '' : 'hidden'} sm:inline">Hesap hareketleri · EUR · başlıktaki takvimle tarihe göre sırala</span>
-			</p>
+			<!-- Masaüstü alt-başlık kaldırıldı; yerine aşağıya nakit projeksiyon grafiği (RunwayChart) geldi.
+			     Mobil kapalı görünümde "Bugün" etiketi mini özet kartını niteler. -->
+			<p class="text-xs text-gray-500 mt-0.5 sm:hidden {expanded ? 'hidden' : ''}">Bugün</p>
 		</div>
 		<!-- Mobil: kapalıyken "detay için dokun" ipucu (sağ üst köşe) -->
 		<button type="button" onclick={() => (expanded = true)} aria-label="Detayı aç"
@@ -268,6 +268,9 @@
 			<ChevronUp size={18} />
 		</button>
 	</div>
+
+	<!-- Nakit projeksiyon grafiği — başlığın hemen altında (eski alt-başlık metninin yerinde) -->
+	<RunwayChart />
 
 	<!-- MOBİL ÖZET KARTI (kapalıyken) — Bugün için Giriş/Çıkış/Net mini kutuları -->
 	<button type="button" onclick={() => (expanded = true)}
@@ -441,7 +444,8 @@
 		{/if}
 	{/if}
 
-		<!-- Nakit Koruma · Ödeme Erteleme — Nakit Akım kartının içinde, en altta -->
-		<NakitKoruma embedded />
 	</div>
+
+	<!-- Vadesi Geçenler — Nakit Akım kartının EN ALTINDA (kullanıcı isteği 2026-07-06) -->
+	<OverdueList />
 </div>
