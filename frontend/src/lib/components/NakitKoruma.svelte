@@ -106,6 +106,48 @@
 		return units.sort((a, b) => a.day.localeCompare(b.day));
 	}
 
+	// Vadesi geçenler: aynı başlık (kaynak türü) altındaki TÜM tarihler tek grupta birleşir
+	// (kullanıcı isteği 2026-07-06) — "Cari Ödemeleri" tek satır, farklı tarihler açılan
+	// detayda tarih alt-başlığı altında listelenir. outUnits (henüz vadesi gelmemiş) hâlâ
+	// gün+tür bazlı kalır — orada tek tarih anlamlı.
+	function groupOverdueByLabel(items: Flow[]): Unit[] {
+		const map = new Map<string, Flow[]>();
+		for (const o of items) {
+			const key = o.source_type ?? 'other';
+			const arr = map.get(key);
+			if (arr) arr.push(o); else map.set(key, [o]);
+		}
+		const units: Unit[] = [];
+		for (const [key, membersRaw] of map) {
+			const members = membersRaw.slice().sort((a, b) => a.date.localeCompare(b.date));
+			const first = members[0];
+			const deferIds = members.filter((m) => !m.projected).map((m) => m.id);
+			units.push({
+				key: `od:${key}`, label: SRC_LABELS[first.source_type ?? ''] ?? cleanName(first.name),
+				day: first.date, members, memberIds: members.map((m) => m.id),
+				deferIds, deferrable: deferIds.length > 0,
+				total: members.reduce((s, m) => s + m.amount_eur, 0),
+				deferred: members.some((m) => m.deferred),
+				overdue: true,
+			});
+		}
+		return units.sort((a, b) => b.total - a.total);
+	}
+
+	// Açılan grubun kalemlerini tarih alt-başlığı altında grupla (members tarih sıralı gelir)
+	function groupMembersByDate(items: Flow[]): { date: string; label: string; items: Flow[] }[] {
+		const out: { date: string; label: string; items: Flow[] }[] = [];
+		let cur: { date: string; label: string; items: Flow[] } | null = null;
+		for (const it of items) {
+			if (!cur || cur.date !== it.date) {
+				cur = { date: it.date, label: labelDate(it.date), items: [] };
+				out.push(cur);
+			}
+			cur.items.push(it);
+		}
+		return out;
+	}
+
 	// Projeksiyon — YALNIZ vadesi gelmemiş (bugün..ay sonu) çıkışlar + gelirler.
 	// Vadesi GEÇEN ödenmemiş kalemler bakiye çizgisine KATILMAZ (kullanıcı kararı 2026-07-05):
 	// henüz ödenmediği için nakit çıkışı olmamıştır → grafiği aşağı çekmemeli. Yine de aşağıda
@@ -133,7 +175,7 @@
 
 		// Gösterilecek üniteler: outs (tarihe göre) + top-N
 		const outUnits = groupUnits(data.outs, false);
-		const overdueUnits = groupUnits(data.overdue, true);
+		const overdueUnits = groupOverdueByLabel(data.overdue);
 		const TOP_N = 20;
 		outUnits.sort((a, b) => b.total - a.total);
 		const shownOut = new Set<Unit>(outUnits.slice(0, TOP_N));
@@ -312,7 +354,6 @@
 					{@const multi = u.members.length > 1}
 					<div class="px-2.5 py-2.5">
 						<div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-3">
-							<span class="tabular-nums text-[11.5px] text-red-600 w-10 shrink-0">{labelDate(u.day)}</span>
 							<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
 								class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
 								<ChevronDown size={14} class="shrink-0 text-red-400 transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
@@ -331,13 +372,17 @@
 							{/if}
 						</div>
 						{#if openGroups[u.key]}
-							<div class="pl-10 pt-1.5 space-y-1">
-								{#each u.members as m (m.id)}
-									<div class="flex items-center gap-2 text-[12px]">
-										<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
-										<!-- Kalem kendi para biriminde (₺/€…); grup toplamı ve başlıklar EUR -->
-										<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
-									</div>
+							<div class="pl-5 pt-1.5">
+								{#each groupMembersByDate(u.members) as day (day.date)}
+									<!-- Aynı başlık altında birleşen farklı tarihler — gün alt-başlığı -->
+									<div class="pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400">{day.label}</div>
+									{#each day.items as m (m.id)}
+										<div class="flex items-center gap-2 text-[12px] py-0.5">
+											<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
+											<!-- Kalem kendi para biriminde (₺/€…); grup toplamı ve başlıklar EUR -->
+											<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
+										</div>
+									{/each}
 								{/each}
 							</div>
 						{/if}
