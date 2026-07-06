@@ -62,17 +62,19 @@
 		const sym = CUR_SYM[currency] || (currency + ' ');
 		return sym + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
 	}
-	// Açılan grubun kalemlerini tarih başlığı altında grupla (kalemler backend'den tarih sıralı gelir)
-	function groupItemsByDate(items: TItem[]): { date: string; label: string; items: TItem[] }[] {
-		const out: { date: string; label: string; items: TItem[] }[] = [];
-		let cur: { date: string; label: string; items: TItem[] } | null = null;
+	// Açılan grubun kalemlerini tarih başlığı altında grupla (kalemler backend'den tarih sıralı gelir).
+	// Günlük toplam EUR'da gösterilir (kalemler karışık para birimli olabilir — grup/kolon toplamıyla tutarlı).
+	function groupItemsByDate(items: TItem[]): { date: string; label: string; items: TItem[]; totalEur: number }[] {
+		const out: { date: string; label: string; items: TItem[]; totalEur: number }[] = [];
+		let cur: { date: string; label: string; items: TItem[]; totalEur: number } | null = null;
 		for (const it of items) {
 			if (!cur || cur.date !== it.date) {
 				const [y, m, d] = it.date.split('-').map(Number);
-				cur = { date: it.date, label: `${d} ${MONTHS[m - 1]} ${y}`, items: [] };
+				cur = { date: it.date, label: `${d} ${MONTHS[m - 1]} ${y}`, items: [], totalEur: 0 };
 				out.push(cur);
 			}
 			cur.items.push(it);
+			cur.totalEur += it.amount_eur;
 		}
 		return out;
 	}
@@ -243,8 +245,11 @@
 						{#if open[k]}
 							<div class="pb-1">
 								{#each groupItemsByDate(g.items) as day (day.date)}
-									<!-- Tarih başlığı — o günün kalemleri altında gruplanır -->
-									<div class="pl-8 pr-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 border-t border-gray-100">{day.label}</div>
+									<!-- Tarih başlığı — o günün kalemleri altında gruplanır + günlük toplam (EUR) -->
+									<div class="flex items-center justify-between gap-2 pl-8 pr-2 pt-2 pb-1 border-t border-gray-100">
+										<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{day.label}</span>
+										<span class="tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(day.totalEur)}</span>
+									</div>
 									{#each day.items as it, i (i)}
 										<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
 											<span class="text-gray-700 truncate">{it.name}</span>
