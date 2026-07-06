@@ -95,7 +95,9 @@ class TestTestEmailEndpoint:
             resp = client.post(f"{NOTIF_PREFIX}/test-email", headers=auth_headers)
         assert resp.status_code == 503
 
-    def test_success_sends_to_self(self, client, auth_headers):
+    def test_success_sends_to_system_mailbox(self, client, auth_headers):
+        from app.config import settings
+
         with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(
             "app.routers.notifications.send_email", return_value=True
         ) as se:
@@ -103,8 +105,10 @@ class TestTestEmailEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
-        assert data["sent_to"] == "admin@sprenses.com"
+        # Deneme e-postası her zaman sistem kutusuna (SMTP kullanıcısı) gider
+        assert data["sent_to"] == settings.smtp_user
         se.assert_called_once()
+        assert se.call_args.kwargs["to"] == settings.smtp_user
 
     def test_502_when_send_fails(self, client, auth_headers):
         with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(

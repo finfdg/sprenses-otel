@@ -317,8 +317,8 @@
 							<Mail class="w-4 h-4 text-gray-500" /> E-posta (SMTP)
 						</h2>
 						<p class="text-sm text-gray-500 mt-1">
-							Giden e-posta bildirimlerinin çalıştığını doğrulamak için kendi hesabınızın
-							e-posta adresine bir deneme e-postası gönderin.
+							Giden e-posta bildirimlerinin çalıştığını doğrulamak için sistem e-posta
+							kutusuna (bilgi@sprenses.com) bir deneme e-postası gönderin.
 						</p>
 					</div>
 					<Button onclick={sendTestEmail} loading={sendingTest} class="w-full sm:w-auto shrink-0">

@@ -86,8 +86,12 @@ def send_test_email(
             status_code=503,
             detail="E-posta (SMTP) yapılandırılmamış — .env dosyasında SMTP_PASSWORD tanımlayın",
         )
+    # Deneme e-postası her zaman var olan sistem kutusuna (SMTP kullanıcısı =
+    # bilgi@sprenses.com) gider — kullanıcı hesap e-postası gerçek bir posta kutusu
+    # olmayabilir (ör. admin@sprenses.com → 550 Recipient rejected).
+    recipient = settings.smtp_user
     ok = send_email(
-        to=current_user.email,
+        to=recipient,
         subject="Sprenses Otel — Deneme E-postası",
         body_html=(
             '<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;">'
@@ -95,9 +99,9 @@ def send_test_email(
             "<p>Bu e-posta, Sprenses Otel Yönetim Sistemi SMTP yapılandırmasının "
             "çalıştığını doğrulamak için gönderildi. Bu mesajı aldıysanız giden "
             "e-posta bildirimleri hazır demektir.</p>"
-            '<p style="color:#6b7280;font-size:12px;">Gönderen: %s</p>'
+            '<p style="color:#6b7280;font-size:12px;">Test eden: %s (%s)</p>'
             "</div>"
-        ) % settings.smtp_user,
+        ) % (current_user.full_name, current_user.email),
         body_text="Bu, Sprenses Otel SMTP yapılandırma deneme e-postasıdır.",
     )
     if not ok:
@@ -105,7 +109,7 @@ def send_test_email(
             status_code=502,
             detail="E-posta gönderilemedi — SMTP sunucu/port/şifre ayarlarını kontrol edin (sunucu loglarına bakın)",
         )
-    return {"success": True, "sent_to": current_user.email}
+    return {"success": True, "sent_to": recipient}
 
 
 @router.delete("/all")
