@@ -84,7 +84,7 @@ Kanonik liste iskeleti (tasarım sistemi): PageHeader → StatCard×4 → filtre
   tıklanır → drill-down modal. Bugün satırı `bg-teal-50/40` + "Bugün" rozeti. tfoot dönem toplamı.
 - **Mobil (`<md`):** tablo → günlük kartlar (yalnız hareketli günler); Gelen/İptal kutuları tıklanır
 - **Drill-down modal** (`max-w-4xl`): "Gelenler (n)" / "İptaller (m)" sekme toggle'ı; tablo:
-  Voucher · Acente (sonradan-iptal rozeti burada) · Ülke · Oda · Pansiyon · Konaklama
+  **# (sıra no, `{#each}` index+1)** · Voucher · Acente (sonradan-iptal rozeti burada) · Ülke · Oda · Pansiyon · Konaklama
   (giriş→çıkış, gece; iptallerde "Kayıt: … · girişe X gün kala iptal") · Pax · Tutar €
   (EUR-dışı ham tutar alt satırda) — misafir adı kolonu bilinçli olarak yoktur
 - **Durumlar:** loading `TableSkeleton` · Sedna yok / hareket yok `EmptyState` · hata `console.error` + toast
