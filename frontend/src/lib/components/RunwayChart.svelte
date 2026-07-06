@@ -1,17 +1,19 @@
 <!--
-	RunwayChart.svelte — Seçili dönemin KÜMÜLATİF nakit akışı eğrisi (EUR).
+	RunwayChart.svelte — Bankadaki nakit "runway" bakiye eğrisi (EUR), DÖNEM-DUYARLI.
 
-	Panel Nakit Akım kartının ÜSTÜNDE (başlık altında). Veri T-Hesap yanıtından (`data.curve`)
-	gelir → dönem sekmesi (günlük/haftalık/aylık/yıllık) ve ileri/geri ay gezinmesiyle BİRLİKTE
-	değişir. Eğri dönem başında 0'dan başlar, gün gün net (gelir−gider) birikir, dönem sonunda
-	net'e ulaşır (net bandıyla tutarlı). En düşük nokta = dönem içi en kötü nakit pozisyonu.
-	(2026-07-06: eski runway endpoint sabit "bu ay" idi → dönem-duyarlı T-Hesap eğrisine geçildi.)
+	Panel Nakit Akım kartının ÜSTÜNDE. Veri T-Hesap yanıtından gelir → dönem sekmesi (günlük/
+	haftalık/aylık/yıllık) ve ileri/geri gezinmeyle BİRLİKTE değişir. Eğri MUTLAK banka bakiyesini
+	gösterir: balance(gün) = `start_balance_eur` (dönem başı bakiye) + `cum(gün)` (dönem içi kümülatif
+	net). Dönem bugünü içeriyorsa balance(bugün) = `start_eur` (bugünkü banka nakdi) → gerçek runway;
+	bakiye 0 çizgisinin altına düşerse "negatife düşüyor" uyarısı. (2026-07-06: eski sabit "bu ay"
+	runway → dönem-duyarlı T-Hesap eğrisi; kullanıcı isteğiyle bankadaki-nakit hissi geri getirildi.)
 -->
 <script lang="ts">
 	type CurvePoint = { date: string; cum: number };
 	type ChartData = {
 		start_date: string; end_date: string;
 		net_eur: number; curve?: CurvePoint[];
+		start_eur?: number; start_balance_eur?: number;
 	};
 	let { data }: { data: ChartData | null } = $props();
 
@@ -31,37 +33,43 @@
 
 	const proj = $derived.by(() => {
 		if (!data || !data.curve || data.curve.length === 0) return null;
+		const startBal = data.start_balance_eur ?? 0;
 		const startT = new Date(data.start_date + 'T00:00:00').getTime();
 		const endT = new Date(data.end_date + 'T00:00:00').getTime();
 		const spanMs = Math.max(1, endT - startT);
-		// Dönem başında 0 çapası + hareketli günlerin kümülatifi
+		// MUTLAK bakiye noktaları: dönem başı (start_balance) + her hareketli günde start_balance + cum
 		const pts0 = [
-			{ t: startT, cum: 0, date: data.start_date },
-			...data.curve.map((p) => ({ t: new Date(p.date + 'T00:00:00').getTime(), cum: p.cum, date: p.date })),
+			{ t: startT, bal: startBal, date: data.start_date },
+			...data.curve.map((p) => ({ t: new Date(p.date + 'T00:00:00').getTime(), bal: startBal + p.cum, date: p.date })),
 		];
-		const vals = pts0.map((p) => p.cum);
+		const vals = pts0.map((p) => p.bal);
 		const hi = Math.max(0, ...vals);
 		const lo = Math.min(0, ...vals);
 		const pad = (hi - lo) * 0.14 || 1;
 		const top = 12, bottom = 108;
 		const mapX = (t: number) => ((t - startT) / spanMs) * 620;
 		const mapY = (v: number) => bottom - ((v - (lo - pad)) / ((hi + pad) - (lo - pad))) * (bottom - top);
-		const pts = pts0.map((p) => `${mapX(p.t).toFixed(1)},${mapY(p.cum).toFixed(1)}`).join(' ');
+		const pts = pts0.map((p) => `${mapX(p.t).toFixed(1)},${mapY(p.bal).toFixed(1)}`).join(' ');
 
 		let low = pts0[0];
-		for (const p of pts0) if (p.cum < low.cum) low = p;
+		for (const p of pts0) if (p.bal < low.bal) low = p;
+		const negative = low.bal < 0;
+		const endBal = pts0[pts0.length - 1].bal;
 
 		return {
-			pts,
-			net: data.net_eur,
-			negative: data.net_eur < 0,
+			pts, negative,
+			startEur: data.start_eur ?? startBal,
+			statusText: negative
+				? `${labelIso(low.date)}'de bakiye negatife düşüyor`
+				: 'Dönem boyunca nakit pozitif kalıyor',
 			zeroY: mapY(0).toFixed(1),
 			lowX: mapX(low.t).toFixed(1),
-			lowY: mapY(low.cum).toFixed(1),
-			lowLabel: `${labelIso(low.date)} · ${signed(low.cum)}`,
+			lowY: mapY(low.bal).toFixed(1),
+			lowLabel: `${labelIso(low.date)} · ${signed(low.bal)}`,
+			endBal,
 			byDay: pts0.map((p) => ({
-				date: p.date, cum: p.cum,
-				xPct: (mapX(p.t) / 620) * 100, yPct: (mapY(p.cum) / 120) * 100,
+				date: p.date, bal: p.bal,
+				xPct: (mapX(p.t) / 620) * 100, yPct: (mapY(p.bal) / 120) * 100,
 			})),
 			firstLabel: labelIso(data.start_date),
 			lastLabel: labelIso(data.end_date),
@@ -87,22 +95,24 @@
 </script>
 
 {#if !data}
-	<div class="h-[150px] bg-gray-100 rounded-2xl animate-pulse mb-4" aria-hidden="true"></div>
+	<div class="h-[168px] bg-gray-100 rounded-2xl animate-pulse mb-4" aria-hidden="true"></div>
 {:else if proj}
-	<!-- Kümülatif nakit akışı eğrisi (seçili dönem) -->
+	<!-- Bankadaki nakit runway — mutlak bakiye eğrisi (seçili dönem) -->
 	<div class="rounded-2xl bg-teal-700 px-5 py-4 text-teal-100 mb-4">
 		<div class="flex items-start justify-between gap-4">
 			<div>
-				<div class="text-[10px] uppercase tracking-[0.6px] text-teal-300">Dönem Nakit Akışı (kümülatif)</div>
-				<div class="tabular-nums text-[22px] font-semibold mt-0.5 {proj.negative ? 'text-red-300' : 'text-emerald-300'}">{signed(proj.net)}</div>
+				<div class="text-[10px] uppercase tracking-[0.6px] text-teal-300">Bankadaki Nakit</div>
+				<div class="tabular-nums text-[22px] font-semibold text-white mt-0.5">{fmtEur(proj.startEur)}</div>
 			</div>
-			<div class="text-right">
-				<div class="text-[10px] uppercase tracking-[0.6px] text-teal-300">En Düşük</div>
-				<div class="tabular-nums text-[12.5px] font-semibold text-brass-light mt-0.5">{proj.lowLabel}</div>
+			<div class="text-right max-w-[60%]">
+				<div class="text-[10px] uppercase tracking-[0.6px] text-teal-300">Durum</div>
+				<div class="text-[13px] font-semibold mt-0.5 {proj.negative ? 'text-red-300' : 'text-emerald-300'}">
+					{proj.negative ? '⚠ ' : '✓ '}{proj.statusText}
+				</div>
 			</div>
 		</div>
 		<div class="mt-3">
-			<div class="relative" style="touch-action:none" role="img" aria-label="Dönem kümülatif nakit akışı eğrisi — üzerinde gezinerek gün ve tutar görün"
+			<div class="relative" style="touch-action:none" role="img" aria-label="Dönem banka bakiyesi runway eğrisi — üzerinde gezinerek gün ve bakiye görün"
 				onpointermove={onChartMove} onpointerdown={onChartMove} onpointerleave={onChartLeave}>
 				<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" aria-hidden="true">
 					<line x1="0" y1={proj.zeroY} x2="620" y2={proj.zeroY} stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
@@ -118,7 +128,7 @@
 					<div class="absolute pointer-events-none rounded-lg border px-2 py-1 whitespace-nowrap"
 						style="left:{tipLeft}%;top:{h.yPct}%;transform:translate(-50%,calc(-100% - 12px));background:#0f1b30;border-color:#2c405f;box-shadow:0 6px 18px -6px rgba(0,0,0,.6)">
 						<div class="tabular-nums text-[9.5px] text-teal-300 tracking-[0.4px]">{labelIso(h.date)}</div>
-						<div class="tabular-nums text-[13px] font-semibold" style="color:{h.cum >= 0 ? '#8fd0a8' : '#f0a58f'}">{signed(h.cum)}</div>
+						<div class="tabular-nums text-[13px] font-semibold" style="color:{h.bal >= 0 ? '#8fd0a8' : '#f0a58f'}">{signed(h.bal)}</div>
 					</div>
 				{/if}
 			</div>
@@ -126,5 +136,6 @@
 				<span>{proj.firstLabel}</span><span>{proj.lastLabel}</span>
 			</div>
 		</div>
+		<div class="text-[11.5px] text-teal-200 mt-2">En düşük bakiye: <span class="{proj.negative ? 'text-red-300' : 'text-brass-light'} font-semibold">{proj.lowLabel}</span> · Dönem sonu: <span class="text-white font-semibold">{signed(proj.endBal)}</span></div>
 	</div>
 {/if}

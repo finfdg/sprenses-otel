@@ -319,6 +319,21 @@ class TestTAccountCurve:
         # Yalnız gerçekleşen −75 EUR (3000/40) eğriye girer; ödenmemiş hariç → cum == net
         assert abs(body["curve"][-1]["cum"] - body["net_eur"]) < 0.5
 
+    def test_start_balance_anchor_past_period(self, client, auth_headers, db):
+        """Bankadaki-nakit runway anchor'ı: tamamen geçmiş dönemde cum_today = tüm net →
+        start_balance_eur = start_eur − net_eur (dönem sonu bakiyesi = bugünkü nakit)."""
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+        today = date.today()
+        mid_last = (today.replace(day=1) - timedelta(days=1)).replace(day=15)
+        _mk_rate(db, mid_last, 50)
+        _mk_fe(db, event_date=mid_last, direction=1, is_realized=True, amount=5000,
+               category_name="T-ANCHOR", description="X")
+        db.commit()
+        b = client.get(f"{URL}?period=monthly&offset=-1", headers=auth_headers).json()
+        assert "start_eur" in b and "start_balance_eur" in b
+        assert abs(b["start_balance_eur"] - (b["start_eur"] - b["net_eur"])) < 0.5
+
 
 class TestTAccountEurConversion:
     def test_try_amount_divided_by_rate(self, client, auth_headers, db):

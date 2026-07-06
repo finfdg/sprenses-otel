@@ -32,7 +32,8 @@
 		total_in_eur: number; total_out_eur: number; net_eur: number;
 		realized_in_eur?: number; realized_out_eur?: number;
 		faaliyet_net_eur?: number; finansman_net_eur?: number;
-		curve?: { date: string; cum: number }[]; skipped_no_rate: number;
+		curve?: { date: string; cum: number }[];
+		start_eur?: number; start_balance_eur?: number; skipped_no_rate: number;
 	};
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };

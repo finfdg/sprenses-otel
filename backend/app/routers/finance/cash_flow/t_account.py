@@ -292,6 +292,17 @@ def t_account(
         _cum += daily_net[d]
         curve.append({"date": d.isoformat(), "cum": round(_cum, 2)})
 
+    # Bankadaki nakit "runway" anchor'ı: frontend mutlak bakiye eğrisini
+    # balance(gün) = start_balance_eur + cum(gün) ile çizer. `start_eur` = BUGÜNKÜ toplam banka
+    # nakdi (EUR); `start_balance_eur` = dönem BAŞINDAKİ bakiye = start_eur − (dönem başından bugüne
+    # dahil net akış). Böylece dönem bugünü içeriyorsa balance(bugün)=start_eur (gerçek runway).
+    # Dönem tamamen geçmiş/gelecekse cum_today 0 veya net'e sabitlenir → yaklaşık (dönemler-arası
+    # akış ayrı sorgulanmaz; ana kullanım cari dönem). (_compute_start_eur paket-içi import.)
+    from .runway import _compute_start_eur
+    start_eur = _compute_start_eur(db)
+    cum_today = sum(v for d, v in daily_net.items() if d <= today)
+    start_balance_eur = round(start_eur - cum_today, 2)
+
     def _finalize(direction: int) -> list:
         result = list(groups[direction].values())
         for g in result:
@@ -333,5 +344,7 @@ def t_account(
         "faaliyet_net_eur": faaliyet_net,
         "finansman_net_eur": finansman_net,
         "curve": curve,
+        "start_eur": start_eur,
+        "start_balance_eur": start_balance_eur,
         "skipped_no_rate": skipped_no_rate,
     }
