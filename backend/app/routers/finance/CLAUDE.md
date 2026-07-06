@@ -79,7 +79,15 @@ para biriminde** — `t-account` item'ına `amount_native` + `currency` eklendi;
 `fmtNative` ile ₺/€ gösterir (grup/kolon toplamı EUR konsolide KALIR — karışık-para karşılaştırması için).
 (2) **Gerçekleşen vs bekleyen** — yanıta `realized_in_eur`/`realized_out_eur` (is_realized=banka vb.);
 kolon başlığında "✓ Gerçekleşen €X · Bekleyen €Y" (toplam DEĞİŞMEZ, salt bilgilendirme; kullanıcının
-"gerçekleşti, kalan bu kadar" isteği). (3) Giriş/Çıkış başlık puntosu büyütüldü. (4) **Gelecek dönem
+"gerçekleşti, kalan bu kadar" isteği).
+**Gerçekleşen AYRI listede (2026-07-06, kullanıcı isteği):** başlıktaki "✓ Gerçekleşen €X" artık
+TIKLANABİLİR toggle — açılınca ödenmiş kalemler kolon başına ayrı (emerald çerçeveli) panelde listelenir;
+**ana grup listesi yalnız BEKLEYENLERİ gösterir** (ödenen kredi taksiti gibi realized kalemler ana listeyi
+şişirmesin). Backend additive: grup `realized_eur`/`realized_count` sayaçları + item `is_realized`.
+Frontend `splitGroups()` bölmeyi SAYAÇLARDAN yapar (items `MAX_ITEMS_PER_GROUP`=100 ile kırpık olabilir —
+itemlardan sayma YANLIŞ olur); `groupRows` snippet'i iki listede ortak markup; open-state anahtarına
+variant (`bekleyen`/`gerceklesen`) girer (aynı etiket iki listede çakışmasın). Kolon toplamları/Net
+DEĞİŞMEZ (salt yeniden düzen). Test: `TestTAccountRealizedSplit` (sayaçlar + item bayrakları + Σgrup==kolon). (3) Giriş/Çıkış başlık puntosu büyütüldü. (4) **Gelecek dönem
 navigasyonu** — offset `le=0`→`le=24` (frontend `MAX_FUTURE_OFFSET=24`); sağ ok artık ileri ay/hafta/
 gün/yıl açar (planlı çek/kredi/scheduled/cc-projeksiyon gelecekte görünür). Test: `test_offset_bounds`
 (−120..+24). Toplam 16 yeşil.

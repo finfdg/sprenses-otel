@@ -15,8 +15,8 @@
 	import NakitKoruma from '$lib/components/NakitKoruma.svelte';
 	import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
 
-	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string };
-	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[] };
+	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean };
+	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[]; realized_eur?: number; realized_count?: number };
 	type TData = {
 		period: string; offset: number; start_date: string; end_date: string;
 		giris: TGroup[]; cikis: TGroup[];
@@ -47,6 +47,9 @@
 	let data = $state<TData | null>(null);
 	let loading = $state(false);
 	let open = $state<Record<string, boolean>>({});
+	// "✓ Gerçekleşen" tıklanınca ödenmiş kalemler kolon başına AYRI listede açılır;
+	// ana grup listesi yalnız bekleyenleri gösterir (kullanıcı isteği 2026-07-06)
+	let showRealized = $state<Record<string, boolean>>({});
 	// Mobil (README): kapalıyken "Bugün" özet kartı (Giriş/Çıkış/Net mini kutular),
 	// dokununca tam T hesap açılır; masaüstünde her zaman tam görünüm
 	let expanded = $state(false);
@@ -62,15 +65,39 @@
 		const sym = CUR_SYM[currency] || (currency + ' ');
 		return sym + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
 	}
-	// Açılan grubun kalemlerini tarih başlığı altında grupla (kalemler backend'den tarih sıralı gelir).
+	// Grupları gerçekleşen/bekleyen olarak böl. Tutar/sayı GRUP SAYAÇLARINDAN türetilir
+	// (realized_eur/realized_count) — items listesi MAX_ITEMS_PER_GROUP ile kırpık olabilir.
+	// Eski backend yanıtında (realized_eur yok) bekleyen listesi tam grubu gösterir (zarif düşüş).
+	function splitGroups(groups: TGroup[], realized: boolean): TGroup[] {
+		return groups
+			.map((g) => {
+				const rEur = g.realized_eur ?? 0;
+				const rCount = g.realized_count ?? 0;
+				return {
+					...g,
+					items: g.items.filter((it) => !!it.is_realized === realized),
+					total_eur: realized ? rEur : g.total_eur - rEur,
+					item_count: realized ? rCount : g.item_count - rCount,
+				};
+			})
+			.filter((g) => g.item_count > 0)
+			.sort((a, b) => b.total_eur - a.total_eur);
+	}
+
+	// Açılan grubun kalemlerini tarih başlığı altında grupla. Map-bazlı birleştirme:
+	// aynı tarih items içinde BİTİŞİK olmasa da tek bucket'a gider → keyed {#each} (day.date)
+	// asla mükerrer anahtar üretmez (svelte-each-dupkey donma sınıfına karşı savunma;
+	// backend ayrıca items'ı tarihe sıralar → bucket'lar kronolojik kalır).
 	// Günlük toplam EUR'da gösterilir (kalemler karışık para birimli olabilir — grup/kolon toplamıyla tutarlı).
 	function groupItemsByDate(items: TItem[]): { date: string; label: string; items: TItem[]; totalEur: number }[] {
+		const byDate = new Map<string, { date: string; label: string; items: TItem[]; totalEur: number }>();
 		const out: { date: string; label: string; items: TItem[]; totalEur: number }[] = [];
-		let cur: { date: string; label: string; items: TItem[]; totalEur: number } | null = null;
 		for (const it of items) {
-			if (!cur || cur.date !== it.date) {
+			let cur = byDate.get(it.date);
+			if (!cur) {
 				const [y, m, d] = it.date.split('-').map(Number);
 				cur = { date: it.date, label: `${d} ${MONTHS[m - 1]} ${y}`, items: [], totalEur: 0 };
+				byDate.set(it.date, cur);
 				out.push(cur);
 			}
 			cur.items.push(it);
@@ -113,6 +140,7 @@
 	function setPeriod(v: string) {
 		period = v as typeof period;
 		open = {}; // sekme değişince gruplar kapanır
+		showRealized = {};
 		load();
 	}
 	function nav(delta: number) {
@@ -120,10 +148,11 @@
 		if (delta < 0 && offsets[period] <= -120) return; // backend alt sınırı (ge=-120)
 		offsets[period] += delta;
 		open = {};
+		showRealized = {};
 		load();
 	}
-	function toggle(side: string, label: string) {
-		open[`${side}:${label}`] = !open[`${side}:${label}`];
+	function toggle(key: string) {
+		open[key] = !open[key];
 	}
 
 	onMount(() => {
@@ -206,12 +235,53 @@
 			{/each}
 		</div>
 	{:else if data}
+		<!-- Grup satırları — bekleyen ana listede ve "Gerçekleşen" panelinde ortak kullanılır.
+		     variant open-state anahtarına girer ki iki listedeki aynı etiket çakışmasın. -->
+		{#snippet groupRows(side: string, variant: string, groups: TGroup[])}
+			{#each groups as g (g.label)}
+				{@const k = `${side}:${variant}:${g.label}`}
+				<button type="button" onclick={() => toggle(k)} aria-expanded={!!open[k]}
+					class="w-full flex items-center gap-2 px-2 py-2 border-t border-gray-100 hover:bg-gray-50 cursor-pointer text-left touch-target">
+					<ChevronDown size={13} class="shrink-0 text-gray-500 transition-transform {open[k] ? '' : '-rotate-90'}" />
+					<span class="text-[13px] font-semibold text-gray-900 truncate">{g.label}</span>
+					{#if g.section === 'finansman'}
+						<span class="shrink-0 text-[9px] font-medium uppercase tracking-wide text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 py-0.5">Finansman</span>
+					{/if}
+					<span class="text-[11px] text-gray-500 shrink-0">{g.item_count} işlem</span>
+					<span class="ml-auto tabular-nums text-[13px] text-gray-800 shrink-0">{fmtEur(g.total_eur)}</span>
+				</button>
+				{#if open[k]}
+					<div class="pb-1">
+						{#each groupItemsByDate(g.items) as day (day.date)}
+							<!-- Tarih başlığı — o günün kalemleri altında gruplanır + günlük toplam (EUR) -->
+							<div class="flex items-center justify-between gap-2 pl-8 pr-2 pt-2 pb-1 border-t border-gray-100">
+								<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{day.label}</span>
+								<span class="tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(day.totalEur)}</span>
+							</div>
+							{#each day.items as it, i (i)}
+								<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
+									<span class="text-gray-700 truncate">{it.name}</span>
+									<!-- Kalem kendi para biriminde (₺/€…); kolon/grup toplamı EUR konsolide -->
+									<span class="ml-auto tabular-nums text-gray-700 shrink-0">{fmtNative(it.amount_native, it.currency)}</span>
+								</div>
+							{/each}
+						{/each}
+						{#if g.item_count > g.items.length}
+							<p class="pl-8 pr-2 py-1 text-[11px] text-gray-500">+{g.item_count - g.items.length} kalem daha (Nakit Akım sayfasında tümü)</p>
+						{/if}
+					</div>
+				{/if}
+			{/each}
+		{/snippet}
+
 		<!-- T-account gövdesi: üst 2px lacivert çizgi; ortada dikey ayraç (masaüstü) -->
 		<div class="border-t-2 border-teal-700 grid grid-cols-1 sm:grid-cols-2 {loading ? 'opacity-60' : ''}">
 			{#each [
 				{ side: 'giris', title: 'Giriş', groups: data.giris, total: data.total_in_eur, realized: data.realized_in_eur ?? 0, accent: 'bg-teal-600', totalCls: 'text-teal-600' },
 				{ side: 'cikis', title: 'Çıkış', groups: data.cikis, total: data.total_out_eur, realized: data.realized_out_eur ?? 0, accent: 'bg-brass', totalCls: 'text-brass-dark' },
 			] as col (col.side)}
+				{@const pendingGroups = splitGroups(col.groups, false)}
+				{@const realizedGroups = splitGroups(col.groups, true)}
 				<div class="{col.side === 'cikis' ? 'sm:border-l-2 sm:border-teal-700 border-t-2 border-teal-700 sm:border-t-0' : ''} px-0 sm:px-3 py-2 {col.side === 'giris' ? 'sm:pr-3 sm:pl-0' : ''}">
 					<!-- Sütun başlığı (Giriş/Çıkış — büyük punto) -->
 					<div class="px-2 py-1.5">
@@ -221,53 +291,40 @@
 							</span>
 							<span class="tabular-nums text-lg sm:text-xl font-semibold {col.totalCls}">{fmtEur(col.total)}</span>
 						</div>
-						<!-- Gerçekleşen (banka vb. — zaten oldu) vs bekleyen (planlı) ayrımı -->
+						<!-- Gerçekleşen (ödenmiş — tıklayınca ayrı listede) vs bekleyen (planlı, ana liste) -->
 						{#if col.realized > 0}
 							<div class="flex justify-end items-center gap-2 mt-0.5 text-[11px]">
-								<span class="text-emerald-600 tabular-nums">✓ Gerçekleşen {fmtEur(col.realized)}</span>
+								<!-- touch-target: ≥44px dokunma alanı (iPad); emerald-700: etkileşimli kontrolde AA kontrast -->
+								<button type="button" onclick={() => (showRealized[col.side] = !showRealized[col.side])}
+									aria-expanded={!!showRealized[col.side]}
+									class="touch-target flex items-center gap-0.5 text-emerald-700 tabular-nums cursor-pointer hover:underline py-1">
+									✓ Gerçekleşen {fmtEur(col.realized)}
+									<ChevronDown size={11} class="transition-transform {showRealized[col.side] ? '' : '-rotate-90'}" />
+								</button>
 								<span class="text-gray-400">·</span>
 								<span class="text-gray-500 tabular-nums">Bekleyen {fmtEur(col.total - col.realized)}</span>
 							</div>
 						{/if}
 					</div>
-					<!-- Gruplar -->
-					{#if col.groups.length === 0}
-						<p class="px-2 py-3 text-xs text-gray-500">Bu dönemde kayıt yok.</p>
-					{/if}
-					{#each col.groups as g (g.label)}
-						{@const k = `${col.side}:${g.label}`}
-						<button type="button" onclick={() => toggle(col.side, g.label)} aria-expanded={!!open[k]}
-							class="w-full flex items-center gap-2 px-2 py-2 border-t border-gray-100 hover:bg-gray-50 cursor-pointer text-left touch-target">
-							<ChevronDown size={13} class="shrink-0 text-gray-500 transition-transform {open[k] ? '' : '-rotate-90'}" />
-							<span class="text-[13px] font-semibold text-gray-900 truncate">{g.label}</span>
-							{#if g.section === 'finansman'}
-								<span class="shrink-0 text-[9px] font-medium uppercase tracking-wide text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 py-0.5">Finansman</span>
-							{/if}
-							<span class="text-[11px] text-gray-500 shrink-0">{g.item_count} işlem</span>
-							<span class="ml-auto tabular-nums text-[13px] text-gray-800 shrink-0">{fmtEur(g.total_eur)}</span>
-						</button>
-						{#if open[k]}
-							<div class="pb-1">
-								{#each groupItemsByDate(g.items) as day (day.date)}
-									<!-- Tarih başlığı — o günün kalemleri altında gruplanır + günlük toplam (EUR) -->
-									<div class="flex items-center justify-between gap-2 pl-8 pr-2 pt-2 pb-1 border-t border-gray-100">
-										<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{day.label}</span>
-										<span class="tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(day.totalEur)}</span>
-									</div>
-									{#each day.items as it, i (i)}
-										<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
-											<span class="text-gray-700 truncate">{it.name}</span>
-											<!-- Kalem kendi para biriminde (₺/€…); kolon/grup toplamı EUR konsolide -->
-											<span class="ml-auto tabular-nums text-gray-700 shrink-0">{fmtNative(it.amount_native, it.currency)}</span>
-										</div>
-									{/each}
-								{/each}
-								{#if g.item_count > g.items.length}
-									<p class="pl-8 pr-2 py-1 text-[11px] text-gray-500">+{g.item_count - g.items.length} kalem daha (Nakit Akım sayfasında tümü)</p>
-								{/if}
+					<!-- Gerçekleşen paneli — ödenmiş kalemler ayrı listede (ana listeyi sadeleştirir) -->
+					{#if showRealized[col.side] && realizedGroups.length > 0}
+						<div class="mx-1 sm:mx-0 mb-2 rounded-xl border border-emerald-200 bg-emerald-50/60 overflow-hidden">
+							<div class="flex items-center justify-between gap-2 px-3 pt-2 pb-1">
+								<span class="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">✓ Gerçekleşen İşlemler</span>
+								<span class="tabular-nums text-[11px] font-semibold text-emerald-700">{fmtEur(col.realized)}</span>
 							</div>
-						{/if}
-					{/each}
+							<div class="bg-white/70">
+								{@render groupRows(col.side, 'gerceklesen', realizedGroups)}
+							</div>
+						</div>
+					{/if}
+					<!-- Bekleyen gruplar (ana liste) -->
+					{#if pendingGroups.length === 0}
+						<p class="px-2 py-3 text-xs text-gray-500">
+							{col.realized > 0 ? 'Bekleyen kayıt yok — tümü gerçekleşti (✓ Gerçekleşen ile görüntüleyin).' : 'Bu dönemde kayıt yok.'}
+						</p>
+					{/if}
+					{@render groupRows(col.side, 'bekleyen', pendingGroups)}
 				</div>
 			{/each}
 		</div>

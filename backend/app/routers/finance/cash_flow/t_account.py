@@ -221,10 +221,17 @@ def t_account(
         label = _group_label(fe)
         group = groups[fe.direction].setdefault(
             label, {"label": label, "total_eur": 0.0, "item_count": 0,
+                    "realized_eur": 0.0, "realized_count": 0,
                     "section": _section(fe.source_type), "items": []}
         )
         group["total_eur"] += eur
         group["item_count"] += 1
+        # Grup bazında gerçekleşen/bekleyen bölünmesi (2026-07-06): frontend ödenmişleri
+        # ayrı "Gerçekleşen" listesinde gösterir, ana liste yalnız bekleyenleri taşır.
+        # items MAX_ITEMS_PER_GROUP ile kırpıldığından bölme SAYAÇLARLA yapılır (itemlardan değil).
+        if fe.is_realized:
+            group["realized_eur"] += eur
+            group["realized_count"] += 1
         if len(group["items"]) < MAX_ITEMS_PER_GROUP:
             group["items"].append({
                 "name": _item_name(fe),
@@ -233,6 +240,7 @@ def t_account(
                 # Kalem kendi para biriminde de dönülür (detay native gösterir; grup/kolon toplamı EUR)
                 "amount_native": round(float(fe.amount), 2),
                 "currency": (fe.currency or "TRY").upper(),
+                "is_realized": bool(fe.is_realized),
             })
         totals[fe.direction] += eur
         if fe.is_realized:
@@ -255,6 +263,7 @@ def t_account(
         label = SOURCE_LABELS["cc_payment"]
         group = groups[DIRECTION_EXPENSE].setdefault(
             label, {"label": label, "total_eur": 0.0, "item_count": 0,
+                    "realized_eur": 0.0, "realized_count": 0,
                     "section": "faaliyet", "items": []}
         )
         group["total_eur"] += eur
@@ -266,6 +275,7 @@ def t_account(
                 "amount_eur": round(eur, 2),
                 "amount_native": round(float(proj["amount"]), 2),
                 "currency": "TRY",
+                "is_realized": False,  # projeksiyon = her zaman bekleyen rezerv
             })
         totals[DIRECTION_EXPENSE] += eur
 
@@ -273,6 +283,10 @@ def t_account(
         result = list(groups[direction].values())
         for g in result:
             g["total_eur"] = round(g["total_eur"], 2)
+            g["realized_eur"] = round(g.get("realized_eur", 0.0), 2)
+            # CC projeksiyonları grup SONUNA kart sırasıyla eklenir → tarih sırası bozulabilir;
+            # frontend tarih-bucket'ları (keyed each) sıralı items varsayar. ISO string sort = kronolojik.
+            g["items"].sort(key=lambda i: i["date"])
         result.sort(key=lambda g: g["total_eur"], reverse=True)
         return result
 

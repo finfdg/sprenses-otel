@@ -196,6 +196,92 @@ class TestTAccountGrouping:
         assert "BANKA GERCEKLESEN" in names       # gerçekleşmiş → dahil
 
 
+class TestTAccountRealizedSplit:
+    """Grup bazında gerçekleşen/bekleyen bölünmesi (2026-07-06) — frontend '✓ Gerçekleşen'
+    panelinin veri sözleşmesi: grup `realized_eur`/`realized_count` sayaçları + `item.is_realized`.
+    Bölme SAYAÇLARLA yapılır (items MAX_ITEMS_PER_GROUP ile kırpık olabilir)."""
+
+    def test_group_realized_counters_and_item_flags(self, client, auth_headers, db):
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+        today = date.today()
+        # Aynı grupta (Düzenli Ödemeler) karışık: 1 gerçekleşen + 2 bekleyen.
+        # Bekleyenler bugüne yazılır (event_date < today olsa vadesi-geçmiş filtresi eler).
+        _mk_fe(db, source_type="recurring", direction=-1, amount=5000,
+               is_realized=True, event_date=today, description="T-REC ODENDI")
+        _mk_fe(db, source_type="recurring", direction=-1, amount=2000,
+               is_realized=False, event_date=today, description="T-REC BEKLIYOR A")
+        _mk_fe(db, source_type="recurring", direction=-1, amount=3000,
+               is_realized=False, event_date=today, description="T-REC BEKLIYOR B")
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+        g = _group(body, "cikis", "Düzenli Ödemeler")
+        assert g is not None
+        assert g["item_count"] == 3
+        assert g["total_eur"] == 200.0          # (5000+2000+3000)/50
+        assert g["realized_count"] == 1
+        assert g["realized_eur"] == 100.0       # 5000/50
+        flags = {i["name"]: i["is_realized"] for i in g["items"]}
+        assert flags["T-REC ODENDI"] is True
+        assert flags["T-REC BEKLIYOR A"] is False
+        assert flags["T-REC BEKLIYOR B"] is False
+
+    def test_group_realized_sums_reconcile_with_column(self, client, auth_headers, db):
+        """Σ grup.realized_eur == kolon realized_*_eur (aynı olaylardan iki ayrı toplama)."""
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+        today = date.today()
+        _mk_fe(db, direction=1, amount=4000, is_realized=True, event_date=today,
+               category_name="T-SPLIT GELIR", description="T-GELIR BANKA")
+        _mk_fe(db, source_type="advance", direction=1, amount=6000, is_realized=False,
+               event_date=today, description="T-GELIR AVANS")
+        _mk_fe(db, direction=-1, amount=1500, is_realized=True, event_date=today,
+               category_name="T-SPLIT GIDER", description="T-GIDER BANKA")
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+        for side, col_key in (("giris", "realized_in_eur"), ("cikis", "realized_out_eur")):
+            group_sum = sum(g.get("realized_eur", 0.0) for g in body[side])
+            # Grup-başına yuvarlama ile kolon yuvarlaması arasında kuruş payı olabilir
+            assert abs(group_sum - body[col_key]) < 0.5, (side, group_sum, body[col_key])
+        # Bekleyen taraf da tutarlı: Σ(total-realized) == total − realized
+        for side, tot_key, real_key in (("giris", "total_in_eur", "realized_in_eur"),
+                                        ("cikis", "total_out_eur", "realized_out_eur")):
+            pending_sum = sum(g["total_eur"] - g.get("realized_eur", 0.0) for g in body[side])
+            assert abs(pending_sum - (body[tot_key] - body[real_key])) < 0.5
+
+
+class TestTAccountItemOrdering:
+    """Grup items'ı HER ZAMAN tarih sıralı dönmeli (2026-07-06 düzeltmesi) — CC projeksiyonları
+    grup SONUNA kart sırasıyla eklenir; sıralanmazsa frontend tarih-bucket'ları (keyed each,
+    day.date anahtarı) mükerrer anahtar üretir → svelte-each-dupkey donma sınıfı."""
+
+    def test_cc_projection_appended_out_of_order_gets_sorted(self, client, auth_headers, db, monkeypatch):
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+        today = date.today()
+        d_early = date(today.year, today.month, 10)
+        d_late = date(today.year, today.month, 20)
+        # Gerçek ekstre FE'si ayın 20'sinde (grup items'ına ÖNCE girer)
+        _mk_fe(db, source_type="cc_payment", direction=-1, amount=1000, is_realized=True,
+               event_date=d_late, description="T-GERCEK EKSTRE")
+        db.commit()
+        # Projeksiyon ayın 10'unda ama grup SONUNA eklenir (kart-id sırası) → sırasız senaryo
+        monkeypatch.setattr(
+            "app.services.cc_projection_service.due_reserve_projections",
+            lambda db, today=None: [
+                {"date": d_early.isoformat(), "amount": 500, "description": "T-PROJ KART"},
+            ],
+        )
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+        kk = _group(body, "cikis", "KK Borç Ödemeleri")
+        assert kk is not None
+        dates = [i["date"] for i in kk["items"]]
+        assert dates == sorted(dates), f"items tarih sıralı değil: {dates}"
+        assert dates[0] == d_early.isoformat()  # projeksiyon kronolojik yerine oturdu
+
+
 class TestTAccountEurConversion:
     def test_try_amount_divided_by_rate(self, client, auth_headers, db):
         """53 kur → 5300 TRY = 100 EUR; EUR kalem aynen; amount_try öncelikli."""
