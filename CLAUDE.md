@@ -13,6 +13,14 @@
 - Backend'de `database.py` içinde her bağlantıda `SET timezone = 'Europe/Istanbul'` çalıştırılır
 - JWT token oluşturmada `datetime.now(tz_istanbul)` kullanılır (`pytz` ile)
 - `config.py` içinde `timezone: str = "Europe/Istanbul"` tanımlıdır
+- **Process saat dilimi — KRİTİK (2026-07-07):** Sunucu sistemi **UTC**. `date.today()`/`datetime.now()`
+  (naive) process TZ'sini kullanır → TZ ayarlanmazsa UTC tarihi döner ve İstanbul gece yarısı–03:00
+  arası **tüm "bugün" hesapları bir gün geri kalır** (canlı belirti: 07 Tem 02:44'te Panel "6 Temmuz"
+  gösterdi — runway/T-Hesap/eur_balances `date.today()`'i UTC'den 06 Tem alıyordu). **Çözüm:** systemd
+  drop-in ile process TZ'si zorlanır — `/etc/systemd/system/sprenses-{api,frontend}.service.d/timezone.conf`
+  içinde `Environment=TZ=Europe/Istanbul`. **Bu dosyalar git'te DEĞİL** (`/etc/`) → sunucu yeniden
+  kurulursa TEKRAR oluşturulmalı (`docs/modules/sunucu.md`). Yeni "bugün" mantığı yazarken bu drop-in'e
+  güvenilebilir; yine de tarih-kritik kodda İstanbul-açık (`datetime.now(tz_istanbul).date()`) tercih edilir.
 
 ### İzin Sistemi
 - İzinler 2 seviyedir: **can_view** (görme) ve **can_use** (kullanma = ekleme + düzenleme + silme)

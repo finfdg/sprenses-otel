@@ -65,3 +65,28 @@ thrash'ine girdi → SSH dahil her şey dondu ve **dmesg/journal'a hiç OOM kayd
 **Kural:** İki oturumda aynı anda deploy/ağır test tetiklemekten kaçının. Frontend build'i kilit
 sayesinde kendiliğinden sıraya girer; ancak `pytest`/`vitest` gibi diğer ağır işler kilitsizdir —
 onların eşzamanlılığını earlyoom + swap tolere eder ama yavaşlatır.
+
+## Process Saat Dilimi — Europe/Istanbul (2026-07-07, KRİTİK)
+
+**Sorun:** Sunucu sistemi **UTC** (`timedatectl` → `UTC, +0000`). Python `date.today()`/`datetime.now()`
+(naive) process saat dilimini kullanır → TZ ayarlanmazsa **UTC tarihi** döner. İstanbul UTC+3 olduğundan,
+İstanbul gece yarısı ile 03:00 arasında (= UTC 21:00–24:00, önceki gün) backend'in "bugün"ü **bir gün
+geri** kalır. Canlı belirti (07 Tem 02:44 İstanbul): Panel Nakit Akım günlük görünümü **"6 Temmuz"**
+gösterdi; runway/T-Hesap/eur_balances `date.today()`'i UTC'den `2026-07-06` alıyordu.
+
+**Çözüm — systemd drop-in ile process TZ zorlama (git'te DEĞİL, `/etc/` altında):**
+```bash
+sudo mkdir -p /etc/systemd/system/sprenses-api.service.d
+printf '[Service]\nEnvironment=TZ=Europe/Istanbul\n' | sudo tee /etc/systemd/system/sprenses-api.service.d/timezone.conf
+sudo mkdir -p /etc/systemd/system/sprenses-frontend.service.d
+printf '[Service]\nEnvironment=TZ=Europe/Istanbul\n' | sudo tee /etc/systemd/system/sprenses-frontend.service.d/timezone.conf
+sudo systemctl daemon-reload
+sudo systemctl restart sprenses-api.service sprenses-frontend.service
+```
+Doğrulama: `sudo cat /proc/$(systemctl show -p MainPID --value sprenses-api.service)/environ | tr '\0' '\n' | grep TZ`
+→ `TZ=Europe/Istanbul`; endpoint `runway.today` artık İstanbul gününü döndürür.
+
+**DİKKAT — sunucu yeniden kurulursa TEKRAR oluşturulmalı** (bu `.conf` dosyaları repoda yedeklenmez).
+Alternatif kalıcı çözüm: sistem TZ'sini de İstanbul yapmak (`sudo timedatectl set-timezone Europe/Istanbul`)
+— ama DB zaten bağlantı başına İstanbul kullandığından ve loglar UTC beklenebildiğinden, yalnız uygulama
+process'lerine TZ vermek daha az yan etkili tercih edildi. Kök CLAUDE.md "Saat Dilimi" bölümüne de işlendi.
