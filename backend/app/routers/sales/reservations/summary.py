@@ -30,6 +30,33 @@ from ._helpers import _apply_filters, _month_days_in_range, _resolve_date_range
 router = APIRouter()
 
 
+@router.get("/years")
+def reservation_years(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("sales.hotel_reservation", "view")),
+):
+    """Yıl filtresi seçenekleri — rezervasyon VERİSİNDE gerçekten geçen yıllar.
+
+    Yükleme periyodunun yalnız başlangıç/bitiş yılını kullanmak yıl atlıyordu (ör.
+    periyot 2026→2030 ise 2027/2028/2029 seçilemiyordu ve o yıllara ait rezervasyonlar
+    hiç gösterilemiyordu). Burada check-in VE check-out yıllarının birleşimi alınır →
+    yıl sınırına taşan konaklamalar (ör. 26 Ara → 3 Oca) her iki yılda da seçilebilir;
+    verisi olmayan yıllar (yükleme periyodu artığı) listeye girmez.
+    """
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT y FROM (
+                SELECT EXTRACT(YEAR FROM checkin_date)::int AS y FROM reservations
+                UNION
+                SELECT EXTRACT(YEAR FROM checkout_date)::int AS y FROM reservations
+            ) t
+            WHERE y IS NOT NULL
+            ORDER BY y DESC
+        """)
+    ).fetchall()
+    return {"years": [int(r[0]) for r in rows]}
+
+
 @router.get("/summary")
 def reservation_summary(
     start_date: Optional[str] = Query(None),

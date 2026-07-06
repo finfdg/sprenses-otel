@@ -214,6 +214,44 @@ def test_summary_year_filter(client, auth_headers, minimal_xls_bytes):
     assert res2.json()["kpi"]["total_rez"] == 2
 
 
+def test_reservation_years_from_data(client, auth_headers, db):
+    """Yıl filtresi seçenekleri rezervasyon verisinden türer — yıl atlaması olmamalı.
+
+    Bug (2026-07-06): availableYears yükleme periyodunun yalnız start/end yılını alıyordu;
+    periyot 2026→2030 ise 2027 atlanıp o yılın rezervasyonları hiç gösterilemiyordu. Artık
+    check-in + check-out yıllarının DISTINCT birleşimi döner; yıl sınırına taşan konaklama
+    her iki yılda da listelenir, verisi olmayan yıl (2030 gibi periyot artığı) girmez.
+    """
+    # 2025 rezervasyonu
+    db.add(Reservation(
+        rec_id=90001, agency="AG", room_type="STD", voucher="Y1", guests="G",
+        checkin_date=date(2025, 6, 1), checkout_date=date(2025, 6, 5), nights=4,
+        record_date=date(2025, 1, 1), board="AI", rooms=1, adult=2,
+        child_paid=0, child_free=0, baby=0, nation="DEU",
+        net_amount=500.0, currency="EUR", eur_total=500.0,
+        rez_status="Definite", status="Reservation",
+    ))
+    # Yıl sınırına taşan konaklama: 28 Ara 2026 → 3 Oca 2027 (hem 2026 hem 2027)
+    db.add(Reservation(
+        rec_id=90002, agency="AG", room_type="STD", voucher="Y2", guests="G",
+        checkin_date=date(2026, 12, 28), checkout_date=date(2027, 1, 3), nights=6,
+        record_date=date(2026, 6, 1), board="AI", rooms=1, adult=2,
+        child_paid=0, child_free=0, baby=0, nation="DEU",
+        net_amount=900.0, currency="EUR", eur_total=900.0,
+        rez_status="Definite", status="Reservation",
+    ))
+    db.flush()
+
+    res = client.get("/api/sales/reservations/years", headers=auth_headers)
+    assert res.status_code == 200
+    years = res.json()["years"]
+    # 2027 (taşan konaklama) mevcut; DESC sıralı; yalnız verisi olan yıllar
+    assert years == sorted(years, reverse=True)
+    assert 2027 in years
+    assert 2026 in years
+    assert 2025 in years
+
+
 def test_unauthorized_blocked(client, minimal_xls_bytes):
     """Yetkisiz kullanıcı endpoint'lere erişemez."""
     res = client.get("/api/sales/reservations/summary")

@@ -15,7 +15,7 @@ app/routers/sales/reservations/
 ├── uploads.py          # POST /upload, GET /uploads, DELETE /uploads/{id}, POST /bulk-delete + _compute_removal_candidates
 ├── sedna_import.py     # POST /sedna-import, GET /sedna-status + run_reservation_import (SednaPrenses önbüro senkronu)
 ├── listing.py          # GET / (sayfalanmış liste)
-├── summary.py          # GET /summary (KPI + dağılımlar + doluluk metrikleri)
+├── summary.py          # GET /summary (KPI + dağılımlar + doluluk metrikleri) + GET /years (yıl filtresi seçenekleri)
 ├── occupancy.py        # GET /daily-occupancy?month=YYYY-MM (aylık drill-down)
 └── _helpers.py         # _apply_filters, _parse_date, _resolve_date_range, _month_days_in_range, UPLOAD_DIR
 ```
@@ -38,6 +38,22 @@ frontend/src/lib/components/sales/otel-rezervasyon/
 > **Not (AgencyGroupModal):** Modal kapanışında gm* state'i sıfırlayan `$effect` ve `gmSuggestions`
 > `$derived`'i **parent'ta** tutuldu (`+page.svelte`). `bind:show` iki-yönlü olduğundan kapanış reset'i
 > bileşenden de doğru tetiklenir; `gmSearch` yazımı parent derived'i yeniden hesaplatır.
+
+## Yıl Filtresi Seçenekleri — `GET /reservations/years` (2026-07-06)
+
+Sayfa üstündeki yıl dropdown'ı (`availableYears`) **rezervasyon verisinde gerçekten geçen
+yıllardan** üretilir: `GET /sales/reservations/years` → `{ years: [2027, 2026, 2025] }`
+(check-in **VE** check-out yıllarının `DISTINCT` birleşimi, DESC).
+
+- **Neden değişti (bug):** Önceden `availableYears` yükleme periyotlarından (`period_checkin_start`/
+  `period_checkin_end`) yalnız **başlangıç ve bitiş yılını** ekliyordu. Bir yükleme periyodu
+  2026-01-01 → 2030-12-05 olduğunda listeye yalnız 2026 ve 2030 giriyor, **aradaki 2027/2028/2029
+  atlanıyordu** → 2027 check-in'li 28 rezervasyon (+ yıl sınırına taşan 119 konaklama) hiç
+  seçilemiyor/gösterilemiyordu. Ayrıca verisi olmayan 2030 (periyot artığı) listede kalıyordu.
+- **Çözüm:** Yıllar artık rezervasyon tablosundan türetilir → yalnız verisi olan yıllar (2025–2027),
+  yıl atlaması yok. Check-in + check-out birleşimi sayesinde yıl sınırına taşan konaklamalar
+  (ör. 26 Ara → 3 Oca) her iki yılda da seçilebilir; o yılın görünümü ilgili aya düşen geceleri gösterir.
+- Salt-okuma GET (`sales.hotel_reservation` view) → onay/broadcast kapsam dışı.
 
 ## Canlı Doluluk Senkronu — SednaPrenses Önbüro DB'si (2026-06-07)
 

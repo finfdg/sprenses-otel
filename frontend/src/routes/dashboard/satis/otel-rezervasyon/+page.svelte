@@ -629,18 +629,15 @@
 
 	async function loadUploads() {
 		try {
-			uploads = await api.get<UploadHistory[]>('/sales/reservations/uploads');
-			// Mevcut yıllar — yükleme periyotlarından
-			const years = new Set<number>();
-			for (const u of uploads) {
-				if (u.period_checkin_start) {
-					years.add(new Date(u.period_checkin_start).getFullYear());
-				}
-				if (u.period_checkin_end) {
-					years.add(new Date(u.period_checkin_end).getFullYear());
-				}
-			}
-			availableYears = Array.from(years).sort((a, b) => b - a);
+			// Mevcut yıllar — rezervasyon VERİSİNDE geçen yıllar (backend distinct).
+			// Yükleme periyodunun start/end yılını kullanmak aradaki yılları atlıyordu
+			// (periyot 2026→2030 → 2027/2028/2029 seçilemiyordu); artık her yıl gelir.
+			const [uploadList, yearsResp] = await Promise.all([
+				api.get<UploadHistory[]>('/sales/reservations/uploads'),
+				api.get<{ years: number[] }>('/sales/reservations/years'),
+			]);
+			uploads = uploadList;
+			availableYears = yearsResp.years || [];
 		} catch (e) {
 			console.error('Yükleme geçmişi alınamadı:', e);
 		}
