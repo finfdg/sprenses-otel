@@ -83,6 +83,13 @@ def _ensure_chronological_order(transactions: List[ParsedTransaction]) -> None:
     2) Aynı gün işlemlerinde bakiye zincirini kontrol eder —
        ters sıra daha tutarlıysa listeyi çevirir.
     3) Bakiye zinciri berabere ise saat veya dekont numarası ile karar verir.
+    4) Hâlâ berabereyse ve tam 2 işlem varsa (tutarları birebir zıt — ör. kredi
+       kullandırımı + aynı tutarın tam transferi): gelir gidere ÖNCE gelir varsayımı
+       ile karar verilir (para harcanmadan önce alınmış olmalı). Bu durumda ileri/geri
+       bakiye-zinciri skoru matematiksel olarak HER ZAMAN eşittir (amt[0]=-amt[1] iken
+       ayırt edilemez) — canlı bulgu: Eximbank TRY ekstresi, aynı gün kredi kullandırımı
+       + tam transfer, dosya sırası ters geldiğinde bakiye zinciri bunu yakalayamadı
+       (2026-07-06 düzeltmesi).
     """
     if len(transactions) < 2:
         return
@@ -119,6 +126,15 @@ def _ensure_chronological_order(transactions: List[ParsedTransaction]) -> None:
         if len(receipts) >= 2 and receipts[0] > receipts[-1]:
             transactions.reverse()
             return
+
+        # Saat/dekont da yoksa (veya kararsızsa): tam 2 işlem + birebir zıt tutar
+        # (bakiye zinciri matematiksel olarak ayırt edemez) → gelir gidere ÖNCE gelir
+        if len(transactions) == 2:
+            a, b = transactions[0], transactions[1]
+            if a.type != b.type and abs(abs(a.amount) - abs(b.amount)) < 0.02:
+                if a.type == "expense" and b.type == "income":
+                    transactions.reverse()
+                return
 
 
 def compute_tx_hash(tx_date: date, receipt_no: Optional[str], amount: float, description: str, seq: int = 0) -> str:

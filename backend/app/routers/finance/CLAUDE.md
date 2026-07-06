@@ -1363,6 +1363,26 @@ Tüm yazma endpoint'leri bu context manager'ı kullanır:
    - Dekont numarası: ilk dekont > son dekont → reverse
 5. Bu düzeltme tüm banka formatlarını etkiler ama sadece saat/dekont bilgisi olan bankalar için aktif olur
 
+### bank_parser.py — Birebir Zıt Tutarlı Aynı-Gün Çifti (2026-07-06 düzeltildi)
+
+**Sorun:** Türk Eximbank TRY ekstresinde aynı gün (07.04.2026) kredi kullandırımı (+₺6,34M,
+income) ve aynı tutarın tam transferi (−₺6,34M, expense) ters sırayla içe aktarıldı — dosyada
+transfer önce, kullandırım sonra geliyordu; olması gereken tam tersiydi. `_balance_chain_score`
+bu durumda **matematiksel olarak ayırt edemez**: iki işlem `amt[0] == -amt[1]` (birebir zıt)
+olduğunda ileri ve geri skor HER ZAMAN eşittir (kanıt: `test_offsetting_pair_balance_chain_is_tied`).
+Saat/dekont no da yoksa (bu ekstrede yoktu) tiebreaker'lar devreye giremiyor, fonksiyon dosyadaki
+ham sırayı olduğu gibi bırakıyordu → `max(BankTransaction.id)` bazlı "güncel bakiye" hesabı
+(listing.py/runway.py) yanlışlıkla ₺6,34M gösteriyordu (gerçek: ₺0, para transfer edilmişti).
+**Canlı düzeltme:** 2 kayıt (id 5836/5837) doğru sırayla yeniden oluşturuldu (finance_events dahil).
+
+**Kalıcı çözüm — yeni tiebreaker (saat/dekont'tan SONRA, en son çare):** Tam 2 işlem +
+`a.type != b.type` (biri income biri expense) + `abs(abs(a.amount)-abs(b.amount)) < 0.02`
+(birebir zıt tutar) ise **gelir gidere ÖNCE gelir** varsayımıyla karar verilir (para
+harcanmadan önce alınmış olmalı — makul iş kuralı varsayımı, kesin veri değil). Aynı-tip
+(income+income veya expense+expense) çiftlerde bu tiebreak devre dışı kalır — yalnızca bu
+özel simetrik duruma (matematiksel ayırt edilemezlik) özgü. Test: `test_offsetting_pair_*`,
+`test_non_offsetting_tie_not_affected` (4 test, `TestEnsureChronologicalOrder`).
+
 ---
 
 ## Test

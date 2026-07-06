@@ -212,6 +212,44 @@ class TestEnsureChronologicalOrder:
         _ensure_chronological_order(txs)
         assert txs[0].balance == 1000 and txs[1].balance == 1500
 
+    def test_offsetting_pair_balance_chain_is_tied(self):
+        """Birebir zıt tutarlı 2 işlemde bakiye-zinciri skoru HER İKİ sırada da eşittir
+        (matematiksel olarak ayırt edilemez) — bu tiebreak'in neden gerekli olduğunu doğrular."""
+        fwd = [_tx(date(2026, 4, 7), -6340000, 0, type="expense"),
+               _tx(date(2026, 4, 7), 6340000, 6340000, type="income")]
+        assert _balance_chain_score(fwd) == _balance_chain_score(list(reversed(fwd)))
+
+    def test_offsetting_pair_income_before_expense(self):
+        """Canlı bulgu (2026-07-06, Eximbank TRY ekstresi): aynı gün kredi kullandırımı
+        (income) + aynı tutarın tam transferi (expense) dosyada ters sırayla geldi
+        (expense önce). Bakiye zinciri berabere kaldığından (yukarıdaki test) saat/dekont
+        de yoksa gelir-önce-gider varsayımıyla düzeltilmeli."""
+        txs = [_tx(date(2026, 4, 7), -6340000, 0, type="expense",
+                    description="Alıcı IBAN transferi"),
+               _tx(date(2026, 4, 7), 6340000, 6340000, type="income",
+                    description="Kredi kullandırımı")]
+        _ensure_chronological_order(txs)
+        assert txs[0].type == "income" and txs[0].balance == 6340000
+        assert txs[1].type == "expense" and txs[1].balance == 0
+
+    def test_offsetting_pair_already_correct_order_unchanged(self):
+        """Dosya sırası zaten doğruysa (income önce) dokunulmamalı."""
+        txs = [_tx(date(2026, 4, 7), 6340000, 6340000, type="income"),
+               _tx(date(2026, 4, 7), -6340000, 0, type="expense")]
+        _ensure_chronological_order(txs)
+        assert txs[0].type == "income" and txs[1].type == "expense"
+
+    def test_non_offsetting_tie_not_affected(self):
+        """Bakiye bilgisi olmadığından (0-0 berabere) ama iki işlem AYNI tip (ikisi de
+        income) olduğundan yeni tiebreak devre dışı kalmalı — yalnızca income+expense
+        çiftine özel bir varsayım; aynı-tip berabereliklerde sıraya dokunulmamalı."""
+        txs = [_tx(date(2026, 6, 1), 100, None, type="income"),
+               _tx(date(2026, 6, 1), 200, None, type="income")]
+        assert _balance_chain_score(txs) == _balance_chain_score(list(reversed(txs))) == 0
+        before = list(txs)
+        _ensure_chronological_order(txs)
+        assert txs == before
+
 
 # ─── parse_excel entegrasyon testleri (sentetik .xlsx — gerçek dosya ayrıştırma) ───
 
