@@ -180,6 +180,22 @@ gösterilmez (geriye uyum).
 [credit/bank-hariç], `effective_due_date` overdue-orijinal + deferral, endpoint 401/403/viewer-403/400/
 200 + FE event_date değişimi + clear-geri-döner + audit, runway overdue + deferred/original_date).
 
+### Vadesi geçmiş ödenmemiş BAKİYEDEN DÜŞÜLMEZ (2026-07-06, kullanıcı kararı — davranış tersine döndü)
+
+**Belirti/karar:** Nakit Akım sayfası (`compute_eur_balances`) bugünkü bakiyeyi **banka nakdi −
+vadesi geçmiş ödenmemiş çek/cari** ("bloke") olarak gösteriyordu → Panel runway grafiği ise ham banka
+nakdini gösteriyordu (canlı: banka €29.607 ama Nakit Akım −€68.405; fark €98.013 = 1 çek + 136 cari
+vadesi geçmiş). Kullanıcı: **"vadesi geçeni bakiyeden düşemezsin çünkü ÖDENMEDİ — para hâlâ bankada"**.
+- **Değişiklik:** `eur_balances.py`'den `overdue_total` (overdue_check_total + overdue_vendor_total)
+  çıkarma mantığı **KALDIRILDI** (bugün ve gelecek dallarından). Bakiye artık **gerçek banka nakdi**.
+  Vadesi geçmiş kalem ödenene kadar banka nakdi yerinde durur; ödenince gerçek banka hareketiyle düşer.
+  Overdue yalnız ayrı bir "Vadesi Geçenler" uyarısıdır (Panel `OverdueList`), bakiyeyi azaltmaz.
+- **Sonuç:** Nakit Akım sayfası bakiyesi = Panel runway "Bankadaki Nakit" = `_compute_start_eur` → **iki
+  görünüm tutarlı** (canlı doğrulama: ikisi de €29.607). Bu, 2026-07-04'te eklenen "bloke düş"
+  (denetim YÜKSEK-1) davranışının bilinçli GERİ ALINMASI.
+- **Test:** `test_payment_deferral.py::TestEurBalanceOverdueVendor::test_overdue_vendor_not_subtracted_from_balance`
+  (overdue eklenince bakiye DEĞİŞMEZ; eski test tersine çevrildi).
+
 ---
 
 ## Nakit Akım PDF Raporu (2026-07-03, YENİ)

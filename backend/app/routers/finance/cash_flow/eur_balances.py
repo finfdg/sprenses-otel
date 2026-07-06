@@ -316,25 +316,12 @@ def compute_eur_balances(db: Session) -> dict:
     last_bank_date = max(bank_date_set) if bank_date_set else all_dates[0] if all_dates else None
     cumulative_future_expense = 0
 
-    # Vadesi gelmiş ama ödenmemiş çekler → bloke tutar
-    overdue_check_total = 0.0
-    for c in pending_checks:
-        if c.due_date <= today_date:
-            amt = float(c.amount_currency)
-            curr = "EUR" if c.currency != "TL" else "TRY"
-            if curr == "TRY":
-                amt = float(c.amount_tl)
-            overdue_check_total += to_eur(amt, curr, c.due_date)
-
-    # Vadesi geçmiş ödenmemiş CARİ ödemeleri → bloke tutar (2026-07-04). Cuma roll-over
-    # kaldırıldığından bu kalemler artık GEÇMİŞ event_date'te durur; çekteki gibi bugünkü
-    # bakiyeden düşülmezse projeksiyondan sessizce KAYBOLURDU (bakiye şişerdi). Gelecek
-    # döngüsü yalnız dt > today ekler (aşağıda) → çift sayım yok.
-    overdue_vendor_total = 0.0
-    for vfe in vendor_fe_payments:
-        if vfe.event_date < today_date:
-            overdue_vendor_total += to_eur(float(vfe.amount), vfe.currency or "TRY", vfe.event_date)
-    overdue_total = overdue_check_total + overdue_vendor_total
+    # NOT — VADESİ GEÇMİŞ ÖDENMEMİŞ KALEMLER BAKİYEDEN DÜŞÜLMEZ (kullanıcı kararı 2026-07-06):
+    # "vadesi geçeni bakiyeden düşemezsin çünkü ödenmedi — para hâlâ bankada". Vadesi geçmiş çek/cari
+    # ödenene kadar banka nakdi yerinde durur; ödendiğinde gerçek banka hareketiyle bakiye düşer.
+    # O ana kadar bunlar yalnızca ayrı bir "Vadesi Geçenler" uyarısıdır, bakiyeyi azaltmaz (Panel
+    # runway grafiği + T-Hesap eğrisi de aynı: overdue'yu bakiyeye katmaz, ayrı listeler). Eski
+    # "overdue_total bloke düş" mantığı kaldırıldı → iki görünüm de gerçek banka nakdini gösterir.
 
     daily = {}
     for dt in all_dates:
@@ -351,12 +338,8 @@ def compute_eur_balances(db: Session) -> dict:
                     effective_bal = bal - acc_blocked.get(acc_id, 0)
                     bank_eur += to_eur(effective_bal, acc_map[acc_id].currency, dt)
             last_known_bank_eur = round(bank_eur, 2)
-            if dt >= today_date:
-                # Bugün veya sonrası: vadesi gelmiş ödenmemiş çek + cari bloke olarak düş
-                total_balance = round(last_known_bank_eur - overdue_total, 2)
-            else:
-                # Geçmiş banka tarihleri: gerçek bakiye aynen kalır
-                total_balance = last_known_bank_eur
+            # Bakiye = GERÇEK banka nakdi (vadesi geçmiş ödenmemiş düşülmez — yukarıdaki nota bkz)
+            total_balance = last_known_bank_eur
         elif last_bank_date and dt > last_bank_date:
             # Gelecek günlerde: son banka bakiyesi - bloke çekler - kümülatif giderler + beklenen gelirler
             # Bekleyen çekleri sadece gelecek olanları (due > bugün) ekle — geçmiş olanlar overdue'da
@@ -373,7 +356,7 @@ def compute_eur_balances(db: Session) -> dict:
             # Bekleyen avanslar ve planlı gelirler gelir olarak eklenir (giderden düşülür)
             cumulative_future_expense -= advance_income_by_date.get(dt, 0)
             cumulative_future_expense -= scheduled_income_by_date.get(dt, 0)
-            total_balance = round(last_known_bank_eur - overdue_total - cumulative_future_expense, 2)
+            total_balance = round(last_known_bank_eur - cumulative_future_expense, 2)
         else:
             total_balance = last_known_bank_eur
 

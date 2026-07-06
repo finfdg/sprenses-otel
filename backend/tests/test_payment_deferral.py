@@ -319,9 +319,10 @@ class TestRunwayOverdue:
 
 
 class TestEurBalanceOverdueVendor:
-    """Cuma roll-over kaldırılınca vadesi geçmiş cari ödemesi GEÇMİŞ event_date'te durur.
-    compute_eur_balances bunu (çekteki overdue_check_total gibi) bugünkü bakiyeden düşmeli —
-    yoksa projeksiyondan sessizce kaybolur (bakiye şişer). 2026-07-04 denetim bulgusu YÜKSEK-1."""
+    """Vadesi geçmiş ödenmemiş cari/çek bakiyeden DÜŞÜLMEZ (kullanıcı kararı 2026-07-06:
+    "ödenmedi, para hâlâ bankada"). compute_eur_balances gerçek banka nakdini gösterir; vadesi
+    geçen ödenene kadar banka hareketiyle düşer. (Eski "bloke düş" davranışı kaldırıldı — bkz
+    eur_balances.py; Panel runway grafiği de overdue'yu bakiyeye katmaz → iki görünüm tutarlı.)"""
 
     def _seed_bank(self, db, balance_try):
         from datetime import date, timedelta
@@ -344,7 +345,7 @@ class TestEurBalanceOverdueVendor:
         db.add(ExchangeRate(currency_code="EUR", date=MIN_DATE, unit=1, forex_selling=selling))
         db.flush()
 
-    def test_overdue_vendor_subtracted_from_balance(self, db):
+    def test_overdue_vendor_not_subtracted_from_balance(self, db):
         from datetime import date, timedelta
         from app.routers.finance.cash_flow.eur_balances import compute_eur_balances
         from app.models.finance_event import FinanceEvent
@@ -354,7 +355,7 @@ class TestEurBalanceOverdueVendor:
         today = date.today()
         base = compute_eur_balances(db)["daily"].get(str(today), {}).get("balance_eur", 0)
 
-        # Vadesi 10 gün geçmiş, ödenmemiş cari ödemesi (50.000 TL = 1000 EUR)
+        # Vadesi 10 gün geçmiş, ÖDENMEMİŞ cari ödemesi (50.000 TL = 1000 EUR)
         past = today - timedelta(days=10)
         db.add(FinanceEvent(event_date=past, amount=50000, direction=-1, currency="TRY",
                             source_type="vendor_payment", source_id=778001,
@@ -362,5 +363,5 @@ class TestEurBalanceOverdueVendor:
         db.flush()
 
         after = compute_eur_balances(db)["daily"].get(str(today), {}).get("balance_eur", 0)
-        # Bugünkü bakiye ~1000 EUR düşmeli (kaybolmamalı)
-        assert round(base - after) == 1000, f"overdue cari düşülmedi: base={base} after={after}"
+        # Bugünkü bakiye DEĞİŞMEZ — vadesi geçmiş ödenmemiş para hâlâ bankada (düşülmez)
+        assert round(base - after) == 0, f"overdue cari yanlışlıkla bakiyeden düşüldü: base={base} after={after}"
