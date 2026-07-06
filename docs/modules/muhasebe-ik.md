@@ -280,7 +280,8 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
     (2026)** olduğundan **tek `ScheduledDefinition`** ("2026 Otel Sigortası", id 751, `source_type=recurring`).
     9 giriş: **Peşinat ₺659.201,22 (18.03)** + **8×₺247.199,00 (18.04→18.11)** = brüt prim **₺2.636.793,22**
     (tutar-doğrulama: peşinat + 8 taksit = brüt prim ✓). Peşinat/taksit ayrımı `notes`'ta; `vendor_id=NULL`
-    (cari senkronu yok — Sedna 320 carisiyle ilgisiz). `payment_day=18`/`start_month=3` gerçeğe uygun set
+    (cari senkronu YOK — aşağıya bkz: Sedna carisi bilinçli olarak nakit-akım-dışı bırakıldı, sync değil).
+    `payment_day=18`/`start_month=3` gerçeğe uygun set
     edildi ama **girişler elle** (regen etmeyin — peşinat ayrı tutar + Aralık girişi olmadığından
     `generate_entries` bozardı).
     - **Ödeme mutabakatı (Yapı Kredi TL, hesap 3):** Peşinat + 1. Taksit **20.04.2026 toplu**
@@ -289,6 +290,18 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
       edildi → recurring FE'leri `is_matched=True` (GİZLİ), banka bacağı görünür** (çift-sayım yok,
       ödenen-çek deseni). Toplu ödemede iki giriş (peşinat+1.taksit) TEK banka tx'ine (4779) eşlendi
       (2→1). 4.–8. Taksit (18.07→18.11) `pending`, nakit-akım projeksiyonunda görünür.
+    - **ÇİFT TAKİP çözümü — Sedna carisi nakit-akım-dışı (2026-07-06, kullanıcı kararı):** Bu poliçe
+      Sedna'da ayrıca **cari** olarak da duruyor (ALLİANZ SİGORTA AŞ., `320.01.01.A125`, vendor id 947):
+      16.03 tarihli **tek alacak ₺2.636.793,22** (brüt prim) + ödemeler borç kayıtları, net kalan
+      **₺1.073.735,77** (vade 90 gün → 19.06, bugün geçmiş → "vadesi geçmiş"). Aynı poliçe hem cari hem
+      düzenli ödemede olunca **kalan kısım projeksiyonda çift sayılıyordu** (Elektrik/Su deseni). Kullanıcı
+      **Düzenli Ödemeler'i tek kaynak** seçti → cari **`status='odeme_yasaklisi'`** yapıldı (`apply_vendor_update`
+      → `sync_vendor_finance_events` vendor_payment FE'sini SİLDİ → nakit akımdan çıktı). Gerçek yasak DEĞİL;
+      cariye açıklama **notu** eklendi. Cari modülde görünmeye devam eder, yalnız nakit akım/ödeme planı dışı.
+      **AÇIK KALEM:** cari 18.05'te taksitlerle eşleşmeyen **₺159.193** bir Allianz ödemesi içeriyor →
+      düzenli-ödeme bekleyeni (₺1.235.995) cariye göre gerçek kalanı (~₺1.076.802) ~159K fazla gösterir;
+      bu ödemenin bu poliçeye mi başka Allianz işine mi (önceki poliçe 0001-1110-01121299) ait olduğu
+      netleşince bir taksit daha ödenmiş işaretlenebilir.
 
 ### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
 
