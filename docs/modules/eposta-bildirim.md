@@ -22,6 +22,7 @@ Giden e-posta gönderimi — sistemin `bilgi@sprenses.com` kurumsal kutusundan
 | Helper | `backend/app/utils/mail.py` | `send_email()` + `is_mail_enabled()` |
 | Bildirim | `backend/app/utils/notification.py` | `email=True` opt-in → arka planda e-posta (`_build_email_html`, `_build_email_payloads`, `_send_email_background`) |
 | Endpoint | `backend/app/routers/notifications.py` | `POST /api/notifications/test-email` (deneme) |
+| Frontend | `frontend/src/routes/dashboard/sistem/sunucu/+page.svelte` | "Deneme e-postası gönder" butonu (E-posta SMTP kartı) |
 | Test | `backend/tests/test_mail.py` | 15 test (helper + escape + endpoint) |
 | Şablon | `backend/.env.example` | SMTP bölümü |
 
@@ -78,7 +79,8 @@ create_and_send_notifications_sync(
 ```
 POST /api/notifications/test-email
 ```
-- İzin: `system.users` **use** (yönetici).
+- İzin: `system.server` **use** (yönetici). Arayüzde **Sistem → Sunucu** sayfasındaki
+  "Deneme e-postası gönder" butonuna bağlıdır.
 - SMTP kapalıysa **503**, gönderim başarısızsa **502**, başarılıysa
   `{ "success": true, "sent_to": "<giriş yapan kullanıcının e-postası>" }` (senkron —
   gerçek sonuç döner, böylece şifre/port hatası anında görülür).

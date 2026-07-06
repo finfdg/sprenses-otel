@@ -10,7 +10,7 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
-	import { RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock } from 'lucide-svelte';
+	import { RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock, Mail } from 'lucide-svelte';
 
 	interface ServiceInfo {
 		name: string;
@@ -56,6 +56,25 @@
 	let logModal = $state<{ show: boolean; service: string; content: string; loading: boolean }>({
 		show: false, service: '', content: '', loading: false,
 	});
+
+	// SMTP deneme e-postası
+	let sendingTest = $state(false);
+
+	async function sendTestEmail() {
+		sendingTest = true;
+		try {
+			const res = await api.post<{ success: boolean; sent_to: string }>(
+				'/notifications/test-email',
+				{},
+			);
+			showToast(`Deneme e-postası gönderildi: ${res.sent_to}`, 'success');
+		} catch (e: any) {
+			console.error('Deneme e-postası gönderilemedi:', e);
+			showToast(e?.message || 'Deneme e-postası gönderilemedi', 'error');
+		} finally {
+			sendingTest = false;
+		}
+	}
 
 	function formatUptime(sec: number): string {
 		const d = Math.floor(sec / 86400);
@@ -285,6 +304,26 @@
 						<div class="text-xs text-gray-500 uppercase tracking-wider">Loglar</div>
 						<div class="text-2xl font-bold text-gray-800 mt-1">{fmtMb(info.storage.logs_mb)}</div>
 					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- ─── E-posta (SMTP) Testi ──────────────────────────── -->
+		{#if canUse}
+			<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
+				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+					<div>
+						<h2 class="font-semibold text-gray-800 flex items-center gap-2">
+							<Mail class="w-4 h-4 text-gray-500" /> E-posta (SMTP)
+						</h2>
+						<p class="text-sm text-gray-500 mt-1">
+							Giden e-posta bildirimlerinin çalıştığını doğrulamak için kendi hesabınızın
+							e-posta adresine bir deneme e-postası gönderin.
+						</p>
+					</div>
+					<Button onclick={sendTestEmail} loading={sendingTest} class="w-full sm:w-auto shrink-0">
+						<Mail size={16} /> Deneme e-postası gönder
+					</Button>
 				</div>
 			</div>
 		{/if}

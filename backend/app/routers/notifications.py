@@ -76,11 +76,11 @@ def mark_read(
 
 @router.post("/test-email")
 def send_test_email(
-    current_user: User = Depends(require_permission("system.users", "use")),
+    current_user: User = Depends(require_permission("system.server", "use")),
 ):
     """SMTP yapılandırmasını doğrula — giriş yapan yöneticinin kendi e-postasına
-    deneme e-postası gönderir (senkron; gerçek sonucu döner). Yalnız system.users
-    'use' izni olan kullanıcılar erişebilir."""
+    deneme e-postası gönderir (senkron; gerçek sonucu döner). Sunucu (system.server)
+    'use' izni gerekir — arayüzde Sistem → Sunucu sayfasındaki butona bağlıdır."""
     if not is_mail_enabled():
         raise HTTPException(
             status_code=503,
