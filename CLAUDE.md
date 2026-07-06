@@ -203,9 +203,10 @@ TEMPLATE:
 
 ## Sunucu
 
-- **OS:** Amazon Linux 2023 (EC2)
+- **OS:** Amazon Linux 2023 (EC2, t3.medium — 2 vCPU / 4 GB)
 - **Web Server:** Nginx 1.28.1 + Let's Encrypt SSL
 - **Domain:** sprenses.com
+- **Bellek koruması (2026-07-06):** 2 GB swap (`/swapfile`, `vm.swappiness=10`) + `earlyoom` (kaynaktan derlendi, `/usr/local/bin`) — RAM tükenince makine kilitlenmek yerine en büyük süreci (tipik: node build) sonlandırır; frontend build'leri `deploy-frontend.sh` içinde `flock` ile sıralıdır. Sebep: 5–6 Temmuz 2026'da iki eşzamanlı build RAM'i tüketip swap'sız thrash ile makineyi iki kez dondurdu. Detay: `docs/modules/sunucu.md`.
 
 ## Proje Yapısı
 
@@ -359,7 +360,7 @@ TEMPLATE:
   ```bash
   /home/ec2-user/otel/scripts/deploy-frontend.sh
   ```
-  Bu script `npm run build` + `systemctl restart` zincirini çalıştırır. Tek başına `restart` yetmez.
+  Bu script `npm run build` + `systemctl restart` zincirini çalıştırır. Tek başına `restart` yetmez. Script `flock` ile tekilleştirilmiştir — iki oturum aynı anda deploy tetiklerse ikincisi sırada bekler (en çok 10 dk) — ve build Node heap'i 1536 MB ile sınırlıdır (iki paralel build'in 4 GB RAM'i tüketip makineyi kilitlemesine karşı, 2026-07-06 — detay `docs/modules/sunucu.md`).
 - **Tarayıcı önbelleği:** Deploy sonrası kullanıcının hard-refresh yapması gerekebilir (Cmd/Ctrl+Shift+R · iPad Safari: yenile ikonuna uzun bas → "Sürüm Yenile").
 
 ### Sürüm Kontrolü ve CI
