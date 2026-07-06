@@ -263,6 +263,14 @@ varsayımına uymaz: taksitler **birden çok yıla yayılır** ve **her taksit f
     karıştırmıştı (Plan A sayfa 1 + Plan B sayfa 2) → tek-plan sanılıp oluşturulmuş, sonra geri alınıp
     tam belgelerle iki ayrı plan olarak yeniden yapıldı. Farklı **Tecil Dosya Numarası** ayırt edicidir;
     sayfa-2 "Toplam" satırı (36×taksit) tek-sayfanın kendi planına ait olduğunun kanıtıdır.
+  - **Otel Sigortası (Allianz Modüler Kurumsal, Poliçe 0001-1110-01151205)** — yapılandırma değil
+    ama aynı desende (değişken tutar → elle giriş): 1 yıllık poliçe (16.03.2026–16.03.2027), **tek yıl
+    (2026)** olduğundan **tek `ScheduledDefinition`** ("2026 Otel Sigortası", id 751, `source_type=recurring`).
+    9 giriş: **Peşinat ₺659.201,22 (18.03)** + **8×₺247.199,00 (18.04→18.11)** = brüt prim **₺2.636.793,22**
+    (tutar-doğrulama: peşinat + 8 taksit = brüt prim ✓). Peşinat/taksit ayrımı `notes`'ta; `vendor_id=NULL`
+    (cari senkronu yok — Sedna 320 carisiyle ilgisiz). `payment_day=18`/`start_month=3` gerçeğe uygun set
+    edildi ama **girişler elle** (regen etmeyin — peşinat ayrı tutar + Aralık girişi olmadığından
+    `generate_entries` bozardı). Tüm girişler `pending` (henüz ödenmedi).
 
 ### Yıl seçici — dinamik (2026-07-06 hata düzeltmesi)
 
