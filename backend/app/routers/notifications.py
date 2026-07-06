@@ -5,11 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
-from app.middleware.auth import get_current_user
+from app.middleware.auth import get_current_user, require_permission
 from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.notification import NotificationMarkRead, NotificationResponse
+from app.utils.mail import is_mail_enabled, send_email
 from app.utils.pagination import page_meta
 
 router = APIRouter()
@@ -70,6 +72,40 @@ def mark_read(
     ).scalar()
 
     return {"detail": f"{updated} bildirim okundu olarak işaretlendi", "unread_count": new_count or 0}
+
+
+@router.post("/test-email")
+def send_test_email(
+    current_user: User = Depends(require_permission("system.users", "use")),
+):
+    """SMTP yapılandırmasını doğrula — giriş yapan yöneticinin kendi e-postasına
+    deneme e-postası gönderir (senkron; gerçek sonucu döner). Yalnız system.users
+    'use' izni olan kullanıcılar erişebilir."""
+    if not is_mail_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="E-posta (SMTP) yapılandırılmamış — .env dosyasında SMTP_PASSWORD tanımlayın",
+        )
+    ok = send_email(
+        to=current_user.email,
+        subject="Sprenses Otel — Deneme E-postası",
+        body_html=(
+            '<div style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;">'
+            '<h2 style="font-size:18px;">Deneme e-postası</h2>'
+            "<p>Bu e-posta, Sprenses Otel Yönetim Sistemi SMTP yapılandırmasının "
+            "çalıştığını doğrulamak için gönderildi. Bu mesajı aldıysanız giden "
+            "e-posta bildirimleri hazır demektir.</p>"
+            '<p style="color:#6b7280;font-size:12px;">Gönderen: %s</p>'
+            "</div>"
+        ) % settings.smtp_user,
+        body_text="Bu, Sprenses Otel SMTP yapılandırma deneme e-postasıdır.",
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=502,
+            detail="E-posta gönderilemedi — SMTP sunucu/port/şifre ayarlarını kontrol edin (sunucu loglarına bakın)",
+        )
+    return {"success": True, "sent_to": current_user.email}
 
 
 @router.delete("/all")
