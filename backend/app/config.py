@@ -26,6 +26,15 @@ class Settings(BaseSettings):
     sedna_password: str = ""               # .env: SEDNA_PASSWORD (boşsa import devre dışı)
     sedna_charset: str = "CP1254"          # Türkçe collation (İ/Ş/ğ doğru okunsun)
     sedna_account_prefix: str = "320"      # içe aktarılacak cari grubu (satıcılar)
+    # SMTP (giden e-posta bildirimleri — opsiyonel, TurkTicaret.net kurumsal e-posta)
+    # SMTP_PASSWORD boşsa e-posta gönderimi devre dışıdır (SEDNA_PASSWORD deseni gibi).
+    # Port 465 → SSL (smtp_use_ssl=True) · Port 587 → STARTTLS (smtp_use_ssl=False)
+    smtp_host: str = "smtp.turkticaret.net"
+    smtp_port: int = 465
+    smtp_use_ssl: bool = True               # 465=SSL(True), 587=STARTTLS(False)
+    smtp_user: str = "bilgi@sprenses.com"   # tam e-posta adresi (kimlik doğrulama)
+    smtp_password: str = ""                 # .env: SMTP_PASSWORD (boşsa gönderim kapalı)
+    smtp_from_name: str = "Sprenses Otel"   # gönderen görünen adı
 
     class Config:
         env_file = os.path.join(
