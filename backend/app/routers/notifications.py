@@ -5,12 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from typing import Optional
+
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth import get_current_user, require_permission
 from app.models.notification import Notification
 from app.models.user import User
-from app.schemas.notification import NotificationMarkRead, NotificationResponse
+from app.schemas.notification import NotificationMarkRead, NotificationResponse, TestEmailRequest
 from app.utils.mail import is_mail_enabled, send_email
 from app.utils.pagination import page_meta
 
@@ -74,22 +76,62 @@ def mark_read(
     return {"detail": f"{updated} bildirim okundu olarak işaretlendi", "unread_count": new_count or 0}
 
 
-@router.post("/test-email")
-def send_test_email(
+@router.get("/test-email/recipients")
+def list_test_email_recipients(
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("system.server", "use")),
 ):
-    """SMTP yapılandırmasını doğrula — giriş yapan yöneticinin kendi e-postasına
-    deneme e-postası gönderir (senkron; gerçek sonucu döner). Sunucu (system.server)
-    'use' izni gerekir — arayüzde Sistem → Sunucu sayfasındaki butona bağlıdır."""
+    """Deneme e-postası gönderilebilecek alıcılar — aktif kullanıcılar (ad + e-posta).
+    Deneme özelliğine özel hafif liste; ada göre sıralı."""
+    users = (
+        db.query(User)
+        .filter(
+            User.is_active == True,  # noqa: E712
+            User.email.isnot(None),
+            User.email != "",
+        )
+        .order_by(User.first_name, User.last_name)
+        .all()
+    )
+    return [{"id": u.id, "name": u.full_name, "email": u.email} for u in users]
+
+
+@router.post("/test-email")
+def send_test_email(
+    data: Optional[TestEmailRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("system.server", "use")),
+):
+    """SMTP yapılandırmasını doğrula — deneme e-postası gönderir (senkron; gerçek
+    sonucu döner). Sunucu (system.server) 'use' izni gerekir.
+
+    - `user_id` verilirse → o kullanıcının tanımlı e-posta adresine gönderir
+      (o adresin gerçekten teslim aldığını da test eder).
+    - `user_id` verilmezse → sistem kutusuna (SMTP kullanıcısı = bilgi@sprenses.com)
+      gönderir (her zaman var olan güvenli öz-test)."""
     if not is_mail_enabled():
         raise HTTPException(
             status_code=503,
             detail="E-posta (SMTP) yapılandırılmamış — .env dosyasında SMTP_PASSWORD tanımlayın",
         )
-    # Deneme e-postası her zaman var olan sistem kutusuna (SMTP kullanıcısı =
-    # bilgi@sprenses.com) gider — kullanıcı hesap e-postası gerçek bir posta kutusu
-    # olmayabilir (ör. admin@sprenses.com → 550 Recipient rejected).
-    recipient = settings.smtp_user
+
+    user_id = data.user_id if data else None
+    if user_id is not None:
+        target = db.query(User).filter(User.id == user_id).first()
+        if not target:
+            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+        if not target.email:
+            raise HTTPException(
+                status_code=400,
+                detail="Bu kullanıcının tanımlı bir e-posta adresi yok",
+            )
+        recipient = target.email
+    else:
+        # Kullanıcı hesap e-postası gerçek bir posta kutusu olmayabilir (ör.
+        # admin@sprenses.com → 550 Recipient rejected) → varsayılan güvenli alıcı
+        # her zaman var olan sistem kutusudur.
+        recipient = settings.smtp_user
+
     ok = send_email(
         to=recipient,
         subject="Sprenses Otel — Deneme E-postası",
@@ -107,7 +149,7 @@ def send_test_email(
     if not ok:
         raise HTTPException(
             status_code=502,
-            detail="E-posta gönderilemedi — SMTP sunucu/port/şifre ayarlarını kontrol edin (sunucu loglarına bakın)",
+            detail="E-posta gönderilemedi — alıcı adresi geçersiz olabilir ya da SMTP ayarlarını kontrol edin (sunucu loglarına bakın)",
         )
     return {"success": True, "sent_to": recipient}
 

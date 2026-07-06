@@ -10,6 +10,7 @@
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import { RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock, Mail } from 'lucide-svelte';
 
 	interface ServiceInfo {
@@ -58,14 +59,26 @@
 	});
 
 	// SMTP deneme e-postası
+	interface TestRecipient { id: number; name: string; email: string }
 	let sendingTest = $state(false);
+	let recipients = $state<TestRecipient[]>([]);
+	let selectedRecipient = $state<string>(''); // '' = sistem kutusu
+
+	async function loadRecipients() {
+		try {
+			recipients = await api.get<TestRecipient[]>('/notifications/test-email/recipients');
+		} catch (e: any) {
+			console.error('Alıcı listesi alınamadı:', e);
+			// Liste alınamazsa dropdown yalnız sistem kutusu ile çalışır
+		}
+	}
 
 	async function sendTestEmail() {
 		sendingTest = true;
 		try {
 			const res = await api.post<{ success: boolean; sent_to: string }>(
 				'/notifications/test-email',
-				{},
+				{ user_id: selectedRecipient === '' ? null : Number(selectedRecipient) },
 			);
 			showToast(`Deneme e-postası gönderildi: ${res.sent_to}`, 'success');
 		} catch (e: any) {
@@ -146,6 +159,7 @@
 	onMount(() => {
 		if (!canView) return;
 		loadInfo();
+		if (canUse) loadRecipients();
 		// Sayfa boyunca 30 sn'de bir otomatik yenile (sayfa kapanınca durur)
 		refreshTimer = setInterval(loadInfo, REFRESH_MS);
 	});
@@ -311,16 +325,26 @@
 		<!-- ─── E-posta (SMTP) Testi ──────────────────────────── -->
 		{#if canUse}
 			<div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-5">
-				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-					<div>
-						<h2 class="font-semibold text-gray-800 flex items-center gap-2">
-							<Mail class="w-4 h-4 text-gray-500" /> E-posta (SMTP)
-						</h2>
-						<p class="text-sm text-gray-500 mt-1">
-							Giden e-posta bildirimlerinin çalıştığını doğrulamak için sistem e-posta
-							kutusuna (bilgi@sprenses.com) bir deneme e-postası gönderin.
-						</p>
-					</div>
+				<div class="mb-4">
+					<h2 class="font-semibold text-gray-800 flex items-center gap-2">
+						<Mail class="w-4 h-4 text-gray-500" /> E-posta (SMTP)
+					</h2>
+					<p class="text-sm text-gray-500 mt-1">
+						Giden e-posta bildiriminin çalıştığını doğrulamak için bir alıcı seçip deneme
+						e-postası gönderin. Kullanıcı seçerseniz o kişinin tanımlı adresine gider —
+						böylece adresin gerçekten teslim aldığını da test edersiniz.
+					</p>
+				</div>
+				<div class="flex flex-col sm:flex-row sm:items-end gap-3">
+					<label class="flex-1 min-w-0">
+						<span class="block text-xs text-gray-500 mb-1">Alıcı</span>
+						<Select bind:value={selectedRecipient} aria-label="Deneme e-postası alıcısı">
+							<option value="">Sistem kutusu (bilgi@sprenses.com)</option>
+							{#each recipients as r (r.id)}
+								<option value={String(r.id)}>{r.name} — {r.email}</option>
+							{/each}
+						</Select>
+					</label>
 					<Button onclick={sendTestEmail} loading={sendingTest} class="w-full sm:w-auto shrink-0">
 						<Mail size={16} /> Deneme e-postası gönder
 					</Button>

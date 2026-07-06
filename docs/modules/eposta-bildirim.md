@@ -77,18 +77,22 @@ create_and_send_notifications_sync(
 
 ### 3. Yapılandırmayı doğrula (deneme e-postası)
 ```
-POST /api/notifications/test-email
+GET  /api/notifications/test-email/recipients   → [{id, name, email}, ...] (aktif kullanıcılar)
+POST /api/notifications/test-email               → body { "user_id": <int|null> }
 ```
 - İzin: `system.server` **use** (yönetici). Arayüzde **Sistem → Sunucu** sayfasındaki
-  "Deneme e-postası gönder" butonuna bağlıdır.
-- Alıcı **her zaman sistem kutusudur** (`settings.smtp_user` = `bilgi@sprenses.com`) —
-  giriş yapan kullanıcının hesap e-postası **değil**. Sebep: kullanıcı hesap e-postası
-  (ör. `admin@sprenses.com`) gerçek bir posta kutusu olmayabilir → sunucu `550 Recipient
-  address rejected` döner. SMTP öz-testi güvenilir olsun diye daima var olan gönderen
-  kutusuna gönderilir. E-posta gövdesinde "Test eden: <ad> (<e-posta>)" bilgisi yer alır.
-- SMTP kapalıysa **503**, gönderim başarısızsa **502**, başarılıysa
-  `{ "success": true, "sent_to": "bilgi@sprenses.com" }` (senkron — gerçek sonuç döner,
-  böylece şifre/port/alıcı hatası anında görülür).
+  "E-posta (SMTP)" kartına (alıcı seçici + buton) bağlıdır.
+- **Alıcı seçimi:**
+  - `user_id` **verilirse** → o kullanıcının **tanımlı e-posta adresine** gider →
+    o adresin gerçekten teslim aldığını da test eder (geçersizse `550` → 502).
+  - `user_id` **verilmezse/null** → **sistem kutusuna** (`settings.smtp_user` =
+    `bilgi@sprenses.com`) gider. Bu her zaman var olan güvenli öz-testtir; kullanıcı
+    hesap e-postası (ör. `admin@sprenses.com`) gerçek bir posta kutusu olmayabilir →
+    `550 Recipient address rejected`.
+- E-posta gövdesinde "Test eden: <ad> (<e-posta>)" bilgisi yer alır (kimin test ettiği).
+- SMTP kapalıysa **503**, kullanıcı yoksa **404**, gönderim başarısızsa **502**,
+  başarılıysa `{ "success": true, "sent_to": "<alıcı e-postası>" }` (senkron — gerçek
+  sonuç döner, böylece şifre/port/alıcı hatası anında görülür).
 
 ## Kurulum Adımları (canlıya alma)
 

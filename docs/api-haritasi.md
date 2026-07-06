@@ -267,7 +267,8 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/uploads/{path}` — Dosya sunma (auth gerekli)
 - `GET /api/notifications/` — Bildirim listesi
 - `PATCH /api/notifications/{id}/read` — Bildirimi okundu işaretle
-- `POST /api/notifications/test-email` — SMTP deneme e-postası (izin: `system.server` use; UI: Sistem→Sunucu; 503=SMTP kapalı, 502=gönderim hatası)
+- `GET /api/notifications/test-email/recipients` — Deneme alıcıları (aktif kullanıcılar; izin: `system.server` use)
+- `POST /api/notifications/test-email` — SMTP deneme e-postası; body `{user_id?}` (verilirse o kullanıcının e-postasına, yoksa sistem kutusuna). İzin: `system.server` use; UI: Sistem→Sunucu; 503=SMTP kapalı, 502=gönderim hatası, 404=kullanıcı yok
 - `GET /api/system/error-logs/` — Hata logları
 - `GET /api/system/server/info` — Sunucu durumu (CPU/RAM/disk/servisler/DB boyutu)
 - `POST /api/system/server/services/{name}/restart` — Servisi yeniden başlat (whitelist + sudo NOPASSWD)

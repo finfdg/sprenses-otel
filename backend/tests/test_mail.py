@@ -116,3 +116,48 @@ class TestTestEmailEndpoint:
         ):
             resp = client.post(f"{NOTIF_PREFIX}/test-email", headers=auth_headers)
         assert resp.status_code == 502
+
+    def test_send_to_specific_user(self, client, auth_headers):
+        recips = client.get(
+            f"{NOTIF_PREFIX}/test-email/recipients", headers=auth_headers
+        ).json()
+        admin = next(r for r in recips if r["email"] == "admin@sprenses.com")
+        with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(
+            "app.routers.notifications.send_email", return_value=True
+        ) as se:
+            resp = client.post(
+                f"{NOTIF_PREFIX}/test-email",
+                json={"user_id": admin["id"]},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        assert resp.json()["sent_to"] == "admin@sprenses.com"
+        assert se.call_args.kwargs["to"] == "admin@sprenses.com"
+
+    def test_404_unknown_user(self, client, auth_headers):
+        with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(
+            "app.routers.notifications.send_email", return_value=True
+        ):
+            resp = client.post(
+                f"{NOTIF_PREFIX}/test-email",
+                json={"user_id": 999999},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 404
+
+
+class TestTestEmailRecipients:
+    def test_list_recipients(self, client, auth_headers):
+        resp = client.get(f"{NOTIF_PREFIX}/test-email/recipients", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert any(r["email"] == "admin@sprenses.com" for r in data)
+        for r in data:
+            assert set(r.keys()) == {"id", "name", "email"}
+
+    def test_recipients_forbidden_without_permission(self, client, no_perm_user_headers):
+        resp = client.get(
+            f"{NOTIF_PREFIX}/test-email/recipients", headers=no_perm_user_headers
+        )
+        assert resp.status_code == 403

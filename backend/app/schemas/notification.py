@@ -25,3 +25,10 @@ class NotificationUnreadCount(BaseModel):
 
 class NotificationMarkRead(BaseModel):
     notification_ids: Optional[List[int]] = None
+
+
+class TestEmailRequest(BaseModel):
+    """Deneme e-postası isteği — user_id verilirse o kullanıcının tanımlı e-posta
+    adresine, verilmezse sistem kutusuna (SMTP kullanıcısı) gönderilir."""
+
+    user_id: Optional[int] = None
