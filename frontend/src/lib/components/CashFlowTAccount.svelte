@@ -31,7 +31,8 @@
 		giris: TGroup[]; cikis: TGroup[];
 		total_in_eur: number; total_out_eur: number; net_eur: number;
 		realized_in_eur?: number; realized_out_eur?: number;
-		faaliyet_net_eur?: number; finansman_net_eur?: number; skipped_no_rate: number;
+		faaliyet_net_eur?: number; finansman_net_eur?: number;
+		curve?: { date: string; cum: number }[]; skipped_no_rate: number;
 	};
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
@@ -269,8 +270,8 @@
 		</button>
 	</div>
 
-	<!-- Nakit projeksiyon grafiği — başlığın hemen altında (eski alt-başlık metninin yerinde) -->
-	<RunwayChart />
+	<!-- Dönem kümülatif nakit akışı grafiği — başlığın hemen altında; dönem/offset ile değişir -->
+	<RunwayChart {data} />
 
 	<!-- MOBİL ÖZET KARTI (kapalıyken) — Bugün için Giriş/Çıkış/Net mini kutuları -->
 	<button type="button" onclick={() => (expanded = true)}

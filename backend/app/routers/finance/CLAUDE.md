@@ -77,6 +77,11 @@ runway zaten gömülü `NakitKoruma` ile sağlanıyor. Test: `test_cash_flow_tac
 **T Hesap iyileştirmeleri (2026-07-05, kullanıcı isteği — 4 madde):** (1) **Detay kalemleri kendi
 para biriminde** — `t-account` item'ına `amount_native` + `currency` eklendi; frontend detay satırı
 `fmtNative` ile ₺/€ gösterir (grup/kolon toplamı EUR konsolide KALIR — karışık-para karşılaştırması için).
+(1b) **Kümülatif nakit akışı eğrisi (`curve`, 2026-07-06)** — yanıta `curve: [{date, cum}]` eklendi:
+dönem içi günlük net'in (Σ `direction*eur`) koşan toplamı, kronolojik, `net_eur`'da biter. TÜM dahil
+olaylardan birikir (`daily_net`; item-cap'ten BAĞIMSIZ → doğru). Panel `RunwayChart` bunu çizer →
+grafik **dönem/offset ile değişir** (eski runway endpoint sabit "bu ay" idi). Vadesi-geçmiş-ödenmemiş
+gider T-Hesap'a girmediğinden eğriye de girmez. Test: `TestTAccountCurve`.
 (2) **Gerçekleşen vs bekleyen** — yanıta `realized_in_eur`/`realized_out_eur` (is_realized=banka vb.);
 kolon başlığında "✓ Gerçekleşen €X · Bekleyen €Y" (toplam DEĞİŞMEZ, salt bilgilendirme; kullanıcının
 "gerçekleşti, kalan bu kadar" isteği).
