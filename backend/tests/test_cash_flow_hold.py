@@ -9,6 +9,7 @@ Kapsam:
 """
 
 import itertools
+import json
 from datetime import date, timedelta
 
 import pytest
@@ -322,6 +323,60 @@ class TestTAccountHoldExclusion:
 
 
 # ─────────────────────────── EUR bakiye dışlaması ───────────────────────────
+
+
+class TestCcProjectionHold:
+    """KK ekstre tahmini rezervi (kırmızı satır sorunu 2026-07-07) kart bazında bekletilebilir."""
+
+    def _mk_card(self, db, limit=200000.0):
+        product = CreditProduct(
+            type="kredi_karti", name=f"HOLD KART {next(_SEQ)}", bank_name="Test Bank",
+            total_amount=limit, remaining_amount=0, status="active",
+            details=json.dumps({"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15}),
+        )
+        db.add(product)
+        db.flush()
+        return product
+
+    def test_projection_holdable_and_excluded_from_total(self, client, auth_headers, db):
+        from app.services.hold_service import HOLDABLE_SOURCE_TYPES
+        assert "cc_projection" in HOLDABLE_SOURCE_TYPES
+        _mk_rate(db, MIN_DATE, 50)
+        card = self._mk_card(db, limit=200000.0)  # 200000/50 = 4000 EUR cari-ay rezervi
+        db.commit()
+
+        body = client.get(TACCOUNT_URL, headers=auth_headers).json()
+        items = [i for g in body["cikis"] for i in g["items"]]
+        proj = next((i for i in items if i["source_type"] == "cc_projection" and i["source_id"] == card.id), None)
+        assert proj is not None                     # projeksiyon KK Borç grubunda görünür
+        assert proj["is_held"] is False
+        assert proj["amount_eur"] == pytest.approx(4000, abs=2)
+
+        # Kart bazında beklemeye al (kırmızı satırı bekletme)
+        r = client.post(HOLD_URL, headers=auth_headers,
+                        json={"items": [{"source_type": "cc_projection", "source_id": card.id}], "held": True})
+        assert r.status_code == 200 and r.json()["applied"] == 1
+        taccount_limiter._requests.clear()
+
+        body2 = client.get(TACCOUNT_URL, headers=auth_headers).json()
+        items2 = [i for g in body2["cikis"] for i in g["items"]]
+        proj2 = next(i for i in items2 if i["source_type"] == "cc_projection" and i["source_id"] == card.id)
+        assert proj2["is_held"] is True             # LİSTEDE KALIR (sarı)
+        grp = next(g for g in body2["cikis"] if any(i["source_type"] == "cc_projection" for i in g["items"]))
+        assert grp["held_eur"] == pytest.approx(4000, abs=2)   # toplam yerine held'e taşındı
+
+    def test_projection_hold_moves_to_runway_held(self, client, auth_headers, db):
+        _mk_rate(db, MIN_DATE, 50)
+        card = self._mk_card(db, limit=200000.0)
+        hold_service.apply_hold(db, "cc_projection", card.id, user_id=None)
+        db.commit()
+        heavy_limiter._requests.clear()
+
+        body = client.get(RUNWAY_URL, headers=auth_headers).json()
+        held_ids = [h.get("id") for h in body.get("held", [])]
+        out_ids = [o.get("id") for o in body["outs"]]
+        assert f"cc_projection:{card.id}" in held_ids      # Bekleme Listesi'nde
+        assert f"cc_projection:{card.id}" not in out_ids   # çıkıştan düştü
 
 
 class TestEurBalanceHoldExclusion:

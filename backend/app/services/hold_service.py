@@ -20,8 +20,11 @@ logger = logging.getLogger(__name__)
 # Beklemeye alınabilir kaynak türleri.
 # "bank" HARİÇ (gerçekleşmiş nakit, bekletilmez); "check" HARİÇ (kullanıcı kararı 2026-07-07:
 # çek ödemeleri beklemeye alınamaz — çekin ödeme takvimi banka/ciro tarafında sabittir).
+# "cc_projection" DAHİL: KK ekstre tahmini rezervi (yüklenmemiş cari ay = kart limiti) kart
+# bazında (source_id = CreditProduct.id) beklemeye alınabilir — gerçek FE değil ama nakit
+# planlamasında park edilebilmesi kullanıcı isteği (2026-07-07, kırmızı satır bekletilemiyor bulgusu).
 HOLDABLE_SOURCE_TYPES = frozenset({
-    "vendor_payment", "credit", "cc_payment",
+    "vendor_payment", "credit", "cc_payment", "cc_projection",
     "tax", "recurring", "salary", "withholding", "sgk",
     "dividend", "dividend_stopaj", "rent_income", "rent_expense", "advance",
 })

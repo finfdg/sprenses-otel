@@ -24,9 +24,14 @@ listesinde) SARI kalır** ama **kolon toplamı / net / projeksiyona etki etmez**
 **Service `app/services/hold_service.py`:**
 - `get_hold_set(db)` → `{(source_type, source_id)}` — **modül-içi dict cache**'li (deferral/FIFO deseni).
   conftest her test başında invalidate eder.
-- `apply_hold`/`clear_hold`/`apply_holds_batch` — commit ETMEZ. `HOLDABLE_SOURCE_TYPES` (**13**) —
+- `apply_hold`/`clear_hold`/`apply_holds_batch` — commit ETMEZ. `HOLDABLE_SOURCE_TYPES` (**14**) —
   **bank HARİÇ** (gerçekleşmiş nakit) + **check HARİÇ** (kullanıcı 2026-07-07: çek ödemeleri beklemeye
   alınamaz — çekin takvimi banka/ciro tarafında sabit). Batch holdable-dışı türü sessizce atlar.
+- **`cc_projection` DAHİL (kart bazlı):** KK ekstre tahmini rezervi (yüklenmemiş cari ay = kart limiti)
+  gerçek FE değildir ama **`source_id = CreditProduct.id`** ile kart bazında bekletilebilir (kullanıcı
+  2026-07-07: kırmızı "nakit yetmiyor" satırı bekletilemiyordu → projeksiyon rezervi de park edilebilmeli).
+  t_account projeksiyon item'ı `source_type="cc_projection"` + `source_id=card_id` taşır; runway held item
+  `id="cc_projection:card_id"` (grup için `source_type="cc_payment"`); eur_balances held kartı rezervden atlar.
 
 **HELD KURALI:** `(source_type, source_id) ∈ hold_set  VE  not is_realized  VE  event_date ≥ bugün` → kalem
 **sarı gösterilir ve toplama katılmaz** (silinmez):
@@ -58,9 +63,10 @@ finance.cash_flow, use)` + audit (`cash_flow_hold`) + `broadcast_finance_update(
 - `cashflow.ts::aggregateRows` → `CashRow.members: SourceRef[]` (toplu cari = tüm üyeler tek batch);
   component held/non-held'i AYRI aggregate eder (karışık firma → sayılan satır + sarı satır ayrışır).
 
-**Test:** `tests/test_cash_flow_hold.py` (26 — servis, check-holdable-değil, endpoint, runway held/overdue,
+**Test:** `tests/test_cash_flow_hold.py` (28 — servis, check-holdable-değil, endpoint, runway held/overdue,
 t_account **listede-kalır-toplam-dışı** + kolon-toplamı-değişmez + realized-kalır + source kimliği,
-eur_balances projeksiyon-dışla). Detay: `docs/modules/nakit-akim.md`.
+**cc_projection kart-bazlı hold** (t_account+runway), eur_balances projeksiyon-dışla). Detay:
+`docs/modules/nakit-akim.md`.
 
 ---
 

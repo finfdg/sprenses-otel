@@ -236,6 +236,10 @@ def compute_eur_balances(db: Session) -> dict:
     from app.services.cc_projection_service import due_reserve_projections
     cc_projection_expense_by_date = defaultdict(float)
     for proj in due_reserve_projections(db, today=today_date):
+        # Kart bazında beklemeye alınmış projeksiyon rezervi → projeksiyona (bakiyeye) girmez
+        _pcid = proj.get("card_id")
+        if _pcid is not None and ("cc_projection", _pcid) in hold_set:
+            continue
         pdt = date_cls.fromisoformat(proj["date"])
         cc_projection_expense_by_date[pdt] += to_eur(float(proj["amount"]), "TRY", pdt)
         all_date_set.add(pdt)

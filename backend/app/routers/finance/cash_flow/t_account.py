@@ -279,6 +279,10 @@ def t_account(
             skipped_no_rate += 1
             continue
         eur = float(proj["amount"]) / rate
+        # Projeksiyon rezervi KART bazında beklemeye alınabilir (source_type="cc_projection",
+        # source_id=card_id). Held ise sarı gösterilir, toplama/net'e girmez (gerçek kalemlerle aynı).
+        proj_card_id = proj.get("card_id")
+        proj_held = proj_card_id is not None and ("cc_projection", proj_card_id) in hold_set
         label = SOURCE_LABELS["cc_payment"]
         group = groups[DIRECTION_EXPENSE].setdefault(
             label, {"label": label, "total_eur": 0.0, "item_count": 0,
@@ -286,8 +290,13 @@ def t_account(
                     "held_eur": 0.0, "held_count": 0,
                     "section": "faaliyet", "items": []}
         )
-        group["total_eur"] += eur
         group["item_count"] += 1
+        if proj_held:
+            group["held_eur"] += eur
+            group["held_count"] += 1
+        else:
+            group["total_eur"] += eur
+            totals[DIRECTION_EXPENSE] += eur
         if len(group["items"]) < MAX_ITEMS_PER_GROUP:
             group["items"].append({
                 "name": f"{proj['description']} (Tahmini)",
@@ -296,12 +305,11 @@ def t_account(
                 "amount_native": round(float(proj["amount"]), 2),
                 "currency": "TRY",
                 "is_realized": False,  # projeksiyon = her zaman bekleyen rezerv
-                "is_held": False,  # projeksiyon bekletilemez
-                # Projeksiyon rezervi bekletilemez (gerçek FE değil) → kimlik null
-                "source_type": None,
-                "source_id": None,
+                "is_held": proj_held,
+                # Kart bazlı bekletme kimliği (gerçek FE değil ama kart CreditProduct.id'siyle bekletilir)
+                "source_type": "cc_projection" if proj_card_id is not None else None,
+                "source_id": proj_card_id,
             })
-        totals[DIRECTION_EXPENSE] += eur
 
     def _finalize(direction: int) -> list:
         result = list(groups[direction].values())

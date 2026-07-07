@@ -331,18 +331,24 @@ def runway(
         if not rate or rate <= 1.0:
             skipped_no_rate += 1
             continue
-        outs.append({
-            "id": f"cc_projection:{proj['card_id']}",
+        proj_card_id = proj.get("card_id")
+        proj_item = {
+            "id": f"cc_projection:{proj_card_id}",
             "date": proj["date"],
             "name": f"{proj['description']} (Tahmini)",
             "amount_eur": round(float(proj["amount"]) / rate, 2),
             "amount_native": round(float(proj["amount"]), 2),
             "currency": "TRY",
-            "source_type": "cc_payment",
+            "source_type": "cc_payment",  # Bekleme Listesi'nde "KK Borç Ödemeleri" altında grupla
             "deferred": False,
             "original_date": proj["date"],
             "projected": True,
-        })
+        }
+        # Kart bazında beklemeye alınmış projeksiyon rezervi → Bekleme Listesi (outs'tan çıkar)
+        if proj_card_id is not None and ("cc_projection", proj_card_id) in hold_set:
+            held.append(proj_item)
+        else:
+            outs.append(proj_item)
     outs.sort(key=lambda x: x["date"])  # projeksiyonlar sona eklendi → tarih sırasına çek
 
     return {
