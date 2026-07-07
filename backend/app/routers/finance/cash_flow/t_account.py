@@ -35,8 +35,10 @@ from app.utils.finance_helpers import MIN_DATE
 # Transfer kategorileri — frontend groupByMonth (TRANSFER_CATEGORIES) ile birebir aynı
 TRANSFER_CATEGORIES = ("Virman", "Döviz Satım", "İade")
 
-# Grup başına yanıtta dönecek en fazla kalem (item_count gerçek sayıyı taşır)
-MAX_ITEMS_PER_GROUP = 100
+# Grup başına yanıtta dönecek en fazla kalem (item_count gerçek sayıyı taşır). 500: aylık/haftalık/
+# günlük görünümü tam kapsar (yoğun ay cari ~142); yalnız yıllık gibi uç toplamalar "+N kalem daha"
+# ile Nakit Akım sayfasına yönlendirir. GZip + frontend cari-birleştirme yükü tolere eder (2026-07-07).
+MAX_ITEMS_PER_GROUP = 500
 
 # Banka dışı kaynaklar için sabit Türkçe grup etiketleri
 # (bank → category_name ile gruplanır, bilinmeyen kaynak → source_type)
