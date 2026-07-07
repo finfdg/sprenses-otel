@@ -37,7 +37,8 @@ def get_payment_schedule(
     Her çağrıda finance_events tablosu da senkronize edilir.
     """
     sync_result = sync_vendor_finance_events(db)
-    if sync_result.get("updated") or sync_result.get("created") or sync_result.get("removed"):
+    if (sync_result.get("updated") or sync_result.get("created") or sync_result.get("removed")
+            or sync_result.get("recurring_synced")):
         db.commit()
 
     # 1) Her carinin net borcunu ve vade gün sayısını çek

@@ -279,6 +279,18 @@ Sedna ile birebir). İleride periyodik DB↔Sedna bakiye mutabakatı bu sınıf 
 - **entity_type:** `vendor_transaction`
   - **Eylem:** `delete` (toplu silme — `entity_id=None`, `details` alanında silinen+atlanan sayılar)
 
+## Düzenli Ödemeye Bağlı Cariler — Nakit Akımda Vendor FE Üretilmez (2026-07-07)
+
+Aktif bir düzenli ödeme tanımına bağlı carilerin (`scheduled_definitions.vendor_id` — canlı:
+ASAT=su v697, CK Elektrik v707) nakit akımını **recurring finance_event** temsil eder
+(kullanıcı kararı: "durumu düzenli ödemelerden takip etsin"). `sync_vendor_finance_events`
+bu carilere `vendor_payment` FE'si **üretmez**, eskilerini siler (FE'nin kendi `vendor_id`'sinden
+tespit — vtx durumundan bağımsız) ve sonunda `sync_recurring_from_vendors(db, fifo=...)`'u
+zincirler → ödeme eşleşince Düzenli Ödemeler durumu + nakit akım kalanı anında tazelenir.
+Cari modülünün kendi görünümleri (net borç, ödeme planı, vadesi geçmiş, detay kartı) FIFO'dan
+beslenmeye **aynen devam eder** — değişen yalnız nakit akım temsilidir. Detay:
+`docs/modules/muhasebe-ik.md` → *Cari Senkronu*.
+
 ## Firma Durumu (Vendor Status)
 
 - **Değerler:** `normal` (varsayılan), `odeme_yasaklisi`
