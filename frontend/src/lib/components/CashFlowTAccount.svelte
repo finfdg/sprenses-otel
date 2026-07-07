@@ -92,6 +92,11 @@
 	function rowAmountLabel(row: CashRow): string {
 		return row.currency ? fmtNative(row.amount_native, row.currency) : fmtEur(row.amount_eur);
 	}
+	// Kalem adı başındaki "[Avans]"/"[Maaş]"/"[Alınan Kira]" gibi tür ön ekini kaldır — grup/kategori
+	// başlığı zaten türü gösteriyor (kullanıcı isteği 2026-07-07); OverdueList'teki cleanName ile aynı.
+	function cleanName(name: string): string {
+		return name.replace(/^\[[^\]]*\]\s*/, '');
+	}
 
 	// ── Segment bölme (kategori görünümü) — sayaç-bazlı (items kırpık olabilir) ──
 	function catGroups(groups: TGroup[], realized: boolean): TGroup[] {
@@ -345,7 +350,7 @@
 							<!-- Cari grubunda aynı firma birden çok ödeme → tek toplu satır; diğerlerinde her kalem ayrı -->
 							{#each aggregateRows(day.items, AGGREGATE_LABELS.has(g.label)) as row, i (i)}
 								<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
-									<span class="text-gray-700 truncate">{row.name}</span>
+									<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
 									<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
 								</div>
 							{/each}
@@ -373,7 +378,7 @@
 					</div>
 					{#each cat.rows as row, i (i)}
 						<div class="flex items-center gap-2 pl-7 pr-2 py-1">
-							<span class="text-[12px] text-gray-700 truncate">{row.name}</span>
+							<span class="text-[12px] text-gray-700 truncate">{cleanName(row.name)}</span>
 							<span class="ml-auto tabular-nums text-[12px] text-gray-700 shrink-0">{row.amountLabel}</span>
 						</div>
 					{/each}
