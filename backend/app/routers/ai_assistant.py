@@ -9,7 +9,7 @@ Detay: docs/modules/ai-asistan.md
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -29,8 +29,14 @@ router = APIRouter()
 
 
 # ── Şemalar ───────────────────────────────────────────────────────────────────
+class AiHistoryTurn(BaseModel):
+    rol: str = Field(..., max_length=20)
+    metin: str = Field("", max_length=8000)
+
+
 class AiAskRequest(BaseModel):
     soru: str = Field(..., min_length=2, max_length=2000)
+    gecmis: Optional[List[AiHistoryTurn]] = Field(None, max_length=40)
 
 
 class AiAskResponse(BaseModel):
@@ -67,8 +73,9 @@ def sor(
             detail="Yapay zeka asistanı henüz yapılandırılmamış (API anahtarı yok).",
         )
 
+    gecmis = [t.model_dump() for t in data.gecmis] if data.gecmis else None
     try:
-        result = ai_service.answer_question(db, current_user, data.soru)
+        result = ai_service.answer_question(db, current_user, data.soru, gecmis)
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)

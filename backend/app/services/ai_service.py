@@ -26,16 +26,18 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.middleware.auth import user_can
 from app.models.check import Check
+from app.models.credit_product import CreditProduct
 from app.models.finance_event import (
     DIRECTION_EXPENSE,
     DIRECTION_INCOME,
     FinanceEvent,
 )
+from app.models.reservation import Reservation
 from app.constants import SourceType
 from app.models.scheduled import ScheduledDefinition
 from app.models.user import User
 from app.models.vendor import Vendor
-from app.models.vendor import STATUS_NORMAL, STATUS_PAYMENT_BANNED
+from app.models.vendor import STATUS_NORMAL, STATUS_PAYMENT_BANNED, VENDOR_STATUS_LABELS
 from app.models.vendor_transaction import VendorTransaction
 from app.services import advance_service, check_service, scheduled_service, vendor_service
 from app.utils.approval_check import check_approval
@@ -239,6 +241,172 @@ def _tool_cari_borc_ozeti(
     return {"limit": limit, "cariler": liste, "para_birimi": "TRY"}
 
 
+def _tool_cari_detay(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Bir carinin detayları: ödeme vadesi, durum, bakiye, iletişim."""
+    if not user_can(db, user, "finance.cariler", "view"):
+        return _denied("finance.cariler")
+    kod = str(args.get("hesap_kodu") or "").strip()
+    if not kod:
+        return {"_error": True, "mesaj": "Cari hesap kodu ya da adı belirtilmeli."}
+    v = db.query(Vendor).filter(Vendor.hesap_kodu == kod).first()
+    if v is None:
+        v = db.query(Vendor).filter(Vendor.hesap_adi.ilike(f"%{kod}%")).first()
+    if v is None:
+        return {"_error": True, "mesaj": f"'{kod}' ile eşleşen cari bulunamadı."}
+
+    bakiye = (
+        db.query(func.sum(VendorTransaction.borc) - func.sum(VendorTransaction.alacak))
+        .filter(VendorTransaction.vendor_id == v.id)
+        .scalar()
+    )
+    return {
+        "hesap_kodu": v.hesap_kodu,
+        "hesap_adi": v.hesap_adi,
+        "odeme_vadesi_gun": v.payment_days,
+        "durum": VENDOR_STATUS_LABELS.get(v.status, v.status),
+        "bakiye": round(_num(bakiye), 2),
+        "para_birimi": "TRY",
+        "yetkili": v.contact_person,
+        "telefon": v.phone,
+        "eposta": v.email,
+    }
+
+
+def _tool_kredi_durumu(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Aktif kredilerin para birimine göre toplam/kalan borcu + en büyük 10 kredi."""
+    if not user_can(db, user, "finance.krediler", "view"):
+        return _denied("finance.krediler")
+
+    rows = (
+        db.query(
+            CreditProduct.currency,
+            func.count(CreditProduct.id),
+            func.sum(CreditProduct.total_amount),
+            func.sum(CreditProduct.remaining_amount),
+        )
+        .filter(CreditProduct.status == "active")
+        .group_by(CreditProduct.currency)
+        .all()
+    )
+    para_bazli = [
+        {
+            "para_birimi": cur or "TRY",
+            "adet": int(adet),
+            "toplam": round(_num(tot), 2),
+            "kalan_borc": round(_num(rem), 2),
+        }
+        for cur, adet, tot, rem in rows
+    ]
+    top = (
+        db.query(CreditProduct)
+        .filter(CreditProduct.status == "active")
+        .order_by(CreditProduct.remaining_amount.desc())
+        .limit(10)
+        .all()
+    )
+    liste = [
+        {
+            "ad": c.name,
+            "tip": c.type,
+            "banka": c.bank_name,
+            "kalan_borc": round(_num(c.remaining_amount), 2),
+            "para_birimi": c.currency,
+        }
+        for c in top
+    ]
+    return {
+        "para_bazli": para_bazli,
+        "krediler": liste,
+        "not": "Yalnız aktif krediler; para birimleri ayrıdır (toplama yok).",
+    }
+
+
+def _tool_yaklasan_odemeler(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Önümüzdeki N günde vadesi gelen giderler (finance_events) — para bazlı + liste."""
+    if not user_can(db, user, "finance.cash_flow", "view"):
+        return _denied("finance.cash_flow")
+
+    try:
+        gun = int(args.get("gun_sayisi", 7))
+    except (TypeError, ValueError):
+        gun = 7
+    gun = max(1, min(gun, 90))
+
+    today = _istanbul_today()
+    son = today + timedelta(days=gun)
+    events = (
+        db.query(FinanceEvent)
+        .filter(FinanceEvent.direction == DIRECTION_EXPENSE)
+        .filter(FinanceEvent.event_date >= today)
+        .filter(FinanceEvent.event_date <= son)
+        .order_by(FinanceEvent.event_date.asc())
+        .all()
+    )
+    acc: Dict[str, float] = {}
+    for e in events:
+        cur = e.currency or "TRY"
+        acc[cur] = acc.get(cur, 0.0) + _num(e.amount)
+    para_bazli = [{"para_birimi": c, "toplam": round(v, 2)} for c, v in sorted(acc.items())]
+    liste = [
+        {
+            "tarih": e.event_date.isoformat() if e.event_date else None,
+            "aciklama": (e.description or e.category_name or e.vendor_code or "")[:80],
+            "tutar": round(_num(e.amount), 2),
+            "para_birimi": e.currency or "TRY",
+        }
+        for e in events[:20]
+    ]
+    return {
+        "gun_sayisi": gun,
+        "adet": len(events),
+        "para_bazli": para_bazli,
+        "odemeler": liste,
+        "not": ("İlk 20 kalem listelendi." if len(events) > 20 else None),
+    }
+
+
+def _tool_rezervasyon_ozeti(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Giriş tarihi verilen aralıkta olan rezervasyonlar: adet, oda, geceleme, ciro."""
+    if not user_can(db, user, "sales.hotel_reservation", "view"):
+        return _denied("sales.hotel_reservation")
+
+    today = _istanbul_today()
+    baslangic = _parse_date(args.get("baslangic_tarih"), today)
+    bitis = _parse_date(args.get("bitis_tarih"), today + timedelta(days=30))
+    if baslangic > bitis:
+        baslangic, bitis = bitis, baslangic
+
+    row = (
+        db.query(
+            func.count(Reservation.id),
+            func.sum(Reservation.rooms),
+            func.sum(Reservation.nights),
+            func.sum(Reservation.net_amount),
+        )
+        .filter(Reservation.checkin_date >= baslangic)
+        .filter(Reservation.checkin_date <= bitis)
+        .first()
+    )
+    adet = int(row[0] or 0)
+    return {
+        "baslangic": baslangic.isoformat(),
+        "bitis": bitis.isoformat(),
+        "rezervasyon_adedi": adet,
+        "toplam_oda": int(row[1] or 0),
+        "toplam_geceleme": int(row[2] or 0),
+        "toplam_ciro_eur": round(_num(row[3]), 2),
+        "not": "Giriş (check-in) tarihine göre; ciro net tutar (EUR) toplamıdır.",
+    }
+
+
 def _tool_grafik_olustur(
     db: Session, user: User, args: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -282,6 +450,10 @@ _TOOL_IMPL = {
     "nakit_akim_ozeti": _tool_nakit_akim_ozeti,
     "bekleyen_cekler": _tool_bekleyen_cekler,
     "cari_borc_ozeti": _tool_cari_borc_ozeti,
+    "cari_detay": _tool_cari_detay,
+    "kredi_durumu": _tool_kredi_durumu,
+    "yaklasan_odemeler": _tool_yaklasan_odemeler,
+    "rezervasyon_ozeti": _tool_rezervasyon_ozeti,
     "grafik_olustur": _tool_grafik_olustur,
 }
 
@@ -339,6 +511,62 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
                     "type": "integer",
                     "description": "Listelenecek cari sayısı (varsayılan 5).",
                 },
+            },
+        },
+    },
+    {
+        "name": "cari_detay",
+        "description": (
+            "Belirli bir carinin detaylarını döndürür: ödeme vadesi (gün), durum "
+            "(normal/ödeme yasaklısı), güncel bakiye ve iletişim bilgileri. 'X carisinin "
+            "vadesi kaç gün', 'X'in bakiyesi ne' gibi sorularda kullan."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "hesap_kodu": {"type": "string", "description": "Cari hesap kodu veya adı."},
+            },
+            "required": ["hesap_kodu"],
+        },
+    },
+    {
+        "name": "kredi_durumu",
+        "description": (
+            "Aktif kredilerin para birimine göre toplam ve kalan borcunu, ayrıca en "
+            "büyük kredileri döndürür. 'Kredi borcum ne kadar', 'hangi kredilerim var' "
+            "gibi sorularda kullan."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "yaklasan_odemeler",
+        "description": (
+            "Önümüzdeki N günde vadesi gelen giderleri (çek/kredi/vergi/kira/maaş vb. "
+            "tüm nakit çıkışları) para birimine göre toplam + liste olarak döndürür. "
+            "'Bu hafta ne ödeyeceğim', 'yaklaşan ödemeler' gibi sorularda kullan."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "gun_sayisi": {
+                    "type": "integer",
+                    "description": "Kaç gün ilerisine bakılacak (varsayılan 7).",
+                },
+            },
+        },
+    },
+    {
+        "name": "rezervasyon_ozeti",
+        "description": (
+            "Giriş (check-in) tarihi verilen aralıkta olan otel rezervasyonlarının "
+            "özetini döndürür: rezervasyon adedi, toplam oda, geceleme ve ciro (EUR). "
+            "Tarih verilmezse bugünden 30 gün ileri."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "baslangic_tarih": {"type": "string", "description": "Başlangıç (YYYY-AA-GG). Opsiyonel."},
+                "bitis_tarih": {"type": "string", "description": "Bitiş (YYYY-AA-GG). Opsiyonel."},
             },
         },
     },
@@ -882,17 +1110,47 @@ _TOOL_DEFS.extend([
 
 
 # ── Ana giriş ─────────────────────────────────────────────────────────────────
-def answer_question(db: Session, user: User, soru: str) -> Dict[str, Any]:
+_MAX_GECMIS_TUR = 12       # modele gönderilen en fazla önceki tur sayısı
+_MAX_TUR_UZUNLUK = 6000    # bir turun en fazla karakteri (token/maliyet sınırı)
+
+
+def _seed_messages(soru: str, gecmis: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """Önceki konuşma turlarından + yeni sorudan mesaj dizisi kur.
+
+    gecmis: [{"rol": "user"|"assistant", "metin": str}, ...] (istemciden gelir).
+    İlk mesaj 'user' olmalı → baştaki assistant turları atılır. Uzunluk sınırlanır.
+    """
+    messages: List[Dict[str, Any]] = []
+    if gecmis:
+        for turn in gecmis[-_MAX_GECMIS_TUR:]:
+            rol = turn.get("rol")
+            metin = str(turn.get("metin") or "")[:_MAX_TUR_UZUNLUK].strip()
+            if rol in ("user", "assistant") and metin:
+                messages.append({"role": rol, "content": metin})
+    # API kuralı: ilk mesaj user olmalı
+    while messages and messages[0]["role"] != "user":
+        messages.pop(0)
+    messages.append({"role": "user", "content": soru})
+    return messages
+
+
+def answer_question(
+    db: Session,
+    user: User,
+    soru: str,
+    gecmis: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Kullanıcının sorusunu Claude + tool-use döngüsüyle yanıtlar.
 
-    Dönüş: {"cevap": str, "kullanilan_araclar": [tool adları]}.
-    ANTHROPIC_API_KEY boşsa RuntimeError fırlatır (router 503'e çevirir).
+    gecmis verilirse önceki konuşma turları modele bağlam olarak eklenir → takip
+    soruları ('peki geçen ay?') çalışır. Dönüş: {"cevap", "kullanilan_araclar",
+    "bekleyen_islem", "grafikler"}. ANTHROPIC_API_KEY boşsa RuntimeError.
     """
     if not settings.anthropic_api_key:
         raise RuntimeError("Asistan yapılandırılmamış (ANTHROPIC_API_KEY yok).")
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    messages: List[Dict[str, Any]] = [{"role": "user", "content": soru}]
+    messages: List[Dict[str, Any]] = _seed_messages(soru, gecmis)
     used_tools: List[str] = []
     pending_actions: List[Dict[str, Any]] = []
     grafikler: List[Dict[str, Any]] = []

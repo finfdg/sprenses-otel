@@ -75,9 +75,19 @@ payload'dan üretir (recurring'de UI "Onayda" ön-kaydı yapılmaz — talep Ona
 | Frontend | `frontend/src/routes/dashboard/asistan/+page.svelte` | Sohbet arayüzü (tasarım sistemi: PageHeader/Button/Lucide/AA) |
 | Nav | `frontend/src/lib/config/navigation.ts` + `Sidebar.svelte` | Özel top-level "Asistan" linki + route guard |
 
-**Faz 1 okuma tool'ları:** `nakit_akim_ozeti` (finance.cash_flow), `bekleyen_cekler`
-(finance.checks), `cari_borc_ozeti` (finance.cariler). Her biri izin yoksa
-`{_error, mesaj}` döner → model kullanıcıya "erişim izniniz yok" der.
+**Okuma tool'ları (izin-kontrollü, `{_error}` → "erişim izniniz yok"):**
+`nakit_akim_ozeti` (finance.cash_flow, para-bazlı), `bekleyen_cekler` (finance.checks),
+`cari_borc_ozeti` + `cari_detay` (finance.cariler — vade/durum/bakiye), `kredi_durumu`
+(finance.krediler), `yaklasan_odemeler` (finance.cash_flow — N günde vadesi gelen giderler),
+`rezervasyon_ozeti` (sales.hotel_reservation — adet/oda/geceleme/ciro). Ayrıca `grafik_olustur`
+(görsel — bar/line).
+
+**Konuşma sürekliliği (hafıza, 2026-07-07):** `/sor` isteği `gecmis: [{rol, metin}]` alır;
+frontend son 12 turu gönderir; `ai_service._seed_messages` bunları modele bağlam olarak ekler
+(ilk mesaj user'a normalize, tur başına 6000 karakter sınırı). Böylece "peki en borçlusunun
+vadesi ne?" gibi **takip soruları** çalışır. Geçmiş istemciden geldiği için güvenlik: okuma
+araçları izin-kontrollü, yazma araçları `execute_action`'da yeniden doğrulanır → sahte geçmiş
+en fazla yanıt metnini etkiler, veri/işlem güvenliğini bozamaz.
 
 **Çoklu para birimi (2026-07-07 düzeltme):** `nakit_akim_ozeti` gelir/gider/net'i **para
 birimine göre AYRI** döndürür (EUR/TRY/USD). `finance_events.amount` her zaman kaydın kendi

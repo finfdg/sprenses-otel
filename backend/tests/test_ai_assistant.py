@@ -171,6 +171,66 @@ def test_execute_avans_gecersiz_tutar_reddedilir(db):
     assert res["durum"] == "hata"
 
 
+# ── Konuşma sürekliliği (hafıza) + yeni okuma araçları ────────────────────────
+
+def test_seed_messages_ilk_mesaj_user():
+    """Geçmiş baştaki assistant turlarını at, yeni soruyu sona ekle, ilk mesaj user olsun."""
+    gecmis = [
+        {"rol": "assistant", "metin": "önceki yanıt (atılmalı)"},
+        {"rol": "user", "metin": "önceki soru"},
+        {"rol": "assistant", "metin": "önceki cevap"},
+    ]
+    msgs = ai_service._seed_messages("yeni soru", gecmis)
+    assert msgs[0]["role"] == "user"
+    assert msgs[0]["content"] == "önceki soru"        # baştaki assistant atıldı
+    assert msgs[-1] == {"role": "user", "content": "yeni soru"}
+
+
+def test_seed_messages_gecmissiz():
+    msgs = ai_service._seed_messages("tek soru", None)
+    assert msgs == [{"role": "user", "content": "tek soru"}]
+
+
+def test_cari_detay(db):
+    """cari_detay carinin vadesini/bakiyesini/durumunu okur."""
+    admin = _admin(db)
+    v = _vendor(db, payment_days=75, status="normal")
+    res = ai_service._tool_cari_detay(db, admin, {"hesap_kodu": v.hesap_kodu})
+    assert res["odeme_vadesi_gun"] == 75
+    assert res["durum"] == "Normal"
+    assert res["hesap_kodu"] == v.hesap_kodu
+
+
+def test_kredi_durumu_yapisi(db):
+    admin = _admin(db)
+    res = ai_service._tool_kredi_durumu(db, admin, {})
+    assert "para_bazli" in res and "krediler" in res
+
+
+def test_yaklasan_odemeler_yapisi(db):
+    admin = _admin(db)
+    res = ai_service._tool_yaklasan_odemeler(db, admin, {"gun_sayisi": 7})
+    assert res["gun_sayisi"] == 7 and "para_bazli" in res and "odemeler" in res
+
+
+def test_read_izin_yoksa_reddedilir(db):
+    """finance.krediler görme izni olmayan kullanıcı kredi durumunu okuyamaz."""
+    import uuid
+    role = Role(name=f"nokredi_{uuid.uuid4().hex[:6]}", description="izinsiz")
+    db.add(role)
+    db.flush()
+    user = User(
+        username=f"nokredi_{uuid.uuid4().hex[:6]}",
+        email=f"nokredi_{uuid.uuid4().hex[:6]}@test.local",
+        first_name="No", last_name="Kredi",
+        hashed_password=hash_password("Test1234!"),
+        role_id=role.id, is_active=True,
+    )
+    db.add(user)
+    res = ai_service._tool_kredi_durumu(db, user, {})
+    assert res.get("_error") is True
+
+
 def test_execute_izin_yoksa_avans_eklenemez(db):
     """finance.avanslar can_use olmayan kullanıcı avans ekleyemez."""
     import uuid

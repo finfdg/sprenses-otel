@@ -84,13 +84,19 @@
 		const metin = (soru ?? input).trim();
 		if (!metin || loading) return;
 
+		// Konuşma sürekliliği: önceki turları (bu mesajdan ÖNCE) bağlam olarak gönder
+		const gecmis = messages
+			.filter((m) => m.text && m.text.trim())
+			.slice(-12)
+			.map((m) => ({ rol: m.role, metin: m.text }));
+
 		messages.push({ role: 'user', text: metin });
 		input = '';
 		loading = true;
 		await scrollToBottom();
 
 		try {
-			const res = await api.post<AskResponse>('/ai/sor', { soru: metin });
+			const res = await api.post<AskResponse>('/ai/sor', { soru: metin, gecmis });
 			messages.push({
 				role: 'assistant',
 				text: res.cevap,
