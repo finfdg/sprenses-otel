@@ -9,9 +9,10 @@ Detay: docs/modules/ai-asistan.md
 """
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -21,7 +22,17 @@ from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
 from app.services import ai_service
+from app.utils import ai_export
 from app.utils.audit import log_action
+
+_TR_MAP = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
+
+
+def _slug(text: str) -> str:
+    """Türkçe başlıktan ASCII dosya adı üret."""
+    s = (text or "").translate(_TR_MAP)
+    s = re.sub(r"[^a-zA-Z0-9._-]+", "-", s).strip("-").lower()
+    return s[:60] or "asistan-raporu"
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +67,14 @@ class AiExecuteRequest(BaseModel):
 class AiExecuteResponse(BaseModel):
     durum: str
     mesaj: str
+
+
+class AiExportRequest(BaseModel):
+    """Asistan tablosunu Excel/PDF'e aktarma (frontend markdown tablodan çıkarır)."""
+    baslik: str = Field("Rapor", max_length=150)
+    format: str = Field("xlsx", max_length=8)  # xlsx | pdf
+    basliklar: List[str] = Field(..., min_length=1, max_length=40)
+    satirlar: List[List[str]] = Field(..., max_length=3000)
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
@@ -131,3 +150,35 @@ def uygula(
             detail="İşlem uygulanırken bir hata oluştu.",
         )
     return result
+
+
+@router.post("/disa-aktar")
+def disa_aktar(
+    data: AiExportRequest,
+    current_user: User = Depends(require_permission("ai.asistan", "view")),
+):
+    """Asistan yanıtındaki bir tabloyu Excel (.xlsx) veya PDF olarak indir."""
+    if not data.basliklar or not data.satirlar:
+        raise HTTPException(status_code=400, detail="Aktarılacak tablo verisi yok.")
+
+    baslik = data.baslik or "Rapor"
+    satirlar = [[str(c) for c in row] for row in data.satirlar]
+    ad = _slug(baslik)
+    try:
+        if data.format.lower() == "pdf":
+            content = ai_export.build_pdf(baslik, data.basliklar, satirlar)
+            media = "application/pdf"
+            ext = "pdf"
+        else:
+            content = ai_export.build_xlsx(baslik, data.basliklar, satirlar)
+            media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ext = "xlsx"
+    except Exception as exc:
+        logger.error("AI dışa aktarma hatası: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Dosya oluşturulamadı.")
+
+    return Response(
+        content=content,
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{ad}.{ext}"'},
+    )

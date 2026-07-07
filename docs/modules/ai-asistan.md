@@ -24,6 +24,23 @@
   "Başlık: değer" satırları gösterilir (yatay kaydırma yok). Masaüstü normal tablo. Asistan
   balonu mobilde daha geniş (`max-w-[92%]`), grafik etiketleri de responsive (`w-20 sm:w-28`).
 
+## Dışa Aktarma + Günlük Özet (2026-07-07)
+
+- **Excel/PDF dışa aktar:** Asistan yanıtındaki tablonun altında Excel/PDF butonları.
+  Frontend markdown tabloyu (`parseTables`) çıkarır → `POST /api/ai/disa-aktar` →
+  backend `utils/ai_export.py` (openpyxl `.xlsx` / reportlab `.pdf`, Türkçe+₺ için DejaVu
+  font) dosyayı üretir → blob indirilir. İzin: `ai.asistan` view. Frontend'de export
+  kütüphanesi YOK — üretim backend'de.
+- **`gunun_ozeti` aracı:** "Bugünün özeti" sorulunca yaklaşan ödemeler + vadesi gelen
+  çekler + bugünkü rezervasyon girişleri (her bölüm yalnız izin varsa). `ai_service.compute_digest`
+  hem bu tool'u hem sabah bildirim script'ini besler.
+- **Sabah proaktif bildirim (systemd timer):** `scripts/ai-daily-digest.py` her sabah
+  **08:00 (Europe/Istanbul)** çalışır; finans-görme yetkili kullanıcılara yaklaşan ödeme
+  özetini in-app+WS+push bildirim (`create_and_send_notifications_sync`, type `ai_digest`,
+  link `/dashboard/asistan`) olarak gönderir. Yaklaşan ödeme yoksa gönderilmez (gürültü yok).
+  **Timer birimleri `/etc/systemd/system/sprenses-ai-digest.{service,timer}` — git'te DEĞİL**
+  (TZ drop-in gibi); sunucu yeniden kurulursa TEKRAR kurulmalı. Script git'tedir.
+
 ## Faz 2 — Uygulanan (2026-07-07): Onay-akışlı yazma
 
 **İki-adımlı güvenli tasarım (öner → onayla → uygula):**

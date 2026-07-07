@@ -407,6 +407,83 @@ def _tool_rezervasyon_ozeti(
     }
 
 
+def compute_digest(db: Session, user: User, gun: int = 7) -> Dict[str, Any]:
+    """Günün özeti — kullanıcının görme yetkisi olan bölümlerden derlenir.
+
+    Bölümler: yaklaşan ödemeler (cash_flow), vadesi gelen çekler (checks), bugünkü
+    rezervasyon girişleri (hotel_reservation). Her bölüm yalnız izin varsa eklenir.
+    Hem `gunun_ozeti` tool'u hem sabah bildirim script'i bunu kullanır.
+    """
+    today = _istanbul_today()
+    son = today + timedelta(days=gun)
+    bolumler: List[Dict[str, Any]] = []
+
+    if user_can(db, user, "finance.cash_flow", "view"):
+        rows = (
+            db.query(FinanceEvent.currency, func.sum(FinanceEvent.amount))
+            .filter(FinanceEvent.direction == DIRECTION_EXPENSE)
+            .filter(FinanceEvent.event_date >= today)
+            .filter(FinanceEvent.event_date <= son)
+            .group_by(FinanceEvent.currency)
+            .all()
+        )
+        adet = (
+            db.query(func.count(FinanceEvent.id))
+            .filter(FinanceEvent.direction == DIRECTION_EXPENSE)
+            .filter(FinanceEvent.event_date >= today)
+            .filter(FinanceEvent.event_date <= son)
+            .scalar()
+        )
+        bolumler.append({
+            "baslik": f"Önümüzdeki {gun} günde ödemeler",
+            "adet": int(adet or 0),
+            "para_bazli": [{"para_birimi": c or "TRY", "toplam": round(_num(t), 2)} for c, t in rows],
+        })
+
+    if user_can(db, user, "finance.checks", "view"):
+        checks = (
+            db.query(Check)
+            .filter(Check.status == "pending")
+            .filter(Check.due_date >= today)
+            .filter(Check.due_date <= son)
+            .all()
+        )
+        bolumler.append({
+            "baslik": f"Önümüzdeki {gun} günde vadesi gelen çekler",
+            "adet": len(checks),
+            "toplam_tl": round(sum(_num(c.amount_tl) for c in checks), 2),
+        })
+
+    if user_can(db, user, "sales.hotel_reservation", "view"):
+        row = (
+            db.query(func.count(Reservation.id), func.sum(Reservation.rooms))
+            .filter(Reservation.checkin_date == today)
+            .first()
+        )
+        bolumler.append({
+            "baslik": "Bugün giriş yapan rezervasyonlar",
+            "adet": int(row[0] or 0),
+            "oda": int(row[1] or 0),
+        })
+
+    return {"tarih": today.isoformat(), "gun": gun, "bolumler": bolumler}
+
+
+def _tool_gunun_ozeti(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Bugünün finans/satış özeti — yaklaşan ödemeler, çekler, rezervasyon girişleri."""
+    try:
+        gun = int(args.get("gun_sayisi", 7))
+    except (TypeError, ValueError):
+        gun = 7
+    gun = max(1, min(gun, 30))
+    d = compute_digest(db, user, gun)
+    if not d["bolumler"]:
+        return {"_error": True, "mesaj": "Özet için görme yetkiniz olan bir modül yok."}
+    return d
+
+
 def _tool_grafik_olustur(
     db: Session, user: User, args: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -454,6 +531,7 @@ _TOOL_IMPL = {
     "kredi_durumu": _tool_kredi_durumu,
     "yaklasan_odemeler": _tool_yaklasan_odemeler,
     "rezervasyon_ozeti": _tool_rezervasyon_ozeti,
+    "gunun_ozeti": _tool_gunun_ozeti,
     "grafik_olustur": _tool_grafik_olustur,
 }
 
@@ -567,6 +645,24 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
             "properties": {
                 "baslangic_tarih": {"type": "string", "description": "Başlangıç (YYYY-AA-GG). Opsiyonel."},
                 "bitis_tarih": {"type": "string", "description": "Bitiş (YYYY-AA-GG). Opsiyonel."},
+            },
+        },
+    },
+    {
+        "name": "gunun_ozeti",
+        "description": (
+            "Bugünün finans/satış özetini döndürür: önümüzdeki günlerde yaklaşan "
+            "ödemeler, vadesi gelen çekler ve bugün giriş yapan rezervasyonlar. "
+            "'Bugünün özeti', 'gündemimde ne var', 'neye dikkat etmeliyim' gibi "
+            "sorularda kullan."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "gun_sayisi": {
+                    "type": "integer",
+                    "description": "Kaç gün ileriye bakılacak (varsayılan 7).",
+                },
             },
         },
     },

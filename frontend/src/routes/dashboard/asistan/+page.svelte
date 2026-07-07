@@ -7,7 +7,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import AiChart from '$lib/components/AiChart.svelte';
-	import { Sparkles, Send, Bot, User as UserIcon } from 'lucide-svelte';
+	import { Sparkles, Send, Bot, User as UserIcon, FileSpreadsheet, FileText } from 'lucide-svelte';
 
 	interface ChartPoint { etiket: string; deger: number; }
 	interface Chart { tip: string; baslik?: string; para_birimi?: string; seri: ChartPoint[]; }
@@ -73,6 +73,63 @@
 		};
 		apply();
 		return { update: apply };
+	}
+
+	// ── Excel/PDF dışa aktarma ── markdown tablosunu çıkar → backend'e gönder → indir
+	function stripMd(s: string): string {
+		return s.replace(/\*\*/g, '').replace(/`/g, '').replace(/\*/g, '').trim();
+	}
+	function parseTables(text: string): { basliklar: string[]; satirlar: string[][] }[] {
+		const lines = text.split('\n');
+		const out: { basliklar: string[]; satirlar: string[][] }[] = [];
+		const isRow = (l: string) => /^\s*\|.*\|\s*$/.test(l);
+		const isSep = (l: string) => /^\s*\|[\s:\-|]+\|\s*$/.test(l);
+		const cells = (l: string) =>
+			l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(stripMd);
+		let i = 0;
+		while (i < lines.length) {
+			if (isRow(lines[i]) && i + 1 < lines.length && isSep(lines[i + 1])) {
+				const basliklar = cells(lines[i]);
+				const satirlar: string[][] = [];
+				i += 2;
+				while (i < lines.length && isRow(lines[i])) {
+					satirlar.push(cells(lines[i]));
+					i++;
+				}
+				if (satirlar.length) out.push({ basliklar, satirlar });
+			} else i++;
+		}
+		return out;
+	}
+	function messageTitle(text: string): string {
+		const h = text.match(/^#{1,3}\s+(.+)$/m);
+		return h ? stripMd(h[1]) : 'Asistan Raporu';
+	}
+	async function disaAktar(m: ChatMessage, format: 'xlsx' | 'pdf') {
+		const tables = parseTables(m.text);
+		if (!tables.length) return;
+		const t = tables[0];
+		const baslik = messageTitle(m.text);
+		try {
+			const res = await api.fetchRaw('/ai/disa-aktar', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ baslik, format, basliklar: t.basliklar, satirlar: t.satirlar })
+			});
+			if (!res.ok) throw new Error('Dışa aktarma başarısız');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = baslik.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.' + format;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			console.error('Dışa aktarma hatası:', err);
+			showToast('Dışa aktarma başarısız oldu', 'error');
+		}
 	}
 
 	async function scrollToBottom() {
@@ -221,6 +278,24 @@
 								{#each m.charts as c}
 									<AiChart tip={c.tip} baslik={c.baslik} para_birimi={c.para_birimi} seri={c.seri} />
 								{/each}
+							{/if}
+							{#if m.role === 'assistant' && parseTables(m.text).length > 0}
+								<div class="flex gap-2 mt-1.5 px-1">
+									<button
+										onclick={() => disaAktar(m, 'xlsx')}
+										class="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-teal-700 border border-gray-200 hover:border-teal-300 rounded-lg px-2 py-1 transition-colors cursor-pointer"
+										title="Tabloyu Excel olarak indir"
+									>
+										<FileSpreadsheet class="w-3.5 h-3.5" /> Excel
+									</button>
+									<button
+										onclick={() => disaAktar(m, 'pdf')}
+										class="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-teal-700 border border-gray-200 hover:border-teal-300 rounded-lg px-2 py-1 transition-colors cursor-pointer"
+										title="Tabloyu PDF olarak indir"
+									>
+										<FileText class="w-3.5 h-3.5" /> PDF
+									</button>
+								</div>
 							{/if}
 							{#if m.tools && m.tools.length > 0}
 								<p class="text-[11px] text-gray-400 mt-1 px-1">
