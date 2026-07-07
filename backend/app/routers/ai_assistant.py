@@ -9,6 +9,7 @@ Detay: docs/modules/ai-asistan.md
 """
 
 import logging
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -35,6 +36,19 @@ class AiAskRequest(BaseModel):
 class AiAskResponse(BaseModel):
     cevap: str
     kullanilan_araclar: list
+    bekleyen_islem: Optional[Dict[str, Any]] = None
+
+
+class AiExecuteRequest(BaseModel):
+    """Kullanıcının ConfirmDialog'da onayladığı yazma aksiyonu (bekleyen_islem)."""
+    action_key: str = Field(..., min_length=1, max_length=50)
+    entity_id: int
+    payload: Dict[str, Any]
+
+
+class AiExecuteResponse(BaseModel):
+    durum: str
+    mesaj: str
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
@@ -77,4 +91,35 @@ def sor(
     )
     db.commit()
 
+    return result
+
+
+@router.post("/uygula", response_model=AiExecuteResponse)
+def uygula(
+    data: AiExecuteRequest,
+    request: Request,
+    current_user: User = Depends(require_permission("ai.asistan", "use")),
+    db: Session = Depends(get_db),
+):
+    """Asistanın önerdiği bir yazma işlemini uygula (kullanıcı ConfirmDialog'da onayladıktan sonra).
+
+    ai.asistan can_use izni gerekir (birinci kapı). execute_action ayrıca hedef modülün
+    can_use iznini + check_approval'ı uygular (ikinci/üçüncü kapı). Onay gerekiyorsa
+    mutasyon yapılmaz, talep oluşur.
+    """
+    try:
+        result = ai_service.execute_action(
+            db,
+            current_user,
+            data.action_key,
+            data.entity_id,
+            data.payload,
+            ip_address=get_client_ip(request),
+        )
+    except Exception as exc:
+        logger.error("AI asistan uygulama hatası: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="İşlem uygulanırken bir hata oluştu.",
+        )
     return result

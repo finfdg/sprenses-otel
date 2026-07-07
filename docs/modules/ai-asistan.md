@@ -1,11 +1,38 @@
 # Yapay Zeka Asistanı (AI Asistan)
 
-> **DURUM: FAZ 1 UYGULANDI (2026-07-07) — salt-okuma asistan canlıda.**
-> Faz 2 (onay-akışlı yazma tool'ları) henüz uygulanmadı; §5/§8'e bakın.
+> **DURUM: FAZ 1 + FAZ 2 UYGULANDI (2026-07-07) — okuma + onay-akışlı yazma canlıda.**
 >
 > **⚠️ ÇALIŞMASI İÇİN GEREKEN TEK ADIM:** `backend/.env`'e geçerli bir
 > `ANTHROPIC_API_KEY=...` yaz ve `sudo systemctl restart sprenses-api.service`.
 > Anahtar boşsa endpoint 503 döner, arayüz "yanıt veremedim" gösterir (güvenli).
+
+## Faz 2 — Uygulanan (2026-07-07): Onay-akışlı yazma
+
+**İki-adımlı güvenli tasarım (öner → onayla → uygula):**
+1. **Öner (chat döngüsü):** Claude'a verilen `cari_vade_degistir` / `cek_durum_degistir`
+   araçları **ASLA mutasyon yapmaz** — yalnız doğrular ve bir öneri döndürür
+   (`ai_service._propose_*`). `/sor` yanıtı `bekleyen_islem` alanıyla döner.
+2. **Onayla (arayüz):** Frontend `ConfirmDialog` ile öneriyi kullanıcıya gösterir
+   ("… vadesi 90 → 45 gün olarak güncellenecek. Onayla ve Uygula").
+3. **Uygula (ayrı endpoint):** Onaylanınca `POST /api/ai/uygula` → `ai_service.execute_action()`.
+
+**execute_action güvenlik katmanları (hepsi test edildi — `tests/test_ai_assistant.py`):**
+- (1) Bilinen aksiyon (`_WRITE_ACTIONS` registry; keyfi işlem reddedilir)
+- (2) Hedef modül **can_use** izni (`user_can`) + endpoint `require_permission("ai.asistan","use")`
+- (3) **Payload whitelist** (yalnız `allowed_keys`) + değer doğrulama (negatif vade, geçersiz durum)
+- (4) Varlık doğrulama (404 → "kayıt bulunamadı")
+- (5) **`check_approval()`** — router endpoint'iyle **BİREBİR** aynı modül/aksiyon/payload
+  anahtarları (`finance.cariler`→`{payment_days}`, `finance.checks`→`{new_status}`). Onay
+  gerekiyorsa mutasyon YAPILMAZ, talep oluşur; onaylanınca mevcut executor handler uygular.
+
+**Uygulanan yazma aksiyonları:** `cari_vade` (cari ödeme vadesi → `vendor_service.apply_vendor_update`),
+`cek_durum` (çek durumu → `check_service.apply_check_status`). İkisi de router↔executor ORTAK
+service'i çağırır → sapma yok. Audit: `ai_execute` eylemi.
+
+**Deferred:** `duzenli_odeme_ekle` (recurring create) — planlı-tanım fabrikası tam bir
+tanım payload'ı ister; sonraki iterasyona bırakıldı (§5 tablosu).
+
+---
 
 ## Faz 1 — Uygulanan Dosyalar (2026-07-07)
 

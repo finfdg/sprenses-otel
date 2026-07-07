@@ -433,7 +433,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup), Dokümanlar (system.docs)
 - Satış (sales) → Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Acente Mahsup & Nakit Akım (sales.acente_mahsup), Oda Tipleri (sales.room_types)
 - Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
-- Yapay Zeka (ai) → Asistan (ai.asistan — Claude API + tool-use ile salt-okuma finans soru-cevap; Faz 1)
+- Yapay Zeka (ai) → Asistan (ai.asistan — Claude API + tool-use finans soru-cevap; Faz 1 okuma + Faz 2 onay-akışlı yazma "öner→onayla→uygula")
 
 ## Giriş Bilgileri
 

@@ -4,12 +4,26 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { Sparkles, Send, Bot, User as UserIcon } from 'lucide-svelte';
 
 	interface ChatMessage {
 		role: 'user' | 'assistant';
 		text: string;
 		tools?: string[];
+	}
+
+	interface PendingAction {
+		action_key: string;
+		entity_id: number;
+		payload: Record<string, unknown>;
+		ozet: string;
+	}
+
+	interface AskResponse {
+		cevap: string;
+		kullanilan_araclar: string[];
+		bekleyen_islem?: PendingAction | null;
 	}
 
 	const ORNEK_SORULAR = [
@@ -22,6 +36,10 @@
 	let input = $state('');
 	let loading = $state(false);
 	let scrollBox = $state<HTMLDivElement | null>(null);
+	// Faz 2 — yazma işlemi onay akışı
+	let pendingAction = $state<PendingAction | null>(null);
+	let showConfirm = $state(false);
+	let executing = $state(false);
 
 	async function scrollToBottom() {
 		await tick();
@@ -38,15 +56,17 @@
 		await scrollToBottom();
 
 		try {
-			const res = await api.post<{ cevap: string; kullanilan_araclar: string[] }>(
-				'/ai/sor',
-				{ soru: metin }
-			);
+			const res = await api.post<AskResponse>('/ai/sor', { soru: metin });
 			messages.push({
 				role: 'assistant',
 				text: res.cevap,
 				tools: res.kullanilan_araclar ?? []
 			});
+			// Yazma önerisi geldiyse kullanıcı onayına sun (ConfirmDialog)
+			if (res.bekleyen_islem) {
+				pendingAction = res.bekleyen_islem;
+				showConfirm = true;
+			}
 		} catch (err) {
 			console.error('Asistan yanıt hatası:', err);
 			const msg = err instanceof Error ? err.message : 'Asistan yanıt veremedi';
@@ -59,6 +79,37 @@
 			loading = false;
 			await scrollToBottom();
 		}
+	}
+
+	async function onaylaIslem() {
+		showConfirm = false;
+		const action = pendingAction;
+		pendingAction = null;
+		if (!action) return;
+		executing = true;
+		try {
+			const r = await api.post<{ durum: string; mesaj: string }>('/ai/uygula', {
+				action_key: action.action_key,
+				entity_id: action.entity_id,
+				payload: action.payload
+			});
+			messages.push({ role: 'assistant', text: r.mesaj });
+		} catch (err) {
+			console.error('İşlem uygulanamadı:', err);
+			const msg = err instanceof Error ? err.message : 'İşlem uygulanamadı';
+			showToast(msg, 'error');
+			messages.push({ role: 'assistant', text: 'İşlem uygulanamadı: ' + msg });
+		} finally {
+			executing = false;
+			await scrollToBottom();
+		}
+	}
+
+	function iptalIslem() {
+		showConfirm = false;
+		pendingAction = null;
+		messages.push({ role: 'assistant', text: 'İşlem iptal edildi.' });
+		scrollToBottom();
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -129,7 +180,7 @@
 				{/each}
 			{/if}
 
-			{#if loading}
+			{#if loading || executing}
 				<div class="flex gap-3">
 					<span class="w-8 h-8 rounded-full bg-teal-700 flex items-center justify-center shrink-0">
 						<Bot class="w-4 h-4 text-white" />
@@ -167,3 +218,14 @@
 		</div>
 	</div>
 </div>
+
+<!-- Faz 2 — yazma işlemi onay diyaloğu -->
+<ConfirmDialog
+	bind:show={showConfirm}
+	title="İşlemi onaylıyor musunuz?"
+	message={pendingAction?.ozet ?? ''}
+	confirmText="Onayla ve Uygula"
+	cancelText="Vazgeç"
+	onConfirm={onaylaIslem}
+	onCancel={iptalIslem}
+/>
