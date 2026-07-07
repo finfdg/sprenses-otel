@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateRows, AGGREGATE_LABELS, type CashItem } from './cashflow';
+import { aggregateRows, AGGREGATE_LABELS, daySourceRank, type CashItem } from './cashflow';
 
 const mk = (name: string, eur: number, native: number, currency = 'TRY'): CashItem => ({
 	name,
@@ -22,6 +22,32 @@ describe('AGGREGATE_LABELS', () => {
 		expect(AGGREGATE_LABELS.has('Cari Ödemeleri')).toBe(true);
 		expect(AGGREGATE_LABELS.has('Kredi / Leasing Taksitleri')).toBe(false);
 		expect(AGGREGATE_LABELS.has('Verilen Çekler')).toBe(false);
+	});
+});
+
+describe('daySourceRank — gün içi ödeme önceliği (2026-07-07)', () => {
+	it('sıra: çek → kredi → KK → vergi → SGK → diğer → fatura → cari', () => {
+		const order = ['check', 'credit', 'cc_payment', 'tax', 'sgk', 'salary', 'recurring', 'vendor_payment'];
+		const ranks = order.map((s) => daySourceRank(s));
+		expect([...ranks].sort((a, b) => a - b)).toEqual(ranks); // verilen dizi artan sıralı
+	});
+
+	it('cari ödemeleri her zaman en sonda', () => {
+		for (const s of ['check', 'credit', 'cc_payment', 'tax', 'sgk', 'salary', 'withholding', 'rent_expense', 'recurring']) {
+			expect(daySourceRank(s)).toBeLessThan(daySourceRank('vendor_payment'));
+		}
+	});
+
+	it('listelenmeyen türler (maaş, stopaj, kira…) SGK ile fatura arasına düşer', () => {
+		for (const s of ['salary', 'withholding', 'rent_expense', 'dividend', 'bilinmeyen']) {
+			expect(daySourceRank(s)).toBeGreaterThan(daySourceRank('sgk'));
+			expect(daySourceRank(s)).toBeLessThan(daySourceRank('recurring'));
+		}
+	});
+
+	it('null/undefined kaynak da varsayılan (orta) önceliği alır', () => {
+		expect(daySourceRank(null)).toBe(daySourceRank('salary'));
+		expect(daySourceRank(undefined)).toBe(daySourceRank('salary'));
 	});
 });
 

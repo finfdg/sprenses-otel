@@ -14,6 +14,30 @@
  */
 export const AGGREGATE_LABELS = new Set<string>(['Cari Ödemeleri']);
 
+/**
+ * Gün içi ödeme grubu öncelik sırası (kullanıcı kararı 2026-07-07): aynı güne denk gelen
+ * ödemelerde önce çekler, sonra kredi/leasing taksitleri, KK borcu, vergi, SGK,
+ * [listelenmeyen türler: maaş, stopaj, kira, temettü…], fatura (düzenli ödemeler) ve
+ * EN SONDA cari ödemeleri. T-Hesap tarih görünümü bu sırayı hem render'da hem "ilk açık
+ * ödeme" nakit yürüyüşünde kullanır → gün içi nakit önce yüksek öncelikli ödemelere ayrılır.
+ */
+const DAY_SOURCE_RANK: Record<string, number> = {
+	check: 10,
+	credit: 20,
+	cc_payment: 25,
+	tax: 30,
+	sgk: 40,
+	recurring: 60,
+	vendor_payment: 70,
+};
+const DAY_SOURCE_DEFAULT_RANK = 50;
+
+/** Gün içi grup önceliği — haritada olmayan türler (maaş, stopaj, kira…) SGK ile fatura arasına (50) düşer. */
+export function daySourceRank(sourceType?: string | null): number {
+	if (!sourceType) return DAY_SOURCE_DEFAULT_RANK;
+	return DAY_SOURCE_RANK[sourceType] ?? DAY_SOURCE_DEFAULT_RANK;
+}
+
 export type SourceRef = { source_type: string; source_id: number };
 export type CashItem = {
 	name: string;

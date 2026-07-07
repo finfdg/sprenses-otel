@@ -27,7 +27,7 @@
 	import HeldList from '$lib/components/HeldList.svelte';
 	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
 	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/runway.svelte';
-	import { aggregateRows, AGGREGATE_LABELS, type CashRow } from '$lib/utils/cashflow';
+	import { aggregateRows, AGGREGATE_LABELS, daySourceRank, type CashRow } from '$lib/utils/cashflow';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
 
 	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; is_held?: boolean; source_type?: string | null; source_id?: number | null };
@@ -44,7 +44,7 @@
 	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
 	// Held (beklemeye alınmış) satırlar sarı gösterilir, toplama katılmaz → ayrı `heldRows`.
 	type DateRow = { name: string; amountLabel: string; amount_eur: number; members: SourceRef[] };
-	type DateCat = { label: string; totalEur: number; rows: DateRow[]; heldRows: DateRow[] };
+	type DateCat = { label: string; rank: number; totalEur: number; rows: DateRow[]; heldRows: DateRow[] };
 	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
 	// İleri (gelecek dönem) navigasyon üst sınırı — backend le=24 ile aynı
@@ -181,12 +181,16 @@
 					const heldItems = items.filter((it) => it.is_held);
 					return {
 						label,
+						// Grup tek kaynak türünden oluşur (backend etiket=kaynak) → ilk kalem yeterli
+						rank: daySourceRank(items[0]?.source_type),
 						totalEur: counted.reduce((s, it) => s + it.amount_eur, 0),
 						rows: aggregateRows(counted, agg).map(toRow),
 						heldRows: aggregateRows(heldItems, agg).map(toRow),
 					};
 				})
-				.sort((a, b) => b.totalEur - a.totalEur);
+				// Gün içi ödeme önceliği: çek → kredi → KK → vergi → SGK → diğer → fatura → cari
+				// (daySourceRank — kullanıcı kararı 2026-07-07); eşit öncelikte tutar azalan.
+				.sort((a, b) => a.rank - b.rank || b.totalEur - a.totalEur);
 			return { date: day.date, label: day.label, totalEur: day.totalEur, cats };
 		});
 
