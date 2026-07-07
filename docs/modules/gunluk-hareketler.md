@@ -87,6 +87,9 @@ Kanonik liste iskeleti (tasarım sistemi): PageHeader → StatCard×4 → filtre
   **# (sıra no, `{#each}` index+1)** · Voucher · Acente (sonradan-iptal rozeti burada) · Ülke · Oda · Pansiyon · Konaklama
   (giriş→çıkış, gece; iptallerde "Kayıt: … · girişe X gün kala iptal") · Pax · Tutar €
   (EUR-dışı ham tutar alt satırda) — misafir adı kolonu bilinçli olarak yoktur
+  - **Yapışkan başlık HÜCRE bazlı (2026-07-07):** sticky `tr`'de değil her `th`'de
+    (`sticky top-0 z-10 bg-gray-50 border-b`) — iOS Safari `tr`-sticky'nin arka planını
+    boyamıyordu, kayan satırlar başlığın üzerinden görünüyordu (vardiya-çizelgesi deseni)
 - **Aylık Doluluk Etkisi grafiği** (`MonthlyOccupancyChart.svelte`, modal tablosunun üstünde):
   Otel Rezervasyon'daki "Aylık Doluluk Dağılımı" tarzı **yatay bar** (photo-2 stili). Her ay için
   otelin o ayki **mevcut doluluğu** lacivert (`bg-teal-700`) çubukla çizilir; tıklanan günün o aya

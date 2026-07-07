@@ -428,17 +428,19 @@
 		</div>
 		<div class="max-h-[60vh] overflow-y-auto overflow-x-auto -mx-1">
 			<table class="w-full text-xs sm:text-sm">
+				<!-- sticky HÜCRELERDE (tr'de değil): iOS Safari tr-sticky'de arka planı boyamıyordu →
+				     kayan satırlar başlığın üzerinden görünüyordu (vardiya-çizelgesi ile aynı desen) -->
 				<thead>
-					<tr class="text-gray-600 border-b border-gray-200 bg-gray-50 sticky top-0">
-						<th class="text-right font-medium px-2 py-2 w-8">#</th>
-							<th class="text-left font-medium px-2 py-2">Voucher</th>
-						<th class="text-left font-medium px-2 py-2">Acente</th>
-						<th class="text-left font-medium px-2 py-2">Ülke</th>
-						<th class="text-left font-medium px-2 py-2">Oda</th>
-						<th class="text-left font-medium px-2 py-2">Pansiyon</th>
-						<th class="text-left font-medium px-2 py-2 whitespace-nowrap">Konaklama</th>
-						<th class="text-right font-medium px-2 py-2">Pax</th>
-						<th class="text-right font-medium px-2 py-2">Tutar (€)</th>
+					<tr class="text-gray-600">
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-right font-medium px-2 py-2 w-8">#</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-left font-medium px-2 py-2">Voucher</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-left font-medium px-2 py-2">Acente</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-left font-medium px-2 py-2">Ülke</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-left font-medium px-2 py-2">Oda</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-left font-medium px-2 py-2">Pansiyon</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-left font-medium px-2 py-2 whitespace-nowrap">Konaklama</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-right font-medium px-2 py-2">Pax</th>
+						<th class="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 text-right font-medium px-2 py-2">Tutar (€)</th>
 					</tr>
 				</thead>
 				<tbody>
