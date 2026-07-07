@@ -104,7 +104,12 @@ def _denied(module_code: str) -> Dict[str, Any]:
 def _tool_nakit_akim_ozeti(
     db: Session, user: User, args: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Verilen tarih aralığında toplam gelir/gider/net (TRY, finance_events)."""
+    """Verilen tarih aralığında gelir/gider/net — PARA BİRİMİNE GÖRE AYRI.
+
+    Kayıtlar farklı para birimlerinde (EUR/TRY/USD) olabilir ve `amount` her zaman
+    kaydın KENDİ para birimindedir. Farklı birimler BİRBİRİNE TOPLANMAZ (aksi halde
+    EUR tutarı TL sanılır — gerçek hata örneği: 250.000 EUR giriş "250.000 TL" görünüyordu).
+    """
     if not user_can(db, user, "finance.cash_flow", "view"):
         return _denied("finance.cash_flow")
 
@@ -114,29 +119,39 @@ def _tool_nakit_akim_ozeti(
     if baslangic > bitis:
         baslangic, bitis = bitis, baslangic
 
-    amount_try = func.coalesce(FinanceEvent.amount_try, FinanceEvent.amount)
+    # amount her zaman kaydın kendi para birimindedir → currency'ye göre grupla
     rows = (
-        db.query(FinanceEvent.direction, func.sum(amount_try))
+        db.query(FinanceEvent.currency, FinanceEvent.direction, func.sum(FinanceEvent.amount))
         .filter(FinanceEvent.event_date >= baslangic)
         .filter(FinanceEvent.event_date <= bitis)
-        .group_by(FinanceEvent.direction)
+        .group_by(FinanceEvent.currency, FinanceEvent.direction)
         .all()
     )
-    gelir = 0.0
-    gider = 0.0
-    for direction, total in rows:
+    acc: Dict[str, Dict[str, float]] = {}
+    for currency, direction, total in rows:
+        cur = currency or "TRY"
+        entry = acc.setdefault(cur, {"gelir": 0.0, "gider": 0.0})
         if direction == DIRECTION_INCOME:
-            gelir = _num(total)
+            entry["gelir"] = _num(total)
         elif direction == DIRECTION_EXPENSE:
-            gider = _num(total)
+            entry["gider"] = _num(total)
+
+    para_bazli = [
+        {
+            "para_birimi": cur,
+            "gelir": round(v["gelir"], 2),
+            "gider": round(v["gider"], 2),
+            "net": round(v["gelir"] - v["gider"], 2),
+        }
+        for cur, v in sorted(acc.items())
+    ]
 
     return {
         "baslangic": baslangic.isoformat(),
         "bitis": bitis.isoformat(),
-        "toplam_gelir": round(gelir, 2),
-        "toplam_gider": round(gider, 2),
-        "net": round(gelir - gider, 2),
-        "para_birimi": "TRY",
+        "para_bazli": para_bazli,
+        "not": "Her satır AYRI bir para birimidir; farklı para birimlerini birbirine "
+               "TOPLAMA. Yanıtta her tutarı kendi para birimiyle (EUR/TRY/USD) belirt.",
     }
 
 
@@ -229,9 +244,11 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
     {
         "name": "nakit_akim_ozeti",
         "description": (
-            "Belirli bir tarih aralığındaki toplam nakit girişi (gelir), çıkışı "
-            "(gider) ve net akışı TRY cinsinden döndürür. Tarih verilmezse içinde "
-            "bulunulan ay başından bugüne kadar hesaplanır."
+            "Belirli bir tarih aralığındaki nakit girişi (gelir), çıkışı (gider) ve "
+            "net akışı PARA BİRİMİNE GÖRE AYRI döndürür (EUR/TRY/USD). Tek gün için "
+            "başlangıç ve bitişi aynı ver. Tarih verilmezse ay başından bugüne. "
+            "ÖNEMLİ: Farklı para birimlerini birbirine TOPLAMA; her tutarı kendi "
+            "birimiyle belirt."
         ),
         "input_schema": {
             "type": "object",

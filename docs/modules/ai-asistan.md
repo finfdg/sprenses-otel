@@ -61,6 +61,12 @@ payload'dan üretir (recurring'de UI "Onayda" ön-kaydı yapılmaz — talep Ona
 (finance.checks), `cari_borc_ozeti` (finance.cariler). Her biri izin yoksa
 `{_error, mesaj}` döner → model kullanıcıya "erişim izniniz yok" der.
 
+**Çoklu para birimi (2026-07-07 düzeltme):** `nakit_akim_ozeti` gelir/gider/net'i **para
+birimine göre AYRI** döndürür (EUR/TRY/USD). `finance_events.amount` her zaman kaydın kendi
+para birimindedir; `amount_try` çoğu kayıtta NULL. Eski hâli `coalesce(amount_try, amount)`
+yapıp hepsini "TRY" etiketliyordu → 250.000 EUR giriş "250.000 TL" görünüyordu. Artık
+`GROUP BY currency` ile ayrılır; farklı birimler TOPLANMAZ (kur tahminine gerek yok).
+
 ---
 
 ## 1. Genel Bilgi
