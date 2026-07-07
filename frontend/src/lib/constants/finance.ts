@@ -22,6 +22,17 @@ export type SourceType =
 	| typeof SOURCE_VENDOR_PAYMENT
 	| typeof SOURCE_CASH_FLOW;
 
+// ─── Bekletilebilir Kaynak Tipleri (nakit akım hold) ─────────────────────
+// Backend karşılığı: app/services/hold_service.py HOLDABLE_SOURCE_TYPES — birebir aynı
+// tutulmalı. bank (gerçekleşmiş nakit) ve check (çek bekletilemez — 2026-07-07 kararı)
+// HARİÇ. Backend bekletilemez türleri sessizce atlar → UI bunlara beklet
+// affordance'ı GÖSTERMEZ (yalancı "Beklemeye alındı" toast'ı olmasın).
+export const HOLDABLE_SOURCE_TYPES = new Set<string>([
+	'vendor_payment', 'credit', 'cc_payment', 'cc_projection',
+	'tax', 'recurring', 'salary', 'withholding', 'sgk',
+	'dividend', 'dividend_stopaj', 'rent_income', 'rent_expense', 'advance',
+]);
+
 // ─── İşlem Yönü ─────────────────────────────────────────────────────────
 
 export const TYPE_INCOME = 'income' as const;

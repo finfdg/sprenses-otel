@@ -15,7 +15,26 @@ import {
 	CREDIT_TAKSITLI, CREDIT_LEASING,
 	CREDIT_TYPE_LABELS,
 	CURRENCY_TRY, CURRENCY_EUR, CURRENCY_USD, CURRENCY_GBP,
+	HOLDABLE_SOURCE_TYPES,
 } from './finance';
+
+// ─── Bekletilebilir Kaynak Tipleri (hold) ────────────────────
+
+describe('HOLDABLE_SOURCE_TYPES', () => {
+	it('backend hold_service ile aynı 14 türü içerir', () => {
+		expect(HOLDABLE_SOURCE_TYPES.size).toBe(14);
+		for (const s of ['vendor_payment', 'credit', 'cc_payment', 'cc_projection', 'tax',
+			'recurring', 'salary', 'withholding', 'sgk', 'dividend', 'dividend_stopaj',
+			'rent_income', 'rent_expense', 'advance']) {
+			expect(HOLDABLE_SOURCE_TYPES.has(s)).toBe(true);
+		}
+	});
+
+	it('bank ve check bekletilemez', () => {
+		expect(HOLDABLE_SOURCE_TYPES.has(SOURCE_BANK)).toBe(false);
+		expect(HOLDABLE_SOURCE_TYPES.has(SOURCE_CHECK)).toBe(false);
+	});
+});
 
 // ─── Kaynak Tipleri ──────────────────────────────────────────
 

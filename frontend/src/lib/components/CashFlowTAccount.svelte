@@ -28,6 +28,7 @@
 	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
 	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/runway.svelte';
 	import { aggregateRows, AGGREGATE_LABELS, daySourceRank, type CashRow } from '$lib/utils/cashflow';
+	import { HOLDABLE_SOURCE_TYPES } from '$lib/constants/finance';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
 
 	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; is_held?: boolean; source_type?: string | null; source_id?: number | null };
@@ -304,6 +305,12 @@
 		expanded = true; // mobilde beklet moduna geçince tam görünüm açılsın (listeler görünür)
 	}
 
+	// Bekletilebilir üye filtresi — backend bekletilemez türleri (bank/check) sessizce atlar;
+	// UI da bunlara affordance göstermez (çek satırında yalancı "Beklemeye alındı" olmasın).
+	function holdableMembers(members: SourceRef[]): SourceRef[] {
+		return members.filter((m) => HOLDABLE_SOURCE_TYPES.has(m.source_type));
+	}
+
 	// Bir bekleyen satırı (aggregate → members) beklemeye al (held=true) / kaldır (false).
 	async function holdRow(members: SourceRef[], held: boolean) {
 		if (!canHold || !runwayStore.holdMode || holdMutating || members.length === 0) return;
@@ -467,14 +474,15 @@
 		     nakit yetmeyen ilk ödeme). Beklet modu + yetki varsa TIKLANABİLİR (tipping satırı DA
 		     beklemeye alınabilir → nakit açığını kapatmak için); tıklanınca held→çıkar / normal→al. -->
 		{#snippet flowRow(name: string, amountLabel: string, members: SourceRef[], held: boolean, isTip: boolean, holdable: boolean, dense: boolean)}
-			{@const clickable = holdable && members.length > 0}
+			{@const hm = holdableMembers(members)}
+			{@const clickable = holdable && hm.length > 0}
 			{@const divPad = dense ? 'pl-7' : 'pl-10'}
 			{@const btnPad = dense ? 'pl-5' : 'pl-8'}
 			{@const txt = held ? 'text-amber-800' : isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}
 			{@const bg = held ? 'bg-amber-50' : isTip ? 'bg-red-50' : ''}
 			{@const icon = held ? 'text-amber-600' : isTip ? 'text-red-500' : 'text-amber-500'}
 			{#if clickable}
-				<button type="button" onclick={() => holdRow(members, !held)} disabled={holdMutating}
+				<button type="button" onclick={() => holdRow(hm, !held)} disabled={holdMutating}
 					title={held ? 'Bekletmeyi kaldır' : 'Beklemeye al (nakit akıma dahil edilmez)'}
 					aria-label="{cleanName(name)} {held ? 'bekletmeyi kaldır' : 'beklemeye al'}"
 					class="w-full flex items-center gap-2 {btnPad} pr-2 py-1 rounded-md cursor-pointer text-left disabled:opacity-50 {held ? 'bg-amber-50 hover:bg-amber-100' : isTip ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-amber-50'}">
@@ -543,8 +551,25 @@
 					<span class="tabular-nums text-[11px] font-semibold text-gray-600 shrink-0">{fmtEur(day.totalEur)}</span>
 				</div>
 				{#each day.cats as cat (cat.label)}
+					<!-- Kategori başlığı — beklet modunda yanında TOPLU beklet düğmesi (kullanıcı isteği
+					     2026-07-07): tıklanınca başlık altındaki TÜM bekletilebilir ödemeler beklemeye
+					     alınır; hepsi zaten beklemedeyse tümünün bekletmesi kaldırılır (toggle). -->
+					{@const catPending = holdableMembers(cat.rows.flatMap((r) => r.members))}
+					{@const catHeld = holdableMembers(cat.heldRows.flatMap((r) => r.members))}
+					{@const allHeld = catPending.length === 0 && catHeld.length > 0}
 					<div class="flex items-center gap-2 pl-4 pr-2 pt-2 pb-0.5">
-						<span class="text-[11px] font-semibold text-gray-700 truncate">{cat.label}</span>
+						{#if holdable && (catPending.length > 0 || catHeld.length > 0)}
+							<button type="button" onclick={() => holdRow(allHeld ? catHeld : catPending, !allHeld)}
+								disabled={holdMutating}
+								title={allHeld ? 'Tümünün bekletmesini kaldır' : 'Tümünü beklemeye al (nakit akıma dahil edilmez)'}
+								aria-label="{cat.label} — {allHeld ? 'tümünün bekletmesini kaldır' : 'tümünü beklemeye al'}"
+								class="flex items-center gap-1.5 min-w-0 -ml-1 pl-1 pr-1.5 py-0.5 rounded-md cursor-pointer disabled:opacity-50 {allHeld ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-amber-50'}">
+								<PauseCircle size={13} class="shrink-0 {allHeld ? 'text-amber-600' : 'text-amber-500'}" />
+								<span class="text-[11px] font-semibold truncate {allHeld ? 'text-amber-800' : 'text-gray-700'}">{cat.label}</span>
+							</button>
+						{:else}
+							<span class="text-[11px] font-semibold text-gray-700 truncate">{cat.label}</span>
+						{/if}
 						<span class="ml-auto tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(cat.totalEur)}</span>
 					</div>
 					{#each cat.rows as row, i (i)}
