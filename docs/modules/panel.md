@@ -30,7 +30,7 @@ yukarıdan aşağı:
      - **Vadesi geçmiş GERÇEKLEŞMEMİŞ kalemler T-Hesap giriş/çıkışına GİRMEZ (simetrik, 2026-07-07):** gider `çıkış`tan, GELİR de `giriş`ten çıkarılır (`t_account.py`: `if not is_realized and event_date < today: continue`) → "bekleyen" giriş/çıkış şişmez; bunlar yalnız yukarıdaki iki overdue bölümünde takip edilir. (Belirti: gelmemiş "Ots" avansı €21.800 bekleyen girişte sayılıyordu.)
      - Eski `NakitKoruma`'nın "Ödeme Erteleme" planlama gövdesi (beklenen tahsilatlar / bu ay planlı ödemeler / ay sonu projeksiyon) **tamamen kaldırıldı** (kullanıcı isteği).
 4. **Son Hareketler** (son 5 gerçekleşmiş, `end_date=bugün`).
-5. **Bekleyen Onay** lacivert kartı → `GET /approval/requests/pending` → Onay Kutusu modalı.
+5. **Bekleyen Onay** lacivert kartı → `GET /system/approval/requests/pending` + `/system/approval/requests/pending/count` → Onay Kutusu modalı. **Path düzeltmesi (2026-07-07):** kart `/approval/...` (prefix'siz) çağırıyordu → backend'de yok, 404; iç `.catch(() => null)` hatayı yuttuğu için kart hep boş görünüyordu. Doğru prefix `/system/approval/...` (router `main.py`'de `/api/system/approval` altında mount). Sessiz catch'ler kaldırıldı — hata artık diğer kartlar gibi `cardError` (console.error + toast) kalıbına düşer. Kart yalnız `pendingCount > 0` iken render edilir.
 
 ## API Endpoint'leri
 Bu modülün kendine ait mutasyon/CRUD endpoint'i **yoktur** (salt-okuma aggregator). Panel, kullanıcının

@@ -191,8 +191,8 @@
 			if (canApproval) {
 				promises.push(
 					Promise.all([
-						api.get<any>('/approval/requests/pending/count').catch(() => null),
-						api.get<any>('/approval/requests/pending?page_size=5').catch(() => null),
+						api.get<any>('/system/approval/requests/pending/count'),
+						api.get<any>('/system/approval/requests/pending?page_size=5'),
 					]).then(([c, p]) => {
 						pendingItems = p?.items ?? [];
 						pendingCount = c?.count ?? c?.total ?? p?.total ?? pendingItems.length;
