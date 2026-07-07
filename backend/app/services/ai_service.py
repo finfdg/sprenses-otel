@@ -31,10 +31,13 @@ from app.models.finance_event import (
     DIRECTION_INCOME,
     FinanceEvent,
 )
+from app.constants import SourceType
+from app.models.scheduled import ScheduledDefinition
 from app.models.user import User
 from app.models.vendor import Vendor
+from app.models.vendor import STATUS_NORMAL, STATUS_PAYMENT_BANNED
 from app.models.vendor_transaction import VendorTransaction
-from app.services import check_service, vendor_service
+from app.services import advance_service, check_service, scheduled_service, vendor_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 
@@ -57,9 +60,10 @@ SYSTEM_PROMPT = (
     "- Kısa ve öz yanıt ver. Para tutarlarını Türk Lirası formatında (binlik ayırıcı "
     "nokta, ondalık virgül) ve gerekirse ₺/EUR belirterek yaz.\n"
     "- Tarih bilmiyorsan bugünün tarihini tool'lara varsayılan bırakabilirsin.\n"
-    "- Kullanıcı bir DEĞİŞİKLİK isterse (cari ödeme vadesini değiştir, çek durumunu "
-    "güncelle vb.) ilgili 'değiştir' aracını çağır. Bu araçlar işlemi HEMEN YAPMAZ; "
-    "değişikliği kullanıcının onayına sunar. Kullanıcıya onayını beklediğini belirt.\n"
+    "- Kullanıcı bir DEĞİŞİKLİK ya da EKLEME isterse (cari vadesi değiştir, çek durumu "
+    "güncelle, ödeme yasağı koy/kaldır, avans ekle, düzenli ödeme ekle) ilgili aracı "
+    "çağır. Bu araçlar işlemi HEMEN YAPMAZ; kullanıcının onayına sunar. Kullanıcıya "
+    "onayını beklediğini belirt.\n"
     "- Sadece final cevabı yaz; iç muhakemeni kullanıcıya gösterme."
 )
 
@@ -360,24 +364,200 @@ def _propose_cek_durum(db: Session, user: User, args: Dict[str, Any]) -> Dict[st
     }
 
 
+_FREKANS_ES = {  # kullanıcı ifadesi → frequency kodu
+    "monthly": "monthly", "aylik": "monthly", "aylık": "monthly", "her ay": "monthly",
+    "quarterly": "quarterly", "ceyreklik": "quarterly", "çeyreklik": "quarterly",
+    "3 aylik": "quarterly", "3 aylık": "quarterly", "uc aylik": "quarterly",
+    "yearly": "yearly", "yillik": "yearly", "yıllık": "yearly", "senelik": "yearly",
+}
+_FREKANS_LABEL = {"monthly": "aylık", "quarterly": "3 aylık", "yearly": "yıllık"}
+
+
+def _propose_cari_odeme_yasagi(db: Session, user: User, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Cari ödeme yasağı koyma/kaldırmayı ÖNERİR (mutasyon yok)."""
+    if not user_can(db, user, "finance.cariler", "use"):
+        return {"_error": True, "mesaj": "Cari güncelleme yetkiniz yok (finance.cariler)."}
+    kod = str(args.get("hesap_kodu") or "").strip()
+    if not kod:
+        return {"_error": True, "mesaj": "Cari hesap kodu ya da adı belirtilmeli."}
+    yasakli = bool(args.get("yasakli"))
+
+    vendor = db.query(Vendor).filter(Vendor.hesap_kodu == kod).first()
+    if vendor is None:
+        vendor = db.query(Vendor).filter(Vendor.hesap_adi.ilike(f"%{kod}%")).first()
+    if vendor is None:
+        return {"_error": True, "mesaj": f"'{kod}' ile eşleşen cari bulunamadı."}
+
+    yeni_status = STATUS_PAYMENT_BANNED if yasakli else STATUS_NORMAL
+    eylem = "ödeme yasağı KONACAK" if yasakli else "ödeme yasağı KALDIRILACAK"
+    return {
+        "_propose": True,
+        "action_key": "cari_durum",
+        "entity_id": vendor.id,
+        "payload": {"status": yeni_status},
+        "ozet": f"'{vendor.hesap_adi}' ({vendor.hesap_kodu}) carisine {eylem}.",
+    }
+
+
+def _propose_avans_ekle(db: Session, user: User, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Yeni avans kaydı eklemeyi ÖNERİR (mutasyon yok)."""
+    if not user_can(db, user, "finance.avanslar", "use"):
+        return {"_error": True, "mesaj": "Avans ekleme yetkiniz yok (finance.avanslar)."}
+    acente = str(args.get("acente_adi") or "").strip()
+    if not acente:
+        return {"_error": True, "mesaj": "Acente/operatör adı belirtilmeli."}
+    try:
+        tutar = float(args.get("tutar"))
+    except (TypeError, ValueError):
+        return {"_error": True, "mesaj": "Geçerli bir tutar belirtilmeli."}
+    if tutar <= 0:
+        return {"_error": True, "mesaj": "Tutar sıfırdan büyük olmalı."}
+    try:
+        tarih = date.fromisoformat(str(args.get("tarih"))[:10])
+    except (ValueError, TypeError):
+        return {"_error": True, "mesaj": "Geçerli bir tarih (YYYY-AA-GG) belirtilmeli."}
+    para = str(args.get("para_birimi") or "EUR").strip().upper()[:5] or "EUR"
+
+    return {
+        "_propose": True,
+        "action_key": "avans_ekle",
+        "entity_id": 0,
+        "payload": {
+            "agency_name": acente,
+            "amount": tutar,
+            "currency": para,
+            "advance_date": tarih.isoformat(),
+            "notes": (str(args.get("aciklama")).strip() or None) if args.get("aciklama") else None,
+        },
+        "ozet": f"'{acente}' için {tutar:,.2f} {para} avans (tarih {tarih.isoformat()}) eklenecek.",
+    }
+
+
+def _propose_duzenli_odeme(db: Session, user: User, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Yeni düzenli ödeme (planlı gider) tanımı eklemeyi ÖNERİR (mutasyon yok)."""
+    if not user_can(db, user, "accounting.recurring", "use"):
+        return {"_error": True, "mesaj": "Düzenli ödeme ekleme yetkiniz yok (accounting.recurring)."}
+    ad = str(args.get("ad") or "").strip()
+    if not ad:
+        return {"_error": True, "mesaj": "Ödeme adı belirtilmeli."}
+    try:
+        tutar = float(args.get("tutar"))
+    except (TypeError, ValueError):
+        return {"_error": True, "mesaj": "Geçerli bir tutar belirtilmeli."}
+    if tutar <= 0:
+        return {"_error": True, "mesaj": "Tutar sıfırdan büyük olmalı."}
+    frekans = _FREKANS_ES.get(str(args.get("siklik") or "monthly").strip().lower(), "monthly")
+    try:
+        odeme_gunu = int(args.get("odeme_gunu", 1))
+    except (TypeError, ValueError):
+        odeme_gunu = 1
+    odeme_gunu = max(1, min(odeme_gunu, 28))
+    try:
+        baslangic_ayi = int(args.get("baslangic_ayi", 1))
+    except (TypeError, ValueError):
+        baslangic_ayi = 1
+    baslangic_ayi = max(1, min(baslangic_ayi, 12))
+    para = str(args.get("para_birimi") or "TRY").strip().upper()[:3] or "TRY"
+
+    return {
+        "_propose": True,
+        "action_key": "duzenli_odeme_ekle",
+        "entity_id": 0,
+        "payload": {
+            "name": ad,
+            "amount": tutar,
+            "currency": para,
+            "frequency": frekans,
+            "payment_day": odeme_gunu,
+            "start_month": baslangic_ayi,
+            "category": (str(args.get("kategori")).strip() or None) if args.get("kategori") else None,
+            "notes": (str(args.get("aciklama")).strip() or None) if args.get("aciklama") else None,
+        },
+        "ozet": (
+            f"'{ad}' düzenli ödemesi eklenecek: {tutar:,.2f} {para}, {_FREKANS_LABEL[frekans]}, "
+            f"her ayın {odeme_gunu}. günü (başlangıç ayı {baslangic_ayi})."
+        ),
+    }
+
+
+# ── Create (ekleme) mutasyonları — router↔executor ile birebir ────────────────
+def _create_advance(db: Session, user: User, payload: Dict[str, Any]):
+    """Avans oluştur (tarih string→date coercion — D1-2 kuralı)."""
+    data = dict(payload)
+    data["advance_date"] = date.fromisoformat(str(payload["advance_date"])[:10])
+    return advance_service.create_advance(db, data, user.id)
+
+
+def _create_recurring(db: Session, user: User, payload: Dict[str, Any]):
+    """Düzenli ödeme tanımı oluştur — approval_executor._handle_scheduled (create) BİREBİR mirror'ı."""
+    defn = ScheduledDefinition(
+        source_type=SourceType.RECURRING,
+        name=payload.get("name", ""),
+        category=payload.get("category"),
+        amount=payload.get("amount", 0),
+        currency=payload.get("currency", "TRY"),
+        frequency=payload.get("frequency", "monthly"),
+        payment_day=payload.get("payment_day", 1),
+        start_month=payload.get("start_month", 1),
+        year=date.today().year,
+        notes=payload.get("notes"),
+        vendor_id=None,
+        billing_offset_months=0,
+        pay_next_month=False,
+        is_active=True,
+        created_by=user.id,
+    )
+    db.add(defn)
+    db.flush()
+    scheduled_service.post_create(db, defn, direction=-1)  # recurring = gider
+    return defn
+
+
 # Uygulama (execute) kaydı — action_key → hedef modül + varlık + mutasyon fonksiyonu.
 # execute_action bunları payload whitelist'i + izin + check_approval ile korur.
+# action_type: "update" (mevcut kaydı çözümle) veya "create" (payload'dan yeni kayıt üret).
 _WRITE_ACTIONS: Dict[str, Dict[str, Any]] = {
     "cari_vade": {
         "module": "finance.cariler",
+        "action_type": "update",
         "allowed_keys": {"payment_days"},
         "resolve": lambda db, eid: db.query(Vendor).filter(Vendor.id == eid).first(),
         "apply": lambda db, ent, p: vendor_service.apply_vendor_update(
             db, ent, {"payment_days": p["payment_days"]}
         ),
     },
+    "cari_durum": {  # ödeme yasağı koy/kaldır
+        "module": "finance.cariler",
+        "action_type": "update",
+        "allowed_keys": {"status"},
+        "resolve": lambda db, eid: db.query(Vendor).filter(Vendor.id == eid).first(),
+        "apply": lambda db, ent, p: vendor_service.apply_vendor_update(
+            db, ent, {"status": p["status"]}
+        ),
+    },
     "cek_durum": {
         "module": "finance.checks",
+        "action_type": "update",
         "allowed_keys": {"new_status"},
         "resolve": lambda db, eid: db.query(Check).filter(Check.id == eid).first(),
         "apply": lambda db, ent, p: check_service.apply_check_status(
             db, ent, p["new_status"]
         ),
+    },
+    "avans_ekle": {
+        "module": "finance.avanslar",
+        "action_type": "create",
+        "allowed_keys": {"agency_name", "amount", "currency", "advance_date", "notes"},
+        "apply_create": _create_advance,
+    },
+    "duzenli_odeme_ekle": {
+        "module": "accounting.recurring",
+        "action_type": "create",
+        "allowed_keys": {
+            "name", "amount", "currency", "frequency",
+            "payment_day", "start_month", "category", "notes",
+        },
+        "apply_create": _create_recurring,
     },
 }
 
@@ -388,9 +568,36 @@ def _validate_payload(action_key: str, payload: Dict[str, Any]) -> Optional[str]
         pd = payload.get("payment_days")
         if not isinstance(pd, int) or isinstance(pd, bool) or pd < 0:
             return "Geçersiz vade gün sayısı."
+    elif action_key == "cari_durum":
+        if payload.get("status") not in (STATUS_NORMAL, STATUS_PAYMENT_BANNED):
+            return "Geçersiz cari durumu."
     elif action_key == "cek_durum":
         if payload.get("new_status") not in ("pending", "paid", "cancelled"):
             return "Geçersiz çek durumu."
+    elif action_key == "avans_ekle":
+        if not str(payload.get("agency_name") or "").strip():
+            return "Acente adı boş olamaz."
+        amt = payload.get("amount")
+        if not isinstance(amt, (int, float)) or isinstance(amt, bool) or amt <= 0:
+            return "Geçersiz tutar."
+        try:
+            date.fromisoformat(str(payload.get("advance_date"))[:10])
+        except (ValueError, TypeError):
+            return "Geçersiz tarih."
+    elif action_key == "duzenli_odeme_ekle":
+        if not str(payload.get("name") or "").strip():
+            return "Ödeme adı boş olamaz."
+        amt = payload.get("amount")
+        if not isinstance(amt, (int, float)) or isinstance(amt, bool) or amt <= 0:
+            return "Geçersiz tutar."
+        if payload.get("frequency") not in ("monthly", "quarterly", "yearly"):
+            return "Geçersiz sıklık."
+        pd = payload.get("payment_day")
+        if not isinstance(pd, int) or isinstance(pd, bool) or not (1 <= pd <= 28):
+            return "Ödeme günü 1-28 arası olmalı."
+        sm = payload.get("start_month")
+        if not isinstance(sm, int) or isinstance(sm, bool) or not (1 <= sm <= 12):
+            return "Başlangıç ayı 1-12 arası olmalı."
     return None
 
 
@@ -420,16 +627,23 @@ def execute_action(
     if hata:
         return {"durum": "hata", "mesaj": hata}
 
-    try:
-        entity_id = int(entity_id)
-    except (TypeError, ValueError):
-        return {"durum": "hata", "mesaj": "Geçersiz kayıt."}
-    entity = action["resolve"](db, entity_id)
-    if entity is None:
-        return {"durum": "hata", "mesaj": "Kayıt bulunamadı (silinmiş olabilir)."}
+    action_type = action["action_type"]
+    entity = None
 
-    # Onay kontrolü — router ile BİREBİR aynı modül/aksiyon/payload
-    approval_resp = check_approval(db, action["module"], entity_id, user.id, "update", payload)
+    if action_type == "update":
+        try:
+            entity_id = int(entity_id)
+        except (TypeError, ValueError):
+            return {"durum": "hata", "mesaj": "Geçersiz kayıt."}
+        entity = action["resolve"](db, entity_id)
+        if entity is None:
+            return {"durum": "hata", "mesaj": "Kayıt bulunamadı (silinmiş olabilir)."}
+        # Onay kontrolü — router ile BİREBİR aynı modül/aksiyon/payload
+        approval_resp = check_approval(db, action["module"], entity_id, user.id, "update", payload)
+    else:  # create — entity_id=0, router create yoluyla birebir
+        entity_id = 0
+        approval_resp = check_approval(db, action["module"], 0, user.id, "create", payload)
+
     if approval_resp is not None:
         if approval_resp.status_code == 202:
             return {"durum": "onaya_gonderildi", "mesaj": "İşlem onay sürecine alındı."}
@@ -442,12 +656,17 @@ def execute_action(
 
     # Onay gerekmiyor → uygula
     try:
-        action["apply"](db, entity, payload)
+        if action_type == "update":
+            action["apply"](db, entity, payload)
+            audit_id = entity_id
+        else:
+            obj = action["apply_create"](db, user, payload)
+            audit_id = getattr(obj, "id", None)
     except ValueError as exc:
         db.rollback()
         return {"durum": "hata", "mesaj": str(exc)}
     log_action(
-        db, user.id, "ai_execute", "ai_assistant", entity_id,
+        db, user.id, "ai_execute", "ai_assistant", audit_id,
         details=f"{action_key}: {json.dumps(payload, ensure_ascii=False)}",
         ip_address=ip_address,
     )
@@ -458,6 +677,9 @@ def execute_action(
 # Proposer araçları okuma araçlarının yanına eklenir (chat döngüsünde sunulur)
 _TOOL_IMPL["cari_vade_degistir"] = _propose_cari_vade
 _TOOL_IMPL["cek_durum_degistir"] = _propose_cek_durum
+_TOOL_IMPL["cari_odeme_yasagi"] = _propose_cari_odeme_yasagi
+_TOOL_IMPL["avans_ekle"] = _propose_avans_ekle
+_TOOL_IMPL["duzenli_odeme_ekle"] = _propose_duzenli_odeme
 _TOOL_DEFS.extend([
     {
         "name": "cari_vade_degistir",
@@ -497,6 +719,66 @@ _TOOL_DEFS.extend([
                 },
             },
             "required": ["cek_no", "yeni_durum"],
+        },
+    },
+    {
+        "name": "cari_odeme_yasagi",
+        "description": (
+            "Bir cariye ödeme yasağı KOYMAYI veya KALDIRMAYI ÖNERİR. İşlemi hemen "
+            "yapmaz; kullanıcının onayına sunar."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "hesap_kodu": {"type": "string", "description": "Cari hesap kodu veya adı."},
+                "yasakli": {
+                    "type": "boolean",
+                    "description": "true = ödeme yasağı koy, false = yasağı kaldır.",
+                },
+            },
+            "required": ["hesap_kodu", "yasakli"],
+        },
+    },
+    {
+        "name": "avans_ekle",
+        "description": (
+            "Yeni bir avans (acenteden alınan) kaydı eklemeyi ÖNERİR. İşlemi hemen "
+            "yapmaz; kullanıcının onayına sunar."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "acente_adi": {"type": "string", "description": "Acente/operatör adı."},
+                "tutar": {"type": "number", "description": "Avans tutarı (pozitif)."},
+                "tarih": {"type": "string", "description": "Avans tarihi (YYYY-AA-GG)."},
+                "para_birimi": {"type": "string", "description": "Para birimi (varsayılan EUR)."},
+                "aciklama": {"type": "string", "description": "Opsiyonel not."},
+            },
+            "required": ["acente_adi", "tutar", "tarih"],
+        },
+    },
+    {
+        "name": "duzenli_odeme_ekle",
+        "description": (
+            "Yeni bir düzenli ödeme (aylık/3 aylık/yıllık planlı gider) tanımı "
+            "eklemeyi ÖNERİR. İşlemi hemen yapmaz; kullanıcının onayına sunar."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ad": {"type": "string", "description": "Ödeme adı (ör. Elektrik, İnternet)."},
+                "tutar": {"type": "number", "description": "Ödeme tutarı (pozitif)."},
+                "siklik": {
+                    "type": "string",
+                    "description": "Sıklık: 'aylık', '3 aylık' veya 'yıllık' (varsayılan aylık).",
+                },
+                "odeme_gunu": {"type": "integer", "description": "Ayın kaçında ödenir (1-28, varsayılan 1)."},
+                "baslangic_ayi": {"type": "integer", "description": "Başlangıç ayı (1-12, varsayılan 1)."},
+                "para_birimi": {"type": "string", "description": "Para birimi (varsayılan TRY)."},
+                "kategori": {"type": "string", "description": "Opsiyonel kategori."},
+                "aciklama": {"type": "string", "description": "Opsiyonel not."},
+            },
+            "required": ["ad", "tutar"],
         },
     },
 ])

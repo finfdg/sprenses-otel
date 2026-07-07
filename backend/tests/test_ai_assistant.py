@@ -12,6 +12,7 @@ import uuid
 import pytest
 
 from app.models.role import Role
+from app.models.scheduled import ScheduledDefinition
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.services import ai_service
@@ -117,3 +118,77 @@ def test_propose_gecersiz_durum_hata(db):
     admin = _admin(db)
     res = ai_service._propose_cek_durum(db, admin, {"cek_no": "X", "yeni_durum": "belirsiz"})
     assert res.get("_error") is True
+
+
+# ── Faz 2 genişletme — ödeme yasağı + avans ekle + düzenli ödeme ekle ──────────
+
+def test_execute_cari_odeme_yasagi(db):
+    """cari_durum (update) → cari 'ödeme yasaklısı' olur."""
+    admin = _admin(db)
+    v = _vendor(db, status="normal")
+    res = ai_service.execute_action(db, admin, "cari_durum", v.id, {"status": "odeme_yasaklisi"})
+    assert res["durum"] == "uygulandi", res
+    db.refresh(v)
+    assert v.status == "odeme_yasaklisi"
+
+
+def test_execute_avans_ekle_create(db):
+    """avans_ekle (create) → yeni Advance kaydı oluşur (tarih string→date coercion)."""
+    from app.models.advance import Advance
+    admin = _admin(db)
+    res = ai_service.execute_action(db, admin, "avans_ekle", 0, {
+        "agency_name": "TEST ACENTE AI", "amount": 1500.0, "currency": "EUR",
+        "advance_date": "2026-07-15", "notes": "test",
+    })
+    assert res["durum"] == "uygulandi", res
+    adv = db.query(Advance).filter(Advance.agency_name == "TEST ACENTE AI").first()
+    assert adv is not None
+    assert float(adv.amount) == 1500.0 and adv.currency == "EUR"
+
+
+def test_execute_duzenli_odeme_create(db):
+    """duzenli_odeme_ekle (create) → yeni ScheduledDefinition (source_type=recurring) oluşur."""
+    admin = _admin(db)
+    res = ai_service.execute_action(db, admin, "duzenli_odeme_ekle", 0, {
+        "name": "TEST DUZENLI AI", "amount": 500.0, "currency": "TRY",
+        "frequency": "monthly", "payment_day": 10, "start_month": 1,
+    })
+    assert res["durum"] == "uygulandi", res
+    d = (
+        db.query(ScheduledDefinition)
+        .filter(ScheduledDefinition.name == "TEST DUZENLI AI")
+        .first()
+    )
+    assert d is not None
+    assert d.source_type == "recurring" and float(d.amount) == 500.0
+
+
+def test_execute_avans_gecersiz_tutar_reddedilir(db):
+    admin = _admin(db)
+    res = ai_service.execute_action(db, admin, "avans_ekle", 0, {
+        "agency_name": "X", "amount": -5, "advance_date": "2026-07-15",
+    })
+    assert res["durum"] == "hata"
+
+
+def test_execute_izin_yoksa_avans_eklenemez(db):
+    """finance.avanslar can_use olmayan kullanıcı avans ekleyemez."""
+    import uuid
+    from app.models.advance import Advance
+    role = Role(name=f"noperm_av_{uuid.uuid4().hex[:6]}", description="izinsiz")
+    db.add(role)
+    db.flush()
+    user = User(
+        username=f"noperm_av_{uuid.uuid4().hex[:6]}",
+        email=f"noperm_av_{uuid.uuid4().hex[:6]}@test.local",
+        first_name="No", last_name="Perm",
+        hashed_password=hash_password("Test1234!"),
+        role_id=role.id, is_active=True,
+    )
+    db.add(user)
+    before = db.query(Advance).count()
+    res = ai_service.execute_action(db, user, "avans_ekle", 0, {
+        "agency_name": "YETKI YOK", "amount": 100.0, "advance_date": "2026-07-15",
+    })
+    assert res["durum"] == "hata"
+    assert db.query(Advance).count() == before  # kayıt oluşmadı

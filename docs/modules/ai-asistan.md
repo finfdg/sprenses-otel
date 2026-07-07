@@ -25,12 +25,23 @@
   anahtarları (`finance.cariler`→`{payment_days}`, `finance.checks`→`{new_status}`). Onay
   gerekiyorsa mutasyon YAPILMAZ, talep oluşur; onaylanınca mevcut executor handler uygular.
 
-**Uygulanan yazma aksiyonları:** `cari_vade` (cari ödeme vadesi → `vendor_service.apply_vendor_update`),
-`cek_durum` (çek durumu → `check_service.apply_check_status`). İkisi de router↔executor ORTAK
-service'i çağırır → sapma yok. Audit: `ai_execute` eylemi.
+**Uygulanan yazma aksiyonları (`_WRITE_ACTIONS` registry — `action_type` create/update):**
 
-**Deferred:** `duzenli_odeme_ekle` (recurring create) — planlı-tanım fabrikası tam bir
-tanım payload'ı ister; sonraki iterasyona bırakıldı (§5 tablosu).
+| action_key | Tür | Modül | Service (router↔executor ORTAK) | Öner aracı |
+|---|---|---|---|---|
+| `cari_vade` | update | finance.cariler | `vendor_service.apply_vendor_update({payment_days})` | `cari_vade_degistir` |
+| `cari_durum` | update | finance.cariler | `vendor_service.apply_vendor_update({status})` — ödeme yasağı | `cari_odeme_yasagi` |
+| `cek_durum` | update | finance.checks | `check_service.apply_check_status(new_status)` | `cek_durum_degistir` |
+| `avans_ekle` | create | finance.avanslar | `advance_service.create_advance` (tarih coercion) | `avans_ekle` |
+| `duzenli_odeme_ekle` | create | accounting.recurring | `ScheduledDefinition` + `scheduled_service.post_create` (executor mirror) | `duzenli_odeme_ekle` |
+
+Hepsi router endpoint'iyle **birebir** aynı modül/aksiyon/payload anahtarlarını kullanır →
+onay gerekirse mevcut executor doğru uygular; onay gerekmezse aynı service çağrılır (sapma yok).
+Audit: `ai_execute` eylemi. **create** aksiyonlarında `entity_id=0`, onay gerekirse executor
+payload'dan üretir (recurring'de UI "Onayda" ön-kaydı yapılmaz — talep Onay modülünde görünür).
+
+**Not (recurring):** cari-bağlı düzenli ödeme (Elektrik→CK vb.) asistandan kurulmaz —
+`vendor_id` her zaman None (bağımsız planlı gider). Cari senkronu modülden yapılır.
 
 ---
 
