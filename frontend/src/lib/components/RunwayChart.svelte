@@ -51,14 +51,18 @@
 
 		let low = pts0[0];
 		for (const p of pts0) if (p.bal < low.bal) low = p;
-		const negative = low.bal < 0;
+		// "Negatife düşüyor" uyarısı bakiyenin İLK KEZ 0'ın altına düştüğü günü gösterir (en düşük
+		// gün DEĞİL) — kullanıcı bulgusu 2026-07-07: minimum 31 Tem'deydi ama açık daha erken başlıyor.
+		// `low` (en düşük bakiye) ayrı kalır: grafik noktası + "En düşük bakiye" etiketi.
+		const firstNeg = pts0.find((p) => p.bal < 0) ?? null;
+		const negative = firstNeg !== null;
 		const endBal = pts0[pts0.length - 1].bal;
 		const startEur = balances?.total_balance_eur ?? pts0[pts0.length - 1].bal;
 
 		return {
 			pts, negative, startEur,
-			statusText: negative
-				? `${labelIso(low.date)}'de bakiye negatife düşüyor`
+			statusText: firstNeg
+				? `${labelIso(firstNeg.date)}'de bakiye negatife düşüyor`
 				: 'Dönem boyunca nakit pozitif kalıyor',
 			zeroY: mapY(0).toFixed(1),
 			lowX: mapX(low.t).toFixed(1),
