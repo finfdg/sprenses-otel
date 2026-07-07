@@ -35,6 +35,15 @@ def compute_eur_balances(db: Session) -> dict:
     """
     today_date = date_cls.today()
 
+    # Beklemeye alınmış (hold) future-pending kalemler projeksiyondan dışlanır → nakit akıma dahil
+    # edilmez (tutar "parkta"; bakiye düşmez). Vade geçince overdue (bakiyeden zaten düşülmüyor),
+    # ödenince gerçek banka hareketiyle doğal olarak işlenir. Yalnız event_date >= bugün için geçerli.
+    from app.services.hold_service import get_hold_set
+    hold_set = get_hold_set(db)
+
+    def _is_held_future(st, sid, dt):
+        return dt >= today_date and (st, sid) in hold_set
+
     # Tüm hesaplar
     accounts = db.query(BankAccount).all()
     acc_map = {a.id: a for a in accounts}
@@ -174,6 +183,8 @@ def compute_eur_balances(db: Session) -> dict:
     for c in all_checks:
         if c.status == "cancelled":
             continue
+        if _is_held_future("check", c.id, c.due_date):
+            continue  # beklemeye alınmış çek → akım-dışı
         amt = float(c.amount_currency)
         curr = "EUR" if c.currency != "TL" else "TRY"
         if curr == "TRY":
@@ -193,6 +204,8 @@ def compute_eur_balances(db: Session) -> dict:
     # Kredi ödemelerini gün bazlı topla (EUR cinsinden — banka eşleşmesi olmayanlar)
     credit_expense_by_date = defaultdict(float)
     for p in pending_payments:
+        if _is_held_future("credit", p.id, p.due_date):
+            continue  # beklemeye alınmış kredi taksiti → akım-dışı
         curr = credit_currency_map.get(p.credit_product_id, "TRY")
         if curr == "TRY":
             credit_expense_by_date[p.due_date] += to_eur(float(p.amount), "TRY", p.due_date)
@@ -212,6 +225,8 @@ def compute_eur_balances(db: Session) -> dict:
         .all()
     )
     for stmt in unpaid_cc_stmts:
+        if _is_held_future("cc_payment", stmt.id, stmt.son_odeme_tarihi):
+            continue  # beklemeye alınmış KK ekstresi → akım-dışı
         kalan = float(stmt.toplam_borc) - float(stmt.paid_amount or 0)
         if kalan > 0:
             cc_expense_by_date[stmt.son_odeme_tarihi] += to_eur(kalan, "TRY", stmt.son_odeme_tarihi)
@@ -258,6 +273,8 @@ def compute_eur_balances(db: Session) -> dict:
     # Cari ödemeleri gün bazlı topla (EUR cinsinden — FIFO tutarlarıyla)
     vendor_expense_by_date = defaultdict(float)
     for vfe in vendor_fe_payments:
+        if _is_held_future(vfe.source_type, vfe.source_id, vfe.event_date):
+            continue  # beklemeye alınmış cari ödeme → akım-dışı
         vendor_expense_by_date[vfe.event_date] += to_eur(float(vfe.amount), vfe.currency or "TRY", vfe.event_date)
 
     # Bekleyen avanslar (vadesi gelmemiş — gelir olarak bakiyeye eklenecek)
@@ -273,6 +290,8 @@ def compute_eur_balances(db: Session) -> dict:
         .all()
     )
     for afe in advance_fes:
+        if _is_held_future(afe.source_type, afe.source_id, afe.event_date):
+            continue  # beklemeye alınmış avans → akım-dışı
         advance_income_by_date[afe.event_date] += to_eur(float(afe.amount), afe.currency or "EUR", afe.event_date)
         all_date_set.add(afe.event_date)
     # Tarih seti güncellendi, yeniden sırala
@@ -291,6 +310,8 @@ def compute_eur_balances(db: Session) -> dict:
     scheduled_income_by_date = defaultdict(float)
     scheduled_expense_by_date = defaultdict(float)
     for sfe in scheduled_fes:
+        if _is_held_future(sfe.source_type, sfe.source_id, sfe.event_date):
+            continue  # beklemeye alınmış planlı gider/gelir → akım-dışı
         eur_amt = to_eur(float(sfe.amount), sfe.currency or "TRY", sfe.event_date)
         if sfe.direction == 1:  # gelir (alınan kira)
             scheduled_income_by_date[sfe.event_date] += eur_amt
@@ -303,6 +324,8 @@ def compute_eur_balances(db: Session) -> dict:
     # Bekleyen çek giderleri (gelecek bakiye projeksiyonu için — eşleşenler banka bakiyesinde)
     pending_check_expense_by_date = defaultdict(float)
     for c in pending_checks:
+        if _is_held_future("check", c.id, c.due_date):
+            continue  # beklemeye alınmış çek → projeksiyon-dışı
         amt = float(c.amount_currency)
         curr = "EUR" if c.currency != "TL" else "TRY"
         if curr == "TRY":

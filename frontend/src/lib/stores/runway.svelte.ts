@@ -21,8 +21,9 @@ export type Flow = {
 export type RunwayData = {
 	month_label: string; month_start: string; month_end: string; today: string;
 	start_eur: number; inflows: Flow[]; outs: Flow[];
-	overdue: Flow[]; overdue_income?: Flow[]; skipped_no_rate: number;
+	overdue: Flow[]; overdue_income?: Flow[]; held?: Flow[]; skipped_no_rate: number;
 };
+export type SourceRef = { source_type: string; source_id: number };
 
 export const MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 export const SRC_LABELS: Record<string, string> = {
@@ -61,10 +62,20 @@ let started = false;
 let refCount = 0;
 let wsUnsub: (() => void) | null = null;
 
+// Beklet (hold) modu — Panel Nakit Akım kartındaki "Beklet" option butonu açıkken true.
+// CashFlowTAccount (bekleyen satır tıklaması) + HeldList (bekleme listesi geri-al) ORTAK okur;
+// pasifken (false) mevcut bekletmeler korunur ama düzenlenemez (salt gösterim).
+let _holdMode = $state(false);
+
 export const runwayStore = {
 	get data() { return _data; },
 	get loading() { return _loading; },
+	get holdMode() { return _holdMode; },
 };
+
+export function setHoldMode(v: boolean): void {
+	_holdMode = v;
+}
 
 export async function loadRunway(): Promise<void> {
 	try {
@@ -103,5 +114,13 @@ function parseId(id: string): { source_type: string; source_id: number } {
 export async function deferBatch(memberIds: string[], deferredTo: string | null): Promise<void> {
 	const items = memberIds.map(parseId);
 	await api.post('/finance/cash-flow/defer-batch', { items, deferred_to: deferredTo });
+	await loadRunway();
+}
+
+/** Kalemleri beklemeye al (held=true) veya bekletmeyi kaldır (held=false) — TEK batch isteği, sonra tazele.
+ *  Endpoint CASH_FLOW broadcast'i yayar → T-Hesap + runway tüketicileri WS ile de tazelenir. */
+export async function holdBatch(items: SourceRef[], held: boolean): Promise<void> {
+	if (items.length === 0) return;
+	await api.post('/finance/cash-flow/hold-batch', { items, held });
 	await loadRunway();
 }

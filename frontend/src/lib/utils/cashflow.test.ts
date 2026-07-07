@@ -8,6 +8,15 @@ const mk = (name: string, eur: number, native: number, currency = 'TRY'): CashIt
 	currency,
 });
 
+const mkSrc = (name: string, eur: number, native: number, source_type: string | null, source_id: number | null, currency = 'TRY'): CashItem => ({
+	name,
+	amount_eur: eur,
+	amount_native: native,
+	currency,
+	source_type,
+	source_id,
+});
+
 describe('AGGREGATE_LABELS', () => {
 	it('yalnız Cari Ödemeleri toplanır; kredi/çek toplanmaz', () => {
 		expect(AGGREGATE_LABELS.has('Cari Ödemeleri')).toBe(true);
@@ -75,5 +84,31 @@ describe('aggregateRows — aggregate=true (cari: firma bazında toplu)', () => 
 
 	it('boş liste → boş dizi', () => {
 		expect(aggregateRows([], true)).toEqual([]);
+	});
+});
+
+describe('aggregateRows — members (bekletme kimliği)', () => {
+	it('aggregate=false: her satır kendi kaynak kimliğini members olarak taşır', () => {
+		const rows = aggregateRows([mkSrc('Çek A', 10, 100, 'check', 5), mkSrc('Çek B', 20, 200, 'check', 6)], false);
+		expect(rows[0].members).toEqual([{ source_type: 'check', source_id: 5 }]);
+		expect(rows[1].members).toEqual([{ source_type: 'check', source_id: 6 }]);
+	});
+
+	it('aggregate=true: toplu satır TÜM üye kimliklerini toplar', () => {
+		const rows = aggregateRows([
+			mkSrc('OTED', 4, 400, 'vendor_payment', 11),
+			mkSrc('OTED', 6, 600, 'vendor_payment', 12),
+		], true);
+		const oted = rows.find((r) => r.name === 'OTED')!;
+		expect(oted.members).toHaveLength(2);
+		expect(oted.members).toEqual([
+			{ source_type: 'vendor_payment', source_id: 11 },
+			{ source_type: 'vendor_payment', source_id: 12 },
+		]);
+	});
+
+	it('kaynak kimliği olmayan (projeksiyon) kalem members\'a girmez', () => {
+		const rows = aggregateRows([mkSrc('Tahmini KK (Tahmini)', 8, 800, null, null)], false);
+		expect(rows[0].members).toEqual([]);
 	});
 });

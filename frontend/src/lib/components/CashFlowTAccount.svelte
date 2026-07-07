@@ -18,14 +18,19 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import { hasPermission } from '$lib/stores/auth.svelte';
+	import { onWsEvent } from '$lib/stores/websocket.svelte';
+	import { WS_EVENT } from '$lib/constants/realtime';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import RunwayChart from '$lib/components/RunwayChart.svelte';
 	import OverdueList from '$lib/components/OverdueList.svelte';
+	import HeldList from '$lib/components/HeldList.svelte';
 	import { cashFlowCache, loadCashFlowEurBalances } from '$lib/stores/cashflow.svelte';
+	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/runway.svelte';
 	import { aggregateRows, AGGREGATE_LABELS, type CashRow } from '$lib/utils/cashflow';
-	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-svelte';
+	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
 
-	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean };
+	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; source_type?: string | null; source_id?: number | null };
 	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[]; realized_eur?: number; realized_count?: number };
 	type TData = {
 		period: string; offset: number; start_date: string; end_date: string;
@@ -37,7 +42,7 @@
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
 	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
-	type DateRow = { name: string; amountLabel: string; amount_eur: number };
+	type DateRow = { name: string; amountLabel: string; amount_eur: number; members: SourceRef[] };
 	type DateCat = { label: string; totalEur: number; rows: DateRow[] };
 	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
@@ -78,6 +83,12 @@
 	let expanded = $state(false);
 	let todaySummary = $state<TData | null>(null);
 	const cache = new Map<string, TData>();
+
+	// Beklet (hold) modu — yalnız finance.cash_flow KULLANIM yetkisi olanlar görür/kullanır.
+	// Mod AÇIKKEN bekleyen satırlar tıklanınca beklemeye alınır (akım-dışı, Bekleme Listesi'ne).
+	const canHold = hasPermission('finance.cash_flow', 'use');
+	const holdMode = $derived(runwayStore.holdMode);
+	let holdMutating = $state(false);
 
 	function fmtEur(n: number): string {
 		return '€' + new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n));
@@ -163,7 +174,7 @@
 				.map(([label, items]) => ({
 					label,
 					totalEur: items.reduce((s, it) => s + it.amount_eur, 0),
-					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r), amount_eur: r.amount_eur })),
+					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r), amount_eur: r.amount_eur, members: r.members })),
 				}))
 				.sort((a, b) => b.totalEur - a.totalEur);
 			return { date: day.date, label: day.label, totalEur: day.totalEur, cats };
@@ -240,6 +251,35 @@
 		}
 	}
 
+	// T-Hesap verisini tazele (bekletme/ödeme sonrası) — cache bayat olduğundan temizle + yeniden yükle.
+	async function refreshData() {
+		cache.clear();
+		await load();
+		if (cashFlowCache.eurBalances) await loadCashFlowEurBalances(); // startCash + RunwayChart
+	}
+
+	function toggleHoldMode() {
+		if (!canHold) return;
+		setHoldMode(!runwayStore.holdMode);
+		expanded = true; // mobilde beklet moduna geçince tam görünüm açılsın (listeler görünür)
+	}
+
+	// Bir bekleyen satırı (aggregate → members) beklemeye al (held=true) / kaldır (false).
+	async function holdRow(members: SourceRef[], held: boolean) {
+		if (!canHold || !runwayStore.holdMode || holdMutating || members.length === 0) return;
+		holdMutating = true;
+		try {
+			await holdBatch(members, held); // POST hold-batch + runway tazele
+			await refreshData(); // T-Hesap'ta kalem bekleyen'den düşsün / geri gelsin
+			showToast(held ? 'Beklemeye alındı' : 'Bekletme kaldırıldı', 'success');
+		} catch (err: any) {
+			console.error('Bekletme işlemi başarısız:', err);
+			showToast(err?.message || 'Bekletme işlemi başarısız', 'error');
+		} finally {
+			holdMutating = false;
+		}
+	}
+
 	// Dönem/gezinme değişince segment + tarih görünümü + açık gruplar sıfırlanır (tasarım kararı)
 	function resetViews() {
 		open = {};
@@ -278,6 +318,9 @@
 		api.get<TData>('/finance/cash-flow/t-account?period=daily&offset=0')
 			.then((r) => { cache.set('daily:0', r); todaySummary = r; })
 			.catch((err) => console.error('Günlük özet yüklenemedi:', err));
+		// Finans değişince (bekletme/ödeme/etiketleme/Sedna vb.) T-Hesap'ı WS ile canlı tazele (polling yok)
+		const unsub = onWsEvent(WS_EVENT.FINANCE_UPDATED, () => { refreshData(); });
+		return () => { unsub(); setHoldMode(false); }; // ayrılırken beklet modu pasife dön (salt gösterim)
 	});
 </script>
 
@@ -290,16 +333,28 @@
 			     Mobil kapalı görünümde "Bugün" etiketi mini özet kartını niteler. -->
 			<p class="text-xs text-gray-500 mt-0.5 sm:hidden {expanded ? 'hidden' : ''}">Bugün</p>
 		</div>
-		<!-- Mobil: kapalıyken "detay için dokun" ipucu (sağ üst köşe) -->
-		<button type="button" onclick={() => (expanded = true)} aria-label="Detayı aç"
-			class="sm:hidden {expanded ? 'hidden' : ''} shrink-0 -mt-0.5 flex items-center gap-1 text-xs text-teal-700 font-medium cursor-pointer">
-			detay için dokun <ChevronRight size={14} />
-		</button>
-		<!-- Mobil: tam görünümü kapat (yukarı ok) -->
-		<button type="button" onclick={() => (expanded = false)} aria-label="Özete dön"
-			class="sm:hidden {expanded ? '' : 'hidden'} touch-target w-9 h-9 -mt-1 -mr-1 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 cursor-pointer">
-			<ChevronUp size={18} />
-		</button>
+		<div class="flex items-center gap-2 shrink-0">
+			<!-- Beklet (option) butonu — yalnız finance.cash_flow USE yetkisi. Açıkken bekleyen satırlar
+			     tıklanınca beklemeye alınır (akım-dışı). Pasifken bekletmeler korunur, düzenlenemez. -->
+			{#if canHold}
+				<button type="button" onclick={toggleHoldMode} aria-pressed={holdMode}
+					title={holdMode ? 'Beklet modu açık — kapatmak için tıkla' : 'Beklet modunu aç (kalem beklemeye al)'}
+					class="touch-target flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors
+						{holdMode ? 'border-amber-300 bg-amber-100 text-amber-800' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}">
+					<PauseCircle size={15} /> Beklet{#if holdMode} · Açık{/if}
+				</button>
+			{/if}
+			<!-- Mobil: kapalıyken "detay için dokun" ipucu (sağ üst köşe) -->
+			<button type="button" onclick={() => (expanded = true)} aria-label="Detayı aç"
+				class="sm:hidden {expanded ? 'hidden' : ''} -mt-0.5 flex items-center gap-1 text-xs text-teal-700 font-medium cursor-pointer">
+				detay için dokun <ChevronRight size={14} />
+			</button>
+			<!-- Mobil: tam görünümü kapat (yukarı ok) -->
+			<button type="button" onclick={() => (expanded = false)} aria-label="Özete dön"
+				class="sm:hidden {expanded ? '' : 'hidden'} touch-target w-9 h-9 -mt-1 -mr-1 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 cursor-pointer">
+				<ChevronUp size={18} />
+			</button>
+		</div>
 	</div>
 
 	<!-- Bankadaki nakit runway grafiği — gerçek günlük bakiye (eur_balances), dönem aralığına göre dilimlenir -->
@@ -347,6 +402,13 @@
 		</button>
 	</div>
 
+	{#if canHold && holdMode}
+		<div class="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+			<PauseCircle size={15} class="shrink-0 text-amber-600" />
+			<span><strong>Beklet modu açık.</strong> Bekleyen bir satıra dokununca beklemeye alınır (nakit akıma dahil edilmez). Bitince butonu kapatın.</span>
+		</div>
+	{/if}
+
 	{#if loading && !data}
 		<div class="space-y-2 animate-pulse" aria-hidden="true">
 			{#each Array(4) as _}
@@ -374,10 +436,21 @@
 							</div>
 							<!-- Cari grubunda aynı firma birden çok ödeme → tek toplu satır; diğerlerinde her kalem ayrı -->
 							{#each aggregateRows(day.items, AGGREGATE_LABELS.has(g.label)) as row, i (i)}
-								<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
-									<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
-									<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
-								</div>
+								{@const canHoldRow = !realized && canHold && holdMode && row.members.length > 0}
+								{#if canHoldRow}
+									<button type="button" onclick={() => holdRow(row.members, true)} disabled={holdMutating}
+										title="Beklemeye al (nakit akıma dahil edilmez)" aria-label="{cleanName(row.name)} beklemeye al"
+										class="w-full flex items-center gap-2 pl-8 pr-2 py-1 text-[12px] rounded-md hover:bg-amber-50 cursor-pointer text-left disabled:opacity-50">
+										<PauseCircle size={14} class="shrink-0 text-amber-500" />
+										<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
+										<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
+									</button>
+								{:else}
+									<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
+										<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
+										<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
+									</div>
+								{/if}
 							{/each}
 						{/each}
 						{#if g.item_count > g.items.length}
@@ -390,7 +463,7 @@
 
 		<!-- Tarih görünümü: GÜN başlığı → KATEGORİ alt-başlığı (etiket + işlem sayısı + alt toplam) → satırlar
 		     (cari: firma bazında toplu "N ödeme" rozetli; kredi/çek: her kalem ayrı) -->
-		{#snippet dateRows(dv: { days: DateDay[]; hasMore: boolean; moreText: string }, tipping: { date: string; catLabel: string; rowIdx: number } | null)}
+		{#snippet dateRows(dv: { days: DateDay[]; hasMore: boolean; moreText: string }, tipping: { date: string; catLabel: string; rowIdx: number } | null, holdable: boolean)}
 			{#each dv.days as day (day.date)}
 				<div class="flex items-center justify-between gap-2 px-2 py-2 border-t border-gray-100 bg-gray-50">
 					<span class="text-[11px] font-bold uppercase tracking-wide text-gray-700">{day.label}</span>
@@ -403,11 +476,22 @@
 					</div>
 					{#each cat.rows as row, i (i)}
 						{@const isTip = !!tipping && day.date === tipping.date && cat.label === tipping.catLabel && i === tipping.rowIdx}
-						<div class="flex items-center gap-2 pl-7 pr-2 py-1 {isTip ? 'bg-red-50 rounded-md -mx-0.5 px-2.5' : ''}">
-							<span class="text-[12px] truncate {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{cleanName(row.name)}</span>
-							{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit buraya yetmiyor</span>{/if}
-							<span class="ml-auto tabular-nums text-[12px] shrink-0 {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{row.amountLabel}</span>
-						</div>
+						{@const canHoldRow = holdable && !isTip && row.members.length > 0}
+						{#if canHoldRow}
+							<button type="button" onclick={() => holdRow(row.members, true)} disabled={holdMutating}
+								title="Beklemeye al (nakit akıma dahil edilmez)" aria-label="{cleanName(row.name)} beklemeye al"
+								class="w-full flex items-center gap-2 pl-5 pr-2 py-1 rounded-md hover:bg-amber-50 cursor-pointer text-left disabled:opacity-50">
+								<PauseCircle size={14} class="shrink-0 text-amber-500" />
+								<span class="text-[12px] truncate text-gray-700">{cleanName(row.name)}</span>
+								<span class="ml-auto tabular-nums text-[12px] shrink-0 text-gray-700">{row.amountLabel}</span>
+							</button>
+						{:else}
+							<div class="flex items-center gap-2 pl-7 pr-2 py-1 {isTip ? 'bg-red-50 rounded-md -mx-0.5 px-2.5' : ''}">
+								<span class="text-[12px] truncate {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{cleanName(row.name)}</span>
+								{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit buraya yetmiyor</span>{/if}
+								<span class="ml-auto tabular-nums text-[12px] shrink-0 {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{row.amountLabel}</span>
+							</div>
+						{/if}
 					{/each}
 				{/each}
 			{/each}
@@ -459,7 +543,7 @@
 							{!st.hasData ? 'Bu dönemde kayıt yok.' : realized ? 'Gerçekleşen işlem yok.' : 'Bekleyen işlem yok.'}
 						</p>
 					{:else if dv}
-						{@render dateRows(dv, col.side === 'cikis' ? tippingCikis : null)}
+						{@render dateRows(dv, col.side === 'cikis' ? tippingCikis : null, !realized && canHold && holdMode)}
 					{:else}
 						{@render catRows(col.side, realized, filtered)}
 					{/if}
@@ -480,6 +564,9 @@
 	{/if}
 
 	</div>
+
+	<!-- Bekleme Listesi (beklemeye alınmış kalemler) — Vadesi Geçenler'in üstünde -->
+	<HeldList />
 
 	<!-- Vadesi Geçenler — Nakit Akım kartının EN ALTINDA (kullanıcı isteği 2026-07-06) -->
 	<OverdueList />

@@ -265,10 +265,15 @@ def runway(
         for st, sid in db.query(PaymentDeferral.source_type, PaymentDeferral.source_id).all()
     }
 
+    # Beklemeye alınmış (hold) future-pending kalemler akımdan dışlanır → ayrı "held" listesi
+    from app.services.hold_service import get_hold_set
+    hold_set = get_hold_set(db)
+
     inflows: list = []
     outs: list = []
     overdue: list = []
     overdue_income: list = []
+    held: list = []
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, float] = {}
 
@@ -302,6 +307,10 @@ def runway(
                 overdue.append(item)
             elif fe.direction == DIRECTION_INCOME:
                 overdue_income.append(item)
+        elif (fe.source_type, fe.source_id) in hold_set:
+            # Beklemeye alınmış (future-pending) → akımdan dışlanır, Bekleme Listesi'nde gösterilir.
+            # Vade geçince yukarıdaki overdue dalına, ödenince realized'a doğal olarak geçer.
+            held.append(item)
         elif fe.direction == DIRECTION_INCOME:
             item.pop("source_type")  # inflow'da source_type gösterilmiyordu (geriye uyum)
             inflows.append(item)
@@ -346,5 +355,6 @@ def runway(
         "outs": outs,
         "overdue": overdue,
         "overdue_income": overdue_income,
+        "held": held,
         "skipped_no_rate": skipped_no_rate,
     }

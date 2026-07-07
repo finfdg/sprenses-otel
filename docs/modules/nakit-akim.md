@@ -265,3 +265,26 @@ planlaması eksik kalmaz.
   Ödeme" tarihleri, `cut`→"↑ Ekstre yükleyin"; tıklanamaz. Tahmini kalemler gün-içi KK grubuna
   katılmaz (ayrı satır).
 - **Test:** `backend/tests/test_cc_projections.py` (16) + `finance.test.ts` projeksiyon testleri (3).
+
+## Bekletme / Bekleme Listesi — Kalemi Akım-Dışı Park Etme (2026-07-07)
+
+Panel Nakit Akım (T-Hesap) kartındaki **"Beklet" option butonu** ile bir **bekleyen** kalem "beklemeye
+alınır": tutarı nakit akıma dahil edilmez, ayrı **Bekleme Listesi**'nde (amber) görünür. Öteleme
+(deferral) deseninin ikizi — ama **tarih değiştirmez, yalnız dışlar**. Yalnız `finance.cash_flow`
+KULLANIM yetkisi olan görür/kullanır.
+
+- **Model/tablo:** `cash_flow_holds` (migration `a7d3f9b1e8c4`), doğal anahtar `(source_type, source_id)`.
+  Servis `app/services/hold_service.py` (cache'li `get_hold_set`, `apply/clear/batch`; `bank` HARİÇ 14 tür).
+- **Endpoint:** `POST /finance/cash-flow/hold-batch` `{items:[{source_type,source_id}], held}` — **onaysız**
+  (operasyonel), `use` + audit (`cash_flow_hold`) + WS broadcast. Boş/`>5000` → 400.
+- **Dışlama kuralı:** `held ∧ not is_realized ∧ event_date ≥ bugün` → t_account **bekleyen**'den,
+  runway inflows/outs'tan, eur_balances projeksiyonundan çıkar; runway **`held`** dizisine girer.
+- **Geçişler (doğal):** vade geçince → **Vadesi Geçenler** (held değil); ödenince (`is_realized`) →
+  **Gerçekleşen** (runway held'den düşer, t_account realized-held'i gösterir). Ek kod yok.
+- **Frontend:** `CashFlowTAccount.svelte` başlığında Beklet butonu (amber-aktif) → mod açıkken bekleyen
+  satır tıklanınca beklemeye alınır (`holdBatch`; toplu cari satırı = tüm üyeler). `HeldList.svelte`
+  Bekleme Listesi (grup bazında "Geri al"). Mod paylaşımlı `runway.svelte` state'i (`holdMode`); WS ile
+  T-Hesap canlı tazelenir (polling yok). `cashflow.ts::aggregateRows` satırlara `members: SourceRef[]`
+  ekler (bekletme kimliği).
+- **Test:** `backend/tests/test_cash_flow_hold.py` (24) + `cashflow.test.ts` members (3).
+  Geliştirici detayı: `backend/app/routers/finance/CLAUDE.md` "Bekletme (Hold)".

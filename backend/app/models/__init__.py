@@ -30,6 +30,7 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import FinanceEvent
 from app.models.message import Message
 from app.models.module import Module
+from app.models.cash_flow_hold import CashFlowHold
 from app.models.notification import Notification
 from app.models.payment_deferral import PaymentDeferral
 from app.models.push_subscription import PushSubscription
@@ -67,6 +68,7 @@ __all__ = [
     "CreditCardStatement", "CreditCardTransaction",
     "Advance",
     "FinanceEvent",
+    "CashFlowHold",
     "PaymentDeferral",
     "Department", "BudgetCategory", "Budget",
     "DividendDistribution", "DividendShareholder",

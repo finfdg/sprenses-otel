@@ -206,6 +206,9 @@ def t_account(
     realized = {DIRECTION_INCOME: 0.0, DIRECTION_EXPENSE: 0.0}
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, Optional[float]] = {}
+    # Beklemeye alınmış future-pending kalemler bekleyen listesinden dışlanır (Bekleme Listesi'nde gösterilir)
+    from app.services.hold_service import get_hold_set
+    hold_set = get_hold_set(db)
 
     for fe in events:
         if fe.direction not in groups:
@@ -214,6 +217,10 @@ def t_account(
         # zaten realized görünür; olmadıysa GİDER "Vadesi Geçenler", GELİR "Vadesi Geçen Tahsilatlar"
         # bölümünde takip edilir → bekleyen giriş/çıkış şişmez (kullanıcı: gider 2026-07-05, gelir 2026-07-07).
         if not fe.is_realized and fe.event_date < today:
+            continue
+        # Beklemeye alınmış future-pending (gerçekleşmemiş) kalem bekleyen listesine GİRMEZ (akım-dışı).
+        # Realized held → gerçekleşen'de kalır (dışlanmaz); overdue held → yukarıda zaten elendi.
+        if not fe.is_realized and (fe.source_type, fe.source_id) in hold_set:
             continue
         eur = _event_eur(db, fe, rate_cache)
         if eur is None:
@@ -243,6 +250,9 @@ def t_account(
                 "amount_native": round(float(fe.amount), 2),
                 "currency": (fe.currency or "TRY").upper(),
                 "is_realized": bool(fe.is_realized),
+                # Bekletme (hold) kimliği — frontend bu kalemi beklemeye alabilsin
+                "source_type": fe.source_type,
+                "source_id": fe.source_id,
             })
         totals[fe.direction] += eur
         if fe.is_realized:
@@ -278,6 +288,9 @@ def t_account(
                 "amount_native": round(float(proj["amount"]), 2),
                 "currency": "TRY",
                 "is_realized": False,  # projeksiyon = her zaman bekleyen rezerv
+                # Projeksiyon rezervi bekletilemez (gerçek FE değil) → kimlik null
+                "source_type": None,
+                "source_id": None,
             })
         totals[DIRECTION_EXPENSE] += eur
 
