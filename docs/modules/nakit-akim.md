@@ -118,6 +118,15 @@
 - `expandedYears`, `expandedMonths`, `expandedDays` — 3 seviyeli akordiyon açık/kapalı state'i
 - `visibleDays` — `IntersectionObserver` ile işaretlenen viewport'a girmiş günler (lazy mount sinyali)
 - `focusMode` — T yapısı odak modu
+- **`cashFlowCache` (lib/stores/cashflow.svelte.ts) — oturum-içi cache + WS geçersizlemesi (2026-07-07):**
+  `items`/`categories`/`eurBalances` navigasyonlar arasında yaşar (5 dk TTL). `finance_updated` WS
+  event'i **store seviyesinde** (sayfa bağımsız, modül-scope `onWsEvent`) tazelik damgalarını
+  (`lastFetchedAt` + `eurBalancesFetchedAt`) sıfırlar — **fetch yapmaz**; bir sonraki mount
+  `isStale()`/`isEurBalancesStale()` üzerinden veriyi kendisi çeker. Sebep: event yalnız mount'lu
+  sayfa handler'larında tüketiliyordu; kullanıcı Bankalar'da ekstre yüklerken event kayboluyor,
+  Panel'e dönüşte `CashFlowTAccount` mount guard'ı ("yalnız boşsa çek") dolu-ama-eski `eurBalances`
+  ile RunwayChart'ı bayat çiziyordu (F5'e kadar). Mount guard artık `isEurBalancesStale()` kullanır.
+  Test: `src/lib/stores/cashflow.test.ts` (7 test — TTL/geçersizleme/emitLocal kablolaması).
 
 ### Performans / Lazy Mount
 - **3 seviyeli `{#if}` lazy render** — yıl/ay/gün başlıkları haricinde içerik (CashFlowItem) yalnızca kullanıcı bir günü açtığında render edilir.

@@ -2,6 +2,8 @@
 // WS finance_updated event'i ile otomatik güncellenir
 
 import { api } from '$lib/api';
+import { onWsEvent } from '$lib/stores/websocket.svelte';
+import { WS_EVENT } from '$lib/constants/realtime';
 import type { CashFlowItem, TransactionCategory } from '$lib/types/finance';
 
 /** Mevcut yılın 1 Ocak'ı (YYYY-01-01) — varsayılan filtre başlangıcı */
@@ -20,6 +22,8 @@ export const cashFlowCache = $state<{
 	loading: boolean;
 	/** Son yükleme zamanı (ms) — stale kontrolü için */
 	lastFetchedAt: number;
+	/** eurBalances'ın son yükleme zamanı (ms) — items'tan bağımsız tazelik takibi */
+	eurBalancesFetchedAt: number;
 	/** Backend'deki toplam kayıt sayısı (truncation uyarısı için) */
 	totalCount: number;
 	/** Aktif filtre parametreleri */
@@ -37,6 +41,7 @@ export const cashFlowCache = $state<{
 	loaded: false,
 	loading: false,
 	lastFetchedAt: 0,
+	eurBalancesFetchedAt: 0,
 	totalCount: 0,
 	filters: { startDate: getDefaultStartDate(), endDate: '', search: '' },
 });
@@ -46,6 +51,11 @@ const STALE_MS = 5 * 60 * 1000;
 
 function isStale(): boolean {
 	return Date.now() - cashFlowCache.lastFetchedAt > STALE_MS;
+}
+
+/** eurBalances yeniden yüklenmeli mi? (hiç yüklenmemiş, WS ile geçersizlenmiş veya TTL aşılmış) */
+export function isEurBalancesStale(): boolean {
+	return cashFlowCache.eurBalances === null || Date.now() - cashFlowCache.eurBalancesFetchedAt > STALE_MS;
 }
 
 export async function loadCashFlowItems(force = false) {
@@ -100,6 +110,7 @@ export async function loadCashFlowUntaggedCount() {
 export async function loadCashFlowEurBalances() {
 	try {
 		cashFlowCache.eurBalances = await api.get('/finance/cash-flow/eur-balances');
+		cashFlowCache.eurBalancesFetchedAt = Date.now();
 	} catch (err) {
 		console.error('EUR bakiye hatası:', err);
 	}
@@ -154,6 +165,22 @@ export function invalidateCashFlowCache() {
 	cashFlowCache.loaded = false;
 	cashFlowCache.loading = false;
 	cashFlowCache.lastFetchedAt = 0;
+	cashFlowCache.eurBalancesFetchedAt = 0;
 	cashFlowCache.totalCount = 0;
 	cashFlowCache.filters = { startDate: getDefaultStartDate(), endDate: '', search: '' };
+}
+
+// ─── WS ile store-seviyesi geçersizleme (sayfa bağımsız) ───
+// finance_updated event'i yalnızca MOUNT edilmiş sayfaların handler'larında tüketilir; kullanıcı
+// o sırada başka sayfadaysa (ör. Bankalar'da ekstre yüklerken) event kaybolur ve Panel'e dönüşte
+// mount guard'ları dolu-ama-bayat cache'i taze sanırdı (belirti 2026-07-07: ekstre sonrası Panel
+// RunwayChart eski bakiyeyi çizdi, F5'e kadar düzelmedi). Burada fetch YAPILMAZ — yalnız tazelik
+// damgaları sıfırlanır; bir sonraki mount/isStale kontrolü veriyi kendisi yeniden çeker. Mount'lu
+// sayfaların kendi WS handler'ları (refreshCashFlowLight/Full, CashFlowTAccount.refreshData)
+// canlı tazelemeyi zaten yapar; bu abonelik onlara istek eklemez.
+if (typeof window !== 'undefined') {
+	onWsEvent(WS_EVENT.FINANCE_UPDATED, () => {
+		cashFlowCache.lastFetchedAt = 0;
+		cashFlowCache.eurBalancesFetchedAt = 0;
+	});
 }

@@ -25,7 +25,7 @@
 	import RunwayChart from '$lib/components/RunwayChart.svelte';
 	import OverdueList from '$lib/components/OverdueList.svelte';
 	import HeldList from '$lib/components/HeldList.svelte';
-	import { cashFlowCache, loadCashFlowEurBalances } from '$lib/stores/cashflow.svelte';
+	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
 	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/runway.svelte';
 	import { aggregateRows, AGGREGATE_LABELS, type CashRow } from '$lib/utils/cashflow';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
@@ -322,8 +322,10 @@
 
 	onMount(() => {
 		load();
-		// Runway grafiği için gerçek günlük banka bakiyeleri (eur_balances — Nakit Akım sayfasıyla ortak kaynak)
-		if (!cashFlowCache.eurBalances) loadCashFlowEurBalances();
+		// Runway grafiği için gerçek günlük banka bakiyeleri (eur_balances — Nakit Akım sayfasıyla ortak
+		// kaynak). Boş VEYA bayat ise çek — "yalnız boşsa" guard'ı, başka sayfadayken gelen finance_updated
+		// sonrası dolu-ama-eski cache'i kullanıp grafiği güncel tutamıyordu (store WS'te damgayı sıfırlar).
+		if (isEurBalancesStale()) loadCashFlowEurBalances();
 		// Mobil özet kartı için bugünün Giriş/Çıkış/Net değerleri
 		api.get<TData>('/finance/cash-flow/t-account?period=daily&offset=0')
 			.then((r) => { cache.set('daily:0', r); todaySummary = r; })
