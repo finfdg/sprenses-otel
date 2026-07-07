@@ -6,6 +6,19 @@
 > `ANTHROPIC_API_KEY=...` yaz ve `sudo systemctl restart sprenses-api.service`.
 > Anahtar boşsa endpoint 503 döner, arayüz "yanıt veremedim" gösterir (güvenli).
 
+## Sunum: Markdown + Grafik (2026-07-07)
+
+- **Markdown render (güvenli):** Asistan yanıtları `marked` ile render edilir (tablo, kalın,
+  liste, başlık). LLM çıktısı olduğundan ÖNCE tüm HTML escape edilir (`&`,`<`,`>`), sonra
+  yalnız markdown sözdizimi işlenir → ham `<script>`/HTML geçemez. Sistem promptu modeli
+  **tablo** kullanmaya yönlendirir (çok-kalemli veri düz cümle değil tablo olur).
+- **Grafik (`grafik_olustur` aracı + `AiChart.svelte`):** Model, karşılaştırma için `tip=bar`,
+  trend için `tip=line` ile bir grafik spec'i (`{tip, baslik, para_birimi, seri:[{etiket,deger}]}`)
+  döndürür; `/sor` yanıtı `grafikler[]` taşır; frontend hafif **SVG** olarak çizer (harici
+  kütüphane YOK — projedeki elle-SVG deseni). Grafik verisi yapısaldır (sayı+etiket) ve Svelte
+  ile escape'li render edilir → XSS yok. Grafik tool'u mutasyon yapmaz; veri izin-kontrollü
+  okuma araçlarından gelir. Bar etiketleri kompakt (7,6 Mn), tam değer `title`'da.
+
 ## Faz 2 — Uygulanan (2026-07-07): Onay-akışlı yazma
 
 **İki-adımlı güvenli tasarım (öner → onayla → uygula):**

@@ -37,6 +37,7 @@ class AiAskResponse(BaseModel):
     cevap: str
     kullanilan_araclar: list
     bekleyen_islem: Optional[Dict[str, Any]] = None
+    grafikler: Optional[list] = None
 
 
 class AiExecuteRequest(BaseModel):

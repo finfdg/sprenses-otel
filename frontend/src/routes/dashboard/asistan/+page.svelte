@@ -6,12 +6,17 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import AiChart from '$lib/components/AiChart.svelte';
 	import { Sparkles, Send, Bot, User as UserIcon } from 'lucide-svelte';
+
+	interface ChartPoint { etiket: string; deger: number; }
+	interface Chart { tip: string; baslik?: string; para_birimi?: string; seri: ChartPoint[]; }
 
 	interface ChatMessage {
 		role: 'user' | 'assistant';
 		text: string;
 		tools?: string[];
+		charts?: Chart[];
 	}
 
 	interface PendingAction {
@@ -25,6 +30,7 @@
 		cevap: string;
 		kullanilan_araclar: string[];
 		bekleyen_islem?: PendingAction | null;
+		grafikler?: Chart[] | null;
 	}
 
 	const ORNEK_SORULAR = [
@@ -69,7 +75,8 @@
 			messages.push({
 				role: 'assistant',
 				text: res.cevap,
-				tools: res.kullanilan_araclar ?? []
+				tools: res.kullanilan_araclar ?? [],
+				charts: res.grafikler ?? []
 			});
 			// Yazma önerisi geldiyse kullanıcı onayına sun (ConfirmDialog)
 			if (res.bekleyen_islem) {
@@ -184,6 +191,11 @@
 								<div class="md rounded-2xl px-4 py-2.5 text-sm bg-gray-50 text-gray-800 border border-gray-200">
 									{@html renderMd(m.text)}
 								</div>
+							{/if}
+							{#if m.charts && m.charts.length > 0}
+								{#each m.charts as c}
+									<AiChart tip={c.tip} baslik={c.baslik} para_birimi={c.para_birimi} seri={c.seri} />
+								{/each}
 							{/if}
 							{#if m.tools && m.tools.length > 0}
 								<p class="text-[11px] text-gray-400 mt-1 px-1">

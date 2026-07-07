@@ -57,8 +57,15 @@ SYSTEM_PROMPT = (
     "sonuçlarına dayan. Veriye ihtiyacın varsa ilgili tool'u çağır.\n"
     "- Bir tool 'yetkiniz yok' hatası dönerse, kullanıcıya bu veriye erişim izni "
     "olmadığını nazikçe söyle; tahmin yürütme.\n"
-    "- Kısa ve öz yanıt ver. Para tutarlarını Türk Lirası formatında (binlik ayırıcı "
-    "nokta, ondalık virgül) ve gerekirse ₺/EUR belirterek yaz.\n"
+    "- Kısa ve öz yanıt ver. Para tutarlarını Türk formatında (binlik ayırıcı nokta, "
+    "ondalık virgül) ve para birimini (₺/EUR/USD) MUTLAKA belirterek yaz.\n"
+    "- BİÇİM: Birden fazla kalem/satır içeren verileri (listeler, dökümler, para-bazlı "
+    "özetler, karşılaştırmalar) **markdown tablosu** olarak sun — düz cümle yerine tablo "
+    "tercih et. Tutar kolonlarını sağa hizala. Önemli sayıları **kalın** yaz. Kısa "
+    "başlıklar (##) kullanabilirsin. Cevaplar tutarlı ve okunur bir düzende olsun.\n"
+    "- GRAFİK: Karşılaştırma (ör. en borçlu cariler) veya trend (ör. günlere/aylara göre "
+    "akım) içeren sorularda, tablonun YANINDA `grafik_olustur` aracıyla uygun bir grafik "
+    "de ekle (karşılaştırma=bar, zaman serisi=line). Grafik metnin yerine geçmez, EK olur.\n"
     "- Tarih bilmiyorsan bugünün tarihini tool'lara varsayılan bırakabilirsin.\n"
     "- Kullanıcı bir DEĞİŞİKLİK ya da EKLEME isterse (cari vadesi değiştir, çek durumu "
     "güncelle, ödeme yasağı koy/kaldır, avans ekle, düzenli ödeme ekle) ilgili aracı "
@@ -232,11 +239,50 @@ def _tool_cari_borc_ozeti(
     return {"limit": limit, "cariler": liste, "para_birimi": "TRY"}
 
 
+def _tool_grafik_olustur(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Bir veri kümesini grafik olarak göstermek için çağrılır (mutasyon yok).
+
+    Veriyi çizmez; yalnız doğrulanmış bir grafik spec'i döndürür. Frontend hafif SVG
+    olarak çizer. Veri, izin-kontrollü okuma araçlarından geldiği için ayrı izin gerekmez.
+    """
+    tip = str(args.get("tip") or "bar").strip().lower()
+    if tip not in ("bar", "line"):
+        tip = "bar"
+    baslik = str(args.get("baslik") or "").strip()[:120]
+    para = str(args.get("para_birimi") or "").strip()[:5]
+
+    seri_ham = args.get("seri")
+    seri: List[Dict[str, Any]] = []
+    if isinstance(seri_ham, list):
+        for item in seri_ham[:40]:  # en çok 40 nokta
+            if not isinstance(item, dict):
+                continue
+            etiket = str(item.get("etiket") or "").strip()[:60]
+            try:
+                deger = float(item.get("deger"))
+            except (TypeError, ValueError):
+                continue
+            if not etiket:
+                continue
+            seri.append({"etiket": etiket, "deger": round(deger, 2)})
+
+    if len(seri) < 2:
+        return {"_error": True, "mesaj": "Grafik için en az 2 geçerli veri noktası gerekli."}
+
+    return {
+        "_grafik": True,
+        "grafik": {"tip": tip, "baslik": baslik, "para_birimi": para, "seri": seri},
+    }
+
+
 # Tool adı → uygulama eşlemesi
 _TOOL_IMPL = {
     "nakit_akim_ozeti": _tool_nakit_akim_ozeti,
     "bekleyen_cekler": _tool_bekleyen_cekler,
     "cari_borc_ozeti": _tool_cari_borc_ozeti,
+    "grafik_olustur": _tool_grafik_olustur,
 }
 
 # Claude'a sunulan tool tanımları (JSON şeması)
@@ -294,6 +340,40 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
                     "description": "Listelenecek cari sayısı (varsayılan 5).",
                 },
             },
+        },
+    },
+    {
+        "name": "grafik_olustur",
+        "description": (
+            "Bir veri kümesini GRAFİK olarak göstermek için çağrılır. Kategorik "
+            "karşılaştırmalar (en borçlu cariler, para-bazlı özet) için tip='bar'; "
+            "zaman serisi/trend (günlere veya aylara göre nakit akım) için tip='line'. "
+            "Veriyi önce ilgili okuma aracından al, sonra noktaları buraya aktar. "
+            "En az 2 nokta gerekir. Grafik metin/tabloya EK olarak gösterilir."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tip": {"type": "string", "description": "'bar' veya 'line'."},
+                "baslik": {"type": "string", "description": "Grafik başlığı."},
+                "para_birimi": {
+                    "type": "string",
+                    "description": "Değerlerin para birimi (varsa, ör. EUR/TRY).",
+                },
+                "seri": {
+                    "type": "array",
+                    "description": "Veri noktaları (2-40 adet).",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "etiket": {"type": "string", "description": "Kategori/tarih etiketi."},
+                            "deger": {"type": "number", "description": "Sayısal değer."},
+                        },
+                        "required": ["etiket", "deger"],
+                    },
+                },
+            },
+            "required": ["tip", "seri"],
         },
     },
 ]
@@ -815,6 +895,7 @@ def answer_question(db: Session, user: User, soru: str) -> Dict[str, Any]:
     messages: List[Dict[str, Any]] = [{"role": "user", "content": soru}]
     used_tools: List[str] = []
     pending_actions: List[Dict[str, Any]] = []
+    grafikler: List[Dict[str, Any]] = []
 
     response = None
     for _ in range(_MAX_TOOL_ITERATIONS):
@@ -844,7 +925,16 @@ def answer_question(db: Session, user: User, soru: str) -> Dict[str, Any]:
                     logger.error("AI tool hatası (%s): %s", block.name, exc, exc_info=True)
                     result = {"_error": True, "mesaj": "Araç çalıştırılırken hata oluştu."}
 
-            if result.get("_propose"):
+            if result.get("_grafik"):
+                # Grafik spec'i — yanıtta frontend'e taşınır (metne EK).
+                grafikler.append(result["grafik"])
+                tool_payload = {
+                    "durum": "grafik_eklendi",
+                    "aciklama": "Grafik kullanıcıya gösterilecek. Metinde tekrar sayma; "
+                                "kısa bir yorumla yetin.",
+                }
+                is_error = False
+            elif result.get("_propose"):
                 # Yazma önerisi — mutasyon YAPILMADI; kullanıcı onayına sunulur.
                 pending_actions.append({
                     "action_key": result["action_key"],
@@ -888,4 +978,5 @@ def answer_question(db: Session, user: User, soru: str) -> Dict[str, Any]:
         "cevap": cevap,
         "kullanilan_araclar": used_tools,
         "bekleyen_islem": bekleyen,
+        "grafikler": grafikler,
     }
