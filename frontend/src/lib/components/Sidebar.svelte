@@ -6,7 +6,7 @@
 	import { sidebar, closeSidebar } from '$lib/stores/ui.svelte';
 	import { playNotificationSound, isConversationMuted, setMutedConversations, mutedConversationIds } from '$lib/stores/notification.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import { NAV_GROUPS, PANEL_ICON, MESSAGING_ICON, type NavGroup, type NavItem } from '$lib/config/navigation';
+	import { NAV_GROUPS, PANEL_ICON, MESSAGING_ICON, ASSISTANT_ICON, type NavGroup, type NavItem } from '$lib/config/navigation';
 	import { ChevronDown, ChevronsLeft, ChevronsRight, X } from 'lucide-svelte';
 
 	let collapsed = $state(false);
@@ -259,6 +259,20 @@
 						</span>
 					{/if}
 				</span>
+			</a>
+		{/if}
+
+		<!-- Yapay Zeka Asistanı (özel top-level link) -->
+		{#if hasPerm('ai.asistan')}
+			<a
+				href="/dashboard/asistan"
+				class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors {isActive('/dashboard/asistan') ? 'bg-teal-600 text-white font-medium' : 'text-teal-200 hover:bg-teal-600/60 hover:text-white'} {collapsed ? 'md:justify-center' : ''}"
+				title={collapsed ? 'Asistan' : ''}
+			>
+				<svg class="w-5 h-5 shrink-0 {isActive('/dashboard/asistan') ? 'text-brass-light' : 'text-teal-300'}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+					{#each ASSISTANT_ICON as d}<path stroke-linecap="round" stroke-linejoin="round" d={d} />{/each}
+				</svg>
+				<span class="{collapsed ? 'md:hidden' : ''}">Asistan</span>
 			</a>
 		{/if}
 

@@ -1,8 +1,29 @@
-# Yapay Zeka Asistanı (AI Asistan) — TASARIM / ÖNERİ
+# Yapay Zeka Asistanı (AI Asistan)
 
-> **DURUM: PLAN — henüz uygulanmadı (2026-07-07).** Bu doküman bir tasarım önerisidir;
-> kod yazılmadan önce gözden geçirilip onaylanmalıdır. Uygulandığında bu başlık
-> "Uygulandı" olarak güncellenecek ve modül `CLAUDE.md`'deki modül listesine eklenecektir.
+> **DURUM: FAZ 1 UYGULANDI (2026-07-07) — salt-okuma asistan canlıda.**
+> Faz 2 (onay-akışlı yazma tool'ları) henüz uygulanmadı; §5/§8'e bakın.
+>
+> **⚠️ ÇALIŞMASI İÇİN GEREKEN TEK ADIM:** `backend/.env`'e geçerli bir
+> `ANTHROPIC_API_KEY=...` yaz ve `sudo systemctl restart sprenses-api.service`.
+> Anahtar boşsa endpoint 503 döner, arayüz "yanıt veremedim" gösterir (güvenli).
+
+## Faz 1 — Uygulanan Dosyalar (2026-07-07)
+
+| Katman | Dosya | Not |
+|---|---|---|
+| Config | `backend/app/config.py` | `anthropic_api_key`, `anthropic_model` (varsayılan `claude-opus-4-8`) |
+| Servis | `backend/app/services/ai_service.py` | 3 okuma tool'u + Claude tool-use döngüsü; her tool `user_can` izin kontrollü |
+| Router | `backend/app/routers/ai_assistant.py` | `POST /api/ai/sor` — `require_permission("ai.asistan","view")` + audit (`ai_query`) |
+| Kayıt | `backend/app/main.py` | router `/api/ai` prefix'iyle include |
+| Migration | `alembic/.../b8e5c2f1a9d7_add_ai_asistan_module.py` | `ai` + `ai.asistan` modülleri + Admin izni |
+| Frontend | `frontend/src/routes/dashboard/asistan/+page.svelte` | Sohbet arayüzü (tasarım sistemi: PageHeader/Button/Lucide/AA) |
+| Nav | `frontend/src/lib/config/navigation.ts` + `Sidebar.svelte` | Özel top-level "Asistan" linki + route guard |
+
+**Faz 1 okuma tool'ları:** `nakit_akim_ozeti` (finance.cash_flow), `bekleyen_cekler`
+(finance.checks), `cari_borc_ozeti` (finance.cariler). Her biri izin yoksa
+`{_error, mesaj}` döner → model kullanıcıya "erişim izniniz yok" der.
+
+---
 
 ## 1. Genel Bilgi
 

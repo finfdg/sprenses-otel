@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     smtp_user: str = "bilgi@sprenses.com"   # tam e-posta adresi (kimlik doğrulama)
     smtp_password: str = ""                 # .env: SMTP_PASSWORD (boşsa gönderim kapalı)
     smtp_from_name: str = "Sprenses Otel"   # gönderen görünen adı
+    # Yapay Zeka Asistanı (Anthropic Claude API) — ANTHROPIC_API_KEY boşsa asistan
+    # devre dışıdır (SEDNA_PASSWORD/SMTP_PASSWORD deseni gibi). Model varsayılanı
+    # claude-opus-4-8; tool-use ile salt-okuma finans sorgularını yanıtlar.
+    anthropic_api_key: str = ""             # .env: ANTHROPIC_API_KEY
+    anthropic_model: str = "claude-opus-4-8"
 
     class Config:
         env_file = os.path.join(

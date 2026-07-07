@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.routers import (
     accounting,
+    ai_assistant,
     attendance,
     audit,
     auth,
@@ -199,6 +200,7 @@ app.include_router(shift_schedule.router, prefix="/api/hr", tags=["hr-shift-sche
 app.include_router(attendance.router, prefix="/api", tags=["attendance"])
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
 app.include_router(stock.router, prefix="/api/stok", tags=["stock"])
+app.include_router(ai_assistant.router, prefix="/api/ai", tags=["ai-assistant"])
 app.include_router(files.router, tags=["files"])
 app.include_router(internal.router, tags=["internal"])
 
