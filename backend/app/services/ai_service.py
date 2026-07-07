@@ -111,6 +111,54 @@ def _denied(module_code: str) -> Dict[str, Any]:
     }
 
 
+# ── Token/maliyet takibi ──────────────────────────────────────────────────────
+# Opus 4.8 fiyatı ($/1M token). Model değişirse güncelle.
+_PRICE_IN = 5.0
+_PRICE_OUT = 25.0
+_PRICE_CACHE_READ = 0.5     # ~0.1× girdi
+_PRICE_CACHE_WRITE = 6.25   # ~1.25× girdi
+
+
+def _new_usage() -> Dict[str, int]:
+    return {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}
+
+
+def _add_usage(tot: Dict[str, int], u: Any) -> None:
+    """Bir API yanıtının usage'ını topla (tur başına)."""
+    if u is None:
+        return
+    tot["input"] += getattr(u, "input_tokens", 0) or 0
+    tot["output"] += getattr(u, "output_tokens", 0) or 0
+    tot["cache_read"] += getattr(u, "cache_read_input_tokens", 0) or 0
+    tot["cache_write"] += getattr(u, "cache_creation_input_tokens", 0) or 0
+
+
+def compute_cost(tot: Dict[str, int]) -> float:
+    """Toplam token'dan tahmini USD maliyet."""
+    return round(
+        (tot.get("input", 0) * _PRICE_IN
+         + tot.get("output", 0) * _PRICE_OUT
+         + tot.get("cache_read", 0) * _PRICE_CACHE_READ
+         + tot.get("cache_write", 0) * _PRICE_CACHE_WRITE) / 1_000_000,
+        6,
+    )
+
+
+def record_usage(db: Session, user_id: Optional[int], tot: Dict[str, int], tool_count: int) -> None:
+    """AiUsage satırı ekle (commit çağıran tarafta yapılır)."""
+    from app.models.ai_usage import AiUsage
+
+    db.add(AiUsage(
+        user_id=user_id,
+        model=settings.anthropic_model,
+        input_tokens=tot.get("input", 0),
+        output_tokens=tot.get("output", 0),
+        cache_read_tokens=tot.get("cache_read", 0),
+        cost_usd=compute_cost(tot),
+        tool_count=tool_count,
+    ))
+
+
 # ── Tool uygulamaları (salt-okuma) ────────────────────────────────────────────
 def _tool_nakit_akim_ozeti(
     db: Session, user: User, args: Dict[str, Any]
@@ -425,6 +473,58 @@ def _tool_yaklasan_odemeler(
     }
 
 
+def _tool_gunluk_nakit_akim(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Tarih aralığında GÜNLÜK gelir/gider/net (tek para birimi) — trend/çizgi grafik için."""
+    if not user_can(db, user, "finance.cash_flow", "view"):
+        return _denied("finance.cash_flow")
+
+    today = _istanbul_today()
+    baslangic = _parse_date(args.get("baslangic_tarih"), today - timedelta(days=30))
+    bitis = _parse_date(args.get("bitis_tarih"), today)
+    if baslangic > bitis:
+        baslangic, bitis = bitis, baslangic
+    if (bitis - baslangic).days > 120:  # en fazla 120 gün
+        baslangic = bitis - timedelta(days=120)
+    para = str(args.get("para_birimi") or "TRY").strip().upper()[:3] or "TRY"
+
+    rows = (
+        db.query(FinanceEvent.event_date, FinanceEvent.direction, func.sum(FinanceEvent.amount))
+        .filter(FinanceEvent.currency == para)
+        .filter(FinanceEvent.event_date >= baslangic)
+        .filter(FinanceEvent.event_date <= bitis)
+        .group_by(FinanceEvent.event_date, FinanceEvent.direction)
+        .order_by(FinanceEvent.event_date.asc())
+        .all()
+    )
+    by_date: Dict[Any, Dict[str, float]] = {}
+    for d, direction, tot in rows:
+        e = by_date.setdefault(d, {"gelir": 0.0, "gider": 0.0})
+        if direction == DIRECTION_INCOME:
+            e["gelir"] = _num(tot)
+        elif direction == DIRECTION_EXPENSE:
+            e["gider"] = _num(tot)
+
+    gunluk = [
+        {
+            "tarih": d.isoformat(),
+            "gelir": round(v["gelir"], 2),
+            "gider": round(v["gider"], 2),
+            "net": round(v["gelir"] - v["gider"], 2),
+        }
+        for d, v in sorted(by_date.items())
+    ]
+    return {
+        "para_birimi": para,
+        "baslangic": baslangic.isoformat(),
+        "bitis": bitis.isoformat(),
+        "gunluk": gunluk,
+        "not": f"Yalnız {para} kayıtları; net = gelir - gider. Trend göstermek için "
+               "grafik_olustur(tip='line') ile 'tarih'→etiket, 'net'→değer kullan.",
+    }
+
+
 def _tool_rezervasyon_ozeti(
     db: Session, user: User, args: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -585,6 +685,7 @@ _TOOL_IMPL = {
     "banka_bakiyeleri": _tool_banka_bakiyeleri,
     "kredi_durumu": _tool_kredi_durumu,
     "yaklasan_odemeler": _tool_yaklasan_odemeler,
+    "gunluk_nakit_akim": _tool_gunluk_nakit_akim,
     "rezervasyon_ozeti": _tool_rezervasyon_ozeti,
     "gunun_ozeti": _tool_gunun_ozeti,
     "grafik_olustur": _tool_grafik_olustur,
@@ -694,6 +795,22 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
                     "type": "integer",
                     "description": "Kaç gün ilerisine bakılacak (varsayılan 7).",
                 },
+            },
+        },
+    },
+    {
+        "name": "gunluk_nakit_akim",
+        "description": (
+            "Tarih aralığında GÜNLÜK gelir/gider/net akışı (tek para birimi) döndürür — "
+            "TREND soruları için ('son 30 günün nakit akımı', 'günlük trend'). Varsayılan "
+            "son 30 gün, TRY. Sonucu grafik_olustur(tip='line') ile çizgi grafiğe dönüştür."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "baslangic_tarih": {"type": "string", "description": "Başlangıç (YYYY-AA-GG). Opsiyonel."},
+                "bitis_tarih": {"type": "string", "description": "Bitiş (YYYY-AA-GG). Opsiyonel."},
+                "para_birimi": {"type": "string", "description": "Para birimi (varsayılan TRY)."},
             },
         },
     },
@@ -1370,6 +1487,7 @@ def answer_question(
     used_tools: List[str] = []
     pending_actions: List[Dict[str, Any]] = []
     grafikler: List[Dict[str, Any]] = []
+    usage_tot = _new_usage()
 
     response = None
     for _ in range(_MAX_TOOL_ITERATIONS):
@@ -1380,6 +1498,7 @@ def answer_question(
             tools=_TOOL_DEFS,
             messages=messages,
         )
+        _add_usage(usage_tot, response.usage)
         if response.stop_reason != "tool_use":
             break
 
@@ -1409,6 +1528,7 @@ def answer_question(
         "kullanilan_araclar": used_tools,
         "bekleyen_islem": bekleyen,
         "grafikler": grafikler,
+        "usage": usage_tot,
     }
 
 
@@ -1433,6 +1553,7 @@ def answer_question_stream(
     used_tools: List[str] = []
     pending_actions: List[Dict[str, Any]] = []
     grafikler: List[Dict[str, Any]] = []
+    usage_tot = _new_usage()
 
     for _ in range(_MAX_TOOL_ITERATIONS):
         with client.messages.stream(
@@ -1446,6 +1567,7 @@ def answer_question_stream(
                 if text:
                     yield {"t": "delta", "v": text}
             response = stream.get_final_message()
+        _add_usage(usage_tot, response.usage)
 
         if response.stop_reason != "tool_use":
             break
@@ -1464,3 +1586,5 @@ def answer_question_stream(
         "bekleyen_islem": pending_actions[-1] if pending_actions else None,
         "grafikler": grafikler,
     }
+    # İç kayıt olayı (router yakalar, istemciye GÖNDERMEZ) — token/maliyet için
+    yield {"t": "usage", "tool_count": len(used_tools), **usage_tot}

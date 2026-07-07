@@ -44,6 +44,8 @@ from app.middleware.rate_limit import (
     heavy_limiter,
     runway_limiter,
     eur_balances_limiter,
+    ai_limiter,
+    ai_daily_limiter,
 )
 from app.routers.messages._helpers import _invalidate_messaging_role_cache
 from app.services.sales_invoice_service import _invalidate_compute_cache as _invalidate_sales_compute_cache
@@ -187,6 +189,8 @@ def _auto_rollback_and_reset():
     heavy_limiter._requests.clear()
     runway_limiter._requests.clear()
     eur_balances_limiter._requests.clear()
+    ai_limiter._requests.clear()
+    ai_daily_limiter._requests.clear()
     _invalidate_messaging_role_cache()
     invalidate_module_cache()
     _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın
@@ -213,6 +217,8 @@ def _auto_rollback_and_reset():
     heavy_limiter._requests.clear()
     runway_limiter._requests.clear()
     eur_balances_limiter._requests.clear()
+    ai_limiter._requests.clear()
+    ai_daily_limiter._requests.clear()
     _invalidate_messaging_role_cache()
     invalidate_module_cache()
     _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın

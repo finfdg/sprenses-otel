@@ -89,6 +89,11 @@ runway_limiter = RateLimiter(max_requests=30, window_seconds=60)
 # 10/dk'sı art arda bekletmede doldu → grafik sessizce bayat kaldı (2026-07-07, nginx: 47×429)
 eur_balances_limiter = RateLimiter(max_requests=30, window_seconds=60)
 
+# Yapay Zeka Asistanı (kullanıcı bazlı) — her sorgu Claude API çağrısı = maliyet.
+# Dakikada 15 + günde 200 soru/kullanıcı → kötüye kullanım + kaçak maliyet koruması.
+ai_limiter = RateLimiter(max_requests=15, window_seconds=60)
+ai_daily_limiter = RateLimiter(max_requests=200, window_seconds=86400)
+
 
 def get_client_ip(request: Request) -> str:
     """İstemci IP adresini al.

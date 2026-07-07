@@ -213,6 +213,31 @@ def test_yaklasan_odemeler_yapisi(db):
     assert res["gun_sayisi"] == 7 and "para_bazli" in res and "odemeler" in res
 
 
+def test_gunluk_nakit_akim_yapisi(db):
+    admin = _admin(db)
+    res = ai_service._tool_gunluk_nakit_akim(db, admin, {"para_birimi": "TRY"})
+    assert "gunluk" in res and res["para_birimi"] == "TRY"
+    assert isinstance(res["gunluk"], list)
+
+
+def test_compute_cost():
+    # 1M girdi + 1M çıktı = 5 + 25 = 30 USD
+    c = ai_service.compute_cost({"input": 1_000_000, "output": 1_000_000, "cache_read": 0, "cache_write": 0})
+    assert abs(c - 30.0) < 1e-6
+
+
+def test_record_usage_satir_ekler(db):
+    from app.models.ai_usage import AiUsage
+    admin = _admin(db)
+    before = db.query(AiUsage).count()
+    ai_service.record_usage(db, admin.id, {"input": 1000, "output": 500, "cache_read": 0, "cache_write": 0}, 2)
+    db.flush()
+    assert db.query(AiUsage).count() == before + 1
+    row = db.query(AiUsage).order_by(AiUsage.id.desc()).first()
+    assert row.input_tokens == 1000 and row.output_tokens == 500 and row.tool_count == 2
+    assert float(row.cost_usd) > 0
+
+
 def test_read_izin_yoksa_reddedilir(db):
     """finance.krediler görme izni olmayan kullanıcı kredi durumunu okuyamaz."""
     import uuid

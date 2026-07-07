@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth import require_permission
-from app.middleware.rate_limit import get_client_ip
+from app.middleware.rate_limit import ai_daily_limiter, ai_limiter, get_client_ip
 from app.models.user import User
 from app.services import ai_service
 from app.utils import ai_export
@@ -93,6 +93,8 @@ def sor(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Yapay zeka asistanı henüz yapılandırılmamış (API anahtarı yok).",
         )
+    ai_limiter.check(f"ai:{current_user.id}")
+    ai_daily_limiter.check(f"aid:{current_user.id}")
 
     gecmis = [t.model_dump() for t in data.gecmis] if data.gecmis else None
     try:
@@ -107,6 +109,15 @@ def sor(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Asistan şu an yanıt veremiyor, lütfen tekrar deneyin.",
         )
+
+    # Token/maliyet kaydı
+    try:
+        ai_service.record_usage(
+            db, current_user.id, result.get("usage", {}),
+            len(result.get("kullanilan_araclar", [])),
+        )
+    except Exception:
+        logger.warning("AI usage kaydı başarısız", exc_info=True)
 
     # Audit — hangi kullanıcı ne sordu (yanıt kaydedilmez, soru ilk 500 karakter)
     log_action(
@@ -166,6 +177,8 @@ def sor_stream(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Yapay zeka asistanı henüz yapılandırılmamış.",
         )
+    ai_limiter.check(f"ai:{current_user.id}")
+    ai_daily_limiter.check(f"aid:{current_user.id}")
     uid = current_user.id
     soru = data.soru
     gecmis = [t.model_dump() for t in data.gecmis] if data.gecmis else None
@@ -178,8 +191,14 @@ def sor_stream(
         db = SessionLocal()
         try:
             user = db.get(User, uid)
+            usage_ev = None
             for ev in ai_service.answer_question_stream(db, user, soru, gecmis):
+                if ev.get("t") == "usage":  # iç kayıt olayı — istemciye gönderme
+                    usage_ev = ev
+                    continue
                 yield "data: " + json.dumps(ev, ensure_ascii=False, default=str) + "\n\n"
+            if usage_ev:
+                ai_service.record_usage(db, uid, usage_ev, usage_ev.get("tool_count", 0))
             log_action(db, uid, "ai_query", "ai_assistant", None, details=soru[:500], ip_address=ip)
             db.commit()
         except Exception as exc:

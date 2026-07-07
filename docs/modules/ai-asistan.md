@@ -106,6 +106,16 @@ vadesi ne?" gibi **takip soruları** çalışır. Geçmiş istemciden geldiği i
 araçları izin-kontrollü, yazma araçları `execute_action`'da yeniden doğrulanır → sahte geçmiş
 en fazla yanıt metnini etkiler, veri/işlem güvenliğini bozamaz.
 
+**Rate limit + maliyet takibi (olgunluk, 2026-07-07):** `/sor` ve `/sor-stream` kullanıcı-bazlı
+limitli — `ai_limiter` (15/dk) + `ai_daily_limiter` (200/gün) → kötüye kullanım + kaçak maliyet
+koruması (429). Her sorgunun token'ı (`response.usage`, tool turları toplanır) + tahmini USD
+maliyeti (`compute_cost`, Opus 4.8 fiyatı) **`ai_usage`** tablosuna (`record_usage`) yazılır →
+raporlama/kota izleme. Stream'de usage iç `{"t":"usage"}` olayıyla taşınır (istemciye gönderilmez).
+
+**Trend aracı (çizgi grafik):** `gunluk_nakit_akim` (finance.cash_flow) tarih aralığında GÜNLÜK
+gelir/gider/net (tek para birimi, max 120 gün) döndürür → model `grafik_olustur(tip='line')` ile
+**çizgi grafik** çizer (zaman-serisi soruları: "son 30 günün trendi").
+
 **Banka bakiyeleri:** `banka_bakiyeleri` (finance.banks) her aktif hesabın **son işlem
 bakiyesini** (window function, `banks.py` deseni) para birimine göre toplar (EUR/TRY/USD ayrı).
 
