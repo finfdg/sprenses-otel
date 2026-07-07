@@ -8,11 +8,13 @@ FAZ 1: yalnız okuma. Yazma/mutasyon FAZ 2'de (check_approval ile).
 Detay: docs/modules/ai-asistan.md
 """
 
+import json
 import logging
 import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -150,6 +152,58 @@ def uygula(
             detail="İşlem uygulanırken bir hata oluştu.",
         )
     return result
+
+
+@router.post("/sor-stream")
+def sor_stream(
+    data: AiAskRequest,
+    request: Request,
+    current_user: User = Depends(require_permission("ai.asistan", "view")),
+):
+    """Asistana soru sor — yanıt SSE ile token token akar (perceived latency düşük)."""
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Yapay zeka asistanı henüz yapılandırılmamış.",
+        )
+    uid = current_user.id
+    soru = data.soru
+    gecmis = [t.model_dump() for t in data.gecmis] if data.gecmis else None
+    ip = get_client_ip(request)
+
+    def gen():
+        # Generator kendi DB oturumunu açar (stream süresince yaşamalı → Depends'e güvenme)
+        from app.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            user = db.get(User, uid)
+            for ev in ai_service.answer_question_stream(db, user, soru, gecmis):
+                yield "data: " + json.dumps(ev, ensure_ascii=False, default=str) + "\n\n"
+            log_action(db, uid, "ai_query", "ai_assistant", None, details=soru[:500], ip_address=ip)
+            db.commit()
+        except Exception as exc:
+            logger.error("AI stream hatası: %s", exc, exc_info=True)
+            db.rollback()
+            yield "data: " + json.dumps({"t": "error", "mesaj": "Asistan yanıt veremedi."}) + "\n\n"
+        finally:
+            yield "data: " + json.dumps({"t": "done"}) + "\n\n"
+            db.close()
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/gunun-ozeti")
+def gunun_ozeti(
+    current_user: User = Depends(require_permission("ai.asistan", "view")),
+    db: Session = Depends(get_db),
+):
+    """Panel kartı için günün özeti (deterministik, AI çağrısı yok)."""
+    return ai_service.compute_digest(db, current_user, 7)
 
 
 @router.post("/disa-aktar")

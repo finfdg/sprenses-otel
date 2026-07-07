@@ -20,11 +20,13 @@ from typing import Any, Dict, List, Optional
 
 import anthropic
 import pytz
-from sqlalchemy import func
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.middleware.auth import user_can
+from app.models.bank_account import BankAccount
+from app.models.bank_transaction import BankTransaction
 from app.models.check import Check
 from app.models.credit_product import CreditProduct
 from app.models.finance_event import (
@@ -271,6 +273,58 @@ def _tool_cari_detay(
         "yetkili": v.contact_person,
         "telefon": v.phone,
         "eposta": v.email,
+    }
+
+
+def _tool_banka_bakiyeleri(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Aktif banka hesaplarının güncel bakiyeleri (her hesabın SON işlem bakiyesi)."""
+    if not user_can(db, user, "finance.banks", "view"):
+        return _denied("finance.banks")
+
+    accounts = db.query(BankAccount).filter(BankAccount.is_active.is_(True)).all()
+    if not accounts:
+        return {"para_bazli": [], "hesaplar": [], "not": "Aktif banka hesabı yok."}
+
+    account_ids = [a.id for a in accounts]
+    # Her hesabın en son işleminin bakiyesi (window function — banks.py deseni)
+    last_subq = (
+        db.query(
+            BankTransaction.account_id,
+            BankTransaction.balance,
+            func.row_number().over(
+                partition_by=BankTransaction.account_id,
+                order_by=[desc(BankTransaction.date), desc(BankTransaction.id)],
+            ).label("rn"),
+        )
+        .filter(
+            BankTransaction.account_id.in_(account_ids),
+            BankTransaction.balance.isnot(None),
+        )
+        .subquery()
+    )
+    rows = (
+        db.query(last_subq.c.account_id, last_subq.c.balance)
+        .filter(last_subq.c.rn == 1)
+        .all()
+    )
+    balance_map = {aid: bal for aid, bal in rows}
+
+    acc_cur: Dict[str, float] = {}
+    hesaplar = []
+    for a in accounts:
+        bal = _num(balance_map.get(a.id, 0))
+        cur = a.currency or "TRY"
+        acc_cur[cur] = acc_cur.get(cur, 0.0) + bal
+        hesaplar.append({"banka": a.bank_name, "para_birimi": cur, "bakiye": round(bal, 2)})
+
+    para_bazli = [{"para_birimi": c, "toplam_bakiye": round(v, 2)} for c, v in sorted(acc_cur.items())]
+    hesaplar.sort(key=lambda h: h["bakiye"], reverse=True)
+    return {
+        "para_bazli": para_bazli,
+        "hesaplar": hesaplar[:25],
+        "not": "Her hesabın son işlem bakiyesi; para birimleri ayrıdır (toplama yok).",
     }
 
 
@@ -528,6 +582,7 @@ _TOOL_IMPL = {
     "bekleyen_cekler": _tool_bekleyen_cekler,
     "cari_borc_ozeti": _tool_cari_borc_ozeti,
     "cari_detay": _tool_cari_detay,
+    "banka_bakiyeleri": _tool_banka_bakiyeleri,
     "kredi_durumu": _tool_kredi_durumu,
     "yaklasan_odemeler": _tool_yaklasan_odemeler,
     "rezervasyon_ozeti": _tool_rezervasyon_ozeti,
@@ -606,6 +661,15 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
             },
             "required": ["hesap_kodu"],
         },
+    },
+    {
+        "name": "banka_bakiyeleri",
+        "description": (
+            "Aktif banka hesaplarının güncel bakiyelerini (her hesabın son işlem "
+            "bakiyesi) para birimine göre toplam + hesap listesi olarak döndürür. "
+            "'Bankada ne kadar param var', 'banka bakiyeleri' gibi sorularda kullan."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "kredi_durumu",
@@ -1230,6 +1294,62 @@ def _seed_messages(soru: str, gecmis: Optional[List[Dict[str, Any]]]) -> List[Di
     return messages
 
 
+def _run_tool_block(
+    db: Session,
+    user: User,
+    block: Any,
+    used_tools: List[str],
+    pending_actions: List[Dict[str, Any]],
+    grafikler: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Tek bir tool_use bloğunu işle → tool_result dict döndür (listeleri günceller).
+
+    answer_question ve answer_question_stream ORTAK kullanır (tek kaynak).
+    """
+    used_tools.append(block.name)
+    impl = _TOOL_IMPL.get(block.name)
+    if impl is None:
+        result = {"_error": True, "mesaj": "Bilinmeyen araç."}
+    else:
+        try:
+            result = impl(db, user, dict(block.input or {}))
+        except Exception as exc:  # tek tool hatası tüm sohbeti düşürmesin
+            logger.error("AI tool hatası (%s): %s", block.name, exc, exc_info=True)
+            result = {"_error": True, "mesaj": "Araç çalıştırılırken hata oluştu."}
+
+    if result.get("_grafik"):
+        grafikler.append(result["grafik"])
+        tool_payload: Dict[str, Any] = {
+            "durum": "grafik_eklendi",
+            "aciklama": "Grafik kullanıcıya gösterilecek. Metinde tekrar sayma; kısa yorumla yetin.",
+        }
+        is_error = False
+    elif result.get("_propose"):
+        pending_actions.append({
+            "action_key": result["action_key"],
+            "entity_id": result["entity_id"],
+            "payload": result["payload"],
+            "ozet": result["ozet"],
+        })
+        tool_payload = {
+            "durum": "onay_bekliyor",
+            "aciklama": "Öneri hazırlandı ve kullanıcının onayına sunuldu. "
+                        "İşlem, kullanıcı onaylarsa yapılacak.",
+            "ozet": result["ozet"],
+        }
+        is_error = False
+    else:
+        tool_payload = result
+        is_error = bool(result.get("_error"))
+
+    return {
+        "type": "tool_result",
+        "tool_use_id": block.id,
+        "content": json.dumps(tool_payload, ensure_ascii=False, default=str),
+        "is_error": is_error,
+    }
+
+
 def answer_question(
     db: Session,
     user: User,
@@ -1264,55 +1384,11 @@ def answer_question(
             break
 
         messages.append({"role": "assistant", "content": response.content})
-        tool_results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            used_tools.append(block.name)
-            impl = _TOOL_IMPL.get(block.name)
-            if impl is None:
-                result = {"_error": True, "mesaj": "Bilinmeyen araç."}
-            else:
-                try:
-                    result = impl(db, user, dict(block.input or {}))
-                except Exception as exc:  # tek bir tool hatası tüm sohbeti düşürmesin
-                    logger.error("AI tool hatası (%s): %s", block.name, exc, exc_info=True)
-                    result = {"_error": True, "mesaj": "Araç çalıştırılırken hata oluştu."}
-
-            if result.get("_grafik"):
-                # Grafik spec'i — yanıtta frontend'e taşınır (metne EK).
-                grafikler.append(result["grafik"])
-                tool_payload = {
-                    "durum": "grafik_eklendi",
-                    "aciklama": "Grafik kullanıcıya gösterilecek. Metinde tekrar sayma; "
-                                "kısa bir yorumla yetin.",
-                }
-                is_error = False
-            elif result.get("_propose"):
-                # Yazma önerisi — mutasyon YAPILMADI; kullanıcı onayına sunulur.
-                pending_actions.append({
-                    "action_key": result["action_key"],
-                    "entity_id": result["entity_id"],
-                    "payload": result["payload"],
-                    "ozet": result["ozet"],
-                })
-                tool_payload: Dict[str, Any] = {
-                    "durum": "onay_bekliyor",
-                    "aciklama": "Öneri hazırlandı ve kullanıcının onayına sunuldu. "
-                                "İşlem, kullanıcı onaylarsa yapılacak.",
-                    "ozet": result["ozet"],
-                }
-                is_error = False
-            else:
-                tool_payload = result
-                is_error = bool(result.get("_error"))
-
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": json.dumps(tool_payload, ensure_ascii=False, default=str),
-                "is_error": is_error,
-            })
+        tool_results = [
+            _run_tool_block(db, user, block, used_tools, pending_actions, grafikler)
+            for block in response.content
+            if block.type == "tool_use"
+        ]
         messages.append({"role": "user", "content": tool_results})
     else:
         # döngü tükendi (çok fazla tool turu)
@@ -1332,5 +1408,59 @@ def answer_question(
         "cevap": cevap,
         "kullanilan_araclar": used_tools,
         "bekleyen_islem": bekleyen,
+        "grafikler": grafikler,
+    }
+
+
+def answer_question_stream(
+    db: Session,
+    user: User,
+    soru: str,
+    gecmis: Optional[List[Dict[str, Any]]] = None,
+):
+    """answer_question'ın STREAMING sürümü — üretici (generator).
+
+    Yield edilen olaylar (dict):
+      {"t": "delta", "v": <metin parçası>}  — modelin ürettiği metin token'ları
+      {"t": "meta",  "kullanilan_araclar", "bekleyen_islem", "grafikler"}  — sonda
+    Tool turları arka planda döner; metin token token akıtılır. Router bunu SSE'ye sarar.
+    """
+    if not settings.anthropic_api_key:
+        raise RuntimeError("Asistan yapılandırılmamış (ANTHROPIC_API_KEY yok).")
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    messages: List[Dict[str, Any]] = _seed_messages(soru, gecmis)
+    used_tools: List[str] = []
+    pending_actions: List[Dict[str, Any]] = []
+    grafikler: List[Dict[str, Any]] = []
+
+    for _ in range(_MAX_TOOL_ITERATIONS):
+        with client.messages.stream(
+            model=settings.anthropic_model,
+            max_tokens=_MAX_TOKENS,
+            system=SYSTEM_PROMPT,
+            tools=_TOOL_DEFS,
+            messages=messages,
+        ) as stream:
+            for text in stream.text_stream:
+                if text:
+                    yield {"t": "delta", "v": text}
+            response = stream.get_final_message()
+
+        if response.stop_reason != "tool_use":
+            break
+
+        messages.append({"role": "assistant", "content": response.content})
+        tool_results = [
+            _run_tool_block(db, user, block, used_tools, pending_actions, grafikler)
+            for block in response.content
+            if block.type == "tool_use"
+        ]
+        messages.append({"role": "user", "content": tool_results})
+
+    yield {
+        "t": "meta",
+        "kullanilan_araclar": used_tools,
+        "bekleyen_islem": pending_actions[-1] if pending_actions else None,
         "grafikler": grafikler,
     }

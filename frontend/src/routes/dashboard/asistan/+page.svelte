@@ -152,27 +152,59 @@
 		loading = true;
 		await scrollToBottom();
 
+		// Yanıtın token token akacağı boş asistan mesajı
+		const idx = messages.push({ role: 'assistant', text: '', tools: [], charts: [] }) - 1;
+		let gotDelta = false;
+
 		try {
-			const res = await api.post<AskResponse>('/ai/sor', { soru: metin, gecmis });
-			messages.push({
-				role: 'assistant',
-				text: res.cevap,
-				tools: res.kullanilan_araclar ?? [],
-				charts: res.grafikler ?? []
+			const res = await api.fetchRaw('/ai/sor-stream', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ soru: metin, gecmis })
 			});
-			// Yazma önerisi geldiyse kullanıcı onayına sun (ConfirmDialog)
-			if (res.bekleyen_islem) {
-				pendingAction = res.bekleyen_islem;
-				showConfirm = true;
+			if (!res.ok || !res.body) throw new Error('Asistan yanıt veremedi');
+
+			const reader = res.body.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				buffer += decoder.decode(value, { stream: true });
+				let sep: number;
+				while ((sep = buffer.indexOf('\n\n')) >= 0) {
+					const chunk = buffer.slice(0, sep);
+					buffer = buffer.slice(sep + 2);
+					const line = chunk.startsWith('data: ') ? chunk.slice(6) : chunk;
+					if (!line.trim()) continue;
+					let ev: any;
+					try {
+						ev = JSON.parse(line);
+					} catch {
+						continue;
+					}
+					if (ev.t === 'delta') {
+						gotDelta = true;
+						messages[idx].text += ev.v;
+						await scrollToBottom();
+					} else if (ev.t === 'meta') {
+						messages[idx].tools = ev.kullanilan_araclar ?? [];
+						messages[idx].charts = ev.grafikler ?? [];
+						if (ev.bekleyen_islem) {
+							pendingAction = ev.bekleyen_islem;
+							showConfirm = true;
+						}
+					} else if (ev.t === 'error') {
+						throw new Error(ev.mesaj || 'Asistan yanıt veremedi');
+					}
+				}
 			}
+			if (!messages[idx].text.trim())
+				messages[idx].text = 'Üzgünüm, şu an yanıt veremedim.';
 		} catch (err) {
-			console.error('Asistan yanıt hatası:', err);
-			const msg = err instanceof Error ? err.message : 'Asistan yanıt veremedi';
-			showToast(msg, 'error');
-			messages.push({
-				role: 'assistant',
-				text: 'Üzgünüm, şu an yanıt veremedim. Lütfen tekrar deneyin.'
-			});
+			console.error('Asistan akış hatası:', err);
+			showToast(err instanceof Error ? err.message : 'Asistan yanıt veremedi', 'error');
+			if (!gotDelta) messages[idx].text = 'Üzgünüm, şu an yanıt veremedim. Lütfen tekrar deneyin.';
 		} finally {
 			loading = false;
 			await scrollToBottom();
@@ -256,6 +288,7 @@
 				</div>
 			{:else}
 				{#each messages as m}
+					{#if m.role === 'user' || m.text.trim() || (m.charts && m.charts.length)}
 					<div class="flex gap-3 {m.role === 'user' ? 'flex-row-reverse' : ''}">
 						<span class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 {m.role === 'user' ? 'bg-gray-100' : 'bg-teal-700'}">
 							{#if m.role === 'user'}
@@ -304,6 +337,7 @@
 							{/if}
 						</div>
 					</div>
+					{/if}
 				{/each}
 			{/if}
 

@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import CashFlowTAccount from '$lib/components/CashFlowTAccount.svelte';
+	import AiDigestCard from '$lib/components/AiDigestCard.svelte';
 	import { CheckCircle2, ArrowRight } from 'lucide-svelte';
 
 	// ── İzinler
@@ -252,6 +253,11 @@
 				{/if}
 			{/each}
 		</div>
+	{/if}
+
+	<!-- Günün Özeti (yapay zeka asistanı) -->
+	{#if hasPermission('ai.asistan')}
+		<AiDigestCard />
 	{/if}
 
 	<!-- Nakit Akım · T Hesap Cetveli (Nakit Koruma / runway en altında gömülü) -->
