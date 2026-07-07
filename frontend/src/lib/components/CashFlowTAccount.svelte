@@ -30,8 +30,8 @@
 	import { aggregateRows, AGGREGATE_LABELS, type CashRow } from '$lib/utils/cashflow';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
 
-	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; source_type?: string | null; source_id?: number | null };
-	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[]; realized_eur?: number; realized_count?: number };
+	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; is_held?: boolean; source_type?: string | null; source_id?: number | null };
+	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[]; realized_eur?: number; realized_count?: number; held_eur?: number; held_count?: number };
 	type TData = {
 		period: string; offset: number; start_date: string; end_date: string;
 		giris: TGroup[]; cikis: TGroup[];
@@ -42,8 +42,9 @@
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
 	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
+	// Held (beklemeye alınmış) satırlar sarı gösterilir, toplama katılmaz → ayrı `heldRows`.
 	type DateRow = { name: string; amountLabel: string; amount_eur: number; members: SourceRef[] };
-	type DateCat = { label: string; totalEur: number; rows: DateRow[] };
+	type DateCat = { label: string; totalEur: number; rows: DateRow[]; heldRows: DateRow[] };
 	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
 	// İleri (gelecek dönem) navigasyon üst sınırı — backend le=24 ile aynı
@@ -127,7 +128,8 @@
 	}
 
 	// Açık kategori grubunun kalemlerini gün başlıkları altında grupla (Map-bazlı → mükerrer
-	// anahtar/donma yok; backend items'ı tarih sıralı gönderir). Günlük toplam EUR.
+	// anahtar/donma yok; backend items'ı tarih sıralı gönderir). Günlük toplam EUR HELD'İ HARİÇ tutar
+	// (beklemeye alınan kalem sarı gösterilir ama toplama katılmaz); held kalem items'ta KALIR.
 	function groupItemsByDate(items: TItem[]): DayBucket[] {
 		const byDate = new Map<string, DayBucket>();
 		const out: DayBucket[] = [];
@@ -140,7 +142,7 @@
 				out.push(cur);
 			}
 			cur.items.push(it);
-			cur.totalEur += it.amount_eur;
+			if (!it.is_held) cur.totalEur += it.amount_eur; // held toplama katılmaz
 		}
 		return out;
 	}
@@ -162,20 +164,28 @@
 				byDate.set(it.date, day);
 				dayOrder.push(it.date);
 			}
-			day.totalEur += it.amount_eur;
+			if (!it.is_held) day.totalEur += it.amount_eur; // held gün toplamına katılmaz
 			let catItems = day.catMap.get(it.cat);
 			if (!catItems) { catItems = []; day.catMap.set(it.cat, catItems); }
 			catItems.push(it);
 		}
 
+		const toRow = (r: CashRow): DateRow => ({ name: r.name, amountLabel: rowAmountLabel(r), amount_eur: r.amount_eur, members: r.members });
 		const days: DateDay[] = dayOrder.map((d) => {
 			const day = byDate.get(d)!;
 			const cats: DateCat[] = [...day.catMap.entries()]
-				.map(([label, items]) => ({
-					label,
-					totalEur: items.reduce((s, it) => s + it.amount_eur, 0),
-					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r), amount_eur: r.amount_eur, members: r.members })),
-				}))
+				.map(([label, items]) => {
+					const agg = AGGREGATE_LABELS.has(label);
+					// Held (beklemeye alınmış) kalemler ayrı toplanır → sarı gösterilir, toplama girmez
+					const counted = items.filter((it) => !it.is_held);
+					const heldItems = items.filter((it) => it.is_held);
+					return {
+						label,
+						totalEur: counted.reduce((s, it) => s + it.amount_eur, 0),
+						rows: aggregateRows(counted, agg).map(toRow),
+						heldRows: aggregateRows(heldItems, agg).map(toRow),
+					};
+				})
 				.sort((a, b) => b.totalEur - a.totalEur);
 			return { date: day.date, label: day.label, totalEur: day.totalEur, cats };
 		});
@@ -204,9 +214,9 @@
 	// Aynı `dateBuckets(data.cikis, false)` render'da kullanılır → (date, catLabel, rowIdx) birebir eşleşir.
 	const tippingCikis = $derived.by(() => {
 		if (!data || startCash == null || sideView.cikis !== 'bekleyen' || !dateView.cikis) return null;
-		// Bekleyen giriş: gün başına EUR (o günün ödemelerinden ÖNCE nakde eklenir)
+		// Bekleyen giriş: gün başına EUR (o günün ödemelerinden ÖNCE nakde eklenir); held HARİÇ (parkta)
 		const inflowByDate = new Map<string, number>();
-		for (const g of data.giris) for (const it of g.items) if (!it.is_realized) inflowByDate.set(it.date, (inflowByDate.get(it.date) ?? 0) + it.amount_eur);
+		for (const g of data.giris) for (const it of g.items) if (!it.is_realized && !it.is_held) inflowByDate.set(it.date, (inflowByDate.get(it.date) ?? 0) + it.amount_eur);
 		let avail = startCash;
 		for (const day of dateBuckets(data.cikis, false).days) {
 			avail += inflowByDate.get(day.date) ?? 0;
@@ -405,7 +415,7 @@
 	{#if canHold && holdMode}
 		<div class="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
 			<PauseCircle size={15} class="shrink-0 text-amber-600" />
-			<span><strong>Beklet modu açık.</strong> Bekleyen bir satıra dokununca beklemeye alınır (nakit akıma dahil edilmez). Bitince butonu kapatın.</span>
+			<span><strong>Beklet modu açık.</strong> Bekleyen bir satıra dokununca beklemeye alınır (sarı olur; toplam/net/projeksiyona girmez, listede kalır). Sarı satıra tekrar dokununca geri alınır. Bitince butonu kapatın.</span>
 		</div>
 	{/if}
 
@@ -416,6 +426,32 @@
 			{/each}
 		</div>
 	{:else if data}
+		<!-- Tek kalem/toplu satır — üç durum: normal · held (sarı, toplam-dışı) · tipping (kırmızı).
+		     Beklet modu + yetki varsa tıklanınca held→çıkar / normal→beklemeye al (toggle). -->
+		{#snippet flowRow(name: string, amountLabel: string, members: SourceRef[], held: boolean, isTip: boolean, holdable: boolean, dense: boolean)}
+			{@const clickable = holdable && members.length > 0}
+			{@const divPad = dense ? 'pl-7' : 'pl-10'}
+			{@const btnPad = dense ? 'pl-5' : 'pl-8'}
+			{#if clickable}
+				<button type="button" onclick={() => holdRow(members, !held)} disabled={holdMutating}
+					title={held ? 'Bekletmeyi kaldır' : 'Beklemeye al (nakit akıma dahil edilmez)'}
+					aria-label="{cleanName(name)} {held ? 'bekletmeyi kaldır' : 'beklemeye al'}"
+					class="w-full flex items-center gap-2 {btnPad} pr-2 py-1 rounded-md cursor-pointer text-left disabled:opacity-50 {held ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-amber-50'}">
+					<PauseCircle size={14} class="shrink-0 {held ? 'text-amber-600' : 'text-amber-500'}" />
+					<span class="text-[12px] truncate {held ? 'text-amber-800' : 'text-gray-700'}">{cleanName(name)}</span>
+					{#if held}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0.5">beklemede</span>{/if}
+					<span class="ml-auto tabular-nums text-[12px] shrink-0 {held ? 'text-amber-800' : 'text-gray-700'}">{amountLabel}</span>
+				</button>
+			{:else}
+				<div class="flex items-center gap-2 {divPad} pr-2 py-1 {held ? 'bg-amber-50 rounded-md' : isTip ? 'bg-red-50 rounded-md -mx-0.5 px-2.5' : ''}">
+					<span class="text-[12px] truncate {held ? 'text-amber-800' : isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{cleanName(name)}</span>
+					{#if held}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0.5">beklemede</span>{/if}
+					{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit buraya yetmiyor</span>{/if}
+					<span class="ml-auto tabular-nums text-[12px] shrink-0 {held ? 'text-amber-800' : isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{amountLabel}</span>
+				</div>
+			{/if}
+		{/snippet}
+
 		<!-- Bir kategori grubunun accordion satırı + gün detayı (kategori görünümü) -->
 		{#snippet catRows(side: SideKey, realized: boolean, groups: TGroup[])}
 			{#each groups as g (g.label)}
@@ -425,6 +461,9 @@
 					<ChevronDown size={13} class="shrink-0 text-gray-500 transition-transform {open[k] ? '' : '-rotate-90'}" />
 					<span class="text-[13px] font-semibold text-gray-900 truncate">{g.label}</span>
 					<span class="text-[11px] text-gray-500 shrink-0">{g.item_count} işlem</span>
+					{#if !realized && (g.held_eur ?? 0) > 0}
+						<span class="text-[10px] text-amber-600 shrink-0" title="Beklemeye alınan (toplama dahil değil)">+{fmtEur(g.held_eur ?? 0)} beklemede</span>
+					{/if}
 					<span class="ml-auto tabular-nums text-[13px] text-gray-800 shrink-0">{fmtEur(g.total_eur)}</span>
 				</button>
 				{#if open[k]}
@@ -434,23 +473,15 @@
 								<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{day.label}</span>
 								<span class="tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(day.totalEur)}</span>
 							</div>
-							<!-- Cari grubunda aynı firma birden çok ödeme → tek toplu satır; diğerlerinde her kalem ayrı -->
-							{#each aggregateRows(day.items, AGGREGATE_LABELS.has(g.label)) as row, i (i)}
-								{@const canHoldRow = !realized && canHold && holdMode && row.members.length > 0}
-								{#if canHoldRow}
-									<button type="button" onclick={() => holdRow(row.members, true)} disabled={holdMutating}
-										title="Beklemeye al (nakit akıma dahil edilmez)" aria-label="{cleanName(row.name)} beklemeye al"
-										class="w-full flex items-center gap-2 pl-8 pr-2 py-1 text-[12px] rounded-md hover:bg-amber-50 cursor-pointer text-left disabled:opacity-50">
-										<PauseCircle size={14} class="shrink-0 text-amber-500" />
-										<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
-										<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
-									</button>
-								{:else}
-									<div class="flex items-center gap-2 pl-10 pr-2 py-1 text-[12px]">
-										<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
-										<span class="ml-auto tabular-nums text-gray-700 shrink-0">{rowAmountLabel(row)}</span>
-									</div>
-								{/if}
+							<!-- Cari grubunda aynı firma birden çok ödeme → tek toplu satır; diğerlerinde her kalem ayrı.
+							     Held (beklemeye alınmış) kalemler ayrı toplanır → sarı, gün toplamına katılmaz. -->
+							{@const agg = AGGREGATE_LABELS.has(g.label)}
+							{@const holdable = !realized && canHold && holdMode}
+							{#each aggregateRows(day.items.filter((it) => !it.is_held), agg) as row, i (i)}
+								{@render flowRow(row.name, rowAmountLabel(row), row.members, false, false, holdable, false)}
+							{/each}
+							{#each aggregateRows(day.items.filter((it) => it.is_held), agg) as row, i (`h${i}`)}
+								{@render flowRow(row.name, rowAmountLabel(row), row.members, true, false, holdable, false)}
 							{/each}
 						{/each}
 						{#if g.item_count > g.items.length}
@@ -476,22 +507,11 @@
 					</div>
 					{#each cat.rows as row, i (i)}
 						{@const isTip = !!tipping && day.date === tipping.date && cat.label === tipping.catLabel && i === tipping.rowIdx}
-						{@const canHoldRow = holdable && !isTip && row.members.length > 0}
-						{#if canHoldRow}
-							<button type="button" onclick={() => holdRow(row.members, true)} disabled={holdMutating}
-								title="Beklemeye al (nakit akıma dahil edilmez)" aria-label="{cleanName(row.name)} beklemeye al"
-								class="w-full flex items-center gap-2 pl-5 pr-2 py-1 rounded-md hover:bg-amber-50 cursor-pointer text-left disabled:opacity-50">
-								<PauseCircle size={14} class="shrink-0 text-amber-500" />
-								<span class="text-[12px] truncate text-gray-700">{cleanName(row.name)}</span>
-								<span class="ml-auto tabular-nums text-[12px] shrink-0 text-gray-700">{row.amountLabel}</span>
-							</button>
-						{:else}
-							<div class="flex items-center gap-2 pl-7 pr-2 py-1 {isTip ? 'bg-red-50 rounded-md -mx-0.5 px-2.5' : ''}">
-								<span class="text-[12px] truncate {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{cleanName(row.name)}</span>
-								{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit buraya yetmiyor</span>{/if}
-								<span class="ml-auto tabular-nums text-[12px] shrink-0 {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{row.amountLabel}</span>
-							</div>
-						{/if}
+						{@render flowRow(row.name, row.amountLabel, row.members, false, isTip, holdable && !isTip, true)}
+					{/each}
+					<!-- Held (beklemeye alınmış) satırlar — sarı, kategori toplamına katılmaz -->
+					{#each cat.heldRows as row, i (`h${i}`)}
+						{@render flowRow(row.name, row.amountLabel, row.members, true, false, holdable, true)}
 					{/each}
 				{/each}
 			{/each}

@@ -17,9 +17,11 @@ from app.models.cash_flow_hold import CashFlowHold
 
 logger = logging.getLogger(__name__)
 
-# Beklemeye alınabilir kaynak türleri — "bank" HARİÇ (gerçekleşmiş nakit, bekletilmez).
+# Beklemeye alınabilir kaynak türleri.
+# "bank" HARİÇ (gerçekleşmiş nakit, bekletilmez); "check" HARİÇ (kullanıcı kararı 2026-07-07:
+# çek ödemeleri beklemeye alınamaz — çekin ödeme takvimi banka/ciro tarafında sabittir).
 HOLDABLE_SOURCE_TYPES = frozenset({
-    "vendor_payment", "check", "credit", "cc_payment",
+    "vendor_payment", "credit", "cc_payment",
     "tax", "recurring", "salary", "withholding", "sgk",
     "dividend", "dividend_stopaj", "rent_income", "rent_expense", "advance",
 })

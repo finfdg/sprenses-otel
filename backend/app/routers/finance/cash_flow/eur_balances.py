@@ -183,8 +183,6 @@ def compute_eur_balances(db: Session) -> dict:
     for c in all_checks:
         if c.status == "cancelled":
             continue
-        if _is_held_future("check", c.id, c.due_date):
-            continue  # beklemeye alınmış çek → akım-dışı
         amt = float(c.amount_currency)
         curr = "EUR" if c.currency != "TL" else "TRY"
         if curr == "TRY":
@@ -324,8 +322,6 @@ def compute_eur_balances(db: Session) -> dict:
     # Bekleyen çek giderleri (gelecek bakiye projeksiyonu için — eşleşenler banka bakiyesinde)
     pending_check_expense_by_date = defaultdict(float)
     for c in pending_checks:
-        if _is_held_future("check", c.id, c.due_date):
-            continue  # beklemeye alınmış çek → projeksiyon-dışı
         amt = float(c.amount_currency)
         curr = "EUR" if c.currency != "TL" else "TRY"
         if curr == "TRY":

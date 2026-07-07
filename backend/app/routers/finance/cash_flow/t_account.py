@@ -206,7 +206,9 @@ def t_account(
     realized = {DIRECTION_INCOME: 0.0, DIRECTION_EXPENSE: 0.0}
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, Optional[float]] = {}
-    # Beklemeye alınmış future-pending kalemler bekleyen listesinden dışlanır (Bekleme Listesi'nde gösterilir)
+    # Beklemeye alınmış (hold) future-pending kalemler LİSTEDE KALIR (kullanıcı isteği 2026-07-07:
+    # "eski yerinde sarı kalsın") ama kolon toplamı / net / bekleyen toplamına GİRMEZ (akım-dışı park).
+    # Ayrıca Bekleme Listesi'nde (runway.held) de gösterilir. Çek bekletilemez (HOLDABLE'dan çıkarıldı).
     from app.services.hold_service import get_hold_set
     hold_set = get_hold_set(db)
 
@@ -218,29 +220,36 @@ def t_account(
         # bölümünde takip edilir → bekleyen giriş/çıkış şişmez (kullanıcı: gider 2026-07-05, gelir 2026-07-07).
         if not fe.is_realized and fe.event_date < today:
             continue
-        # Beklemeye alınmış future-pending (gerçekleşmemiş) kalem bekleyen listesine GİRMEZ (akım-dışı).
-        # Realized held → gerçekleşen'de kalır (dışlanmaz); overdue held → yukarıda zaten elendi.
-        if not fe.is_realized and (fe.source_type, fe.source_id) in hold_set:
-            continue
         eur = _event_eur(db, fe, rate_cache)
         if eur is None:
             skipped_no_rate += 1
             continue
 
+        # Beklemeye alınmış (future-pending, gerçekleşmemiş) → sarı gösterilir, toplama KATILMAZ.
+        is_held = (not fe.is_realized) and ((fe.source_type, fe.source_id) in hold_set)
+
         label = _group_label(fe)
         group = groups[fe.direction].setdefault(
             label, {"label": label, "total_eur": 0.0, "item_count": 0,
                     "realized_eur": 0.0, "realized_count": 0,
+                    "held_eur": 0.0, "held_count": 0,
                     "section": _section(fe.source_type), "items": []}
         )
-        group["total_eur"] += eur
         group["item_count"] += 1
         # Grup bazında gerçekleşen/bekleyen bölünmesi (2026-07-06): frontend ödenmişleri
         # ayrı "Gerçekleşen" listesinde gösterir, ana liste yalnız bekleyenleri taşır.
         # items MAX_ITEMS_PER_GROUP ile kırpıldığından bölme SAYAÇLARLA yapılır (itemlardan değil).
-        if fe.is_realized:
-            group["realized_eur"] += eur
-            group["realized_count"] += 1
+        if is_held:
+            # Held → toplama/net'e GİRMEZ; yalnız ayrı held sayaçları (sarı gösterim + Bekleme Listesi)
+            group["held_eur"] += eur
+            group["held_count"] += 1
+        else:
+            group["total_eur"] += eur
+            totals[fe.direction] += eur
+            if fe.is_realized:
+                group["realized_eur"] += eur
+                group["realized_count"] += 1
+                realized[fe.direction] += eur
         if len(group["items"]) < MAX_ITEMS_PER_GROUP:
             group["items"].append({
                 "name": _item_name(fe),
@@ -250,13 +259,11 @@ def t_account(
                 "amount_native": round(float(fe.amount), 2),
                 "currency": (fe.currency or "TRY").upper(),
                 "is_realized": bool(fe.is_realized),
+                "is_held": is_held,  # sarı gösterim + toplam-dışı (frontend)
                 # Bekletme (hold) kimliği — frontend bu kalemi beklemeye alabilsin
                 "source_type": fe.source_type,
                 "source_id": fe.source_id,
             })
-        totals[fe.direction] += eur
-        if fe.is_realized:
-            realized[fe.direction] += eur
 
     # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — dönemi kapsayan
     # son-ödeme kalemleri ÇIKIŞ "KK Borç Ödemeleri" grubuna eklenir → panel/nakit akım tablosu +
@@ -276,6 +283,7 @@ def t_account(
         group = groups[DIRECTION_EXPENSE].setdefault(
             label, {"label": label, "total_eur": 0.0, "item_count": 0,
                     "realized_eur": 0.0, "realized_count": 0,
+                    "held_eur": 0.0, "held_count": 0,
                     "section": "faaliyet", "items": []}
         )
         group["total_eur"] += eur
@@ -288,6 +296,7 @@ def t_account(
                 "amount_native": round(float(proj["amount"]), 2),
                 "currency": "TRY",
                 "is_realized": False,  # projeksiyon = her zaman bekleyen rezerv
+                "is_held": False,  # projeksiyon bekletilemez
                 # Projeksiyon rezervi bekletilemez (gerçek FE değil) → kimlik null
                 "source_type": None,
                 "source_id": None,
@@ -299,6 +308,7 @@ def t_account(
         for g in result:
             g["total_eur"] = round(g["total_eur"], 2)
             g["realized_eur"] = round(g.get("realized_eur", 0.0), 2)
+            g["held_eur"] = round(g.get("held_eur", 0.0), 2)
             # CC projeksiyonları grup SONUNA kart sırasıyla eklenir → tarih sırası bozulabilir;
             # frontend tarih-bucket'ları (keyed each) sıralı items varsayar. ISO string sort = kronolojik.
             g["items"].sort(key=lambda i: i["date"])

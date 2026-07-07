@@ -107,18 +107,26 @@ class TestHoldService:
 
     def test_batch_skips_non_holdable(self, db):
         applied = hold_service.apply_holds_batch(
-            db, [("check", 501), ("bank", 502), ("nonsense", 503)], True, user_id=None
+            db, [("credit", 501), ("check", 502), ("bank", 503), ("nonsense", 504)], True, user_id=None
         )
-        assert applied == 1  # yalnız check uygulandı (bank + nonsense atlandı)
+        assert applied == 1  # yalnız credit uygulandı (check + bank + nonsense atlandı)
         s = hold_service.get_hold_set(db)
-        assert ("check", 501) in s
-        assert ("bank", 502) not in s
+        assert ("credit", 501) in s
+        assert ("check", 502) not in s   # çek beklemeye alınamaz (kullanıcı 2026-07-07)
+        assert ("bank", 503) not in s
+
+    def test_check_not_holdable(self, db):
+        from app.services.hold_service import HOLDABLE_SOURCE_TYPES
+        assert "check" not in HOLDABLE_SOURCE_TYPES
+        applied = hold_service.apply_holds_batch(db, [("check", 777)], True, user_id=None)
+        assert applied == 0
+        assert ("check", 777) not in hold_service.get_hold_set(db)
 
     def test_batch_clear(self, db):
-        hold_service.apply_hold(db, "check", 601, user_id=None)
-        applied = hold_service.apply_holds_batch(db, [("check", 601)], False, user_id=None)
+        hold_service.apply_hold(db, "credit", 601, user_id=None)
+        applied = hold_service.apply_holds_batch(db, [("credit", 601)], False, user_id=None)
         assert applied == 1
-        assert ("check", 601) not in hold_service.get_hold_set(db)
+        assert ("credit", 601) not in hold_service.get_hold_set(db)
 
 
 # ─────────────────────────── Endpoint izin ───────────────────────────
@@ -158,20 +166,20 @@ class TestHoldEndpointBehavior:
     def test_hold_batch_persists(self, client, auth_headers, db):
         sid = next(_SEQ)
         r = client.post(HOLD_URL, headers=auth_headers,
-                        json={"items": [{"source_type": "check", "source_id": sid}], "held": True})
+                        json={"items": [{"source_type": "credit", "source_id": sid}], "held": True})
         assert r.status_code == 200
         assert r.json()["applied"] == 1
         assert r.json()["held"] is True
-        assert ("check", sid) in hold_service.get_hold_set(db)
+        assert ("credit", sid) in hold_service.get_hold_set(db)
 
     def test_unhold_batch_removes(self, client, auth_headers, db):
         sid = next(_SEQ)
-        hold_service.apply_hold(db, "check", sid, user_id=None)
+        hold_service.apply_hold(db, "credit", sid, user_id=None)
         db.commit()
         r = client.post(HOLD_URL, headers=auth_headers,
-                        json={"items": [{"source_type": "check", "source_id": sid}], "held": False})
+                        json={"items": [{"source_type": "credit", "source_id": sid}], "held": False})
         assert r.status_code == 200
-        assert ("check", sid) not in hold_service.get_hold_set(db)
+        assert ("credit", sid) not in hold_service.get_hold_set(db)
 
     def test_non_holdable_skipped_applied_zero(self, client, auth_headers):
         r = client.post(HOLD_URL, headers=auth_headers,
@@ -183,7 +191,7 @@ class TestHoldEndpointBehavior:
         from app.models.audit_log import AuditLog
         before = db.query(AuditLog).filter(AuditLog.entity_type == "cash_flow_hold").count()
         client.post(HOLD_URL, headers=auth_headers,
-                    json={"items": [{"source_type": "check", "source_id": next(_SEQ)}], "held": True})
+                    json={"items": [{"source_type": "credit", "source_id": next(_SEQ)}], "held": True})
         after = db.query(AuditLog).filter(AuditLog.entity_type == "cash_flow_hold").count()
         assert after == before + 1
 
@@ -224,9 +232,9 @@ class TestRunwayHeld:
         past = date.today() - timedelta(days=6)
         if past < MIN_DATE:
             pytest.skip("ay başı MIN_DATE'e çok yakın")
-        fe = _mk_fe(db, event_date=past, amount=5000, source_type="check",
+        fe = _mk_fe(db, event_date=past, amount=5000, source_type="credit",
                     description="RW HELD GEÇMİŞ")
-        hold_service.apply_hold(db, "check", fe.source_id, user_id=None)
+        hold_service.apply_hold(db, "credit", fe.source_id, user_id=None)
         db.commit()
         heavy_limiter._requests.clear()
 
@@ -239,23 +247,45 @@ class TestRunwayHeld:
 
 
 class TestTAccountHoldExclusion:
-    def test_held_future_pending_excluded_from_bekleyen(self, client, auth_headers, db):
+    def test_held_stays_in_list_but_excluded_from_totals(self, client, auth_headers, db):
+        """Held kalem LİSTEDE KALIR (is_held=true, sarı) ama grup toplamı + kolon toplamına GİRMEZ."""
         _mk_rate(db, MIN_DATE, 50)
-        # aynı gruba düşecek iki bekleyen çek; biri held
-        keep = _mk_fe(db, event_date=date.today() + timedelta(days=2), amount=3000,
-                      source_type="check", description="TA NORMAL ÇEK")
+        # aynı kredi grubuna düşecek iki bekleyen taksit; biri held
+        _mk_fe(db, event_date=date.today() + timedelta(days=2), amount=3000,
+               source_type="credit", description="TA NORMAL KREDİ")
         held = _mk_fe(db, event_date=date.today() + timedelta(days=2), amount=7000,
-                      source_type="check", description="TA HELD ÇEK")
-        hold_service.apply_hold(db, "check", held.source_id, user_id=None)
+                      source_type="credit", description="TA HELD KREDİ")
+        hold_service.apply_hold(db, "credit", held.source_id, user_id=None)
         db.commit()
 
         body = client.get(TACCOUNT_URL, headers=auth_headers).json()
-        # Çek grubunu bul (çıkış tarafı)
-        names = []
-        for g in body["cikis"]:
-            names += [i["name"] for i in g["items"]]
-        assert "TA NORMAL ÇEK" in names
-        assert "TA HELD ÇEK" not in names  # held bekleyen'den çıktı
+        items = [i for g in body["cikis"] for i in g["items"]]
+        by_name = {i["name"]: i for i in items}
+        # Her ikisi de LİSTEDE (held düşmez — kullanıcı isteği 2026-07-07)
+        assert "TA NORMAL KREDİ" in by_name
+        assert "TA HELD KREDİ" in by_name
+        assert by_name["TA HELD KREDİ"]["is_held"] is True    # sarı gösterim bayrağı
+        assert by_name["TA NORMAL KREDİ"]["is_held"] is False
+        # Grup toplamı held'i HARİÇ tutar (3000/50=60 EUR sayılır, 7000/50=140 held → held_eur)
+        grp = next(g for g in body["cikis"] if "TA HELD KREDİ" in [i["name"] for i in g["items"]])
+        assert grp["total_eur"] == pytest.approx(60, abs=1)
+        assert grp["held_eur"] == pytest.approx(140, abs=1)
+
+    def test_held_excluded_from_column_total(self, client, auth_headers, db):
+        """Kolon toplamı (total_out_eur) held eklenince DEĞİŞMEZ; kaldırılınca 140 EUR artar."""
+        _mk_rate(db, MIN_DATE, 50)
+        held = _mk_fe(db, event_date=date.today() + timedelta(days=3), amount=7000,
+                      source_type="credit", description="TA KOLON HELD")
+        hold_service.apply_hold(db, "credit", held.source_id, user_id=None)
+        db.commit()
+        with_held = client.get(TACCOUNT_URL, headers=auth_headers).json()["total_out_eur"]
+
+        hold_service.clear_hold(db, "credit", held.source_id)
+        db.commit()
+        taccount_limiter._requests.clear()
+        without_held = client.get(TACCOUNT_URL, headers=auth_headers).json()["total_out_eur"]
+
+        assert without_held == pytest.approx(with_held + 140, abs=1)  # held kaldırılınca kolona girer
 
     def test_realized_held_not_excluded(self, client, auth_headers, db):
         """Gerçekleşmiş (is_realized) held kalem gerçekleşen listede KALIR — held yalnız bekleyeni dışlar."""

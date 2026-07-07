@@ -5,63 +5,62 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
-## Bekletme (Hold) — Nakit Akım Kalemini Akım-Dışı Park Etme (2026-07-07, YENİ)
+## Bekletme (Hold) — Kalemi Toplam-Dışı Park Etme (2026-07-07, YENİ)
 
 Kullanıcı isteği: Panel Nakit Akım (T-Hesap) kartına **"Beklet" option butonu** — panel/finans-nakit-akım
-KULLANIM yetkisi olan kişi bir **bekleyen** kalemi "beklemeye alsın"; tutarı nakit akıma dahil edilmesin,
-ayrı **Bekleme Listesi**'nde görünsün. Vade geçince Vadesi Geçenler'e, ödenince Gerçekleşen'e **doğal**
-geçsin. Öteleme (deferral) deseninin ikizi — ama tarih değiştirmez, yalnız **dışlar**.
+KULLANIM yetkisi olan kişi bir **bekleyen** kalemi "beklemeye alsın". **Kalem eski yerinde (giriş/çıkış
+listesinde) SARI kalır** ama **kolon toplamı / net / projeksiyona etki etmez** (akım-dışı park). AYRICA ayrı
+**Bekleme Listesi**'nde de görünür. Vade geçince Vadesi Geçenler'e, ödenince Gerçekleşen'e **doğal** geçer.
 
-**Model + tablo:** `cash_flow_holds` (migration `a7d3f9b1e8c4`) — TEK tablo, tüm ödeme türleri. Doğal
-anahtar `(source_type, source_id)` (`uq_cash_flow_holds_source`). `created_by` FK users SET NULL, `note`
-Text (şimdilik kullanılmıyor). Model `app/models/cash_flow_hold.py`.
+> **KRİTİK davranış (kullanıcı düzeltmesi 2026-07-07):** Held kalem listeden **DÜŞMEZ** — yalnız
+> **toplamlara katılmaz**. İlk sürüm listeden çıkarıyordu; kullanıcı "eski yerinde sarı kalsın, sadece
+> bakiyeye etkisi olmasın" dedi → t_account held'i items'ta bırakır (`is_held=true`), sadece
+> `total_eur`/`totals`/`net`'e eklemez.
+
+**Model + tablo:** `cash_flow_holds` (migration `a7d3f9b1e8c4`) — TEK tablo. Doğal anahtar
+`(source_type, source_id)` (`uq_cash_flow_holds_source`). `created_by` FK users SET NULL. Model
+`app/models/cash_flow_hold.py`.
 
 **Service `app/services/hold_service.py`:**
-- `get_hold_set(db)` → `{(source_type, source_id)}` kümesi — **modül-içi dict cache**'li (`_hold_cache`;
-  deferral/FIFO cache deseni). `apply_hold`/`clear_hold`/`apply_holds_batch` `invalidate_hold_cache()` çağırır.
-  Test izolasyonu: conftest her test başında invalidate eder (DB SAVEPOINT rollback ile sızmasın).
-- `apply_hold` (idempotent upsert), `clear_hold` (sil→bool), `apply_holds_batch(items, held, user_id)` —
-  commit ETMEZ (çağıran eder). `HOLDABLE_SOURCE_TYPES` (14) — **bank HARİÇ** (gerçekleşmiş nakit, bekletilmez);
-  batch holdable-dışı türü sessizce atlar.
+- `get_hold_set(db)` → `{(source_type, source_id)}` — **modül-içi dict cache**'li (deferral/FIFO deseni).
+  conftest her test başında invalidate eder.
+- `apply_hold`/`clear_hold`/`apply_holds_batch` — commit ETMEZ. `HOLDABLE_SOURCE_TYPES` (**13**) —
+  **bank HARİÇ** (gerçekleşmiş nakit) + **check HARİÇ** (kullanıcı 2026-07-07: çek ödemeleri beklemeye
+  alınamaz — çekin takvimi banka/ciro tarafında sabit). Batch holdable-dışı türü sessizce atlar.
 
-**DIŞLAMA KURALI (tek cümle):** `(source_type, source_id) ∈ hold_set  VE  not is_realized  VE  event_date ≥ bugün`
-→ kalem nakit akımından **dışlanır**, Bekleme Listesi'nde gösterilir. Üç hesap da bunu uygular:
-- `t_account.py`: future-pending held **bekleyen** listesinden çıkar (overdue zaten `event_date<bugün`
-  dalında elenmiş; **realized held ÇIKMAZ** → Gerçekleşen'de kalır). Ek: item'a `source_type`/`source_id`
-  eklendi (frontend bekletebilsin).
-- `runway.py`: future-pending held → yeni **`held`** dizisi (inflows/outs yerine). Overdue held → overdue
-  dalına düşer (held değil — vade geçince beklemeden çıkar). `held` item'ları `source_type` taşır (Bekleme
-  Listesi grupları için, `overdue_income` gibi).
-- `eur_balances.py`: `_is_held_future(st, sid, dt)` guard'ı her toplayıcı döngüde (vendor/check/credit/cc/
-  advance/scheduled + pending_check) held-future kalemi projeksiyondan (ve günlük gider/gelir gösteriminden)
-  çıkarır → projeksiyon bakiyesi düşmez ("tutar parkta").
+**HELD KURALI:** `(source_type, source_id) ∈ hold_set  VE  not is_realized  VE  event_date ≥ bugün` → kalem
+**sarı gösterilir ve toplama katılmaz** (silinmez):
+- `t_account.py`: held item `items`'ta KALIR + `is_held=true`; `total_eur`/`totals[direction]`/`net`'e
+  GİRMEZ (ayrı `held_eur`/`held_count`). **realized held YOK** (kural `not is_realized`). Item'da
+  `source_type`/`source_id` (frontend bekletebilsin).
+- `runway.py`: future-pending held → **`held`** dizisi (Bekleme Listesi'ni besler). Overdue held → overdue
+  dalına düşer. `held` item'ları `source_type` + `id="type:id"` taşır (per-item geri al).
+- `eur_balances.py`: `_is_held_future` guard'ı holdable toplayıcılarda (vendor/credit/cc/advance/scheduled)
+  held-future'ı projeksiyondan çıkarır → **bakiye/projeksiyon düşmez** ("tutar parkta"). Çek guard'ı YOK
+  (çek holdable değil).
 
-**GEÇİŞLER (doğal filtrelemeyle, ek kod yok):** Vade geçince → `event_date<bugün` → overdue (held dizisinden
-düşer). Ödenince → `is_realized=True` → runway `is_realized==False` filtresi held'den düşürür + t_account
-realized-held'i Gerçekleşen'de gösterir. Bekletme kaydı DB'de kalsa da etkisiz (kural `not is_realized` +
-`≥bugün` ister); istenirse elle "Geri al" ile silinir.
+**GEÇİŞLER (doğal filtre, ek kod yok):** Vade geçince → overdue (held'den düşer). Ödenince → `is_realized`
+→ runway `is_realized==False` filtresi held'den düşürür + t_account realized-held'i normal sayar (Gerçekleşen).
 
-**Endpoint `cash_flow/hold.py` — `POST /cash-flow/hold-batch`:** body `{items: [{source_type, source_id}],
-held: bool}`. **ONAYSIZ** (öteleme/manuel-banka gibi operasyonel-özel; `check_approval` çağrılMAZ →
-executor handler GEREKMEZ, AST testi kapsamaz) + `require_permission(finance.cash_flow, use)` + audit
-(entity_type `cash_flow_hold`) + `broadcast_finance_update(CASH_FLOW, "update")`. Boş/`>5000` → 400.
-Yanıt `{ok, applied, held}` (applied = holdable-dışı atlandıktan sonraki sayı).
+**Endpoint `cash_flow/hold.py` — `POST /cash-flow/hold-batch`:** body `{items:[{source_type, source_id}],
+held}`. **ONAYSIZ** (operasyonel; `check_approval` YOK → executor handler gerekmez) + `require_permission(
+finance.cash_flow, use)` + audit (`cash_flow_hold`) + `broadcast_finance_update(CASH_FLOW)`. Boş/`>5000`→400.
 
 **Frontend:**
-- `CashFlowTAccount.svelte`: başlıkta **Beklet** option butonu (yalnız `hasPermission(finance.cash_flow,
-  use)`; amber-aktif). Mod AÇIKKEN **bekleyen** satırlar (kategori + tarih görünümü, `!realized`) tıklanınca
-  `holdBatch(row.members, true)` → beklemeye alınır. Mod paylaşımlı `runway.svelte` state'i (`holdMode` +
-  `setHoldMode`); ayrılınca pasife döner. Finans WS event'inde T-Hesap kendini tazeler (cache temizle +
-  yeniden yükle; polling yok).
-- `HeldList.svelte` (yeni): **Bekleme Listesi** (amber), `runway.held`'den; kaynak türüne göre gruplu.
-  Mod açık + yetki varsa grup bazında "Geri al" (`holdBatch(refs, false)`). OverdueList'in üstünde.
-- `cashflow.ts::aggregateRows` genişletildi: her `CashRow` artık `members: SourceRef[]` taşır (toplu cari
-  satırı = altındaki tüm hareketler tek batch'te bekletilir). Projeksiyon (source_id null) → members boş →
-  bekletilemez.
+- `CashFlowTAccount.svelte`: başlıkta **Beklet** butonu (yalnız `hasPermission(finance.cash_flow, use)`).
+  Mod AÇIKKEN **bekleyen** satır tıklanınca `holdBatch(row.members, !held)` toggle → normal↔sarı. Held
+  satır **yerinde sarı** kalır ("beklemede" rozeti); gün/kategori/kolon toplamları held'i HARİÇ tutar
+  (`groupItemsByDate`/`dateBuckets`/`tippingCikis` `!it.is_held` süzer). Ortak `flowRow` snippet'i üç
+  durumu render eder (normal · held-sarı · tipping-kırmızı). Mod paylaşımlı `runway.svelte` (`holdMode`);
+  ayrılınca pasife döner. WS ile T-Hesap tazelenir (polling yok).
+- `HeldList.svelte`: **Bekleme Listesi** (amber), `runway.held`'den, kaynak türüne göre gruplu; mod açık +
+  yetki varsa **her hareket tek tek** "Geri al" (`holdBatch([ref], false)` — kullanıcı isteği).
+- `cashflow.ts::aggregateRows` → `CashRow.members: SourceRef[]` (toplu cari = tüm üyeler tek batch);
+  component held/non-held'i AYRI aggregate eder (karışık firma → sayılan satır + sarı satır ayrışır).
 
-**Test:** `tests/test_cash_flow_hold.py` (24 — servis idempotent/cache/holdable-dışı, endpoint izin+boş+limit+
-audit, runway held/overdue-değil, t_account bekleyen-dışla/realized-kalır/source kimliği, eur_balances
-projeksiyon-dışla) + `cashflow.test.ts` members (3). Detay: `docs/modules/nakit-akim.md`.
+**Test:** `tests/test_cash_flow_hold.py` (26 — servis, check-holdable-değil, endpoint, runway held/overdue,
+t_account **listede-kalır-toplam-dışı** + kolon-toplamı-değişmez + realized-kalır + source kimliği,
+eur_balances projeksiyon-dışla). Detay: `docs/modules/nakit-akim.md`.
 
 ---
 
