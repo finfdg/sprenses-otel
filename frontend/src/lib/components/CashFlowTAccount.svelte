@@ -37,7 +37,7 @@
 	type SideKey = 'giris' | 'cikis';
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
 	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
-	type DateRow = { name: string; amountLabel: string };
+	type DateRow = { name: string; amountLabel: string; amount_eur: number };
 	type DateCat = { label: string; totalEur: number; rows: DateRow[] };
 	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
@@ -163,7 +163,7 @@
 				.map(([label, items]) => ({
 					label,
 					totalEur: items.reduce((s, it) => s + it.amount_eur, 0),
-					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r) })),
+					rows: aggregateRows(items, AGGREGATE_LABELS.has(label)).map((r) => ({ name: r.name, amountLabel: rowAmountLabel(r), amount_eur: r.amount_eur })),
 				}))
 				.sort((a, b) => b.totalEur - a.totalEur);
 			return { date: day.date, label: day.label, totalEur: day.totalEur, cats };
@@ -183,6 +183,31 @@
 		const raw = side === 'giris' ? data.giris : data.cikis;
 		return { realized, pending: total - realized, hasData: raw.length > 0 };
 	}
+
+	// Bugünkü toplam banka nakdi (runway grafiğiyle aynı kaynak) — ilk-açık yürüyüşünün başlangıcı
+	const startCash = $derived(cashFlowCache.eurBalances?.total_balance_eur ?? null);
+
+	// İLK AÇIK: bugünkü nakitten başlayıp BEKLEYEN çıkışları kronolojik yürüt; bakiyeyi ilk kez
+	// negatife düşüren ödeme = "nakit buraya yetmiyor" (kullanıcı isteği 2026-07-07 — yalnız o TEK
+	// satır kırmızı). Yalnız ÇIKIŞ + bekleyen segment + tarih görünümünde anlamlı (kronolojik).
+	// Aynı `dateBuckets(data.cikis, false)` render'da kullanılır → (date, catLabel, rowIdx) birebir eşleşir.
+	const tippingCikis = $derived.by(() => {
+		if (!data || startCash == null || sideView.cikis !== 'bekleyen' || !dateView.cikis) return null;
+		// Bekleyen giriş: gün başına EUR (o günün ödemelerinden ÖNCE nakde eklenir)
+		const inflowByDate = new Map<string, number>();
+		for (const g of data.giris) for (const it of g.items) if (!it.is_realized) inflowByDate.set(it.date, (inflowByDate.get(it.date) ?? 0) + it.amount_eur);
+		let avail = startCash;
+		for (const day of dateBuckets(data.cikis, false).days) {
+			avail += inflowByDate.get(day.date) ?? 0;
+			for (const cat of day.cats) {
+				for (let i = 0; i < cat.rows.length; i++) {
+					avail -= cat.rows[i].amount_eur;
+					if (avail < 0) return { date: day.date, catLabel: cat.label, rowIdx: i };
+				}
+			}
+		}
+		return null; // dönem boyunca nakit yetiyor
+	});
 
 	// Dönem etiketi — start/end_date'ten (README biçimleri)
 	const periodLabel = $derived.by(() => {
@@ -365,7 +390,7 @@
 
 		<!-- Tarih görünümü: GÜN başlığı → KATEGORİ alt-başlığı (etiket + işlem sayısı + alt toplam) → satırlar
 		     (cari: firma bazında toplu "N ödeme" rozetli; kredi/çek: her kalem ayrı) -->
-		{#snippet dateRows(dv: { days: DateDay[]; hasMore: boolean; moreText: string })}
+		{#snippet dateRows(dv: { days: DateDay[]; hasMore: boolean; moreText: string }, tipping: { date: string; catLabel: string; rowIdx: number } | null)}
 			{#each dv.days as day (day.date)}
 				<div class="flex items-center justify-between gap-2 px-2 py-2 border-t border-gray-100 bg-gray-50">
 					<span class="text-[11px] font-bold uppercase tracking-wide text-gray-700">{day.label}</span>
@@ -377,9 +402,11 @@
 						<span class="ml-auto tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(cat.totalEur)}</span>
 					</div>
 					{#each cat.rows as row, i (i)}
-						<div class="flex items-center gap-2 pl-7 pr-2 py-1">
-							<span class="text-[12px] text-gray-700 truncate">{cleanName(row.name)}</span>
-							<span class="ml-auto tabular-nums text-[12px] text-gray-700 shrink-0">{row.amountLabel}</span>
+						{@const isTip = !!tipping && day.date === tipping.date && cat.label === tipping.catLabel && i === tipping.rowIdx}
+						<div class="flex items-center gap-2 pl-7 pr-2 py-1 {isTip ? 'bg-red-50 rounded-md -mx-0.5 px-2.5' : ''}">
+							<span class="text-[12px] truncate {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{cleanName(row.name)}</span>
+							{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit buraya yetmiyor</span>{/if}
+							<span class="ml-auto tabular-nums text-[12px] shrink-0 {isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{row.amountLabel}</span>
 						</div>
 					{/each}
 				{/each}
@@ -432,7 +459,7 @@
 							{!st.hasData ? 'Bu dönemde kayıt yok.' : realized ? 'Gerçekleşen işlem yok.' : 'Bekleyen işlem yok.'}
 						</p>
 					{:else if dv}
-						{@render dateRows(dv)}
+						{@render dateRows(dv, col.side === 'cikis' ? tippingCikis : null)}
 					{:else}
 						{@render catRows(col.side, realized, filtered)}
 					{/if}
