@@ -426,28 +426,33 @@
 			{/each}
 		</div>
 	{:else if data}
-		<!-- Tek kalem/toplu satır — üç durum: normal · held (sarı, toplam-dışı) · tipping (kırmızı).
-		     Beklet modu + yetki varsa tıklanınca held→çıkar / normal→beklemeye al (toggle). -->
+		<!-- Tek kalem/toplu satır — üç durum: normal · held (sarı, toplam-dışı) · tipping (kırmızı,
+		     nakit yetmeyen ilk ödeme). Beklet modu + yetki varsa TIKLANABİLİR (tipping satırı DA
+		     beklemeye alınabilir → nakit açığını kapatmak için); tıklanınca held→çıkar / normal→al. -->
 		{#snippet flowRow(name: string, amountLabel: string, members: SourceRef[], held: boolean, isTip: boolean, holdable: boolean, dense: boolean)}
 			{@const clickable = holdable && members.length > 0}
 			{@const divPad = dense ? 'pl-7' : 'pl-10'}
 			{@const btnPad = dense ? 'pl-5' : 'pl-8'}
+			{@const txt = held ? 'text-amber-800' : isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}
+			{@const bg = held ? 'bg-amber-50' : isTip ? 'bg-red-50' : ''}
+			{@const icon = held ? 'text-amber-600' : isTip ? 'text-red-500' : 'text-amber-500'}
 			{#if clickable}
 				<button type="button" onclick={() => holdRow(members, !held)} disabled={holdMutating}
 					title={held ? 'Bekletmeyi kaldır' : 'Beklemeye al (nakit akıma dahil edilmez)'}
 					aria-label="{cleanName(name)} {held ? 'bekletmeyi kaldır' : 'beklemeye al'}"
-					class="w-full flex items-center gap-2 {btnPad} pr-2 py-1 rounded-md cursor-pointer text-left disabled:opacity-50 {held ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-amber-50'}">
-					<PauseCircle size={14} class="shrink-0 {held ? 'text-amber-600' : 'text-amber-500'}" />
-					<span class="text-[12px] truncate {held ? 'text-amber-800' : 'text-gray-700'}">{cleanName(name)}</span>
+					class="w-full flex items-center gap-2 {btnPad} pr-2 py-1 rounded-md cursor-pointer text-left disabled:opacity-50 {held ? 'bg-amber-50 hover:bg-amber-100' : isTip ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-amber-50'}">
+					<PauseCircle size={14} class="shrink-0 {icon}" />
+					<span class="text-[12px] truncate {txt}">{cleanName(name)}</span>
 					{#if held}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0.5">beklemede</span>{/if}
-					<span class="ml-auto tabular-nums text-[12px] shrink-0 {held ? 'text-amber-800' : 'text-gray-700'}">{amountLabel}</span>
+					{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit yetmiyor</span>{/if}
+					<span class="ml-auto tabular-nums text-[12px] shrink-0 {txt}">{amountLabel}</span>
 				</button>
 			{:else}
-				<div class="flex items-center gap-2 {divPad} pr-2 py-1 {held ? 'bg-amber-50 rounded-md' : isTip ? 'bg-red-50 rounded-md -mx-0.5 px-2.5' : ''}">
-					<span class="text-[12px] truncate {held ? 'text-amber-800' : isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{cleanName(name)}</span>
+				<div class="flex items-center gap-2 {divPad} pr-2 py-1 {bg} {bg ? 'rounded-md' : ''} {isTip ? '-mx-0.5 px-2.5' : ''}">
+					<span class="text-[12px] truncate {txt}">{cleanName(name)}</span>
 					{#if held}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0.5">beklemede</span>{/if}
 					{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit buraya yetmiyor</span>{/if}
-					<span class="ml-auto tabular-nums text-[12px] shrink-0 {held ? 'text-amber-800' : isTip ? 'text-red-700 font-semibold' : 'text-gray-700'}">{amountLabel}</span>
+					<span class="ml-auto tabular-nums text-[12px] shrink-0 {txt}">{amountLabel}</span>
 				</div>
 			{/if}
 		{/snippet}
@@ -507,7 +512,7 @@
 					</div>
 					{#each cat.rows as row, i (i)}
 						{@const isTip = !!tipping && day.date === tipping.date && cat.label === tipping.catLabel && i === tipping.rowIdx}
-						{@render flowRow(row.name, row.amountLabel, row.members, false, isTip, holdable && !isTip, true)}
+						{@render flowRow(row.name, row.amountLabel, row.members, false, isTip, holdable, true)}
 					{/each}
 					<!-- Held (beklemeye alınmış) satırlar — sarı, kategori toplamına katılmaz -->
 					{#each cat.heldRows as row, i (`h${i}`)}
