@@ -16,6 +16,7 @@
 		runwayStore, subscribeRunway, deferBatch,
 		fmtEur, fmtNative, labelDate, cleanName, SRC_LABELS, type Flow,
 	} from '$lib/stores/runway.svelte';
+	import { aggregateRows, AGGREGATE_LABELS } from '$lib/utils/cashflow';
 
 	// Öteleme yalnız finance.cash_flow KULLANIM yetkisi olanlara açık
 	const canDefer = hasPermission('finance.cash_flow', 'use');
@@ -63,6 +64,17 @@
 			cur.items.push(it);
 		}
 		return out;
+	}
+
+	// Bir gün+grup içindeki kalemleri gösterim satırlarına çevir. Cari ("Cari Ödemeleri") ise
+	// aynı firmaya birden çok ödeme TEK satırda toplanır (kullanıcı isteği 2026-07-07); kredi/çek
+	// gibi diğerlerinde her kalem ayrı (T-Hesap'la aynı AGGREGATE_LABELS kuralı).
+	function memberRows(items: Flow[], groupLabel: string) {
+		const cashItems = items.map((m) => ({
+			name: m.name, amount_eur: m.amount_eur,
+			amount_native: m.amount_native ?? m.amount_eur, currency: m.currency ?? 'EUR',
+		}));
+		return aggregateRows(cashItems, AGGREGATE_LABELS.has(groupLabel));
 	}
 
 	const units = $derived(data ? groupOverdueByLabel(data.overdue) : []);
@@ -128,10 +140,10 @@
 						<div class="pl-5 pt-1.5">
 							{#each groupMembersByDate(u.members) as day (day.date)}
 								<div class="pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-400">{day.label}</div>
-								{#each day.items as m (m.id)}
+								{#each memberRows(day.items, u.label) as row, i (i)}
 									<div class="flex items-center gap-2 text-[12px] py-0.5">
-										<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
-										<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
+										<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
+										<span class="ml-auto tabular-nums text-gray-600 shrink-0">−{row.currency ? fmtNative(row.amount_native, row.currency) : fmtEur(row.amount_eur)}</span>
 									</div>
 								{/each}
 							{/each}
@@ -168,10 +180,10 @@
 							<div class="pl-5 pt-1.5">
 								{#each groupMembersByDate(u.members) as day (day.date)}
 									<div class="pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-brass-dark/70">{day.label}</div>
-									{#each day.items as m (m.id)}
+									{#each memberRows(day.items, u.label) as row, i (i)}
 										<div class="flex items-center gap-2 text-[12px] py-0.5">
-											<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
-											<span class="ml-auto tabular-nums text-emerald-700 shrink-0">+{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
+											<span class="text-gray-700 truncate">{cleanName(row.name)}</span>
+											<span class="ml-auto tabular-nums text-emerald-700 shrink-0">+{row.currency ? fmtNative(row.amount_native, row.currency) : fmtEur(row.amount_eur)}</span>
 										</div>
 									{/each}
 								{/each}
