@@ -268,6 +268,7 @@ def runway(
     inflows: list = []
     outs: list = []
     overdue: list = []
+    overdue_income: list = []
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, float] = {}
 
@@ -294,11 +295,13 @@ def runway(
             "original_date": original_date.isoformat() if original_date else None,
         }
         if fe.event_date < today:
-            # "Vadesi Geçenler" = ödeme (GİDER) kalemleri. Vadesi geçmiş GELİR
-            # (gelmemiş kira/tahsilat gibi) belirsiz → runway'e katılmaz (kırmızı
-            # "vadesi geçen ödeme" olarak gösterilmesi yanlış olur).
+            # Vadesi geçmiş ödenmemiş: GİDER → "Vadesi Geçenler"; GELİR → "Vadesi Geçen Tahsilatlar"
+            # (beklenen ama gelmemiş avans/kira/tahsilat; kullanıcı isteği 2026-07-07 — eskiden
+            # düşürülüp hiçbir yerde gösterilmiyordu, ayrıca T-Hesap girişinde bekleyen sayılıyordu).
             if fe.direction == DIRECTION_EXPENSE:
                 overdue.append(item)
+            elif fe.direction == DIRECTION_INCOME:
+                overdue_income.append(item)
         elif fe.direction == DIRECTION_INCOME:
             item.pop("source_type")  # inflow'da source_type gösterilmiyordu (geriye uyum)
             inflows.append(item)
@@ -342,5 +345,6 @@ def runway(
         "inflows": inflows,
         "outs": outs,
         "overdue": overdue,
+        "overdue_income": overdue_income,
         "skipped_no_rate": skipped_no_rate,
     }

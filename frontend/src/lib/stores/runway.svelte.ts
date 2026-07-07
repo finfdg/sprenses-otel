@@ -20,7 +20,8 @@ export type Flow = {
 };
 export type RunwayData = {
 	month_label: string; month_start: string; month_end: string; today: string;
-	start_eur: number; inflows: Flow[]; outs: Flow[]; overdue: Flow[]; skipped_no_rate: number;
+	start_eur: number; inflows: Flow[]; outs: Flow[];
+	overdue: Flow[]; overdue_income?: Flow[]; skipped_no_rate: number;
 };
 
 export const MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];

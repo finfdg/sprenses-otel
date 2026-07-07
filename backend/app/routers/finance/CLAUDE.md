@@ -167,11 +167,14 @@ update(CASH_FLOW, "update")`. Validasyon: source_type deferrable kümede (yoksa 
 (bozuk→400). Yanıt `{ok, deferred_to, cleared}`.
 
 **Runway (`cash_flow/runway.py`) güncellendi:** pencere `[today, month_end]` yerine `[MIN_DATE,
-month_end]` çekilir, sonra Python'da bölünür: `event_date < today` → **`overdue`** dizisi (vadesi
-geçen ödenmemiş — Cuma roll kalktığı için artık geçmişte durur), aksi halde `inflows`/`outs`. Her
-out/overdue/inflow kalemine `deferred: bool` (payment_deferrals'ta var mı) + `original_date` (ötelenmişse
-kaynağın öteleme-öncesi doğal vadesi `_natural_date` ile; değilse event_date). inflow'da `source_type`
-gösterilmez (geriye uyum).
+month_end]` çekilir, sonra Python'da bölünür: `event_date < today` → GİDER **`overdue`** / GELİR
+**`overdue_income`** (2026-07-07: vadesi geçmiş GELİR de ayrı dizide — eskiden düşürülüyordu), aksi halde
+`inflows`/`outs`. Her out/overdue/inflow kalemine `deferred: bool` (payment_deferrals'ta var mı) +
+`original_date` (ötelenmişse kaynağın öteleme-öncesi doğal vadesi `_natural_date` ile; değilse event_date).
+inflow'da `source_type` gösterilmez (geriye uyum); `overdue_income`'da GÖSTERİLİR (OverdueList grupları için).
+**Simetri (2026-07-07):** `t_account.py` de vadesi-geçmiş-GERÇEKLEŞMEMİŞ **geliri** girişten çıkarır
+(gider gibi) → panel `OverdueList` "Vadesi Geçen Tahsilatlar" (amber, salt gösterim) bölümünde listeler.
+Test: `test_overdue_income_separate_from_expenses` + `test_overdue_unrealized_income_excluded`.
 
 **Test:** `tests/test_payment_deferral.py` (21 test — service apply/clear/cache, `_upsert` override
 [credit/bank-hariç], `effective_due_date` overdue-orijinal + deferral, endpoint 401/403/viewer-403/400/

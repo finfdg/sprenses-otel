@@ -67,6 +67,9 @@
 
 	const units = $derived(data ? groupOverdueByLabel(data.overdue) : []);
 	const total = $derived(data ? data.overdue.reduce((s, o) => s + o.amount_eur, 0) : 0);
+	// Vadesi geçen TAHSİLATLAR (beklenen ama gelmemiş gelir — avans/kira vb.); ötelenmez, salt gösterim
+	const incomeUnits = $derived(data?.overdue_income ? groupOverdueByLabel(data.overdue_income) : []);
+	const incomeTotal = $derived(data?.overdue_income ? data.overdue_income.reduce((s, o) => s + o.amount_eur, 0) : 0);
 
 	async function mutateGroup(memberIds: string[], deferredTo: string | null, okMsg: string) {
 		if (mutating) return;
@@ -92,8 +95,10 @@
 	onMount(() => subscribeRunway());
 </script>
 
-{#if !loading && data && units.length > 0}
-	<div class="mt-5 pt-5 border-t border-gray-200">
+{#if !loading && data && (units.length > 0 || incomeUnits.length > 0)}
+	<div class="mt-5 pt-5 border-t border-gray-200 space-y-4">
+		{#if units.length > 0}
+		<div>
 		<div class="flex items-center gap-2 text-[11px] tracking-[1px] uppercase text-red-700 font-bold">
 			<AlertTriangle size={13} /> Vadesi Geçenler · {fmtEur(total)}
 		</div>
@@ -137,6 +142,46 @@
 		</div>
 		{#if canDefer}
 			<p class="text-[11px] text-gray-500 mt-2">Tarih seçerek bir kalemi ileri tarihe <strong>kalıcı</strong> ötelersiniz (borç kalkmaz, vade değişir).</p>
+		{/if}
+		</div>
+		{/if}
+
+		{#if incomeUnits.length > 0}
+		<div>
+			<div class="flex items-center gap-2 text-[11px] tracking-[1px] uppercase text-brass-dark font-bold">
+				<AlertTriangle size={13} /> Vadesi Geçen Tahsilatlar · {fmtEur(incomeTotal)}
+			</div>
+			<div class="mt-1.5 rounded-xl border border-brass/40 bg-brass-soft/40 divide-y divide-brass/20">
+				{#each incomeUnits as u (u.key)}
+					{@const multi = u.members.length > 1}
+					<div class="px-2.5 py-2.5">
+						<div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-x-3">
+							<button type="button" onclick={() => toggleGroup(u.key)} aria-expanded={!!openGroups[u.key]}
+								class="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer">
+								<ChevronDown size={14} class="shrink-0 text-brass-dark transition-transform {openGroups[u.key] ? '' : '-rotate-90'}" />
+								<span class="text-[13px] sm:text-[13.5px] font-semibold truncate text-gray-900">{u.label}</span>
+								{#if multi}<span class="text-[11px] text-brass-dark shrink-0">{u.members.length} tahsilat</span>{/if}
+							</button>
+							<span class="tabular-nums text-[13px] sm:text-[13.5px] font-semibold w-[76px] text-right shrink-0 text-emerald-700">+{fmtEur(u.total)}</span>
+						</div>
+						{#if openGroups[u.key]}
+							<div class="pl-5 pt-1.5">
+								{#each groupMembersByDate(u.members) as day (day.date)}
+									<div class="pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-brass-dark/70">{day.label}</div>
+									{#each day.items as m (m.id)}
+										<div class="flex items-center gap-2 text-[12px] py-0.5">
+											<span class="text-gray-700 truncate">{cleanName(m.name)}</span>
+											<span class="ml-auto tabular-nums text-emerald-700 shrink-0">+{m.amount_native != null ? fmtNative(m.amount_native, m.currency) : fmtEur(m.amount_eur)}</span>
+										</div>
+									{/each}
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+			<p class="text-[11px] text-gray-500 mt-2">Beklenen ama vadesi geçmiş tahsilatlar (avans/kira vb.) — gelmediği için bekleyen girişe sayılmaz.</p>
+		</div>
 		{/if}
 	</div>
 {/if}

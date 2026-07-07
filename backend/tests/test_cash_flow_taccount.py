@@ -195,6 +195,24 @@ class TestTAccountGrouping:
         assert "ODENMEMIS CARI" not in names     # vadesi geçmiş ödenmemiş → hariç
         assert "BANKA GERCEKLESEN" in names       # gerçekleşmiş → dahil
 
+    def test_overdue_unrealized_income_excluded(self, client, auth_headers, db):
+        """Vadesi geçmiş GERÇEKLEŞMEMİŞ GELİR de girişe GİRMEZ (gider gibi simetrik; gelmemiş
+        avans/tahsilat → "Vadesi Geçen Tahsilatlar"da; kullanıcı isteği 2026-07-07)."""
+        _reset_eur_rates(db)
+        today = date.today()
+        mid_last = (today.replace(day=1) - timedelta(days=1)).replace(day=15)
+        _mk_rate(db, mid_last, 50.0)
+        _mk_fe(db, event_date=mid_last, direction=1, is_realized=False,
+               source_type="advance", amount=10000, currency="EUR", description="GELMEMIS AVANS")
+        _mk_fe(db, event_date=mid_last, direction=1, is_realized=True,
+               source_type="bank", amount=5000, description="GERCEKLESEN GELIR")
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=-1", headers=auth_headers).json()
+        names = [i["name"] for g in body["giris"] for i in g["items"]]
+        assert "GELMEMIS AVANS" not in names       # vadesi geçmiş gerçekleşmemiş gelir → hariç
+        assert "GERCEKLESEN GELIR" in names         # gerçekleşmiş gelir → dahil
+
 
 class TestTAccountRealizedSplit:
     """Grup bazında gerçekleşen/bekleyen bölünmesi (2026-07-06) — frontend '✓ Gerçekleşen'

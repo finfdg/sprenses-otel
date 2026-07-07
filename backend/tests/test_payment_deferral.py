@@ -277,6 +277,25 @@ class TestRunwayOverdue:
         assert "overdue" in body
         names = [o["name"] for o in body["overdue"]]
         assert "RW VADESİ GEÇEN" in names
+
+    def test_overdue_income_separate_from_expenses(self, client, auth_headers, db):
+        """Vadesi geçmiş GELİR (beklenen ama gelmemiş tahsilat) `overdue_income`'a düşer —
+        `overdue` (gider) listesine KARIŞMAZ (kullanıcı isteği 2026-07-07)."""
+        _mk_rate(db, MIN_DATE, 50)
+        past = date.today() - timedelta(days=5)
+        if past < MIN_DATE:
+            pytest.skip("ay başı MIN_DATE'e çok yakın")
+        _mk_fe(db, event_date=past, amount=21800, currency="EUR", direction=1,
+               source_type="advance", description="RW VADESİ GEÇEN AVANS")
+        db.commit()
+        heavy_limiter._requests.clear()
+
+        body = client.get(RUNWAY_URL, headers=auth_headers).json()
+        assert "overdue_income" in body
+        inc_names = [o["name"] for o in body["overdue_income"]]
+        exp_names = [o["name"] for o in body["overdue"]]
+        assert "RW VADESİ GEÇEN AVANS" in inc_names       # gelir → tahsilat listesinde
+        assert "RW VADESİ GEÇEN AVANS" not in exp_names    # gider listesine karışmaz
         # ay-içi outs'ta OLMAMALI (geçmiş tarih)
         assert "RW VADESİ GEÇEN" not in [o["name"] for o in body["outs"]]
 

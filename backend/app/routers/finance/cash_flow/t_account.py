@@ -208,10 +208,10 @@ def t_account(
     for fe in events:
         if fe.direction not in groups:
             continue
-        # Vadesi geçmiş ÖDENMEMİŞ çıkışlar bu listeye GİRMEZ (kullanıcı kararı 2026-07-05):
-        # ödendiyse gerçek banka hareketi zaten realized olarak listede görünür; ödenmediyse
-        # "Vadesi Geçenler" (Nakit Koruma) listesinde takip edilir → ikileme/şişme önlenir.
-        if fe.direction == DIRECTION_EXPENSE and not fe.is_realized and fe.event_date < today:
+        # Vadesi geçmiş GERÇEKLEŞMEMİŞ kalemler bu listeye GİRMEZ (hem GİDER hem GELİR): gerçekleştiyse
+        # zaten realized görünür; olmadıysa GİDER "Vadesi Geçenler", GELİR "Vadesi Geçen Tahsilatlar"
+        # bölümünde takip edilir → bekleyen giriş/çıkış şişmez (kullanıcı: gider 2026-07-05, gelir 2026-07-07).
+        if not fe.is_realized and fe.event_date < today:
             continue
         eur = _event_eur(db, fe, rate_cache)
         if eur is None:
