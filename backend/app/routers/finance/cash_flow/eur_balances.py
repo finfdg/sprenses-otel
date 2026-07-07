@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth import require_permission
-from app.middleware.rate_limit import heavy_limiter
+from app.middleware.rate_limit import eur_balances_limiter
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.check import Check
@@ -431,5 +431,5 @@ def eur_balances(
     current_user: User = Depends(require_permission("finance.cash_flow", "view")),
 ):
     """Günlük ve aylık EUR bazlı toplam banka bakiyesi."""
-    heavy_limiter.check(f"eur-bal-{current_user.id}")
+    eur_balances_limiter.check(f"eur-bal-{current_user.id}")
     return compute_eur_balances(db)

@@ -2,6 +2,7 @@
 // WS finance_updated event'i ile otomatik güncellenir
 
 import { api } from '$lib/api';
+import { showToast } from '$lib/stores/toast.svelte';
 import { onWsEvent } from '$lib/stores/websocket.svelte';
 import { WS_EVENT } from '$lib/constants/realtime';
 import type { CashFlowItem, TransactionCategory } from '$lib/types/finance';
@@ -112,7 +113,10 @@ export async function loadCashFlowEurBalances() {
 		cashFlowCache.eurBalances = await api.get('/finance/cash-flow/eur-balances');
 		cashFlowCache.eurBalancesFetchedAt = Date.now();
 	} catch (err) {
+		// Grafik (RunwayChart) + gün bakiyeleri bu veriden beslenir — sessiz kalırsa
+		// kullanıcı bayat eğriye bakar (2026-07-07: rate-limit 429'ları fark edilmedi)
 		console.error('EUR bakiye hatası:', err);
+		showToast('Nakit projeksiyon bakiyeleri yüklenemedi', 'error');
 	}
 }
 

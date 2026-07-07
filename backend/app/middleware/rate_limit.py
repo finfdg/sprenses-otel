@@ -84,6 +84,11 @@ heavy_limiter = RateLimiter(max_requests=10, window_seconds=60)
 # meşru kullanımda sık tetikler — 10/dk gerçek kullanıcıda 429 üretti (2026-07-07)
 runway_limiter = RateLimiter(max_requests=30, window_seconds=60)
 
+# EUR bakiye (RunwayChart/Nakit Akım veri kaynağı): runway ile aynı gerekçe — her Panel/Nakit
+# Akım açılışı + finans mutasyonu sonrası tazeleme + Beklet akışı tetikler; heavy_limiter'ın
+# 10/dk'sı art arda bekletmede doldu → grafik sessizce bayat kaldı (2026-07-07, nginx: 47×429)
+eur_balances_limiter = RateLimiter(max_requests=30, window_seconds=60)
+
 
 def get_client_ip(request: Request) -> str:
     """İstemci IP adresini al.

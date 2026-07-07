@@ -266,10 +266,36 @@
 	}
 
 	// T-Hesap verisini tazele (bekletme/ödeme sonrası) — cache bayat olduğundan temizle + yeniden yükle.
-	async function refreshData() {
-		cache.clear();
-		await load();
-		if (cashFlowCache.eurBalances) await loadCashFlowEurBalances(); // startCash + RunwayChart
+	// Tekil-uçuş koruması (runway.svelte.ts ile aynı desen, 2026-07-07): her Beklet tıklaması hem
+	// doğrudan refreshData hem WS finance_updated yankısı tetikler; t-account (30/dk) ve özellikle
+	// eur-balances art arda bekletmede rate limit'e takılıp grafiği sessizce bayat bırakıyordu
+	// (nginx: 47×429). Uçuş sürerken gelen çağrılar TEK trailing yenilemeye kuyruklanır.
+	let refreshInFlight: Promise<void> | null = null;
+	let refreshQueued = false;
+	let lastRefreshAt = 0;
+	const WS_ECHO_MS = 1500; // sunucu broadcast debounce (500ms) + iletim gecikmesi payı
+
+	async function refreshData(): Promise<void> {
+		if (refreshInFlight) {
+			// Uçuştaki yanıt bu çağrıdan önceki durumu taşıyabilir → uçuş bitince BİR kez daha yükle
+			refreshQueued = true;
+			return refreshInFlight;
+		}
+		refreshInFlight = (async () => {
+			try {
+				cache.clear();
+				await load();
+				if (cashFlowCache.eurBalances) await loadCashFlowEurBalances(); // startCash + RunwayChart
+			} finally {
+				lastRefreshAt = Date.now();
+				refreshInFlight = null;
+			}
+		})();
+		await refreshInFlight;
+		if (refreshQueued) {
+			refreshQueued = false;
+			await refreshData();
+		}
 	}
 
 	function toggleHoldMode() {
@@ -334,8 +360,13 @@
 		api.get<TData>('/finance/cash-flow/t-account?period=daily&offset=0')
 			.then((r) => { cache.set('daily:0', r); todaySummary = r; })
 			.catch((err) => console.error('Günlük özet yüklenemedi:', err));
-		// Finans değişince (bekletme/ödeme/etiketleme/Sedna vb.) T-Hesap'ı WS ile canlı tazele (polling yok)
-		const unsub = onWsEvent(WS_EVENT.FINANCE_UPDATED, () => { refreshData(); });
+		// Finans değişince (bekletme/ödeme/etiketleme/Sedna vb.) T-Hesap'ı WS ile canlı tazele (polling yok).
+		// Son yüklemenin hemen ardından gelen event, bizim mutasyonumuzun broadcast YANKISIDIR —
+		// doğrudan refreshData güncel veriyi zaten aldı, isteği atla (uçuş sürüyorsa kuyruklanır).
+		const unsub = onWsEvent(WS_EVENT.FINANCE_UPDATED, () => {
+			if (!refreshInFlight && Date.now() - lastRefreshAt < WS_ECHO_MS) return;
+			refreshData();
+		});
 		return () => { unsub(); setHoldMode(false); }; // ayrılırken beklet modu pasife dön (salt gösterim)
 	});
 </script>
