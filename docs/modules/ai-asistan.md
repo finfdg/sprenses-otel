@@ -106,6 +106,21 @@ vadesi ne?" gibi **takip soruları** çalışır. Geçmiş istemciden geldiği i
 araçları izin-kontrollü, yazma araçları `execute_action`'da yeniden doğrulanır → sahte geçmiş
 en fazla yanıt metnini etkiler, veri/işlem güvenliğini bozamaz.
 
+**Banka bakiyeleri:** `banka_bakiyeleri` (finance.banks) her aktif hesabın **son işlem
+bakiyesini** (window function, `banks.py` deseni) para birimine göre toplar (EUR/TRY/USD ayrı).
+
+**Streaming (akan yanıt, 2026-07-07):** `POST /api/ai/sor-stream` — SSE (`text/event-stream`).
+`ai_service.answer_question_stream` generator'ı tool turlarını arka planda döndürür, final metni
+**token token** yield eder (`{"t":"delta","v":...}` → sonda `{"t":"meta",...}`). Router kendi DB
+oturumunu açar (stream süresince yaşamalı); `X-Accel-Buffering: no` ile nginx buffer'lamaz (canlı
+doğrulandı: token'lar ~7 sn'ye yayılı geldi). Frontend `fetchRaw` + `ReadableStream` ile tüketir,
+boş asistan balonuna deltaları akıtır; meta'da tablo/grafik/bekleyen_işlem uygulanır. Tool işleme
+tek kaynakta (`_run_tool_block`) — hem `answer_question` hem stream ORTAK kullanır.
+
+**Panel "Günün Özeti" kartı:** `GET /api/ai/gunun-ozeti` (deterministik, AI çağrısı YOK →
+`compute_digest`); Panel'de KPI'ların altında `AiDigestCard.svelte` (yaklaşan ödemeler/çekler/
+rezervasyon; `hasPermission('ai.asistan')` ile gösterilir).
+
 **Çoklu para birimi (2026-07-07 düzeltme):** `nakit_akim_ozeti` gelir/gider/net'i **para
 birimine göre AYRI** döndürür (EUR/TRY/USD). `finance_events.amount` her zaman kaydın kendi
 para birimindedir; `amount_try` çoğu kayıtta NULL. Eski hâli `coalesce(amount_try, amount)`
