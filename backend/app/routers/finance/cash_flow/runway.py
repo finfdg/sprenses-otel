@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth import require_permission
-from app.middleware.rate_limit import heavy_limiter
+from app.middleware.rate_limit import runway_limiter
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.exchange_rate import ExchangeRate
@@ -229,7 +229,7 @@ def runway(
     current_user: User = Depends(require_permission("finance.cash_flow", "view")),
 ):
     """Nakit koruma / runway — içinde bulunulan ay için EUR nakit projeksiyonu."""
-    heavy_limiter.check(f"cashflow-runway-{current_user.id}")
+    runway_limiter.check(f"cashflow-runway-{current_user.id}")
 
     today = date_cls.today()
     last_day = calendar.monthrange(today.year, today.month)[1]

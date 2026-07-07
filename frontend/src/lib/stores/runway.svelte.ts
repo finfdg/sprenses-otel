@@ -62,6 +62,15 @@ let started = false;
 let refCount = 0;
 let wsUnsub: (() => void) | null = null;
 
+// Tekil-uçuş yükleme koruması: hold/defer sonrası hem doğrudan loadRunway() hem sunucunun
+// CASH_FLOW broadcast'i (WS finance_updated) tetiklenir — endpoint rate-limit'li olduğundan
+// (runway_limiter 30/dk) çift/ardışık tetiklemeler tek isteğe indirgenir (2026-07-07: hızlı
+// Beklet/Geri al tıklamaları 429 + "yüklenemedi" toast'ları üretiyordu).
+let inFlight: Promise<void> | null = null;
+let rerunQueued = false;
+let lastLoadedAt = 0;
+const WS_ECHO_MS = 1500; // sunucu broadcast debounce (500ms) + iletim gecikmesi payı
+
 // Beklet (hold) modu — Panel Nakit Akım kartındaki "Beklet" option butonu açıkken true.
 // CashFlowTAccount (bekleyen satır tıklaması) + HeldList (bekleme listesi geri-al) ORTAK okur;
 // pasifken (false) mevcut bekletmeler korunur ama düzenlenemez (salt gösterim).
@@ -78,13 +87,27 @@ export function setHoldMode(v: boolean): void {
 }
 
 export async function loadRunway(): Promise<void> {
-	try {
-		_data = await api.get<RunwayData>('/finance/cash-flow/runway');
-	} catch (err) {
-		console.error('Nakit projeksiyon verisi yüklenemedi:', err);
-		showToast('Nakit akım projeksiyonu yüklenemedi', 'error');
-	} finally {
-		_loading = false;
+	if (inFlight) {
+		// Uçuştaki yanıt bu çağrıdan önceki durumu taşıyabilir → uçuş bitince BİR kez daha yükle
+		rerunQueued = true;
+		return inFlight;
+	}
+	inFlight = (async () => {
+		try {
+			_data = await api.get<RunwayData>('/finance/cash-flow/runway');
+		} catch (err) {
+			console.error('Nakit projeksiyon verisi yüklenemedi:', err);
+			showToast('Nakit akım projeksiyonu yüklenemedi', 'error');
+		} finally {
+			_loading = false;
+			lastLoadedAt = Date.now();
+			inFlight = null;
+		}
+	})();
+	await inFlight;
+	if (rerunQueued) {
+		rerunQueued = false;
+		await loadRunway();
 	}
 }
 
@@ -94,7 +117,13 @@ export function subscribeRunway(): () => void {
 	if (!started) {
 		started = true;
 		loadRunway();
-		wsUnsub = onWsEvent(WS_EVENT.FINANCE_UPDATED, () => loadRunway());
+		wsUnsub = onWsEvent(WS_EVENT.FINANCE_UPDATED, () => {
+			// Son yüklemenin hemen ardından gelen event, bizim hold/defer mutasyonumuzun
+			// broadcast YANKISIDIR — doğrudan yükleme güncel veriyi zaten aldı, isteği atla.
+			// (Uçuş sürüyorsa loadRunway kendisi kuyruklayıp trailing yenileme yapar.)
+			if (!inFlight && Date.now() - lastLoadedAt < WS_ECHO_MS) return;
+			loadRunway();
+		});
 	}
 	return () => {
 		if (--refCount <= 0) {

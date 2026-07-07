@@ -35,7 +35,15 @@ os.environ["CORS_ORIGINS"] = "http://testserver"
 
 from app.database import Base, get_db
 from app.main import app
-from app.middleware.rate_limit import login_limiter, register_limiter, message_limiter, upload_limiter, search_limiter
+from app.middleware.rate_limit import (
+    login_limiter,
+    register_limiter,
+    message_limiter,
+    upload_limiter,
+    search_limiter,
+    heavy_limiter,
+    runway_limiter,
+)
 from app.routers.messages._helpers import _invalidate_messaging_role_cache
 from app.services.sales_invoice_service import _invalidate_compute_cache as _invalidate_sales_compute_cache
 from app.services.deferral_service import invalidate_deferral_cache
@@ -175,6 +183,8 @@ def _auto_rollback_and_reset():
     message_limiter._requests.clear()
     upload_limiter._requests.clear()
     search_limiter._requests.clear()
+    heavy_limiter._requests.clear()
+    runway_limiter._requests.clear()
     _invalidate_messaging_role_cache()
     invalidate_module_cache()
     _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın
@@ -198,6 +208,8 @@ def _auto_rollback_and_reset():
     message_limiter._requests.clear()
     upload_limiter._requests.clear()
     search_limiter._requests.clear()
+    heavy_limiter._requests.clear()
+    runway_limiter._requests.clear()
     _invalidate_messaging_role_cache()
     invalidate_module_cache()
     _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın

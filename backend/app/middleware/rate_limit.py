@@ -80,6 +80,10 @@ search_limiter = RateLimiter(max_requests=20, window_seconds=60)
 # Ağır hesaplama endpoint'leri (EUR bakiye, rapor vb.)
 heavy_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
+# Runway (nakit projeksiyon): WS finance_updated + kalem-bazlı Beklet/Geri al akışı
+# meşru kullanımda sık tetikler — 10/dk gerçek kullanıcıda 429 üretti (2026-07-07)
+runway_limiter = RateLimiter(max_requests=30, window_seconds=60)
+
 
 def get_client_ip(request: Request) -> str:
     """İstemci IP adresini al.

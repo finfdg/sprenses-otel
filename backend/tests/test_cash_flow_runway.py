@@ -2,17 +2,14 @@
 
 FinanceEvent kayıtları doğrudan insert edilir (t_account testi deseni); EUR
 çevrimi için ExchangeRate (unit=1, forex_selling) eklenir. start_eur için
-BankAccount + BankTransaction + kur insert edilir. heavy_limiter conftest'te
-sıfırlanmadığından dosya-içi autouse reset fixture'ı eklenir.
+BankAccount + BankTransaction + kur insert edilir. Rate limiter'lar (runway_limiter
+dahil) conftest'te her test başında sıfırlanır.
 """
 
 import calendar
 import itertools
 from datetime import date, timedelta
 
-import pytest
-
-from app.middleware.rate_limit import heavy_limiter
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.exchange_rate import ExchangeRate
@@ -23,13 +20,6 @@ URL = "/api/finance/cash-flow/runway"
 
 # source_id / IBAN çakışmasın diye modül-geneli sayaç
 _SEQ = itertools.count(977001)
-
-
-@pytest.fixture(autouse=True)
-def _reset_heavy_limiter():
-    """heavy_limiter conftest'te sıfırlanmıyor — dosya içi testler 429'a düşmesin."""
-    heavy_limiter._requests.clear()
-    yield
 
 
 def _this_month_bounds():
@@ -154,8 +144,6 @@ class TestRunwayStartEur:
         _mk_tx(db, acc, balance=1000, amount=1000)
         _mk_tx(db, acc, balance=5830, amount=4830)
         db.commit()
-        heavy_limiter._requests.clear()
-
         after = client.get(URL, headers=auth_headers).json()["start_eur"]
         assert round(after - before, 2) == 100.0
 
@@ -168,8 +156,6 @@ class TestRunwayStartEur:
         acc = _mk_account(db, currency="EUR")
         _mk_tx(db, acc, balance=250, amount=250)
         db.commit()
-        heavy_limiter._requests.clear()
-
         after = client.get(URL, headers=auth_headers).json()["start_eur"]
         assert round(after - before, 2) == 250.0
 
@@ -185,8 +171,6 @@ class TestRunwayEvents:
         out = _mk_fe(db, direction=-1, amount=975000, source_type="credit",
                      currency="TRY", description="Kredi Taksiti")
         db.commit()
-        heavy_limiter._requests.clear()
-
         body = client.get(URL, headers=auth_headers).json()
         inf = _find(body["inflows"], "Acente tahsilatı")
         assert inf is not None
@@ -209,8 +193,6 @@ class TestRunwayEvents:
         _mk_fe(db, event_date=d_late, direction=-1, description="RW GEÇ", amount=500)
         _mk_fe(db, event_date=today, direction=-1, description="RW ERKEN", amount=500)
         db.commit()
-        heavy_limiter._requests.clear()
-
         outs = client.get(URL, headers=auth_headers).json()["outs"]
         dates = [o["date"] for o in outs]
         assert dates == sorted(dates)
@@ -231,8 +213,6 @@ class TestRunwayEvents:
         nxt = end + timedelta(days=1)
         _mk_fe(db, event_date=nxt, direction=-1, amount=500, description="RW NEXTMONTH")
         db.commit()
-        heavy_limiter._requests.clear()
-
         body = client.get(URL, headers=auth_headers).json()
         names = [i["name"] for i in body["inflows"] + body["outs"]]
         assert "RW REALIZED" not in names
@@ -251,8 +231,6 @@ class TestRunwayEvents:
         _mk_fe(db, direction=1, amount=1000, source_type="bank",
                category_name=None, description="RW NULLCAT")
         db.commit()
-        heavy_limiter._requests.clear()
-
         body = client.get(URL, headers=auth_headers).json()
         names = [i["name"] for i in body["inflows"] + body["outs"]]
         assert not any(n.startswith("RW TRANSFER") for n in names)
@@ -275,8 +253,6 @@ class TestRunwayEvents:
         _mk_fe(db, event_date=d, direction=1, amount=53, currency="TRY",
                source_type="bank", description=None, bank_name="RW Banka Adı")
         db.commit()
-        heavy_limiter._requests.clear()
-
         body = client.get(URL, headers=auth_headers).json()
         assert _find(body["inflows"], "RW EUR KALEM")["amount_eur"] == 75.0
         assert _find(body["outs"], "RW TRY KALEM")["amount_eur"] == 100.0
@@ -289,8 +265,6 @@ class TestRunwayEvents:
         _mk_fe(db, direction=-1, amount=7000, currency="TRY",
                source_type="check", description="RW KURSUZ KALEM")
         db.commit()
-        heavy_limiter._requests.clear()
-
         body = client.get(URL, headers=auth_headers).json()
         assert body["skipped_no_rate"] >= 1
         names = [i["name"] for i in body["inflows"] + body["outs"]]

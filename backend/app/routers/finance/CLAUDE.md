@@ -51,6 +51,17 @@ listesinde) SARI kalır** ama **kolon toplamı / net / projeksiyona etki etmez**
 held}`. **ONAYSIZ** (operasyonel; `check_approval` YOK → executor handler gerekmez) + `require_permission(
 finance.cash_flow, use)` + audit (`cash_flow_hold`) + `broadcast_finance_update(CASH_FLOW)`. Boş/`>5000`→400.
 
+**Runway 429 düzeltmesi (2026-07-07):** Kalem-bazlı Beklet/Geri al akışı `/cash-flow/runway`'i tıklama
+başına 2 kez çağırır (doğrudan `loadRunway` + WS `finance_updated` yankısı) → eski `heavy_limiter` (10/dk)
+~5 tıklamada doluyor, kullanıcı "Nakit akım projeksiyonu yüklenemedi" toast yağmuru görüyordu (canlı,
+nginx loglarıyla doğrulandı). Çözüm iki katman: (1) runway artık **`runway_limiter`** (30/dk,
+`middleware/rate_limit.py`) kullanır — WS-tetiklemeli meşru trafiğe uygun; (2) `runway.svelte.ts`
+**tekil-uçuş + trailing yenileme**: uçuş sırasındaki `loadRunway` çağrıları yeni istek açmaz, uçuş bitince
+BİR kez daha yükler (mutasyon-sonrası tazelik garantili); son yüklemeden `WS_ECHO_MS` (1500ms) içinde gelen
+WS event'i kendi broadcast yankımız sayılıp atlanır (sunucu debounce 500ms + iletim payı). conftest artık
+`heavy_limiter` + `runway_limiter`'ı da her test başında sıfırlar (test dosyalarındaki yerel clear'lar gereksizleşti;
+`test_cash_flow_runway.py`'ninkiler kaldırıldı).
+
 **Frontend:**
 - `CashFlowTAccount.svelte`: başlıkta **Beklet** butonu (yalnız `hasPermission(finance.cash_flow, use)`).
   Mod AÇIKKEN **bekleyen** satır tıklanınca `holdBatch(row.members, !held)` toggle → normal↔sarı. Held
