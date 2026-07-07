@@ -56,6 +56,25 @@
 		return marked.parse(esc, { async: false }) as string;
 	}
 
+	// Mobil kart görünümü için: render edilen markdown tablolarının her hücresine
+	// başlık metnini `data-label` olarak ekle (CSS ::before ile mobilde etiket:değer gösterir).
+	function enhanceTables(node: HTMLElement) {
+		const apply = () => {
+			node.querySelectorAll('table').forEach((table) => {
+				const headers = Array.from(table.querySelectorAll('thead th')).map(
+					(th) => th.textContent?.trim() ?? ''
+				);
+				table.querySelectorAll('tbody tr').forEach((tr) => {
+					Array.from(tr.children).forEach((td, i) => {
+						if (headers[i]) td.setAttribute('data-label', headers[i]);
+					});
+				});
+			});
+		};
+		apply();
+		return { update: apply };
+	}
+
 	async function scrollToBottom() {
 		await tick();
 		if (scrollBox) scrollBox.scrollTop = scrollBox.scrollHeight;
@@ -182,13 +201,13 @@
 								<Bot class="w-4 h-4 text-white" />
 							{/if}
 						</span>
-						<div class="max-w-[80%]">
+						<div class="max-w-[92%] sm:max-w-[80%] min-w-0">
 							{#if m.role === 'user'}
 								<div class="rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap bg-teal-700 text-white">
 									{m.text}
 								</div>
 							{:else}
-								<div class="md rounded-2xl px-4 py-2.5 text-sm bg-gray-50 text-gray-800 border border-gray-200">
+								<div class="md rounded-2xl px-4 py-2.5 text-sm bg-gray-50 text-gray-800 border border-gray-200" use:enhanceTables>
 									{@html renderMd(m.text)}
 								</div>
 							{/if}
@@ -279,4 +298,38 @@
 	.md :global(a) { color: #0d9488; text-decoration: underline; }
 	.md :global(blockquote) { border-left: 3px solid #99f6e4; padding-left: 0.7rem; margin: 0.4rem 0; color: #475569; }
 	.md :global(hr) { border: none; border-top: 1px solid #e5e7eb; margin: 0.7rem 0; }
+
+	/* Mobil (<640px): tablo → etiket:değer kart görünümü (projenin tablo→kart standardı).
+	   thead gizlenir; her satır bir kart; her hücre solda başlık (data-label) sağda değer. */
+	@media (max-width: 639px) {
+		.md :global(table) { font-size: 0.8rem; }
+		.md :global(thead) { display: none; }
+		.md :global(tbody tr) {
+			display: block;
+			border: 1px solid #e5e7eb;
+			border-radius: 8px;
+			padding: 0.25rem 0.6rem;
+			margin: 0 0 0.5rem;
+			background: #fff;
+		}
+		.md :global(tbody td) {
+			display: flex;
+			justify-content: space-between;
+			gap: 0.75rem;
+			border: none;
+			padding: 0.25rem 0;
+			white-space: normal;
+			text-align: right;
+		}
+		.md :global(tbody td:not(:last-child)) { border-bottom: 1px solid #f1f5f9; }
+		.md :global(tbody td::before) {
+			content: attr(data-label);
+			font-weight: 600;
+			color: #6b7280;
+			text-align: left;
+			margin-right: 0.5rem;
+		}
+		/* Boş hücreler (ör. Toplam satırının boş kolonları) kartta yer kaplamasın */
+		.md :global(tbody td:empty) { display: none; }
+	}
 </style>

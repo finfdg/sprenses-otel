@@ -80,7 +80,7 @@
 		<div class="space-y-1.5">
 			{#each seri as p}
 				<div class="flex items-center gap-2 text-xs">
-					<span class="w-28 shrink-0 truncate text-gray-600" title={p.etiket}>{p.etiket}</span>
+					<span class="w-20 sm:w-28 shrink-0 truncate text-gray-600" title={p.etiket}>{p.etiket}</span>
 					<span class="flex-1 h-4 bg-gray-100 rounded overflow-hidden">
 						<span
 							class="block h-full rounded {p.deger < 0 ? 'bg-red-500' : 'bg-teal-600'}"

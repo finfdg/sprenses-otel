@@ -18,6 +18,11 @@
   kütüphane YOK — projedeki elle-SVG deseni). Grafik verisi yapısaldır (sayı+etiket) ve Svelte
   ile escape'li render edilir → XSS yok. Grafik tool'u mutasyon yapmaz; veri izin-kontrollü
   okuma araçlarından gelir. Bar etiketleri kompakt (7,6 Mn), tam değer `title`'da.
+- **Mobil tablo (kart görünümü):** `<640px`'te markdown tabloları **etiket:değer kart**
+  düzenine geçer (projenin tablo→kart standardı). `enhanceTables` action'ı render sonrası
+  her `<td>`'ye başlık metnini `data-label` olarak ekler; CSS `::before` ile mobilde
+  "Başlık: değer" satırları gösterilir (yatay kaydırma yok). Masaüstü normal tablo. Asistan
+  balonu mobilde daha geniş (`max-w-[92%]`), grafik etiketleri de responsive (`w-20 sm:w-28`).
 
 ## Faz 2 — Uygulanan (2026-07-07): Onay-akışlı yazma
 
