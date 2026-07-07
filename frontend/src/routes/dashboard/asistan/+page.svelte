@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { marked } from 'marked';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -40,6 +41,14 @@
 	let pendingAction = $state<PendingAction | null>(null);
 	let showConfirm = $state(false);
 	let executing = $state(false);
+
+	// Güvenli markdown: LLM çıktısı olduğu için ÖNCE tüm HTML'i escape et (script/HTML
+	// enjeksiyonu engellenir), SONRA marked ile sadece markdown sözdizimini render et.
+	// Böylece tablo/kalın/liste biçimlenir ama ham <script>/<img onerror> HTML'i geçemez.
+	function renderMd(text: string): string {
+		const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return marked.parse(esc, { async: false }) as string;
+	}
 
 	async function scrollToBottom() {
 		await tick();
@@ -167,9 +176,15 @@
 							{/if}
 						</span>
 						<div class="max-w-[80%]">
-							<div class="rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap {m.role === 'user' ? 'bg-teal-700 text-white' : 'bg-gray-50 text-gray-800 border border-gray-200'}">
-								{m.text}
-							</div>
+							{#if m.role === 'user'}
+								<div class="rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap bg-teal-700 text-white">
+									{m.text}
+								</div>
+							{:else}
+								<div class="md rounded-2xl px-4 py-2.5 text-sm bg-gray-50 text-gray-800 border border-gray-200">
+									{@html renderMd(m.text)}
+								</div>
+							{/if}
 							{#if m.tools && m.tools.length > 0}
 								<p class="text-[11px] text-gray-400 mt-1 px-1">
 									Kaynak: {m.tools.join(', ')}
@@ -229,3 +244,27 @@
 	onConfirm={onaylaIslem}
 	onCancel={iptalIslem}
 />
+
+<style>
+	/* {@html} ile basılan markdown Svelte scope'una girmez → :global gerekir.
+	   Chat balonu için kompakt; ilk/son öğe kenar boşluğu sıfırlanır. */
+	.md :global(> :first-child) { margin-top: 0; }
+	.md :global(> :last-child) { margin-bottom: 0; }
+	.md :global(p) { margin: 0.4rem 0; line-height: 1.6; }
+	.md :global(ul), .md :global(ol) { margin: 0.4rem 0 0.4rem 1.3rem; line-height: 1.6; }
+	.md :global(li) { margin: 0.15rem 0; }
+	.md :global(strong) { font-weight: 700; }
+	.md :global(h1), .md :global(h2), .md :global(h3), .md :global(h4) { font-weight: 700; margin: 0.6rem 0 0.35rem; line-height: 1.3; }
+	.md :global(h1) { font-size: 1.05rem; }
+	.md :global(h2) { font-size: 1rem; }
+	.md :global(h3), .md :global(h4) { font-size: 0.925rem; }
+	.md :global(code) { font-family: Consolas, monospace; font-size: 0.85em; background: #eef2f7; color: #b5176c; padding: 0.1em 0.35em; border-radius: 4px; }
+	.md :global(pre) { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 8px; padding: 0.6rem 0.8rem; overflow-x: auto; margin: 0.5rem 0; }
+	.md :global(pre code) { background: none; color: #334155; padding: 0; }
+	.md :global(table) { border-collapse: collapse; width: 100%; margin: 0.5rem 0; font-size: 0.8rem; display: block; overflow-x: auto; }
+	.md :global(th), .md :global(td) { border: 1px solid #d1d5db; padding: 0.35rem 0.55rem; text-align: left; vertical-align: top; white-space: nowrap; }
+	.md :global(th) { background: #f0fdfa; font-weight: 600; }
+	.md :global(a) { color: #0d9488; text-decoration: underline; }
+	.md :global(blockquote) { border-left: 3px solid #99f6e4; padding-left: 0.7rem; margin: 0.4rem 0; color: #475569; }
+	.md :global(hr) { border: none; border-top: 1px solid #e5e7eb; margin: 0.7rem 0; }
+</style>
