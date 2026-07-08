@@ -28,10 +28,13 @@ modülüne katkı kurallarını içerir.
   Aylara yayılan rezervasyon dokunduğu her dönemde adet +1 (dönem başına COUNT DISTINCT). Acente
   gruplama `compute_settlement` ile ORTAK `_agency_group_maps()`
   (grup dışı → "Diğer"). Projeksiyon DEĞİL — anlık durum. Frontend "Rezervasyon & Ciro" sekmesinde.
-  **Kök = top-N rollup:** `top_n` (varsayılan 7) en büyük grup TEK TEK, kalan gruplar+grup dışı tek
-  "Diğer" (en altta); grand toplam etkilenmez. **Drill (satıra tıkla):** `group_id` (grup→üyeleri
-  bireysel; `0`=Diğer→top-N dışı acenteler) veya `agency` (tek ham acente, "Diğer"e düşmez). Motor tek
-  geçişte grup+ham-acente düzeyinde toplar (top-N + Diğer drill için). Payload `filter`/`top_n`/`filter_options`.
+  **Kök = top-N rollup (2026-07-08 güncelleme):** sıralama TOPLAM REZERVASYON ADEDİne göre (tutar
+  DEĞİL). Birim = grup VEYA gruplanmamış tek acente → grupsuz büyük acente artık "Diğer"e gömülmez,
+  kendi hakkıyla top-N'e girer (satır `id=None` → tek-acente drill'i). `top_n` (varsayılan 7) en çok
+  rezervasyonlu birim TEK TEK, kalanların tümü tek "Diğer" (en altta); grand toplam etkilenmez.
+  **Drill (satıra tıkla):** `group_id` (grup→üyeleri bireysel; `0`=Diğer→top-N dışı acenteler; top-N'e
+  girmiş gruplanmamış acente Diğer'de GÖRÜNMEZ) veya `agency` (tek ham acente, "Diğer"e düşmez). Motor
+  tek geçişte grup+ham-acente düzeyinde toplar (top-N + Diğer drill için). Payload `filter`/`top_n`/`filter_options`.
 
 ## Yapı
 

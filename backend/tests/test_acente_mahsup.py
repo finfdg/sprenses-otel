@@ -168,12 +168,16 @@ class TestAgencyStatus:
         self._seed(db)
         out = compute_agency_status(db, "month", 2026, today=self.TODAY)
         by_name = {a["name"]: a for a in out["agencies"]}
+        # EXPEDIA grubu: üyelerinin tüm durumları tek satırda toplanır
         assert by_name["EXPEDIA"]["gelen"]["amount"] == 500
         assert by_name["EXPEDIA"]["iceride"]["amount"] == 800
         assert by_name["EXPEDIA"]["cikis"]["amount"] == 500   # r3 tüm geceleri (May 400 + Haz 100)
         assert by_name["EXPEDIA"]["total_amount"] == 1800
         assert by_name["EXPEDIA"]["total_count"] == 4         # r3 May+Haz'da ayrı sayılır
-        assert by_name["Diğer"]["cikis"]["amount"] == 300
+        # RANDOMX gruplanmamış ama adetçe top-N içinde → müstakil satır (Diğer'e gömülmez)
+        assert by_name["RANDOMX"]["id"] is None
+        assert by_name["RANDOMX"]["cikis"]["amount"] == 300
+        assert "Diğer" not in by_name   # geriye toplanacak (top-N dışı) birim kalmadı
 
     def test_daily_granularity(self, db):
         self._seed(db)
@@ -217,14 +221,16 @@ class TestAgencyStatus:
 
     def test_other_group_filter_shows_ungrouped(self, db):
         self._seed(db)  # RANDOMX grup dışı, EXPEDIA gruplu
-        out = compute_agency_status(db, "month", 2026, group_id=0, today=self.TODAY)
+        # top_n=1 → yalnız EXPEDIA (adetçe en büyük) müstakil; RANDOMX "Diğer"e düşer.
+        out = compute_agency_status(db, "month", 2026, group_id=0, top_n=1, today=self.TODAY)
         assert out["filter"]["label"] == "Diğer"
         assert [a["name"] for a in out["agencies"]] == ["RANDOMX"]  # yalnız grup dışı, bireysel
         assert out["totals"]["cikis"]["amount"] == 300
         assert out["grand_count"] == 1
 
     def test_top_n_rollup_and_diger_drill(self, db):
-        # 8 grup (her biri tek üye, azalan ciro) + 1 grup dışı acente
+        # 8 grup (her biri tek üye, hepsi 1 rez → adet eşit) + 1 grup dışı acente.
+        # Sıralama ADETe göre; adet eşit olduğundan tutar tiebreak'i devreye girer (AG0>…>AG7).
         for i in range(8):
             db.add(AgencyGroup(name=f"GRP{i}", members=[f"AG{i}"]))
         db.flush()
@@ -255,6 +261,38 @@ class TestAgencyStatus:
         # "Diğer"e drill → GRP7 üyesi (AG7) + LONEWOLF bireysel
         drill = compute_agency_status(db, "month", 2026, group_id=0, top_n=7, today=self.TODAY)
         assert {a["name"] for a in drill["agencies"]} == {"AG7", "LONEWOLF"}
+
+    def test_count_ranking_promotes_ungrouped_agency(self, db):
+        # Sıralama TUTARA değil ADETe göre → grupsuz BÜYÜK acente (çok rez, düşük tutar)
+        # top-N'e girer; küçük grup (az rez, yüksek tutar) "Diğer"e düşer.
+        db.add(AgencyGroup(name="SMALLGRP", members=["SMALLA"]))
+        db.flush()
+        rows = [
+            # BIGSOLO — gruplanmamış, 3 rez, düşük tutar (10€ × 3)
+            dict(rec_id=930100 + i, agency="BIGSOLO", status="CheckOut",
+                 checkin_date=date(2026, 6, 1), checkout_date=date(2026, 6, 2), eur_total=10)
+            for i in range(3)
+        ]
+        # SMALLGRP üyesi SMALLA — 1 rez, yüksek tutar
+        rows.append(dict(rec_id=930200, agency="SMALLA", status="CheckOut",
+                         checkin_date=date(2026, 6, 1), checkout_date=date(2026, 6, 2), eur_total=9999))
+        for r in rows:
+            n = (r["checkout_date"] - r["checkin_date"]).days
+            db.add(Reservation(record_date=date(2026, 1, 1), nights=n, rooms=1, **r))
+        db.flush()
+
+        out = compute_agency_status(db, "month", 2026, top_n=1, today=self.TODAY)
+        names = [a["name"] for a in out["agencies"]]
+        assert names[0] == "BIGSOLO"          # adet 3 > SMALLGRP adet 1 (tutarı düşük olsa da)
+        big = out["agencies"][0]
+        assert big["id"] is None              # gruplanmamış → bireysel satır (drill: tek acente)
+        assert big["total_count"] == 3
+        assert names[-1] == "Diğer"
+        diger = next(a for a in out["agencies"] if a["name"] == "Diğer")
+        assert diger["total_count"] == 1 and diger["cikis"]["amount"] == 9999  # SMALLGRP Diğer'de
+        # BIGSOLO kökte müstakil → "Diğer" drill'inde GÖRÜNMEZ
+        drill = compute_agency_status(db, "month", 2026, group_id=0, top_n=1, today=self.TODAY)
+        assert {a["name"] for a in drill["agencies"]} == {"SMALLA"}
 
     def test_filter_options_universe(self, db):
         self._seed(db)

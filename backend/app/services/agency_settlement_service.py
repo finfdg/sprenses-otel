@@ -433,8 +433,10 @@ def compute_agency_status(
     - group_id: bir `agency_groups` grubu → yalnız o grubun ÜYE acenteleri; tablo üyeleri
       TEK TEK (bireysel) gösterir. group_id=0 ("Diğer") → top_n dışındaki tüm acenteler.
     - agency: tek bir ham acente adı (grup dışı da olabilir) → yalnız o acente.
-    - ikisi de yoksa (KÖK): en yüksek `top_n` grup TEK TEK + geri kalan gruplar + grup dışı
-      acenteler tek "Diğer" satırında (en altta) toplanır.
+    - ikisi de yoksa (KÖK): TOPLAM REZERVASYON ADEDİ en yüksek `top_n` BİRİM (birim = grup VEYA
+      gruplanmamış tek acente) TEK TEK gösterilir; kalanların tümü tek "Diğer" satırında (en altta)
+      toplanır. Sıralama tutara göre DEĞİL adede göredir; grupsuz büyük acente artık "Diğer"e
+      gömülmez, kendi hakkıyla top-N'e girebilir (2026-07-08 kullanıcı kararı).
     group_id ile agency birlikte verilirse group_id önceliklidir. `filter_options` payload'ı
     seçilebilir grup + bireysel acente listesini (dönemden bağımsız, tam evren) taşır.
     """
@@ -539,21 +541,41 @@ def compute_agency_status(
         rname.setdefault(an, raw or _OTHER_NAME)
         rgid[an] = gid
 
-    # ── En yüksek N grup (top_n) → geri kalan gruplar + grup dışı = tek "Diğer" ──
-    def _g_total(gid):
-        d = gcell.get(gid)
-        return sum(sum(d[k]) for k in skeys) if d else 0.0
-    ranked_gids = sorted((gid for gid in gcell if gid != _OTHER_ID and _g_total(gid) > 0),
-                         key=lambda g: -_g_total(g))
-    top_gids = set(ranked_gids[:top_n]) if top_n and top_n > 0 else set(ranked_gids)
+    # ── En çok REZERVASYONLU ilk N birim TEK TEK → kalanlar tek "Diğer" ──
+    # Birim = bir grup VEYA gruplanmamış tek acente (grupsuz büyük acente artık "Diğer"e
+    # gömülmez, kendi hakkıyla top-N'e girer — kullanıcı kararı 2026-07-08). Sıralama TOPLAM
+    # REZERVASYON ADEDİne göre (tutar değil); eşitlikte tutar, sonra ad ile deterministik.
+    def _sum_cells(store, key):
+        d = store.get(key)
+        return sum(sum(d[k]) for k in skeys) if d else 0
+    units = []  # (kind, id, count, amount, name) — kind: "g" grup, "a" gruplanmamış acente
+    for gid in gcell:
+        if gid == _OTHER_ID:
+            continue
+        c = _sum_cells(gcnt, gid)
+        if c > 0:
+            units.append(("g", gid, c, _sum_cells(gcell, gid), gmeta[gid]["name"]))
+    for an in rcell:
+        if rgid.get(an, _OTHER_ID) != _OTHER_ID:  # yalnız gruplanmamış ham acenteler
+            continue
+        c = _sum_cells(rcnt, an)
+        if c > 0:
+            units.append(("a", an, c, _sum_cells(rcell, an), rname.get(an, _OTHER_NAME)))
+    units.sort(key=lambda u: (-u[2], -u[3], u[4]))  # adet ↓, tutar ↓, ad ↑
+    top_units = units[:top_n] if top_n and top_n > 0 else units
+    top_gids = {u[1] for u in top_units if u[0] == "g"}
+    top_agencies = {u[1] for u in top_units if u[0] == "a"}  # NORM ham ad
 
     # ── Filtre modu → seçili ham-acente kümesi (kök: grup bazlı, top-N rollup) ──
     active_filter = {"group_id": None, "agency": None, "label": None}
     is_root = False
     sel_raw = None
     if group_id is not None and group_id == _OTHER_ID:
-        # "Diğer" → top_gids DIŞINDAKİ acenteler (küçük gruplar + grup dışı), bireysel
-        sel_raw = {an for an in rcell if rgid.get(an, _OTHER_ID) not in top_gids}
+        # "Diğer" → top DIŞINDAKİ acenteler (küçük grupların üyeleri + top-N dışı gruplanmamışlar),
+        # bireysel. Top-N'e giren gruplanmamış acente ("a" birimi) burada GÖRÜNMEZ (kökte müstakil).
+        sel_raw = {an for an in rcell
+                   if rgid.get(an, _OTHER_ID) not in top_gids
+                   and not (rgid.get(an, _OTHER_ID) == _OTHER_ID and an in top_agencies)}
         active_filter = {"group_id": _OTHER_ID, "agency": None, "label": _OTHER_NAME}
     elif group_id is not None and group_id in gmeta:
         sel_raw = {an for an in rcell if rgid.get(an) == group_id}
@@ -599,21 +621,33 @@ def compute_agency_status(
 
     agencies = []
     if is_root:
-        # top_n grup satırı (tutara göre) + tek "Diğer" (kalan gruplar + grup dışı) EN ALTTA
-        for gid in ranked_gids:
-            if gid not in top_gids:
-                continue
-            amt = {k: sum(gcell[gid][k]) for k in skeys}
-            cnt = {k: sum(gcnt[gid][k]) for k in skeys}
-            agencies.append(_mkrow(gid, gmeta[gid]["name"], gmeta[gid]["color"], amt, cnt))
+        # top-N birim TEK TEK (adet sırasında) — grup satırı (id=gid, üyeye drill) veya
+        # gruplanmamış acente satırı (id=None, tek acenteye drill); sonra tek "Diğer" EN ALTTA.
+        for j, (kind, uid, _c, _a, _name) in enumerate(top_units):
+            if kind == "g":
+                amt = {k: sum(gcell[uid][k]) for k in skeys}
+                cnt = {k: sum(gcnt[uid][k]) for k in skeys}
+                agencies.append(_mkrow(uid, gmeta[uid]["name"], gmeta[uid]["color"], amt, cnt))
+            else:  # gruplanmamış acente → müstakil satır (drill: tek acente)
+                amt = {k: sum(rcell[uid][k]) for k in skeys}
+                cnt = {k: sum(rcnt[uid][k]) for k in skeys}
+                agencies.append(_mkrow(None, rname.get(uid, _OTHER_NAME),
+                                       _PALETTE[j % len(_PALETTE)], amt, cnt))
+        # "Diğer" = top DIŞI gruplar (üyeleriyle) + top DIŞI gruplanmamış acenteler
         diger_amt = {k: 0.0 for k in skeys}
         diger_cnt = {k: 0 for k in skeys}
         for gid in gcell:
-            if gid in top_gids:
-                continue
+            if gid == _OTHER_ID or gid in top_gids:
+                continue  # gerçek gruplar; _OTHER_ID (gruplanmamış toplamı) aşağıda tek tek işlenir
             for k in skeys:
                 diger_amt[k] += sum(gcell[gid][k])
                 diger_cnt[k] += sum(gcnt[gid][k])
+        for an in rcell:
+            if rgid.get(an, _OTHER_ID) != _OTHER_ID or an in top_agencies:
+                continue  # yalnız top-N'e girmeyen gruplanmamış acenteler
+            for k in skeys:
+                diger_amt[k] += sum(rcell[an][k])
+                diger_cnt[k] += sum(rcnt[an][k])
         if sum(diger_cnt.values()) > 0 or sum(diger_amt.values()) > 0:
             agencies.append(_mkrow(_OTHER_ID, _OTHER_NAME, gmeta[_OTHER_ID]["color"],
                                    diger_amt, diger_cnt))
