@@ -72,7 +72,7 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/api/sales/acente-mahsup/` | `sales.acente_mahsup` view | Projeksiyon payload'ı. Query: `year`, `year_target` (EUR, boş=gerçek), `opening_cash` (EUR). 60sn TTL cache. |
-| GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir; **`0`=Diğer** = grup dışı acenteler), **`agency`** (tek ham acente filtresi). 60sn TTL cache. `compute_agency_status()`. |
+| GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir; **`0`=Diğer** = top-N dışı acenteler), **`agency`** (tek ham acente filtresi), **`top_n`** (kök tabloda tek tek gösterilecek en büyük grup sayısı, varsayılan **7**; kalanı "Diğer"). 60sn TTL cache. `compute_agency_status()`. |
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 `PATCH /api/sales/agency-groups/{id}` (izin: `sales.hotel_reservation` use) —
@@ -94,13 +94,15 @@ Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 - **Not — "içeride" snapshot'tır:** durum PMS'in o anki kaydı olduğundan geçmiş dönemlerde konuklar
   çıkış yapmıştır → "İçeride" pratikte yalnız güncel dönemde dolu görünür; geçmiş yıllar tamamen "Çıkış".
 - **Filtre — tabloya tıklayarak drill-down (2026-07-08):** dropdown YERİNE tablo satırına tıklama.
-  Kök seviyede tablo tüm acenteleri **grup bazında** gösterir (grup dışı → "Diğer"). Bir **grup**
-  satırına tıklama → o grubun **üye acentelerini bireysel** açar (`group_id`); **"Diğer"** satırı →
-  grup dışı acenteler bireysel (`group_id=0` = `_OTHER_ID`); bir **üye/acente** satırına tıklama →
-  tek acente (`agency`, "Diğer"e düşmez, kendi adıyla). Üstteki **breadcrumb** (Tüm acenteler › Grup ›
-  Acente) ile geri dönülür. Filtre parametreleri: `group_id` (0=Diğer) **veya** `agency`. Payload
-  `filter` aktif seçimi, `filter_options` (grup+acente tam evreni) taşır — dropdown kaldırıldı ama
-  `filter_options` payload'da bırakıldı (ileride kullanılabilir).
+  **Kök seviye — top-N rollup (`top_n`, varsayılan 7):** en yüksek 7 grup acente TEK TEK gösterilir;
+  kalan gruplar + grup dışı acenteler tek **"Diğer"** satırında toplanır (**en altta**, tutara göre
+  sıralanmaz). Bir **grup** satırına tıklama → o grubun **üye acentelerini bireysel** açar (`group_id`);
+  **"Diğer"** satırı → **top-7 dışındaki** tüm acenteler bireysel (`group_id=0` = `_OTHER_ID`;
+  küçük grupların üyeleri + grup dışı); bir **üye/acente** satırına tıklama → tek acente (`agency`,
+  "Diğer"e düşmez, kendi adıyla). Üstteki **breadcrumb** (Tüm acenteler › Grup › Acente) ile geri
+  dönülür. **Grand toplam top-N'den etkilenmez** (tümü dahil). Motor tek geçişte grup + ham-acente
+  düzeyinde toplar (top-N sırası ve "Diğer" drill için gerekli). Payload `filter` aktif seçimi,
+  `top_n`, `filter_options` (grup+acente tam evreni) taşır.
 
 ## 6. Frontend UI Yapısı
 

@@ -66,6 +66,7 @@ def agency_status(
     month: Optional[int] = Query(None, ge=1, le=12),
     group_id: Optional[int] = Query(None, ge=0),  # 0 = "Diğer" (grup dışı acenteler)
     agency: Optional[str] = Query(None, max_length=100),
+    top_n: int = Query(7, ge=1, le=50),  # kök tabloda tek tek gösterilecek en büyük grup sayısı
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
@@ -84,5 +85,5 @@ def agency_status(
     y = year or date.today().year
     m = month or date.today().month
     key = ("agency_status", granularity, y, m if granularity == "day" else None,
-           group_id, agency)
-    return _cached(key, lambda: compute_agency_status(db, granularity, y, m, group_id, agency))
+           group_id, agency, top_n)
+    return _cached(key, lambda: compute_agency_status(db, granularity, y, m, group_id, agency, top_n))

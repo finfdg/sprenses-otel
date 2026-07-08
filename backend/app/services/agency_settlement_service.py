@@ -410,6 +410,7 @@ def compute_agency_status(
     month: Optional[int] = None,
     group_id: Optional[int] = None,
     agency: Optional[str] = None,
+    top_n: int = 7,
     today: Optional[date] = None,
 ) -> dict:
     """Acente × Durum (gelen/içeride/çıkış) × dönem kırılımı — EUR tutar + rezervasyon adedi.
@@ -424,9 +425,10 @@ def compute_agency_status(
 
     Filtre (acenteler grup olabilir → hem grup hem bireysel seçenek):
     - group_id: bir `agency_groups` grubu → yalnız o grubun ÜYE acenteleri; tablo üyeleri
-      TEK TEK (bireysel) gösterir.
+      TEK TEK (bireysel) gösterir. group_id=0 ("Diğer") → top_n dışındaki tüm acenteler.
     - agency: tek bir ham acente adı (grup dışı da olabilir) → yalnız o acente.
-    - ikisi de yoksa: tüm acenteler, tablo GRUP bazında (grup dışı → "Diğer").
+    - ikisi de yoksa (KÖK): en yüksek `top_n` grup TEK TEK + geri kalan gruplar + grup dışı
+      acenteler tek "Diğer" satırında (en altta) toplanır.
     group_id ile agency birlikte verilirse group_id önceliklidir. `filter_options` payload'ı
     seçilebilir grup + bireysel acente listesini (dönemden bağımsız, tam evren) taşır.
     """
@@ -436,26 +438,6 @@ def compute_agency_status(
         granularity = "month"
 
     gmeta, member_to_gid = _agency_group_maps(db)
-
-    # ── Filtre belirle: include_norms / only_ungrouped + satır modu ──
-    # row_mode="group" → satırlar grup bazında (varsayılan); "agency" → ham acente bazında.
-    include_norms = None          # None = tüm acenteler (NORM ham ad whitelist'i)
-    only_ungrouped = False        # True = yalnız gruba dahil OLMAYAN acenteler ("Diğer" drill)
-    row_mode = "group"
-    active_filter = {"group_id": None, "agency": None, "label": None}
-    if group_id is not None and group_id == _OTHER_ID:
-        # "Diğer" grubuna tıklandı → grup dışı acenteler, bireysel
-        only_ungrouped = True
-        row_mode = "agency"
-        active_filter = {"group_id": _OTHER_ID, "agency": None, "label": _OTHER_NAME}
-    elif group_id is not None and group_id in gmeta:
-        include_norms = {n for n, gid in member_to_gid.items() if gid == group_id}
-        row_mode = "agency"
-        active_filter = {"group_id": group_id, "agency": None, "label": gmeta[group_id]["name"]}
-    elif agency:
-        include_norms = {_norm(agency)}
-        row_mode = "agency"
-        active_filter = {"group_id": None, "agency": agency, "label": agency}
 
     # ── Dönem kovaları + period-anahtar çıkarımı (SQL extract parçası) ──
     y0 = y1 = None
@@ -476,21 +458,27 @@ def compute_agency_status(
         buckets = list(range(1, 13))
         labels = {m: _MONTHS_SHORT[m - 1] for m in buckets}
         part = "month"
-    bucket_set = set(buckets)
+    bidx = {b: i for i, b in enumerate(buckets)}
+    nb = len(buckets)
+    skeys = [s["key"] for s in _STATUS_DEFS]
 
-    # per-status × period toplamları (filtrelenmiş) + satır (acente/grup) accumulator
-    period_amt = {s["key"]: {b: 0.0 for b in buckets} for s in _STATUS_DEFS}
-    period_cnt = {s["key"]: {b: 0 for b in buckets} for s in _STATUS_DEFS}
-    ag: dict = {}   # rowkey → {name, color, <status_key>: {amount, count}}
+    # ── Tüm rezervasyonları FİLTRESİZ topla: grup + ham-acente düzeyi, period dizileri ──
+    # (filtre/top-N sonra bellek üstünde uygulanır → tek geçiş, top-N hesabı için gerekli)
+    gcell: dict = {}   # gid → skey → [tutar]*nb ; rcell → NORM ham ad düzeyi
+    gcnt: dict = {}
+    rcell: dict = {}
+    rcnt: dict = {}
+    rname: dict = {}   # NORM → görünen ham ad
+    rgid: dict = {}    # NORM → gid
 
-    def _row(rowkey, name, color):
-        r = ag.get(rowkey)
-        if r is None:
-            r = {"name": name, "color": color}
-            for s in _STATUS_DEFS:
-                r[s["key"]] = {"amount": 0.0, "count": 0}
-            ag[rowkey] = r
-        return r
+    def _bump(amt_store, cnt_store, key, skey, i, amt, c):
+        a = amt_store.get(key)
+        if a is None:
+            a = {k: [0.0] * nb for k in skeys}
+            amt_store[key] = a
+            cnt_store[key] = {k: [0] * nb for k in skeys}
+        a[skey][i] += amt
+        cnt_store[key][skey][i] += c
 
     for sdef in _STATUS_DEFS:
         col = getattr(Reservation, sdef["date_col"])
@@ -512,66 +500,115 @@ def compute_agency_status(
         for raw, p, eur, cnt in q.group_by(Reservation.agency, "p").all():
             if p is None:
                 continue
-            pk = int(p)
-            if pk not in bucket_set:
+            i = bidx.get(int(p))
+            if i is None:
                 continue
             an = _norm(raw)
             gid = member_to_gid.get(an, _OTHER_ID)
-            if only_ungrouped:
-                if an in member_to_gid:
-                    continue  # gruba dahil → "Diğer" filtresinde gösterme
-            elif include_norms is not None and an not in include_norms:
-                continue      # filtre dışı acente
             amt = float(eur or 0)
             c = int(cnt or 0)
-            period_amt[sdef["key"]][pk] += amt
-            period_cnt[sdef["key"]][pk] += c
-            if row_mode == "group":
-                r = _row(gid, gmeta[gid]["name"], gmeta[gid]["color"])
-            else:  # bireysel/grup-filtre → ham acente satırı
-                r = _row(an or "?", raw or "—", None)
-            r[sdef["key"]]["amount"] += amt
-            r[sdef["key"]]["count"] += c
+            _bump(gcell, gcnt, gid, sdef["key"], i, amt, c)
+            _bump(rcell, rcnt, an, sdef["key"], i, amt, c)
+            rname.setdefault(an, raw or _OTHER_NAME)
+            rgid[an] = gid
 
-    # ── periods dizisi (grafik) ──
+    # ── En yüksek N grup (top_n) → geri kalan gruplar + grup dışı = tek "Diğer" ──
+    def _g_total(gid):
+        d = gcell.get(gid)
+        return sum(sum(d[k]) for k in skeys) if d else 0.0
+    ranked_gids = sorted((gid for gid in gcell if gid != _OTHER_ID and _g_total(gid) > 0),
+                         key=lambda g: -_g_total(g))
+    top_gids = set(ranked_gids[:top_n]) if top_n and top_n > 0 else set(ranked_gids)
+
+    # ── Filtre modu → seçili ham-acente kümesi (kök: grup bazlı, top-N rollup) ──
+    active_filter = {"group_id": None, "agency": None, "label": None}
+    is_root = False
+    sel_raw = None
+    if group_id is not None and group_id == _OTHER_ID:
+        # "Diğer" → top_gids DIŞINDAKİ acenteler (küçük gruplar + grup dışı), bireysel
+        sel_raw = {an for an in rcell if rgid.get(an, _OTHER_ID) not in top_gids}
+        active_filter = {"group_id": _OTHER_ID, "agency": None, "label": _OTHER_NAME}
+    elif group_id is not None and group_id in gmeta:
+        sel_raw = {an for an in rcell if rgid.get(an) == group_id}
+        active_filter = {"group_id": group_id, "agency": None, "label": gmeta[group_id]["name"]}
+    elif agency:
+        an0 = _norm(agency)
+        sel_raw = {an0} if an0 in rcell else set()
+        active_filter = {"group_id": None, "agency": agency, "label": agency}
+    else:
+        is_root = True
+
+    # ── periods dizisi (grafik) — kök: tüm gruplar; filtreli: seçili alt küme ──
+    def _p_amt(k, i):
+        if is_root:
+            return sum(gcell[g][k][i] for g in gcell)
+        return sum(rcell[an][k][i] for an in sel_raw if an in rcell)
+
+    def _p_cnt(k, i):
+        if is_root:
+            return sum(gcnt[g][k][i] for g in gcnt)
+        return sum(rcnt[an][k][i] for an in sel_raw if an in rcnt)
+
     periods = []
-    for b in buckets:
+    for i, b in enumerate(buckets):
         entry = {"key": b, "label": labels[b], "statuses": {},
                  "total_amount": 0.0, "total_count": 0}
-        for s in _STATUS_DEFS:
-            a = round(period_amt[s["key"]][b], 2)
-            c = period_cnt[s["key"]][b]
-            entry["statuses"][s["key"]] = {"amount": a, "count": c}
+        for k in skeys:
+            a = round(_p_amt(k, i), 2)
+            c = _p_cnt(k, i)
+            entry["statuses"][k] = {"amount": a, "count": c}
             entry["total_amount"] += a
             entry["total_count"] += c
         entry["total_amount"] = round(entry["total_amount"], 2)
         periods.append(entry)
 
-    # ── agencies dizisi (tablo) — aktivitesi olan satırlar, toplam tutara göre ──
+    # ── agencies dizisi (tablo) ──
+    def _mkrow(rid, name, color, amt, cnt):
+        row = {"id": rid, "name": name, "color": color,
+               "total_amount": round(sum(amt.values()), 2), "total_count": sum(cnt.values())}
+        for k in skeys:
+            row[k] = {"amount": round(amt[k], 2), "count": cnt[k]}
+        return row
+
     agencies = []
-    for rk, r in ag.items():
-        row_amt = round(sum(r[s["key"]]["amount"] for s in _STATUS_DEFS), 2)
-        row_cnt = sum(r[s["key"]]["count"] for s in _STATUS_DEFS)
-        if row_cnt == 0 and row_amt == 0:
-            continue
-        row = {"id": rk if isinstance(rk, int) else None, "name": r["name"],
-               "color": r["color"], "total_amount": row_amt, "total_count": row_cnt}
-        for s in _STATUS_DEFS:
-            row[s["key"]] = {"amount": round(r[s["key"]]["amount"], 2),
-                             "count": r[s["key"]]["count"]}
-        agencies.append(row)
-    agencies.sort(key=lambda a: -a["total_amount"])
-    # bireysel/grup-filtre modunda ham acentelerin rengi yok → sıralı palet ata
-    if row_mode == "agency":
-        for i, a in enumerate(agencies):
+    if is_root:
+        # top_n grup satırı (tutara göre) + tek "Diğer" (kalan gruplar + grup dışı) EN ALTTA
+        for gid in ranked_gids:
+            if gid not in top_gids:
+                continue
+            amt = {k: sum(gcell[gid][k]) for k in skeys}
+            cnt = {k: sum(gcnt[gid][k]) for k in skeys}
+            agencies.append(_mkrow(gid, gmeta[gid]["name"], gmeta[gid]["color"], amt, cnt))
+        diger_amt = {k: 0.0 for k in skeys}
+        diger_cnt = {k: 0 for k in skeys}
+        for gid in gcell:
+            if gid in top_gids:
+                continue
+            for k in skeys:
+                diger_amt[k] += sum(gcell[gid][k])
+                diger_cnt[k] += sum(gcnt[gid][k])
+        if sum(diger_cnt.values()) > 0 or sum(diger_amt.values()) > 0:
+            agencies.append(_mkrow(_OTHER_ID, _OTHER_NAME, gmeta[_OTHER_ID]["color"],
+                                   diger_amt, diger_cnt))
+    else:
+        rows = []
+        for an in sel_raw:
+            if an not in rcell:
+                continue
+            amt = {k: sum(rcell[an][k]) for k in skeys}
+            cnt = {k: sum(rcnt[an][k]) for k in skeys}
+            if sum(cnt.values()) == 0 and sum(amt.values()) == 0:
+                continue
+            rows.append(_mkrow(None, rname.get(an, _OTHER_NAME), None, amt, cnt))
+        rows.sort(key=lambda a: -a["total_amount"])
+        for i, a in enumerate(rows):
             a["color"] = _PALETTE[i % len(_PALETTE)]
+        agencies = rows
 
     totals = {
-        s["key"]: {
-            "amount": round(sum(period_amt[s["key"]][b] for b in buckets), 2),
-            "count": sum(period_cnt[s["key"]][b] for b in buckets),
-        }
-        for s in _STATUS_DEFS
+        k: {"amount": round(sum(_p_amt(k, i) for i in range(nb)), 2),
+            "count": sum(_p_cnt(k, i) for i in range(nb))}
+        for k in skeys
     }
     grand_amount = round(sum(t["amount"] for t in totals.values()), 2)
     grand_count = sum(t["count"] for t in totals.values())
@@ -602,6 +639,7 @@ def compute_agency_status(
         "totals": totals,
         "grand_amount": grand_amount,
         "grand_count": grand_count,
+        "top_n": top_n,
         "filter": active_filter,
         "filter_options": {"groups": filter_groups, "agencies": all_agencies},
     }

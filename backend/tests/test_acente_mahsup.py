@@ -216,6 +216,38 @@ class TestAgencyStatus:
         assert out["totals"]["cikis"]["amount"] == 200
         assert out["grand_count"] == 1
 
+    def test_top_n_rollup_and_diger_drill(self, db):
+        # 8 grup (her biri tek üye, azalan ciro) + 1 grup dışı acente
+        for i in range(8):
+            db.add(AgencyGroup(name=f"GRP{i}", members=[f"AG{i}"]))
+        db.flush()
+        rows = [
+            dict(rec_id=920000 + i, agency=f"AG{i}", status="CheckOut",
+                 checkin_date=date(2026, 6, 1), checkout_date=date(2026, 6, 10),
+                 eur_total=1000 - i * 10)                       # AG0=1000 … AG7=930
+            for i in range(8)
+        ]
+        rows.append(dict(rec_id=920099, agency="LONEWOLF", status="CheckOut",
+                         checkin_date=date(2026, 6, 1), checkout_date=date(2026, 6, 10),
+                         eur_total=5))                          # grup dışı
+        for r in rows:
+            db.add(Reservation(record_date=date(2026, 1, 1), nights=1, rooms=1, **r))
+        db.flush()
+
+        out = compute_agency_status(db, "month", 2026, top_n=7, today=self.TODAY)
+        names = [a["name"] for a in out["agencies"]]
+        assert len(names) == 8 and names[-1] == "Diğer"        # 7 grup + Diğer, en altta
+        assert "GRP0" in names and "GRP7" not in names          # en düşük grup Diğer'e düştü
+        diger = next(a for a in out["agencies"] if a["name"] == "Diğer")
+        assert diger["cikis"]["amount"] == 935                  # GRP7 (930) + LONEWOLF (5)
+        assert diger["id"] == 0
+        # grand toplam top-N'den etkilenmez (tümü dahil)
+        assert out["totals"]["cikis"]["amount"] == sum(1000 - i * 10 for i in range(8)) + 5
+
+        # "Diğer"e drill → GRP7 üyesi (AG7) + LONEWOLF bireysel
+        drill = compute_agency_status(db, "month", 2026, group_id=0, top_n=7, today=self.TODAY)
+        assert {a["name"] for a in drill["agencies"]} == {"AG7", "LONEWOLF"}
+
     def test_filter_options_universe(self, db):
         self._seed(db)
         out = compute_agency_status(db, "month", 2026, today=self.TODAY)

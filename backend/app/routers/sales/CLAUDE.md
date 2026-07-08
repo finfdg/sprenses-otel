@@ -23,8 +23,10 @@ modülüne katkı kurallarını içerir.
   içeride → giriş tarihi; `CheckOut`=çıkış → çıkış tarihi) göre acente × dönem (day/month/year)
   EUR tutar + adet dağılımı. Acente gruplama `compute_settlement` ile ORTAK `_agency_group_maps()`
   (grup dışı → "Diğer"). Projeksiyon DEĞİL — anlık durum. Frontend "Rezervasyon & Ciro" sekmesinde.
-  **Filtre:** `group_id` (grup → üyeleri bireysel) veya `agency` (tek ham acente, "Diğer"e düşmez);
-  filtresiz grup bazında. Payload `filter_options` (dönemden bağımsız grup+acente evreni) dropdown'ı besler.
+  **Kök = top-N rollup:** `top_n` (varsayılan 7) en büyük grup TEK TEK, kalan gruplar+grup dışı tek
+  "Diğer" (en altta); grand toplam etkilenmez. **Drill (satıra tıkla):** `group_id` (grup→üyeleri
+  bireysel; `0`=Diğer→top-N dışı acenteler) veya `agency` (tek ham acente, "Diğer"e düşmez). Motor tek
+  geçişte grup+ham-acente düzeyinde toplar (top-N + Diğer drill için). Payload `filter`/`top_n`/`filter_options`.
 
 ## Yapı
 
