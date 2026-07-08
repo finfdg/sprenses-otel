@@ -190,6 +190,31 @@ class TestAgencyStatus:
         assert by_y[2026]["statuses"]["gelen"]["amount"] == 500
         assert by_y[2026]["statuses"]["cikis"]["amount"] == 500
 
+    def test_group_filter_shows_members(self, db):
+        self._seed(db)
+        gid = db.query(AgencyGroup).filter_by(name="EXPEDIA").first().id
+        out = compute_agency_status(db, "month", 2026, group_id=gid, today=self.TODAY)
+        # yalnız EXPEDIA üyeleri → RANDOMX (Diğer) hariç
+        assert out["grand_count"] == 3
+        assert out["totals"]["cikis"]["amount"] == 300   # RANDOMX'in 200'ü dahil değil
+        assert {a["name"] for a in out["agencies"]} == {"EXPEDIA"}  # ham üye adı, "Diğer" değil
+        assert out["filter"]["group_id"] == gid and out["filter"]["label"] == "EXPEDIA"
+
+    def test_agency_filter_uses_raw_name(self, db):
+        self._seed(db)
+        out = compute_agency_status(db, "month", 2026, agency="RANDOMX", today=self.TODAY)
+        assert out["grand_count"] == 1
+        assert [a["name"] for a in out["agencies"]] == ["RANDOMX"]  # "Diğer" DEĞİL
+        assert out["totals"]["cikis"]["amount"] == 200
+        assert out["filter"]["agency"] == "RANDOMX"
+
+    def test_filter_options_universe(self, db):
+        self._seed(db)
+        out = compute_agency_status(db, "month", 2026, today=self.TODAY)
+        gnames = {g["name"]: g for g in out["filter_options"]["groups"]}
+        assert "EXPEDIA" in gnames and gnames["EXPEDIA"]["count"] == 1
+        assert set(out["filter_options"]["agencies"]) >= {"EXPEDIA", "RANDOMX"}
+
     def test_endpoint_rbac_and_shape(self, client, auth_headers, no_perm_user_headers):
         client.cookies.clear()  # fixture login'lerinin bıraktığı cookie'yi temizle (gerçek kimliksiz)
         assert client.get(f"{API}/agency-status").status_code == 401
@@ -197,10 +222,18 @@ class TestAgencyStatus:
         r = client.get(f"{API}/agency-status?granularity=month&year=2026", headers=auth_headers)
         assert r.status_code == 200, r.text
         body = r.json()
-        for k in ("statuses", "periods", "agencies", "totals", "grand_amount", "grand_count"):
+        for k in ("statuses", "periods", "agencies", "totals", "grand_amount",
+                  "grand_count", "filter", "filter_options"):
             assert k in body, f"eksik blok: {k}"
         assert len(body["periods"]) == 12
         assert len(body["statuses"]) == 3
+        assert "groups" in body["filter_options"] and "agencies" in body["filter_options"]
+
+    def test_endpoint_agency_filter(self, client, auth_headers):
+        r = client.get(f"{API}/agency-status?granularity=month&year=2026&agency=RANDOMX",
+                       headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["filter"]["agency"] == "RANDOMX"
 
     def test_endpoint_invalid_granularity(self, client, auth_headers):
         assert client.get(f"{API}/agency-status?granularity=hafta",

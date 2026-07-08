@@ -408,6 +408,8 @@ def compute_agency_status(
     granularity: str = "month",
     year: Optional[int] = None,
     month: Optional[int] = None,
+    group_id: Optional[int] = None,
+    agency: Optional[str] = None,
     today: Optional[date] = None,
 ) -> dict:
     """Acente × Durum (gelen/içeride/çıkış) × dönem kırılımı — EUR tutar + rezervasyon adedi.
@@ -419,6 +421,14 @@ def compute_agency_status(
     - granularity="year": (bu yıl−2)…(bu yıl+1) → 4 yıl kovası, period = yıl.
     - granularity="month": `year` yılının 12 ayı, period = ay (1-12).
     - granularity="day": `year`/`month` ayının günleri, period = gün (1-31).
+
+    Filtre (acenteler grup olabilir → hem grup hem bireysel seçenek):
+    - group_id: bir `agency_groups` grubu → yalnız o grubun ÜYE acenteleri; tablo üyeleri
+      TEK TEK (bireysel) gösterir.
+    - agency: tek bir ham acente adı (grup dışı da olabilir) → yalnız o acente.
+    - ikisi de yoksa: tüm acenteler, tablo GRUP bazında (grup dışı → "Diğer").
+    group_id ile agency birlikte verilirse group_id önceliklidir. `filter_options` payload'ı
+    seçilebilir grup + bireysel acente listesini (dönemden bağımsız, tam evren) taşır.
     """
     today = today or date.today()
     year = int(year) if year else today.year
@@ -426,6 +436,20 @@ def compute_agency_status(
         granularity = "month"
 
     gmeta, member_to_gid = _agency_group_maps(db)
+
+    # ── Filtre belirle: include_norms (NORM ham ad kümesi) + satır modu ──
+    # row_mode="group" → satırlar grup bazında (varsayılan); "agency" → ham acente bazında.
+    include_norms = None          # None = tüm acenteler
+    row_mode = "group"
+    active_filter = {"group_id": None, "agency": None, "label": None}
+    if group_id is not None and group_id in gmeta and group_id != _OTHER_ID:
+        include_norms = {n for n, gid in member_to_gid.items() if gid == group_id}
+        row_mode = "agency"
+        active_filter = {"group_id": group_id, "agency": None, "label": gmeta[group_id]["name"]}
+    elif agency:
+        include_norms = {_norm(agency)}
+        row_mode = "agency"
+        active_filter = {"group_id": None, "agency": agency, "label": agency}
 
     # ── Dönem kovaları + period-anahtar çıkarımı (SQL extract parçası) ──
     y0 = y1 = None
@@ -448,11 +472,19 @@ def compute_agency_status(
         part = "month"
     bucket_set = set(buckets)
 
-    # per-status × period ve per-agency × status → tutar (EUR) + adet
+    # per-status × period toplamları (filtrelenmiş) + satır (acente/grup) accumulator
     period_amt = {s["key"]: {b: 0.0 for b in buckets} for s in _STATUS_DEFS}
     period_cnt = {s["key"]: {b: 0 for b in buckets} for s in _STATUS_DEFS}
-    ag: dict = {gid: {s["key"]: {"amount": 0.0, "count": 0} for s in _STATUS_DEFS}
-                for gid in gmeta}
+    ag: dict = {}   # rowkey → {name, color, <status_key>: {amount, count}}
+
+    def _row(rowkey, name, color):
+        r = ag.get(rowkey)
+        if r is None:
+            r = {"name": name, "color": color}
+            for s in _STATUS_DEFS:
+                r[s["key"]] = {"amount": 0.0, "count": 0}
+            ag[rowkey] = r
+        return r
 
     for sdef in _STATUS_DEFS:
         col = getattr(Reservation, sdef["date_col"])
@@ -471,19 +503,26 @@ def compute_agency_status(
             q = q.filter(extract("year", col) == year, extract("month", col) == month)
         else:
             q = q.filter(extract("year", col) == year)
-        for agency, p, eur, cnt in q.group_by(Reservation.agency, "p").all():
+        for raw, p, eur, cnt in q.group_by(Reservation.agency, "p").all():
             if p is None:
                 continue
             pk = int(p)
             if pk not in bucket_set:
                 continue
-            gid = member_to_gid.get(_norm(agency), _OTHER_ID)
+            an = _norm(raw)
+            if include_norms is not None and an not in include_norms:
+                continue      # filtre dışı acente
             amt = float(eur or 0)
             c = int(cnt or 0)
             period_amt[sdef["key"]][pk] += amt
             period_cnt[sdef["key"]][pk] += c
-            ag[gid][sdef["key"]]["amount"] += amt
-            ag[gid][sdef["key"]]["count"] += c
+            gid = member_to_gid.get(an, _OTHER_ID)
+            if row_mode == "group":
+                r = _row(gid, gmeta[gid]["name"], gmeta[gid]["color"])
+            else:  # bireysel/grup-filtre → ham acente satırı
+                r = _row(an or "?", raw or "—", None)
+            r[sdef["key"]]["amount"] += amt
+            r[sdef["key"]]["count"] += c
 
     # ── periods dizisi (grafik) ──
     periods = []
@@ -499,20 +538,24 @@ def compute_agency_status(
         entry["total_amount"] = round(entry["total_amount"], 2)
         periods.append(entry)
 
-    # ── agencies dizisi (tablo) — aktivitesi olan gruplar, toplam tutara göre ──
+    # ── agencies dizisi (tablo) — aktivitesi olan satırlar, toplam tutara göre ──
     agencies = []
-    for gid, meta in gmeta.items():
-        row_amt = round(sum(ag[gid][s["key"]]["amount"] for s in _STATUS_DEFS), 2)
-        row_cnt = sum(ag[gid][s["key"]]["count"] for s in _STATUS_DEFS)
+    for rk, r in ag.items():
+        row_amt = round(sum(r[s["key"]]["amount"] for s in _STATUS_DEFS), 2)
+        row_cnt = sum(r[s["key"]]["count"] for s in _STATUS_DEFS)
         if row_cnt == 0 and row_amt == 0:
             continue
-        row = {"id": gid, "name": meta["name"], "color": meta["color"],
-               "total_amount": row_amt, "total_count": row_cnt}
+        row = {"id": rk if isinstance(rk, int) else None, "name": r["name"],
+               "color": r["color"], "total_amount": row_amt, "total_count": row_cnt}
         for s in _STATUS_DEFS:
-            row[s["key"]] = {"amount": round(ag[gid][s["key"]]["amount"], 2),
-                             "count": ag[gid][s["key"]]["count"]}
+            row[s["key"]] = {"amount": round(r[s["key"]]["amount"], 2),
+                             "count": r[s["key"]]["count"]}
         agencies.append(row)
     agencies.sort(key=lambda a: -a["total_amount"])
+    # bireysel/grup-filtre modunda ham acentelerin rengi yok → sıralı palet ata
+    if row_mode == "agency":
+        for i, a in enumerate(agencies):
+            a["color"] = _PALETTE[i % len(_PALETTE)]
 
     totals = {
         s["key"]: {
@@ -523,6 +566,19 @@ def compute_agency_status(
     }
     grand_amount = round(sum(t["amount"] for t in totals.values()), 2)
     grand_count = sum(t["count"] for t in totals.values())
+
+    # ── Filtre seçenekleri (dönemden BAĞIMSIZ tam evren → seçim her zaman değiştirilebilir) ──
+    member_counts: dict = {}
+    for gid in member_to_gid.values():
+        member_counts[gid] = member_counts.get(gid, 0) + 1
+    filter_groups = sorted(
+        ({"id": gid, "name": gmeta[gid]["name"], "count": member_counts.get(gid, 0)}
+         for gid in gmeta if gid != _OTHER_ID),
+        key=lambda g: g["name"],
+    )
+    all_agencies = sorted(
+        {row[0] for row in db.query(Reservation.agency).distinct().all() if row[0]}
+    )
 
     return {
         "granularity": granularity,
@@ -537,4 +593,6 @@ def compute_agency_status(
         "totals": totals,
         "grand_amount": grand_amount,
         "grand_count": grand_count,
+        "filter": active_filter,
+        "filter_options": {"groups": filter_groups, "agencies": all_agencies},
     }

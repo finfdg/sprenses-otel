@@ -64,6 +64,8 @@ def agency_status(
     granularity: str = Query("month", pattern="^(day|month|year)$"),
     year: Optional[int] = Query(None, ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
+    group_id: Optional[int] = Query(None, ge=1),
+    agency: Optional[str] = Query(None, max_length=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
@@ -72,11 +74,15 @@ def agency_status(
     - granularity: day | month | year (varsayılan month)
     - year: month/day için dönem yılı (varsayılan içinde bulunulan yıl); year modunda yok sayılır
     - month: yalnız day modunda gerekli (varsayılan içinde bulunulan ay)
+    - group_id: acente grubu filtresi (grup üyelerine daralt; tabloyu bireysel gösterir)
+    - agency: tek ham acente adı filtresi (grup dışı da olabilir)
 
+    Filtre yoksa tüm acenteler grup bazında; group_id/agency verilirse daraltılır.
     Rezervasyonlar duruma göre doğal tarihine yazılır (gelen/içeride → giriş,
     çıkış → çıkış). Salt-okuma, 60sn TTL cache.
     """
     y = year or date.today().year
     m = month or date.today().month
-    key = ("agency_status", granularity, y, m if granularity == "day" else None)
-    return _cached(key, lambda: compute_agency_status(db, granularity, y, m))
+    key = ("agency_status", granularity, y, m if granularity == "day" else None,
+           group_id, agency)
+    return _cached(key, lambda: compute_agency_status(db, granularity, y, m, group_id, agency))

@@ -72,7 +72,7 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/api/sales/acente-mahsup/` | `sales.acente_mahsup` view | Projeksiyon payload'ı. Query: `year`, `year_target` (EUR, boş=gerçek), `opening_cash` (EUR). 60sn TTL cache. |
-| GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`). 60sn TTL cache. `compute_agency_status()`. |
+| GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir), **`agency`** (tek ham acente filtresi). 60sn TTL cache. `compute_agency_status()`. |
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 `PATCH /api/sales/agency-groups/{id}` (izin: `sales.hotel_reservation` use) —
@@ -93,6 +93,12 @@ Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
   eşleşmesi, grup dışı → **"Diğer"**, aynı renk paleti. Tek kaynak → iki görünüm tutarlı.
 - **Not — "içeride" snapshot'tır:** durum PMS'in o anki kaydı olduğundan geçmiş dönemlerde konuklar
   çıkış yapmıştır → "İçeride" pratikte yalnız güncel dönemde dolu görünür; geçmiş yıllar tamamen "Çıkış".
+- **Filtre — acenteler grup olabilir (2026-07-08):** başlıkta `<select>` filtresi iki tür seçtirir —
+  **Grup** (`group_id`; `agency_groups` grubuna daralır, tabloyu üye acentelerle **bireysel** doldurur)
+  veya **bireysel acente** (`agency`; tek ham acente adı, grup dışı da olabilir — "Diğer"e düşmez, kendi
+  adıyla görünür). Filtre yoksa tüm acenteler grup bazında. Payload `filter_options` (dönemden bağımsız
+  tam evren: `groups` [{id,name,count}] + `agencies` [ham adlar]) dropdown'ı besler; `filter` aktif seçimi
+  yansıtır. Filtresiz tablo grup bazında (grup dışı → "Diğer"), filtreli tablo ham-acente bazında.
 
 ## 6. Frontend UI Yapısı
 

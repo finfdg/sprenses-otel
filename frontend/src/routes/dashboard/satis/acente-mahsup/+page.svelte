@@ -63,6 +63,7 @@
 	// Acente × Durum kırılımı (Rezervasyon & Ciro sekmesi)
 	let stGran = $state('month');
 	let stMonth = $state(new Date().getMonth() + 1);
+	let stFilter = $state(''); // '' = tümü · 'g:<id>' = grup · 'a:<ad>' = bireysel acente
 	let statusData = $state<any>(null);
 	let statusLoading = $state(false);
 
@@ -93,6 +94,8 @@
 		try {
 			let q = `granularity=${stGran}&year=${year}`;
 			if (stGran === 'day') q += `&month=${stMonth}`;
+			if (stFilter.startsWith('g:')) q += `&group_id=${stFilter.slice(2)}`;
+			else if (stFilter.startsWith('a:')) q += `&agency=${encodeURIComponent(stFilter.slice(2))}`;
 			statusData = await api.get<any>(`/sales/acente-mahsup/agency-status?${q}`);
 		} catch (e) {
 			console.error('Acente durum kırılımı yüklenemedi:', e);
@@ -122,7 +125,7 @@
 	// Rezervasyon & Ciro sekmesi açıkken acente × durum kırılımını yükle
 	// (granülerlik / ay / yıl değişince yeniden çeker)
 	$effect(() => {
-		const _tab = activeTab, _g = stGran, _m = stMonth, _y = year;
+		const _tab = activeTab, _g = stGran, _m = stMonth, _y = year, _f = stFilter;
 		if (_tab !== 'ciro') return;
 		loadStatus();
 	});
@@ -444,6 +447,29 @@
 						<p class="mt-0.5 text-xs text-gray-500">Gelen, içeride ve çıkış yapan rezervasyonlar — acente bazında tutar (EUR) + adet</p>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
+						{#if statusData?.filter_options}
+							<select
+								bind:value={stFilter}
+								class="max-w-[220px] rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-teal-500"
+								aria-label="Acente / grup filtresi"
+							>
+								<option value="">Tüm acenteler</option>
+								{#if statusData.filter_options.groups.length}
+									<optgroup label="Gruplar">
+										{#each statusData.filter_options.groups as g}
+											<option value={'g:' + g.id}>{g.name} ({g.count})</option>
+										{/each}
+									</optgroup>
+								{/if}
+								{#if statusData.filter_options.agencies.length}
+									<optgroup label="Acenteler">
+										{#each statusData.filter_options.agencies as a}
+											<option value={'a:' + a}>{a}</option>
+										{/each}
+									</optgroup>
+								{/if}
+							</select>
+						{/if}
 						{#if stGran === 'day'}
 							<select
 								bind:value={stMonth}
