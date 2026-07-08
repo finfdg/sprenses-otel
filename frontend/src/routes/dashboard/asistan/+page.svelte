@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, onMount } from 'svelte';
 	import { marked } from 'marked';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
@@ -7,7 +7,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import AiChart from '$lib/components/AiChart.svelte';
-	import { Sparkles, Send, Bot, User as UserIcon, FileSpreadsheet, FileText } from 'lucide-svelte';
+	import { Sparkles, Send, Bot, User as UserIcon, FileSpreadsheet, FileText, Plus, Trash2, MessageSquare, X } from 'lucide-svelte';
 
 	interface ChartPoint { etiket: string; deger: number; }
 	interface Chart { tip: string; baslik?: string; para_birimi?: string; seri: ChartPoint[]; }
@@ -47,6 +47,55 @@
 	let pendingAction = $state<PendingAction | null>(null);
 	let showConfirm = $state(false);
 	let executing = $state(false);
+
+	// Konuşma kalıcılığı
+	interface Conversation { id: number; title: string; updated_at?: string }
+	let conversations = $state<Conversation[]>([]);
+	let konusmaId = $state<number | null>(null);
+	let historyOpen = $state(false); // mobil geçmiş paneli
+
+	async function loadConversations() {
+		try {
+			conversations = await api.get<Conversation[]>('/ai/konusmalar');
+		} catch (e) {
+			console.error('Sohbetler yüklenemedi:', e);
+		}
+	}
+
+	async function loadConversation(id: number) {
+		try {
+			const d = await api.get<{ id: number; mesajlar: { rol: string; metin: string }[] }>(
+				'/ai/konusmalar/' + id
+			);
+			messages = d.mesajlar.map((m) => ({ role: m.rol as 'user' | 'assistant', text: m.metin }));
+			konusmaId = d.id;
+			historyOpen = false;
+			await scrollToBottom();
+		} catch (e) {
+			console.error('Sohbet açılamadı:', e);
+			showToast('Sohbet açılamadı', 'error');
+		}
+	}
+
+	function newChat() {
+		messages = [];
+		konusmaId = null;
+		historyOpen = false;
+	}
+
+	async function deleteConversation(id: number, e: Event) {
+		e.stopPropagation();
+		try {
+			await api.delete('/ai/konusmalar/' + id);
+			conversations = conversations.filter((c) => c.id !== id);
+			if (konusmaId === id) newChat();
+		} catch (err) {
+			console.error('Sohbet silinemedi:', err);
+			showToast('Sohbet silinemedi', 'error');
+		}
+	}
+
+	onMount(loadConversations);
 
 	// Güvenli markdown: LLM çıktısı olduğu için ÖNCE tüm HTML'i escape et (script/HTML
 	// enjeksiyonu engellenir), SONRA marked ile sadece markdown sözdizimini render et.
@@ -157,10 +206,11 @@
 		let gotDelta = false;
 
 		try {
+			const wasNew = !konusmaId;
 			const res = await api.fetchRaw('/ai/sor-stream', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ soru: metin, gecmis })
+				body: JSON.stringify({ soru: metin, gecmis, konusma_id: konusmaId })
 			});
 			if (!res.ok || !res.body) throw new Error('Asistan yanıt veremedi');
 
@@ -190,6 +240,8 @@
 					} else if (ev.t === 'meta') {
 						messages[idx].tools = ev.kullanilan_araclar ?? [];
 						messages[idx].charts = ev.grafikler ?? [];
+						if (ev.konusma_id) konusmaId = ev.konusma_id;
+						if (wasNew) loadConversations(); // yeni sohbet listeye gelsin
 						if (ev.bekleyen_islem) {
 							pendingAction = ev.bekleyen_islem;
 							showConfirm = true;
@@ -259,9 +311,59 @@
 	<PageHeader
 		title="Yapay Zeka Asistanı"
 		description="Finans verilerinizi doğal dilde sorgulayın. Asistan yalnız görme yetkiniz olan verilere erişir."
-	/>
+	>
+		{#snippet actions()}
+			<button
+				class="md:hidden inline-flex items-center gap-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50"
+				onclick={() => (historyOpen = !historyOpen)}
+			>
+				<MessageSquare class="w-4 h-4" /> Geçmiş
+			</button>
+			<Button size="sm" onclick={newChat}>
+				<Plus class="w-4 h-4" /> Yeni Sohbet
+			</Button>
+		{/snippet}
+	</PageHeader>
 
-	<div class="bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col h-[calc(100vh-16rem)] min-h-[420px]">
+	<div class="flex gap-4 h-[calc(100vh-16rem)] min-h-[420px] relative">
+		<!-- Sol: sohbet geçmişi -->
+		<aside
+			class="{historyOpen ? 'flex' : 'hidden'} md:flex flex-col w-full md:w-60 shrink-0 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden absolute inset-0 md:static md:inset-auto z-20"
+		>
+			<div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-100">
+				<span class="text-sm font-semibold text-gray-700">Sohbetler</span>
+				<button class="md:hidden text-gray-400 hover:text-gray-600" onclick={() => (historyOpen = false)} aria-label="Kapat">
+					<X class="w-4 h-4" />
+				</button>
+			</div>
+			<div class="flex-1 overflow-y-auto p-2 space-y-0.5">
+				{#if conversations.length === 0}
+					<p class="text-xs text-gray-400 p-2">Henüz kayıtlı sohbet yok.</p>
+				{:else}
+					{#each conversations as c}
+						<div class="group flex items-center rounded-lg {konusmaId === c.id ? 'bg-teal-50' : 'hover:bg-gray-50'}">
+							<button
+								onclick={() => loadConversation(c.id)}
+								class="flex-1 min-w-0 flex items-center gap-2 text-left px-2.5 py-2 text-sm {konusmaId === c.id ? 'text-teal-800' : 'text-gray-700'}"
+							>
+								<MessageSquare class="w-3.5 h-3.5 shrink-0 text-gray-400" />
+								<span class="truncate">{c.title}</span>
+							</button>
+							<button
+								onclick={(e) => deleteConversation(c.id, e)}
+								class="shrink-0 px-2 py-2 text-gray-400 hover:text-red-600 md:opacity-0 md:group-hover:opacity-100"
+								aria-label="Sohbeti sil"
+							>
+								<Trash2 class="w-3.5 h-3.5" />
+							</button>
+						</div>
+					{/each}
+				{/if}
+			</div>
+		</aside>
+
+		<!-- Sağ: sohbet -->
+		<div class="flex-1 min-w-0 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col">
 		<!-- Mesaj alanı -->
 		<div bind:this={scrollBox} class="flex-1 overflow-y-auto p-4 space-y-4">
 			{#if messages.length === 0}
@@ -376,6 +478,7 @@
 			<p class="text-[11px] text-gray-400 mt-2 px-1">
 				Asistan yapay zeka ile çalışır; kritik kararlar öncesi verileri modülünden doğrulayın.
 			</p>
+		</div>
 		</div>
 	</div>
 </div>

@@ -22,6 +22,7 @@ from app.config import settings
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import ai_daily_limiter, ai_limiter, get_client_ip
+from app.models.ai_conversation import AiConversation, AiMessage
 from app.models.user import User
 from app.services import ai_service
 from app.utils import ai_export
@@ -35,6 +36,27 @@ def _slug(text: str) -> str:
     s = (text or "").translate(_TR_MAP)
     s = re.sub(r"[^a-zA-Z0-9._-]+", "-", s).strip("-").lower()
     return s[:60] or "asistan-raporu"
+
+
+def _resolve_conversation(db: Session, user_id: int, konusma_id, soru: str) -> AiConversation:
+    """Verilen konuşmayı (kullanıcıya ait) getir; yoksa yeni oluştur (başlık = soru özeti)."""
+    if konusma_id:
+        conv = (
+            db.query(AiConversation)
+            .filter(AiConversation.id == konusma_id, AiConversation.user_id == user_id)
+            .first()
+        )
+        if conv:
+            return conv
+    title = (soru or "Yeni sohbet").strip()[:60]
+    conv = AiConversation(user_id=user_id, title=title)
+    db.add(conv)
+    db.flush()
+    return conv
+
+
+def _save_message(db: Session, conversation_id: int, role: str, content: str) -> None:
+    db.add(AiMessage(conversation_id=conversation_id, role=role, content=content or ""))
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +72,7 @@ class AiHistoryTurn(BaseModel):
 class AiAskRequest(BaseModel):
     soru: str = Field(..., min_length=2, max_length=2000)
     gecmis: Optional[List[AiHistoryTurn]] = Field(None, max_length=40)
+    konusma_id: Optional[int] = None
 
 
 class AiAskResponse(BaseModel):
@@ -57,6 +80,7 @@ class AiAskResponse(BaseModel):
     kullanilan_araclar: list
     bekleyen_islem: Optional[Dict[str, Any]] = None
     grafikler: Optional[list] = None
+    konusma_id: Optional[int] = None
 
 
 class AiExecuteRequest(BaseModel):
@@ -96,6 +120,9 @@ def sor(
     ai_limiter.check(f"ai:{current_user.id}")
     ai_daily_limiter.check(f"aid:{current_user.id}")
 
+    conv = _resolve_conversation(db, current_user.id, data.konusma_id, data.soru)
+    _save_message(db, conv.id, "user", data.soru)
+
     gecmis = [t.model_dump() for t in data.gecmis] if data.gecmis else None
     try:
         result = ai_service.answer_question(db, current_user, data.soru, gecmis)
@@ -109,6 +136,10 @@ def sor(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Asistan şu an yanıt veremiyor, lütfen tekrar deneyin.",
         )
+
+    # Asistan yanıtını konuşmaya kaydet
+    _save_message(db, conv.id, "assistant", result.get("cevap", ""))
+    result["konusma_id"] = conv.id
 
     # Token/maliyet kaydı
     try:
@@ -182,6 +213,7 @@ def sor_stream(
     uid = current_user.id
     soru = data.soru
     gecmis = [t.model_dump() for t in data.gecmis] if data.gecmis else None
+    konusma_id = data.konusma_id
     ip = get_client_ip(request)
 
     def gen():
@@ -191,12 +223,21 @@ def sor_stream(
         db = SessionLocal()
         try:
             user = db.get(User, uid)
+            conv = _resolve_conversation(db, uid, konusma_id, soru)
+            _save_message(db, conv.id, "user", soru)
+            db.flush()
             usage_ev = None
+            answer_buf: List[str] = []
             for ev in ai_service.answer_question_stream(db, user, soru, gecmis):
                 if ev.get("t") == "usage":  # iç kayıt olayı — istemciye gönderme
                     usage_ev = ev
                     continue
+                if ev.get("t") == "delta":
+                    answer_buf.append(ev.get("v", ""))
+                elif ev.get("t") == "meta":
+                    ev["konusma_id"] = conv.id
                 yield "data: " + json.dumps(ev, ensure_ascii=False, default=str) + "\n\n"
+            _save_message(db, conv.id, "assistant", "".join(answer_buf))
             if usage_ev:
                 ai_service.record_usage(db, uid, usage_ev, usage_ev.get("tool_count", 0))
             log_action(db, uid, "ai_query", "ai_assistant", None, details=soru[:500], ip_address=ip)
@@ -255,3 +296,62 @@ def disa_aktar(
         media_type=media,
         headers={"Content-Disposition": f'attachment; filename="{ad}.{ext}"'},
     )
+
+
+# ── Konuşma kalıcılığı ────────────────────────────────────────────────────────
+@router.get("/konusmalar")
+def konusmalar(
+    current_user: User = Depends(require_permission("ai.asistan", "view")),
+    db: Session = Depends(get_db),
+):
+    """Kullanıcının geçmiş sohbetleri (en güncel önce)."""
+    rows = (
+        db.query(AiConversation)
+        .filter(AiConversation.user_id == current_user.id)
+        .order_by(AiConversation.updated_at.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {"id": c.id, "title": c.title, "updated_at": str(c.updated_at) if c.updated_at else None}
+        for c in rows
+    ]
+
+
+@router.get("/konusmalar/{konusma_id}")
+def konusma_detay(
+    konusma_id: int,
+    current_user: User = Depends(require_permission("ai.asistan", "view")),
+    db: Session = Depends(get_db),
+):
+    """Bir sohbetin mesajları (yalnız sahibi)."""
+    conv = (
+        db.query(AiConversation)
+        .filter(AiConversation.id == konusma_id, AiConversation.user_id == current_user.id)
+        .first()
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
+    return {
+        "id": conv.id,
+        "title": conv.title,
+        "mesajlar": [{"rol": m.role, "metin": m.content or ""} for m in conv.messages],
+    }
+
+
+@router.delete("/konusmalar/{konusma_id}", status_code=status.HTTP_204_NO_CONTENT)
+def konusma_sil(
+    konusma_id: int,
+    current_user: User = Depends(require_permission("ai.asistan", "view")),
+    db: Session = Depends(get_db),
+):
+    """Bir sohbeti sil (mesajları CASCADE)."""
+    conv = (
+        db.query(AiConversation)
+        .filter(AiConversation.id == konusma_id, AiConversation.user_id == current_user.id)
+        .first()
+    )
+    if not conv:
+        raise HTTPException(status_code=404, detail="Konuşma bulunamadı.")
+    db.delete(conv)
+    db.commit()

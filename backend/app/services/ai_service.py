@@ -29,6 +29,7 @@ from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.check import Check
 from app.models.credit_product import CreditProduct
+from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import (
     DIRECTION_EXPENSE,
     DIRECTION_INCOME,
@@ -322,6 +323,32 @@ def _tool_cari_detay(
         "telefon": v.phone,
         "eposta": v.email,
     }
+
+
+def _tool_doviz_kuru(
+    db: Session, user: User, args: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Güncel TCMB döviz kurları (EUR/USD/GBP alış-satış, TL karşılığı)."""
+    if not user_can(db, user, "finance.doviz", "view"):
+        return _denied("finance.doviz")
+    out = []
+    for code in ("EUR", "USD", "GBP"):
+        r = (
+            db.query(ExchangeRate)
+            .filter(ExchangeRate.currency_code == code)
+            .order_by(ExchangeRate.date.desc())
+            .first()
+        )
+        if r:
+            out.append({
+                "para_birimi": code,
+                "tarih": r.date.isoformat(),
+                "alis": _num(r.forex_buying),
+                "satis": _num(r.forex_selling),
+            })
+    if not out:
+        return {"_error": True, "mesaj": "Döviz kuru verisi bulunamadı."}
+    return {"kurlar": out, "not": "TCMB döviz alış/satış (1 birimin TL karşılığı), en güncel tarih."}
 
 
 def _tool_banka_bakiyeleri(
@@ -682,6 +709,7 @@ _TOOL_IMPL = {
     "bekleyen_cekler": _tool_bekleyen_cekler,
     "cari_borc_ozeti": _tool_cari_borc_ozeti,
     "cari_detay": _tool_cari_detay,
+    "doviz_kuru": _tool_doviz_kuru,
     "banka_bakiyeleri": _tool_banka_bakiyeleri,
     "kredi_durumu": _tool_kredi_durumu,
     "yaklasan_odemeler": _tool_yaklasan_odemeler,
@@ -762,6 +790,14 @@ _TOOL_DEFS: List[Dict[str, Any]] = [
             },
             "required": ["hesap_kodu"],
         },
+    },
+    {
+        "name": "doviz_kuru",
+        "description": (
+            "Güncel TCMB döviz kurlarını (EUR/USD/GBP alış-satış, TL karşılığı) döndürür. "
+            "'Euro kaç TL', 'dolar kuru' gibi sorularda kullan."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "banka_bakiyeleri",
@@ -1001,6 +1037,33 @@ def _propose_cari_odeme_yasagi(db: Session, user: User, args: Dict[str, Any]) ->
     }
 
 
+def _propose_cari_not(db: Session, user: User, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Cari not ekleme önerisi (onaydan muaf ama yine kullanıcı onayı ile)."""
+    if not user_can(db, user, "finance.cariler", "use"):
+        return {"_error": True, "mesaj": "Cari not ekleme yetkiniz yok (finance.cariler)."}
+    kod = str(args.get("hesap_kodu") or "").strip()
+    metin = str(args.get("not") or "").strip()
+    if not kod:
+        return {"_error": True, "mesaj": "Cari hesap kodu ya da adı belirtilmeli."}
+    if not metin:
+        return {"_error": True, "mesaj": "Not metni belirtilmeli."}
+
+    vendor = db.query(Vendor).filter(Vendor.hesap_kodu == kod).first()
+    if vendor is None:
+        vendor = db.query(Vendor).filter(Vendor.hesap_adi.ilike(f"%{kod}%")).first()
+    if vendor is None:
+        return {"_error": True, "mesaj": f"'{kod}' ile eşleşen cari bulunamadı."}
+
+    return {
+        "_propose": True,
+        "action_key": "cari_not",
+        "entity_id": vendor.id,
+        "payload": {"vendor_id": vendor.id, "text": metin},
+        "ozet": f"'{vendor.hesap_adi}' ({vendor.hesap_kodu}) carisine not eklenecek: "
+                f"\"{metin[:100]}\"",
+    }
+
+
 def _propose_avans_ekle(db: Session, user: User, args: Dict[str, Any]) -> Dict[str, Any]:
     """Yeni avans kaydı eklemeyi ÖNERİR (mutasyon yok)."""
     if not user_can(db, user, "finance.avanslar", "use"):
@@ -1090,6 +1153,27 @@ def _create_advance(db: Session, user: User, payload: Dict[str, Any]):
     return advance_service.create_advance(db, data, user.id)
 
 
+def _create_vendor_note(db: Session, user: User, payload: Dict[str, Any]):
+    """Cari not oluştur (onaydan MUAF — notes.py router deseni; check_approval çağrılmaz)."""
+    from app.models.vendor_note import VendorNote
+
+    vendor = db.query(Vendor).filter(Vendor.id == int(payload.get("vendor_id") or 0)).first()
+    if vendor is None:
+        raise ValueError("Cari bulunamadı.")
+    text = str(payload.get("text") or "").strip()
+    if not text:
+        raise ValueError("Not metni boş olamaz.")
+    note = VendorNote(
+        vendor_id=vendor.id,
+        text=text,
+        author_id=user.id,
+        author_name=f"{user.first_name or ''} {user.last_name or ''}".strip(),
+    )
+    db.add(note)
+    db.flush()
+    return note
+
+
 def _create_recurring(db: Session, user: User, payload: Dict[str, Any]):
     """Düzenli ödeme tanımı oluştur — approval_executor._handle_scheduled (create) BİREBİR mirror'ı."""
     defn = ScheduledDefinition(
@@ -1146,6 +1230,13 @@ _WRITE_ACTIONS: Dict[str, Dict[str, Any]] = {
             db, ent, p["new_status"]
         ),
     },
+    "cari_not": {  # onaydan MUAF (notes.py deseni) — finansal etkisi yok
+        "module": "finance.cariler",
+        "action_type": "create",
+        "approval_exempt": True,
+        "allowed_keys": {"vendor_id", "text"},
+        "apply_create": _create_vendor_note,
+    },
     "avans_ekle": {
         "module": "finance.avanslar",
         "action_type": "create",
@@ -1176,6 +1267,12 @@ def _validate_payload(action_key: str, payload: Dict[str, Any]) -> Optional[str]
     elif action_key == "cek_durum":
         if payload.get("new_status") not in ("pending", "paid", "cancelled"):
             return "Geçersiz çek durumu."
+    elif action_key == "cari_not":
+        if not str(payload.get("text") or "").strip():
+            return "Not metni boş olamaz."
+        vid = payload.get("vendor_id")
+        if not isinstance(vid, int) or isinstance(vid, bool) or vid <= 0:
+            return "Geçersiz cari."
     elif action_key == "avans_ekle":
         if not str(payload.get("agency_name") or "").strip():
             return "Acente adı boş olamaz."
@@ -1244,7 +1341,10 @@ def execute_action(
         approval_resp = check_approval(db, action["module"], entity_id, user.id, "update", payload)
     else:  # create — entity_id=0, router create yoluyla birebir
         entity_id = 0
-        approval_resp = check_approval(db, action["module"], 0, user.id, "create", payload)
+        if action.get("approval_exempt"):
+            approval_resp = None  # onaydan muaf (ör. cari not) → doğrudan uygula
+        else:
+            approval_resp = check_approval(db, action["module"], 0, user.id, "create", payload)
 
     if approval_resp is not None:
         if approval_resp.status_code == 202:
@@ -1280,6 +1380,7 @@ def execute_action(
 _TOOL_IMPL["cari_vade_degistir"] = _propose_cari_vade
 _TOOL_IMPL["cek_durum_degistir"] = _propose_cek_durum
 _TOOL_IMPL["cari_odeme_yasagi"] = _propose_cari_odeme_yasagi
+_TOOL_IMPL["cari_not_ekle"] = _propose_cari_not
 _TOOL_IMPL["avans_ekle"] = _propose_avans_ekle
 _TOOL_IMPL["duzenli_odeme_ekle"] = _propose_duzenli_odeme
 _TOOL_DEFS.extend([
@@ -1339,6 +1440,21 @@ _TOOL_DEFS.extend([
                 },
             },
             "required": ["hesap_kodu", "yasakli"],
+        },
+    },
+    {
+        "name": "cari_not_ekle",
+        "description": (
+            "Bir cariye görüşme/takip NOTU eklemeyi ÖNERİR. İşlemi hemen yapmaz; "
+            "kullanıcının onayına sunar. 'X carisine not ekle: ...' gibi isteklerde kullan."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "hesap_kodu": {"type": "string", "description": "Cari hesap kodu veya adı."},
+                "not": {"type": "string", "description": "Not metni."},
+            },
+            "required": ["hesap_kodu", "not"],
         },
     },
     {

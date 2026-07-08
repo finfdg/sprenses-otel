@@ -213,6 +213,19 @@ def test_yaklasan_odemeler_yapisi(db):
     assert res["gun_sayisi"] == 7 and "para_bazli" in res and "odemeler" in res
 
 
+def test_execute_cari_not_onaydan_muaf(db):
+    """cari_not (approval_exempt create) → VendorNote doğrudan oluşur (onay yok)."""
+    from app.models.vendor_note import VendorNote
+    admin = _admin(db)
+    v = _vendor(db)
+    res = ai_service.execute_action(
+        db, admin, "cari_not", 0, {"vendor_id": v.id, "text": "Test not — AI"}
+    )
+    assert res["durum"] == "uygulandi", res
+    note = db.query(VendorNote).filter(VendorNote.vendor_id == v.id).first()
+    assert note is not None and note.text == "Test not — AI"
+
+
 def test_gunluk_nakit_akim_yapisi(db):
     admin = _admin(db)
     res = ai_service._tool_gunluk_nakit_akim(db, admin, {"para_birimi": "TRY"})
