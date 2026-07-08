@@ -39,6 +39,10 @@
 		{ value: 'month', label: 'Aylık' },
 		{ value: 'year', label: 'Yıllık' },
 	];
+	const RANK_OPTS = [
+		{ value: 'count', label: 'Rezervasyon' },
+		{ value: 'amount', label: 'Ciro' },
+	];
 	const MONTH_NUMS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 	// ── Türetilmiş ───────────────────────────────────────────
@@ -62,6 +66,7 @@
 
 	// Acente × Durum kırılımı (Rezervasyon & Ciro sekmesi)
 	let stGran = $state('month');
+	let stRankBy = $state('count'); // top-N sıralama ölçütü: 'count' (rezervasyon) | 'amount' (ciro)
 	let stMonth = $state(new Date().getMonth() + 1);
 	let stFilter = $state(''); // '' = tümü · 'g:<id>' = grup (0=Diğer) · 'a:<ad>' = bireysel acente
 	let stTrail = $state<{ value: string; label: string }[]>([]); // drill-down breadcrumb yolu
@@ -93,7 +98,7 @@
 	async function loadStatus() {
 		statusLoading = true;
 		try {
-			let q = `granularity=${stGran}&year=${year}`;
+			let q = `granularity=${stGran}&year=${year}&rank_by=${stRankBy}`;
 			if (stGran === 'day') q += `&month=${stMonth}`;
 			if (stFilter.startsWith('g:')) q += `&group_id=${stFilter.slice(2)}`;
 			else if (stFilter.startsWith('a:')) q += `&agency=${encodeURIComponent(stFilter.slice(2))}`;
@@ -144,7 +149,7 @@
 	// Rezervasyon & Ciro sekmesi açıkken acente × durum kırılımını yükle
 	// (granülerlik / ay / yıl değişince yeniden çeker)
 	$effect(() => {
-		const _tab = activeTab, _g = stGran, _m = stMonth, _y = year, _f = stFilter;
+		const _tab = activeTab, _g = stGran, _m = stMonth, _y = year, _f = stFilter, _r = stRankBy;
 		if (_tab !== 'ciro') return;
 		loadStatus();
 	});
@@ -440,6 +445,12 @@
 								{#each MONTH_NUMS as mm}<option value={mm}>{monthTr(mm)}</option>{/each}
 							</select>
 						{/if}
+						<div class="flex items-center gap-1.5">
+							<span class="hidden text-xs font-medium text-gray-500 sm:inline">Sırala:</span>
+							<div class="w-44">
+								<SegmentedControl options={RANK_OPTS} value={stRankBy} onchange={(v) => (stRankBy = v)} ariaLabel="Sıralama ölçütü" />
+							</div>
+						</div>
 						<div class="w-56">
 							<SegmentedControl options={GRAN_OPTS} value={stGran} onchange={(v) => (stGran = v)} ariaLabel="Granülerlik" />
 						</div>
@@ -554,7 +565,7 @@
 				{/if}
 
 				<p class="mt-3 text-xs leading-relaxed text-gray-500">
-					<strong>Toplam rezervasyonu</strong> en çok olan ilk 7 birim (grup veya tek acente) büyükten küçüğe müstakil gösterilir; kalanların tümü <strong>Diğer</strong> altında toplanır. Gruplanmamış büyük bir acente de kendi hakkıyla listeye girer, "Diğer"e gömülmez. Bir <strong>grup</strong> (veya <strong>Diğer</strong>) satırına tıklayarak içindeki acentelere, oradan tek acenteye inebilirsiniz; üstteki yol (breadcrumb) ile geri dönün. Tutar <strong>gece bazlı</strong> dağıtılır: her konaklama gecesi kendi ayına, ciro gece sayısına bölünerek yazılır (Aylık Doluluk Dağılımı ile aynı yöntem) — birden çok aya yayılan rezervasyon her aya kendi gecesi kadar düşer ve dokunduğu her ayda adet olarak sayılır. Renk, rezervasyonun anlık PMS durumudur (<strong>gelen</strong> / <strong>içeride</strong> / <strong>çıkış yapan</strong>); geçmiş dönemlerde konuklar çıkış yaptığından "içeride" pratikte yalnız güncel dönemde görünür.
+					<strong>Sırala</strong> seçimine göre (rezervasyon sayısı ya da ciro) en yüksek ilk 7 birim (grup veya tek acente) büyükten küçüğe müstakil gösterilir; kalanların tümü <strong>Diğer</strong> altında toplanır. Gruplanmamış büyük bir acente de kendi hakkıyla listeye girer, "Diğer"e gömülmez. Bir <strong>grup</strong> (veya <strong>Diğer</strong>) satırına tıklayarak içindeki acentelere, oradan tek acenteye inebilirsiniz; üstteki yol (breadcrumb) ile geri dönün. Tutar <strong>gece bazlı</strong> dağıtılır: her konaklama gecesi kendi ayına, ciro gece sayısına bölünerek yazılır (Aylık Doluluk Dağılımı ile aynı yöntem) — birden çok aya yayılan rezervasyon her aya kendi gecesi kadar düşer ve dokunduğu her ayda adet olarak sayılır. Renk, rezervasyonun anlık PMS durumudur (<strong>gelen</strong> / <strong>içeride</strong> / <strong>çıkış yapan</strong>); geçmiş dönemlerde konuklar çıkış yaptığından "içeride" pratikte yalnız güncel dönemde görünür.
 				</p>
 			</div>
 

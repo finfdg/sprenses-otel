@@ -413,6 +413,7 @@ def compute_agency_status(
     group_id: Optional[int] = None,
     agency: Optional[str] = None,
     top_n: int = 7,
+    rank_by: str = "count",
     today: Optional[date] = None,
 ) -> dict:
     """Acente × Durum (gelen/içeride/çıkış) × dönem kırılımı — EUR tutar + rezervasyon adedi.
@@ -433,10 +434,11 @@ def compute_agency_status(
     - group_id: bir `agency_groups` grubu → yalnız o grubun ÜYE acenteleri; tablo üyeleri
       TEK TEK (bireysel) gösterir. group_id=0 ("Diğer") → top_n dışındaki tüm acenteler.
     - agency: tek bir ham acente adı (grup dışı da olabilir) → yalnız o acente.
-    - ikisi de yoksa (KÖK): TOPLAM REZERVASYON ADEDİ en yüksek `top_n` BİRİM (birim = grup VEYA
-      gruplanmamış tek acente) TEK TEK gösterilir; kalanların tümü tek "Diğer" satırında (en altta)
-      toplanır. Sıralama tutara göre DEĞİL adede göredir; grupsuz büyük acente artık "Diğer"e
-      gömülmez, kendi hakkıyla top-N'e girebilir (2026-07-08 kullanıcı kararı).
+    - ikisi de yoksa (KÖK): en yüksek `top_n` BİRİM (birim = grup VEYA gruplanmamış tek acente)
+      TEK TEK gösterilir; kalanların tümü tek "Diğer" satırında (en altta) toplanır. Sıralama
+      ölçütü `rank_by` ile seçilir: "count" (toplam rezervasyon adedi, varsayılan) veya "amount"
+      (toplam ciro/EUR). Grupsuz büyük acente "Diğer"e gömülmez, kendi hakkıyla top-N'e girebilir
+      (2026-07-08 kullanıcı kararı).
     group_id ile agency birlikte verilirse group_id önceliklidir. `filter_options` payload'ı
     seçilebilir grup + bireysel acente listesini (dönemden bağımsız, tam evren) taşır.
     """
@@ -444,6 +446,8 @@ def compute_agency_status(
     year = int(year) if year else today.year
     if granularity not in ("day", "month", "year"):
         granularity = "month"
+    if rank_by not in ("count", "amount"):
+        rank_by = "count"
 
     gmeta, member_to_gid = _agency_group_maps(db)
 
@@ -561,7 +565,11 @@ def compute_agency_status(
         c = _sum_cells(rcnt, an)
         if c > 0:
             units.append(("a", an, c, _sum_cells(rcell, an), rname.get(an, _OTHER_NAME)))
-    units.sort(key=lambda u: (-u[2], -u[3], u[4]))  # adet ↓, tutar ↓, ad ↑
+    # rank_by="count" → adet ↓ (eşitlikte tutar); "amount" → tutar ↓ (eşitlikte adet); ad ↑ deterministik
+    if rank_by == "amount":
+        units.sort(key=lambda u: (-u[3], -u[2], u[4]))
+    else:
+        units.sort(key=lambda u: (-u[2], -u[3], u[4]))
     top_units = units[:top_n] if top_n and top_n > 0 else units
     top_gids = {u[1] for u in top_units if u[0] == "g"}
     top_agencies = {u[1] for u in top_units if u[0] == "a"}  # NORM ham ad
@@ -701,6 +709,7 @@ def compute_agency_status(
         "grand_amount": grand_amount,
         "grand_count": grand_count,
         "top_n": top_n,
+        "rank_by": rank_by,
         "filter": active_filter,
         "filter_options": {"groups": filter_groups, "agencies": all_agencies},
     }

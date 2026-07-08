@@ -294,6 +294,34 @@ class TestAgencyStatus:
         drill = compute_agency_status(db, "month", 2026, group_id=0, top_n=1, today=self.TODAY)
         assert {a["name"] for a in drill["agencies"]} == {"SMALLA"}
 
+    def test_rank_by_amount_flips_order(self, db):
+        # Aynı seed, rank_by="amount" → CİROya göre sırala: yüksek tutarlı SMALLGRP başa geçer,
+        # çok rezervasyonlu ama düşük ciro BIGSOLO "Diğer"e düşer (count sıralamasının TERSİ).
+        db.add(AgencyGroup(name="SMALLGRP", members=["SMALLA"]))
+        db.flush()
+        rows = [
+            dict(rec_id=931100 + i, agency="BIGSOLO", status="CheckOut",
+                 checkin_date=date(2026, 6, 1), checkout_date=date(2026, 6, 2), eur_total=10)
+            for i in range(3)
+        ]
+        rows.append(dict(rec_id=931200, agency="SMALLA", status="CheckOut",
+                         checkin_date=date(2026, 6, 1), checkout_date=date(2026, 6, 2), eur_total=9999))
+        for r in rows:
+            n = (r["checkout_date"] - r["checkin_date"]).days
+            db.add(Reservation(record_date=date(2026, 1, 1), nights=n, rooms=1, **r))
+        db.flush()
+
+        out = compute_agency_status(db, "month", 2026, top_n=1, rank_by="amount", today=self.TODAY)
+        assert out["rank_by"] == "amount"
+        names = [a["name"] for a in out["agencies"]]
+        assert names[0] == "SMALLGRP"         # ciro 9999 > BIGSOLO 30 → başa
+        assert names[-1] == "Diğer"
+        diger = next(a for a in out["agencies"] if a["name"] == "Diğer")
+        assert diger["total_count"] == 3      # BIGSOLO (3 rez, düşük ciro) Diğer'de
+        # Geçersiz rank_by → güvenli varsayılan "count"
+        out2 = compute_agency_status(db, "month", 2026, top_n=1, rank_by="xyz", today=self.TODAY)
+        assert out2["rank_by"] == "count" and out2["agencies"][0]["name"] == "BIGSOLO"
+
     def test_filter_options_universe(self, db):
         self._seed(db)
         out = compute_agency_status(db, "month", 2026, today=self.TODAY)
@@ -309,7 +337,7 @@ class TestAgencyStatus:
         assert r.status_code == 200, r.text
         body = r.json()
         for k in ("statuses", "periods", "agencies", "totals", "grand_amount",
-                  "grand_count", "filter", "filter_options"):
+                  "grand_count", "rank_by", "filter", "filter_options"):
             assert k in body, f"eksik blok: {k}"
         assert len(body["periods"]) == 12
         assert len(body["statuses"]) == 3
@@ -323,4 +351,13 @@ class TestAgencyStatus:
 
     def test_endpoint_invalid_granularity(self, client, auth_headers):
         assert client.get(f"{API}/agency-status?granularity=hafta",
+                          headers=auth_headers).status_code == 422
+
+    def test_endpoint_rank_by(self, client, auth_headers):
+        # Geçerli değerler kabul + payload'a yansır; geçersiz 422
+        r = client.get(f"{API}/agency-status?granularity=month&year=2026&rank_by=amount",
+                       headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["rank_by"] == "amount"
+        assert client.get(f"{API}/agency-status?rank_by=hacim",
                           headers=auth_headers).status_code == 422
