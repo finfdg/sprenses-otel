@@ -13,7 +13,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import {
-		Settings2, Target, TrendingUp, LineChart, Wallet, Coins, ArrowRight, Inbox
+		Settings2, Target, TrendingUp, LineChart, Wallet, Coins, ArrowRight, Inbox, ChevronRight
 	} from 'lucide-svelte';
 
 	// ── Sabitler ─────────────────────────────────────────────
@@ -63,7 +63,8 @@
 	// Acente × Durum kırılımı (Rezervasyon & Ciro sekmesi)
 	let stGran = $state('month');
 	let stMonth = $state(new Date().getMonth() + 1);
-	let stFilter = $state(''); // '' = tümü · 'g:<id>' = grup · 'a:<ad>' = bireysel acente
+	let stFilter = $state(''); // '' = tümü · 'g:<id>' = grup (0=Diğer) · 'a:<ad>' = bireysel acente
+	let stTrail = $state<{ value: string; label: string }[]>([]); // drill-down breadcrumb yolu
 	let statusData = $state<any>(null);
 	let statusLoading = $state(false);
 
@@ -103,6 +104,24 @@
 		} finally {
 			statusLoading = false;
 		}
+	}
+
+	// Tabloda satıra tıklayarak filtrele (drill-down): grup/Diğer → üyeleri, üye → tek acente
+	function drillRow(row: any) {
+		if (row.id != null) {
+			stTrail = [{ value: 'g:' + row.id, label: row.name }]; // grup/Diğer → kökten yeni yol
+		} else {
+			stTrail = [...stTrail, { value: 'a:' + row.name, label: row.name }]; // bireysel → yola ekle
+		}
+		stFilter = stTrail[stTrail.length - 1].value;
+	}
+	function gotoCrumb(i: number) {
+		if (i < 0) { stTrail = []; stFilter = ''; return; } // "Tüm acenteler" köküne dön
+		stTrail = stTrail.slice(0, i + 1);
+		stFilter = stTrail[i].value;
+	}
+	function rowClickable(row: any): boolean {
+		return row.id != null || stFilter !== 'a:' + row.name; // grup her zaman, bireysel yalnız aktif değilse
 	}
 
 	function persist() {
@@ -447,29 +466,6 @@
 						<p class="mt-0.5 text-xs text-gray-500">Gelen, içeride ve çıkış yapan rezervasyonlar — acente bazında tutar (EUR) + adet</p>
 					</div>
 					<div class="flex flex-wrap items-center gap-2">
-						{#if statusData?.filter_options}
-							<select
-								bind:value={stFilter}
-								class="max-w-[220px] rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-teal-500"
-								aria-label="Acente / grup filtresi"
-							>
-								<option value="">Tüm acenteler</option>
-								{#if statusData.filter_options.groups.length}
-									<optgroup label="Gruplar">
-										{#each statusData.filter_options.groups as g}
-											<option value={'g:' + g.id}>{g.name} ({g.count})</option>
-										{/each}
-									</optgroup>
-								{/if}
-								{#if statusData.filter_options.agencies.length}
-									<optgroup label="Acenteler">
-										{#each statusData.filter_options.agencies as a}
-											<option value={'a:' + a}>{a}</option>
-										{/each}
-									</optgroup>
-								{/if}
-							</select>
-						{/if}
 						{#if stGran === 'day'}
 							<select
 								bind:value={stMonth}
@@ -484,6 +480,20 @@
 						</div>
 					</div>
 				</div>
+
+				{#if stTrail.length}
+					<nav class="mb-3 flex flex-wrap items-center gap-1.5 text-sm" aria-label="Acente kırılımı yolu">
+						<button class="font-medium text-teal-700 hover:underline" onclick={() => gotoCrumb(-1)}>Tüm acenteler</button>
+						{#each stTrail as c, i}
+							<ChevronRight class="h-3.5 w-3.5 text-gray-400" />
+							{#if i < stTrail.length - 1}
+								<button class="font-medium text-teal-700 hover:underline" onclick={() => gotoCrumb(i)}>{c.label}</button>
+							{:else}
+								<span class="font-semibold text-gray-800">{c.label}</span>
+							{/if}
+						{/each}
+					</nav>
+				{/if}
 
 				{#if statusData}
 					<div class="mb-3 flex flex-wrap gap-4 text-xs text-gray-600">
@@ -532,10 +542,17 @@
 								</thead>
 								<tbody>
 									{#each statusData.agencies as a}
-										<tr class="border-b border-gray-100">
+										<tr
+											class="border-b border-gray-100 {rowClickable(a) ? 'cursor-pointer hover:bg-gray-50' : ''}"
+											role={rowClickable(a) ? 'button' : undefined}
+											tabindex={rowClickable(a) ? 0 : undefined}
+											onclick={() => rowClickable(a) && drillRow(a)}
+											onkeydown={(e) => { if (rowClickable(a) && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); drillRow(a); } }}
+										>
 											<td class="px-4 py-3">
 												<span class="flex items-center gap-2 font-medium">
 													<span class="h-2.5 w-2.5 shrink-0 rounded-sm" style="background:{a.color}"></span>{a.name}
+													{#if a.id != null}<ChevronRight class="h-4 w-4 shrink-0 text-gray-400" />{/if}
 												</span>
 											</td>
 											{#each statusData.statuses as s}
@@ -572,7 +589,7 @@
 				{/if}
 
 				<p class="mt-3 text-xs leading-relaxed text-gray-500">
-					<strong>Gelen</strong> ve <strong>içeride</strong> giriş (check-in), <strong>çıkış yapan</strong> çıkış (check-out) tarihine göre gruplanır. Durum PMS'in anlık kaydıdır: geçmiş dönemlerde konuklar çıkış yaptığından "içeride" pratikte yalnız güncel dönemde görünür.
+					Tabloda bir <strong>grup</strong> satırına tıklayarak üye acentelerine, oradan tek acenteye inebilirsiniz; üstteki yol (breadcrumb) ile geri dönün. <strong>Gelen</strong> ve <strong>içeride</strong> giriş (check-in), <strong>çıkış yapan</strong> çıkış (check-out) tarihine göre gruplanır. Durum PMS'in anlık kaydıdır: geçmiş dönemlerde konuklar çıkış yaptığından "içeride" pratikte yalnız güncel dönemde görünür.
 				</p>
 			</div>
 

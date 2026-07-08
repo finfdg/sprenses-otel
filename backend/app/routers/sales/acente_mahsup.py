@@ -64,7 +64,7 @@ def agency_status(
     granularity: str = Query("month", pattern="^(day|month|year)$"),
     year: Optional[int] = Query(None, ge=2000, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
-    group_id: Optional[int] = Query(None, ge=1),
+    group_id: Optional[int] = Query(None, ge=0),  # 0 = "Diğer" (grup dışı acenteler)
     agency: Optional[str] = Query(None, max_length=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("sales.acente_mahsup", "view")),

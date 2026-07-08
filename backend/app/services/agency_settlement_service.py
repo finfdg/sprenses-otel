@@ -437,12 +437,18 @@ def compute_agency_status(
 
     gmeta, member_to_gid = _agency_group_maps(db)
 
-    # ── Filtre belirle: include_norms (NORM ham ad kümesi) + satır modu ──
+    # ── Filtre belirle: include_norms / only_ungrouped + satır modu ──
     # row_mode="group" → satırlar grup bazında (varsayılan); "agency" → ham acente bazında.
-    include_norms = None          # None = tüm acenteler
+    include_norms = None          # None = tüm acenteler (NORM ham ad whitelist'i)
+    only_ungrouped = False        # True = yalnız gruba dahil OLMAYAN acenteler ("Diğer" drill)
     row_mode = "group"
     active_filter = {"group_id": None, "agency": None, "label": None}
-    if group_id is not None and group_id in gmeta and group_id != _OTHER_ID:
+    if group_id is not None and group_id == _OTHER_ID:
+        # "Diğer" grubuna tıklandı → grup dışı acenteler, bireysel
+        only_ungrouped = True
+        row_mode = "agency"
+        active_filter = {"group_id": _OTHER_ID, "agency": None, "label": _OTHER_NAME}
+    elif group_id is not None and group_id in gmeta:
         include_norms = {n for n, gid in member_to_gid.items() if gid == group_id}
         row_mode = "agency"
         active_filter = {"group_id": group_id, "agency": None, "label": gmeta[group_id]["name"]}
@@ -510,13 +516,16 @@ def compute_agency_status(
             if pk not in bucket_set:
                 continue
             an = _norm(raw)
-            if include_norms is not None and an not in include_norms:
+            gid = member_to_gid.get(an, _OTHER_ID)
+            if only_ungrouped:
+                if an in member_to_gid:
+                    continue  # gruba dahil → "Diğer" filtresinde gösterme
+            elif include_norms is not None and an not in include_norms:
                 continue      # filtre dışı acente
             amt = float(eur or 0)
             c = int(cnt or 0)
             period_amt[sdef["key"]][pk] += amt
             period_cnt[sdef["key"]][pk] += c
-            gid = member_to_gid.get(an, _OTHER_ID)
             if row_mode == "group":
                 r = _row(gid, gmeta[gid]["name"], gmeta[gid]["color"])
             else:  # bireysel/grup-filtre → ham acente satırı

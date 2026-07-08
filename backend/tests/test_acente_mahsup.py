@@ -208,6 +208,14 @@ class TestAgencyStatus:
         assert out["totals"]["cikis"]["amount"] == 200
         assert out["filter"]["agency"] == "RANDOMX"
 
+    def test_other_group_filter_shows_ungrouped(self, db):
+        self._seed(db)  # RANDOMX grup dışı, EXPEDIA gruplu
+        out = compute_agency_status(db, "month", 2026, group_id=0, today=self.TODAY)
+        assert out["filter"]["label"] == "Diğer"
+        assert [a["name"] for a in out["agencies"]] == ["RANDOMX"]  # yalnız grup dışı, bireysel
+        assert out["totals"]["cikis"]["amount"] == 200
+        assert out["grand_count"] == 1
+
     def test_filter_options_universe(self, db):
         self._seed(db)
         out = compute_agency_status(db, "month", 2026, today=self.TODAY)

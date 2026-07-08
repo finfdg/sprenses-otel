@@ -72,7 +72,7 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/api/sales/acente-mahsup/` | `sales.acente_mahsup` view | Projeksiyon payload'ı. Query: `year`, `year_target` (EUR, boş=gerçek), `opening_cash` (EUR). 60sn TTL cache. |
-| GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir), **`agency`** (tek ham acente filtresi). 60sn TTL cache. `compute_agency_status()`. |
+| GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir; **`0`=Diğer** = grup dışı acenteler), **`agency`** (tek ham acente filtresi). 60sn TTL cache. `compute_agency_status()`. |
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 `PATCH /api/sales/agency-groups/{id}` (izin: `sales.hotel_reservation` use) —
@@ -93,12 +93,14 @@ Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
   eşleşmesi, grup dışı → **"Diğer"**, aynı renk paleti. Tek kaynak → iki görünüm tutarlı.
 - **Not — "içeride" snapshot'tır:** durum PMS'in o anki kaydı olduğundan geçmiş dönemlerde konuklar
   çıkış yapmıştır → "İçeride" pratikte yalnız güncel dönemde dolu görünür; geçmiş yıllar tamamen "Çıkış".
-- **Filtre — acenteler grup olabilir (2026-07-08):** başlıkta `<select>` filtresi iki tür seçtirir —
-  **Grup** (`group_id`; `agency_groups` grubuna daralır, tabloyu üye acentelerle **bireysel** doldurur)
-  veya **bireysel acente** (`agency`; tek ham acente adı, grup dışı da olabilir — "Diğer"e düşmez, kendi
-  adıyla görünür). Filtre yoksa tüm acenteler grup bazında. Payload `filter_options` (dönemden bağımsız
-  tam evren: `groups` [{id,name,count}] + `agencies` [ham adlar]) dropdown'ı besler; `filter` aktif seçimi
-  yansıtır. Filtresiz tablo grup bazında (grup dışı → "Diğer"), filtreli tablo ham-acente bazında.
+- **Filtre — tabloya tıklayarak drill-down (2026-07-08):** dropdown YERİNE tablo satırına tıklama.
+  Kök seviyede tablo tüm acenteleri **grup bazında** gösterir (grup dışı → "Diğer"). Bir **grup**
+  satırına tıklama → o grubun **üye acentelerini bireysel** açar (`group_id`); **"Diğer"** satırı →
+  grup dışı acenteler bireysel (`group_id=0` = `_OTHER_ID`); bir **üye/acente** satırına tıklama →
+  tek acente (`agency`, "Diğer"e düşmez, kendi adıyla). Üstteki **breadcrumb** (Tüm acenteler › Grup ›
+  Acente) ile geri dönülür. Filtre parametreleri: `group_id` (0=Diğer) **veya** `agency`. Payload
+  `filter` aktif seçimi, `filter_options` (grup+acente tam evreni) taşır — dropdown kaldırıldı ama
+  `filter_options` payload'da bırakıldı (ileride kullanılabilir).
 
 ## 6. Frontend UI Yapısı
 
@@ -106,7 +108,11 @@ Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 - **Acente × Durum kırılımı (Rezervasyon & Ciro sekmesi):** granülerlik `SegmentedControl` (Günlük/
   Aylık/Yıllık) + `day` modunda ay `select`'i; dönem bazlı **yığılı çubuk** grafik (3 durum rengi) +
   acente × durum tablosu (tutar + adet). Yükleme yalnız sekme aktifken (`$effect` `activeTab==='ciro'`),
-  granülerlik/ay/yıl değişince yeniden çekilir.
+  granülerlik/ay/yıl/**filtre** değişince yeniden çekilir.
+- **Drill-down etkileşimi:** tablo satırları tıklanabilir (`role=button`+`tabindex`+Enter/Space) —
+  grup satırında `<ChevronRight>` göstergesi. `stTrail` breadcrumb yolunu tutar; `drillRow`/`gotoCrumb`
+  ile ileri/geri. Grup/Diğer satırı yeni kök yol, üye satırı yola eklenir; `stFilter` (''/`g:<id>`/
+  `a:<ad>`) fetch'i sürer. Filtreli görünümde tablo ham-acente bazında, aktif tek acente satırı tıklanamaz.
 - **Bileşenler:** PageHeader, StatCard (KPI), SegmentedControl (5 sekme), MoneyInput (senaryo/kickback),
   Modal + Button (Acente Ayarları), EmptyState, TableSkeleton. Runway grafiği inline SVG (data-viz).
 - **Tema:** lacivert/altın — `teal-700`=lacivert #1b2b45, `brass`=altın #bd9a45 (tema token eşlemesi).
