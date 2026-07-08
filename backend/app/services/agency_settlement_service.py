@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.models.agency_group import DEFAULT_AGENCY_TERM_DAYS, AgencyGroup
 from app.models.reservation import Reservation
+from app.models.room_type import RoomType
 from app.services.receivable_service import _latest_rates, compute_receivables
 
 # Acente satır/nokta renkleri (lacivert/altın tema ile uyumlu, deterministik sıra)
@@ -478,19 +479,23 @@ def compute_agency_status(
     # (filtre/top-N sonra bellek üstünde uygulanır → tek geçiş, top-N hesabı için gerekli)
     gcell: dict = {}   # gid → skey → [tutar]*nb ; rcell → NORM ham ad düzeyi
     gcnt: dict = {}
+    groom: dict = {}   # gid → skey → [oda-gece]*nb (günlük doluluk barları için)
     rcell: dict = {}
     rcnt: dict = {}
+    rroom: dict = {}
     rname: dict = {}   # NORM → görünen ham ad
     rgid: dict = {}    # NORM → gid
 
-    def _bump(amt_store, cnt_store, key, skey, i, amt, c):
+    def _bump(amt_store, cnt_store, room_store, key, skey, i, amt, c, room):
         a = amt_store.get(key)
         if a is None:
             a = {k: [0.0] * nb for k in skeys}
             amt_store[key] = a
             cnt_store[key] = {k: [0] * nb for k in skeys}
+            room_store[key] = {k: [0] * nb for k in skeys}
         a[skey][i] += amt
         cnt_store[key][skey][i] += c
+        room_store[key][skey][i] += room
 
     # Gece bazlı: her rezervasyon konaklama geceleri üzerinden üretilir (generate_series),
     # eur_total gece sayısına bölünür ve her gece kendi (agency, status, dönem) kovasına yazılır.
@@ -513,7 +518,8 @@ def compute_agency_status(
                 r.status AS status,
                 EXTRACT({part} FROM gs)::int AS p,
                 COALESCE(SUM(CASE WHEN r.nights > 0 THEN r.eur_total / r.nights ELSE 0 END), 0) AS eur,
-                COUNT(DISTINCT r.id) AS cnt
+                COUNT(DISTINCT r.id) AS cnt,
+                COALESCE(SUM(r.rooms), 0) AS rooms
             FROM reservations r
             JOIN LATERAL generate_series(
                 r.checkin_date::timestamp,
@@ -527,7 +533,7 @@ def compute_agency_status(
         params,
     ).fetchall()
 
-    for raw, status, p, eur, cnt in status_rows:
+    for raw, status, p, eur, cnt, rooms in status_rows:
         if p is None:
             continue
         i = bidx.get(int(p))
@@ -540,8 +546,9 @@ def compute_agency_status(
         gid = member_to_gid.get(an, _OTHER_ID)
         amt = float(eur or 0)
         c = int(cnt or 0)
-        _bump(gcell, gcnt, gid, skey, i, amt, c)
-        _bump(rcell, rcnt, an, skey, i, amt, c)
+        room = int(rooms or 0)
+        _bump(gcell, gcnt, groom, gid, skey, i, amt, c, room)
+        _bump(rcell, rcnt, rroom, an, skey, i, amt, c, room)
         rname.setdefault(an, raw or _OTHER_NAME)
         rgid[an] = gid
 
@@ -606,16 +613,23 @@ def compute_agency_status(
             return sum(gcnt[g][k][i] for g in gcnt)
         return sum(rcnt[an][k][i] for an in sel_raw if an in rcnt)
 
+    def _p_room(k, i):  # dönem × durum dolu oda-gece (günlük doluluk barları için)
+        if is_root:
+            return sum(groom[g][k][i] for g in groom)
+        return sum(rroom[an][k][i] for an in sel_raw if an in rroom)
+
     periods = []
     for i, b in enumerate(buckets):
         entry = {"key": b, "label": labels[b], "statuses": {},
-                 "total_amount": 0.0, "total_count": 0}
+                 "total_amount": 0.0, "total_count": 0, "total_rooms": 0}
         for k in skeys:
             a = round(_p_amt(k, i), 2)
             c = _p_cnt(k, i)
-            entry["statuses"][k] = {"amount": a, "count": c}
+            rm = _p_room(k, i)
+            entry["statuses"][k] = {"amount": a, "count": c, "rooms": rm}
             entry["total_amount"] += a
             entry["total_count"] += c
+            entry["total_rooms"] += rm
         entry["total_amount"] = round(entry["total_amount"], 2)
         periods.append(entry)
 
@@ -695,12 +709,21 @@ def compute_agency_status(
         {row[0] for row in db.query(Reservation.agency).distinct().all() if row[0]}
     )
 
+    # Günlük doluluk barları için oda kapasitesi (aktif room_types.total_rooms toplamı = otelin
+    # fiziksel oda sayısı). Frontend günlük görünümde bar = dolu oda-gece / kapasite gösterir.
+    room_capacity = int(
+        db.query(func.coalesce(func.sum(RoomType.total_rooms), 0))
+        .filter(RoomType.is_active.is_(True))
+        .scalar() or 0
+    )
+
     return {
         "granularity": granularity,
         "year": year,
         "month": month if granularity == "day" else None,
         "currency": "EUR",
         "today": today.isoformat(),
+        "room_capacity": room_capacity,
         "statuses": [{"key": s["key"], "label": s["label"], "color": s["color"]}
                      for s in _STATUS_DEFS],
         "periods": periods,

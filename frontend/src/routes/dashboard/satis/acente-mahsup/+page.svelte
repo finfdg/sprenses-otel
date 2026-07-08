@@ -207,6 +207,10 @@
 	let statusMax = $derived(
 		statusData ? Math.max(1, ...statusData.periods.map((p: any) => p.total_amount)) : 1
 	);
+	// Günlük görünümde barlar oda kapasitesi (341) üzerinden doluluk gösterir;
+	// diğer görünümlerde tutara (statusMax) göre orantılıdır.
+	let stIsDaily = $derived(statusData?.granularity === 'day');
+	let roomCap = $derived(Math.max(1, statusData?.room_capacity || 1));
 	// Runway grafiği için SVG nokta dizisi
 	let chartGeo = $derived.by(() => {
 		if (!data) return null;
@@ -484,21 +488,30 @@
 				{:else if statusData && statusData.grand_count === 0}
 					<EmptyState icon={Inbox} title="Kayıt yok" description="Seçili dönemde bu durumlarda rezervasyon bulunmuyor." />
 				{:else if statusData}
-					<!-- Grafik: dönem bazında yığılı çubuk -->
+					<!-- Grafik: dönem bazında yığılı çubuk. Günlük görünümde bar = dolu oda-gece / oda
+					     kapasitesi (doluluk); diğer görünümlerde tutara orantılı. -->
+					{#if stIsDaily}
+						<p class="mb-2 text-[11px] text-gray-500">Barlar günlük doluluğu <strong>{roomCap} oda</strong> kapasitesi üzerinden gösterir; renkler rezervasyon durumudur.</p>
+					{/if}
 					<div class="space-y-1">
 						{#each statusData.periods as p}
 							<div class="flex items-center gap-3 py-0.5">
 								<div class="w-9 shrink-0 text-xs font-medium text-gray-600">{p.label}</div>
 								<div class="flex h-5 flex-1 overflow-hidden rounded-md bg-gray-100">
 									{#each statusData.statuses as s}
-										{#if p.statuses[s.key].amount > 0}
-											<div class="h-full" style="width:{(p.statuses[s.key].amount / statusMax) * 100}%;background:{s.color}"
-												title="{s.label}: {eurC(p.statuses[s.key].amount)} · {cnt(p.statuses[s.key].count)} rez."></div>
+										{#if stIsDaily ? p.statuses[s.key].rooms > 0 : p.statuses[s.key].amount > 0}
+											<div class="h-full"
+												style="width:{stIsDaily ? (p.statuses[s.key].rooms / roomCap) * 100 : (p.statuses[s.key].amount / statusMax) * 100}%;background:{s.color}"
+												title="{s.label}: {stIsDaily ? cnt(p.statuses[s.key].rooms) + ' oda' : eurC(p.statuses[s.key].amount)} · {cnt(p.statuses[s.key].count)} rez."></div>
 										{/if}
 									{/each}
 								</div>
 								<div class="w-24 shrink-0 text-right text-xs font-semibold tabular-nums text-teal-800">{eurC(p.total_amount)}</div>
-								<div class="hidden w-16 shrink-0 text-right text-[11px] text-gray-500 sm:block">{cnt(p.total_count)} rez.</div>
+								{#if stIsDaily}
+									<div class="hidden w-20 shrink-0 text-right text-[11px] text-gray-500 sm:block">{cnt(p.total_rooms)}/{roomCap} oda</div>
+								{:else}
+									<div class="hidden w-16 shrink-0 text-right text-[11px] text-gray-500 sm:block">{cnt(p.total_count)} rez.</div>
+								{/if}
 							</div>
 						{/each}
 					</div>

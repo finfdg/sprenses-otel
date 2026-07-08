@@ -37,6 +37,11 @@ modülüne katkı kurallarını içerir.
   **Drill (satıra tıkla):** `group_id` (grup→üyeleri bireysel; `0`=Diğer→top-N dışı acenteler; top-N'e
   girmiş gruplanmamış acente Diğer'de GÖRÜNMEZ) veya `agency` (tek ham acente, "Diğer"e düşmez). Motor
   tek geçişte grup+ham-acente düzeyinde toplar (top-N + Diğer drill için). Payload `filter`/`top_n`/`filter_options`.
+  **Günlük doluluk barları (2026-07-08):** her `periods[].statuses[k]` artık `rooms` (dolu oda-gece,
+  `SUM(r.rooms)` gece bazlı) + `total_rooms` taşır; payload'da `room_capacity` = aktif
+  `room_types.total_rooms` toplamı (otelin fiziksel oda sayısı, ör. 341). Frontend GÜNLÜK görünümde
+  barı `rooms / room_capacity` (doluluk) ile çizer (aylık/yıllıkta tutar/statusMax korunur). Bazı
+  günler kapasiteyi aşabilir (overbooking) → bar kırpılır, etiket gerçek `N/kapasite oda` gösterir.
 
 ## Yapı
 

@@ -8,6 +8,7 @@ from datetime import date
 
 from app.models.agency_group import AgencyGroup
 from app.models.reservation import Reservation
+from app.models.room_type import RoomType
 from app.services.agency_settlement_service import compute_agency_status, compute_settlement
 
 API = "/api/sales/acente-mahsup"
@@ -192,6 +193,28 @@ class TestAgencyStatus:
         assert out["totals"]["gelen"]["amount"] == 500           # r1 5 gece × 100
         # r3'ün Temmuz gecesi yok (28 May→2 Haz) → Temmuz çıkış yalnız RANDOMX (3 gece 300)
         assert out["totals"]["cikis"]["amount"] == 300
+
+    def test_daily_rooms_and_capacity(self, db):
+        # Günlük doluluk barları için: her dönem × durum dolu ODA-GECE + oda kapasitesi.
+        from sqlalchemy import func
+        base_cap = int(db.query(func.coalesce(func.sum(RoomType.total_rooms), 0))
+                       .filter(RoomType.is_active.is_(True)).scalar() or 0)
+        db.add(RoomType(code="TESTSTD", name="Test Standart", total_rooms=100, is_active=True))
+        db.add(RoomType(code="TESTPAS", name="Pasif", total_rooms=50, is_active=False))  # sayılmaz
+        # 2 rez, her biri 2 oda, 1→4 Tem (3 gece) → gün 1,2,3'te 2'şer oda dolu (iceride)
+        for i in range(2):
+            db.add(Reservation(rec_id=940100 + i, agency="ODAACENTE", status="InHouse",
+                               checkin_date=date(2026, 7, 1), checkout_date=date(2026, 7, 4),
+                               record_date=date(2026, 1, 1), nights=3, rooms=2, eur_total=300))
+        db.flush()
+        out = compute_agency_status(db, "day", 2026, month=7, today=self.TODAY)
+        assert out["room_capacity"] == base_cap + 100   # yalnız AKTİF room_types.total_rooms (pasif hariç)
+        by_d = {p["key"]: p for p in out["periods"]}
+        # gün 1: 2 rez × 2 oda = 4 oda-gece (iceride); gün 4 boş (checkout günü konaklanmaz)
+        assert by_d[1]["statuses"]["iceride"]["rooms"] == 4
+        assert by_d[1]["total_rooms"] == 4
+        assert by_d[3]["total_rooms"] == 4
+        assert by_d[4]["total_rooms"] == 0
 
     def test_yearly_granularity(self, db):
         self._seed(db)
