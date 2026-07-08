@@ -20,7 +20,7 @@ import calendar
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, text
 from sqlalchemy.orm import Session
 
 from app.models.agency_group import DEFAULT_AGENCY_TERM_DAYS, AgencyGroup
@@ -37,17 +37,19 @@ _MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz",
 _OTHER_ID = 0          # "Diğer" (grup dışı acenteler) sözde grup kimliği
 _OTHER_NAME = "Diğer"
 
-# Acente × Durum kırılımı için PMS status → (grup etiketi, gruplama tarihi kolonu).
-# Kullanıcı kararı (2026-07-08): "duruma göre doğal tarih" — gelen/içeride GİRİŞ
-# (check-in), çıkış ÇIKIŞ (check-out) tarihine göre dönemlere yazılır.
+# Acente × Durum kırılımı için PMS status → (etiket, renk).
+# Kullanıcı kararı (2026-07-08, güncelleme): tutar GECE BAZLI dağıtılır — her konaklama
+# gecesi kendi ayına, eur_total gece sayısına bölünerek (Aylık Doluluk Dağılımı ile
+# birebir aynı yöntem). Durum artık dağıtım AYINI değil yalnız KATEGORİYİ/RENGİ belirler
+# (eski "gelen/içeride→giriş, çıkış→çıkış tarihi" tek-ay ataması kaldırıldı → iki grafik tutarlı).
 _STATUS_DEFS = [
-    {"key": "gelen", "label": "Gelen rezervasyon", "status": "Reservation",
-     "date_col": "checkin_date", "color": "#bd9a45"},
-    {"key": "iceride", "label": "İçeride", "status": "InHouse",
-     "date_col": "checkin_date", "color": "#6aa583"},
-    {"key": "cikis", "label": "Çıkış yapan", "status": "CheckOut",
-     "date_col": "checkout_date", "color": "#1b2b45"},
+    {"key": "gelen", "label": "Gelen rezervasyon", "status": "Reservation", "color": "#bd9a45"},
+    {"key": "iceride", "label": "İçeride", "status": "InHouse", "color": "#6aa583"},
+    {"key": "cikis", "label": "Çıkış yapan", "status": "CheckOut", "color": "#1b2b45"},
 ]
+
+# PMS status → skey (yukarıdaki _STATUS_DEFS'ten türetilir)
+_STATUS_TO_KEY = {s["status"]: s["key"] for s in _STATUS_DEFS}
 
 
 def _norm(s: Optional[str]) -> str:
@@ -415,9 +417,13 @@ def compute_agency_status(
 ) -> dict:
     """Acente × Durum (gelen/içeride/çıkış) × dönem kırılımı — EUR tutar + rezervasyon adedi.
 
-    Rezervasyonlar duruma göre DOĞAL tarihine yazılır (gelen/içeride → giriş,
-    çıkış → çıkış tarihi — kullanıcı kararı 2026-07-08). Salt-okuma; grafik (periods)
-    + tablo (agencies) dizileri döner. Acente gruplama/renk `compute_settlement` ile ORTAK.
+    Tutar GECE BAZLI dağıtılır (2026-07-08 kullanıcı kararı): her konaklama gecesi kendi
+    ayına, `eur_total` gece sayısına bölünerek yazılır — "Aylık Doluluk Dağılımı"
+    (reservations/summary) ile BİREBİR aynı yöntem, iki grafik tutarlı olsun diye. Durum
+    yalnız kategori/renk belirler (dağıtım ayını değil). Aylara yayılan rezervasyon her
+    dokunduğu dönemde adet olarak +1 sayılır (dönem başına COUNT DISTINCT). Salt-okuma;
+    grafik (periods) + tablo (agencies) dizileri döner. Acente gruplama/renk `compute_settlement`
+    ile ORTAK.
 
     - granularity="year": (bu yıl−2)…(bu yıl+1) → 4 yıl kovası, period = yıl.
     - granularity="month": `year` yılının 12 ayı, period = ay (1-12).
@@ -480,37 +486,58 @@ def compute_agency_status(
         a[skey][i] += amt
         cnt_store[key][skey][i] += c
 
-    for sdef in _STATUS_DEFS:
-        col = getattr(Reservation, sdef["date_col"])
-        q = (
-            db.query(
-                Reservation.agency,
-                extract(part, col).label("p"),
-                func.coalesce(func.sum(Reservation.eur_total), 0),
-                func.count(Reservation.id),
-            )
-            .filter(Reservation.status == sdef["status"])
-        )
-        if granularity == "year":
-            q = q.filter(extract("year", col) >= y0, extract("year", col) <= y1)
-        elif granularity == "day":
-            q = q.filter(extract("year", col) == year, extract("month", col) == month)
-        else:
-            q = q.filter(extract("year", col) == year)
-        for raw, p, eur, cnt in q.group_by(Reservation.agency, "p").all():
-            if p is None:
-                continue
-            i = bidx.get(int(p))
-            if i is None:
-                continue
-            an = _norm(raw)
-            gid = member_to_gid.get(an, _OTHER_ID)
-            amt = float(eur or 0)
-            c = int(cnt or 0)
-            _bump(gcell, gcnt, gid, sdef["key"], i, amt, c)
-            _bump(rcell, rcnt, an, sdef["key"], i, amt, c)
-            rname.setdefault(an, raw or _OTHER_NAME)
-            rgid[an] = gid
+    # Gece bazlı: her rezervasyon konaklama geceleri üzerinden üretilir (generate_series),
+    # eur_total gece sayısına bölünür ve her gece kendi (agency, status, dönem) kovasına yazılır.
+    # `part` = dönem anahtarının çıkarılacağı gece-tarihi parçası; pencere de gece tarihine göre.
+    # (part ∈ {year,month,day} — kullanıcı girdisi DEĞİL, granularity'den türetilir → SQL güvenli.)
+    if granularity == "year":
+        where_gs = "EXTRACT(YEAR FROM gs) BETWEEN :y0 AND :y1"
+        params = {"y0": y0, "y1": y1}
+    elif granularity == "day":
+        where_gs = "EXTRACT(YEAR FROM gs) = :year AND EXTRACT(MONTH FROM gs) = :month"
+        params = {"year": year, "month": month}
+    else:  # month
+        where_gs = "EXTRACT(YEAR FROM gs) = :year"
+        params = {"year": year}
+
+    status_rows = db.execute(
+        text(f"""
+            SELECT
+                r.agency AS agency,
+                r.status AS status,
+                EXTRACT({part} FROM gs)::int AS p,
+                COALESCE(SUM(CASE WHEN r.nights > 0 THEN r.eur_total / r.nights ELSE 0 END), 0) AS eur,
+                COUNT(DISTINCT r.id) AS cnt
+            FROM reservations r
+            JOIN LATERAL generate_series(
+                r.checkin_date::timestamp,
+                (r.checkout_date - INTERVAL '1 day')::timestamp,
+                INTERVAL '1 day'
+            ) AS gs ON TRUE
+            WHERE r.status IN ('Reservation', 'InHouse', 'CheckOut')
+              AND {where_gs}
+            GROUP BY r.agency, r.status, p
+        """),
+        params,
+    ).fetchall()
+
+    for raw, status, p, eur, cnt in status_rows:
+        if p is None:
+            continue
+        i = bidx.get(int(p))
+        if i is None:
+            continue
+        skey = _STATUS_TO_KEY.get(status)
+        if skey is None:
+            continue
+        an = _norm(raw)
+        gid = member_to_gid.get(an, _OTHER_ID)
+        amt = float(eur or 0)
+        c = int(cnt or 0)
+        _bump(gcell, gcnt, gid, skey, i, amt, c)
+        _bump(rcell, rcnt, an, skey, i, amt, c)
+        rname.setdefault(an, raw or _OTHER_NAME)
+        rgid[an] = gid
 
     # ── En yüksek N grup (top_n) → geri kalan gruplar + grup dışı = tek "Diğer" ──
     def _g_total(gid):

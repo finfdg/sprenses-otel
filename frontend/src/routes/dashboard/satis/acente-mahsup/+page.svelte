@@ -554,7 +554,7 @@
 				{/if}
 
 				<p class="mt-3 text-xs leading-relaxed text-gray-500">
-					En yüksek 7 grup acente tek tek gösterilir; kalan gruplar ve grup dışı acenteler <strong>Diğer</strong> altında toplanır. Bir <strong>grup</strong> (veya <strong>Diğer</strong>) satırına tıklayarak içindeki acentelere, oradan tek acenteye inebilirsiniz; üstteki yol (breadcrumb) ile geri dönün. <strong>Gelen</strong> ve <strong>içeride</strong> giriş (check-in), <strong>çıkış yapan</strong> çıkış (check-out) tarihine göre gruplanır. Durum PMS'in anlık kaydıdır: geçmiş dönemlerde konuklar çıkış yaptığından "içeride" pratikte yalnız güncel dönemde görünür.
+					En yüksek 7 grup acente tek tek gösterilir; kalan gruplar ve grup dışı acenteler <strong>Diğer</strong> altında toplanır. Bir <strong>grup</strong> (veya <strong>Diğer</strong>) satırına tıklayarak içindeki acentelere, oradan tek acenteye inebilirsiniz; üstteki yol (breadcrumb) ile geri dönün. Tutar <strong>gece bazlı</strong> dağıtılır: her konaklama gecesi kendi ayına, ciro gece sayısına bölünerek yazılır (Aylık Doluluk Dağılımı ile aynı yöntem) — birden çok aya yayılan rezervasyon her aya kendi gecesi kadar düşer ve dokunduğu her ayda adet olarak sayılır. Renk, rezervasyonun anlık PMS durumudur (<strong>gelen</strong> / <strong>içeride</strong> / <strong>çıkış yapan</strong>); geçmiş dönemlerde konuklar çıkış yaptığından "içeride" pratikte yalnız güncel dönemde görünür.
 				</p>
 			</div>
 

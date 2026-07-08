@@ -118,7 +118,10 @@ class TestProjectionMath:
 class TestAgencyStatus:
     """compute_agency_status: acente × durum (gelen/içeride/çıkış) × dönem kırılımı.
 
-    Durum → doğal tarih eşlemesi: gelen/içeride GİRİŞ (check-in), çıkış ÇIKIŞ (check-out).
+    Tutar GECE BAZLI dağıtılır: her konaklama gecesi kendi dönemine, eur_total gece
+    sayısına bölünerek (Aylık Doluluk Dağılımı ile aynı yöntem). Durum yalnız kategori/renk.
+    Seed'te nights = (checkout - checkin) gün sayısına EŞİT tutulur → gece başına pay ×
+    gece sayısı = eur_total (aylara doğru bölünür).
     """
 
     TODAY = date(2026, 7, 15)
@@ -126,37 +129,39 @@ class TestAgencyStatus:
     def _seed(self, db):
         db.add(AgencyGroup(name="EXPEDIA", members=["EXPEDIA"], term_days=0))
         rows = [
-            # gelen (Reservation) — giriş 20 Tem 2026
+            # gelen (Reservation) — 20→25 Tem, 5 gece × 100€ (hepsi Tem)
             dict(rec_id=910001, agency="EXPEDIA", status="Reservation",
                  checkin_date=date(2026, 7, 20), checkout_date=date(2026, 7, 25), eur_total=500),
-            # içeride (InHouse) — giriş 10 Tem 2026
+            # içeride (InHouse) — 10→18 Tem, 8 gece × 100€ (hepsi Tem)
             dict(rec_id=910002, agency="EXPEDIA", status="InHouse",
                  checkin_date=date(2026, 7, 10), checkout_date=date(2026, 7, 18), eur_total=800),
-            # çıkış (CheckOut) — çıkış 2 Haz 2026
+            # çıkış (CheckOut) — 28 May→2 Haz, 5 gece × 100€ → May 4 gece (400) + Haz 1 gece (100)
             dict(rec_id=910003, agency="EXPEDIA", status="CheckOut",
-                 checkin_date=date(2026, 5, 28), checkout_date=date(2026, 6, 2), eur_total=300),
-            # grupsuz acente → Diğer; çıkış 4 Tem 2026
+                 checkin_date=date(2026, 5, 28), checkout_date=date(2026, 6, 2), eur_total=500),
+            # grupsuz acente → Diğer; çıkış 1→4 Tem, 3 gece × 100€ (hepsi Tem)
             dict(rec_id=910004, agency="RANDOMX", status="CheckOut",
-                 checkin_date=date(2026, 7, 1), checkout_date=date(2026, 7, 4), eur_total=200),
+                 checkin_date=date(2026, 7, 1), checkout_date=date(2026, 7, 4), eur_total=300),
         ]
         for r in rows:
-            db.add(Reservation(record_date=date(2026, 1, 1), nights=1, rooms=1, **r))
+            n = (r["checkout_date"] - r["checkin_date"]).days  # gece = konaklama süresi
+            db.add(Reservation(record_date=date(2026, 1, 1), nights=n, rooms=1, **r))
         db.flush()
 
     def test_monthly_status_split(self, db):
         self._seed(db)
         out = compute_agency_status(db, "month", 2026, today=self.TODAY)
         by_m = {p["key"]: p for p in out["periods"]}
-        # Temmuz: gelen (giriş 500), içeride (giriş 800), çıkış (RANDOMX 200)
+        # Temmuz: gelen (5 gece 500), içeride (8 gece 800), çıkış (RANDOMX 3 gece 300)
         jul = by_m[7]["statuses"]
         assert jul["gelen"]["amount"] == 500
         assert jul["iceride"]["amount"] == 800
-        assert jul["cikis"]["amount"] == 200
-        # Haziran: çıkış 300 (EXPEDIA çıkışı Haziran'da)
-        assert by_m[6]["statuses"]["cikis"]["amount"] == 300
+        assert jul["cikis"]["amount"] == 300     # yalnız RANDOMX; r3'ün Tem gecesi yok
+        # r3 (EXPEDIA çıkış) 28 May→2 Haz gece bazlı → May 400, Haz 100
+        assert by_m[5]["statuses"]["cikis"]["amount"] == 400
+        assert by_m[6]["statuses"]["cikis"]["amount"] == 100
         assert out["totals"]["gelen"]["amount"] == 500
-        assert out["totals"]["cikis"]["amount"] == 500   # 300 + 200
-        assert out["grand_count"] == 4
+        assert out["totals"]["cikis"]["amount"] == 800   # 400 + 100 + 300
+        assert out["grand_count"] == 5   # r3 iki aya (May+Haz) değdiğinden 2 sayılır
         assert len(out["periods"]) == 12
 
     def test_agency_grouping(self, db):
@@ -165,10 +170,10 @@ class TestAgencyStatus:
         by_name = {a["name"]: a for a in out["agencies"]}
         assert by_name["EXPEDIA"]["gelen"]["amount"] == 500
         assert by_name["EXPEDIA"]["iceride"]["amount"] == 800
-        assert by_name["EXPEDIA"]["cikis"]["amount"] == 300
-        assert by_name["EXPEDIA"]["total_amount"] == 1600
-        assert by_name["EXPEDIA"]["total_count"] == 3
-        assert by_name["Diğer"]["cikis"]["amount"] == 200
+        assert by_name["EXPEDIA"]["cikis"]["amount"] == 500   # r3 tüm geceleri (May 400 + Haz 100)
+        assert by_name["EXPEDIA"]["total_amount"] == 1800
+        assert by_name["EXPEDIA"]["total_count"] == 4         # r3 May+Haz'da ayrı sayılır
+        assert by_name["Diğer"]["cikis"]["amount"] == 300
 
     def test_daily_granularity(self, db):
         self._seed(db)
@@ -176,11 +181,13 @@ class TestAgencyStatus:
         assert out["granularity"] == "day" and out["month"] == 7
         assert len(out["periods"]) == 31
         by_d = {p["key"]: p for p in out["periods"]}
-        assert by_d[20]["statuses"]["gelen"]["amount"] == 500   # giriş 20 Tem
-        assert by_d[10]["statuses"]["iceride"]["amount"] == 800  # giriş 10 Tem
-        assert by_d[4]["statuses"]["cikis"]["amount"] == 200     # RANDOMX çıkış 4 Tem
-        # r3 çıkışı Haziran → Temmuz gününde görünmemeli
-        assert out["totals"]["cikis"]["amount"] == 200
+        # gece bazlı → giriş günü değil, her gece kendi gününe 100€
+        assert by_d[20]["statuses"]["gelen"]["amount"] == 100   # r1 ilk gecesi (20 Tem)
+        assert by_d[10]["statuses"]["iceride"]["amount"] == 100  # r2 ilk gecesi (10 Tem)
+        assert by_d[1]["statuses"]["cikis"]["amount"] == 100     # RANDOMX ilk gecesi (1 Tem)
+        assert out["totals"]["gelen"]["amount"] == 500           # r1 5 gece × 100
+        # r3'ün Temmuz gecesi yok (28 May→2 Haz) → Temmuz çıkış yalnız RANDOMX (3 gece 300)
+        assert out["totals"]["cikis"]["amount"] == 300
 
     def test_yearly_granularity(self, db):
         self._seed(db)
@@ -188,24 +195,24 @@ class TestAgencyStatus:
         assert [p["key"] for p in out["periods"]] == [2024, 2025, 2026, 2027]
         by_y = {p["key"]: p for p in out["periods"]}
         assert by_y[2026]["statuses"]["gelen"]["amount"] == 500
-        assert by_y[2026]["statuses"]["cikis"]["amount"] == 500
+        assert by_y[2026]["statuses"]["cikis"]["amount"] == 800   # r3 (500) + RANDOMX (300)
 
     def test_group_filter_shows_members(self, db):
         self._seed(db)
         gid = db.query(AgencyGroup).filter_by(name="EXPEDIA").first().id
         out = compute_agency_status(db, "month", 2026, group_id=gid, today=self.TODAY)
         # yalnız EXPEDIA üyeleri → RANDOMX (Diğer) hariç
-        assert out["grand_count"] == 3
-        assert out["totals"]["cikis"]["amount"] == 300   # RANDOMX'in 200'ü dahil değil
+        assert out["grand_count"] == 4   # r3 May+Haz'da ayrı sayılır (2) + r1 + r2
+        assert out["totals"]["cikis"]["amount"] == 500   # RANDOMX'in 300'ü dahil değil (r3: 400+100)
         assert {a["name"] for a in out["agencies"]} == {"EXPEDIA"}  # ham üye adı, "Diğer" değil
         assert out["filter"]["group_id"] == gid and out["filter"]["label"] == "EXPEDIA"
 
     def test_agency_filter_uses_raw_name(self, db):
         self._seed(db)
         out = compute_agency_status(db, "month", 2026, agency="RANDOMX", today=self.TODAY)
-        assert out["grand_count"] == 1
+        assert out["grand_count"] == 1   # RANDOMX tek ay (Tem) → 1
         assert [a["name"] for a in out["agencies"]] == ["RANDOMX"]  # "Diğer" DEĞİL
-        assert out["totals"]["cikis"]["amount"] == 200
+        assert out["totals"]["cikis"]["amount"] == 300
         assert out["filter"]["agency"] == "RANDOMX"
 
     def test_other_group_filter_shows_ungrouped(self, db):
@@ -213,7 +220,7 @@ class TestAgencyStatus:
         out = compute_agency_status(db, "month", 2026, group_id=0, today=self.TODAY)
         assert out["filter"]["label"] == "Diğer"
         assert [a["name"] for a in out["agencies"]] == ["RANDOMX"]  # yalnız grup dışı, bireysel
-        assert out["totals"]["cikis"]["amount"] == 200
+        assert out["totals"]["cikis"]["amount"] == 300
         assert out["grand_count"] == 1
 
     def test_top_n_rollup_and_diger_drill(self, db):
@@ -231,7 +238,8 @@ class TestAgencyStatus:
                          checkin_date=date(2026, 6, 1), checkout_date=date(2026, 6, 10),
                          eur_total=5))                          # grup dışı
         for r in rows:
-            db.add(Reservation(record_date=date(2026, 1, 1), nights=1, rooms=1, **r))
+            n = (r["checkout_date"] - r["checkin_date"]).days  # tümü Haz içinde (tek ay) → tutar korunur
+            db.add(Reservation(record_date=date(2026, 1, 1), nights=n, rooms=1, **r))
         db.flush()
 
         out = compute_agency_status(db, "month", 2026, top_n=7, today=self.TODAY)

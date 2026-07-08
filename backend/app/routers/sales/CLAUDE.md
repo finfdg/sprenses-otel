@@ -19,9 +19,14 @@ modülüne katkı kurallarını içerir.
 - Hak Ediş'ten (finance.hakedis, TL gerçek fatura yaşlandırması) **bağımsız**: burası ileri
   projeksiyon + kickback/hedef senaryo. Detay: `docs/modules/acente-mahsup.md`.
 - **Acente × Durum kırılımı (2026-07-08):** ikinci GET endpoint `GET /acente-mahsup/agency-status`
-  (`compute_agency_status()`) — rezervasyonların anlık PMS durumuna (`Reservation`=gelen/`InHouse`=
-  içeride → giriş tarihi; `CheckOut`=çıkış → çıkış tarihi) göre acente × dönem (day/month/year)
-  EUR tutar + adet dağılımı. Acente gruplama `compute_settlement` ile ORTAK `_agency_group_maps()`
+  (`compute_agency_status()`) — acente × dönem (day/month/year) × durum EUR tutar + adet dağılımı.
+  **Tutar GECE BAZLI dağıtılır (2026-07-08 güncelleme):** her konaklama gecesi kendi ayına,
+  `eur_total` gece sayısına bölünerek (`generate_series` LATERAL) — "Aylık Doluluk Dağılımı"
+  (`reservations/summary`) ile BİREBİR aynı yöntem, iki grafik tutarlı olsun diye. Durum
+  (`Reservation`=gelen/`InHouse`=içeride/`CheckOut`=çıkış) artık dağıtım AYINI değil yalnız
+  kategori/rengi belirler (eski "gelen/içeride→giriş, çıkış→çıkış tarihi" tek-ay ataması KALDIRILDI).
+  Aylara yayılan rezervasyon dokunduğu her dönemde adet +1 (dönem başına COUNT DISTINCT). Acente
+  gruplama `compute_settlement` ile ORTAK `_agency_group_maps()`
   (grup dışı → "Diğer"). Projeksiyon DEĞİL — anlık durum. Frontend "Rezervasyon & Ciro" sekmesinde.
   **Kök = top-N rollup:** `top_n` (varsayılan 7) en büyük grup TEK TEK, kalan gruplar+grup dışı tek
   "Diğer" (en altta); grand toplam etkilenmez. **Drill (satıra tıkla):** `group_id` (grup→üyeleri
