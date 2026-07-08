@@ -199,9 +199,6 @@
 	});
 
 	// ── Görsel yardımcılar ───────────────────────────────────
-	let monthlyMax = $derived(
-		data ? Math.max(1, ...data.monthly.map((m: any) => m.total)) : 1
-	);
 	let statusMax = $derived(
 		statusData ? Math.max(1, ...statusData.periods.map((p: any) => p.total_amount)) : 1
 	);
@@ -426,38 +423,6 @@
 
 		<!-- ═══════════ REZERVASYON & CİRO ═══════════ -->
 		{:else if activeTab === 'ciro'}
-			<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-				<div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-					<h2 class="text-base font-semibold">Aylık Ciro · Gerçekleşen & Hedef Tahmini</h2>
-					<div class="flex flex-wrap gap-4 text-xs text-gray-600">
-						<span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm bg-teal-700"></span>Gerçekleşen</span>
-						<span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm bg-brass"></span>Mevcut ileri rez.</span>
-						<span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm" style="background:repeating-linear-gradient(45deg,#d8bd76,#d8bd76 5px,#e6d29a 5px,#e6d29a 10px)"></span>Ek hedef tahmini</span>
-					</div>
-				</div>
-				<div class="space-y-1">
-					{#each data.monthly as m}
-						<div class="flex items-center gap-3 py-0.5">
-							<div class="w-9 shrink-0 text-xs font-medium text-gray-600">{m.name}</div>
-							<div class="flex h-5 flex-1 overflow-hidden rounded-md bg-gray-100">
-								<div class="h-full" style="width:{(m.booked / monthlyMax) * 100}%;background:{m.realized ? '#1b2b45' : '#bd9a45'}"></div>
-								<div class="h-full" style="width:{(m.extra / monthlyMax) * 100}%;background:repeating-linear-gradient(45deg,#d8bd76,#d8bd76 7px,#e6d29a 7px,#e6d29a 14px)"></div>
-							</div>
-							<div class="w-24 shrink-0 text-right text-xs font-semibold tabular-nums {m.realized ? 'text-teal-800' : 'text-brass-dark'}">{eurC(m.total)}</div>
-							<div class="hidden w-20 shrink-0 text-right text-[11px] text-gray-400 sm:block">{m.realized ? 'Gerçekleşen' : 'İleri'}</div>
-						</div>
-					{/each}
-				</div>
-				<div class="mt-4 flex flex-wrap items-center gap-4 border-t border-gray-100 pt-3 text-xs text-gray-600">
-					<span>Mevcut ileri rez. <span class="font-semibold tabular-nums text-brass-dark">{eurC(data.monthly_meta.forward_booked)}</span></span>
-					<span>Ek hedef tahmini <span class="font-semibold tabular-nums text-brass-dark">{eurC(data.monthly_meta.additional_forecast)}</span></span>
-					<span class="ml-auto">Yıl Sonu Toplam <span class="text-base font-bold tabular-nums text-teal-800">{eurC(data.monthly_meta.grand_total)}</span></span>
-				</div>
-			</div>
-			<p class="text-xs leading-relaxed text-gray-500">
-				Ciro, rezervasyonun <strong>çıkış (check-out)</strong> ayında tanınır — fatura konaklama tamamlanınca kesilir. Geçmiş aylar gerçekleşen, gelecek aylar mevcut ileri rezervasyondur; <strong>taralı</strong> kısım yıl sonu hedefine ulaşmak için gereken ek tahmindir.
-			</p>
-
 			<!-- Acente x Durum kırılımı (gelen / içeride / çıkış) -->
 			<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
 				<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
