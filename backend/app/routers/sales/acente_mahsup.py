@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.models.user import User
-from app.services.agency_settlement_service import compute_settlement
+from app.services.agency_settlement_service import compute_agency_status, compute_settlement
 
 router = APIRouter()
 
@@ -57,3 +57,26 @@ def settlement(
     y = year or date.today().year
     key = ("settlement", y, year_target, opening_cash)
     return _cached(key, lambda: compute_settlement(db, y, year_target, opening_cash))
+
+
+@router.get("/agency-status")
+def agency_status(
+    granularity: str = Query("month", pattern="^(day|month|year)$"),
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
+):
+    """Acente × Durum (gelen/içeride/çıkış) × dönem kırılımı — EUR tutar + adet.
+
+    - granularity: day | month | year (varsayılan month)
+    - year: month/day için dönem yılı (varsayılan içinde bulunulan yıl); year modunda yok sayılır
+    - month: yalnız day modunda gerekli (varsayılan içinde bulunulan ay)
+
+    Rezervasyonlar duruma göre doğal tarihine yazılır (gelen/içeride → giriş,
+    çıkış → çıkış). Salt-okuma, 60sn TTL cache.
+    """
+    y = year or date.today().year
+    m = month or date.today().month
+    key = ("agency_status", granularity, y, m if granularity == "day" else None)
+    return _cached(key, lambda: compute_agency_status(db, granularity, y, m))

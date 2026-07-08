@@ -72,14 +72,35 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/api/sales/acente-mahsup/` | `sales.acente_mahsup` view | Projeksiyon payload'ı. Query: `year`, `year_target` (EUR, boş=gerçek), `opening_cash` (EUR). 60sn TTL cache. |
+| GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`). 60sn TTL cache. `compute_agency_status()`. |
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 `PATCH /api/sales/agency-groups/{id}` (izin: `sales.hotel_reservation` use) —
 `term_days` (0-365) ve `kickback_percent` (0-100) alanları eklendi.
 
+## 5b. Acente × Durum Kırılımı (2026-07-08)
+
+"Rezervasyon & Ciro" sekmesine eklenen ikinci görünüm — projeksiyon **değil**, rezervasyonların
+**anlık PMS durumuna** göre acente bazlı dağılımı. Motor: `agency_settlement_service.compute_agency_status()`.
+
+- **Durum → doğal tarih eşlemesi** (kullanıcı kararı 2026-07-08): PMS `reservations.status` alanı üç
+  değer taşır → **`Reservation`** = "Gelen rezervasyon" (giriş/`checkin_date`), **`InHouse`** =
+  "İçeride" (giriş/`checkin_date`), **`CheckOut`** = "Çıkış yapan" (çıkış/`checkout_date`). Her durum
+  KENDİ doğal tarihine göre dönemlere yazılır (gelen/içeride giriş, çıkış çıkış).
+- **Granülerlik:** `day` (bir ayın günleri), `month` (bir yılın 12 ayı), `year` (bu yıl −2 … +1 = 4 yıl).
+- **Ölçü:** her hücrede EUR tutarı (`eur_total` toplamı) **+** rezervasyon adedi (`count`).
+- **Acente gruplama:** `compute_settlement` ile ORTAK `_agency_group_maps()` — `agency_groups` üyelik
+  eşleşmesi, grup dışı → **"Diğer"**, aynı renk paleti. Tek kaynak → iki görünüm tutarlı.
+- **Not — "içeride" snapshot'tır:** durum PMS'in o anki kaydı olduğundan geçmiş dönemlerde konuklar
+  çıkış yapmıştır → "İçeride" pratikte yalnız güncel dönemde dolu görünür; geçmiş yıllar tamamen "Çıkış".
+
 ## 6. Frontend UI Yapısı
 
 - **Tasarım kaynağı:** `scratchpad/tasarimlar/Sprenses Tasarımlar/Acente Mahsup & Nakit Akım.dc.html`.
+- **Acente × Durum kırılımı (Rezervasyon & Ciro sekmesi):** granülerlik `SegmentedControl` (Günlük/
+  Aylık/Yıllık) + `day` modunda ay `select`'i; dönem bazlı **yığılı çubuk** grafik (3 durum rengi) +
+  acente × durum tablosu (tutar + adet). Yükleme yalnız sekme aktifken (`$effect` `activeTab==='ciro'`),
+  granülerlik/ay/yıl değişince yeniden çekilir.
 - **Bileşenler:** PageHeader, StatCard (KPI), SegmentedControl (5 sekme), MoneyInput (senaryo/kickback),
   Modal + Button (Acente Ayarları), EmptyState, TableSkeleton. Runway grafiği inline SVG (data-viz).
 - **Tema:** lacivert/altın — `teal-700`=lacivert #1b2b45, `brass`=altın #bd9a45 (tema token eşlemesi).

@@ -18,6 +18,11 @@ modülüne katkı kurallarını içerir.
   eklenmedi → ayrı executor handler gerekmez.
 - Hak Ediş'ten (finance.hakedis, TL gerçek fatura yaşlandırması) **bağımsız**: burası ileri
   projeksiyon + kickback/hedef senaryo. Detay: `docs/modules/acente-mahsup.md`.
+- **Acente × Durum kırılımı (2026-07-08):** ikinci GET endpoint `GET /acente-mahsup/agency-status`
+  (`compute_agency_status()`) — rezervasyonların anlık PMS durumuna (`Reservation`=gelen/`InHouse`=
+  içeride → giriş tarihi; `CheckOut`=çıkış → çıkış tarihi) göre acente × dönem (day/month/year)
+  EUR tutar + adet dağılımı. Acente gruplama `compute_settlement` ile ORTAK `_agency_group_maps()`
+  (grup dışı → "Diğer"). Projeksiyon DEĞİL — anlık durum. Frontend "Rezervasyon & Ciro" sekmesinde.
 
 ## Yapı
 

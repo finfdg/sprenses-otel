@@ -33,6 +33,13 @@
 		planned: { label: 'Planlandı', cls: 'bg-gray-100 text-gray-600' },
 		mahsup: { label: 'Mahsup edildi', cls: 'bg-teal-50 text-teal-700' },
 	};
+	// Acente × Durum kırılımı — granülerlik seçenekleri
+	const GRAN_OPTS = [
+		{ value: 'day', label: 'Günlük' },
+		{ value: 'month', label: 'Aylık' },
+		{ value: 'year', label: 'Yıllık' },
+	];
+	const MONTH_NUMS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 	// ── Türetilmiş ───────────────────────────────────────────
 	let canConfig = $derived(hasPermission('sales.hotel_reservation', 'use'));
@@ -53,11 +60,18 @@
 	let groupsLoading = $state(false);
 	let savingId = $state<number | null>(null);
 
+	// Acente × Durum kırılımı (Rezervasyon & Ciro sekmesi)
+	let stGran = $state('month');
+	let stMonth = $state(new Date().getMonth() + 1);
+	let statusData = $state<any>(null);
+	let statusLoading = $state(false);
+
 	// ── Formatlama ───────────────────────────────────────────
 	const eur = (n: number) => formatCurrency(n || 0, 'EUR');
 	const eurC = (n: number) => formatCompact(n || 0, 'EUR');
 	const pct = (n: number) => (n || 0).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) + '%';
 	const monthTr = (m: number) => ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'][m - 1] ?? '';
+	const cnt = (n: number) => (n || 0).toLocaleString('tr-TR');
 
 	// ── Veri ─────────────────────────────────────────────────
 	async function load() {
@@ -71,6 +85,20 @@
 			showToast('Projeksiyon yüklenemedi', 'error');
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadStatus() {
+		statusLoading = true;
+		try {
+			let q = `granularity=${stGran}&year=${year}`;
+			if (stGran === 'day') q += `&month=${stMonth}`;
+			statusData = await api.get<any>(`/sales/acente-mahsup/agency-status?${q}`);
+		} catch (e) {
+			console.error('Acente durum kırılımı yüklenemedi:', e);
+			showToast('Durum kırılımı yüklenemedi', 'error');
+		} finally {
+			statusLoading = false;
 		}
 	}
 
@@ -89,6 +117,14 @@
 		persist();
 		clearTimeout(reloadTimer);
 		reloadTimer = setTimeout(load, 400);
+	});
+
+	// Rezervasyon & Ciro sekmesi açıkken acente × durum kırılımını yükle
+	// (granülerlik / ay / yıl değişince yeniden çeker)
+	$effect(() => {
+		const _tab = activeTab, _g = stGran, _m = stMonth, _y = year;
+		if (_tab !== 'ciro') return;
+		loadStatus();
 	});
 
 	// ── Ayarlar (vade + kickback) ────────────────────────────
@@ -143,6 +179,9 @@
 	// ── Görsel yardımcılar ───────────────────────────────────
 	let monthlyMax = $derived(
 		data ? Math.max(1, ...data.monthly.map((m: any) => m.total)) : 1
+	);
+	let statusMax = $derived(
+		statusData ? Math.max(1, ...statusData.periods.map((p: any) => p.total_amount)) : 1
 	);
 	// Runway grafiği için SVG nokta dizisi
 	let chartGeo = $derived.by(() => {
@@ -396,6 +435,120 @@
 			<p class="text-xs leading-relaxed text-gray-500">
 				Ciro, rezervasyonun <strong>çıkış (check-out)</strong> ayında tanınır — fatura konaklama tamamlanınca kesilir. Geçmiş aylar gerçekleşen, gelecek aylar mevcut ileri rezervasyondur; <strong>taralı</strong> kısım yıl sonu hedefine ulaşmak için gereken ek tahmindir.
 			</p>
+
+			<!-- Acente x Durum kırılımı (gelen / içeride / çıkış) -->
+			<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+				<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+					<div>
+						<h2 class="text-base font-semibold">Acente × Durum Kırılımı</h2>
+						<p class="mt-0.5 text-xs text-gray-500">Gelen, içeride ve çıkış yapan rezervasyonlar — acente bazında tutar (EUR) + adet</p>
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
+						{#if stGran === 'day'}
+							<select
+								bind:value={stMonth}
+								class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-teal-500"
+								aria-label="Ay"
+							>
+								{#each MONTH_NUMS as mm}<option value={mm}>{monthTr(mm)}</option>{/each}
+							</select>
+						{/if}
+						<div class="w-56">
+							<SegmentedControl options={GRAN_OPTS} value={stGran} onchange={(v) => (stGran = v)} ariaLabel="Granülerlik" />
+						</div>
+					</div>
+				</div>
+
+				{#if statusData}
+					<div class="mb-3 flex flex-wrap gap-4 text-xs text-gray-600">
+						{#each statusData.statuses as s}
+							<span class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm" style="background:{s.color}"></span>{s.label}</span>
+						{/each}
+					</div>
+				{/if}
+
+				{#if statusLoading && !statusData}
+					<TableSkeleton rows={6} columns={4} />
+				{:else if statusData && statusData.grand_count === 0}
+					<EmptyState icon={Inbox} title="Kayıt yok" description="Seçili dönemde bu durumlarda rezervasyon bulunmuyor." />
+				{:else if statusData}
+					<!-- Grafik: dönem bazında yığılı çubuk -->
+					<div class="space-y-1">
+						{#each statusData.periods as p}
+							<div class="flex items-center gap-3 py-0.5">
+								<div class="w-9 shrink-0 text-xs font-medium text-gray-600">{p.label}</div>
+								<div class="flex h-5 flex-1 overflow-hidden rounded-md bg-gray-100">
+									{#each statusData.statuses as s}
+										{#if p.statuses[s.key].amount > 0}
+											<div class="h-full" style="width:{(p.statuses[s.key].amount / statusMax) * 100}%;background:{s.color}"
+												title="{s.label}: {eurC(p.statuses[s.key].amount)} · {cnt(p.statuses[s.key].count)} rez."></div>
+										{/if}
+									{/each}
+								</div>
+								<div class="w-24 shrink-0 text-right text-xs font-semibold tabular-nums text-teal-800">{eurC(p.total_amount)}</div>
+								<div class="hidden w-16 shrink-0 text-right text-[11px] text-gray-500 sm:block">{cnt(p.total_count)} rez.</div>
+							</div>
+						{/each}
+					</div>
+
+					<!-- Acente tablosu (durum kolonları) -->
+					<div class="mt-5 overflow-hidden rounded-xl border border-gray-200">
+						<div class="overflow-x-auto">
+							<table class="w-full min-w-[640px] text-sm">
+								<thead>
+									<tr class="border-b-2 border-teal-700 text-left text-[11px] uppercase tracking-wide text-gray-500">
+										<th class="px-4 py-3 font-semibold">Acente</th>
+										{#each statusData.statuses as s}
+											<th class="px-4 py-3 text-right font-semibold">{s.label}</th>
+										{/each}
+										<th class="px-4 py-3 text-right font-semibold">Toplam</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each statusData.agencies as a}
+										<tr class="border-b border-gray-100">
+											<td class="px-4 py-3">
+												<span class="flex items-center gap-2 font-medium">
+													<span class="h-2.5 w-2.5 shrink-0 rounded-sm" style="background:{a.color}"></span>{a.name}
+												</span>
+											</td>
+											{#each statusData.statuses as s}
+												<td class="px-4 py-3 text-right tabular-nums">
+													{#if a[s.key].count > 0}
+														<span class="font-semibold">{eurC(a[s.key].amount)}</span>
+														<span class="block text-[11px] font-normal text-gray-500">{cnt(a[s.key].count)} rez.</span>
+													{:else}<span class="text-gray-300">—</span>{/if}
+												</td>
+											{/each}
+											<td class="px-4 py-3 text-right tabular-nums">
+												<span class="font-semibold text-teal-800">{eurC(a.total_amount)}</span>
+												<span class="block text-[11px] font-normal text-gray-500">{cnt(a.total_count)} rez.</span>
+											</td>
+										</tr>
+									{/each}
+									<tr class="bg-gray-50 font-semibold">
+										<td class="px-4 py-3">Toplam</td>
+										{#each statusData.statuses as s}
+											<td class="px-4 py-3 text-right tabular-nums">
+												{eurC(statusData.totals[s.key].amount)}
+												<span class="block text-[11px] font-normal text-gray-500">{cnt(statusData.totals[s.key].count)} rez.</span>
+											</td>
+										{/each}
+										<td class="px-4 py-3 text-right tabular-nums text-teal-800">
+											{eurC(statusData.grand_amount)}
+											<span class="block text-[11px] font-normal text-gray-500">{cnt(statusData.grand_count)} rez.</span>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+				{/if}
+
+				<p class="mt-3 text-xs leading-relaxed text-gray-500">
+					<strong>Gelen</strong> ve <strong>içeride</strong> giriş (check-in), <strong>çıkış yapan</strong> çıkış (check-out) tarihine göre gruplanır. Durum PMS'in anlık kaydıdır: geçmiş dönemlerde konuklar çıkış yaptığından "içeride" pratikte yalnız güncel dönemde görünür.
+				</p>
+			</div>
 
 		<!-- ═══════════ SATIŞ FATURALARI ═══════════ -->
 		{:else if activeTab === 'fatura'}

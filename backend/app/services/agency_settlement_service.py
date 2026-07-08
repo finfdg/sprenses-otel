@@ -16,6 +16,7 @@ hesap modeli KORUNUR; yalnız GİRDİLER gerçek veriye bağlanır:
 Hak Ediş modülünden (finance.hakedis — TL, GERÇEK fatura yaşlandırması) farkı:
 burası İLERİ PROJEKSİYON; kickback ve hedef senaryo katmanı ekler.
 """
+import calendar
 from datetime import date
 from typing import Optional
 
@@ -36,6 +37,18 @@ _MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz",
 _OTHER_ID = 0          # "Diğer" (grup dışı acenteler) sözde grup kimliği
 _OTHER_NAME = "Diğer"
 
+# Acente × Durum kırılımı için PMS status → (grup etiketi, gruplama tarihi kolonu).
+# Kullanıcı kararı (2026-07-08): "duruma göre doğal tarih" — gelen/içeride GİRİŞ
+# (check-in), çıkış ÇIKIŞ (check-out) tarihine göre dönemlere yazılır.
+_STATUS_DEFS = [
+    {"key": "gelen", "label": "Gelen rezervasyon", "status": "Reservation",
+     "date_col": "checkin_date", "color": "#bd9a45"},
+    {"key": "iceride", "label": "İçeride", "status": "InHouse",
+     "date_col": "checkin_date", "color": "#6aa583"},
+    {"key": "cikis", "label": "Çıkış yapan", "status": "CheckOut",
+     "date_col": "checkout_date", "color": "#1b2b45"},
+]
+
 
 def _norm(s: Optional[str]) -> str:
     """Üye/acente adı eşleşmesi için: kenar boşluğu kırp + büyük harf.
@@ -49,20 +62,13 @@ def _round2(v) -> float:
     return round(float(v or 0), 2)
 
 
-def compute_settlement(
-    db: Session,
-    year: int,
-    year_target: Optional[float] = None,
-    opening_cash: float = 0.0,
-    today: Optional[date] = None,
-) -> dict:
-    """Acente Mahsup & Nakit Akım projeksiyonunu üretir (5 sekmelik payload).
+def _agency_group_maps(db: Session):
+    """AgencyGroup'ları yükle → (gmeta, member_to_gid).
 
-    year_target None ise gerçek ciro toplamına eşitlenir (forecast = 0).
-    """
-    today = today or date.today()
-
-    # ── Acente grupları + konfig ─────────────────────────────
+    gmeta[gid] = {id, name, term_days, kickback_pct, color}; ayrıca _OTHER_ID
+    "Diğer" sözde grubu eklenir. member_to_gid[NORM(üye adı)] = gid.
+    `compute_settlement` ve `compute_agency_status` ORTAK kullanır (tek kaynak → renk/
+    gruplama tutarlılığı)."""
     groups = db.query(AgencyGroup).order_by(AgencyGroup.name).all()
     gmeta: dict = {}                 # gid → {name, term_days, kickback_pct, color}
     member_to_gid: dict = {}         # NORM(üye adı) → gid
@@ -79,6 +85,24 @@ def compute_settlement(
     gmeta[_OTHER_ID] = {"id": _OTHER_ID, "name": _OTHER_NAME,
                         "term_days": DEFAULT_AGENCY_TERM_DAYS, "kickback_pct": 0.0,
                         "color": "#9aa3b2"}
+    return gmeta, member_to_gid
+
+
+def compute_settlement(
+    db: Session,
+    year: int,
+    year_target: Optional[float] = None,
+    opening_cash: float = 0.0,
+    today: Optional[date] = None,
+) -> dict:
+    """Acente Mahsup & Nakit Akım projeksiyonunu üretir (5 sekmelik payload).
+
+    year_target None ise gerçek ciro toplamına eşitlenir (forecast = 0).
+    """
+    today = today or date.today()
+
+    # ── Acente grupları + konfig ─────────────────────────────
+    gmeta, member_to_gid = _agency_group_maps(db)
 
     # ── Rezervasyon cirosu: (grup, çıkış ayı) EUR ────────────
     # eur_total çıkış (checkout) ayında tanınır. rev[gid][month0-11]
@@ -376,4 +400,141 @@ def compute_settlement(
                 "min_label": chart_labels[min_idx] if chart_labels else "",
             },
         },
+    }
+
+
+def compute_agency_status(
+    db: Session,
+    granularity: str = "month",
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    today: Optional[date] = None,
+) -> dict:
+    """Acente × Durum (gelen/içeride/çıkış) × dönem kırılımı — EUR tutar + rezervasyon adedi.
+
+    Rezervasyonlar duruma göre DOĞAL tarihine yazılır (gelen/içeride → giriş,
+    çıkış → çıkış tarihi — kullanıcı kararı 2026-07-08). Salt-okuma; grafik (periods)
+    + tablo (agencies) dizileri döner. Acente gruplama/renk `compute_settlement` ile ORTAK.
+
+    - granularity="year": (bu yıl−2)…(bu yıl+1) → 4 yıl kovası, period = yıl.
+    - granularity="month": `year` yılının 12 ayı, period = ay (1-12).
+    - granularity="day": `year`/`month` ayının günleri, period = gün (1-31).
+    """
+    today = today or date.today()
+    year = int(year) if year else today.year
+    if granularity not in ("day", "month", "year"):
+        granularity = "month"
+
+    gmeta, member_to_gid = _agency_group_maps(db)
+
+    # ── Dönem kovaları + period-anahtar çıkarımı (SQL extract parçası) ──
+    y0 = y1 = None
+    if granularity == "year":
+        y0, y1 = today.year - 2, today.year + 1
+        buckets = list(range(y0, y1 + 1))
+        labels = {y: str(y) for y in buckets}
+        part = "year"
+    elif granularity == "day":
+        month = int(month) if month else today.month
+        if not (1 <= month <= 12):
+            month = today.month
+        ndays = calendar.monthrange(year, month)[1]
+        buckets = list(range(1, ndays + 1))
+        labels = {d: f"{d:02d}" for d in buckets}
+        part = "day"
+    else:  # month
+        buckets = list(range(1, 13))
+        labels = {m: _MONTHS_SHORT[m - 1] for m in buckets}
+        part = "month"
+    bucket_set = set(buckets)
+
+    # per-status × period ve per-agency × status → tutar (EUR) + adet
+    period_amt = {s["key"]: {b: 0.0 for b in buckets} for s in _STATUS_DEFS}
+    period_cnt = {s["key"]: {b: 0 for b in buckets} for s in _STATUS_DEFS}
+    ag: dict = {gid: {s["key"]: {"amount": 0.0, "count": 0} for s in _STATUS_DEFS}
+                for gid in gmeta}
+
+    for sdef in _STATUS_DEFS:
+        col = getattr(Reservation, sdef["date_col"])
+        q = (
+            db.query(
+                Reservation.agency,
+                extract(part, col).label("p"),
+                func.coalesce(func.sum(Reservation.eur_total), 0),
+                func.count(Reservation.id),
+            )
+            .filter(Reservation.status == sdef["status"])
+        )
+        if granularity == "year":
+            q = q.filter(extract("year", col) >= y0, extract("year", col) <= y1)
+        elif granularity == "day":
+            q = q.filter(extract("year", col) == year, extract("month", col) == month)
+        else:
+            q = q.filter(extract("year", col) == year)
+        for agency, p, eur, cnt in q.group_by(Reservation.agency, "p").all():
+            if p is None:
+                continue
+            pk = int(p)
+            if pk not in bucket_set:
+                continue
+            gid = member_to_gid.get(_norm(agency), _OTHER_ID)
+            amt = float(eur or 0)
+            c = int(cnt or 0)
+            period_amt[sdef["key"]][pk] += amt
+            period_cnt[sdef["key"]][pk] += c
+            ag[gid][sdef["key"]]["amount"] += amt
+            ag[gid][sdef["key"]]["count"] += c
+
+    # ── periods dizisi (grafik) ──
+    periods = []
+    for b in buckets:
+        entry = {"key": b, "label": labels[b], "statuses": {},
+                 "total_amount": 0.0, "total_count": 0}
+        for s in _STATUS_DEFS:
+            a = round(period_amt[s["key"]][b], 2)
+            c = period_cnt[s["key"]][b]
+            entry["statuses"][s["key"]] = {"amount": a, "count": c}
+            entry["total_amount"] += a
+            entry["total_count"] += c
+        entry["total_amount"] = round(entry["total_amount"], 2)
+        periods.append(entry)
+
+    # ── agencies dizisi (tablo) — aktivitesi olan gruplar, toplam tutara göre ──
+    agencies = []
+    for gid, meta in gmeta.items():
+        row_amt = round(sum(ag[gid][s["key"]]["amount"] for s in _STATUS_DEFS), 2)
+        row_cnt = sum(ag[gid][s["key"]]["count"] for s in _STATUS_DEFS)
+        if row_cnt == 0 and row_amt == 0:
+            continue
+        row = {"id": gid, "name": meta["name"], "color": meta["color"],
+               "total_amount": row_amt, "total_count": row_cnt}
+        for s in _STATUS_DEFS:
+            row[s["key"]] = {"amount": round(ag[gid][s["key"]]["amount"], 2),
+                             "count": ag[gid][s["key"]]["count"]}
+        agencies.append(row)
+    agencies.sort(key=lambda a: -a["total_amount"])
+
+    totals = {
+        s["key"]: {
+            "amount": round(sum(period_amt[s["key"]][b] for b in buckets), 2),
+            "count": sum(period_cnt[s["key"]][b] for b in buckets),
+        }
+        for s in _STATUS_DEFS
+    }
+    grand_amount = round(sum(t["amount"] for t in totals.values()), 2)
+    grand_count = sum(t["count"] for t in totals.values())
+
+    return {
+        "granularity": granularity,
+        "year": year,
+        "month": month if granularity == "day" else None,
+        "currency": "EUR",
+        "today": today.isoformat(),
+        "statuses": [{"key": s["key"], "label": s["label"], "color": s["color"]}
+                     for s in _STATUS_DEFS],
+        "periods": periods,
+        "agencies": agencies,
+        "totals": totals,
+        "grand_amount": grand_amount,
+        "grand_count": grand_count,
     }
