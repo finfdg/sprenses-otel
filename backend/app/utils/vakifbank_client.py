@@ -59,9 +59,10 @@ class VakifbankClient:
     def _get_token(self) -> str:
         """B2B Credentials ile OAuth2 access token al (cache'lenir, süresi dolunca yenilenir).
 
-        TODO: VakıfBank token endpoint'inin GERÇEK biçimi dokümandan teyit edilmeli — özellikle
-        **Rıza Numarası'nın burada mı** yoksa istek header'ında mı gittiği (portalda "Token Oluştur"
-        API Secret + Rıza Numarası ile birlikte gösteriliyor → Rıza büyük olasılıkla TOKEN adımında).
+        Doküman "Yetkilendirme" (2026-07-09): tüm parametreler GÖVDEDE (form-urlencoded):
+        grant_type=b2b_credentials, client_id, client_secret, scope, consentId (Rıza), resource
+        (sandbox/production). ⚠️ API Secret 5 kez hatalı gidince portal uygulaması KİLİTLENİR
+        (ACBG000005/6) → yanlış secret ile tekrar tekrar deneme YAPMA.
         """
         if not vakifbank_configured():
             raise VakifbankUnavailable(
@@ -71,26 +72,36 @@ class VakifbankClient:
             return self._token
 
         url = f"{settings.vakifbank_base_url}{settings.vakifbank_token_path}"
-        data = {"grant_type": "client_credentials", "scope": settings.vakifbank_scope}
+        data = {
+            "grant_type": settings.vakifbank_grant_type,
+            "client_id": settings.vakifbank_client_id,
+            "client_secret": settings.vakifbank_api_secret,
+            "scope": settings.vakifbank_scope,
+            "resource": settings.vakifbank_resource,
+        }
         if settings.vakifbank_riza_no:
-            data["consentId"] = settings.vakifbank_riza_no  # TODO: gerçek alan adı (rizaNo/consentId?)
+            data["consentId"] = settings.vakifbank_riza_no
         try:
             with httpx.Client(timeout=_TIMEOUT) as client:
                 resp = client.post(
-                    url,
-                    data=data,
-                    auth=(settings.vakifbank_client_id, settings.vakifbank_api_secret),
+                    url, data=data,
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
-                resp.raise_for_status()
+                # Hata gövdesini teşhis için sakla (VakıfBank ACBG kod + açıklama döndürür)
+                if resp.status_code >= 400:
+                    raise VakifbankUnavailable(
+                        f"VakıfBank token reddi (HTTP {resp.status_code}): {resp.text[:300]}"
+                    )
                 body = resp.json()
+        except VakifbankUnavailable:
+            raise
         except httpx.HTTPError as e:
             logger.error("VakıfBank token alınamadı: %s", e)
             raise VakifbankUnavailable(f"VakıfBank token hatası: {e}") from e
 
         token = body.get("access_token")
         if not token:
-            raise VakifbankUnavailable("VakıfBank token yanıtında access_token yok.")
+            raise VakifbankUnavailable(f"VakıfBank token yanıtında access_token yok: {str(body)[:300]}")
         self._token = token
         self._token_expires = time.time() + int(body.get("expires_in", 1800))
         return token
@@ -108,17 +119,18 @@ class VakifbankClient:
         token = self._get_token()
         url = f"{settings.vakifbank_base_url}{settings.vakifbank_transactions_path}"
         payload = _build_transactions_payload(account_number, start_date, end_date)
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-        if settings.vakifbank_riza_no:
-            headers["rizaNo"] = settings.vakifbank_riza_no  # TODO: token'da yeterliyse kaldırılacak
+        # B2B akışında consent (Rıza) token'a gömülü → API çağrısı yalnız Bearer token ister.
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         try:
             with httpx.Client(timeout=_TIMEOUT) as client:
                 resp = client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    raise VakifbankUnavailable(
+                        f"VakıfBank hareket reddi (HTTP {resp.status_code}): {resp.text[:300]}"
+                    )
                 body = resp.json()
+        except VakifbankUnavailable:
+            raise
         except httpx.HTTPError as e:
             logger.error("VakıfBank hareket sorgusu hatası (hesap …%s): %s", account_number[-4:], e)
             raise VakifbankUnavailable(f"VakıfBank hareket hatası: {e}") from e

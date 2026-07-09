@@ -38,11 +38,19 @@ Amount **İŞARETLİ** saklanır (gider negatif) — `bank_parser` konvansiyonu;
   satır/eksik-bakiye → `TransactionType` yedeği (`_TX_TYPE_INCOME={"1"}` — sandbox'ta doğrulanacak).
   `receipt_no = TransactionId` (dedup için benzersiz).
 
-**⚠️ HÂLÂ DOKÜMANDAN GEREKEN:** sandbox **base URL (gateway host)** + **token endpoint** (URL + Rıza/secret
-konumu) `config.py`'de tahmin (`vakifbank_base_url`/`token_path`); **Rıza Numarası** (`VAKIFBANK_RIZA_NO`, test
-değeri). Kimlik `.env`'de (`VAKIFBANK_CLIENT_ID/API_SECRET` girildi 2026-07-09). **Ön koşul:** EC2 dış IP
-(`13.62.127.50`) portalda whitelist'li (uygulama "Sprenses Otel Finans", Sandbox planı). Test:
-`tests/test_vakifbank.py` (15 — helper, dedup ingest, FE, **şema normalize + bakiye-zinciri yön**, RBAC + kapalı-503).
+**Token akışı DOĞRULANDI (doküman "Yetkilendirme" + canlı test 2026-07-09):**
+`POST https://inbound.apigateway.vakifbank.com.tr:8443/oauth2/token` (gövde, form-urlencoded):
+`grant_type=b2b_credentials`, `client_id`, `client_secret`, `scope=account`, `consentId`(Rıza), `resource`
+(`sandbox`/`production`). Config: `vakifbank_base_url/token_path/grant_type/resource`. **Canlı token denemesi
+(consentId'siz):** HTTP 401 `ACBH000374` "İstek doğrulanamadı" → **gateway erişildi + IP whitelist OK
+(`13.62.127.50`) + endpoint doğru + secret kabul edildi (kilit yok)**; tek eksik consentId.
+⚠️ Secret 5 kez YANLIŞ giderse portal uygulaması KİLİTLENİR (ACBG000005/6) — yanlış secret ile döngüsel deneme YAPMA.
+
+**⚠️ TEK KALAN ENGEL — Rıza Numarası (consentId):** dokümana göre "Banka tarafından iletilmektedir" — kurumsal
+müşterinin Açık Bankacılık yetkilendirmesiyle üretilir. `VAKIFBANK_RIZA_NO` `.env`'ye girilince akış tamamlanır
+(`/accountTransactions` gateway prefix'i de o an netleşecek). Kimlik `.env`'de (CLIENT_ID/API_SECRET, 2026-07-09;
+uygulama "Sprenses Otel Finans", **Sandbox** planı). Test: `tests/test_vakifbank.py` (15 — helper, dedup ingest,
+FE, **şema normalize + bakiye-zinciri yön**, RBAC + kapalı-503).
 
 ---
 

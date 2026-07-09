@@ -46,12 +46,15 @@ class Settings(BaseSettings):
     # Kimlik bilgileri YALNIZCA .env'den okunur — kodda gerçek değer default OLARAK verilmez.
     # NOT: base/token URL'leri ve alan eşlemesi VakıfBank dokümanına göre KESİNLEŞTİRİLMELİ
     # (apiportal.vakifbank.com.tr → Hesap Bilgi Servisleri → /accountTransactions).
-    vakifbank_base_url: str = "https://apiportal.vakifbank.com.tr"  # TODO: SANDBOX gateway host'u ile teyit
-    vakifbank_token_path: str = "/auth/oauth/v2/token"             # TODO: gerçek token endpoint'i
-    vakifbank_transactions_path: str = "/accountTransactions"      # doküman: POST /accountTransactions (gateway prefix'i gerekebilir)
-    vakifbank_client_id: str = ""           # .env: VAKIFBANK_CLIENT_ID
-    vakifbank_api_secret: str = ""          # .env: VAKIFBANK_API_SECRET (boşsa özellik kapalı)
-    vakifbank_riza_no: str = ""             # .env: VAKIFBANK_RIZA_NO (consent/Rıza numarası)
+    # Gateway host + token endpoint (doküman "Yetkilendirme" 2026-07-09 doğrulandı):
+    vakifbank_base_url: str = "https://inbound.apigateway.vakifbank.com.tr:8443"
+    vakifbank_token_path: str = "/oauth2/token"
+    vakifbank_transactions_path: str = "/accountTransactions"  # gateway prefix gerekirse test sonrası düzeltilir
+    vakifbank_grant_type: str = "b2b_credentials"  # hesap servisleri B2B (client_credentials DEĞİL)
+    vakifbank_resource: str = "sandbox"            # ortam: sandbox | production
+    vakifbank_client_id: str = ""           # .env: VAKIFBANK_CLIENT_ID (= API Key)
+    vakifbank_api_secret: str = ""          # .env: VAKIFBANK_API_SECRET (boşsa özellik kapalı; 5 hatada portal kilitlenir!)
+    vakifbank_riza_no: str = ""             # .env: VAKIFBANK_RIZA_NO (consentId — Rıza; bankadan gelir)
     vakifbank_scope: str = "account"        # B2B kapsam (dokümanda "account")
     vakifbank_sync_lookback_days: int = 30  # her senkronda geriye kaç gün çekilsin (dedup çakışmayı önler)
 
