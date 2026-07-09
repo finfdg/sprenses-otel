@@ -1,4 +1,4 @@
-"""Oda tipleri modülü testleri (sales.room_types) + doluluk hesabı testi."""
+"""Oda tipleri testleri (sales.acente_mahsup altında birleşik, 2026-07-09) + doluluk hesabı testi."""
 from datetime import date
 
 import pytest

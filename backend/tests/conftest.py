@@ -84,8 +84,7 @@ def extract_token(response) -> str:
 
 # Testler için gerekli modül kodları
 _REQUIRED_MODULE_CODES = [
-    ("sales.hotel_reservation", "Otel Rezervasyon"),
-    ("sales.room_types", "Oda Tipleri"),
+    ("sales.acente_mahsup", "Acente Mahsup & Nakit Akım"),
 ]
 
 

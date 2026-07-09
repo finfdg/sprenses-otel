@@ -1,3 +1,10 @@
+<!--
+	RoomTypesPanel.svelte — Oda Tipleri sekmesi (Acente Mahsup & Nakit Akım birleşik sayfası).
+
+	Eski /dashboard/satis/oda-tipleri sayfasının içeriği (2026-07-09 birleştirme):
+	otelin fiziksel oda envanteri CRUD'u — doluluk hesabında payda.
+	İzin kodu: sales.acente_mahsup (view/use); CRUD onay akışından geçer.
+-->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
@@ -14,10 +21,11 @@
 	import { api, ApiError } from '$lib/api';
 	import Button from '$lib/components/Button.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Input from '$lib/components/Input.svelte';
-	import ListPage from '$lib/components/ListPage.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
+	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Textarea from '$lib/components/Textarea.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
@@ -44,8 +52,8 @@
 	};
 
 	// ───── Derived ──────────────────────────────────────
-	const canView = $derived(hasPermission('sales.room_types', 'view'));
-	const canUse = $derived(hasPermission('sales.room_types', 'use'));
+	const canView = $derived(hasPermission('sales.acente_mahsup', 'view'));
+	const canUse = $derived(hasPermission('sales.acente_mahsup', 'use'));
 
 	// ───── State ────────────────────────────────────────
 	let items = $state<RoomType[]>([]);
@@ -209,64 +217,66 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Sprenses - Oda Tipleri</title>
-</svelte:head>
-
-<ListPage
-	title="Oda Tipleri"
-	description="Otelin fiziksel oda envanteri — doluluk hesabında payda olarak kullanılır"
-	{loading}
-	isEmpty={items.length === 0}
-	emptyIcon={BedDouble}
-	emptyTitle="Henüz oda tipi yok"
-	emptyMessage="İlk oda tipini ekleyerek başlayın"
-	emptyCtaText={canUse ? 'Yeni Tip' : ''}
-	onEmptyCta={canUse ? openCreate : null}
-	skeletonColumns={6}
-	maxWidth="max-w-5xl"
->
-	{#snippet actions()}
-		<label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-			<input
-				type="checkbox"
-				checked={includeInactive}
-				onchange={toggleIncludeInactive}
-				class="w-4 h-4 rounded border-gray-300 accent-teal-700 focus:ring-teal-500"
-			/>
-			Pasif tipleri göster
-		</label>
-		{#if canUse}
-			<Button onclick={openCreate}><Plus size={16} /> Yeni Tip</Button>
-		{/if}
-	{/snippet}
-
-	{#snippet stats()}
-		<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-			<StatCard
-				label="Toplam Oda"
-				value={totalCapacity}
-				icon={BedDouble}
-				accent="teal"
-				hint="Aktif tiplerin toplamı"
-			/>
-			<StatCard
-				label="Aktif Tip"
-				value={activeCount}
-				icon={Hash}
-				accent="gray"
-				hint="Doluluk hesabına dahil"
-			/>
-			<StatCard
-				label="Hedef"
-				value="341"
-				icon={Target}
-				accent="amber"
-				hint={totalCapacity === 341 ? 'Otel toplam oda — uyumlu' : `Otel toplam oda — fark: ${341 - totalCapacity}`}
-			/>
+<div class="space-y-4">
+	<!-- Bölüm başlığı + aksiyonlar -->
+	<div class="flex flex-wrap items-start justify-between gap-3">
+		<div>
+			<h2 class="text-base font-semibold text-gray-900">Oda Tipleri</h2>
+			<p class="mt-0.5 text-xs text-gray-500">Otelin fiziksel oda envanteri — doluluk hesabında payda olarak kullanılır</p>
 		</div>
-	{/snippet}
+		<div class="flex flex-wrap items-center gap-3">
+			<label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+				<input
+					type="checkbox"
+					checked={includeInactive}
+					onchange={toggleIncludeInactive}
+					class="w-4 h-4 rounded border-gray-300 accent-teal-700 focus:ring-teal-500"
+				/>
+				Pasif tipleri göster
+			</label>
+			{#if canUse}
+				<Button onclick={openCreate}><Plus size={16} /> Yeni Tip</Button>
+			{/if}
+		</div>
+	</div>
 
+	<!-- Stat kartları -->
+	<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+		<StatCard
+			label="Toplam Oda"
+			value={totalCapacity}
+			icon={BedDouble}
+			accent="teal"
+			hint="Aktif tiplerin toplamı"
+		/>
+		<StatCard
+			label="Aktif Tip"
+			value={activeCount}
+			icon={Hash}
+			accent="gray"
+			hint="Doluluk hesabına dahil"
+		/>
+		<StatCard
+			label="Hedef"
+			value="341"
+			icon={Target}
+			accent="amber"
+			hint={totalCapacity === 341 ? 'Otel toplam oda — uyumlu' : `Otel toplam oda — fark: ${341 - totalCapacity}`}
+		/>
+	</div>
+
+	{#if loading}
+		<TableSkeleton rows={6} columns={6} />
+	{:else if items.length === 0}
+		<EmptyState
+			icon={BedDouble}
+			title="Henüz oda tipi yok"
+			description="İlk oda tipini ekleyerek başlayın"
+			ctaText={canUse ? 'Yeni Tip' : ''}
+			onCta={canUse ? openCreate : null}
+		/>
+	{:else}
+	<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
 	<!-- Masaüstü: tablo -->
 	<div class="hidden sm:block overflow-x-auto">
 		<table class="w-full text-sm">
@@ -366,7 +376,7 @@
 	</div>
 
 	<!-- Mobil: kart görünümü -->
-	<div class="sm:hidden space-y-2">
+	<div class="sm:hidden space-y-2 p-2">
 		{#each items as rt (rt.id)}
 			<div class="bg-white border border-gray-200 rounded-xl shadow-sm p-3">
 				<div class="flex items-start justify-between gap-2">
@@ -423,7 +433,9 @@
 			</div>
 		{/each}
 	</div>
-</ListPage>
+	</div>
+	{/if}
+</div>
 
 <!-- Modal: Oluştur / Düzenle -->
 <Modal bind:show={showModal} title={editing ? 'Oda Tipini Düzenle' : 'Yeni Oda Tipi'} maxWidth="max-w-xl">

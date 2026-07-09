@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { replaceState } from '$app/navigation';
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
@@ -12,18 +13,29 @@
 	import MoneyInput from '$lib/components/MoneyInput.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import ReservationsPanel from '$lib/components/sales/ReservationsPanel.svelte';
+	import DailyActivityPanel from '$lib/components/sales/DailyActivityPanel.svelte';
+	import RoomTypesPanel from '$lib/components/sales/RoomTypesPanel.svelte';
 	import {
 		Settings2, Target, TrendingUp, LineChart, Wallet, Coins, ArrowRight, Inbox, ChevronRight
 	} from 'lucide-svelte';
 
 	// ── Sabitler ─────────────────────────────────────────────
+	// Birleşik satış sayfası (2026-07-09): eski Otel Rezervasyon, Günlük Hareketler ve
+	// Oda Tipleri modülleri bu sayfanın sekmeleri oldu (izin: sales.acente_mahsup).
 	const TABS = [
 		{ value: 'ozet', label: 'Genel Bakış' },
-		{ value: 'avans', label: 'Alınan Avanslar' },
+		{ value: 'rezervasyon', label: 'Rezervasyonlar' },
+		{ value: 'hareket', label: 'Günlük Hareketler' },
 		{ value: 'ciro', label: 'Rezervasyon & Ciro' },
+		{ value: 'avans', label: 'Alınan Avanslar' },
 		{ value: 'fatura', label: 'Satış Faturaları' },
 		{ value: 'nakit', label: 'Nakit Akım' },
+		{ value: 'oda', label: 'Oda Tipleri' },
 	];
+	// Projeksiyon gövdesi (senaryo barı + KPI + tablolar) yalnız bu sekmelerde görünür;
+	// diğerleri kendi panel bileşenini (keep-alive) render eder.
+	const PROJECTION_TABS = ['ozet', 'ciro', 'avans', 'fatura', 'nakit'];
 	const STORAGE_KEY = 'acente_mahsup_scenario_v1';
 	const NOW_YEAR = new Date().getFullYear();
 	const YEARS = [NOW_YEAR - 1, NOW_YEAR, NOW_YEAR + 1];
@@ -46,12 +58,31 @@
 	const MONTH_NUMS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 	// ── Türetilmiş ───────────────────────────────────────────
-	let canConfig = $derived(hasPermission('sales.hotel_reservation', 'use'));
+	let canConfig = $derived(hasPermission('sales.acente_mahsup', 'use'));
 
 	// ── State ────────────────────────────────────────────────
 	let loading = $state(true);
 	let data = $state<any>(null);
 	let activeTab = $state('ozet');
+	// Panel sekmeleri tembel mount edilir, ziyaret edilince mount kalır (state korunur)
+	let visitedTabs = $state(new Set<string>());
+	let isProjectionTab = $derived(PROJECTION_TABS.includes(activeTab));
+
+	function selectTab(v: string) {
+		activeTab = v;
+		if (!PROJECTION_TABS.includes(v) && !visitedTabs.has(v)) {
+			visitedTabs = new Set([...visitedTabs, v]);
+		}
+		// Deep-link: ?tab= parametresini güncelle (sayfa yeniden yüklenmeden)
+		try {
+			const url = new URL(window.location.href);
+			if (v === 'ozet') url.searchParams.delete('tab');
+			else url.searchParams.set('tab', v);
+			replaceState(url, {});
+		} catch (e) {
+			console.error('Sekme URL güncellenemedi:', e);
+		}
+	}
 	let year = $state(NOW_YEAR);
 	let target = $state<number | null>(null);
 	let openingCash = $state<number | null>(0);
@@ -188,6 +219,13 @@
 
 	// ── Yaşam döngüsü ────────────────────────────────────────
 	onMount(async () => {
+		// Deep-link: ?tab=rezervasyon vb. ile doğrudan sekme açılır
+		try {
+			const wanted = new URL(window.location.href).searchParams.get('tab');
+			if (wanted && TABS.some((t) => t.value === wanted)) selectTab(wanted);
+		} catch (e) {
+			console.error('Sekme parametresi okunamadı:', e);
+		}
 		try {
 			const saved = localStorage.getItem(STORAGE_KEY);
 			if (saved) {
@@ -235,7 +273,7 @@
 <div class="space-y-5">
 	<PageHeader
 		title="Acente Mahsup & Nakit Akım"
-		description="Rezervasyon → fatura → avans mahsubu → vadeli tahsilat projeksiyonu (EUR)"
+		description="Satış — rezervasyonlar, günlük hareketler, oda tipleri ve acente mahsup / vadeli tahsilat projeksiyonu (EUR)"
 	>
 		{#snippet actions()}
 			{#if canConfig}
@@ -246,6 +284,12 @@
 		{/snippet}
 	</PageHeader>
 
+	<!-- Sekmeler (her zaman görünür; dar ekranda yatay kaydırma) -->
+	<div class="overflow-x-auto">
+		<SegmentedControl options={TABS} value={activeTab} onchange={selectTab} ariaLabel="Sekmeler" class="min-w-max" />
+	</div>
+
+	{#if isProjectionTab}
 	<!-- Senaryo barı -->
 	<div class="flex flex-wrap items-end gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
 		<label class="flex flex-col gap-1 text-sm">
@@ -288,8 +332,6 @@
 			<StatCard icon={Wallet} accent="teal" label="Alınan Avans" value={eurC(data.kpi.advance_received)} hint="mahsup: {eurC(data.kpi.advance_applied)}" />
 			<StatCard icon={Coins} accent="amber" label="Yıl Sonu Kickback" value={eurC(data.kpi.kickback_total)} hint="acenteye ciro primi" />
 		</div>
-
-		<SegmentedControl options={TABS} value={activeTab} onchange={(v) => (activeTab = v)} ariaLabel="Sekmeler" />
 
 		<!-- ═══════════ GENEL BAKIŞ ═══════════ -->
 		{#if activeTab === 'ozet'}
@@ -713,6 +755,18 @@
 	{:else}
 		<EmptyState icon={Inbox} title="Veri yok" description="Projeksiyon oluşturulamadı." />
 	{/if}
+	{/if}
+
+	<!-- ═══════════ PANEL SEKMELERİ (keep-alive: ziyaret edilince mount kalır) ═══════════ -->
+	{#if visitedTabs.has('rezervasyon')}
+		<div class={activeTab === 'rezervasyon' ? '' : 'hidden'}><ReservationsPanel /></div>
+	{/if}
+	{#if visitedTabs.has('hareket')}
+		<div class={activeTab === 'hareket' ? '' : 'hidden'}><DailyActivityPanel /></div>
+	{/if}
+	{#if visitedTabs.has('oda')}
+		<div class={activeTab === 'oda' ? '' : 'hidden'}><RoomTypesPanel /></div>
+	{/if}
 </div>
 
 <!-- Acente Ayarları Modalı -->
@@ -720,7 +774,7 @@
 	{#if groupsLoading}
 		<TableSkeleton rows={4} columns={3} />
 	{:else if groups.length === 0}
-		<EmptyState icon={Inbox} title="Acente grubu yok" description="Önce Otel Rezervasyon sayfasından acente grupları oluşturun." />
+		<EmptyState icon={Inbox} title="Acente grubu yok" description="Önce Rezervasyonlar sekmesindeki Grupları Yönet ile acente grupları oluşturun." />
 	{:else}
 		<p class="mb-3 text-sm text-gray-600">Her acente grubunun tahsilat vadesini (gün) ve yıl sonu kickback oranını (%) ayarlayın.</p>
 		<div class="space-y-2">

@@ -63,7 +63,7 @@ def _get_or_404(db: Session, group_id: int) -> AgencyGroup:
 @router.get("/", response_model=List[AgencyGroupResponse])
 def list_groups(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "view")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Tüm acente gruplarını listele."""
     return db.query(AgencyGroup).order_by(AgencyGroup.name).all()
@@ -73,7 +73,7 @@ def list_groups(
 def create_group(
     data: AgencyGroupCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Yeni acente grubu oluştur."""
     existing = db.query(AgencyGroup).filter(AgencyGroup.name == data.name).first()
@@ -98,7 +98,7 @@ def update_group(
     group_id: int,
     data: AgencyGroupUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Grup adını ve/veya üyelerini güncelle."""
     group = _get_or_404(db, group_id)
@@ -136,7 +136,7 @@ def update_group(
 def delete_group(
     group_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Acente grubunu sil."""
     group = _get_or_404(db, group_id)
@@ -150,7 +150,7 @@ def delete_group(
 def assign_agency(
     data: AgencyAssignRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """
     Tek istekte bir acenteyi gruba ata veya gruptan çıkar (atomik).

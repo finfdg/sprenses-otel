@@ -1,4 +1,4 @@
-"""Otel rezervasyon modülü testleri (sales.hotel_reservation)."""
+"""Otel rezervasyon testleri (sales.acente_mahsup altında birleşik, 2026-07-09)."""
 import io
 import os
 from datetime import date

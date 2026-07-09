@@ -249,7 +249,8 @@ TEMPLATE:
 │   │   │                        #   rent_income, rent_expense, dividend altmodüllerini
 │   │   │                        #   `create_scheduled_router(module_code, ...)` fabrikasıyla üretir
 │   │   │                        # hr/__init__.py          — salary, withholding, sgk altmodülleri (aynı fabrika)
-│   │   │                        # sales/ (reservations, room_types, agency_groups, flights)
+│   │   │                        # sales/ (reservations, room_types, agency_groups,
+│   │   │                        #   acente_mahsup — TEK izin kodu: sales.acente_mahsup)
 │   │   │                        # approval/ (workflows, requests) — sistem onay akışı
 │   │   │                        # finance/bank_instructions — EFT/havale/döviz PDF üretim
 │   │   ├── middleware/
@@ -431,7 +432,7 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 - Muhasebe (accounting) → Vergiler (accounting.taxes), Düzenli Ödemeler (accounting.recurring), Alınan Kiralar (accounting.rent_income), Verilen Kiralar (accounting.rent_expense), Temettü (accounting.dividend), Kullanıcı Fiş İcmali (accounting.fis_icmali), Mizan (accounting.mizan)
 - İnsan Kaynakları (hr) → Maaş (hr.salary), Stopaj (hr.withholding), SGK (hr.sgk), Devam Takip (hr.attendance), Vardiyalar (hr.shifts), Vardiya Çizelgesi (hr.shift_schedule)
 - Sistem (system) → Kullanıcılar (system.users), Roller (system.roles), Modüller (system.modules), Audit Loglar (system.audit_logs), Hata Logları (system.error_logs), Onay Akışı (system.approval), Sunucu (system.server), Yedekleme (system.backup), Dokümanlar (system.docs)
-- Satış (sales) → Otel Rezervasyon (sales.hotel_reservation), Günlük Hareketler (sales.daily_reservations), Acente Mahsup & Nakit Akım (sales.acente_mahsup), Oda Tipleri (sales.room_types)
+- Satış (sales) → Acente Mahsup & Nakit Akım (sales.acente_mahsup — **BİRLEŞİK, 2026-07-09**: Rezervasyonlar + Günlük Hareketler + Oda Tipleri + projeksiyon sekmeleri tek modül/sayfada; eski sales.hotel_reservation / sales.daily_reservations / sales.room_types modülleri kaldırıldı, migration `b3c9d5e7f1a2`)
 - Stok (stok) → Maliyet Kontrol (stok.maliyet — operasyonel KPI), Ürünler & Stok (stok.urunler), Hareketler (stok.hareketler), Depolar (stok.depolar)
 - Yapay Zeka (ai) → Asistan (ai.asistan — Claude API + tool-use finans soru-cevap; Faz 1 okuma + Faz 2 onay-akışlı yazma "öner→onayla→uygula")
 

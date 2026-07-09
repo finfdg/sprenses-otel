@@ -15,7 +15,7 @@
 	const canCredits = hasPermission('finance.krediler');
 	const canCariler = hasPermission('finance.cariler');
 	const canAdvances = hasPermission('finance.avanslar');
-	const canOccupancy = hasPermission('sales.hotel_reservation');
+	const canOccupancy = hasPermission('sales.acente_mahsup');
 	const canApproval = hasPermission('system.approval');
 
 	// ── KPI state
@@ -36,7 +36,7 @@
 		'accounting.recurring': 'Düzenli Ödeme', 'accounting.rent_income': 'Alınan Kira',
 		'accounting.rent_expense': 'Verilen Kira', 'accounting.dividend': 'Temettü',
 		'hr.salary': 'Maaş', 'hr.withholding': 'Stopaj', 'hr.sgk': 'SGK',
-		'sales.room_types': 'Oda Tipi',
+		'sales.room_types': 'Oda Tipi', 'sales.acente_mahsup': 'Satış',
 		'system.users': 'Kullanıcı', 'system.roles': 'Rol', 'system.modules': 'Modül',
 	};
 	const ACTION_LABELS: Record<string, string> = { create: 'Yeni', update: 'Güncelleme', delete: 'Silme' };
@@ -108,7 +108,7 @@
 							kpis.occupancy = {
 								label: 'Doluluk', value: `%${Math.round(pct)}`,
 								sub: d.kpi?.total_rez != null ? `${d.kpi.total_rez} rezervasyon` : 'oda doluluk oranı',
-								href: '/dashboard/satis/otel-rezervasyon',
+								href: '/dashboard/satis/acente-mahsup?tab=rezervasyon',
 							};
 						}
 					}).catch(cardError('Doluluk'))

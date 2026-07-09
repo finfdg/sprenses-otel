@@ -48,7 +48,7 @@ _STEPS = [
      "run": run_sales_invoice_import, "broadcast": None},
     {"key": "stock", "label": "Stok / depo", "module": "stok.maliyet",
      "run": run_stock_import, "broadcast": None},
-    {"key": "reservations", "label": "Otel rezervasyonları", "module": "sales.hotel_reservation",
+    {"key": "reservations", "label": "Otel rezervasyonları", "module": "sales.acente_mahsup",
      "run": run_reservation_import, "broadcast": None},
     # Sedna çekmez; carilerden TÜRETİR (cari adımından SONRA çalışmalı). Cari-bağlı düzenli
     # ödemelerin (Elektrik→CK, Su→ASAT) tahmini tutarlarını cari gerçek faturayla senkronlar.

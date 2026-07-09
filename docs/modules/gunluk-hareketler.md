@@ -1,14 +1,20 @@
 # Günlük Rezervasyon Hareketleri (Günlük Hareketler)
 
+> **2026-07-09 — MODÜL BİRLEŞTİRİLDİ:** Bu kabiliyet artık ayrı bir modül DEĞİL;
+> **Acente Mahsup & Nakit Akım** (`sales.acente_mahsup`) birleşik satış sayfasının bir
+> sekmesidir. Eski modül kodu/rotası kaldırıldı (migration `b3c9d5e7f1a2`); backend
+> endpoint path'leri aynı kaldı, izinler `sales.acente_mahsup` view/use oldu.
+> Genel bakış: `docs/modules/acente-mahsup.md`. Aşağıdaki teknik detaylar geçerliliğini korur.
+
 ## Genel Bilgi
 
 | Alan | Değer |
 |---|---|
-| **Modül kodu** | `sales.daily_reservations` |
+| **Modül kodu** | `sales.acente_mahsup` (eski: `sales.daily_reservations`) |
 | **Üst modül** | Satış (`sales`) |
-| **Frontend rota** | `/dashboard/satis/gunluk-hareketler` |
+| **Frontend** | `/dashboard/satis/acente-mahsup?tab=hareket` (`lib/components/sales/DailyActivityPanel.svelte`) |
 | **Backend prefix** | `/api/sales/daily-activity` |
-| **İzin kodu** | `sales.daily_reservations` (tüm endpoint'ler `view`) |
+| **İzin kodu** | `sales.acente_mahsup` (tüm endpoint'ler `view`) |
 | **Veri kaynağı** | **Sedna önbüro (canlı)** — yerel tablo YOK |
 
 Gün gün **gelen yeni rezervasyonlar** ve **iptaller**: adet, geceleme, misafir sayısı, EUR ciro +
@@ -45,7 +51,7 @@ kalıbıyla **Sedna'dan canlı sorgular** (model/migration/senkron yok, geçmiş
 | Router | `backend/app/routers/sales/reservations/daily_activity.py` |
 | Router kaydı | `backend/app/routers/sales/__init__.py` (`prefix="/daily-activity"`) |
 | Migration | `backend/alembic/versions/a7c4e2b9d1f3_add_daily_reservations_module.py` (yalnız modül + Admin izni; tablo yok) |
-| Frontend | `frontend/src/routes/dashboard/satis/gunluk-hareketler/+page.svelte` |
+| Frontend | `frontend/src/lib/components/sales/DailyActivityPanel.svelte` |
 | Navigasyon | `frontend/src/lib/config/navigation.ts` (sales grubu, calendarDays ikonu) |
 | Test | `backend/tests/test_daily_activity.py` (16 test — fetch mock'lanır) |
 

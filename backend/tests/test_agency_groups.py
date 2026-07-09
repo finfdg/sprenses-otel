@@ -7,7 +7,7 @@ Endpoint'ler:
 - DELETE /api/sales/agency-groups/{id} — Sil
 - POST /api/sales/agency-groups/assign — Acente ata/çıkar (atomik)
 
-İzin: sales.hotel_reservation view/use
+İzin: sales.acente_mahsup view/use (2026-07-09 birleştirme)
 """
 import pytest
 

@@ -29,7 +29,7 @@ def daily_occupancy(
     rez_status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.hotel_reservation", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Belirli bir ayın günlük doluluk dağılımı — aylık bar'ın drill-down'ı.
 

@@ -71,7 +71,7 @@ def test_details_requires_view(client, no_perm_user_headers):
 
 
 def test_view_only_user_can_read(client, make_user_with_perms):
-    headers = make_user_with_perms({"sales.daily_reservations": {"view": True, "use": False}})
+    headers = make_user_with_perms({"sales.acente_mahsup": {"view": True, "use": False}})
     assert _summary(client, headers).status_code == 200
 
 

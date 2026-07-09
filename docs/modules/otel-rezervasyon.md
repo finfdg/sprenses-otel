@@ -1,8 +1,14 @@
 # Otel Rezervasyon Modülü
 
+> **2026-07-09 — MODÜL BİRLEŞTİRİLDİ:** Bu kabiliyet artık ayrı bir modül DEĞİL;
+> **Acente Mahsup & Nakit Akım** (`sales.acente_mahsup`) birleşik satış sayfasının bir
+> sekmesidir. Eski modül kodu/rotası kaldırıldı (migration `b3c9d5e7f1a2`); backend
+> endpoint path'leri aynı kaldı, izinler `sales.acente_mahsup` view/use oldu.
+> Genel bakış: `docs/modules/acente-mahsup.md`. Aşağıdaki teknik detaylar geçerliliğini korur.
+
 ## Genel Bilgi
-- **Modül kodu:** `sales.hotel_reservation`
-- **Frontend rota:** `/dashboard/satis/otel-rezervasyon`
+- **Modül kodu:** `sales.acente_mahsup` (eski: `sales.hotel_reservation`)
+- **Frontend:** `/dashboard/satis/acente-mahsup?tab=rezervasyon` (`lib/components/sales/ReservationsPanel.svelte`)
 - **Backend prefix:** `/api/sales/reservations`
 
 ## Dosya Yapısı

@@ -556,8 +556,8 @@ def _tool_rezervasyon_ozeti(
     db: Session, user: User, args: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Giriş tarihi verilen aralıkta olan rezervasyonlar: adet, oda, geceleme, ciro."""
-    if not user_can(db, user, "sales.hotel_reservation", "view"):
-        return _denied("sales.hotel_reservation")
+    if not user_can(db, user, "sales.acente_mahsup", "view"):
+        return _denied("sales.acente_mahsup")
 
     today = _istanbul_today()
     baslangic = _parse_date(args.get("baslangic_tarih"), today)
@@ -635,7 +635,7 @@ def compute_digest(db: Session, user: User, gun: int = 7) -> Dict[str, Any]:
             "toplam_tl": round(sum(_num(c.amount_tl) for c in checks), 2),
         })
 
-    if user_can(db, user, "sales.hotel_reservation", "view"):
+    if user_can(db, user, "sales.acente_mahsup", "view"):
         row = (
             db.query(func.count(Reservation.id), func.sum(Reservation.rooms))
             .filter(Reservation.checkin_date == today)

@@ -1,4 +1,4 @@
-"""Oda tipi (sales.room_types) domain servis katmanı — CRUD (HTTP'siz).
+"""Oda tipi (sales.acente_mahsup) domain servis katmanı — CRUD (HTTP'siz).
 
 D1-2 (2026-06-22): Router (sales/room_types.py create/update/delete) ve onay executor
 (_handle_sales_room_types) ORTAK çağırır → tek kaynak, sapma imkansız. HTTP doğrulama

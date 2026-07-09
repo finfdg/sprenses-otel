@@ -97,7 +97,7 @@ async def upload_reservations(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Crystal Reports rezervasyon XLS/XLSX dosyasını yükle ve upsert et."""
     upload_limiter.check(f"upload-{get_client_ip(request)}")
@@ -263,7 +263,7 @@ async def upload_reservations(
 @router.get("/uploads")
 def list_uploads(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.hotel_reservation", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Yükleme geçmişi."""
     uploads = (
@@ -298,7 +298,7 @@ def delete_upload(
     request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Yüklemeyi sil — rezervasyon satırları korunur (upload_id NULL'a düşer)."""
     upload = db.query(ReservationUpload).filter(ReservationUpload.id == upload_id).first()
@@ -331,7 +331,7 @@ def bulk_delete_reservations(
     request: Request,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Excel'de bulunmayan rezervasyonları toplu sil — upload sonrası onay akışı için.
 

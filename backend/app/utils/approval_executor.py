@@ -620,7 +620,7 @@ def _make_simple_crud_handlers():
             _loader(Advance), advance_service.create_advance,
             advance_service.apply_advance_update, advance_service.delete_advance,
             "Avans bulunamadı: {id}", create_takes_actor=True),
-        "sales.room_types": _make_crud_handler(
+        "sales.acente_mahsup": _make_crud_handler(
             _loader(RoomType), room_type_service.create_room_type,
             room_type_service.apply_room_type_update, room_type_service.delete_room_type,
             "Oda tipi bulunamadı: {id}", create_takes_actor=False),
@@ -651,7 +651,7 @@ _HANDLERS = {
     "hr.shift_schedule": _handle_shift_schedule,
 }
 
-# Uniform basit-CRUD modülleri (finance.banks/avanslar/departmanlar, sales.room_types)
+# Uniform basit-CRUD modülleri (finance.banks/avanslar/departmanlar, sales.acente_mahsup)
 _HANDLERS.update(_make_simple_crud_handlers())
 
 # Scheduled modüller (7 adet — temettü bespoke, yukarıda açık kayıtlı)

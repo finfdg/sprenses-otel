@@ -41,7 +41,7 @@ def reservation_sedna_status(_: User = Depends(get_current_user)):
 def reservation_sedna_import(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.hotel_reservation", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """SednaPrenses'ten rezervasyonları içe aktar (tekil; merkezi sync de çağırır)."""
     if not sedna_configured():

@@ -96,7 +96,7 @@ payload'dan üretir (recurring'de UI "Onayda" ön-kaydı yapılmaz — talep Ona
 `nakit_akim_ozeti` (finance.cash_flow, para-bazlı), `bekleyen_cekler` (finance.checks),
 `cari_borc_ozeti` + `cari_detay` (finance.cariler — vade/durum/bakiye), `kredi_durumu`
 (finance.krediler), `yaklasan_odemeler` (finance.cash_flow — N günde vadesi gelen giderler),
-`rezervasyon_ozeti` (sales.hotel_reservation — adet/oda/geceleme/ciro). Ayrıca `grafik_olustur`
+`rezervasyon_ozeti` (sales.acente_mahsup — adet/oda/geceleme/ciro). Ayrıca `grafik_olustur`
 (görsel — bar/line).
 
 **Konuşma sürekliliği (hafıza, 2026-07-07):** `/sor` isteği `gecmis: [{rol, metin}]` alır;

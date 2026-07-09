@@ -129,10 +129,9 @@ export const NAV_GROUPS: NavGroup[] = [
 	{
 		key: 'sales', label: 'Satış', prefix: '/dashboard/satis', icon: [I.cart],
 		items: [
-			{ code: 'sales.hotel_reservation', label: 'Otel Rezervasyon', href: '/dashboard/satis/otel-rezervasyon', icon: [I.home] },
-			{ code: 'sales.daily_reservations', label: 'Günlük Hareketler', href: '/dashboard/satis/gunluk-hareketler', icon: [I.calendarDays] },
+			// 2026-07-09: Otel Rezervasyon, Günlük Hareketler ve Oda Tipleri modülleri
+			// bu tek modülün sekmeleri altında birleştirildi (izin: sales.acente_mahsup).
 			{ code: 'sales.acente_mahsup', label: 'Acente Mahsup & Nakit Akım', href: '/dashboard/satis/acente-mahsup', icon: [I.scale] },
-			{ code: 'sales.room_types', label: 'Oda Tipleri', href: '/dashboard/satis/oda-tipleri', icon: [I.bed] },
 		],
 	},
 	{

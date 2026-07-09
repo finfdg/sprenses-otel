@@ -134,7 +134,7 @@ def daily_activity_summary(
     start_date: str = Query(...),
     end_date: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.daily_reservations", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Gün gün gelen rezervasyon / iptal özeti + dönem toplamları.
 
@@ -195,7 +195,7 @@ def daily_activity_details(
     activity_date: str = Query(...),
     type: str = Query(...),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.daily_reservations", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Drill-down: bir günün gelen (`type=new`) veya iptal edilen (`type=cancelled`)
     rezervasyon satırları. Gelenlerde `is_cancelled` sonradan-iptali işaretler;

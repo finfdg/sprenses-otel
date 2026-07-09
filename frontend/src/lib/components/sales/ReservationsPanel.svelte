@@ -1,6 +1,13 @@
+<!--
+	ReservationsPanel.svelte — Rezervasyonlar sekmesi (Acente Mahsup & Nakit Akım birleşik sayfası).
+
+	Eski /dashboard/satis/otel-rezervasyon sayfasının içeriği (2026-07-09 birleştirme):
+	XLS yükleme, KPI kartları, aylık doluluk + günlük drill-down, ADR/konaklama trendi,
+	pazar/acente/oda tipi/pansiyon dağılımları, pickup, acente gruplama (drag-drop + modal).
+	İzin kodu: sales.acente_mahsup (view/use).
+-->
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import {
 		ArrowUpDown,
 		BedDouble,
@@ -26,7 +33,6 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
@@ -96,8 +102,8 @@
 	};
 
 	// ───── Derived ────────────────────────────────────────
-	const canView = $derived(hasPermission('sales.hotel_reservation', 'view'));
-	const canUse = $derived(hasPermission('sales.hotel_reservation', 'use'));
+	const canView = $derived(hasPermission('sales.acente_mahsup', 'view'));
+	const canUse = $derived(hasPermission('sales.acente_mahsup', 'use'));
 
 	// ───── State ──────────────────────────────────────────
 	let summary = $state<SummaryData | null>(null);
@@ -816,10 +822,6 @@
 	let unsubscribe: (() => void) | null = null;
 
 	onMount(() => {
-		if (!canView) {
-			goto('/dashboard');
-			return;
-		}
 		refreshAll();
 		loadAgencyGroups();
 		unsubscribe = onWsEvent('sales_updated', (data) => {
@@ -834,15 +836,14 @@
 	});
 </script>
 
-<svelte:head><title>Otel Rezervasyon — Sprenses</title></svelte:head>
-
-{#if !canView}
-	<div class="p-8 text-center text-gray-500">Bu sayfayı görüntüleme yetkiniz yok.</div>
-{:else}
-	<div class="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-		<!-- ── Başlık + Yıl Filtresi ── -->
-		<PageHeader title="Otel Rezervasyon" description="XLS yükle → KPI ve dağılımları gör">
-			{#snippet actions()}
+<div class="space-y-6">
+		<!-- ── Bölüm başlığı + Yıl Filtresi ── -->
+		<div class="flex flex-wrap items-start justify-between gap-3">
+			<div>
+				<h2 class="text-base font-semibold text-gray-900">Rezervasyonlar</h2>
+				<p class="mt-0.5 text-xs text-gray-500">XLS yükle veya Sedna senkronu → KPI ve dağılımları gör</p>
+			</div>
+			<div class="flex flex-wrap items-center gap-2">
 				{#if availableYears.length > 0}
 					<Select
 						bind:value={filters.year}
@@ -887,8 +888,8 @@
 						<span class="hidden sm:inline">Yüklemeler ({uploads.length})</span>
 					</Button>
 				{/if}
-			{/snippet}
-		</PageHeader>
+			</div>
+		</div>
 
 		<!-- ── Dropzone ── -->
 		{#if canUse}
@@ -1494,7 +1495,7 @@
 						</span>
 						<div class="ml-auto flex items-center gap-2">
 						<!-- Grup yönet butonu (can_use) -->
-						{#if hasPermission('sales.hotel_reservation', 'use')}
+						{#if hasPermission('sales.acente_mahsup', 'use')}
 							<button
 								onclick={openGroupMgmt}
 								class="flex items-center gap-1 text-xs text-gray-500 hover:text-teal-600 border border-gray-200 rounded-lg px-2 py-1.5 hover:border-teal-300 transition-colors"
@@ -1828,8 +1829,7 @@
 				</section>
 			</div>
 		{/if}
-	</div>
-{/if}
+</div>
 
 <!-- ── Yükleme Sonuç Modalı ── -->
 <ResultModal

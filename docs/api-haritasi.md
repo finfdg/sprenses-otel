@@ -287,11 +287,14 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - İzin `system.docs` view; salt-okunur (onay/audit kapsam dışı). Path traversal imkânsız (allowlist birebir eşleşme). Detay: `docs/modules/sistem-dokumanlar.md`
 
 ### Satış — Otel Rezervasyon
+> **2026-07-09 birleştirme:** Tüm satış endpoint'lerinin izni artık **`sales.acente_mahsup`**'tur
+> (eski `sales.hotel_reservation` / `sales.daily_reservations` / `sales.room_types` modülleri kaldırıldı;
+> UI tek sayfada: `/dashboard/satis/acente-mahsup`). GET=view, mutasyon=use.
 - `POST /api/sales/reservations/upload` — Crystal Reports XLS/XLSX yükleme (RecId bazlı upsert). Response'a `removal_candidates: RemovalCandidate[]` eklenir — yüklemenin check-in + record-date kapsamı içinde olup dosyada bulunmayan kayıtlar (olası iptaller)
 - `GET /api/sales/reservations/uploads` — Yükleme geçmişi
 - `DELETE /api/sales/reservations/uploads/{id}` — Yüklemeyi sil (rezervasyon satırları korunur, FK SET NULL)
 - `POST /api/sales/reservations/bulk-delete` — `removal_candidates` listesinden seçilen ID'leri toplu sil (max 5000, audit loglu)
-- `POST /api/sales/reservations/sedna-import` — **SednaPrenses önbüro/PMS DB'sinden canlı rezervasyon senkronu** (XLS'siz doluluk). `Reservation` join `Agency`; `RecId` aynı ID uzayı → mükerrer yapmaz. Pencere=cari yıl+; aktif (Status≠−1) upsert, iptal/silinmiş süpürülür → tablo Sedna aktif rezervasyonlarının aynası (`occupancy_metrics` aktif-yalnız değişmezliği). Merkezi Sedna sync'in adımı. sales.hotel_reservation use, audit'li, onaydan muaf. Detay: `docs/modules/otel-rezervasyon.md`
+- `POST /api/sales/reservations/sedna-import` — **SednaPrenses önbüro/PMS DB'sinden canlı rezervasyon senkronu** (XLS'siz doluluk). `Reservation` join `Agency`; `RecId` aynı ID uzayı → mükerrer yapmaz. Pencere=cari yıl+; aktif (Status≠−1) upsert, iptal/silinmiş süpürülür → tablo Sedna aktif rezervasyonlarının aynası (`occupancy_metrics` aktif-yalnız değişmezliği). Merkezi Sedna sync'in adımı. sales.acente_mahsup use, audit'li, onaydan muaf. Detay: `docs/modules/otel-rezervasyon.md`
 - `GET /api/sales/reservations/sedna-status` — Sedna rezervasyon senkronu etkin mi (`{configured}`)
 - `GET /api/sales/reservations/` — Paginated liste (start_date, end_date, agency, nation, room_type, rez_status, search)
 - `GET /api/sales/reservations/summary` — Dashboard KPI + dağılımlar + **doluluk metrikleri** (total_capacity, occupancy_pct, aylık/tip başına doluluk)
@@ -299,7 +302,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md`
 
 ### Satış — Günlük Hareketler (gelen rezervasyon / iptal akışı)
-- `GET /api/sales/daily-activity/summary?start_date&end_date` — **Gün gün gelen rezervasyon + iptal özeti** (adet/gece/misafir/EUR ciro, net, `cancel_rate`; hareketsiz günler 0'larla, en yeni üstte; ≤92 gün). **Sedna canlı** (Mizan/Fiş İcmali kalıbı): yerel tabloda iptal tarihçesi yoktur (senkron iptalleri siler) — `RecordDate` ekseni=gelen, `CancelDate` ekseni=iptal. 60sn TTL cache. sales.daily_reservations view
+- `GET /api/sales/daily-activity/summary?start_date&end_date` — **Gün gün gelen rezervasyon + iptal özeti** (adet/gece/misafir/EUR ciro, net, `cancel_rate`; hareketsiz günler 0'larla, en yeni üstte; ≤92 gün). **Sedna canlı** (Mizan/Fiş İcmali kalıbı): yerel tabloda iptal tarihçesi yoktur (senkron iptalleri siler) — `RecordDate` ekseni=gelen, `CancelDate` ekseni=iptal. 60sn TTL cache. sales.acente_mahsup view
 - `GET /api/sales/daily-activity/details?activity_date&type=new|cancelled` — **Drill-down:** günün rezervasyon satırları (voucher/acente/ülke/oda/konaklama/pax/EUR; gelenlerde sonradan-iptal `is_cancelled` rozeti, iptallerde kayıt tarihi). **Misafir adı bilinçli yer almaz** (kişisel veri — Sedna sorgusu `Guests` kolonunu çekmez)
 - `GET /api/sales/daily-activity/status` — Sedna etkin mi (`{configured}`); tünel kapalı→503
 - Salt-okunur (yalnız GET) → onay akışı kapsam dışı. Detaylı bilgi: `docs/modules/gunluk-hareketler.md`
@@ -320,7 +323,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `POST /api/sales/agency-groups/assign` — Atomik atama (acente ↔ grup) — drag-drop için
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md` (acente gruplama bölümü)
 
-### Satış — Acente Mahsup & Nakit Akım (projeksiyon panosu)
+### Satış — Acente Mahsup & Nakit Akım (projeksiyon panosu — birleşik satış sayfasının projeksiyon sekmeleri)
 - `GET /api/sales/acente-mahsup/` — Rezervasyon cirosu (EUR, çıkış ayında tanınır) + acente konfigü (vade/kickback) + gerçek avanslar + yıl sonu hedef senaryosu → 5 sekmelik projeksiyon (funnel, acente tablosu, aylık ciro, projeksiyon faturaları, nakit akım). Query: `year`, `year_target` (boş=gerçek), `opening_cash`. Salt-okuma (`sales.acente_mahsup` view), 60sn TTL cache, onaydan muaf. Hak Ediş'ten bağımsız ileri projeksiyon. Detay: `docs/modules/acente-mahsup.md`
 
 ### Finans — Banka Talimatları (PDF üretim)

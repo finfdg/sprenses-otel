@@ -516,17 +516,18 @@ class TestApprovalExecutor:
         assert dept.code == code
 
     def test_create_room_type_via_approval_regression(self, db):
-        """REGRESYON: sales.room_types executor handler'ı EKSİKTİ → onaylar 500 veriyordu
+        """REGRESYON: oda tipi executor handler'ı EKSİKTİ → onaylar 500 veriyordu
         (modül-denetci subagent yakaladı, 2026-06-17). Handler eklendikten sonra onaylanınca
-        oda tipi gerçekten oluşmalı."""
+        oda tipi gerçekten oluşmalı. 2026-07-09: satış modülleri birleştirildi —
+        oda tipi CRUD onayı artık sales.acente_mahsup modül kodundan geçer."""
         from app.models.room_type import RoomType
 
         _, req_role, req_client = _make_actor(db, {
-            "sales.room_types": {"view": True, "use": True},
+            "sales.acente_mahsup": {"view": True, "use": True},
             "system.approval": {"view": True, "use": False},
         })
         _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
-        _make_workflow(db, "sales.room_types", req_role, app_role)
+        _make_workflow(db, "sales.acente_mahsup", req_role, app_role)
 
         code = f"RT{uuid4().hex[:5].upper()}"
         resp = req_client.post("/api/sales/room-types/", json={
@@ -1647,7 +1648,7 @@ class TestExecutorImportIntegrity:
 
         Modül kodu DEĞİŞKEN ise (scheduled fabrikası `check_approval(db, module_code, ...)`)
         statik çözülemez → atlanır; o modüller `_SCHEDULED_SOURCE_MAP` üzerinden zaten kapsanır.
-        Regresyon: `sales.room_types` handler'ı eksikti (modül-denetci yakaladı, 2026-06-17)."""
+        Regresyon: oda tipi (bugün sales.acente_mahsup) handler'ı eksikti (modül-denetci yakaladı, 2026-06-17)."""
         import ast
         import pathlib
 

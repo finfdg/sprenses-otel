@@ -1,8 +1,15 @@
 # Satış Modülü — Geliştirici Rehberi
 
-Satış alt modülleri: `reservations/` (otel rezervasyon + günlük hareketler), `room_types`,
-`agency_groups`, `flights` (uçak — widget tabanlı, yedek API client), `acente_mahsup`
-(Acente Mahsup & Nakit Akım — salt-okuma projeksiyon panosu). Bu dosya satış
+> **2026-07-09 BİRLEŞTİRME:** Satış'ın RBAC modülü artık TEK: **`sales.acente_mahsup`**
+> (Acente Mahsup & Nakit Akım). Eski `sales.hotel_reservation`, `sales.daily_reservations`
+> ve `sales.room_types` modülleri kaldırıldı (migration `b3c9d5e7f1a2`); bu paketteki TÜM
+> router'lar `require_permission("sales.acente_mahsup", "view"|"use")` kullanır ve
+> `room_types` onayı executor'da `sales.acente_mahsup` anahtarıyla çalışır. Router/endpoint
+> path'leri DEĞİŞMEDİ. UI tek sayfa: `/dashboard/satis/acente-mahsup` (8 sekme; eski üç
+> sayfa `lib/components/sales/{Reservations,DailyActivity,RoomTypes}Panel.svelte` sekmeleri oldu).
+
+Router paketleri: `reservations/` (otel rezervasyon + günlük hareketler), `room_types`,
+`agency_groups`, `acente_mahsup` (projeksiyon panosu). Bu dosya satış
 modülüne katkı kurallarını içerir.
 
 ## Acente Mahsup & Nakit Akım (`acente_mahsup.py`, `sales.acente_mahsup`)
@@ -14,7 +21,7 @@ modülüne katkı kurallarını içerir.
   avanslar (`receivable_service.compute_receivables` grup satırları, güncel kurla EUR) + yıl sonu
   hedef senaryosu → 5 sekmelik payload.
 - **Vade/kickback konfigü `agency_groups`'tadır** (bu modül eklerken 2 kolon eklendi); düzenleme
-  mevcut `PATCH /agency-groups/{id}` (`sales.hotel_reservation` use) ile. Yeni mutasyon endpoint'i
+  mevcut `PATCH /agency-groups/{id}` (`sales.acente_mahsup` use) ile. Yeni mutasyon endpoint'i
   eklenmedi → ayrı executor handler gerekmez.
 - Hak Ediş'ten (finance.hakedis, TL gerçek fatura yaşlandırması) **bağımsız**: burası ileri
   projeksiyon + kickback/hedef senaryo. Detay: `docs/modules/acente-mahsup.md`.
@@ -48,7 +55,7 @@ modülüne katkı kurallarını içerir.
 - `reservations/` paketi: `uploads` (XLS yükleme + RecId upsert + `removal_candidates`),
   `listing`, `summary` (KPI + doluluk), `occupancy` (günlük drill-down),
   `daily_activity` (**Günlük Hareketler** — `sales/__init__.py`'de AYRI prefix
-  `/daily-activity` ve ayrı izin koduyla (`sales.daily_reservations`) bağlanır;
+  `/daily-activity` ile bağlanır (izin: `sales.acente_mahsup` view);
   Sedna CANLI gelen/iptal akışı, yerel tablo yok — iptal tarihçesi senkronda silindiğinden
   yerel veriyle cevaplanamaz. EUR çevrimi `sedna_import._currency_to_eur_factors` ile ORTAK.
   Salt-okunur → onay/broadcast kapsam dışı. Detay: `docs/modules/gunluk-hareketler.md`).

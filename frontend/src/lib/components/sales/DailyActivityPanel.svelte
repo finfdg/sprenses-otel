@@ -1,7 +1,13 @@
+<!--
+	DailyActivityPanel.svelte — Günlük Hareketler sekmesi (Acente Mahsup & Nakit Akım birleşik sayfası).
+
+	Eski /dashboard/satis/gunluk-hareketler sayfasının içeriği (2026-07-09 birleştirme):
+	gün gün gelen yeni rezervasyonlar ve iptaller — Sedna önbüro verisinden canlı,
+	drill-down modal + aylık doluluk etkisi grafiği. İzin kodu: sales.acente_mahsup (view).
+-->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
-	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -163,19 +169,16 @@
 	});
 </script>
 
-<svelte:head><title>Günlük Hareketler · Sprenses</title></svelte:head>
-
 <div class="space-y-5">
-	<PageHeader
-		title="Günlük Rezervasyon Hareketleri"
-		description="Gün gün gelen yeni rezervasyonlar ve iptaller — Sedna önbüro verisinden canlı."
-	>
-		{#snippet actions()}
-			<Button variant="secondary" onclick={load} loading={loading}>
-				<RefreshCw size={16} /> Yenile
-			</Button>
-		{/snippet}
-	</PageHeader>
+	<div class="flex flex-wrap items-start justify-between gap-3">
+		<div>
+			<h2 class="text-base font-semibold text-gray-900">Günlük Rezervasyon Hareketleri</h2>
+			<p class="mt-0.5 text-xs text-gray-500">Gün gün gelen yeni rezervasyonlar ve iptaller — Sedna önbüro verisinden canlı.</p>
+		</div>
+		<Button variant="secondary" onclick={load} loading={loading}>
+			<RefreshCw size={16} /> Yenile
+		</Button>
+	</div>
 
 	{#if !configured}
 		<EmptyState

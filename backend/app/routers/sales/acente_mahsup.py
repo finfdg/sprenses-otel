@@ -5,7 +5,7 @@ yıl sonu ciro hedefi senaryosu → 5 sekmelik projeksiyon. Yönetim Paneli dese
 GET-only, 60sn TTL cache, mutasyon YOK → onaydan muaf (salt-okuma).
 
 Vade/kickback konfigü `agency_groups` üzerindedir; düzenleme mevcut
-`PATCH /sales/agency-groups/{id}` (sales.hotel_reservation use) ile yapılır.
+`PATCH /sales/agency-groups/{id}` (sales.acente_mahsup use) ile yapılır.
 """
 import time
 from datetime import date

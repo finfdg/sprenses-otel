@@ -264,7 +264,7 @@ yan-etki yok), elle handler yazmak yerine `_make_crud_handler` factory kullanıl
 
 - `create_takes_actor`, `create_fn`'in `actor_id` alıp almadığını **AÇIKÇA** kodlar
   (banks/avanslar alır; room_types almaz). Bu imza farkı eski drift bug'larının (D2-4) kaynağıydı —
-  gizlenmez. Şu an factory ile: `finance.banks`, `finance.avanslar`, `sales.room_types`.
+  gizlenmez. Şu an factory ile: `finance.banks`, `finance.avanslar`, `sales.acente_mahsup` (oda tipleri; 2026-07-09 birleştirmeden önce `sales.room_types`).
 - **Açık (elle) tutulanlar:** özel mantıklı handler'lar — `finance.krediler` (`_target` ürün/ödeme),
   `finance.butce` (kompozit-anahtar upsert + `target=department/category`), `finance.checks` (iptal
   kademesi), `finance.departmanlar` (**butce `target=department` yeniden kullandığından** açık

@@ -1,4 +1,5 @@
-"""Satış modülü — uçak rezervasyon, otel rezervasyon, oda tipleri ve acente grupları."""
+"""Satış modülü — rezervasyonlar, günlük hareketler, oda tipleri, acente grupları ve
+acente mahsup projeksiyonu. Tek RBAC modülü: sales.acente_mahsup (2026-07-09 birleştirme)."""
 
 from fastapi import APIRouter
 

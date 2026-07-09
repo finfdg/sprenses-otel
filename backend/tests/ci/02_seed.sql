@@ -72,8 +72,7 @@ COPY public.modules (id, name, code, description, icon, parent_id, sort_order, i
 258	Temettü	accounting.dividend	\N	\N	249	0	t	2026-04-11 16:27:20.091629+00
 895	Sunucu	system.server	\N	\N	5	90	t	2026-04-26 08:00:50.488036+00
 896	Satış	sales	\N	\N	\N	60	t	2026-04-27 11:45:48.397498+00
-898	Otel Rezervasyon	sales.hotel_reservation	Otel rezervasyon verilerinin XLS ile yüklenmesi ve analiz raporları	\N	896	20	t	2026-05-13 13:49:16.889229+00
-899	Oda Tipleri	sales.room_types	Otel oda tipi envanteri — doluluk hesaplamasında payda olarak kullanılır	\N	896	30	t	2026-05-21 13:03:43.683492+00
+898	Acente Mahsup & Nakit Akım	sales.acente_mahsup	Satış — rezervasyonlar, günlük hareketler, oda tipleri, acente mahsup & nakit akım projeksiyonu	\N	896	20	t	2026-07-09 00:00:00+00
 198	Krediler	finance.krediler	Kredi ürünleri ve ödeme planı yönetimi	CreditCard	16	11	t	2026-03-24 19:47:13.983049+00
 199	Alınan Avanslar	finance.avanslar	\N	\N	16	70	t	2026-03-26 01:01:34.13118+00
 900	Yedekleme	system.backup	\N	cloud-arrow-up	5	100	t	2026-06-04 00:00:00+00
@@ -307,10 +306,8 @@ COPY public.role_module_permissions (id, role_id, module_id, can_view, created_a
 1422	256	895	f	2026-05-22 13:52:35.598076+00	f
 1423	256	896	t	2026-05-22 13:52:35.598076+00	f
 1425	256	898	t	2026-05-22 13:52:35.598076+00	f
-1426	256	899	f	2026-05-22 13:52:35.598076+00	f
 1316	1	895	t	2026-04-26 08:00:50.490619+00	t
 1352	1	898	t	2026-05-13 13:49:16.889229+00	t
-1389	1	899	t	2026-05-21 13:03:43.683492+00	t
 1464	3	1	t	2026-05-23 11:57:06.222987+00	t
 1465	3	5	t	2026-05-23 11:57:06.222987+00	t
 1466	3	6	t	2026-05-23 11:57:06.222987+00	t
@@ -343,7 +340,6 @@ COPY public.role_module_permissions (id, role_id, module_id, can_view, created_a
 1496	3	895	t	2026-05-23 11:57:06.222987+00	t
 1497	3	896	t	2026-05-23 11:57:06.222987+00	t
 1499	3	898	t	2026-05-23 11:57:06.222987+00	t
-1500	3	899	t	2026-05-23 11:57:06.222987+00	t
 1501	255	1	t	2026-05-25 12:03:36.472892+00	t
 1502	255	5	f	2026-05-25 12:03:36.472892+00	f
 1503	255	6	f	2026-05-25 12:03:36.472892+00	f
@@ -376,7 +372,6 @@ COPY public.role_module_permissions (id, role_id, module_id, can_view, created_a
 1533	255	895	f	2026-05-25 12:03:36.472892+00	f
 1534	255	896	t	2026-05-25 12:03:36.472892+00	f
 1536	255	898	t	2026-05-25 12:03:36.472892+00	f
-1537	255	899	f	2026-05-25 12:03:36.472892+00	f
 9001	1	900	t	2026-06-04 00:00:00+00	t
 9002	1	901	t	2026-06-04 00:00:00+00	t
 9100	1	902	t	2026-06-05 00:00:00+00	t

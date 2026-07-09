@@ -33,7 +33,7 @@ router = APIRouter()
 @router.get("/years")
 def reservation_years(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.hotel_reservation", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Yıl filtresi seçenekleri — rezervasyon VERİSİNDE gerçekten geçen yıllar.
 
@@ -67,7 +67,7 @@ def reservation_summary(
     rez_status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.hotel_reservation", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Dashboard için tek istekte tüm özet veriler."""
     base_filter_args = (start_date, end_date, agency, nation, room_type, rez_status, search)

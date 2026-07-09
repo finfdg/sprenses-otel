@@ -38,7 +38,7 @@ router = APIRouter(prefix="/room-types", tags=["Oda Tipleri"])
 def list_room_types(
     include_inactive: bool = Query(False, description="Pasif tipleri de döndür"),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.room_types", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Tüm oda tiplerini sıralı olarak döndür + toplam kapasiteyi hesapla."""
     query = db.query(RoomType)
@@ -73,7 +73,7 @@ def list_room_types(
 def get_room_type(
     room_type_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("sales.room_types", "view")),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
 ):
     """Tek oda tipi detayı."""
     rt = db.query(RoomType).filter(RoomType.id == room_type_id).first()
@@ -90,11 +90,11 @@ def create_room_type(
     data: RoomTypeCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.room_types", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Yeni oda tipi oluştur."""
     approval_resp = check_approval(
-        db, "sales.room_types", 0, current_user.id, "create", data.model_dump(),
+        db, "sales.acente_mahsup", 0, current_user.id, "create", data.model_dump(),
     )
     if approval_resp:
         return approval_resp
@@ -129,7 +129,7 @@ def update_room_type(
     data: RoomTypeUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.room_types", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Oda tipini güncelle."""
     rt = db.query(RoomType).filter(RoomType.id == room_type_id).first()
@@ -138,7 +138,7 @@ def update_room_type(
 
     payload = data.model_dump(exclude_unset=True)
     approval_resp = check_approval(
-        db, "sales.room_types", room_type_id, current_user.id, "update", payload,
+        db, "sales.acente_mahsup", room_type_id, current_user.id, "update", payload,
     )
     if approval_resp:
         return approval_resp
@@ -173,7 +173,7 @@ def delete_room_type(
     room_type_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("sales.room_types", "use")),
+    current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
     """Oda tipini sil — bağlı rezervasyon kaydı varsa engelle (silinmek yerine pasif yapılmalı)."""
     rt = db.query(RoomType).filter(RoomType.id == room_type_id).first()
@@ -181,7 +181,7 @@ def delete_room_type(
         raise HTTPException(status_code=404, detail="Oda tipi bulunamadı")
 
     approval_resp = check_approval(
-        db, "sales.room_types", room_type_id, current_user.id, "delete", {},
+        db, "sales.acente_mahsup", room_type_id, current_user.id, "delete", {},
     )
     if approval_resp:
         return approval_resp

@@ -1,21 +1,42 @@
-# Acente Mahsup & Nakit Akım (sales.acente_mahsup)
+# Acente Mahsup & Nakit Akım (sales.acente_mahsup) — BİRLEŞİK SATIŞ MODÜLÜ
+
+> **2026-07-09 birleştirme (kullanıcı kararı):** Satış'ın eski üç alt modülü —
+> **Otel Rezervasyon** (`sales.hotel_reservation`), **Günlük Hareketler**
+> (`sales.daily_reservations`) ve **Oda Tipleri** (`sales.room_types`) — RBAC'tan
+> kaldırıldı; TÜM kabiliyetleri bu modülün sekmeleri olarak buraya taşındı.
+> Migration `b3c9d5e7f1a2`: rol izinleri OR ile birleştirildi, approval_workflows/
+> approval_requests module_code'ları yeni koda taşındı, eski modül satırları silindi.
+> Backend endpoint path'leri DEĞİŞMEDİ (yalnız izin kodu değişti); veri tabloları aynen durur.
 
 ## 1. Genel Bilgi
 
 | Alan | Değer |
 |---|---|
-| **Modül kodu** | `sales.acente_mahsup` |
+| **Modül kodu** | `sales.acente_mahsup` (Satış'ın TEK alt modülü) |
 | **Üst modül** | Satış (`sales`) |
-| **Frontend rota** | `/dashboard/satis/acente-mahsup` |
-| **Backend prefix** | `/api/sales/acente-mahsup` |
-| **İzin** | `sales.acente_mahsup` — **yalnız `view`** (salt-okuma pano) |
-| **Onay akışı** | **Muaf** (mutasyon yok, GET-only — Yönetim Paneli deseni) |
+| **Frontend rota** | `/dashboard/satis/acente-mahsup` (`?tab=` deep-link destekli) |
+| **Backend prefix** | `/api/sales/*` (acente-mahsup, reservations, daily-activity, room-types, agency-groups) |
+| **İzin** | `sales.acente_mahsup` — `view` (tüm GET'ler) + `use` (XLS yükleme, Sedna senkron, oda tipi/acente grubu CRUD, toplu silme) |
+| **Onay akışı** | Oda tipi CRUD `check_approval` üzerinden (executor handler anahtarı `sales.acente_mahsup`); projeksiyon/GET'ler muaf |
 | **Para birimi** | EUR |
 
-**Amaç:** Rezervasyon → fatura → avans mahsubu → vadeli tahsilat zincirinin acente
-bazlı **EUR projeksiyonu**, yıl sonu ciro hedefi senaryosuyla. "Acente Mahsup &
-Nakit Akım" 5 sekmeli salt-okuma panodur: Genel Bakış, Alınan Avanslar,
-Rezervasyon & Ciro, Satış Faturaları, Nakit Akım.
+**Amaç:** Satışın tamamı tek sayfada. **8 sekme:**
+
+| Sekme (`?tab=`) | İçerik | Kaynak bileşen / doküman |
+|---|---|---|
+| Genel Bakış (`ozet`) | Projeksiyon funnel + hedef ilerleme + acente tablosu | bu doküman |
+| Rezervasyonlar (`rezervasyon`) | Eski Otel Rezervasyon sayfasının TAMAMI (XLS yükleme, KPI, doluluk, dağılımlar, acente gruplama) | `ReservationsPanel.svelte` · `otel-rezervasyon.md` |
+| Günlük Hareketler (`hareket`) | Eski Günlük Hareketler sayfası (Sedna canlı gelen/iptal) | `DailyActivityPanel.svelte` · `gunluk-hareketler.md` |
+| Rezervasyon & Ciro (`ciro`) | Acente × Durum kırılımı (drill-down) | bu doküman §5b |
+| Alınan Avanslar (`avans`) | Avans mahsup durumu | bu doküman |
+| Satış Faturaları (`fatura`) | Projeksiyon faturaları | bu doküman |
+| Nakit Akım (`nakit`) | Vadeli tahsilat projeksiyonu + runway | bu doküman |
+| Oda Tipleri (`oda`) | Eski Oda Tipleri CRUD'u | `RoomTypesPanel.svelte` · `oda-tipleri.md` |
+
+Panel sekmeleri (rezervasyon/hareket/oda) **tembel mount** edilir ve ziyaret edilince
+mount **kalır** (`visitedTabs` + `hidden` sınıfı) — sekme değişiminde state/veri korunur,
+tekrar fetch yapılmaz. Projeksiyon gövdesi (senaryo barı + KPI) yalnız projeksiyon
+sekmelerinde görünür.
 
 **Hak Ediş'ten (finance.hakedis) farkı:** Hak Ediş **gerçek** muhasebe faturalarının
 (120, TL) yaşlandırmasıdır — bugüne kadar kesilmiş fatura + tahsilat. Bu modül ise
@@ -36,9 +57,12 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 - `alembic/versions/e1a2c3d4f5b6_acente_mahsup_module.py` — kolonlar + modül + Admin RBAC.
 
 **Frontend:**
-- `src/routes/dashboard/satis/acente-mahsup/+page.svelte` — 5 sekmeli pano + senaryo
-  girdileri + Acente Ayarları modalı.
-- `src/lib/config/navigation.ts` — Satış grubuna NavItem (`I.scale` ikon).
+- `src/routes/dashboard/satis/acente-mahsup/+page.svelte` — 8 sekmeli birleşik sayfa +
+  senaryo girdileri + Acente Ayarları modalı.
+- `src/lib/components/sales/ReservationsPanel.svelte` — Rezervasyonlar sekmesi (eski otel-rezervasyon sayfası).
+- `src/lib/components/sales/DailyActivityPanel.svelte` — Günlük Hareketler sekmesi.
+- `src/lib/components/sales/RoomTypesPanel.svelte` — Oda Tipleri sekmesi.
+- `src/lib/config/navigation.ts` — Satış grubunda TEK NavItem (`I.scale` ikon).
 
 **Test:** `backend/tests/test_acente_mahsup.py` (RBAC + shape + projeksiyon matematiği).
 
@@ -75,7 +99,7 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 | GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir; **`0`=Diğer** = top-N dışı acenteler), **`agency`** (tek ham acente filtresi), **`top_n`** (kök tabloda tek tek gösterilecek en büyük grup sayısı, varsayılan **7**; kalanı "Diğer"). 60sn TTL cache. `compute_agency_status()`. |
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
-`PATCH /api/sales/agency-groups/{id}` (izin: `sales.hotel_reservation` use) —
+`PATCH /api/sales/agency-groups/{id}` (izin: `sales.acente_mahsup` use) —
 `term_days` (0-365) ve `kickback_percent` (0-100) alanları eklendi.
 
 ## 5b. Acente × Durum Kırılımı (2026-07-08)
