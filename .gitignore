@@ -81,3 +81,7 @@ desktop.ini
 
 # --- Claude Code (yerel, kullanıcıya özel ayarlar) ---
 .claude/settings.local.json
+
+# QNB rotating refresh_token (sır — asla commit edilmez)
+backend/.qnb_refresh_token
+.qnb_refresh_token

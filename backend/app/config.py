@@ -68,6 +68,18 @@ class Settings(BaseSettings):
     ykb_scope: str = "oob"        # OAuth2 scope (portala göre ayarlanır)
     ykb_lookback_days: int = 7    # her senkronda geriye kaç gün çekilsin (dedup çakışmayı önler)
 
+    # QNB Açık Bankacılık — Account Statement V2 (hesap hareketleri, opsiyonel).
+    # ⚠️ grant_type=refresh_token ROTATING: her token çağrısı YENİ refresh_token döndürür →
+    # `.qnb_refresh_token` dosyasına kalıcı yazılır (eskisi geçersizleşir). İLK refresh_token
+    # e-posta ile gelir (QNB_REFRESH_TOKEN tohumu). QNB_CLIENT_SECRET/REFRESH_TOKEN boşsa kapalı.
+    qnb_token_url: str = "https://sandbox-api.qnb.com.tr/token"
+    qnb_base_url: str = "https://sandbox-api.qnb.com.tr/v0/account-statement"
+    qnb_client_id: str = ""       # .env: QNB_CLIENT_ID
+    qnb_client_secret: str = ""   # .env: QNB_CLIENT_SECRET (boşsa kapalı)
+    qnb_refresh_token: str = ""   # .env: QNB_REFRESH_TOKEN (e-posta ile gelen İLK token; sonra dosyada döner)
+    qnb_grant_type: str = "refresh_token"
+    qnb_lookback_days: int = 7    # doğrudan GET 1-günlük → lookback gün-gün döngüyle çekilir
+
     class Config:
         env_file = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"

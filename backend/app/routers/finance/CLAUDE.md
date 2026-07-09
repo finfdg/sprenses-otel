@@ -85,6 +85,33 @@ parse, availBal, boş liste, aynı-gün-dedup + ccy eşleme). Not: manuel tetik 
 
 ---
 
+## QNB API — Account Statement V2 (2026-07-09, doküman DOĞRULANDI)
+
+`app/utils/qnb_api.py` + `cron_fetch_qnb_statements.py` + config `qnb_*`. Hareketler `ParseResult` →
+`_process_statement` hattı (YKB deseni; dedup + finance_events + otomatik eşleştirme yeniden kullanılır).
+
+**Şema DOĞRULANDI (developer.qnb.com.tr → Account Statement V2):**
+- **Token = refresh_token grant (ROTATING — kritik!):** `POST /token` gövdede `grant_type=refresh_token`,
+  `refresh_token`, `client_id`, `client_secret`. Yanıt **YENİ bir refresh_token** döndürür → eskisi
+  geçersizleşir → **`backend/.qnb_refresh_token` dosyasına HEMEN yazılır** (gitignore'da, mode 600; yazma
+  başarısız olursa sonraki çağrı kilitlenir). İlk refresh_token e-posta ile gelir (`QNB_REFRESH_TOKEN`
+  tohumu). Access token ~30 gün → süreç-içi cache (koşu başına tek rotasyon).
+- **Endpoint'ler** (base `.../v0/account-statement`): `GET /` (hesap özeti — **yalnız 1 GÜN**; iban VEYA
+  accountNo + startDateTime/endDateTime `T00:00:00`), `GET /ticket` (çok kayıtta async sayfalı;
+  `GET /` `resultCode=1`+`ticketNo` dönerse), `GET /list` (hesap listesi: iban+accountNo).
+  → `fetch_qnb_statement` lookback'i **gün-gün döngüyle** çeker (1-gün limiti), gerekirse ticket'a düşer.
+- **Hareket alanları:** `transactionAmount`(işaretsiz string) + **`debitOrCreditCode` A/B** (**A=Alacak→gelir+,
+  B=Borç→gider−**) → işaretli amount; `balanceAfterTransaction`(yürüyen bakiye); `transactionDate`
+  (`DD.MM.YYYY HH:MM:SS` veya `YYYYMMDD`); `transactionDescription`; `transactionId`(dedup); `processCode`.
+  IBAN ile sorgulanır (bizim hesaplarda IBAN var → account_no gerekmez).
+
+**Durum:** Kimlik yok (`QNB_CLIENT_ID`/`SECRET`/`REFRESH_TOKEN` `.env`'de boş) → kapalı. QNB **en karmaşık**
+(rotating token + email seed + 1-gün limit + sandbox authorization-flow YOK/test müşteri). Cron zamanlanmamış
+(manuel: `python cron_fetch_qnb_statements.py`). Test: `tests/test_qnb.py` (8 — A/B yön, availBal→balance,
+iki tarih biçimi, ticket fallback, aynı-gün-dedup, kapalı). Sistemde 3 QNB hesabı.
+
+---
+
 ## Bekletme (Hold) — Kalemi Toplam-Dışı Park Etme (2026-07-07, YENİ)
 
 Kullanıcı isteği: Panel Nakit Akım (T-Hesap) kartına **"Beklet" option butonu** — panel/finans-nakit-akım
