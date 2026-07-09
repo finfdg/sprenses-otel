@@ -16,6 +16,7 @@ import logging
 import os
 import sys
 from datetime import date, timedelta
+from typing import Optional
 
 from fastapi import BackgroundTasks
 
@@ -57,22 +58,33 @@ def _system_user(db) -> User:
     return user
 
 
-def _fetch_account(db, acc: BankAccount, user: User) -> None:
-    """Tek bir hesap için hareketleri çek ve içe aktar."""
+def _ykb_ccy(currency: Optional[str]) -> str:
+    """Sistem para birimini YKB API biçimine çevir (YKB Türk Lirası için 'TL' bekler)."""
+    c = (currency or "").upper()
+    return "TL" if c in ("TL", "TRY", "") else c
+
+
+def _fetch_account(db, acc: BankAccount, user: User) -> bool:
+    """Tek bir hesap için hareketleri çek ve içe aktar. account_no yoksa atlar (False döner)."""
+    if not (acc.account_no or "").strip():
+        # YKB API IBAN değil HESAP NUMARASI ister → numarasız hesap senkronlanamaz.
+        logger.warning("Hesap %s (IBAN …%s): account_no boş → atlandı.", acc.iban, acc.iban[-4:])
+        return False
+
     end = date.today()
     start = end - timedelta(days=LOOKBACK_DAYS)
     logger.info("Hesap %s (%s) çekiliyor: %s..%s", acc.iban, acc.currency, start, end)
 
     parsed = fetch_yapikredi_statement(
-        account_no=acc.account_no or acc.iban,
-        ccy=acc.currency or "TL",
+        account_no=acc.account_no.strip(),
+        ccy=_ykb_ccy(acc.currency),
         start=start,
         end=end,
         iban=acc.iban,
     )
     if not parsed.transactions:
         logger.info("Hesap %s: yeni hareket yok.", acc.iban)
-        return
+        return True
 
     api_file = _ApiFile(f"ykb_{acc.iban}_{start:%Y%m%d}_{end:%Y%m%d}.api")
     virtual_path = f"api://yapikredi/{acc.iban}/{start:%Y%m%d}-{end:%Y%m%d}"
@@ -99,6 +111,7 @@ def _fetch_account(db, acc: BankAccount, user: User) -> None:
         )
     )
     logger.info("Hesap %s içe aktarıldı: %s", acc.iban, result)
+    return True
 
 
 def main() -> int:

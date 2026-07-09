@@ -54,6 +54,37 @@ FE, **şema normalize + bakiye-zinciri yön**, RBAC + kapalı-503).
 
 ---
 
+## Yapı Kredi API — Banka Hesap Hareketleri (2026-07-09, doküman DOĞRULANDI)
+
+İlk sürüm harici (Chrome bulut aracı) commit'lerle geldi (`utils/yapikredi_api.py` +
+`cron_fetch_bank_statements.py` + config `ykb_*`); şema portal dokümanıyla doğrulanıp 3 bug düzeltildi.
+
+**Mimari (VakıfBank'tan farklı, daha temiz):** `fetch_yapikredi_statement()` hareketleri `ParseResult`
+(`ParsedTransaction`/`ParsedHeader`/`compute_tx_hash` — `bank_parser`) olarak döner; cron bunu **doğrudan
+ekstre hattına** (`_process_statement` + `_post_upload_processing`) besler → dedup + finance_events +
+otomatik eşleştirme AYNEN yeniden kullanılır. `bank_transactions.source="statement"` (ekstre gibi).
+
+**Şema DOĞRULANDI (apiportal.yapikredi.com.tr):**
+- **Auth:** OAuth2 **client_credentials** (Sandbox) — **Rıza/consent GEREKMEZ** (VakıfBank'ın aksine!).
+  `POST https://api.yapikredi.com.tr/auth/oauth/v2/token`, **client_id/client_secret/grant_type/scope
+  GÖVDEDE** (form-urlencoded; Basic-auth DEĞİL — bug1 düzeltildi). scope=`oob`.
+- **Endpoint:** `POST /api/currentAccounts/account/v1/accountTransactionList`. Request: `accountNo`(hesap
+  no, IBAN değil), `ccy`(**"TL"** — TRY değil, bug3 eşlemesi), `startDate/endDate`(ISO), sayfalama
+  `continuousSearch/noOfPage/noOfRecs/postNo`. Response `response.return.list[]` + `return.postNo`(sonraki
+  sayfa imleci). Alanlar: `amount`(işaretli string, −=çıkış), `inputDate`(DD.MM.YYYY), `postNarr`(açıklama),
+  `availBal`(**işlem SONRASI** bakiye → kullanılır; `balance`=öncesi, bug2 düzeltildi), `receiptId`(dekont),
+  `createTime`(saat), `tranType`(D/C).
+- **Düzeltilen 3 bug:** (1) token Basic-auth→gövde, (2) balance→availBal (yürüyen bakiye), (3) ccy TRY→"TL"
+  + account_no boş hesabı atla (IBAN gönderme).
+
+**Durum:** Kimlik (`YKB_CLIENT_ID`/`YKB_CLIENT_SECRET`) `.env`'de YOK → özellik kapalı. Uygulama **Aktif**
+olmalı + API Key/Secret Panelim'den alınmalı. Cron **zamanlanmamış** (crontab/systemd yok; manuel:
+`python cron_fetch_bank_statements.py`). Sandbox = simülasyon veri (test hesabı `10002000`); gerçek veri için
+production. Sistemde 5 YKB hesabı (3'ünde account_no var). Test: `tests/test_yapikredi.py` (4 — doküman-örneği
+parse, availBal, boş liste, aynı-gün-dedup + ccy eşleme). Not: manuel tetik endpoint'i yok (VakıfBank'ta var).
+
+---
+
 ## Bekletme (Hold) — Kalemi Toplam-Dışı Park Etme (2026-07-07, YENİ)
 
 Kullanıcı isteği: Panel Nakit Akım (T-Hesap) kartına **"Beklet" option butonu** — panel/finans-nakit-akım

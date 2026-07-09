@@ -6,7 +6,6 @@ API dökümanı: apiportal.yapikredi.com.tr
 
 Kimlik bilgileri .env'den okunur (config.py), koda gömülmez.
 """
-import base64
 import logging
 from datetime import date, datetime
 from typing import Optional
@@ -28,17 +27,24 @@ _PAGE_SIZE = 100
 
 
 def _get_token() -> str:
-    """OAuth2 client_credentials ile access token alır."""
-    creds = base64.b64encode(
-        f"{settings.ykb_client_id}:{settings.ykb_client_secret}".encode()
-    ).decode()
+    """OAuth2 client_credentials ile access token alır.
+
+    Doküman (Authorization, resmi Java örneği): client_id/client_secret/grant_type/scope
+    hepsi GÖVDEDE (form-urlencoded) gönderilir — Basic-auth DEĞİL. Sandbox client_credentials
+    ile ilerler (VakıfBank'ın aksine Rıza/consent GEREKMEZ).
+    """
     resp = httpx.post(
         settings.ykb_token_url,
         headers={
-            "Authorization": f"Basic {creds}",
             "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
         },
-        data={"grant_type": "client_credentials", "scope": settings.ykb_scope},
+        data={
+            "grant_type": "client_credentials",
+            "scope": settings.ykb_scope,
+            "client_id": settings.ykb_client_id,
+            "client_secret": settings.ykb_client_secret,
+        },
         timeout=30,
     )
     resp.raise_for_status()
@@ -96,17 +102,18 @@ def fetch_yapikredi_statement(
             seq = seq_seen.get(base_key, 0)
             seq_seen[base_key] = seq + 1
 
+            # Bakiye: `availBal` = işlem SONRASI kullanılabilir bakiye (yürüyen bakiye — bizim
+            # konvansiyon). `balance` = işlem ÖNCESİ (yedek). Doküman "Output Parametreleri".
+            bal_raw = row.get("availBal")
+            if bal_raw in (None, ""):
+                bal_raw = row.get("balance")
             txns.append(
                 ParsedTransaction(
                     date=tx_date,
                     receipt_no=receipt_no,
                     description=desc,
                     amount=amount,
-                    balance=(
-                        float(row["balance"])
-                        if row.get("balance") not in (None, "")
-                        else None
-                    ),
+                    balance=float(bal_raw) if bal_raw not in (None, "") else None,
                     type="income" if amount >= 0 else "expense",
                     tx_hash=compute_tx_hash(tx_date, receipt_no, amount, desc, seq=seq),
                     time=row.get("createTime"),
