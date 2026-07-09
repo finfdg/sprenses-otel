@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     vakifbank_scope: str = "account"        # B2B kapsam (dokümanda "account")
     vakifbank_sync_lookback_days: int = 30  # her senkronda geriye kaç gün çekilsin (dedup çakışmayı önler)
 
+    # Yapı Kredi API Portal (Account Transaction List — banka hesap hareketleri, opsiyonel).
+    # YKB_CLIENT_SECRET boşsa özellik devre dışıdır (SEDNA_PASSWORD/VAKIFBANK deseni gibi).
+    # Kimlik bilgileri YALNIZCA .env'den okunur — kodda gerçek değer default OLARAK verilmez.
+    # OAuth2 client_credentials → token_url; hareketler POST /accountTransactionList.
+    ykb_token_url: str = "https://api.yapikredi.com.tr/auth/oauth/v2/token"  # portal Authorization
+    ykb_client_id: str = ""       # .env: YKB_CLIENT_ID (uygulama Client ID)
+    ykb_client_secret: str = ""   # .env: YKB_CLIENT_SECRET (boşsa özellik kapalı)
+    ykb_scope: str = "oob"        # OAuth2 scope (portala göre ayarlanır)
+    ykb_lookback_days: int = 7    # her senkronda geriye kaç gün çekilsin (dedup çakışmayı önler)
+
     class Config:
         env_file = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"
