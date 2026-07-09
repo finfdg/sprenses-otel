@@ -80,6 +80,19 @@ class Settings(BaseSettings):
     qnb_grant_type: str = "refresh_token"
     qnb_lookback_days: int = 7    # doğrudan GET 1-günlük → lookback gün-gün döngüyle çekilir
 
+    # Garanti BBVA — Account Transactions (Electronic Bank Statement, opsiyonel).
+    # OAuth2 client_credentials; ⚠️ access token TEK KULLANIMLIK (her istek için yeni token, cache YOK).
+    # consentId ZORUNLU (enrollment sonrası alınır; VakıfBank Rıza gibi). Max 30 gün aralık.
+    # GARANTI_CLIENT_SECRET/CONSENT_ID boşsa özellik kapalı. Token URL doküman ile teyit edilmeli.
+    garanti_base_url: str = "https://apis.garantibbva.com.tr:443"
+    garanti_token_url: str = "https://apis.garantibbva.com.tr/auth/oauth/v2/token"  # TODO: doküman ile teyit
+    garanti_transactions_path: str = "/balancesandmovements/accountinformation/transaction/v1/gettransactions"
+    garanti_client_id: str = ""       # .env: GARANTI_CLIENT_ID
+    garanti_client_secret: str = ""   # .env: GARANTI_CLIENT_SECRET (boşsa kapalı)
+    garanti_consent_id: str = ""      # .env: GARANTI_CONSENT_ID (enrollment sonrası; zorunlu)
+    garanti_scope: str = ""           # opsiyonel OAuth2 scope (portala göre)
+    garanti_lookback_days: int = 30   # banka limiti max 30 gün
+
     class Config:
         env_file = os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"

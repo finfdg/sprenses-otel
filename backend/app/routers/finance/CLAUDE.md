@@ -112,6 +112,37 @@ iki tarih biçimi, ticket fallback, aynı-gün-dedup, kapalı). Sistemde 3 QNB h
 
 ---
 
+## Garanti BBVA API — Account Transactions (2026-07-09, doküman DOĞRULANDI)
+
+`app/utils/garanti_api.py` + `cron_fetch_garanti_statements.py` + config `garanti_*`. Hareketler
+`ParseResult` → `_process_statement` hattı (QNB deseni; dedup + finance_events + otomatik eşleştirme).
+
+**Şema (developers.garantibbva.com.tr → Account Transactions v9):**
+- **Endpoint:** `POST /balancesandmovements/accountinformation/transaction/v1/gettransactions` @
+  `apis.garantibbva.com.tr:443`. OAuth2 client_credentials.
+- **⚠️ Token TEK KULLANIMLIK:** "access token can be used only one time" → HER istek öncesi yeni token
+  (cache YOK; `_get_token` her `_post_transactions`'ta çağrılır). Token URL config'de (TODO teyit).
+- **`consentId` ZORUNLU** (enrollment sonrası; VakıfBank Rıza gibi). Request: `IBAN` (veya unitNum+accountNum
+  BİRLİKTE), `startDate`/`endDate` (`YYYY-MM-DDTHH:MM:SS.mmm`), `pageIndex`/`pageSize` (max 500). **Max 30 gün**.
+- **Response:** `{result:{returnCode,reasonCode,messageText}, transactions:[...]}`. Başarı `returnCode==200`
+  (iş hatası HTTP 200 + returnCode!=200 olarak da gelir → yakalanır). Hareket: `amount`(işaretsiz) +
+  **`txnCreditDebitIndicator` A/B** (A=Alacak gelir+, B=Borç gider−) → işaretli; `balanceAfterTransaction`
+  (yürüyen); `activityDate`(YYYY-MM-DD); `explanation`(açıklama); `transactionInstanceId`(dedup).
+  IBAN ile sorgu (hesaplarımızda IBAN var). `enrichmentInformation` şimdilik kullanılmıyor.
+
+**Durum:** Kimlik yok (`GARANTI_CLIENT_ID`/`SECRET`/`CONSENT_ID` boş) → kapalı. Portalda uygulama
+oluşturup API atanmalı + Client ID/Secret + enrollment→consentId. Cron zamanlanmamış (manuel:
+`python cron_fetch_garanti_statements.py`). Test: `tests/test_garanti.py` (8 — A/B yön, balance, iş-hatası,
+sayfalama, aynı-gün-dedup, kapalı). Sistemde 3 Garanti hesabı.
+
+**Not (4 banka özeti):** VakıfBank/Yapı Kredi/QNB/Garanti — dördü de ParseResult→`_process_statement`
+deseninde, `source="statement"`, işaretli tutar (bank_parser konvansiyonu), IBAN/hesap-no ile sorgu.
+Hiçbiri henüz canlı test edilmedi (kimlik yok). Auth farkları: VakıfBank=B2B+consentId(Rıza),
+YKB=client_credentials(consent yok), QNB=refresh_token(rotating+email), Garanti=client_credentials+
+consentId+tek-kullanımlık-token.
+
+---
+
 ## Bekletme (Hold) — Kalemi Toplam-Dışı Park Etme (2026-07-07, YENİ)
 
 Kullanıcı isteği: Panel Nakit Akım (T-Hesap) kartına **"Beklet" option butonu** — panel/finans-nakit-akım
