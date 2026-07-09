@@ -5,6 +5,36 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## VakıfBank API — Banka Hesap Hareketleri Doğrudan Çekme (2026-07-09, İSKELET)
+
+Excel/PDF ekstre yüklemesine EK kaynak: VakıfBank Açık Bankacılık API'sinden (`/accountTransactions`,
+B2B Credentials + Rıza Numarası) hesap hareketlerini çekip `bank_transactions`'a yazar. Yazma yolu
+ekstre yüklemesiyle **birebir aynı** (bakiye-bazlı dedup + `finance_event_svc.upsert_bank_tx`) → nakit
+akıma yansır, çift kayıt olmaz. Sedna içe-aktarma deseninin bir bankaya uyarlaması.
+
+**Dosyalar:**
+- `app/utils/vakifbank_client.py` — OAuth2 B2B token (cache'li) + `fetch_account_transactions(iban,
+  start, end)`; `VakifbankUnavailable`, `vakifbank_configured()`. Kimlik yalnız `.env` (Sedna deseni;
+  `VAKIFBANK_API_SECRET` boşsa özellik kapalı).
+- `app/routers/finance/vakifbank.py` — `run_vakifbank_import(db, user, ip)` servisi (Sedna imzası) +
+  `_ingest_transactions` (dedup+FE) + router (`GET /vakifbank/status`, `POST /vakifbank/test-connection`
+  [yalnız token, DB'ye yazmaz], `POST /vakifbank/sync`). Onaydan MUAF (operasyonel import), audit'li,
+  `finance.banks` view/use, WS broadcast (`BANKS`).
+- `config.py` — `vakifbank_base_url/token_path/transactions_path/client_id/api_secret/riza_no/scope/
+  sync_lookback_days`.
+
+**Kaynak ayrımı:** API satırları `bank_transactions.source="api"` (ekstre=`statement`, elle=`manual`).
+Amount **İŞARETLİ** saklanır (gider negatif) — `bank_parser` konvansiyonu; dedup buna dayanır.
+
+**⚠️ İSKELET — DOLDURULACAK (VakıfBank dokümanı "Models" gelince):** token endpoint gerçek biçimi,
+`/accountTransactions` request (`_build_transactions_payload` — IBAN/tarih alan adları+formatı),
+response zarfı (`_extract_transaction_list`) ve alan eşlemesi (`_normalize_transaction` — şu an güvenlik
+için `None` döndürür → yanlış veri yazılmaz, senkron 0 hareket). Rıza Numarası header/body konumu.
+**Ön koşullar (kullanıcı tarafı):** portal uygulama onayı + Client ID/Secret + **EC2 dış IP whitelist**
+(yoksa 403). Test: `tests/test_vakifbank.py` (9 — helper, dedup ingest, FE üretimi, RBAC + kapalı-503).
+
+---
+
 ## Bekletme (Hold) — Kalemi Toplam-Dışı Park Etme (2026-07-07, YENİ)
 
 Kullanıcı isteği: Panel Nakit Akım (T-Hesap) kartına **"Beklet" option butonu** — panel/finans-nakit-akım

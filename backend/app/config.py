@@ -41,6 +41,19 @@ class Settings(BaseSettings):
     # claude-opus-4-8; tool-use ile salt-okuma finans sorgularını yanıtlar.
     anthropic_api_key: str = ""             # .env: ANTHROPIC_API_KEY
     anthropic_model: str = "claude-opus-4-8"
+    # VakıfBank Açık Bankacılık API (banka hesap hareketleri doğrudan çekme — opsiyonel).
+    # VAKIFBANK_API_SECRET boşsa özellik devre dışıdır (SEDNA_PASSWORD deseni gibi).
+    # Kimlik bilgileri YALNIZCA .env'den okunur — kodda gerçek değer default OLARAK verilmez.
+    # NOT: base/token URL'leri ve alan eşlemesi VakıfBank dokümanına göre KESİNLEŞTİRİLMELİ
+    # (apiportal.vakifbank.com.tr → Hesap Bilgi Servisleri → /accountTransactions).
+    vakifbank_base_url: str = "https://apiportal.vakifbank.com.tr"  # TODO: doküman URL'si ile teyit
+    vakifbank_token_path: str = "/auth/oauth/v2/token"             # TODO: gerçek token endpoint'i
+    vakifbank_transactions_path: str = "/accountList/accountTransactions"  # TODO: gerçek path
+    vakifbank_client_id: str = ""           # .env: VAKIFBANK_CLIENT_ID
+    vakifbank_api_secret: str = ""          # .env: VAKIFBANK_API_SECRET (boşsa özellik kapalı)
+    vakifbank_riza_no: str = ""             # .env: VAKIFBANK_RIZA_NO (consent/Rıza numarası)
+    vakifbank_scope: str = "account"        # B2B kapsam (dokümanda "account")
+    vakifbank_sync_lookback_days: int = 30  # her senkronda geriye kaç gün çekilsin (dedup çakışmayı önler)
 
     class Config:
         env_file = os.path.join(

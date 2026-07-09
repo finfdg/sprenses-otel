@@ -17,6 +17,7 @@ from .payment_instructions import router as payment_instructions_router
 from .sales_invoices import router as sales_invoices_router
 from .sedna_sync import router as sedna_sync_router
 from .transaction_tags import router as tags_router
+from .vakifbank import router as vakifbank_router
 
 router = APIRouter()
 router.include_router(cash_flow_router)
@@ -36,3 +37,4 @@ router.include_router(payment_instructions_router)
 router.include_router(sales_invoices_router)
 router.include_router(hakedis_router)
 router.include_router(sedna_sync_router)
+router.include_router(vakifbank_router)
