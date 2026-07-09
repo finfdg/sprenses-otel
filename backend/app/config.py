@@ -46,9 +46,9 @@ class Settings(BaseSettings):
     # Kimlik bilgileri YALNIZCA .env'den okunur — kodda gerçek değer default OLARAK verilmez.
     # NOT: base/token URL'leri ve alan eşlemesi VakıfBank dokümanına göre KESİNLEŞTİRİLMELİ
     # (apiportal.vakifbank.com.tr → Hesap Bilgi Servisleri → /accountTransactions).
-    vakifbank_base_url: str = "https://apiportal.vakifbank.com.tr"  # TODO: doküman URL'si ile teyit
+    vakifbank_base_url: str = "https://apiportal.vakifbank.com.tr"  # TODO: SANDBOX gateway host'u ile teyit
     vakifbank_token_path: str = "/auth/oauth/v2/token"             # TODO: gerçek token endpoint'i
-    vakifbank_transactions_path: str = "/accountList/accountTransactions"  # TODO: gerçek path
+    vakifbank_transactions_path: str = "/accountTransactions"      # doküman: POST /accountTransactions (gateway prefix'i gerekebilir)
     vakifbank_client_id: str = ""           # .env: VAKIFBANK_CLIENT_ID
     vakifbank_api_secret: str = ""          # .env: VAKIFBANK_API_SECRET (boşsa özellik kapalı)
     vakifbank_riza_no: str = ""             # .env: VAKIFBANK_RIZA_NO (consent/Rıza numarası)

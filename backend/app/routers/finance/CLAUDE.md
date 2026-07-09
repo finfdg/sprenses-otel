@@ -26,12 +26,23 @@ akıma yansır, çift kayıt olmaz. Sedna içe-aktarma deseninin bir bankaya uya
 **Kaynak ayrımı:** API satırları `bank_transactions.source="api"` (ekstre=`statement`, elle=`manual`).
 Amount **İŞARETLİ** saklanır (gider negatif) — `bank_parser` konvansiyonu; dedup buna dayanır.
 
-**⚠️ İSKELET — DOLDURULACAK (VakıfBank dokümanı "Models" gelince):** token endpoint gerçek biçimi,
-`/accountTransactions` request (`_build_transactions_payload` — IBAN/tarih alan adları+formatı),
-response zarfı (`_extract_transaction_list`) ve alan eşlemesi (`_normalize_transaction` — şu an güvenlik
-için `None` döndürür → yanlış veri yazılmaz, senkron 0 hareket). Rıza Numarası header/body konumu.
-**Ön koşullar (kullanıcı tarafı):** portal uygulama onayı + Client ID/Secret + **EC2 dış IP whitelist**
-(yoksa 403). Test: `tests/test_vakifbank.py` (9 — helper, dedup ingest, FE üretimi, RBAC + kapalı-503).
+**Şema DOĞRULANDI (2026-07-09, portal dokümanı):**
+- **Request** (RequestData): `{"AccountNumber": "...", "StartDate": "...Z", "EndDate": "...Z"}` — **IBAN
+  DEĞİL hesap numarası** (`bank_accounts.account_no`; boşsa hesap atlanır, `no_account_no` sayacı).
+  Tarih ISO-Z (`2026-07-01T00:00:00.000Z`). En fazla 100 kayıt.
+- **Response**: `Data.AccountTransactions[]` → `{CurrencyCode, TransactionType, Description, Amount(+string),
+  TransactionCode, Balance(string), TransactionName, TransactionDate(ISO-Z), TransactionId}`. Başarı =
+  `Header.StatusCode == "APIGW000000"`.
+- **Yön (income/expense):** `Amount` işaretsiz → **bakiye zincirinden** türetilir (`_normalize_batch`:
+  kronolojik sırala → `signed[i] = Balance[i] − Balance[i-1]`, |signed|≈Amount ise kesin yön). İlk
+  satır/eksik-bakiye → `TransactionType` yedeği (`_TX_TYPE_INCOME={"1"}` — sandbox'ta doğrulanacak).
+  `receipt_no = TransactionId` (dedup için benzersiz).
+
+**⚠️ HÂLÂ DOKÜMANDAN GEREKEN:** sandbox **base URL (gateway host)** + **token endpoint** (URL + Rıza/secret
+konumu) `config.py`'de tahmin (`vakifbank_base_url`/`token_path`); **Rıza Numarası** (`VAKIFBANK_RIZA_NO`, test
+değeri). Kimlik `.env`'de (`VAKIFBANK_CLIENT_ID/API_SECRET` girildi 2026-07-09). **Ön koşul:** EC2 dış IP
+(`13.62.127.50`) portalda whitelist'li (uygulama "Sprenses Otel Finans", Sandbox planı). Test:
+`tests/test_vakifbank.py` (15 — helper, dedup ingest, FE, **şema normalize + bakiye-zinciri yön**, RBAC + kapalı-503).
 
 ---
 

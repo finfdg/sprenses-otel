@@ -12,6 +12,12 @@ from app.routers.finance.vakifbank import (
     _is_vakifbank,
     _vakifbank_accounts,
 )
+from app.utils.vakifbank_client import (
+    _build_transactions_payload,
+    _extract_transaction_list,
+    _normalize_batch,
+    _parse_iso_z,
+)
 
 API = "/api/finance/vakifbank"
 
@@ -77,25 +83,85 @@ class TestIngestDedup:
         assert new == 0 and skipped == 2
 
 
+class TestNormalizeSchema:
+    """VakıfBank gerçek response şeması (Data.AccountTransactions) → ortak şema + işaretli tutar."""
+
+    def _raw(self):
+        # Doküman şekli; bakiye zinciri: 1650 → 1450 → 1950
+        return [
+            {"TransactionDate": "2026-07-01T10:00:00.000Z", "Amount": "650.0", "Balance": "1650.0",
+             "TransactionType": "1", "Description": "Gelen havale", "TransactionId": "1000000000000001",
+             "CurrencyCode": "TL", "TransactionName": "Havale"},
+            {"TransactionDate": "2026-07-02T11:00:00.000Z", "Amount": "200.0", "Balance": "1450.0",
+             "TransactionType": "2", "Description": "Giden EFT", "TransactionId": "1000000000000002",
+             "CurrencyCode": "TL", "TransactionName": "EFT"},
+            {"TransactionDate": "2026-07-03T12:00:00.000Z", "Amount": "500.0", "Balance": "1950.0",
+             "TransactionType": "1", "Description": "Senet tahsilatı", "TransactionId": "1000000000000003",
+             "CurrencyCode": "TL", "TransactionName": "Senet tahsilatı"},
+        ]
+
+    def test_parse_iso_z(self):
+        assert _parse_iso_z("2020-02-05T10:47:47.000Z") == date(2020, 2, 5)
+        assert _parse_iso_z("") is None
+        assert _parse_iso_z(None) is None
+
+    def test_request_payload_shape(self):
+        p = _build_transactions_payload("00158000000000001", date(2026, 7, 1), date(2026, 7, 9))
+        assert p["AccountNumber"] == "00158000000000001"
+        assert p["StartDate"] == "2026-07-01T00:00:00.000Z"
+        assert p["EndDate"] == "2026-07-09T23:59:59.999Z"
+
+    def test_extract_list_from_envelope(self):
+        body = {"Header": {"StatusCode": "APIGW000000"}, "Data": {"AccountTransactions": self._raw()}}
+        assert len(_extract_transaction_list(body)) == 3
+        assert _extract_transaction_list({}) == []
+        assert _extract_transaction_list({"Data": {}}) == []
+
+    def test_balance_chain_signs(self):
+        out = _normalize_batch(self._raw())
+        assert [r["amount"] for r in out] == [650.0, -200.0, 500.0]  # ilk=type, sonrası=bakiye delta
+        assert [r["type"] for r in out] == ["income", "expense", "income"]
+        assert [r["receipt_no"] for r in out] == ["1000000000000001", "1000000000000002", "1000000000000003"]
+        assert out[0]["date"] == date(2026, 7, 1)
+
+    def test_sorts_out_of_order_input(self):
+        out = _normalize_batch(list(reversed(self._raw())))  # ters sırayla ver
+        # kronolojik sıralanır → aynı işaretler
+        assert [r["amount"] for r in out] == [650.0, -200.0, 500.0]
+
+    def test_skips_unparsable_rows(self):
+        raw = [{"Amount": "5", "Balance": "10"},                       # tarih yok
+               {"TransactionDate": "2026-07-01T00:00:00.000Z", "Balance": "10"}]  # tutar yok
+        assert _normalize_batch(raw) == []
+
+
+def _force_unconfigured(monkeypatch):
+    """Kimlik durumunu deterministik yap (gerçek .env'e bağlı kalmasın)."""
+    monkeypatch.setattr("app.routers.finance.vakifbank.vakifbank_configured", lambda: False)
+
+
 class TestEndpoints:
     def test_status_requires_view(self, client, no_perm_user_headers):
         client.cookies.clear()  # fixture login'inin bıraktığı cookie'yi temizle (gerçek kimliksiz)
         assert client.get(f"{API}/status").status_code == 401
         assert client.get(f"{API}/status", headers=no_perm_user_headers).status_code == 403
 
-    def test_status_ok_when_unconfigured(self, client, auth_headers):
+    def test_status_shape(self, client, auth_headers, monkeypatch):
+        _force_unconfigured(monkeypatch)
         r = client.get(f"{API}/status", headers=auth_headers)
         assert r.status_code == 200, r.text
         body = r.json()
-        assert body["configured"] is False  # test ortamında kimlik yok
-        assert "account_count" in body and "lookback_days" in body
+        assert body["configured"] is False and body["account_count"] == 0
+        assert "lookback_days" in body and "has_riza" in body
 
-    def test_sync_requires_use_then_503_unconfigured(self, client, auth_headers, no_perm_user_headers):
-        # İzinsiz → 403 (permission dependency önce çalışır)
+    def test_sync_permission_then_503_unconfigured(self, client, auth_headers, no_perm_user_headers, monkeypatch):
+        # İzinsiz → 403 (permission dependency önce çalışır, config'ten bağımsız)
         assert client.post(f"{API}/sync", headers=no_perm_user_headers).status_code == 403
-        # Yetkili ama kimlik yok → 503 (özellik kapalı)
+        # Yetkili ama kapalı → 503 (ağ çağrısı YOK)
+        _force_unconfigured(monkeypatch)
         assert client.post(f"{API}/sync", headers=auth_headers).status_code == 503
 
-    def test_test_connection_503_unconfigured(self, client, auth_headers, no_perm_user_headers):
+    def test_test_connection_permission_then_503_unconfigured(self, client, auth_headers, no_perm_user_headers, monkeypatch):
         assert client.post(f"{API}/test-connection", headers=no_perm_user_headers).status_code == 403
+        _force_unconfigured(monkeypatch)  # ağ çağrısı olmadan 503
         assert client.post(f"{API}/test-connection", headers=auth_headers).status_code == 503

@@ -138,7 +138,7 @@ def run_vakifbank_import(db: Session, current_user: User, ip: str) -> dict:
 
     accounts = _vakifbank_accounts(db)
     if not accounts:
-        return {"accounts": 0, "new_transactions": 0, "skipped": 0, "errors": []}
+        return {"accounts": 0, "new_transactions": 0, "skipped": 0, "no_account_no": 0, "errors": []}
 
     client = get_vakifbank_client()
     today = date.today()
@@ -146,10 +146,17 @@ def run_vakifbank_import(db: Session, current_user: User, ip: str) -> dict:
 
     total_new = 0
     total_skipped = 0
+    no_account_no = 0
     errors: List[str] = []
     for acc in accounts:
+        # API IBAN değil HESAP NUMARASI ister (RequestData.AccountNumber). account_no boşsa
+        # o hesap senkronlanamaz — kullanıcı doldurmalı (veya /accountList ile çekilecek).
+        if not (acc.account_no or "").strip():
+            no_account_no += 1
+            logger.warning("VakıfBank: hesap %s (IBAN …%s) account_no boş → atlandı", acc.id, acc.iban[-4:])
+            continue
         try:
-            rows = client.fetch_account_transactions(acc.iban, start, today)
+            rows = client.fetch_account_transactions(acc.account_no.strip(), start, today)
             n, s = _ingest_transactions(db, acc, rows)
             total_new += n
             total_skipped += s
@@ -162,7 +169,7 @@ def run_vakifbank_import(db: Session, current_user: User, ip: str) -> dict:
     log_action(
         db, current_user.id, "import", "bank_transaction", None,
         f"VakıfBank API senkron: {total_new} yeni, {total_skipped} mevcut, "
-        f"{len(accounts)} hesap, {len(errors)} hata",
+        f"{len(accounts)} hesap, {no_account_no} hesap-no'suz, {len(errors)} hata",
         ip,
     )
     db.commit()
@@ -170,6 +177,7 @@ def run_vakifbank_import(db: Session, current_user: User, ip: str) -> dict:
         "accounts": len(accounts),
         "new_transactions": total_new,
         "skipped": total_skipped,
+        "no_account_no": no_account_no,
         "errors": errors,
     }
 
