@@ -9,15 +9,17 @@ Kimlik akışı (VakıfBank apiportal — Hesap Bilgi Servisleri):
   1. OAuth2 token  (B2B Credentials: client_id + api_secret [+ Rıza Numarası])
   2. POST /accountTransactions  (token; body = AccountNumber + StartDate + EndDate)
 
-Şema (dokümandan doğrulandı 2026-07-09):
-  Request  : {"AccountNumber": "...", "StartDate": "...Z", "EndDate": "...Z"}  (en fazla 100 kayıt)
+Şema (bankanın resmî Postman collection'ı + örnek yanıtla DOĞRULANDI 2026-07-10):
+  Token    : POST {base}/auth/oauth/v2/token (form-urlencoded: client_id, client_secret,
+             grant_type=b2b_credentials, scope=account, consentId, resource=sandbox|production)
+  Request  : POST {base}/accountTransactions (Bearer token, JSON):
+             {"AccountNumber": "...", "StartDate": "2024-09-26T00:00:00+03:00", "EndDate": ...}
+             — tarih +03:00 offset'li ISO (collection örneği; Z DEĞİL). En fazla 100 kayıt.
   Response : {"Header": {"StatusCode": "APIGW000000", ...}, "Data": {"AccountTransactions": [ {
-             CurrencyCode, TransactionType, Description, Amount, TransactionCode, Balance,
-             TransactionName, TransactionDate, TransactionId } ... ]}}
-
-⚠️ HÂLÂ DOKÜMANDAN GEREKENLER: sandbox **base URL (gateway host)**, **token endpoint** (URL +
-Rıza/secret'in nasıl gittiği), **Rıza Numarası** test değeri. Bunlar config'de
-(`vakifbank_base_url/token_path`) + `.env`'de (`VAKIFBANK_RIZA_NO`) — gelince kesinleşecek.
+             CurrencyCode, TransactionType, Description, Amount(İŞARETLİ sayı — gider negatif,
+             resmî örnek: -1.74), TransactionCode, VirtualIBAN, Balance, TransactionName,
+             TransactionDate("2023-08-08T13:56:51" — Z'siz), TransactionId } ... ]}}
+  Ek       : POST {base}/accountList (Bearer, JSON {}) — hesap listesi (sandbox keşfi/teşhis).
 """
 import logging
 import time
@@ -32,11 +34,14 @@ logger = logging.getLogger(__name__)
 
 _TIMEOUT = 20.0
 _SUCCESS_STATUS = "APIGW000000"
+_NO_TRANSACTIONS_STATUS = "ACBH000202"  # "Seçilen tarih aralığında hesap hareketi bulunmamaktadır"
+                                        # HTTP 400 ile döner (canlı sandbox 2026-07-10) — hata DEĞİL, boş sonuç
 
-# TransactionType → gelir mi? Bakiye zinciri kurulamayan (ilk) satır için YEDEK varsayım.
-# Doküman örneğinde "1" = "Senet tahsilatı" (tahsilat = alacak/gelir) → {"1"} gelir varsaydık.
-# Sandbox gerçek veriyle DOĞRULANACAK (bakiye zinciri zaten çoğu satırda yön verir → yedek nadiren devrede).
+# TransactionType — resmî Postman örneğiyle doğrulandı (2026-07-10): "1" = giriş ("PARA
+# Yatirma", tutar pozitif), "2" = çıkış ("Gecikmeli Kmh Tahsilatı", tutar NEGATİF). Asıl yön
+# kaynağı işaretli Amount + bakiye zinciri; bunlar yalnız işaretsiz-pozitif satır yedeği.
 _TX_TYPE_INCOME = {"1"}
+_TX_TYPE_EXPENSE = {"2"}
 
 
 class VakifbankUnavailable(Exception):
@@ -125,6 +130,8 @@ class VakifbankClient:
             with httpx.Client(timeout=_TIMEOUT) as client:
                 resp = client.post(url, json=payload, headers=headers)
                 if resp.status_code >= 400:
+                    if _no_transactions(resp):  # boş dönem HTTP 400 ile gelir — hata değil
+                        return []
                     raise VakifbankUnavailable(
                         f"VakıfBank hareket reddi (HTTP {resp.status_code}): {resp.text[:300]}"
                     )
@@ -143,6 +150,39 @@ class VakifbankClient:
             )
         return _normalize_batch(_extract_transaction_list(body))
 
+    # ── Hesap listesi ────────────────────────────────────────────────────────
+    def fetch_account_list(self) -> list:
+        """Müşterinin hesap listesini çek (POST /accountList, gövde {}).
+
+        Sandbox'ta test hesaplarını keşfetmek + test-connection teşhisi için. Yanıt
+        şeması collection'da örneklenmediğinden savunmacı çıkarılır: Data içindeki
+        İLK liste değer (yoksa Data dict'in kendisi tek öğeli liste olarak) döner.
+        """
+        token = self._get_token()
+        url = f"{settings.vakifbank_base_url}{settings.vakifbank_account_list_path}"
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        try:
+            with httpx.Client(timeout=_TIMEOUT) as client:
+                resp = client.post(url, json={}, headers=headers)
+                if resp.status_code >= 400:
+                    raise VakifbankUnavailable(
+                        f"VakıfBank hesap listesi reddi (HTTP {resp.status_code}): {resp.text[:300]}"
+                    )
+                body = resp.json()
+        except VakifbankUnavailable:
+            raise
+        except httpx.HTTPError as e:
+            logger.error("VakıfBank hesap listesi hatası: %s", e)
+            raise VakifbankUnavailable(f"VakıfBank hesap listesi hatası: {e}") from e
+
+        header = body.get("Header") or {}
+        status = header.get("StatusCode")
+        if status and status != _SUCCESS_STATUS:
+            raise VakifbankUnavailable(
+                f"VakıfBank yanıt hatası: {header.get('StatusDescription') or status}"
+            )
+        return _extract_account_list(body)
+
 
 # ── Modül-düzeyi tekil örnek (Amadeus deseni) ────────────────────────────────
 _client_singleton: Optional[VakifbankClient] = None
@@ -160,12 +200,14 @@ def get_vakifbank_client() -> VakifbankClient:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _iso_z(d: date, end: bool = False) -> str:
-    """date → VakıfBank ISO-Z zaman damgası (ör. '2026-07-01T00:00:00.000Z')."""
-    return f"{d.isoformat()}T{'23:59:59.999' if end else '00:00:00.000'}Z"
+    """date → VakıfBank istek zaman damgası — +03:00 offset'li ISO (collection örneği:
+    '2024-09-26T00:00:00+03:00'; eski varsayım ISO-Z İDİ, resmî collection ile düzeltildi)."""
+    return f"{d.isoformat()}T{'23:59:59' if end else '00:00:00'}+03:00"
 
 
 def _parse_iso_z(s) -> Optional[date]:
-    """'2020-02-05T10:47:47.000Z' → date. Sabit biçim → dilim tabanlı, sağlam."""
+    """'2023-08-08T13:56:51' (resmî örnek, Z'siz) veya '...T10:47:47.000Z' → date.
+    İlk 10 karakter dilim tabanlı — sonek biçiminden bağımsız, sağlam."""
     if not s or not isinstance(s, str) or len(s) < 10:
         return None
     try:
@@ -185,12 +227,37 @@ def _to_float(v) -> Optional[float]:
 
 
 def _build_transactions_payload(account_number: str, start_date: date, end_date: date) -> dict:
-    """/accountTransactions POST gövdesi (RequestData modeli — doğrulandı)."""
+    """/accountTransactions POST gövdesi (resmî Postman collection ile birebir doğrulandı)."""
     return {
         "AccountNumber": account_number,
         "StartDate": _iso_z(start_date),
         "EndDate": _iso_z(end_date, end=True),
     }
+
+
+def _no_transactions(resp) -> bool:
+    """Yanıt 'hareket yok' (ACBH000202) mu? Banka bunu HTTP 400 ile döndürür."""
+    try:
+        header = resp.json().get("Header") or {}
+        return header.get("StatusCode") == _NO_TRANSACTIONS_STATUS
+    except Exception:  # JSON değilse gerçek hata yoluna düşsün
+        return False
+
+
+def _extract_account_list(body: dict) -> list:
+    """/accountList yanıtından hesap listesini savunmacı çıkar (şema örneklenmedi):
+    Data liste ise kendisi; dict ise içindeki ilk liste değer; o da yoksa [Data]."""
+    if not isinstance(body, dict):
+        return []
+    data = body.get("Data")
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for v in data.values():
+            if isinstance(v, list):
+                return v
+        return [data] if data else []
+    return []
 
 
 def _extract_transaction_list(body: dict) -> List[dict]:
@@ -204,24 +271,30 @@ def _extract_transaction_list(body: dict) -> List[dict]:
 
 
 def _normalize_batch(raw_list: List[dict]) -> List[dict]:
-    """Ham hareket listesini ortak şemaya çevir + İŞARETLİ tutar üret (bakiye zinciri).
+    """Ham hareket listesini ortak şemaya çevir + İŞARETLİ tutar üret.
 
-    Yön belirleme (mevcut ekstre ayrıştırıcı felsefesi = bakiye zinciri kral):
-      - Kronolojik sırala (TransactionDate + TransactionId).
-      - signed[i] = Balance[i] − Balance[i-1]; |signed| ≈ Amount ise BU kullanılır (kesin yön).
-      - Bakiye zinciri kurulamayan (ilk satır / eksik bakiye) satır → `TransactionType` yedeği.
+    Yön belirleme öncelik sırası (resmî örnek yanıtla güncellendi 2026-07-10):
+      1. **Bakiye zinciri** (ekstre ayrıştırıcı felsefesi): kronolojik sırala
+         (TransactionDate + TransactionId); signed[i] = Balance[i] − Balance[i-1];
+         |signed| ≈ |Amount| ise BU kullanılır (kesin yön). Not: sandbox test verisinde
+         bakiyeler tutarsız (999999...) → zincir orada nadiren kurulur; üretimde kurulur.
+      2. **Amount işareti**: resmî örnekte gider satırı NEGATİF gelir ("Amount": -1.74)
+         → negatifse kesin gider.
+      3. **TransactionType yedeği** (yalnız işaretsiz-pozitif satır): "2"=gider → negate;
+         aksi halde gelir.
     """
     parsed = []
     for raw in raw_list:
         if not isinstance(raw, dict):
             continue
         d = _parse_iso_z(raw.get("TransactionDate"))
-        amt_abs = _to_float(raw.get("Amount"))
-        if d is None or amt_abs is None:
+        amt = _to_float(raw.get("Amount"))
+        if d is None or amt is None:
             continue
         parsed.append({
             "date": d,
-            "amount_abs": abs(amt_abs),
+            "amount_raw": amt,           # İŞARETLİ (banka negatif gönderirse korunur)
+            "amount_abs": abs(amt),
             "balance": _to_float(raw.get("Balance")),
             "description": (raw.get("Description") or raw.get("TransactionName") or "").strip(),
             "receipt_no": (str(raw.get("TransactionId")).strip() or None) if raw.get("TransactionId") else None,
@@ -237,9 +310,11 @@ def _normalize_batch(raw_list: List[dict]) -> List[dict]:
         if prev_bal is not None and r["balance"] is not None:
             delta = round(r["balance"] - prev_bal, 2)
             if abs(delta) > 0 and abs(abs(delta) - r["amount_abs"]) < 0.02:
-                signed = delta  # bakiye zinciri → kesin yön
-        if signed is None:  # ilk satır / eksik bakiye → TransactionType yedeği
-            signed = r["amount_abs"] if r["tx_type"] in _TX_TYPE_INCOME else -r["amount_abs"]
+                signed = delta  # 1) bakiye zinciri → kesin yön
+        if signed is None and r["amount_raw"] < 0:
+            signed = r["amount_raw"]  # 2) banka işaretli gönderdi → kesin gider
+        if signed is None:  # 3) işaretsiz-pozitif → TransactionType yedeği
+            signed = -r["amount_abs"] if r["tx_type"] in _TX_TYPE_EXPENSE else r["amount_abs"]
         out.append({
             "date": r["date"],
             "amount": signed,

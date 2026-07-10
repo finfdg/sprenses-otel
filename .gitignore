@@ -85,3 +85,6 @@ desktop.ini
 # QNB rotating refresh_token (sır — asla commit edilmez)
 backend/.qnb_refresh_token
 .qnb_refresh_token
+
+# Kullanıcı geçici dosyaları (banka test verileri vb. içerebilir — GitHub yedeğine sızmasın)
+scratchpad/

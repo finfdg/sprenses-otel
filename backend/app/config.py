@@ -44,12 +44,13 @@ class Settings(BaseSettings):
     # VakıfBank Açık Bankacılık API (banka hesap hareketleri doğrudan çekme — opsiyonel).
     # VAKIFBANK_API_SECRET boşsa özellik devre dışıdır (SEDNA_PASSWORD deseni gibi).
     # Kimlik bilgileri YALNIZCA .env'den okunur — kodda gerçek değer default OLARAK verilmez.
-    # NOT: base/token URL'leri ve alan eşlemesi VakıfBank dokümanına göre KESİNLEŞTİRİLMELİ
-    # (apiportal.vakifbank.com.tr → Hesap Bilgi Servisleri → /accountTransactions).
-    # Gateway host + token endpoint (doküman "Yetkilendirme" 2026-07-09 doğrulandı):
-    vakifbank_base_url: str = "https://inbound.apigateway.vakifbank.com.tr:8443"
-    vakifbank_token_path: str = "/oauth2/token"
-    vakifbank_transactions_path: str = "/accountTransactions"  # gateway prefix gerekirse test sonrası düzeltilir
+    # Gateway + endpoint'ler bankanın resmî Postman collection'ıyla DOĞRULANDI (2026-07-10,
+    # Apiportaldestek e-postası "Rıza Numarası hk." — "Genel Test Dosyası - Hesap Bilgi"):
+    # token=/auth/oauth/v2/token, /accountList, /accountDetail, /accountTransactions.
+    vakifbank_base_url: str = "https://apigw.vakifbank.com.tr:8443"
+    vakifbank_token_path: str = "/auth/oauth/v2/token"
+    vakifbank_transactions_path: str = "/accountTransactions"
+    vakifbank_account_list_path: str = "/accountList"  # hesap listesi (sandbox keşfi + teşhis)
     vakifbank_grant_type: str = "b2b_credentials"  # hesap servisleri B2B (client_credentials DEĞİL)
     vakifbank_resource: str = "sandbox"            # ortam: sandbox | production
     vakifbank_client_id: str = ""           # .env: VAKIFBANK_CLIENT_ID (= API Key)

@@ -8,8 +8,8 @@ BİREBİR AYNI: bakiye-bazlı dedup + `finance_event_svc.upsert_bank_tx` (nakit 
 Onaydan MUAF (operasyonel içe-aktarma — dosya yükleme/Sedna gibi), audit'li, `finance.banks` use.
 Kimlik yoksa/hata olursa 503 (VakifbankUnavailable) → uygulamanın geri kalanı etkilenmez.
 
-⚠️ Alan eşlemesi tamamlanana kadar (`vakifbank_client._normalize_transaction` TODO) senkron
-0 hareket yazar; token/bağlantı ise `test-connection` ile doğrulanabilir.
+Şema bankanın resmî Postman collection'ıyla doğrulandı (2026-07-10) — bkz. `vakifbank_client.py`.
+`test-connection` token + hesap listesini dener (DB'ye yazmaz); `sync` hareketleri yazar.
 """
 import logging
 from datetime import date, timedelta
@@ -203,15 +203,27 @@ def vakifbank_status(
 def vakifbank_test_connection(
     _: User = Depends(require_permission("finance.banks", "use")),
 ):
-    """Yalnız token akışını dener (DB'ye YAZMAZ) — kimlik/IP whitelist doğrulaması için."""
+    """Token + hesap listesi akışını dener (DB'ye YAZMAZ) — kimlik/Rıza/IP doğrulaması için."""
     if not vakifbank_configured():
         raise HTTPException(status_code=503, detail="VakıfBank API yapılandırılmamış.")
     client = get_vakifbank_client()
     try:
         token = client._get_token()  # noqa: SLF001 — bilinçli: bağlantı testi
-        return {"ok": True, "token_prefix": (token[:6] + "…") if token else None}
     except VakifbankUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
+    # Hesap listesi = uçtan uca yetki kanıtı (consent kapsamı); hatası testi düşürmez.
+    accounts: List[dict] = []
+    accounts_error = None
+    try:
+        accounts = client.fetch_account_list()
+    except VakifbankUnavailable as e:
+        accounts_error = str(e)
+    return {
+        "ok": True,
+        "token_prefix": (token[:6] + "…") if token else None,
+        "accounts": accounts,
+        "accounts_error": accounts_error,
+    }
 
 
 @router.post("/sync")

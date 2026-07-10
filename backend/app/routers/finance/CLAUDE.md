@@ -5,7 +5,7 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
-## VakıfBank API — Banka Hesap Hareketleri Doğrudan Çekme (2026-07-09, İSKELET)
+## VakıfBank API — Banka Hesap Hareketleri Doğrudan Çekme (2026-07-10, SANDBOX UÇTAN UCA ÇALIŞIYOR)
 
 Excel/PDF ekstre yüklemesine EK kaynak: VakıfBank Açık Bankacılık API'sinden (`/accountTransactions`,
 B2B Credentials + Rıza Numarası) hesap hareketlerini çekip `bank_transactions`'a yazar. Yazma yolu
@@ -26,31 +26,42 @@ akıma yansır, çift kayıt olmaz. Sedna içe-aktarma deseninin bir bankaya uya
 **Kaynak ayrımı:** API satırları `bank_transactions.source="api"` (ekstre=`statement`, elle=`manual`).
 Amount **İŞARETLİ** saklanır (gider negatif) — `bank_parser` konvansiyonu; dedup buna dayanır.
 
-**Şema DOĞRULANDI (2026-07-09, portal dokümanı):**
-- **Request** (RequestData): `{"AccountNumber": "...", "StartDate": "...Z", "EndDate": "...Z"}` — **IBAN
-  DEĞİL hesap numarası** (`bank_accounts.account_no`; boşsa hesap atlanır, `no_account_no` sayacı).
-  Tarih ISO-Z (`2026-07-01T00:00:00.000Z`). En fazla 100 kayıt.
-- **Response**: `Data.AccountTransactions[]` → `{CurrencyCode, TransactionType, Description, Amount(+string),
-  TransactionCode, Balance(string), TransactionName, TransactionDate(ISO-Z), TransactionId}`. Başarı =
-  `Header.StatusCode == "APIGW000000"`.
-- **Yön (income/expense):** `Amount` işaretsiz → **bakiye zincirinden** türetilir (`_normalize_batch`:
-  kronolojik sırala → `signed[i] = Balance[i] − Balance[i-1]`, |signed|≈Amount ise kesin yön). İlk
-  satır/eksik-bakiye → `TransactionType` yedeği (`_TX_TYPE_INCOME={"1"}` — sandbox'ta doğrulanacak).
-  `receipt_no = TransactionId` (dedup için benzersiz).
+**Şema KESİNLEŞTİ (2026-07-10 — bankanın resmî Postman collection'ı "Genel Test Dosyası - Hesap Bilgi"
++ "Hesap API.docx", Apiportaldestek e-postası "Rıza Numarası hk."; dosyalar `scratchpad/`, gitignore'da):**
+- **Gateway `https://apigw.vakifbank.com.tr:8443`** (eski varsayım `inbound.apigateway...` YANLIŞTI),
+  **token `/auth/oauth/v2/token`** (eski `/oauth2/token` YANLIŞTI). Endpoint'ler kökte: `/accountList`
+  (gövde `{}`), `/accountDetail`, `/accountTransactions` — hepsi **Bearer token'lı JSON POST**.
+- **Token** (form-urlencoded gövde): `client_id`, `client_secret`, `grant_type=b2b_credentials`,
+  `scope=account`, `consentId`(Rıza), `resource=sandbox|production`. TEK Rıza üç API için ortak.
+- **Request**: `{"AccountNumber": "...", "StartDate": "2026-07-01T00:00:00+03:00", "EndDate": ...}` —
+  **IBAN DEĞİL hesap numarası**; tarih **+03:00 offset'li ISO** (eski Z varsayımı düzeltildi). Max 100 kayıt.
+- **Response**: `Data.AccountTransactions[]` → `{CurrencyCode:"TL", TransactionType, Description,
+  Amount, TransactionCode, VirtualIBAN, Balance, TransactionName, TransactionDate("2023-08-08T13:56:51",
+  Z'siz), TransactionId}`. Başarı = `Header.StatusCode=="APIGW000000"`.
+- **`Amount` İŞARETLİ gelir** (resmî örnek: gider `-1.74`) → yön önceliği güncellendi (`_normalize_batch`):
+  1) bakiye zinciri (üretimde kesin; sandbox bakiyeleri tutarsız → orada kurulamaz) → 2) Amount işareti
+  (negatif=kesin gider) → 3) `TransactionType` yedeği (`"1"`=gelir/`"2"`=gider — resmî örnekle doğrulandı).
+- **"Hareket yok" = HTTP 400 + `ACBH000202`** (canlı sandbox bulgusu) → istemci bunu HATA DEĞİL
+  **boş liste** olarak döner (yoksa hareketsiz her hesap senkronda sahte hata üretirdi).
+- `receipt_no = TransactionId` (dedup). `fetch_account_list()` eklendi (sandbox keşfi + teşhis);
+  `test-connection` artık token + hesap listesini birlikte dener (DB'ye yazmaz).
 
-**Token akışı DOĞRULANDI (doküman "Yetkilendirme" + canlı test 2026-07-09):**
-`POST https://inbound.apigateway.vakifbank.com.tr:8443/oauth2/token` (gövde, form-urlencoded):
-`grant_type=b2b_credentials`, `client_id`, `client_secret`, `scope=account`, `consentId`(Rıza), `resource`
-(`sandbox`/`production`). Config: `vakifbank_base_url/token_path/grant_type/resource`. **Canlı token denemesi
-(consentId'siz):** HTTP 401 `ACBH000374` "İstek doğrulanamadı" → **gateway erişildi + IP whitelist OK
-(`13.62.127.50`) + endpoint doğru + secret kabul edildi (kilit yok)**; tek eksik consentId.
-⚠️ Secret 5 kez YANLIŞ giderse portal uygulaması KİLİTLENİR (ACBG000005/6) — yanlış secret ile döngüsel deneme YAPMA.
+**SANDBOX UÇTAN UCA DOĞRULANDI (2026-07-10 canlı test):** test kimliği + test Rıza `.env`'de
+(`VAKIFBANK_CLIENT_ID/API_SECRET/RIZA_NO` — bankanın ortak sandbox değerleri; kullanıcının kendi
+portal kimliği yorum satırında, canlıda geri açılacak). Token ✓ → hesap listesi ✓ (6 test hesabı) →
+hareketler ✓ (00158009905490704, Tem 2026: 16 hareket; işaretli tutar + yürüyen bakiye + EFT ücretleri
+doğru normalize). ⚠️ Sandbox kimliğiyle UI "Senkronize" çalıştırılırsa gerçek hesap numaraları
+sandbox'ta bulunmaz → veri yazılmaz (kirlilik riski yok).
+⚠️ Secret 5 kez YANLIŞ giderse portal uygulaması KİLİTLENİR (ACBG000005/6) — döngüsel deneme YAPMA.
 
-**⚠️ TEK KALAN ENGEL — Rıza Numarası (consentId):** dokümana göre "Banka tarafından iletilmektedir" — kurumsal
-müşterinin Açık Bankacılık yetkilendirmesiyle üretilir. `VAKIFBANK_RIZA_NO` `.env`'ye girilince akış tamamlanır
-(`/accountTransactions` gateway prefix'i de o an netleşecek). Kimlik `.env`'de (CLIENT_ID/API_SECRET, 2026-07-09;
-uygulama "Sprenses Otel Finans", **Sandbox** planı). Test: `tests/test_vakifbank.py` (15 — helper, dedup ingest,
-FE, **şema normalize + bakiye-zinciri yön**, RBAC + kapalı-503).
+**CANLIYA GEÇİŞ ADIMLARI (bankanın e-postasından, sırayla):** (1) API Portal → Kontrol Panelim →
+Planlarım ve Uygulamalarım → Uygulama Detay → Düzenle → **Scope = `account`** yap; (2) aynı ekrandan
+**Plan Değiştir** ile gerçek ortam talebi ilet; (3) API entegrasyon **sözleşmeleri** için şube portföy
+yöneticisiyle iletişime geç; (4) **canlı Rıza Numarası** tanımlamalar sonrası bankadan gelecek →
+`.env`'de canlı CLIENT_ID/SECRET/RIZA_NO aktive et + `VAKIFBANK_RESOURCE=production` (config
+`vakifbank_resource`) yap. Test: `tests/test_vakifbank.py` (**19** — helper, dedup ingest, FE, şema
+normalize [bakiye-zinciri + işaretli-Amount + resmî-örnek + tip yedekleri], accountList çıkarımı,
+RBAC + kapalı-503).
 
 ---
 
@@ -135,11 +146,12 @@ oluşturup API atanmalı + Client ID/Secret + enrollment→consentId. Cron zaman
 `python cron_fetch_garanti_statements.py`). Test: `tests/test_garanti.py` (8 — A/B yön, balance, iş-hatası,
 sayfalama, aynı-gün-dedup, kapalı). Sistemde 3 Garanti hesabı.
 
-**Not (4 banka özeti):** VakıfBank/Yapı Kredi/QNB/Garanti — dördü de ParseResult→`_process_statement`
-deseninde, `source="statement"`, işaretli tutar (bank_parser konvansiyonu), IBAN/hesap-no ile sorgu.
-Hiçbiri henüz canlı test edilmedi (kimlik yok). Auth farkları: VakıfBank=B2B+consentId(Rıza),
-YKB=client_credentials(consent yok), QNB=refresh_token(rotating+email), Garanti=client_credentials+
-consentId+tek-kullanımlık-token.
+**Not (4 banka özeti):** VakıfBank/Yapı Kredi/QNB/Garanti — dördü de aynı yazma hattında (VakıfBank
+kendi `_ingest_transactions`+`source="api"`; diğer üçü ParseResult→`_process_statement`+`source=
+"statement"`), işaretli tutar (bank_parser konvansiyonu), IBAN/hesap-no ile sorgu. **VakıfBank sandbox'ta
+uçtan uca ÇALIŞIYOR (2026-07-10)**; YKB/QNB/Garanti kimlik bekliyor. Auth farkları: VakıfBank=
+b2b_credentials+consentId(Rıza), YKB=client_credentials(consent yok), QNB=refresh_token(rotating+email),
+Garanti=client_credentials+consentId+tek-kullanımlık-token.
 
 ---
 

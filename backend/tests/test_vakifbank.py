@@ -1,7 +1,8 @@
-"""VakıfBank API içe-aktarma iskeleti — dedup ingest + finance_event + RBAC/kapalı davranış.
+"""VakıfBank API içe-aktarma — şema normalize + dedup ingest + finance_event + RBAC.
 
-Dış API çağrısı test EDİLMEZ (kimlik/şema henüz yok); testlenebilir çekirdek: hesap seçimi,
-bakiye-bazlı dedup, finance_event üretimi ve endpoint izin/kapalı-özellik davranışı.
+Şema bankanın resmî Postman collection'ı + örnek yanıtıyla doğrulandı (2026-07-10); canlı
+sandbox uçtan uca test edildi. Burada ağ çağrısı YOK — testlenebilir çekirdek: normalize
+(işaretli tutar/bakiye zinciri/yedek), payload biçimi, hesap seçimi, dedup, FE, izinler.
 """
 from datetime import date
 
@@ -14,6 +15,7 @@ from app.routers.finance.vakifbank import (
 )
 from app.utils.vakifbank_client import (
     _build_transactions_payload,
+    _extract_account_list,
     _extract_transaction_list,
     _normalize_batch,
     _parse_iso_z,
@@ -102,14 +104,16 @@ class TestNormalizeSchema:
 
     def test_parse_iso_z(self):
         assert _parse_iso_z("2020-02-05T10:47:47.000Z") == date(2020, 2, 5)
+        assert _parse_iso_z("2023-08-08T13:56:51") == date(2023, 8, 8)  # resmî örnek: Z'siz
         assert _parse_iso_z("") is None
         assert _parse_iso_z(None) is None
 
     def test_request_payload_shape(self):
+        # Tarih formatı resmî Postman collection ile doğrulandı: +03:00 offset (Z değil)
         p = _build_transactions_payload("00158000000000001", date(2026, 7, 1), date(2026, 7, 9))
         assert p["AccountNumber"] == "00158000000000001"
-        assert p["StartDate"] == "2026-07-01T00:00:00.000Z"
-        assert p["EndDate"] == "2026-07-09T23:59:59.999Z"
+        assert p["StartDate"] == "2026-07-01T00:00:00+03:00"
+        assert p["EndDate"] == "2026-07-09T23:59:59+03:00"
 
     def test_extract_list_from_envelope(self):
         body = {"Header": {"StatusCode": "APIGW000000"}, "Data": {"AccountTransactions": self._raw()}}
@@ -133,6 +137,48 @@ class TestNormalizeSchema:
         raw = [{"Amount": "5", "Balance": "10"},                       # tarih yok
                {"TransactionDate": "2026-07-01T00:00:00.000Z", "Balance": "10"}]  # tutar yok
         assert _normalize_batch(raw) == []
+
+
+class TestNormalizeOfficialSample:
+    """Bankanın resmî Postman örnek yanıtı (2026-07-10): Amount İŞARETLİ gelir, bakiyeler
+    sandbox'ta tutarsız (zincir kurulamaz) → yön Amount işareti / TransactionType'tan."""
+
+    def _official(self):
+        return [
+            {"CurrencyCode": "TL", "TransactionType": "1", "Description": "deneme / PARA Yatirma",
+             "Amount": 97979, "Balance": 999999, "TransactionName": "Çek BST Giriş",
+             "TransactionDate": "2023-08-08T13:56:51", "TransactionId": "2014000007740171"},
+            {"CurrencyCode": "TL", "TransactionType": "2", "Description": "Ek Hesap gecikmeli kredi tahsilatı",
+             "Amount": -1.74, "Balance": 999999492.16, "TransactionName": "Gecikmeli Kmh Tahsilatı",
+             "TransactionDate": "2023-08-08T13:58:41", "TransactionId": "2023000012500913"},
+        ]
+
+    def test_signed_amount_direction(self):
+        out = _normalize_batch(self._official())
+        assert [r["amount"] for r in out] == [97979.0, -1.74]
+        assert [r["type"] for r in out] == ["income", "expense"]
+
+    def test_unsigned_type2_falls_back_to_expense(self):
+        # Banka işaretsiz gönderirse (bakiye zinciri de yoksa) type "2" → gider
+        raw = [{"TransactionDate": "2023-08-08T13:58:41", "Amount": "1.74",
+                "TransactionType": "2", "Description": "KMH", "TransactionId": "X1"}]
+        out = _normalize_batch(raw)
+        assert out[0]["amount"] == -1.74 and out[0]["type"] == "expense"
+
+    def test_unknown_type_positive_defaults_income(self):
+        raw = [{"TransactionDate": "2023-08-08T13:58:41", "Amount": "10.0",
+                "TransactionType": "7", "Description": "?", "TransactionId": "X2"}]
+        out = _normalize_batch(raw)
+        assert out[0]["amount"] == 10.0 and out[0]["type"] == "income"
+
+    def test_extract_account_list_shapes(self):
+        rows = [{"AccountNumber": "123", "IBAN": "TR00"}]
+        assert _extract_account_list({"Data": {"Accounts": rows}}) == rows   # dict içinde liste
+        assert _extract_account_list({"Data": rows}) == rows                 # doğrudan liste
+        single = {"AccountNumber": "123"}
+        assert _extract_account_list({"Data": single}) == [single]           # tek dict
+        assert _extract_account_list({}) == []
+        assert _extract_account_list(None) == []
 
 
 def _force_unconfigured(monkeypatch):
