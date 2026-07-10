@@ -15,6 +15,6 @@ Yeni modül ekle: `$ARGUMENTS` (modül kodu + görünen ad). CLAUDE.md'nin yeni-
 8. **Frontend sayfa** (`frontend/src/routes/dashboard/...`): tasarım sistemi (`PageHeader`/`StatCard`/`Button`/`StatusBadge`/`ConfirmDialog`/`MoneyInput`/`EmptyState`/`Pagination`/Lucide; AA teal-700; mobilde `<md` kart). `lib/config/navigation.ts`'e `NavItem` ekle → sidebar + route guard otomatik gelir.
 9. **Türkçe:** tüm kullanıcı metinleri doğru Türkçe karakter (ASCII-Türkçe yasak).
 10. **Test** (`backend/tests/test_<modül>.py`): happy-path + RBAC 403 (`viewer_user_headers`/`no_perm_user_headers`) + onay akışı (workflow→202→onayla→uygulandı).
-11. **Doküman:** `docs/modules/<modül>.md` + ana `CLAUDE.md` (endpoint + RBAC + tablo listeleri) + ilgili modül-içi `CLAUDE.md`.
+11. **Doküman:** `docs/modules/<modül>.md` + `docs/modules/README.md` dizin tablosuna satır + ana `CLAUDE.md` (endpoint + RBAC + tablo listeleri) + ilgili modül-içi `CLAUDE.md`.
 
 **Bitince:** `modul-denetci` subagent'ıyla denetlet ve `/test` ile testleri çalıştır. Eksik adım bırakma — özellikle 5 (executor handler) ve 11 (doküman) sık unutulur.

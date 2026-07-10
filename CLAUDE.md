@@ -473,7 +473,7 @@ Tüm CRUD + giriş/çıkış olayları `audit_logs` tablosuna `log_action(db, us
 
 - **Backend (pytest):** `cd backend && source venv/bin/activate && export DATABASE_URL=postgresql://sprenses:PASS@127.0.0.1:5432/sprenses_test && python -m pytest tests/ -v` — `/test` komutu doğru akışı bilir.
 - **Test DB izolasyonu zorunlu:** `DATABASE_URL` adı `_test` içermeli — `conftest.py` aksi halde testleri durdurur (bilinçli bypass: `ALLOW_PROD_DB_TESTS=1`, önerilmez).
-- **Frontend (Vitest):** `cd frontend && npx vitest run` (293 test, 23 dosya)
+- **Frontend (Vitest):** `cd frontend && npx vitest run`
 - Test DB kurulumu, fixture/altyapı notları (onay-akışı sigortası, non-admin fixture'lar, pg_hba) ve frontend test envanteri: **[`docs/test-sistemi.md`](docs/test-sistemi.md)**
 
 ## Modül Bazlı Dokümantasyon
@@ -494,7 +494,7 @@ Her modül dosyası şu bölümleri içermelidir:
 
 ### Mevcut Modül Dokümantasyonları
 
-Modül → dosya eşleme tablosu (44 doküman) **[`docs/modules/README.md`](docs/modules/README.md)**'de. Dosya adları çoğunlukla modül adıyla aynıdır; istisnalar orada işaretli (ör. Maliyet Kontrol → `yonetim-paneli.md`). Yeni modül dokümanı eklendiğinde o tabloya satır ekle.
+Modül → dosya eşleme tablosu **[`docs/modules/README.md`](docs/modules/README.md)**'de. Dosya adları çoğunlukla modül adıyla aynıdır; bazı istisnalar var (ör. Maliyet Kontrol → `yonetim-paneli.md`). Yeni modül dokümanı eklendiğinde o tabloya satır ekle.
 
 ## UI Tasarım Kuralları
 
@@ -553,7 +553,7 @@ Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen
 
 ### Tasarımcı İnceleme Standardı — 10 Boyut (her modül + YENİ MODÜL için ZORUNLU)
 
-Her yeni/değişen sayfa 10 boyutta kanıtlı (dosya:satır) denetlenir: kullanılabilirlik, tutarlılık, görsel hiyerarşi, hız, mobil, erişilebilirlik, hata yönetimi, tasarım, bir bakışta anlaşılma, başarı ölçütü. GEÇER/KALIR kriterleri ve **tek-kaynak bileşen kuralı** (paylaşılan bileşeni atlayıp elle yazmak = sapma) dahil tam standart: **[`docs/ui-kurallari.md`](docs/ui-kurallari.md) §9**. Referans sayfalar: `finans/avanslar`, `sistem/kullanicilar`.
+Her yeni/değişen sayfa 10 boyutta kanıtlı (dosya:satır) denetlenir: kullanılabilirlik, tutarlılık, görsel hiyerarşi, hız, mobil, erişilebilirlik, hata yönetimi, tasarım, bir bakışta anlaşılma, başarı ölçütü. GEÇER/KALIR kriterleri ve **tek-kaynak bileşen kuralı** (paylaşılan bileşeni atlayıp elle yazmak = sapma) dahil tam standart: **[`docs/ui-kurallari.md`](docs/ui-kurallari.md) §9 "Tasarımcı İnceleme Standardı — 10 Boyut"**. Referans sayfalar: `finans/avanslar`, `sistem/kullanicilar`.
 
 ### Bilinçli İstisnalar (sapma DEĞİL)
 

@@ -21,7 +21,7 @@
 |---|---|
 | id | PK |
 | user_id | İşlemi yapan (NULL olabilir — başarısız login) |
-| action | login / logout / register / create / update / delete / change_password / reset_password |
+| action | login / logout / register / send_verification / verify_email / change_password / reset_password / create / update / delete |
 | entity_type | user / role / module / vendor / check / credit / … |
 | entity_id | Etkilenen kayıt ID |
 | details | JSON — ek bilgi (değişen alanlar, IP, user-agent) |

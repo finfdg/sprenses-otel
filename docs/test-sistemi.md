@@ -42,23 +42,25 @@ PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --data-only \
 cd frontend && npx vitest run
 ```
 
-**Test dosyaları (293 test, 23 dosya — toplam birebir doğrulandı):**
+**Test dosyaları (329 test, 25 dosya — `npx vitest run` koşusuyla doğrulandı, 2026-07-10):**
 
 *API & utils:*
 - `src/lib/api.test.ts` — API wrapper (GET/POST/PATCH/DELETE, upload, hata yönetimi, 401/403, signal, fetchRaw) (22 test)
-- `src/lib/utils/finance.test.ts` — formatCurrency, formatCompact, groupByMonth, getTodayKeys, monthKeysToDateRange, transfer hariç tutma (36 test)
+- `src/lib/utils/finance.test.ts` — formatCurrency, formatCompact, groupByMonth, getTodayKeys, monthKeysToDateRange, transfer hariç tutma (48 test)
+- `src/lib/utils/cashflow.test.ts` — aggregateRows (kredi/çek ayrı · cari firma-bazlı toplu · members bekletme kimliği), daySourceRank gün içi öncelik, AGGREGATE_LABELS (15 test)
 - `src/lib/utils/paymentMethods.test.ts` — PAYMENT_METHODS, SELECTABLE, CATEGORIES, getPaymentMethod fallback (16 test)
 - `src/lib/utils/colorMap.test.ts` — categoryColorMap, filterColorMap, availableColors, getColor fallback (16 test)
 - `src/lib/utils/validation.test.ts` — validateEmail, validatePassword, validateRequired, validateModuleCode (12 test)
 - `src/lib/utils/push.test.ts` — isPushSupported, getPushPermissionState (6 test)
 - `src/lib/utils/lazy-mount.test.ts` — tembel mount görünürlük gözlemcisi (7 test)
-- `src/lib/constants/finance.test.ts` — Kaynak tipleri, ödeme yöntemleri, kredi tipleri, para birimleri, sabit tutarlılığı (15 test)
+- `src/lib/constants/finance.test.ts` — Kaynak tipleri, ödeme yöntemleri, kredi tipleri, para birimleri, sabit tutarlılığı (17 test)
 
 *Store'lar:*
 - `src/lib/stores/auth.test.ts` — setAuth, loadAuth, hasPermission (izin matrisi) (15 test)
 - `src/lib/stores/toast.test.ts` — showToast, removeToast, otomatik kaldırma (12 test)
 - `src/lib/stores/notification.test.ts` — setMutedConversations, updateMutedConversation, isConversationMuted, toggleSound (11 test)
 - `src/lib/stores/ui.test.ts` — sidebar state, toggleSidebar, closeSidebar (6 test)
+- `src/lib/stores/cashflow.test.ts` — isEurBalancesStale, finance_updated geçersizlemesi, invalidateCashFlowCache (7 test)
 
 *Bileşenler:*
 - `src/lib/components/MoneyInput.test.ts` — formatTR/parseTR/formatLiveTR/round-trip + imleç/highlight (33 test)
