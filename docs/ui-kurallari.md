@@ -323,3 +323,32 @@ Butonlar:
 - [ ] **Faz 2 — Denetim**: 30 mevcut sayfada spec sapmalarının checklist'i
 - [ ] **Faz 3 — Refactor**: trafiği yüksek modülden başla (Nakit Akım → Cariler → Bankalar → Çekler → Krediler → ...)
 - [ ] **Faz 4 — Scope'lu rehber**: `frontend/CLAUDE.md` (kısa, bileşen kullanım örnekleri)
+
+## 9. Tasarımcı İnceleme Standardı — 10 Boyut (her modül + YENİ MODÜL için ZORUNLU)
+
+> CLAUDE.md kökünden taşındı (2026-07-10, bağlam inceltme). Kökteki "UI Tasarım Kuralları"
+> bölümü bu standarda işaret eder; içerik burada güncellenir.
+
+Her yeni/değişen sayfa, kanıtlı (dosya:satır) olarak şu 10 boyutta denetlenir. Her boyutun
+**GEÇER** (kabul) kriteri ve **KALIR** (sapma — düzeltilmeli) örnekleri vardır. Referans
+sayfalar: **`finans/avanslar`** ve **`sistem/kullanicilar`** (kanonik). Bu standart, modüllerin
+**birbiriyle tutarlı** olmasını sağlamak içindir — her sayfa aynı iskeleti, aynı bileşeni, aynı
+sırada kullanır.
+
+1. **Kullanılabilirlik** — GEÇER: arama (debounce 300ms + ✕) + filtre + birincil CTA keşfedilebilir, birincil eylem ≤1 tık. KALIR: gizli/keşfedilemeyen aksiyon, çok-adımlı temel akış.
+2. **Tutarlılık** — GEÇER: kanonik iskelet (PageHeader→StatCard→filtre→içerik→Pagination→Modal) + paylaşılan bileşenler; sayfa diğer modüllerle **aynı görünür**. KALIR: bespoke özet kartı (StatCard yerine), elle tab/segment, sayfaya özel buton stili, kanonik sıradan sapma.
+3. **Görsel hiyerarşi** — GEÇER: başlık→özet→filtre→içerik akışı; en önemli sayı en belirgin. KALIR: gömülü/dağınık birincil aksiyon, eşit ağırlıkta her şey.
+4. **Hız** — GEÇER: `TableSkeleton`/`FormSkeleton` (spinner DEĞİL), WS event-driven (polling yasak), 2000+ kayıtta truncation uyarısı. KALIR: `animate-spin`/"Yükleniyor…" metni, veri için `setInterval` polling.
+5. **Mobil** — GEÇER: `<md`'de tablo→kart (`sm:hidden`/`hidden sm:block`), butonlar `w-full sm:w-auto`, **tüm dokunma hedefleri ≥44px** (`Button` otomatik; ham `<button>`'a `touch-target`), taşma yok. KALIR: yalnız `overflow-x-auto` tablo, `p-1.5` ham satır-aksiyonu (<44px), yatay sıkışma.
+6. **Erişilebilirlik** — GEÇER: AA kontrast (teal **700**, en açık gövde metni gray-**500**), `StatusBadge` semantik renk, **ikon-only buton + `Select`'e `aria-label`**, form `Field`+`fieldErrors`+`aria-invalid`/`aria-describedby`, `focus:ring-teal-500`, Esc/Enter klavye, `prefers-reduced-motion`. KALIR: teal-600/gray-400 gövde, tek `formError` string'i, blue/cyan/teal-100 focus ring, placeholder-gray-300.
+7. **Hata yönetimi** — GEÇER: her `catch`→`console.error`+`showToast`, `EmptyState` (düz metin değil), `ConfirmDialog` (native `confirm()` YASAK). KALIR: sessiz `catch`, yalnız-console, bespoke silme onayı.
+8. **Tasarım** — GEÇER: kart `rounded-2xl border-gray-200 shadow-sm` (paylaşılan bileşenle aynı), teal tema, **yalnız Lucide ikon**, tutarlı padding. KALIR: inline `<svg>`, emoji-as-icon (😊🔔✅⚠️), `bg-teal-600` dolu buton, gradyan/marka-dışı renk.
+9. **Bir bakışta anlaşılma** — GEÇER: StatCard + semantik renk kodu durumu anında okutur; sayfa "ne durumdayım"ı tek bakışta cevaplar. KALIR: ham sayı yığını, renk kodu yok.
+10. **Başarı ölçütü** — GEÇER: kullanıcı hedefine net ve hızlı ulaşır; birincil eylem ≤1 tık, geri bildirim (toast) net. KALIR: belirsiz sonuç, sessiz başarı/başarısızlık.
+
+**Tek-kaynak bileşen kuralı (modüller-arası tutarlılığın temeli):** Özet kart=`StatCard` · buton=`Button`
+(elle `bg-*` YASAK; `touch-target` Button'da gömülü) · başlık=`PageHeader` · liste iskeleti=`ListPage` ·
+form alanı=`Input`/`Select`/`Textarea`/`Field` · para=`MoneyInput` · dosya=`FileDropzone` · sayfalama=`Pagination` ·
+modal=`Modal` · onay=`ConfirmDialog` · boş=`EmptyState` · yükleme=`TableSkeleton`/`FormSkeleton` · durum=`StatusBadge` ·
+ikon=Lucide. **Paylaşılan bileşeni atlayıp elle yazmak = sapma.** Bir sayfaya özel "ada" stil bırakma; düzeltme
+varsa paylaşılan bileşende yap → tüm modüllere yayılsın.

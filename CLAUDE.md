@@ -463,94 +463,18 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 
 ## Mesajlaşma Sistemi
 
-- **Rota:** `/dashboard/mesajlasma`
-- **Modül kodu:** `messaging`
-- **Tür:** Özel (private) ve grup konuşmaları
-- **Gerçek zamanlılık:** WebSocket event-driven (polling yasak)
-- **Mesaj düzenleme:** Sadece gönderen düzenleyebilir (`is_edited`, `edited_at`)
-- **Mesaj silme:** Soft delete (`is_deleted` = true, "Bu mesaj silindi" gösterilir, içerik korunur)
-- **Okundu bilgisi:** `ConversationMember.last_read_at` ile tek/çift tik gösterimi
-- **Okunmamış sayısı:** Sidebar'da badge olarak gösterilir (tek SQL sorgusu ile)
-- **Push notification:** VAPID destekli web push bildirimleri
-- **PWA:** Service worker + manifest.json mevcut (`frontend/static/manifest.json`)
+Rota `/dashboard/mesajlasma`, modül kodu `messaging` — özel/grup konuşma, WS event-driven (polling yasak), soft-delete mesaj silme, `last_read_at` okundu takibi (tek/çift tik), VAPID push, PWA. Detay: **[`docs/modules/mesajlasma.md`](docs/modules/mesajlasma.md)**
 
 ## Audit Log Sistemi
 
-- **Tablo:** `audit_logs`
-- **Kaydedilen eylemler:** login, register, change_password, reset_password, send_verification, verify_email, create, update, delete
-- **Alanlar:** user_id, action, entity_type, entity_id, details, ip_address, created_at
-- **API:** `GET /api/system/audit-logs/` (paginated, action/entity_type/user_id filtresi)
-- **Kullanım:** `log_action(db, user_id, action, entity_type, entity_id, details, ip_address)`
+Tüm CRUD + giriş/çıkış olayları `audit_logs` tablosuna `log_action(db, user_id, action, entity_type, entity_id, details, ip_address)` ile yazılır. Detay: **[`docs/modules/audit-log.md`](docs/modules/audit-log.md)**
 
 ## Test Sistemi
 
-### Backend (pytest)
-```bash
-# DATABASE_URL TEST DB'sine işaret etmeli — adı '_test' içermeli (örn: sprenses_test)
-cd backend && source venv/bin/activate
-export DATABASE_URL=postgresql://sprenses:PASS@127.0.0.1:5432/sprenses_test
-python -m pytest tests/ -v
-
-# Coverage raporu (pytest-cov):
-python -m pytest tests/ --cov=app --cov-report=term --cov-report=html
-# → htmlcov/index.html — dosya bazlı satır kapsamı
-```
-
-**Test DB kurulumu (ilk kullanım):**
-```bash
-sudo -u postgres psql -c "CREATE DATABASE sprenses_test OWNER sprenses;"
-PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --schema-only sprenses \
-  | PGPASSWORD=PASS psql -h 127.0.0.1 -U sprenses -d sprenses_test
-PGPASSWORD=PASS pg_dump -h 127.0.0.1 -U sprenses --data-only \
-  --table=users --table=roles --table=modules --table=role_module_permissions \
-  --table=departments --table=transaction_categories sprenses \
-  | PGPASSWORD=PASS psql -h 127.0.0.1 -U sprenses -d sprenses_test
-```
-
-**Test altyapı notları:**
-- Token çıkarma: `conftest.py` içindeki `extract_token(response)` helper'ı HttpOnly cookie'den token alır
-- Test ortamında `CORS_ORIGINS=http://testserver` set edilir → `secure=False` cookie → TestClient cookie geri döner
-- Rate limiter'lar her test öncesi otomatik sıfırlanır (`autouse` fixture)
-- **Test DB izolasyonu zorunlu:** `conftest.py` `DATABASE_URL` set edilmemişse veya adı `_test` içermiyorsa testleri durdurur. Bilerek prod-benzeri DB kullanılacaksa `ALLOW_PROD_DB_TESTS=1` ile bypass edilir (önerilmez).
-- **Onay akışı sigortası:** `_disable_admin_approval_workflows` autouse fixture'ı her test başında admin rolünün requestor olduğu aktif workflow'ları SAVEPOINT içinde deaktive eder — CRUD testlerinin onay akışı yüzünden sessizce 202'ye düşmesini engeller. Onay akışını test edenler kendi workflow'larını yarattığı için etkilenmez.
-- **Non-admin test fixture'ları:** `viewer_user_headers` (sadece `can_view`), `use_user_headers` (`can_view+can_use`), `no_perm_user_headers` (hiç izin yok), `make_user_with_perms({module: {view, use}})` factory — admin-dışı izin matrisi davranışını test etmek için. Her fixture yeni `Role` + `User` oluşturup login ederek auth header döner; test bitince SAVEPOINT rollback'i ile temizlenir.
-- **pg_hba.conf:** `sprenses_test` DB için ayrı bir `host ... md5` satırı `/var/lib/pgsql/data/pg_hba.conf`'ta tanımlıdır (yoksa ident auth'a düşer, fail eder).
-
-### Frontend (Vitest)
-```bash
-cd frontend && npx vitest run
-```
-
-**Test dosyaları (293 test, 23 dosya — toplam birebir doğrulandı):**
-
-*API & utils:*
-- `src/lib/api.test.ts` — API wrapper (GET/POST/PATCH/DELETE, upload, hata yönetimi, 401/403, signal, fetchRaw) (22 test)
-- `src/lib/utils/finance.test.ts` — formatCurrency, formatCompact, groupByMonth, getTodayKeys, monthKeysToDateRange, transfer hariç tutma (36 test)
-- `src/lib/utils/paymentMethods.test.ts` — PAYMENT_METHODS, SELECTABLE, CATEGORIES, getPaymentMethod fallback (16 test)
-- `src/lib/utils/colorMap.test.ts` — categoryColorMap, filterColorMap, availableColors, getColor fallback (16 test)
-- `src/lib/utils/validation.test.ts` — validateEmail, validatePassword, validateRequired, validateModuleCode (12 test)
-- `src/lib/utils/push.test.ts` — isPushSupported, getPushPermissionState (6 test)
-- `src/lib/utils/lazy-mount.test.ts` — tembel mount görünürlük gözlemcisi (7 test)
-- `src/lib/constants/finance.test.ts` — Kaynak tipleri, ödeme yöntemleri, kredi tipleri, para birimleri, sabit tutarlılığı (15 test)
-
-*Store'lar:*
-- `src/lib/stores/auth.test.ts` — setAuth, loadAuth, hasPermission (izin matrisi) (15 test)
-- `src/lib/stores/toast.test.ts` — showToast, removeToast, otomatik kaldırma (12 test)
-- `src/lib/stores/notification.test.ts` — setMutedConversations, updateMutedConversation, isConversationMuted, toggleSound (11 test)
-- `src/lib/stores/ui.test.ts` — sidebar state, toggleSidebar, closeSidebar (6 test)
-
-*Bileşenler:*
-- `src/lib/components/MoneyInput.test.ts` — formatTR/parseTR/formatLiveTR/round-trip + imleç/highlight (33 test)
-- `src/lib/components/Pagination.test.ts` — getPageNumbers (windowed), sayfa boyutu (16 test)
-- `src/lib/components/FileDropzone.test.ts` — drag-drop, MIME/boyut doğrulama, çoklu dosya (14 test)
-- `src/lib/components/SortableHeader.test.ts` — sıralama yönü/ikon (11 test)
-- `src/lib/components/EmptyState.test.ts` — ikon/başlık/açıklama/CTA (9 test)
-- `src/lib/components/StatusBadge.test.ts` — semantik durum renkleri (8 test)
-- `src/lib/components/Breadcrumb.test.ts` — kırılım üretimi (6 test)
-- `src/lib/components/TableSkeleton.test.ts` — satır/kolon iskeleti (6 test)
-- `src/lib/components/FormSkeleton.test.ts` — form iskeleti (5 test)
-- `src/lib/components/BulkActionsBar.test.ts` — toplu seçim/aksiyon barı (5 test)
-- `src/lib/components/PdfPreviewModal.test.ts` — iOS Safari uyumlu PDF önizleme modalı (açma/kapama, blob URL yaşam döngüsü, Esc, backdrop) (6 test)
+- **Backend (pytest):** `cd backend && source venv/bin/activate && export DATABASE_URL=postgresql://sprenses:PASS@127.0.0.1:5432/sprenses_test && python -m pytest tests/ -v` — `/test` komutu doğru akışı bilir.
+- **Test DB izolasyonu zorunlu:** `DATABASE_URL` adı `_test` içermeli — `conftest.py` aksi halde testleri durdurur (bilinçli bypass: `ALLOW_PROD_DB_TESTS=1`, önerilmez).
+- **Frontend (Vitest):** `cd frontend && npx vitest run` (293 test, 23 dosya)
+- Test DB kurulumu, fixture/altyapı notları (onay-akışı sigortası, non-admin fixture'lar, pg_hba) ve frontend test envanteri: **[`docs/test-sistemi.md`](docs/test-sistemi.md)**
 
 ## Modül Bazlı Dokümantasyon
 
@@ -569,52 +493,8 @@ Her modül dosyası şu bölümleri içermelidir:
 7. **Geliştirme Kuralları** — Modüle özel iş kuralları ve kısıtlamalar
 
 ### Mevcut Modül Dokümantasyonları
-| Modül | Dosya |
-|---|---|
-| Finans Mimarisi | `docs/modules/finans-mimarisi.md` |
-| Nakit Akım | `docs/modules/nakit-akim.md` |
-| Nakit Akım İş Akışı | `docs/modules/nakit-akim-is-akisi.md` |
-| Bankalar | `docs/modules/bankalar.md` |
-| Cariler | `docs/modules/cariler.md` |
-| Çekler | `docs/modules/cekler.md` |
-| Krediler | `docs/modules/krediler.md` |
-| Avanslar | `docs/modules/avanslar.md` |
-| Döviz | `docs/modules/doviz.md` |
-| Bütçe | `docs/modules/butce.md` |
-| Onay (Departman İş Akışı) | `docs/modules/onay.md` |
-| Onay Akışı (Sistem/Rol Bazlı) | `docs/modules/onay-akisi.md` |
-| İşlem Etiketleme | `docs/modules/transaction-tags.md` |
-| Muhasebe & İK | `docs/modules/muhasebe-ik.md` |
-| Temettü (Kâr Payı Dağıtımı) | `docs/modules/temettu.md` |
-| Kullanıcı Fiş İcmali | `docs/modules/fis-icmali.md` |
-| Mizan (Geçici Mizan) | `docs/modules/mizan.md` |
-| Kimlik Doğrulama | `docs/modules/auth.md` |
-| Sistem — Kullanıcılar | `docs/modules/sistem-kullanicilar.md` |
-| Sistem — Roller | `docs/modules/sistem-roller.md` |
-| Sistem — Modüller | `docs/modules/sistem-moduller.md` |
-| Sistem — Audit Log | `docs/modules/audit-log.md` |
-| Sistem — Hata Logları | `docs/modules/hata-loglari.md` |
-| Mesajlaşma | `docs/modules/mesajlasma.md` |
-| Bildirimler | `docs/modules/bildirimler.md` |
-| Push Bildirim | `docs/modules/push-bildirim.md` |
-| WebSocket Altyapısı | `docs/modules/websocket.md` |
-| Otel Rezervasyon | `docs/modules/otel-rezervasyon.md` |
-| Günlük Hareketler (rezervasyon/iptal) | `docs/modules/gunluk-hareketler.md` |
-| Acente Mahsup & Nakit Akım | `docs/modules/acente-mahsup.md` |
-| Oda Tipleri | `docs/modules/oda-tipleri.md` |
-| Yedekleme | `docs/modules/yedekleme.md` |
-| E-posta Bildirim (SMTP) | `docs/modules/eposta-bildirim.md` |
-| Sistem — Dokümanlar | `docs/modules/sistem-dokumanlar.md` |
-| Devam Takip (PDKS) | `docs/modules/devam-takip.md` |
-| Vardiyalar (Shift) | `docs/modules/vardiyalar.md` |
-| Satış Faturaları | `docs/modules/satis-faturalari.md` |
-| Hak Ediş Takibi | `docs/modules/hakedis.md` |
-| Stok / Depo Maliyet | `docs/modules/stok.md` |
-| Maliyet Kontrol | `docs/modules/yonetim-paneli.md` |
-| Panel (Dashboard) | `docs/modules/panel.md` |
-| Sistem — Sunucu İzleme | `docs/modules/sunucu.md` |
-| SSH Tünel Güvenliği | `docs/modules/ssh-tunel-guvenligi.md` |
-| Yapay Zeka Asistanı | `docs/modules/ai-asistan.md` |
+
+Modül → dosya eşleme tablosu (44 doküman) **[`docs/modules/README.md`](docs/modules/README.md)**'de. Dosya adları çoğunlukla modül adıyla aynıdır; istisnalar orada işaretli (ör. Maliyet Kontrol → `yonetim-paneli.md`). Yeni modül dokümanı eklendiğinde o tabloya satır ekle.
 
 ## UI Tasarım Kuralları
 
@@ -673,29 +553,7 @@ Tasarımcı denetimi tüm modüllerin **birbiriyle aynı iskelet, aynı bileşen
 
 ### Tasarımcı İnceleme Standardı — 10 Boyut (her modül + YENİ MODÜL için ZORUNLU)
 
-Her yeni/değişen sayfa, kanıtlı (dosya:satır) olarak şu 10 boyutta denetlenir. Her boyutun
-**GEÇER** (kabul) kriteri ve **KALIR** (sapma — düzeltilmeli) örnekleri vardır. Referans
-sayfalar: **`finans/avanslar`** ve **`sistem/kullanicilar`** (kanonik). Bu standart, modüllerin
-**birbiriyle tutarlı** olmasını sağlamak içindir — her sayfa aynı iskeleti, aynı bileşeni, aynı
-sırada kullanır.
-
-1. **Kullanılabilirlik** — GEÇER: arama (debounce 300ms + ✕) + filtre + birincil CTA keşfedilebilir, birincil eylem ≤1 tık. KALIR: gizli/keşfedilemeyen aksiyon, çok-adımlı temel akış.
-2. **Tutarlılık** — GEÇER: kanonik iskelet (PageHeader→StatCard→filtre→içerik→Pagination→Modal) + paylaşılan bileşenler; sayfa diğer modüllerle **aynı görünür**. KALIR: bespoke özet kartı (StatCard yerine), elle tab/segment, sayfaya özel buton stili, kanonik sıradan sapma.
-3. **Görsel hiyerarşi** — GEÇER: başlık→özet→filtre→içerik akışı; en önemli sayı en belirgin. KALIR: gömülü/dağınık birincil aksiyon, eşit ağırlıkta her şey.
-4. **Hız** — GEÇER: `TableSkeleton`/`FormSkeleton` (spinner DEĞİL), WS event-driven (polling yasak), 2000+ kayıtta truncation uyarısı. KALIR: `animate-spin`/"Yükleniyor…" metni, veri için `setInterval` polling.
-5. **Mobil** — GEÇER: `<md`'de tablo→kart (`sm:hidden`/`hidden sm:block`), butonlar `w-full sm:w-auto`, **tüm dokunma hedefleri ≥44px** (`Button` otomatik; ham `<button>`'a `touch-target`), taşma yok. KALIR: yalnız `overflow-x-auto` tablo, `p-1.5` ham satır-aksiyonu (<44px), yatay sıkışma.
-6. **Erişilebilirlik** — GEÇER: AA kontrast (teal **700**, en açık gövde metni gray-**500**), `StatusBadge` semantik renk, **ikon-only buton + `Select`'e `aria-label`**, form `Field`+`fieldErrors`+`aria-invalid`/`aria-describedby`, `focus:ring-teal-500`, Esc/Enter klavye, `prefers-reduced-motion`. KALIR: teal-600/gray-400 gövde, tek `formError` string'i, blue/cyan/teal-100 focus ring, placeholder-gray-300.
-7. **Hata yönetimi** — GEÇER: her `catch`→`console.error`+`showToast`, `EmptyState` (düz metin değil), `ConfirmDialog` (native `confirm()` YASAK). KALIR: sessiz `catch`, yalnız-console, bespoke silme onayı.
-8. **Tasarım** — GEÇER: kart `rounded-2xl border-gray-200 shadow-sm` (paylaşılan bileşenle aynı), teal tema, **yalnız Lucide ikon**, tutarlı padding. KALIR: inline `<svg>`, emoji-as-icon (😊🔔✅⚠️), `bg-teal-600` dolu buton, gradyan/marka-dışı renk.
-9. **Bir bakışta anlaşılma** — GEÇER: StatCard + semantik renk kodu durumu anında okutur; sayfa "ne durumdayım"ı tek bakışta cevaplar. KALIR: ham sayı yığını, renk kodu yok.
-10. **Başarı ölçütü** — GEÇER: kullanıcı hedefine net ve hızlı ulaşır; birincil eylem ≤1 tık, geri bildirim (toast) net. KALIR: belirsiz sonuç, sessiz başarı/başarısızlık.
-
-**Tek-kaynak bileşen kuralı (modüller-arası tutarlılığın temeli):** Özet kart=`StatCard` · buton=`Button`
-(elle `bg-*` YASAK; `touch-target` Button'da gömülü) · başlık=`PageHeader` · liste iskeleti=`ListPage` ·
-form alanı=`Input`/`Select`/`Textarea`/`Field` · para=`MoneyInput` · dosya=`FileDropzone` · sayfalama=`Pagination` ·
-modal=`Modal` · onay=`ConfirmDialog` · boş=`EmptyState` · yükleme=`TableSkeleton`/`FormSkeleton` · durum=`StatusBadge` ·
-ikon=Lucide. **Paylaşılan bileşeni atlayıp elle yazmak = sapma.** Bir sayfaya özel "ada" stil bırakma; düzeltme
-varsa paylaşılan bileşende yap → tüm modüllere yayılsın.
+Her yeni/değişen sayfa 10 boyutta kanıtlı (dosya:satır) denetlenir: kullanılabilirlik, tutarlılık, görsel hiyerarşi, hız, mobil, erişilebilirlik, hata yönetimi, tasarım, bir bakışta anlaşılma, başarı ölçütü. GEÇER/KALIR kriterleri ve **tek-kaynak bileşen kuralı** (paylaşılan bileşeni atlayıp elle yazmak = sapma) dahil tam standart: **[`docs/ui-kurallari.md`](docs/ui-kurallari.md) §9**. Referans sayfalar: `finans/avanslar`, `sistem/kullanicilar`.
 
 ### Bilinçli İstisnalar (sapma DEĞİL)
 
