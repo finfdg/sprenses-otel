@@ -10,6 +10,16 @@ Kayıtlar en yeniden eskiye sıralıdır. Yeni bir denetim turunda buraya tarihl
 
 ---
 
+## 2026-07-11 — Revize Faz 0 UI parçaları
+
+- **Topbar bağlantı göstergesi:** WS bağlantı durumu artık Topbar'da görünür (kopunca kullanıcı
+  fark eder; global reconnect — `online`/`visibilitychange` → `resetReconnect` — ile birlikte, R4).
+- **Nakit Akım "Yeniden Eşleştir" butonu:** `finans/nakit-akim` sayfasına elle eşleştirme tetiği
+  eklendi (`POST /cash-flow/rematch`, `canUse` kontrollü, `Button` + loading durumu; R1).
+  Detay: `docs/modules/nakit-akim.md` "Revize Faz 0 (2026-07-11)".
+
+---
+
 ## 2026-06-20 — Sistem Geneli Tutarsızlık Envanteri
 
 54 sayfa tasarımcı gözüyle tek tek denetlendi (ortalama ~8.2/10; sistem güçlü, kritik P0 yok). 2026-06-19

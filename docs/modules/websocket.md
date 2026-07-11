@@ -11,7 +11,21 @@
 - **ConnectionManager** (singleton) — `dict[user_id, set[WebSocket]]` tutar
 - Aynı kullanıcı birden fazla cihaz/sekmeden bağlanabilir
 - **Ping/pong keepalive:** Client her 30 sn `ping` gönderir, server `pong` döner (sadece bu amaçla `setInterval` izinli)
-- **Reconnect:** Bağlantı koparsa exponential backoff (1s → 2s → 4s → … max 30s)
+- **Reconnect:** Bağlantı koparsa exponential backoff (1s → 2s → 4s → … max 30s, en çok 10 deneme)
+- **Global canlandırma (R4, 2026-07-11):** `routes/dashboard/+layout.svelte` `window 'online'` +
+  `document 'visibilitychange'` (görünür ve `wsState.connected === false` ise) event'lerinde
+  `resetReconnect()` çağırır — deneme sayacı sıfırlanıp bağlantı yoksa yeniden kurulur
+  (idempotent; bağlıysa no-op → mesajlaşma sayfasındaki yerel handler ile çakışmaz).
+  Denemeler tükenince `wsState.reconnecting = false` yapılır → **Topbar bağlantı göstergesi**:
+  bağlıyken hiçbir şey, reconnect sırasında sarı nokta + "Yeniden bağlanıyor", kalıcı kopuklukta
+  kırmızı nokta + tıklanınca `resetReconnect()` çağıran buton (`wsState.everConnected` guard'ı
+  ilk bağlanma penceresinde yanlış kırmızıyı engeller; `<md`'de yalnız nokta görünür).
+- **Reconnect sonrası sentetik yeniden yayın:** her yeniden bağlanmada (ilk bağlantı HARİÇ) store
+  yerel olarak `finance_updated` (`reconnect: true`) + `sales_updated` (`reconnect: true,
+  synthetic: true`) yayınlar → açık sayfalar kopukluk sırasında kaçan event'leri telafi etmek için
+  kendini tazeler. **`synthetic: true` kuralı:** payload-bağımlı `sales_updated` handler'ları bu
+  bayrakta toast/otomatik-açma yan etkisi üretmeden yalnız **sessiz reload** yapmalıdır
+  (ör. `ReservationsPanel.svelte`).
 
 ## Event Türleri
 

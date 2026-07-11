@@ -51,6 +51,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `POST /api/finance/cash-flow/match-cc-payment` — Kredi kartı ödeme eşleştirme
 - `POST /api/finance/cash-flow/match-credit-payment` — Kredi taksit ödeme eşleştirme
 - `POST /api/finance/cash-flow/unmatch-cc-payment` — Kredi kartı eşleştirme iptali
+- `POST /api/finance/cash-flow/rematch` — Otomatik etiketleme + 4 eşleştiriciyi elle tetikler (use; ekstre yüklemesi/banka API senkronuyla AYNI orkestratör `run_post_ingest_processing`; onaydan MUAF — operasyonel eşleştirme, kapsam listesi `docs/modules/onay-akisi.md`; audit + BANKS/ADVANCES WS yayını; yanıt eşleşme sayaçları)
 - Detaylı bilgi: `docs/modules/nakit-akim.md`
 
 ### Finans — Satış Faturaları (Otel oda satışları + tahsilat)

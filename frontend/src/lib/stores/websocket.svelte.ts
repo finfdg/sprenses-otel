@@ -6,7 +6,10 @@ type EventHandler = (event: any) => void;
 
 export const wsState = $state({
 	connected: false,
-	reconnecting: false
+	reconnecting: false,
+	// Bu oturumda en az bir kez bağlanıldı mı? — Topbar "bağlantı koptu" göstergesi
+	// ilk bağlanma penceresinde (CONNECTING) yanlış kırmızı yakmasın diye kullanılır.
+	everConnected: false
 });
 
 // ─── Online kullanıcı takibi (global, sayfa navigasyonlarında kaybolmaz) ───
@@ -94,11 +97,13 @@ function emit(type: string, data: any): void {
 	// Backend her başarılı (yeniden) bağlanmada `connected` mesajı yollar; İLK bağlantı
 	// DIŞINDA local `finance_updated` yeniden yayınlarız → tüm finans sayfaları (hepsi
 	// modülden bağımsız saf reload) kendini tazeler. İlk 'connected'te yayınlamayız
-	// (onMount zaten ilk yüklemeyi yaptı). Sales gibi payload-bağımlı event'ler
-	// bilerek hariç tutulur (sentetik yeniden yayın yanlış toast/eşleşme üretebilir).
+	// (onMount zaten ilk yüklemeyi yaptı). `sales_updated` de yeniden yayınlanır ama
+	// `synthetic: true` bayrağıyla — payload-bağımlı handler'lar bu bayrakta toast/
+	// otomatik-açma gibi yan etkiler üretmeden yalnız sessiz reload yapar.
 	if (type === WS_EVENT.CONNECTED) {
 		if (hasEverConnected) {
 			emit(WS_EVENT.FINANCE_UPDATED, { type: WS_EVENT.FINANCE_UPDATED, reconnect: true });
+			emit(WS_EVENT.SALES_UPDATED, { type: WS_EVENT.SALES_UPDATED, reconnect: true, synthetic: true });
 		}
 		hasEverConnected = true;
 	}
@@ -129,6 +134,7 @@ export function connectWebSocket(): void {
 		// Ek auth mesajı gerekmez — backend cookie'den okur
 		wsState.connected = true;
 		wsState.reconnecting = false;
+		wsState.everConnected = true;
 		reconnectAttempts = 0;
 
 		// Her 30 saniyede bir ping gönder (keepalive)
@@ -187,7 +193,13 @@ function cleanup(): void {
 }
 
 function scheduleReconnect(): void {
-	if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
+	if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+		// Denemeler tükendi — kalıcı kopuk durumu (Topbar kırmızı gösterge +
+		// resetReconnect ile elle yeniden deneme). Eskiden reconnecting=true
+		// takılı kalıyor, kullanıcı sonsuz "yeniden bağlanıyor" görüyordu.
+		wsState.reconnecting = false;
+		return;
+	}
 
 	wsState.reconnecting = true;
 	const delay = Math.min(
@@ -214,6 +226,7 @@ export function disconnectWebSocket(): void {
 	}
 	wsState.connected = false;
 	wsState.reconnecting = false;
+	wsState.everConnected = false;
 }
 
 export function sendWsEvent(event: any): void {

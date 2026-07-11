@@ -12,7 +12,7 @@
 	import Input from '$lib/components/Input.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
-	import { Filter, AlertTriangle, Receipt, Check, FileDown } from 'lucide-svelte';
+	import { Filter, AlertTriangle, Receipt, Check, FileDown, RefreshCw } from 'lucide-svelte';
 	import {
 		cashFlowCache,
 		loadAllCashFlow,
@@ -31,6 +31,7 @@
 
 	// $state — data
 	let autoTagging = $state(false);
+	let rematching = $state(false);
 	let pdfLoading = $state(false);
 
 	// Cari eşleştirme modu (cariler sayfasından gelince)
@@ -339,6 +340,35 @@
 		autoTagging = false;
 	}
 
+	/** Otomatik etiketleme + 4 eşleştiriciyi (çek/kredi/KK/avans) elle tetikle (R1).
+	 *  Backend BANKS yayını yapar — açık diğer sekmeler WS ile tazelenir; bu sayfa
+	 *  runAutoTag ile aynı desende kendi yankısını atlar ve veriyi zorla yeniler. */
+	async function runRematch() {
+		rematching = true;
+		markSkipWsReload();
+		try {
+			const res = await api.post<Record<string, number>>('/finance/cash-flow/rematch', {});
+			const parts: string[] = [];
+			if (res.auto_tagged) parts.push(`${res.auto_tagged} etiket`);
+			if (res.payment_methods_detected) parts.push(`${res.payment_methods_detected} ödeme yöntemi`);
+			if (res.vendors_auto_matched) parts.push(`${res.vendors_auto_matched} cari`);
+			if (res.checks_matched) parts.push(`${res.checks_matched} çek`);
+			if (res.credits_matched) parts.push(`${res.credits_matched} kredi`);
+			if (res.cc_matched) parts.push(`${res.cc_matched} KK`);
+			if (res.advances_matched) parts.push(`${res.advances_matched} avans`);
+			if (parts.length) {
+				showToast(`Yeniden eşleştirme: ${parts.join(' · ')}`, 'success');
+			} else {
+				showToast('Yeni eşleşme bulunamadı', 'info');
+			}
+			await Promise.all([loadCashFlowItems(true), loadCashFlowUntaggedCount(), loadCashFlowEurBalances()]);
+		} catch (err: any) {
+			console.error('Yeniden eşleştirme hatası:', err);
+			showToast(err?.body?.detail || 'Yeniden eşleştirme başarısız', 'error');
+		}
+		rematching = false;
+	}
+
 	/** Akordiyonda açık (seçili) ayın nakit akış raporunu PDF göster.
 	 *  Birden çok ay açıksa hepsini kapsayan aralık; hiçbir ay açık değilse
 	 *  ekrandaki tarih filtresi kullanılır. */
@@ -443,6 +473,17 @@
 <div class="mb-5">
 	<PageHeader title="Nakit Akım" description="Banka hareketleri, gelir/gider takibi ve işlem eşleştirme">
 		{#snippet actions()}
+			{#if canUse}
+				<Button
+					variant="secondary"
+					loading={rematching}
+					onclick={runRematch}
+					ariaLabel="Yeniden Eşleştir"
+					title="Otomatik etiketleme + çek/kredi/KK/avans eşleştiricilerini elle çalıştır"
+				>
+					<RefreshCw size={16} /> <span class="hidden sm:inline">Yeniden Eşleştir</span>
+				</Button>
+			{/if}
 			<Button
 				variant="secondary"
 				loading={pdfLoading}

@@ -160,4 +160,7 @@ Bu rapor yazıldıktan sonra aynı gün ikinci raporun (Sedna mutabakat) üç fa
 | R6 | Eşleştirme çekirdeği test ağı: 4 manuel endpoint + `_match_credits_to_bank` (N-1) + rematch | Eski #7 |
 | R7 | Karar-1 belgeleme: eşleştirme endpoint'leri onay-muafiyet kapsam listesi → docs/modules/onay-akisi.md | Doküman |
 
-**Durum: REVİZE FAZ 0 HENÜZ UYGULANMADI** (kullanıcı yeniden değerlendirme istedi; kod değişikliği yapılmadı).
+**Durum: REVİZE FAZ 0 (R1-R7) UYGULANDI (2026-07-11 gece).** Sıradaki: **Faz 1** — cari↔banka
+matcher, iki-eşikli öneri paneli (`event_matches` üzerinde), unmatch endpoint'leri, planlı gider
+köprüsü, kısmi/1-N eşleştirme, çapraz-para aday üretimi; başında hafif yarış koruması (matcher
+girişinde durum yeniden-doğrulama).

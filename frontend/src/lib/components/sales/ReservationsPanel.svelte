@@ -825,7 +825,10 @@
 		refreshAll();
 		loadAgencyGroups();
 		unsubscribe = onWsEvent('sales_updated', (data) => {
-			if (data?.module === 'hotel_reservation') {
+			// synthetic: WS reconnect'te store'un yerel yeniden yayını (modül bilgisi yok) —
+			// toast/otomatik-açma yan etkisi olmadan yalnız sessiz reload yapılır
+			// (refreshAll zaten sessizdir).
+			if (data?.synthetic === true || data?.module === 'hotel_reservation') {
 				refreshAll();
 			}
 		});

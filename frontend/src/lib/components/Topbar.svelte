@@ -8,7 +8,7 @@
 	import NotificationBell from './NotificationBell.svelte';
 	import Modal from './Modal.svelte';
 	import { isPushSupported, getPushPermissionState, subscribeToPush, requestPushPermission, unsubscribeFromPush } from '$lib/utils/push';
-	import { onlinePresence } from '$lib/stores/websocket.svelte';
+	import { onlinePresence, wsState, resetReconnect } from '$lib/stores/websocket.svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { Database, Loader2, CheckCircle2, XCircle, MinusCircle, Menu, ArrowLeft, ChevronDown, User, Volume2, Bell, LogOut } from 'lucide-svelte';
@@ -223,6 +223,31 @@
 
 	<!-- Right: Online users + Notification bell + User dropdown -->
 	<div class="flex items-center gap-1">
+	<!-- WS bağlantı göstergesi — bağlıyken hiçbir şey gösterilmez (temiz Topbar);
+	     reconnect denemesi sarı, kalıcı kopukluk kırmızı + elle yeniden dene butonu.
+	     everConnected guard'ı ilk bağlanma penceresinde yanlış kırmızıyı engeller. -->
+	{#if !wsState.connected && wsState.everConnected}
+		{#if wsState.reconnecting}
+			<div
+				class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg"
+				title="Bağlantı yeniden kuruluyor"
+				aria-live="polite"
+			>
+				<span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+				<span class="text-xs font-medium text-amber-700 hidden md:inline">Yeniden bağlanıyor</span>
+			</div>
+		{:else}
+			<button
+				onclick={resetReconnect}
+				class="touch-target flex items-center justify-center gap-1.5 px-2 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+				title="Bağlantı koptu — yeniden dene"
+				aria-label="Bağlantı koptu — yeniden dene"
+			>
+				<span class="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></span>
+				<span class="text-xs font-medium text-red-600 hidden md:inline">Bağlantı koptu — yeniden dene</span>
+			</button>
+		{/if}
+	{/if}
 	{#if showOnline}
 		<div class="relative online-popover">
 			<button

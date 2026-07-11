@@ -311,6 +311,35 @@ Onay kontrolü entegre edilmiş modüller:
 | `hr.withholding` | definition CRUD + entry update |
 | `hr.sgk` | definition CRUD + entry update |
 
+## Onaydan Muaf Endpoint'ler — Kapsam Listesi (2026-07-11, Karar-1)
+
+CLAUDE.md'nin "dosya yükleme, toplu işlem, eşleştirme gibi özel endpoint'ler hariç tutulabilir"
+istisnası, eşleştirme/sınıflandırma endpoint'leri için **açık kapsam listesine** bağlandı.
+Aşağıdaki endpoint'ler `check_approval()` çağırmaz — bu bir eksik değil, **bilinçli karardır**:
+
+| Dosya | Endpoint'ler |
+|---|---|
+| `finance/cash_flow/matching.py` | `POST /cash-flow/match-vendor-tx` · `match-cc-payment` · `match-credit-payment` · `unmatch-cc-payment` · `rematch` |
+| `finance/cariler/matching.py` | `POST /transactions/{vtx_id}/match-check/{check_id}` · `DELETE .../unmatch-check` · `DELETE .../unmatch` |
+| `finance/transaction_tags.py` | `PATCH /tags/transactions/{tx_id}` · `POST /tags/transactions/bulk` · `POST /tags/auto-tag` · `POST /tags/auto-match-vendors` |
+| `finance/checks.py` | `POST /checks/match-bank` |
+| `accounting/mutabakat.py` | `POST /mutabakat/run` (Sedna banka↔defter mutabakat motoru) |
+
+**Gerekçe:** Bunlar operasyonel eşleştirme/sınıflandırma işlemleridir — finansal kaydın
+**kendisini değil, kayıtlar arasındaki bağı** (eşleşme, kategori, etiket) değiştirirler.
+Banka verisi her zaman otoritedir; eşleştirme yanlışsa unmatch/rematch ile cezasız geri
+alınır, para hareketi oluşmaz/silinmez. Onay katmanı buraya konsaydı ekstre yüklemesi
+sonrası yüzlerce eşleşme onay kuyruğunu doldururdu (operasyonel felç).
+
+**Koruma katmanı onay yerine şudur:** hepsi `require_permission(..., "use")` +
+`log_action` audit kaydı + WS broadcast (`broadcast_finance_update`) taşır — kim, neyi,
+ne zaman eşleştirdi izlenebilir.
+
+**Sınır:** Vade, durum veya tutar **değiştiren** mutasyonlar (çek durumu, cari vade günü,
+kredi ödemesi, avans CRUD vb.) onaya **TABİ kalır** — yukarıdaki "Entegre Modüller"
+listesi geçerliliğini korur. Yeni bir eşleştirme/etiketleme endpoint'i eklenirse bu
+tabloya satır eklenmeli; eşleştirme dışına taşan yan etkisi varsa muafiyet uygulanmaz.
+
 ## Bildirim Entegrasyonu
 
 Onay sürecinin her aşamasında ilgili kullanıcılara bildirim gönderilir (DB kayıt + WebSocket gerçek zamanlı):

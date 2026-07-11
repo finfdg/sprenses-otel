@@ -198,6 +198,10 @@ def compute_eur_balances(db: Session) -> dict:
         else:
             check_date = deferral_map.get(("check", c.id)) or c.due_date
         check_expense_by_date[check_date] += to_eur(amt, curr, check_date)
+        # Ötelenmiş tarih daily/monthly eksenine girsin — all_date_set yalnız doğal
+        # due_date'i içeriyordu; eff tarih sette yoksa gider sessizce kayboluyordu
+        # (KK dalı eff_cc'yi zaten ekliyor — aynı kural).
+        all_date_set.add(check_date)
 
     # Kredi ürün para birimlerini toplu yükle (N+1 engeli)
     credit_product_ids = list({p.credit_product_id for p in pending_payments})
@@ -219,6 +223,7 @@ def compute_eur_balances(db: Session) -> dict:
             credit_expense_by_date[eff_due] += to_eur(float(p.amount), "TRY", eff_due)
         else:
             credit_expense_by_date[eff_due] += float(p.amount) if curr == "EUR" else to_eur(float(p.amount), curr, eff_due)
+        all_date_set.add(eff_due)  # ötelenmiş taksit tarihi daily/monthly eksenine girsin (çek notuyla aynı)
 
     # Ödenmemiş ve vadesi gelmemiş kredi kartı ekstreleri (son ödeme tarihine göre)
     # Vadesi geçmiş ekstreler hariç — gerçek ödeme banka kaydında zaten var
@@ -335,13 +340,15 @@ def compute_eur_balances(db: Session) -> dict:
     all_dates = sorted(all_date_set)
 
     # Bekleyen çek giderleri (gelecek bakiye projeksiyonu için — eşleşenler banka bakiyesinde)
+    # Ötelenmiş çek bakiyeden de ötelenmiş tarihte düşer (gider çizgisiyle aynı eksen — R5)
     pending_check_expense_by_date = defaultdict(float)
     for c in pending_checks:
         amt = float(c.amount_currency)
         curr = "EUR" if c.currency != "TL" else "TRY"
         if curr == "TRY":
             amt = float(c.amount_tl)
-        pending_check_expense_by_date[c.due_date] += to_eur(amt, curr, c.due_date)
+        eff_check = deferral_map.get(("check", c.id)) or c.due_date
+        pending_check_expense_by_date[eff_check] += to_eur(amt, curr, eff_check)
 
     # Kümülatif bakiye hesapla
     acc_running_balance = {}

@@ -6,7 +6,7 @@
 	import { requiredModuleForPath } from '$lib/config/navigation';
 	import { sidebar, closeSidebar } from '$lib/stores/ui.svelte';
 	import { unlockAudio } from '$lib/stores/notification.svelte';
-	import { connectWebSocket, disconnectWebSocket, onWsEvent } from '$lib/stores/websocket.svelte';
+	import { connectWebSocket, disconnectWebSocket, onWsEvent, resetReconnect, wsState } from '$lib/stores/websocket.svelte';
 	import { isPushSupported, getPushPermissionState, subscribeToPush, requestPushPermission } from '$lib/utils/push';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
@@ -60,6 +60,19 @@
 		};
 		window.visualViewport?.addEventListener('resize', resetViewportScroll);
 		window.addEventListener('focusout', onFocusOut);
+
+		// ── Global WS canlandırma (R4) ─────────────────────────────────────
+		// Ağ geri geldiğinde veya sekme tekrar görünür olduğunda reconnect sayacını
+		// sıfırlayıp bağlantıyı canlandır (resetReconnect idempotent — bağlıysa no-op;
+		// mesajlaşma sayfasındaki yerel handler ile çakışmaz).
+		const onNetworkOnline = () => resetReconnect();
+		const onWsVisibility = () => {
+			if (document.visibilityState === 'visible' && !wsState.connected) {
+				resetReconnect();
+			}
+		};
+		window.addEventListener('online', onNetworkOnline);
+		document.addEventListener('visibilitychange', onWsVisibility);
 
 		if (!loadAuth()) {
 			goto('/');
@@ -157,6 +170,8 @@
 			document.documentElement.classList.remove('app-shell-lock');
 			window.visualViewport?.removeEventListener('resize', resetViewportScroll);
 			window.removeEventListener('focusout', onFocusOut);
+			window.removeEventListener('online', onNetworkOnline);
+			document.removeEventListener('visibilitychange', onWsVisibility);
 			clearTimeout(focusoutTimer);
 			document.removeEventListener('click', unlock);
 			document.removeEventListener('keydown', unlock);

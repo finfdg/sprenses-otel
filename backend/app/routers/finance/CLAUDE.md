@@ -847,6 +847,32 @@ Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
 - **GZip + cache (genel):** `main.py`'ye `GZipMiddleware` (büyük JSON liste yanıtları sıkışır);
   `yonetim/dashboard` ve `accounting/fis_icmali/summary` 60sn TTL cache (mizan deseni).
 
+## Revize Faz 0 (2026-07-11)
+
+Eşleştirme denetimi (`docs/denetim/2026-07-11-nakit-akim-eslestirme-denetimi.md`) Revize Faz 0
+(R1–R7) uygulandı — kısa özet:
+
+- **Orkestratör TEK yol (R1):** `utils/matching_service.py` → `run_all_matchers` (4 matcher,
+  her adım SAVEPOINT'li) + `run_post_ingest_processing` (auto-tag → 4 matcher). Ekstre yüklemesi
+  (`bank_statement_import`), VakıfBank API senkronu (`vakifbank.py`) ve yeni
+  `POST /cash-flow/rematch` (use; onaydan muaf — kapsam listesi `docs/modules/onay-akisi.md`;
+  audit + BANKS/ADVANCES broadcast) hepsi bunu çağırır. Yeni ingest yolu yazarken elle matcher
+  çağırma — orkestratörü kullan.
+- **auto_tagger FE senkronu (R1):** otomatik kategori/ödeme yöntemi/cari ataması artık
+  `finance_event_svc.sync_tag` ile finance_events'e yansır (manuel yolla tutarlı;
+  `is_matched`'a dokunmaz).
+- **match_vendor_tx düzeltmesi (R2):** `match_number` → `match_number_seq` sequence;
+  banka bacağına `sync_tag`; `event_matches`'e `method='manual'` izi (doğrudan EventMatch —
+  `finance_event_svc.match()` DEĞİL, cari eşleştirmesi is_matched'ı değiştirmez); commit
+  sonrası `sync_vendor_finance_events`.
+- **Eksik broadcast'ler kapandı (R3):** butce.py 6 (BUTCE), onay.py 4 (BUTCE), hakedis.py
+  (HAKEDIS), sales/room_types 3 + agency_groups 4 + rezervasyon tekil sedna-import, sedna_sync
+  stok adımı (STOK) + rezervasyon adımı sonrası `sales_updated`, sales_invoices tekil
+  sedna-import (SALES_INVOICES), `match_credit_payment`/`unmatch_cc_payment` (CREDITS).
+  Yeni sabitler: `BroadcastModule.BUTCE/HAKEDIS/STOK` (frontend `realtime.ts` birebir aynı).
+- **Deferral → eur_balances (R5):** çek/kredi/KK tarihleri `get_deferral_map` ile ötelenmiş
+  tarihten okunur (RunwayChart/PDF ↔ T-Hesap/runway drift'i kapandı).
+
 ---
 
 ## Cari — Sedna (Muhasebe SQL Server) Doğrudan İçe Aktarma (2026-06-06)
@@ -1103,7 +1129,10 @@ from app.utils.finance_broadcast import broadcast_finance_update
 def my_endpoint(background_tasks: BackgroundTasks, ...):
     # ... işlem ...
     broadcast_finance_update(background_tasks, "banks", "upload")
-    # modül: banks, cariler, checks, credits, advances, cash_flow
+    # modül: banks, cariler, checks, credits, advances, cash_flow,
+    #        butce, hakedis, stok, sales_invoices, recon
+    #        (literal yazma — app/constants.py BroadcastModule sabitlerini kullan;
+    #         frontend karşılığı lib/constants/realtime.ts BROADCAST_MODULE)
     # action: upload, delete, update, match, tag
 ```
 

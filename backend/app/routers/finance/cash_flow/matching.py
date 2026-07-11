@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func
+from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
