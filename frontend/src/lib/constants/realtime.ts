@@ -64,6 +64,9 @@ export const BROADCAST_MODULE = {
 	APPROVAL: 'approval',
 	SCHEDULED: 'scheduled',
 	RECON: 'recon', // Sedna mutabakat (accounting.mutabakat)
+	BUTCE: 'butce', // bütçe + departman fatura onayı (bütçe actual'ları)
+	HAKEDIS: 'hakedis', // hak ediş vade tanımları
+	STOK: 'stok', // stok/depo (Sedna stok senkronu)
 	SALES_INVOICES: 'sales_invoices', // satış faturaları/tahsilatlar (Sedna aynalama sonrası yayın)
 	// Satış alanı
 	HOTEL_RESERVATION: 'hotel_reservation',
