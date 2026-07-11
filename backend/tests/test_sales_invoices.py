@@ -196,15 +196,22 @@ def test_same_day_payment_not_advance(client, auth_headers):
 
 
 def test_central_sync_includes_sales(client, auth_headers, db):
-    """Merkezi Sedna sync satış faturası adımını da çalıştırır."""
+    """Merkezi Sedna sync satış faturası adımını da çalıştırır.
+
+    Faz 2 #18: endpoint artık arka planda koşup {started,...} döndüğünden adım-sonuç
+    doğrulaması senkron çekirdek `run_sync_all_steps` ile yapılır (davranış birebir).
+    """
     from app.config import settings
+    from app.models.user import User
+    from app.routers.finance.sedna_sync import run_sync_all_steps
+    admin = db.query(User).filter(User.username == "admin").first()
     with patch.object(settings, "sedna_password", "x"), \
          patch("app.routers.finance.cariler.sedna_import.fetch_cari_transactions", return_value=[]), \
          patch("app.routers.finance.cariler.sedna_import.fetch_vendor_ibans", return_value=[]), \
          patch("app.routers.finance.check_import.fetch_issued_checks", return_value=[]), \
          patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE), \
          patch(f"{TARGET}.fetch_advance_accounts", return_value=[]):
-        j = client.post("/api/finance/sedna/sync-all", headers=auth_headers).json()
+        j = run_sync_all_steps(db, admin, "test")
         keys = {s["key"] for s in j["steps"]}
         assert "sales_invoices" in keys
         sales = next(s for s in j["steps"] if s["key"] == "sales_invoices")
