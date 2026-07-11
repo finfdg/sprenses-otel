@@ -348,6 +348,14 @@ kredi ödemesi, avans CRUD vb.) onaya **TABİ kalır** — yukarıdaki "Entegre 
 listesi geçerliliğini korur. Yeni bir eşleştirme/etiketleme endpoint'i eklenirse bu
 tabloya satır eklenmeli; eşleştirme dışına taşan yan etkisi varsa muafiyet uygulanmaz.
 
+**Sınırın karşı örneği — banka silme uçları onaya TABİ (Faz 3, 2026-07-12):**
+`DELETE /banks/statements/{id}` ve `DELETE /banks/transactions/{id}` (`finance.banks`,
+`check_approval` op=`delete_statement`/`delete_transaction`, executor
+`_handle_finance_banks`) bu muafiyet listesine **GİRMEZ** — kayıtlar arası bağı değil,
+**banka verisinin kendisini** siler (gerçek veri silme; "banka verisi otorite" ilkesinin
+kanıt katmanı yok olur, unmatch ile cezasız geri alınamaz). Tekil işlem silme ayrıca yalnız
+**eşleşmemiş** satırda çalışır (bilinçli sürtünme). Detay: `docs/modules/bankalar.md` "Faz 3".
+
 ## Bildirim Entegrasyonu
 
 Onay sürecinin her aşamasında ilgili kullanıcılara bildirim gönderilir (DB kayıt + WebSocket gerçek zamanlı):

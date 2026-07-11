@@ -387,6 +387,73 @@
 		}
 	}
 
+	// ─── Ekstre / tekil işlem silme (Faz 3 #22c) ───────────
+	let stmtDeleteTarget = $state<BankStatement | null>(null);
+	let showStmtDeleteConfirm = $state(false);
+	let txDeleteTarget = $state<BankTransaction | null>(null);
+	let showTxDeleteConfirm = $state(false);
+
+	function askDeleteStatement(stmt: BankStatement) {
+		stmtDeleteTarget = stmt;
+		showStmtDeleteConfirm = true;
+	}
+
+	async function deleteStatement() {
+		if (!stmtDeleteTarget) return;
+		const stmt = stmtDeleteTarget;
+		try {
+			const res = await api.delete<any>(`/finance/banks/statements/${stmt.id}`);
+			// 202 → onay akışına düştü (finance.banks delete workflow'u varsa)
+			if (res?.requires_approval || res?.request_id) {
+				showToast('Ekstre silme işlemi onaya gönderildi', 'info');
+				return;
+			}
+			const resolved: string[] = [];
+			if (res?.checks) resolved.push(`${res.checks} çek`);
+			if (res?.credits) resolved.push(`${res.credits} kredi`);
+			if (res?.advances) resolved.push(`${res.advances} avans`);
+			if (res?.cc) resolved.push(`${res.cc} KK`);
+			if (res?.vendor) resolved.push(`${res.vendor} cari`);
+			showToast(
+				`Ekstre silindi — ${res?.transactions ?? 0} işlem${resolved.length ? ` · çözülen eşleşme: ${resolved.join(', ')}` : ''}`,
+				'success',
+				5000
+			);
+			await loadAccounts();
+			if (expandedAccount) {
+				loadStatements(expandedAccount);
+				loadTransactions(expandedAccount);
+			}
+		} catch (err: any) {
+			console.error('Ekstre silme hatası:', err);
+			showToast(err?.message || 'Ekstre silinemedi', 'error');
+		}
+	}
+
+	function askDeleteTx(tx: BankTransaction) {
+		txDeleteTarget = tx;
+		showTxDeleteConfirm = true;
+	}
+
+	async function deleteTx() {
+		if (!txDeleteTarget) return;
+		const tx = txDeleteTarget;
+		try {
+			const res = await api.delete<any>(`/finance/banks/transactions/${tx.id}`);
+			if (res?.requires_approval || res?.request_id) {
+				showToast('İşlem silme onaya gönderildi', 'info');
+				return;
+			}
+			showToast('İşlem silindi', 'success');
+			await loadAccounts();
+			if (expandedAccount) loadTransactions(expandedAccount);
+		} catch (err: any) {
+			// Eşleşmiş satırda backend 400 döner ("önce eşleşmeyi geri al") — detay kullanıcıya gösterilir
+			console.error('İşlem silme hatası:', err);
+			showToast(err?.message || 'İşlem silinemedi', 'error', 5000);
+		}
+	}
+
 	// ─── Format helpers ─────────────────────────────────────
 	// ─── Manuel (ekstre-dışı) hareket ──────────────────────
 	function openManualTx(acc: BankAccount) {
@@ -747,11 +814,12 @@
 																	<th class="px-4 py-2.5 font-medium">Açıklama</th>
 																	<th class="px-4 py-2.5 font-medium text-right">Tutar</th>
 																	<th class="px-4 py-2.5 font-medium text-right">Bakiye</th>
+																	{#if canUse}<th class="px-2 py-2.5"><span class="sr-only">İşlemler</span></th>{/if}
 																</tr>
 															</thead>
 															<tbody>
 																{#each transactions as tx}
-																	<tr class="border-b border-gray-50 hover:bg-gray-50/50">
+																	<tr class="border-b border-gray-50 hover:bg-gray-50/50 group">
 																		<td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{formatDate(tx.date)}</td>
 																		<td class="px-4 py-2.5 text-gray-500 whitespace-nowrap text-xs">{tx.receipt_no || '-'}</td>
 																		<td class="px-4 py-2.5 text-gray-800 max-w-xs">
@@ -766,6 +834,18 @@
 																		<td class="px-4 py-2.5 text-right text-gray-500 whitespace-nowrap">
 																			{tx.balance !== null ? formatCurrency(tx.balance, acc.currency) : '-'}
 																		</td>
+																		{#if canUse}
+																			<td class="px-2 py-2.5 text-right">
+																				<button
+																					onclick={() => askDeleteTx(tx)}
+																					class="inline-flex items-center justify-center p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+																					title="İşlemi sil (yalnız eşleşmemiş satır silinebilir)"
+																					aria-label="İşlemi sil"
+																				>
+																					<Trash2 size={14} />
+																				</button>
+																			</td>
+																		{/if}
 																	</tr>
 																{/each}
 															</tbody>
@@ -784,9 +864,21 @@
 																		</div>
 																		<p class="text-[11px] text-gray-500 mt-0.5">{formatDate(tx.date)} {tx.receipt_no ? `• ${tx.receipt_no}` : ''}</p>
 																	</div>
-																	<span class="text-sm font-bold whitespace-nowrap {tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">
-																		{tx.type === 'income' ? '+' : ''}{formatCurrency(tx.amount, acc.currency)}
-																	</span>
+																	<div class="flex items-center gap-1.5 shrink-0">
+																		<span class="text-sm font-bold whitespace-nowrap {tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">
+																			{tx.type === 'income' ? '+' : ''}{formatCurrency(tx.amount, acc.currency)}
+																		</span>
+																		{#if canUse}
+																			<button
+																				onclick={() => askDeleteTx(tx)}
+																				class="touch-target inline-flex items-center justify-center p-1.5 text-gray-500 hover:text-rose-600 rounded-lg cursor-pointer"
+																				title="İşlemi sil (yalnız eşleşmemiş satır silinebilir)"
+																				aria-label="İşlemi sil"
+																			>
+																				<Trash2 size={14} />
+																			</button>
+																		{/if}
+																	</div>
 																</div>
 															</div>
 														{/each}
@@ -813,16 +905,16 @@
 													</div>
 												{:else}
 													<div class="divide-y divide-gray-50">
-														{#each statements as stmt}
-															<div class="px-4 py-3 flex items-center justify-between">
-																<div>
-																	<div class="flex items-center gap-2">
+														{#each statements as stmt (stmt.id)}
+															<div class="px-4 py-3 flex items-center justify-between gap-2">
+																<div class="min-w-0">
+																	<div class="flex items-center gap-2 min-w-0">
 																		{#if stmt.file_type === 'pdf'}
-																			<FileText size={16} class="text-rose-400" />
+																			<FileText size={16} class="text-rose-400 shrink-0" />
 																		{:else}
-																			<FileSpreadsheet size={16} class="text-emerald-400" />
+																			<FileSpreadsheet size={16} class="text-emerald-400 shrink-0" />
 																		{/if}
-																		<span class="text-sm text-gray-800">{stmt.file_name}</span>
+																		<span class="text-sm text-gray-800 truncate" title={stmt.file_name}>{stmt.file_name}</span>
 																	</div>
 																	{#if stmt.period_start && stmt.period_end}
 																		<p class="text-[11px] text-gray-500 mt-0.5 ml-6">
@@ -830,16 +922,28 @@
 																		</p>
 																	{/if}
 																</div>
-																<div class="text-right">
-																	<div class="flex items-center gap-2 text-xs">
-																		<span class="text-emerald-600 font-medium">{stmt.new_transactions} yeni</span>
-																		{#if stmt.skipped_transactions > 0}
-																			<span class="text-amber-500">{stmt.skipped_transactions} mükerrer</span>
-																		{/if}
+																<div class="flex items-center gap-2 shrink-0">
+																	<div class="text-right">
+																		<div class="flex items-center gap-2 text-xs">
+																			<span class="text-emerald-600 font-medium">{stmt.new_transactions} yeni</span>
+																			{#if stmt.skipped_transactions > 0}
+																				<span class="text-amber-500">{stmt.skipped_transactions} mükerrer</span>
+																			{/if}
+																		</div>
+																		<p class="text-[10px] text-gray-500 mt-0.5">
+																			{new Date(stmt.uploaded_at).toLocaleDateString('tr-TR')}
+																		</p>
 																	</div>
-																	<p class="text-[10px] text-gray-500 mt-0.5">
-																		{new Date(stmt.uploaded_at).toLocaleDateString('tr-TR')}
-																	</p>
+																	{#if canUse}
+																		<button
+																			onclick={() => askDeleteStatement(stmt)}
+																			class="touch-target inline-flex items-center justify-center p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+																			title="Ekstreyi ve işlemlerini sil"
+																			aria-label="Ekstreyi sil"
+																		>
+																			<Trash2 size={15} />
+																		</button>
+																	{/if}
 																</div>
 															</div>
 														{/each}
@@ -1015,4 +1119,26 @@
 	cancelText="Vazgeç"
 	danger={true}
 	onConfirm={deleteAccount}
+/>
+
+<!-- Ekstre Silme Onayı -->
+<ConfirmDialog
+	bind:show={showStmtDeleteConfirm}
+	title="Ekstreyi Sil"
+	message={stmtDeleteTarget ? `"${stmtDeleteTarget.file_name}" ekstresi ve ${stmtDeleteTarget.new_transactions} işlemi silinecek; bağlı çek/kredi/avans eşleşmeleri çözülecek. Devam edilsin mi?` : ''}
+	confirmText="Sil"
+	cancelText="Vazgeç"
+	danger={true}
+	onConfirm={deleteStatement}
+/>
+
+<!-- Tekil İşlem Silme Onayı -->
+<ConfirmDialog
+	bind:show={showTxDeleteConfirm}
+	title="Banka İşlemini Sil"
+	message={txDeleteTarget ? `${formatDate(txDeleteTarget.date)} tarihli "${txDeleteTarget.description}" işlemi silinecek. Yalnız eşleşmemiş satırlar silinebilir — eşleşmişse önce eşleşmeyi geri alın. Devam edilsin mi?` : ''}
+	confirmText="Sil"
+	cancelText="Vazgeç"
+	danger={true}
+	onConfirm={deleteTx}
 />

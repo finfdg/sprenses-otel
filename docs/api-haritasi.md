@@ -58,6 +58,8 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `POST /api/finance/cash-flow/unmatch-check` — Banka↔çek eşleşmesini geri al (use; body `{check_id}`; çek `pending`'e döner, banka hareketi serbest kalır, `event_matches` izi silinir; onaydan MUAF; audit + CHECKS WS)
 - `POST /api/finance/cash-flow/unmatch-credit-payment` — Banka↔kredi taksit eşleşmesini geri al (use; body `{payment_id}`; N-1 grupta `event_matches` izinden bağlı TÜM banka satırları çözülür + anapara `remaining_amount`'a iade edilir; banka FE'si realized kalır; onaydan MUAF; audit + CREDITS WS)
 - `POST /api/finance/cash-flow/match-checks-batch` — Tek banka gideriyle birden çok çeki kapat (use; body `{bank_transaction_id, check_ids[]}` — 1-20 çek; toplam ±0.02 doğrulamalı, çeklerden biri bu arada eşleşirse 409; onaydan MUAF; audit + CHECKS WS)
+- `GET /api/finance/cash-flow/reconciliation/aging` — Yaşlanan eşleşmemişler raporu (view; `?days=7` [1-180]; `stale_forecasts` = vadesi geçmiş açık tahminler kaynak-türü gruplu [FE `is_matched=F ∧ is_realized=F`, banka hariç] + `unmatched_bank` = etiketsiz/eşleşmesiz eski banka hareketleri; `compute_aging` çekirdeği cron günlük-özet bildirimiyle ORTAK — Faz 3 #21, 2026-07-12)
+- `GET /api/finance/cash-flow/forecast-accuracy` — Tahmin doğruluğu raporu (view; `?months=6` [1-24]; `event_matches` izlerinden tahmin-tarih↔gerçekleşme sapması: tür bazında + cari bazında medyan/ortalama gecikme + `suggested_payment_days` [mevcut vade + medyan, |medyan|≥3 günse] — **YALNIZ öneri, otomatik ayar yok**; uygulama mevcut cari-vade PATCH'iyle elle — Faz 3 #25, 2026-07-12)
 - Detaylı bilgi: `docs/modules/nakit-akim.md`
 
 ### Finans — Satış Faturaları (Otel oda satışları + tahsilat)
@@ -223,12 +225,14 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/finance/banks/accounts/` — Banka hesap listesi
 - `POST /api/finance/banks/accounts/` — Banka hesabı oluştur
 - `PATCH /api/finance/banks/accounts/{id}` — Banka hesabı güncelle
-- `DELETE /api/finance/banks/accounts/{id}` — Banka hesabı sil
-- `POST /api/finance/banks/upload` — Ekstre yükleme (otomatik tanıma)
-- `POST /api/finance/banks/accounts/{id}/upload` — Hesaba özel ekstre yükleme
+- `DELETE /api/finance/banks/accounts/{id}` — Banka hesabı sil (işlemlerinin TÜM eşleşme/FE temizliğiyle — `bank_release_service.delete_account_with_cleanup`; Faz 3 #24)
+- `POST /api/finance/banks/upload` — Ekstre yükleme (otomatik tanıma — IBAN'dan hesap bulunur)
+- `POST /api/finance/banks/accounts/{id}/upload` — Hesaba özel ekstre yükleme. **Faz 3 #22b:** ekstre başlığındaki IBAN/para birimi seçili hesapla uyuşmazsa **400** (yanlış hesaba sessiz yükleme kapandı; başlıkta bilgi yoksa doğrulama atlanır)
 - `POST /api/finance/banks/accounts/{id}/manual-transaction` — Ekstre-dışı (manuel) hareket ekle (`source='manual'`; işaretli tutar; bakiye=son+tutar). İlgili ekstre yüklenince o tarih aralığında **otomatik silinir** → çift kayıt olmaz. finance.banks use, audit'li, onaydan muaf (özel/düzeltme endpoint'i)
 - `GET /api/finance/banks/accounts/{id}/transactions` — Hesap işlemleri (yanıt `source` alanı döner: statement/manual)
 - `GET /api/finance/banks/accounts/{id}/statements` — Ekstre listesi
+- `DELETE /api/finance/banks/statements/{id}` — Ekstreyi + TÜM işlemlerini sil (use; her işlemin bağlı eşleşmeleri çözülür [çek→pending, taksit→unpaid+anapara iadesi, avans→pending, KK paid_amount geri, cari çifti] + FE invalidate — `bank_release_service.delete_bank_statement`; **onaya TABİ** [gerçek veri silme — eşleştirme muafiyeti DEĞİL]; audit + BANKS WS — Faz 3 #22c)
+- `DELETE /api/finance/banks/transactions/{id}` — Tekil banka işlemini sil (use; **yalnız eşleşmemiş satır** — eşleşmişse 400 "önce eşleşmeyi geri alın" [bilinçli sürtünme]; **onaya TABİ**; audit + BANKS WS — Faz 3 #22c)
 - Detaylı bilgi: `docs/modules/bankalar.md`
 
 ### Finans — Çekler

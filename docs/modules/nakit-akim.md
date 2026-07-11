@@ -520,3 +520,68 @@ fonksiyonu çağırır.
 
 accept/reject sinyalinden kural öğrenme (learned_match_rules) uygulanmadı;
 `event_matches.method/score` alanları eğitim verisi olarak birikmeye devam ediyor.
+
+## Faz 3 (2026-07-12)
+
+Eşleştirme denetiminin (`docs/denetim/2026-07-11-nakit-akim-eslestirme-denetimi.md` §6)
+Faz 3 paketi uygulandı — **#26 ve #27 bilinçli ERTELENDİ** (aşağıya bkz.). Bu dosya nakit-akım
+uçlarını (#21 yaşlananlar + #25 tahmin doğruluğu) anlatır; banka tarafı (#22 kopya tamlığı +
+#24 hesap silme temizliği + silme uçları) `docs/modules/bankalar.md`'de, bakiye-zinciri
+kontrolü `docs/modules/sedna-mutabakat.md`'de.
+
+### Yaşlanan eşleşmemişler — `GET /cash-flow/reconciliation/aging` (#21)
+
+Tahmin→gerçekleşme geçişinin iki **sessiz kopma sınıfını** görünür kılar (bugüne dek yalnız
+satır satır taranarak fark ediliyordu). Çekirdek: `cash_flow/aging.py::compute_aging(db, days,
+item_limit)` — endpoint + cron bildirimi AYNI fonksiyonu çağırır (ortak-çekirdek deseni).
+
+- **(a) `stale_forecasts`** — vadesi `bugün − days`'ten eski, hâlâ **açık** tahminler
+  (FE `is_matched=False ∧ is_realized=False`, `source_type != 'bank'`): kaynak-türü bazında
+  grup (`by_source`: Türkçe etiket + adet + TL toplam [`amount_try` yoksa `amount`] + en eski
+  tarih) + tarih-sıralı ilk `item_limit` kalem (`days_overdue` ile).
+- **(b) `unmatched_bank`** — cutoff'tan eski ve `match_number`/`category_id`/`vendor_id`
+  ÜÇÜ DE boş (etiketsiz + eşleşmesiz) banka hareketleri: adet + Σ|tutar| + ilk kalemler
+  (`days_old`).
+- Sorgu parametresi `days` 1–180 (varsayılan **7**). `finance.cash_flow` **view**, salt-okuma
+  GET → onaydan muaf.
+- **Günlük bildirim:** `cron_sedna_sync._maybe_notify_aging` — 2 saatlik timer'ın **günün İLK
+  koşusunda** (09:15 turu; `now.hour == 9` guard'ı — her turda bildirmek gürültü olur)
+  `compute_aging(days=7)` özetini "Yaşlanan eşleşmemişler" başlığıyla `_notify_viewers` ile
+  gönderir (yalnız sayaçlar > 0 ise); hata cron'u düşürmez.
+- **Frontend (paralel iş):** Nakit Akım sayfasında rozetli **"Yaşlananlar"** butonu + modal —
+  rapor iki bloğu (açık tahminler kaynak-gruplu + etiketsiz banka hareketleri) listeler.
+
+### Tahmin doğruluğu — `GET /cash-flow/forecast-accuracy` (#25)
+
+Faz B'nin `event_matches` izlerinden (method ≠ `suggestion`, banka bacaklı) **tahmin-tarih ↔
+gerçekleşme-tarih** sapmasını çıkarır — sistematik geç ödeyen cari/tür için vade önerisi
+(tahminler zamanla iyileşir, geri-besleme döngüsü).
+
+- **Planlı tarih kaynağı türe göre** (`_PLANNED_DATE_SOURCES`): çek/kredi `due_date` · avans
+  `advance_date` · cari `payment_due_date` · planlı türler (tax/sgk/withholding/salary/
+  rent_expense/recurring) `entry_date`. **Gerçekleşme** = eşleşen banka işleminin tarihi.
+- `months` 1–24 (varsayılan **6**; hem iz `created_at`'i hem gerçekleşme tarihi pencerede).
+  `finance.cash_flow` view, onaydan muaf GET.
+- **Yanıt:** `by_type` (tür başına adet + **medyan** + ortalama gecikme günü; pozitif medyan =
+  sistematik GEÇ gerçekleşme → tahminler iyimser) + `by_vendor` (yalnız `vendor_payment`;
+  en çok izli 50 cari — medyan gecikme + `current_payment_days` +
+  **`suggested_payment_days` = mevcut vade + medyan gecikme**, yalnız |medyan| ≥ 3 günse,
+  0 tabanlı).
+- **YALNIZ ÖNERİ — otomatik ayar YOK (bilinçli):** vade değişikliği kullanıcı kararıyla mevcut
+  cari-vade PATCH'i (`PATCH /vendors/{id}/payment-days` — onaya TABİ) üzerinden elle yapılır.
+  Rapor endpoint'i hiçbir kaydı değiştirmez.
+
+### Panel banka KPI'sı = runway `start_eur` (C2)
+
+Panel'deki "Bankalar" KPI'sı artık hesap listesinden elle toplanan tutar yerine runway'in
+`start_eur` kaynağından beslenir (frontend paralel iş) → **Panel KPI / Nakit Akım bakiyesi /
+runway "Bankadaki Nakit" üç görünüm TEK sayı** (blocked_amount düşülmüş, aynı kur mantığı).
+
+### Ertelenenler (bilinçli)
+
+- **#26 rezervasyon gelirinin FE'ye taşınması:** Karar-3 **çift-sayım matrisi** kullanıcıyla
+  netleştirilecek — iki varyant masada: temkinli "yalnız hakediş alacakları FE'ye" vs tam
+  "ciro projeksiyonu FE'ye". Netleşmeden kod yazılmaz (çift sayım riski).
+- **#27 eur_balances'ın FE'den okuması:** çift motorun (C3) kökten çözümü ama
+  **davranış-eşitliği doğrulaması** gerektiren ayrı büyük iş.
+- **#14 öğrenen kurallar + #20 WS izin filtresi:** P3 — önceki fazlardan ertelenmiş durumda.

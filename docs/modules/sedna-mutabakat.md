@@ -116,7 +116,7 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 |---|---|---|---|
 | GET | `/accounting/mutabakat/summary` | view | Açık durum sayıları + en eski açık tarih + son koşu + hesap eşleme kapsamı (`mapped_accounts/total_accounts`) + **`lock_date`** (Faz C dönem kilidi; yoksa null) |
 | GET | `/accounting/mutabakat/items` | view | Uyuşmazlık listesi — **sayfalı** (`page`/`page_size≤200`), `sort_by` **whitelist'li** (`event_date\|amount\|status\|detected_at`) + `sort_dir`; filtreler: `status`, `account_id`, **`entity_type` (`bank\|check\|vendor_tx\|vendor_balance`, Faz B/C — `bank` = entity_type'ı NULL banka satırları için takma değer)**, `include_closed`, `q` (banka/Sedna açıklamasında arama). Yanıt satırında `entity_type`/`entity_id` alanları |
-| POST | `/accounting/mutabakat/run` | use | Mutabakat taramasını elle tetikle (`window_days` 7–365, varsayılan 45). **Onaydan MUAF** (sınıflandırma — veri mutasyonu değil) + audit + WS broadcast. Tünel kapalı → **503**. **Faz C özet alanları:** `locked_period_new` (kilit-öncesi tarihli yeni uyuşmazlık sayısı) + `negative_balances` (ters-bakiye listesi) + cari bakiye taraması **best-effort** koşulur → `vendors_scanned`/`balance_diffs`/`vendor_auto_closed` (başarısızsa `vendor_error` — banka taraması sonucu korunur) |
+| POST | `/accounting/mutabakat/run` | use | Mutabakat taramasını elle tetikle (`window_days` 7–365, varsayılan 45). **Onaydan MUAF** (sınıflandırma — veri mutasyonu değil) + audit + WS broadcast. Tünel kapalı → **503**. **Faz C özet alanları:** `locked_period_new` (kilit-öncesi tarihli yeni uyuşmazlık sayısı) + `negative_balances` (ters-bakiye listesi) + cari bakiye taraması **best-effort** koşulur → `vendors_scanned`/`balance_diffs`/`vendor_auto_closed` (başarısızsa `vendor_error` — banka taraması sonucu korunur). **Faz 3 (2026-07-12):** `balance_chain_breaks` (bakiye-zinciri kırılma listesi) |
 | PATCH | `/accounting/mutabakat/items/{id}` | use + **onay** | Kaydı çöz / yoksay / yeniden aç (`action: resolve\|ignore\|reopen` + `note`) — `check_approval` (op=`resolve_item`) |
 | GET | `/accounting/mutabakat/account-mappings` | view | Hesap eşleme durumu + **canlı Sedna** önerileri (102 leaf, Remark-numara skorlaması) — tünel kapalı → **503** olabilir |
 | PATCH | `/accounting/mutabakat/account-mappings/{account_id}` | use + **onay** | Banka hesabına Sedna 102 kodu ata/onayla/temizle — `check_approval` (op=`account_mapping`) |
@@ -244,6 +244,9 @@ imkânsız. Güvenilir anahtar **skorlamayla** kurulur (`suggest_account_mapping
 - **Faz C bildirimleri** (`_notify_viewers` — mutabakat izleyicilerine, best-effort):
   **"Kilitli dönemde değişiklik"** (kilit-öncesi tarihli yeni uyuşmazlık — kapanmış ay verisi
   değişmiş olabilir) ve **"Ters bakiye uyarısı"** (mevduat hesabında negatif bakiye).
+- **Faz 3 bildirimi (2026-07-12):** **"Ekstre bakiye zinciri kırık"** — koşu sonu
+  `check_balance_chains` kırılma bulursa (`summary.balance_chain_breaks`, ilk 5 kırılma
+  özetiyle; aşağıdaki "Bakiye-zinciri kontrolü" bölümü).
 - `notified_at` damgasıyla **tekrar-bildirim yok**; bildirim hatası koşuyu düşürmez (try/except + log).
 - WS: `BroadcastModule.RECON` — koşu ve kayıt aksiyonları sonrası `broadcast_finance_update`
   (polling yasak kuralı gereği ekran WS ile tazelenir).
@@ -463,6 +466,26 @@ birimi/bakiye listesi) + **"Ters bakiye uyarısı"** bildirimi. **KMH-bağlı he
 (`credit_products.type='kmh'` → `linked_account_id`; negatif bakiye KMH'nin doğası). Sedna
 `FinalizedBalance` negatif-bakiye deseninin bizdeki eşleniği; kontrol try/except'lidir —
 hata koşuyu düşürmez.
+
+### 6) Bakiye-zinciri kontrolü (Faz 3 #22a — eşleştirme denetimi, 2026-07-12)
+
+**"Banka doğru"nun ön koşulu: banka KOPYAMIZ tam mı?** Ardışık bakiyeli satırlar arasında
+Σtutar ≈ bakiye farkı değilse ekstre satırı atlanmış/bozuk demektir — mutabakat o pencerede
+**sahte "Sedna eksik/fazla"** üretir; kontrol bunu koşudan önce görünür kılar.
+
+- `check_balance_chains(db, window_days=90, max_breaks=20)` (`sedna_recon_service.py`):
+  aktif hesap başına pencere-içi işlemler tarih+id sıralı taranır. **Bakiyesi NULL satırlar
+  (manuel girişler) köprü sayılır** — iki bakiyeli satır arasındaki TÜM tutarların toplamı
+  bakiye farkına eşit olmalı (tolerans `BALANCE_CHAIN_TOLERANCE` = 0.02, kuruş yuvarlaması).
+- Kırılma kaydı: hesap/banka/para birimi + tarih + `expected_balance`/`actual_balance` +
+  `gap` + kırılmayı çevreleyen `after_tx_id`/`tx_id` (incelemeyi satıra indirger).
+- **Mutabakat koşusuna entegre:** `run_reconciliation` sonunda çalışır →
+  `summary.balance_chain_breaks`; kırılma varsa **"Ekstre bakiye zinciri kırık"** bildirimi
+  (`_notify_viewers`, ilk 5 kırılma özetiyle — "eksik/atlanmış ekstre satırı olabilir").
+  Kontrol try/except'lidir — hata koşuyu düşürmez.
+- Kırılmanın tipik çözümü: ilgili dönemin ekstresini yeniden yüklemek veya bozuk satırı
+  `DELETE /banks/transactions/{id}` ile temizlemek (onaya tabi — `docs/modules/bankalar.md`
+  "Faz 3" bölümü).
 
 ## Geliştirme Kuralları
 

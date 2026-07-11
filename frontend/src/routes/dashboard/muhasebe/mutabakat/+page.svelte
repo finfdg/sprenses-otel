@@ -89,6 +89,9 @@
 	// Veri state — özet
 	let summary = $state<any>(null);
 
+	// Veri state — son taramanın bakiye-zinciri kırılmaları (yalnız POST /run yanıtında gelir)
+	let chainBreaks = $state<any[]>([]);
+
 	// Veri state — uyuşmazlık listesi
 	let items = $state<any[]>([]);
 	let itemsLoading = $state(true);
@@ -390,6 +393,12 @@
 				const parts = r.negative_balances.slice(0, 3).map((n: any) => `${n.bank_name} ${fmtAmount(n.balance, n.currency)}`);
 				showToast(`Ters bakiye: ${parts.join(' · ')}`, 'warning');
 			}
+			// Faz 3 #22a: bakiye-zinciri kırılmaları — kopyada eksik/atlanmış ekstre satırı sinyali
+			chainBreaks = Array.isArray(r?.balance_chain_breaks) ? r.balance_chain_breaks : [];
+			if (chainBreaks.length > 0) {
+				const parts = chainBreaks.slice(0, 2).map((b: any) => `${b.bank_name} ${fmtDate(b.date)} boşluk ${fmtAmount(b.gap, b.currency)}`);
+				showToast(`Bakiye zinciri kırık: ${parts.join(' · ')}`, 'warning', 6000);
+			}
 			await Promise.all([loadSummary(), loadItems()]);
 		} catch (err: any) {
 			console.error('Mutabakat taraması başarısız:', err);
@@ -682,6 +691,14 @@
 
 		<!-- Dönem kilidi şeridi (uyarı modu) -->
 		<div class="flex items-center gap-2 flex-wrap">
+			{#if chainBreaks.length > 0}
+				<span
+					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-semibold tabular-nums"
+					title="Son taramada {chainBreaks.length} bakiye zinciri kırılması bulundu — ardışık ekstre satırları arasında bakiye boşluğu var; eksik/atlanmış ekstre satırı olabilir"
+				>
+					<AlertTriangle size={12} /> {chainBreaks.length} bakiye zinciri kırığı
+				</span>
+			{/if}
 			{#if summary.lock_date}
 				<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
 					<Lock size={12} /> Dönem kilidi: {fmtDate(summary.lock_date)}

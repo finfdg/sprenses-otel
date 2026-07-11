@@ -5,6 +5,50 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Faz 3 — Mutabakat ve Tek Gerçek (2026-07-12)
+
+Eşleştirme denetiminin Faz 3 paketi (#21/#22/#24/#25; **#26 rezervasyon→FE ve #27
+eur_balances→FE bilinçli ERTELENDİ** — #26 Karar-3 çift-sayım matrisi kullanıcı seçimi
+bekliyor [temkinli "hakediş alacakları FE'ye" vs tam "ciro projeksiyonu FE'ye"], #27
+davranış-eşitliği doğrulaması gerektiren ayrı büyük iş; #14/#20 P3 ertelenmiş kalır).
+Kullanıcı anlatımı: `docs/modules/nakit-akim.md` "Faz 3" + `docs/modules/bankalar.md` "Faz 3".
+
+- **Yaşlanan eşleşmemişler (#21)** — `cash_flow/aging.py`: `GET /cash-flow/reconciliation/aging`
+  (view, onaydan muaf GET). Çekirdek `compute_aging(db, days, item_limit)` endpoint +
+  `cron_sedna_sync._maybe_notify_aging` (günün İLK koşusu 09:15; `now.hour == 9` guard)
+  ORTAK kullanır. X günden eski açık tahminler (FE `is_matched=F ∧ is_realized=F`, banka
+  hariç; kaynak-türü gruplu) + etiketsiz/eşleşmesiz banka hareketleri (`match_number`/
+  `category_id`/`vendor_id` üçü boş). Nakit Akım "Yaşlananlar" rozet+modal (frontend paralel).
+- **Tahmin doğruluğu (#25)** — aynı dosyada `GET /cash-flow/forecast-accuracy`: `event_matches`
+  izlerinden (method ≠ suggestion) tahmin-tarih ↔ banka-gerçekleşme sapması; tür bazında +
+  cari bazında medyan gecikme + `suggested_payment_days` (mevcut + medyan, |medyan| ≥ 3 günse).
+  **YALNIZ ÖNERİ — otomatik vade ayarı YOK**; uygulama mevcut cari-vade PATCH'iyle elle.
+- **Banka kopyası tamlığı (#22)** — (a) `sedna_recon_service.check_balance_chains`:
+  bakiye-zinciri süreklilik kontrolü (NULL-bakiye manuel satırlar köprü; tolerans 0.02);
+  mutabakat koşusu `summary.balance_chain_breaks` + "Ekstre bakiye zinciri kırık" bildirimi.
+  (b) hesaba-özel upload'da başlık IBAN/para-birimi doğrulaması (uyuşmazsa 400).
+  (c) `DELETE /banks/statements/{id}` + `DELETE /banks/transactions/{id}` — **onay akışına
+  TABİ** (`check_approval` op=`delete_statement`/`delete_transaction`; eşleştirme istisnası
+  DEĞİL — gerçek veri silme); tekil silme yalnız **eşleşmemiş** satır (bilinçli sürtünme,
+  eşleşmiş satır banka kanıtıdır → önce unmatch).
+- **Hesap silme temizliği (#24, denetim C5)** — `bank_account_service.delete_account` artık
+  `delete_account_with_cleanup` üzerinden: her işlem için release (çek→pending, taksit→
+  unpaid+anapara iadesi+grup match_number izi, avans→pending, KK `paid_amount` geri, cari
+  `match_number` çifti) + FE invalidate; `needs_vendor_sync` dönerse işlem sonunda BİR KEZ
+  `sync_vendor_finance_events`. Router + executor ORTAK (D1-2).
+- **`bank_release_service.py` — TEK-KAYNAK KURALI:** **Banka verisi (hesap / ekstre / tekil
+  işlem) silen HER yol `bank_release_service` kullanmalı** — elle `db.delete` + alan temizliği
+  YAZMA (çözülmeyen eşleşme = "bankasız ödendi" kalan çek/taksit/avans + orphan FE).
+  Çekirdek `release_bank_transaction`; üstünde `delete_bank_statement` /
+  `delete_bank_transaction` / `delete_account_with_cleanup`.
+- **Executor değişikliği:** `finance.banks` simple-crud fabrikasından (`_make_simple_crud_handlers`)
+  ÇIKARILDI → açık `_handle_finance_banks` (hesap CRUD + `payload["op"]` ile
+  `delete_statement`/`delete_transaction` op'ları; router ile ORTAK servisler).
+- **C2:** Panel banka KPI'sı artık runway `start_eur` kaynağından (frontend paralel) —
+  Panel / Nakit Akım / runway üç görünüm tek sayı.
+
+---
+
 ## Faz 2 — Yapısal Gerçek Zamanlılık (2026-07-12)
 
 Eşleştirme denetiminin Faz 2 paketi (#15/#17/#18/#19; **#20 WS izin filtresi P3 ertelendi** —
@@ -1820,6 +1864,7 @@ app/routers/finance/
 │   ├── runway.py        # Runway / nakit koruma projeksiyonu (ay-içi planlı hareketler EUR) + held dizisi
 │   ├── deferral.py      # Kalıcı öteleme (payment_deferrals) endpoint'i
 │   ├── hold.py          # Bekletme (cash_flow_holds) — kalemi akım-dışı park (hold-batch)
+│   ├── aging.py         # Yaşlanan eşleşmemişler + tahmin doğruluğu raporları (Faz 3 #21/#25)
 │   └── _helpers.py      # Ortak yardımcı fonksiyonlar
 ├── exchange_rates.py   # Döviz kurları
 └── transaction_tags.py # Etiketleme + kategori yönetimi

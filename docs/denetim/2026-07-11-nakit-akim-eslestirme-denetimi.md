@@ -180,7 +180,24 @@ otomatik senkron; sales-sync ile faz farklı) · **#19** stok+döviz canlı
 (`BroadcastModule.EXCHANGE_RATES` sabitlendi). Doküman: `docs/modules/websocket.md` +
 `backend/app/routers/finance/CLAUDE.md` "Faz 2" + `docs/modules/sunucu.md` (timer).
 
-**Kalan: Faz 3 kalanları (#21 yaşlanan eşleşmemişler, #22 günlük banka mutabakatı, #24 C5
-banka hesabı silme FE invalidate, #25 tahmin doğruluğu, #26 rezervasyon→FE, #27
-eur_balances-FE, #28 kalan yarış dilimi; C2/C5/C7 sınıfı bulgular) + ertelenen P3'ler
-(#14 öğrenen kurallar, #20 WS izin filtresi) + Karar-3.**
+**FAZ 3 UYGULANDI (2026-07-12; #26 Karar-3 kullanıcı seçimi bekliyor [temkinli "hakediş
+alacakları FE'ye" / tam "ciro projeksiyonu FE'ye" varyantı], #27 + #14 + #20 bilinçli
+ertelendi).** Kapsam: **#21** yaşlanan eşleşmemişler (`GET /cash-flow/reconciliation/aging`,
+`compute_aging` çekirdeği + cron 09:15 günlük özet bildirimi + Nakit Akım "Yaşlananlar"
+rozet/modal) · **#22** banka kopyası tamlığı (a: `check_balance_chains` bakiye-zinciri
+kontrolü + koşu özeti + bildirim; b: hesaba-özel upload'da IBAN/para-birimi doğrulaması 400;
+c: `DELETE /banks/statements/{id}` + `/banks/transactions/{id}` — **onaya TABİ**, tekil silme
+yalnız eşleşmemiş satır) · **#24** (C5) hesap silme temizliği (`delete_account_with_cleanup`;
+yeni `services/bank_release_service.py` TEK kaynak — banka verisi silen HER yol bunu kullanır;
+router + executor ORTAK, `finance.banks` simple-crud fabrikasından açık handler'a çıktı) ·
+**#25** tahmin doğruluğu (`GET /cash-flow/forecast-accuracy` — event_matches izlerinden medyan
+gecikme + önerilen vade; YALNIZ öneri, otomatik ayar yok) · **C2** Panel banka KPI'sı runway
+`start_eur` kaynağından (üç görünüm tek sayı). Doküman: `docs/modules/nakit-akim.md` "Faz 3" +
+`docs/modules/bankalar.md` "Faz 3" + `docs/modules/sedna-mutabakat.md` "Bakiye-zinciri
+kontrolü" + `backend/app/routers/finance/CLAUDE.md` "Faz 3".
+
+**28 maddelik yol haritası bu durumla KAPANDI.** Açık kalanlar (yeni iş olarak izlenir):
+**#26** rezervasyon geliri→FE (Karar-3 çift-sayım matrisi kullanıcıyla netleşince) ·
+**#27** eur_balances'ın FE'den okuması (davranış-eşitliği doğrulamalı ayrı büyük iş) ·
+**#14** öğrenen kurallar + **#20** WS izin filtresi (P3) · #28'in kalan dilimi (partial
+unique index'ler).

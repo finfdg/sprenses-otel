@@ -16,7 +16,8 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
-	import { Filter, AlertTriangle, Receipt, Check, FileDown, RefreshCw, Link2, ArrowRight, X } from 'lucide-svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import { Filter, AlertTriangle, Receipt, Check, FileDown, RefreshCw, Link2, ArrowRight, X, Hourglass, Target } from 'lucide-svelte';
 	import {
 		cashFlowCache,
 		loadAllCashFlow,
@@ -71,6 +72,39 @@
 	let sugConfirm = $state<{ show: boolean; title: string; message: string; confirmText: string; danger: boolean; onConfirm: () => void | Promise<void> }>({
 		show: false, title: '', message: '', confirmText: 'Onayla', danger: false, onConfirm: () => {},
 	});
+
+	// Yaşlananlar paneli (Faz 3 #21) — vadesi geçmiş açık tahminler + etiketsiz banka hareketleri
+	interface AgingData {
+		days: number;
+		cutoff: string;
+		stale_forecasts: {
+			by_source: Record<string, { label: string; count: number; total_try: number; oldest_date: string | null }>;
+			total_count: number;
+			items: { source_type: string; source_id: number; event_date: string; amount: number; currency: string | null; description: string | null; days_overdue: number }[];
+		};
+		unmatched_bank: {
+			count: number;
+			total: number;
+			items: { id: number; date: string; amount: number; description: string | null; days_old: number }[];
+		};
+	}
+	let agingTotal = $state(0);
+	let showAging = $state(false);
+	let agingData = $state<AgingData | null>(null);
+	let agingLoading = $state(false);
+	let agingDays = $state(7);
+
+	// Tahmin doğruluğu paneli (Faz 3 #25) — tahmin ↔ gerçekleşme tarih sapması
+	interface AccuracyData {
+		months: number;
+		total_matches: number;
+		by_type: { source_type: string; label: string; count: number; median_delay_days: number; avg_delay_days: number }[];
+		by_vendor: { vendor_id: number; vendor_name: string; count: number; median_delay_days: number; current_payment_days: number; suggested_payment_days: number | null }[];
+	}
+	let showAccuracy = $state(false);
+	let accuracyData = $state<AccuracyData | null>(null);
+	let accuracyLoading = $state(false);
+	let accuracyMonths = $state(6);
 
 	// Cari eşleştirme modu (cariler sayfasından gelince)
 	let matchMode = $state(false);
@@ -274,6 +308,72 @@
 				showToast(msg, 'error');
 			}
 		}
+	}
+
+	// ─── Yaşlananlar (aging) ────────────────────────────────
+	/** Rozet sayısı için sayfa açılışında hafif çek (days=7 — rozet her zaman 7 günlük eşiği gösterir). */
+	async function loadAgingCount() {
+		try {
+			const res = await api.get<AgingData>('/finance/cash-flow/reconciliation/aging?days=7');
+			agingTotal = res.stale_forecasts.total_count + res.unmatched_bank.count;
+			if (agingDays === 7) agingData = res;
+		} catch (err) {
+			console.error('Yaşlanan eşleşmemiş sayısı alınamadı:', err);
+		}
+	}
+
+	async function loadAging() {
+		agingLoading = true;
+		try {
+			agingData = await api.get<AgingData>(`/finance/cash-flow/reconciliation/aging?days=${agingDays}`);
+			if (agingDays === 7) agingTotal = agingData.stale_forecasts.total_count + agingData.unmatched_bank.count;
+		} catch (err) {
+			console.error('Yaşlananlar raporu yüklenemedi:', err);
+			showToast('Yaşlananlar raporu yüklenemedi', 'error');
+		}
+		agingLoading = false;
+	}
+
+	function openAging() {
+		showAging = true;
+		loadAging();
+	}
+
+	function setAgingDays(v: string) {
+		agingDays = parseInt(v, 10);
+		loadAging();
+	}
+
+	// ─── Tahmin doğruluğu ───────────────────────────────────
+	async function loadAccuracy() {
+		accuracyLoading = true;
+		try {
+			accuracyData = await api.get<AccuracyData>(`/finance/cash-flow/forecast-accuracy?months=${accuracyMonths}`);
+		} catch (err) {
+			console.error('Tahmin doğruluğu raporu yüklenemedi:', err);
+			showToast('Tahmin doğruluğu raporu yüklenemedi', 'error');
+		}
+		accuracyLoading = false;
+	}
+
+	function openAccuracy() {
+		showAccuracy = true;
+		loadAccuracy();
+	}
+
+	function setAccuracyMonths(v: string) {
+		accuracyMonths = parseInt(v, 10);
+		loadAccuracy();
+	}
+
+	/** Gecikme gününü işaretli göster (pozitif = tahminden GEÇ gerçekleşme). */
+	function fmtDelay(n: number): string {
+		const v = Math.abs(n).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+		return n > 0 ? `+${v}` : n < 0 ? `−${v}` : v;
+	}
+
+	function delayCls(n: number): string {
+		return n > 0 ? 'text-red-600' : n < 0 ? 'text-emerald-700' : 'text-gray-600';
 	}
 
 	// CRUD functions
@@ -598,8 +698,9 @@
 		// Eşleştirme modunda her zaman taze veri çek, normal modda cache kullan
 		await loadAllCashFlow(matchMode);
 
-		// Öneri rozeti sayısı (bloklamadan)
+		// Öneri + yaşlananlar rozet sayıları (bloklamadan)
 		loadSuggestionCount();
+		loadAgingCount();
 
 		// Finans güncelleme event'ini dinle — başka kullanıcı değişiklik yapınca otomatik yenile
 		unsubFinance = onWsEvent('finance_updated', () => {
@@ -612,6 +713,8 @@
 			// Panel açıkken öneri listesini, kapalıyken rozet sayısını tazele
 			if (showSuggestions) loadSuggestions();
 			else loadSuggestionCount();
+			if (showAging) loadAging();
+			else loadAgingCount();
 			refreshCashFlowFull();
 		});
 	});
@@ -650,6 +753,24 @@
 			>
 				<Link2 size={16} /> <span class="hidden sm:inline">Eşleşme Önerileri</span>
 				<span class="min-w-[1.25rem] h-5 px-1 rounded-full text-[11px] font-semibold tabular-nums flex items-center justify-center {suggestionsTotal > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}">{suggestionsTotal}</span>
+			</Button>
+			<Button
+				variant="secondary"
+				onclick={openAging}
+				disabled={agingTotal === 0}
+				ariaLabel="Yaşlananlar"
+				title="Vadesi geçtiği halde eşleşmemiş tahminler + yaşlanan etiketsiz banka hareketleri"
+			>
+				<Hourglass size={16} /> <span class="hidden sm:inline">Yaşlananlar</span>
+				<span class="min-w-[1.25rem] h-5 px-1 rounded-full text-[11px] font-semibold tabular-nums flex items-center justify-center {agingTotal > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}">{agingTotal}</span>
+			</Button>
+			<Button
+				variant="secondary"
+				onclick={openAccuracy}
+				ariaLabel="Tahmin Doğruluğu"
+				title="Tahmin ↔ gerçekleşme tarih sapması — tür ve cari bazında gecikme analizi"
+			>
+				<Target size={16} /> <span class="hidden sm:inline">Tahmin Doğruluğu</span>
 			</Button>
 			<Button
 				variant="secondary"
@@ -862,6 +983,187 @@
 			onPageChange={(p) => { sugPage = p; loadSuggestions(); }}
 			onPageSizeChange={(sz) => { sugPageSize = sz; sugPage = 1; loadSuggestions(); }}
 		/>
+	{/if}
+</Modal>
+
+<!-- Yaşlananlar paneli -->
+<Modal bind:show={showAging} title="Yaşlananlar — Eşleşmemiş Kayıtlar" maxWidth="max-w-4xl">
+	<div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+		<SegmentedControl
+			size="sm"
+			options={[{ value: '7', label: '7 gün' }, { value: '15', label: '15 gün' }, { value: '30', label: '30 gün' }]}
+			value={String(agingDays)}
+			onchange={setAgingDays}
+			ariaLabel="Yaşlandırma eşiği"
+		/>
+		{#if agingData && !agingLoading}
+			<span class="text-xs text-gray-500">Eşik: {fmtSugDate(agingData.cutoff)} öncesi</span>
+		{/if}
+	</div>
+
+	{#if agingLoading}
+		<TableSkeleton rows={5} columns={3} showHeader={false} />
+	{:else if !agingData || (agingData.stale_forecasts.total_count === 0 && agingData.unmatched_bank.count === 0)}
+		<EmptyState icon={Hourglass} title="Yaşlanan kayıt yok" description="Seçili eşikten eski açık tahmin veya etiketsiz banka hareketi bulunmuyor" />
+	{:else}
+		<!-- Kaynak bazlı özet çipleri -->
+		{#if Object.keys(agingData.stale_forecasts.by_source).length > 0}
+			<div class="flex flex-wrap gap-1.5 mb-4">
+				{#each Object.entries(agingData.stale_forecasts.by_source) as [src, g] (src)}
+					<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs" title={g.oldest_date ? `En eski: ${fmtSugDate(g.oldest_date)}` : ''}>
+						<span class="font-medium text-amber-800">{g.label}</span>
+						<span class="tabular-nums text-amber-700">{g.count}</span>
+						<span class="tabular-nums font-semibold text-amber-800">₺{g.total_try.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</span>
+					</span>
+				{/each}
+			</div>
+		{/if}
+
+		<div class="space-y-5">
+			<!-- Açık tahminler -->
+			<div>
+				<h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+					Açık Tahminler ({agingData.stale_forecasts.total_count})
+				</h3>
+				{#if agingData.stale_forecasts.items.length === 0}
+					<p class="text-sm text-gray-500">Vadesi geçmiş açık tahmin yok.</p>
+				{:else}
+					<div class="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+						{#each agingData.stale_forecasts.items as it (`${it.source_type}-${it.source_id}`)}
+							<div class="px-3 py-2 flex items-center gap-2.5 text-sm">
+								<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 shrink-0">
+									{agingData.stale_forecasts.by_source[it.source_type]?.label ?? it.source_type}
+								</span>
+								<span class="tabular-nums text-xs text-gray-500 shrink-0">{fmtSugDate(it.event_date)}</span>
+								<span class="text-gray-700 truncate flex-1 min-w-0" title={it.description || ''}>{it.description || '—'}</span>
+								<span class="tabular-nums font-semibold text-gray-900 shrink-0">{fmtSugAmount(it.amount, it.currency)}</span>
+								<span class="tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">{it.days_overdue} gün</span>
+							</div>
+						{/each}
+					</div>
+					{#if agingData.stale_forecasts.total_count > agingData.stale_forecasts.items.length}
+						<p class="text-xs text-gray-500 mt-1.5">En eski {agingData.stale_forecasts.items.length} kayıt gösteriliyor.</p>
+					{/if}
+				{/if}
+			</div>
+
+			<!-- Etiketsiz banka hareketleri -->
+			<div>
+				<h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+					Etiketsiz Banka Hareketleri ({agingData.unmatched_bank.count} · ₺{agingData.unmatched_bank.total.toLocaleString('tr-TR', { maximumFractionDigits: 0 })})
+				</h3>
+				{#if agingData.unmatched_bank.items.length === 0}
+					<p class="text-sm text-gray-500">Yaşlanan etiketsiz banka hareketi yok.</p>
+				{:else}
+					<div class="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+						{#each agingData.unmatched_bank.items as it (it.id)}
+							<div class="px-3 py-2 flex items-center gap-2.5 text-sm">
+								<span class="tabular-nums text-xs text-gray-500 shrink-0">{fmtSugDate(it.date)}</span>
+								<span class="text-gray-700 truncate flex-1 min-w-0" title={it.description || ''}>{it.description || '—'}</span>
+								<span class="tabular-nums font-semibold shrink-0 {it.amount < 0 ? 'text-red-600' : 'text-emerald-700'}">{fmtSugAmount(it.amount)}</span>
+								<span class="tabular-nums text-[11px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 shrink-0">{it.days_old} gün</span>
+							</div>
+						{/each}
+					</div>
+					{#if agingData.unmatched_bank.count > agingData.unmatched_bank.items.length}
+						<p class="text-xs text-gray-500 mt-1.5">En eski {agingData.unmatched_bank.items.length} kayıt gösteriliyor.</p>
+					{/if}
+				{/if}
+			</div>
+		</div>
+	{/if}
+</Modal>
+
+<!-- Tahmin Doğruluğu paneli -->
+<Modal bind:show={showAccuracy} title="Tahmin Doğruluğu" maxWidth="max-w-4xl">
+	<div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
+		<SegmentedControl
+			size="sm"
+			options={[{ value: '3', label: '3 ay' }, { value: '6', label: '6 ay' }, { value: '12', label: '12 ay' }]}
+			value={String(accuracyMonths)}
+			onchange={setAccuracyMonths}
+			ariaLabel="Analiz dönemi"
+		/>
+		{#if accuracyData && !accuracyLoading}
+			<span class="text-xs text-gray-500 tabular-nums">{accuracyData.total_matches} eşleşme incelendi</span>
+		{/if}
+	</div>
+	<p class="text-xs text-gray-500 mb-3">Pozitif = tahminden geç gerçekleşme. Önerilen vade uygulaması Cariler sayfasından elle yapılır.</p>
+
+	{#if accuracyLoading}
+		<TableSkeleton rows={5} columns={4} showHeader={false} />
+	{:else if !accuracyData || accuracyData.total_matches === 0}
+		<EmptyState icon={Target} title="Yeterli eşleşme verisi yok" description="Seçili dönemde tahmin ↔ gerçekleşme izi bulunamadı" />
+	{:else}
+		<div class="space-y-5">
+			<!-- Tür bazında -->
+			<div>
+				<h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Tür Bazında</h3>
+				<div class="overflow-x-auto border border-gray-200 rounded-xl">
+					<table class="w-full text-sm">
+						<thead>
+							<tr class="text-left text-xs text-gray-600 bg-gray-50 border-b border-gray-200">
+								<th class="px-3 py-2 font-medium">Tür</th>
+								<th class="px-3 py-2 font-medium text-right">Adet</th>
+								<th class="px-3 py-2 font-medium text-right">Medyan Gecikme (gün)</th>
+								<th class="px-3 py-2 font-medium text-right">Ortalama (gün)</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each accuracyData.by_type as t (t.source_type)}
+								<tr class="border-b border-gray-50">
+									<td class="px-3 py-2 text-gray-800">{t.label}</td>
+									<td class="px-3 py-2 text-right tabular-nums text-gray-600">{t.count}</td>
+									<td class="px-3 py-2 text-right tabular-nums font-semibold {delayCls(t.median_delay_days)}">{fmtDelay(t.median_delay_days)}</td>
+									<td class="px-3 py-2 text-right tabular-nums {delayCls(t.avg_delay_days)}">{fmtDelay(t.avg_delay_days)}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<!-- Cari bazında -->
+			<div>
+				<h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Cari Bazında</h3>
+				{#if accuracyData.by_vendor.length === 0}
+					<p class="text-sm text-gray-500">Cari eşleşme izi yok.</p>
+				{:else}
+					<div class="overflow-x-auto border border-gray-200 rounded-xl">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="text-left text-xs text-gray-600 bg-gray-50 border-b border-gray-200">
+									<th class="px-3 py-2 font-medium">Cari</th>
+									<th class="px-3 py-2 font-medium text-right">Adet</th>
+									<th class="px-3 py-2 font-medium text-right">Medyan Gecikme (gün)</th>
+									<th class="px-3 py-2 font-medium text-right">Mevcut Vade</th>
+									<th class="px-3 py-2 font-medium text-right">Önerilen Vade</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each accuracyData.by_vendor as v (v.vendor_id)}
+									<tr class="border-b border-gray-50">
+										<td class="px-3 py-2 text-gray-800">
+											<div class="truncate max-w-[220px]" title={v.vendor_name}>{v.vendor_name}</div>
+										</td>
+										<td class="px-3 py-2 text-right tabular-nums text-gray-600">{v.count}</td>
+										<td class="px-3 py-2 text-right tabular-nums font-semibold {delayCls(v.median_delay_days)}">{fmtDelay(v.median_delay_days)}</td>
+										<td class="px-3 py-2 text-right tabular-nums text-gray-600">{v.current_payment_days} gün</td>
+										<td class="px-3 py-2 text-right">
+											{#if v.suggested_payment_days != null}
+												<span class="inline-flex items-center tabular-nums text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{v.suggested_payment_days} gün</span>
+											{:else}
+												<span class="text-gray-500">—</span>
+											{/if}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</div>
+		</div>
 	{/if}
 </Modal>
 

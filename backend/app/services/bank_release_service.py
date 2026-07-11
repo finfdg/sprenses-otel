@@ -136,7 +136,13 @@ def delete_bank_statement(db: Session, stmt) -> dict:
             totals[k] += c[k]
         totals["needs_vendor_sync"] = totals["needs_vendor_sync"] or c["needs_vendor_sync"]
         finance_event_svc.invalidate(db, "bank", tx.id)
-    db.delete(stmt)  # cascade: bank_transactions + sedna_bank_recon (FK CASCADE)
+        # bank_transactions.statement_id FK'sı ON DELETE **SET NULL** (CASCADE değil —
+        # migration 2b4495d4c8f5) → işlemler AÇIKÇA silinmeli; yoksa ekstre silinince
+        # satırlar statement_id=NULL orphan kalır (FE'leri invalidate edildiğinden nakit
+        # akımda görünmez ama banka listesinde durur). sedna_bank_recon izleri
+        # bank_transaction_id FK CASCADE ile birlikte düşer.
+        db.delete(tx)
+    db.delete(stmt)
     db.flush()
     return totals
 

@@ -4,7 +4,8 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
 	import { BROADCAST_MODULE } from '$lib/constants/realtime';
-	import { onMount } from 'svelte';
+	import { runwayStore, subscribeRunway } from '$lib/stores/runway.svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import CashFlowTAccount from '$lib/components/CashFlowTAccount.svelte';
 	import AiDigestCard from '$lib/components/AiDigestCard.svelte';
@@ -76,26 +77,23 @@
 
 	// ── Ayrık kart loader'ları (ilk yükleme + WS modül-filtreli canlı yenileme ORTAK) ──
 
-	// Bankalar — blocked_amount düşülerek, EUR karşılığı
-	function loadBanksKpi(): Promise<void> {
-		return Promise.all([
-			api.get<any>('/finance/banks/accounts/'),
-			api.get<any>('/finance/exchange-rates/latest'),
-		]).then(([data, ratesData]) => {
-			const accs = data.items ?? data;
-			const rates = ratesData.rates || [];
-			const eurSelling = rates.find((r: any) => r.currency_code === 'EUR')?.forex_selling;
-			const usdSelling = rates.find((r: any) => r.currency_code === 'USD')?.forex_selling;
-			const eff = (a: any) => (a.last_balance ?? 0) - (a.blocked_amount ?? 0);
-			const totalTRY = accs.filter((a: any) => a.currency === 'TRY').reduce((s: number, a: any) => s + eff(a), 0);
-			const totalEUR = accs.filter((a: any) => a.currency === 'EUR').reduce((s: number, a: any) => s + eff(a), 0);
-			const totalUSD = accs.filter((a: any) => a.currency === 'USD').reduce((s: number, a: any) => s + eff(a), 0);
-			const value = eurSelling > 0
-				? `€${fmt(totalTRY / eurSelling + totalEUR + (usdSelling > 0 ? (totalUSD * usdSelling) / eurSelling : 0))}`
-				: `₺${fmt(totalTRY)}`;
-			kpis.banks = { label: 'Bankalar', value, sub: `${accs.length} hesap`, href: '/dashboard/finans/bankalar' };
-		}).catch(cardError('Bankalar'));
-	}
+	// Bankalar KPI — C2 (2026-07-12): değer runway store'un `start_eur`'undan gelir → Panel KPI =
+	// RunwayChart = Nakit Akım aynı sayı (tek kaynak: backend `_compute_start_eur`). Eski client-side
+	// toplam yalnız TRY/EUR/USD hesaplarını kapsıyordu (diğer para birimleri atlanıyordu) → kaldırıldı.
+	// Runway `finance.cash_flow` view ister → kart yalnız o izin de varsa dolar; WS tazelemesi
+	// runway store'un kendi FINANCE_UPDATED aboneliğinden gelir (ayrı BANKS refetch gerekmez).
+	let unsubRunway: (() => void) | null = null;
+	$effect(() => {
+		const d = runwayStore.data;
+		if (canBanks && d) {
+			kpis.banks = {
+				label: 'Bankalar',
+				value: `€${fmt(d.start_eur)}`,
+				sub: 'Nakit Akım ile aynı kaynak',
+				href: '/dashboard/finans/bankalar',
+			};
+		}
+	});
 
 	// Doluluk
 	function loadOccupancyKpi(): Promise<void> {
