@@ -437,7 +437,7 @@ def run_reconciliation(
 
 _CRITICAL_STATUSES = frozenset({
     ReconStatus.DIRECTION_FLIP, ReconStatus.DUPLICATE_SUSPECT,
-    ReconStatus.SEDNA_MISSING, ReconStatus.SEDNA_EXTRA,
+    ReconStatus.SEDNA_MISSING, ReconStatus.SEDNA_EXTRA, ReconStatus.SEDNA_DIFF,
 })
 
 _STATUS_LABELS = {
@@ -446,8 +446,81 @@ _STATUS_LABELS = {
     ReconStatus.SEDNA_EXTRA: "Sedna'da fazla",
     ReconStatus.DIRECTION_FLIP: "Yön ters",
     ReconStatus.DUPLICATE_SUSPECT: "Mükerrer şüphesi",
+    ReconStatus.SEDNA_DIFF: "Sedna sapması",
     ReconStatus.MATCHED: "Mutabık",
 }
+
+
+# ─── Banka-dışı varlık sapmaları (Faz B — eşleşmiş çek/cari kaydında Sedna farkı) ───
+
+def report_entity_diff(db: Session, entity_type: str, entity_id: int, *,
+                       amount: float, currency: str, event_date: date,
+                       description: Optional[str], sedna_description: Optional[str],
+                       sedna_rec_id: Optional[int] = None) -> SednaBankRecon:
+    """Korunan (eşleşmiş/atanmış) yerel kayıtta Sedna sapmasını Uyuşmayan Veriler'e yaz.
+
+    Eskiden bu sapmalar importlarda SESSİZCE atlanıyordu. Kayıt (entity_type, entity_id)
+    anahtarıyla upsert edilir; kullanıcı 'yoksay' dediyse yeniden açılmaz. Yerel kayıt
+    DEĞİŞTİRİLMEZ (politika: banka-kanıtlı kayda dokunulmaz, yalnız gösterilir).
+    """
+    now = datetime.now(tz_istanbul)
+    existing = (
+        db.query(SednaBankRecon)
+        .filter(SednaBankRecon.entity_type == entity_type,
+                SednaBankRecon.entity_id == entity_id)
+        .order_by(SednaBankRecon.id.desc())
+        .first()
+    )
+    if existing is not None:
+        if existing.resolution == RESOLUTION_IGNORED:
+            return existing  # bilinçli yoksayıldı — yeniden açma
+        existing.status = ReconStatus.SEDNA_DIFF
+        existing.sedna_description = (sedna_description or "")[:500] or None
+        existing.last_seen_at = now
+        if existing.resolved_at is not None:  # kapanmıştı, sapma geri geldi → yeniden aç
+            existing.resolved_at = None
+            existing.resolution = None
+            existing.resolved_by = None
+        db.flush()
+        return existing
+    item = SednaBankRecon(
+        entity_type=entity_type, entity_id=entity_id,
+        sedna_trans_rec_id=sedna_rec_id,
+        status=ReconStatus.SEDNA_DIFF,
+        amount=round(float(amount or 0), 2), currency=(currency or "TRY")[:3],
+        event_date=event_date,
+        description=(description or "")[:500] or None,
+        sedna_description=(sedna_description or "")[:500] or None,
+        detected_at=now, last_seen_at=now,
+    )
+    db.add(item)
+    db.flush()
+    return item
+
+
+def close_stale_entity_diffs(db: Session, entity_type: str, seen_ids: set) -> int:
+    """Bu koşuda artık raporlanmayan açık entity sapmalarını OTOMATİK kapat.
+
+    Sedna'daki fark giderildiyse (düzeltildi/geri alındı) kayıt listeden düşer —
+    kullanıcının 'giderilince otomatik kalksın' kuralının entity ayağı.
+    """
+    now = datetime.now(tz_istanbul)
+    rows = (
+        db.query(SednaBankRecon)
+        .filter(SednaBankRecon.entity_type == entity_type,
+                SednaBankRecon.resolved_at.is_(None))
+        .all()
+    )
+    closed = 0
+    for r in rows:
+        if r.entity_id not in seen_ids:
+            r.status = ReconStatus.MATCHED
+            r.resolution = RESOLUTION_AUTO
+            r.resolved_at = now
+            closed += 1
+    if closed:
+        db.flush()
+    return closed
 
 
 def _notify_new_items(db: Session, items: List[SednaBankRecon]) -> None:

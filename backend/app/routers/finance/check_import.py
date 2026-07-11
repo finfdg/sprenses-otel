@@ -225,11 +225,14 @@ def _build_existing_and_stale(db: Session):
     return existing, stale_dupes
 
 
-def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict) -> str:
+def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict,
+                          diff_ids=None) -> str:
     """Tek Sedna çek satırını içe aktar. Dönüş: 'new' | 'updated' | 'skipped'.
 
     `existing` (dedup-key → Check) YERİNDE güncellenir. Her satır kendi SAVEPOINT'inde
     işlenir → bir kısıt çakışması tüm içe aktarmayı düşürmez (IntegrityError → 'skipped').
+    Faz B: EŞLEŞMİŞ çekteki Sedna sapması artık sessiz atlanmaz — `diff_ids` verildiyse
+    Uyuşmayan Veriler'e 'Sedna sapması' kaydı yazılır (yerel kayıt DEĞİŞTİRİLMEZ).
     """
     check_no = (str(r.get("check_no")) or "").strip()[:50]
     vendor_code = (r.get("vendor_code") or "").strip() or None
@@ -242,7 +245,32 @@ def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict) 
     amount_currency = cur_amt if (curr != "TL" and cur_amt) else amount_tl
     new_status = _check_status_from_pos(r.get("max_pos"))
     bank = (r.get("bank") or "").strip() or None
+    rec_id = r.get("check_rec_id")
     key = _check_dedup_key(check_no, vendor_code, curr, amount_tl, amount_currency)
+
+    def _report_matched_diff(chk):
+        """Eşleşmiş çekte önemli Sedna farkı → Uyuşmayan Veriler (vade/tutar/iptal)."""
+        if diff_ids is None:
+            return
+        important = (
+            chk.due_date != due_date
+            or round(float(chk.amount_currency or 0), 2) != round(amount_currency, 2)
+            or (new_status == "cancelled" and chk.status != "cancelled")
+        )
+        if not important:
+            return
+        from app.services.sedna_recon_service import report_entity_diff
+        report_entity_diff(
+            db, "check", chk.id,
+            amount=amount_currency, currency=("TRY" if curr == "TL" else curr),
+            event_date=due_date,
+            description=(f"Yerel çek {chk.check_no}: vade {chk.due_date} tutar "
+                         f"{chk.amount_currency} {chk.currency} durum {chk.status} (eşleşmiş)"),
+            sedna_description=(f"Sedna: vade {due_date} tutar {amount_currency} {curr} "
+                               f"durum {new_status}"),
+            sedna_rec_id=int(rec_id) if rec_id is not None else None,
+        )
+        diff_ids.add(chk.id)
 
     try:
         with db.begin_nested():
@@ -250,6 +278,8 @@ def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict) 
             if ex is not None:
                 # eşleşmemiş çek → Sedna güncel durumunu yansıt (VADE + durum + banka); eşleşmişe dokunma.
                 # Banka farkı/eksiği de tetikler → mevcut çeklerde bank_name geriye doldurulur (re-sync backfill).
+                if rec_id is not None and ex.sedna_check_rec_id is None:
+                    ex.sedna_check_rec_id = int(rec_id)  # kalıcı kimlik geri-doldurma (Faz B)
                 if ex.bank_transaction_id is None and ex.match_number is None:
                     # Sedna gerçek banka verdi → tahminse de güncelle (inferred=False)
                     bank_changed = bool(bank) and (ex.bank_name != bank or ex.bank_name_inferred)
@@ -264,6 +294,7 @@ def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict) 
                         finance_event_svc.upsert_check(db, ex)
                         return "updated"
                     return "skipped"
+                _report_matched_diff(ex)   # eşleşmiş çekte sapma → sessiz atlama yerine kayıt
                 return "skipped"
             # Bu dedup-key (no,vendor,para,tutar) yok. Ama AYNI (no,vendor,vade) UNIQUE
             # üçlüsünde bir kayıt olabilir → tutar/para BİRİMİ kaymış (ör. PEKSAN 0353816
@@ -277,6 +308,8 @@ def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict) 
                 Check.due_date == due_date,
             ).first()
             if drift is not None and drift.bank_transaction_id is None and drift.match_number is None:
+                if rec_id is not None and drift.sedna_check_rec_id is None:
+                    drift.sedna_check_rec_id = int(rec_id)
                 drift.amount_tl = amount_tl
                 drift.amount_currency = amount_currency
                 drift.currency = curr
@@ -288,6 +321,7 @@ def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict) 
                 existing[key] = drift
                 return "updated"
             if drift is not None:
+                _report_matched_diff(drift)    # eşleşmiş çekte tutar/para kayması → kayıt
                 return "skipped"               # eşleşmiş çek → dokunma (benign)
             chk = Check(
                 upload_id=upload_id,
@@ -303,6 +337,7 @@ def _import_one_check_row(db: Session, r: dict, upload_id: int, existing: dict) 
                 amount_currency=amount_currency,
                 transaction_type="Verilen Çek",
                 status=new_status,
+                sedna_check_rec_id=int(rec_id) if rec_id is not None else None,
             )
             db.add(chk)
             db.flush()
@@ -356,6 +391,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
     existing, stale_dupes = _build_existing_and_stale(db)
 
     new_count = updated_count = skipped_count = removed_dupes = 0
+    check_diff_ids: set = set()  # Faz B: eşleşmiş çeklerde raporlanan Sedna sapmaları
     try:
         # Vade değişiminden kalan eşleşmemiş mükerrerleri ÖNCE temizle — güncelleme döngüsünde
         # mevcut kaydı yeni vadeye çekerken UNIQUE(check_no,vendor_code,due_date) çakışmasını önler.
@@ -367,7 +403,7 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
             db.flush()
 
         for r in rows:
-            outcome = _import_one_check_row(db, r, upload.id, existing)
+            outcome = _import_one_check_row(db, r, upload.id, existing, diff_ids=check_diff_ids)
             if outcome == "new":
                 new_count += 1
             elif outcome == "updated":
@@ -382,6 +418,9 @@ def run_check_import(db: Session, current_user: User, ip=None) -> dict:
         swept_count = _sweep_stale_checks(db, rows)
         # Bankası boş çekleri komşu çek-no'larından tahmin et (Sedna güncellemeleri + süpürme bittikten SONRA)
         inferred_count = infer_check_banks(db)
+        # Faz B: bu koşuda artık raporlanmayan eşleşmiş-çek sapmalarını otomatik kapat
+        from app.services.sedna_recon_service import close_stale_entity_diffs
+        close_stale_entity_diffs(db, "check", check_diff_ids)
         # Olası check_no↔açıklama-no uyuşmazlıklarını tespit et + uyar (düzeltmez — insan kararı)
         anomalies = detect_check_no_mismatches(db)
         if anomalies:

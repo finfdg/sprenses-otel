@@ -50,6 +50,11 @@ router = APIRouter(prefix="/sales-invoices")
 # ─── Yardımcılar ────────────────────────────────────────
 
 
+# Faz B aynalama güvenlik tavanı: tek koşuda bundan fazla rec_id'li satır Sedna'dan
+# kaybolmuşsa (olası kısmi veri / mantık hatası) silme İPTAL edilir, yalnız loglanır.
+_MIRROR_SWEEP_CAP = 300
+
+
 def _is_munferit(code: str, name: str) -> bool:
     """Münferit (bireysel/walk-in) mi — 120.03.* veya adında MÜNFERİT geçen."""
     c = code or ""
@@ -108,9 +113,19 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
     inv_rows = data.get("invoices", [])
     col_rows = data.get("collections", [])
 
+    # Faz B (2026-07-11) — TAM AYNALAMA: saf insert-only kaldırıldı. Kalıcı kimlik =
+    # Sedna AccountingTrans.RecId. Sırasıyla: (1) rec_id'li yerel satır → alanlar Sedna'dan
+    # GÜNCELLENİR (tutar düzeltmesi çift satır üretmez); (2) hash eşleşen rec_id'siz eski
+    # satır → rec_id damgalanır (geri-doldurma); (3) yeni satır rec_id'li eklenir;
+    # (4) rec_id'li olup Sedna aktif kümesinde artık OLMAYAN yerel satır SİLİNİR
+    # (güvenlik tavanı _MIRROR_SWEEP_CAP; rec_id'siz eski satırlara dokunulmaz).
     inv_new = inv_skip = col_new = col_skip = 0
+    inv_updated = inv_removed = col_updated = col_removed = 0
     try:
-        existing_inv = {h for (h,) in db.query(SalesInvoice.tx_hash).all()}
+        local_invs = db.query(SalesInvoice).all()
+        inv_by_recid = {c.sedna_rec_id: c for c in local_invs if c.sedna_rec_id is not None}
+        inv_by_hash = {c.tx_hash: c for c in local_invs}
+        seen_inv_recids = set()
         for r in inv_rows:
             code = (r.get("customer_code") or "").strip()
             d = r.get("invoice_date")
@@ -119,20 +134,62 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
             no = (r.get("invoice_no") or "").strip() or None
             amt = _f(r.get("amount"))
             h = _hash("sinv", code, d, no, amt)
-            if h in existing_inv:
-                inv_skip += 1
-                continue
             name = (r.get("customer_name") or "").strip()
             cur, amt_nat = _native(amt, r.get("currency"), r.get("amount_currency"))
-            db.add(SalesInvoice(
+            rec_id = int(r["rec_id"]) if r.get("rec_id") is not None else None
+            if rec_id is not None:
+                seen_inv_recids.add(rec_id)
+                row = inv_by_recid.get(rec_id)
+                if row is not None:
+                    if row.tx_hash != h:  # Sedna'da düzeltilmiş → UPDATE (çift satır yok)
+                        row.customer_code = code
+                        row.customer_name = name
+                        row.is_munferit = _is_munferit(code, name)
+                        row.invoice_no = no
+                        row.invoice_date = d
+                        row.amount = amt
+                        row.currency = cur
+                        row.amount_currency = amt_nat
+                        row.description = (r.get("aciklama") or None)
+                        inv_by_hash.pop(row.tx_hash, None)
+                        row.tx_hash = h
+                        inv_by_hash[h] = row
+                        inv_updated += 1
+                    else:
+                        inv_skip += 1
+                    continue
+            row = inv_by_hash.get(h)
+            if row is not None:
+                if rec_id is not None and row.sedna_rec_id is None and rec_id not in inv_by_recid:
+                    row.sedna_rec_id = rec_id  # kimlik geri-doldurma
+                    inv_by_recid[rec_id] = row
+                inv_skip += 1
+                continue
+            row = SalesInvoice(
                 customer_code=code, customer_name=name, is_munferit=_is_munferit(code, name),
                 invoice_no=no, invoice_date=d, amount=amt, currency=cur, amount_currency=amt_nat,
-                description=(r.get("aciklama") or None), tx_hash=h,
-            ))
-            existing_inv.add(h)
+                description=(r.get("aciklama") or None), tx_hash=h, sedna_rec_id=rec_id,
+            )
+            db.add(row)
+            inv_by_hash[h] = row
+            if rec_id is not None:
+                inv_by_recid[rec_id] = row
             inv_new += 1
 
-        existing_col = {c.tx_hash: c for c in db.query(SalesCollection).all()}
+        # rec_id'li olup Sedna aktifinde artık olmayanlar → bayat (düzeltme/silme)
+        stale_invs = [c for rid, c in inv_by_recid.items() if rid not in seen_inv_recids]
+        if len(stale_invs) > _MIRROR_SWEEP_CAP:
+            logger.error("Satış faturası aynalama süpürmesi İPTAL: %d bayat satır tavanı (%d) aştı",
+                         len(stale_invs), _MIRROR_SWEEP_CAP)
+        else:
+            for c in stale_invs:
+                db.delete(c)
+                inv_removed += 1
+
+        local_cols = db.query(SalesCollection).all()
+        col_by_recid = {c.sedna_rec_id: c for c in local_cols if c.sedna_rec_id is not None}
+        existing_col = {c.tx_hash: c for c in local_cols}
+        seen_col_recids = set()
         for r in col_rows:
             code = (r.get("customer_code") or "").strip()
             d = r.get("collection_date")
@@ -142,25 +199,63 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
             fis = r.get("fis_no")
             name = (r.get("customer_name") or "").strip() or None
             h = _hash("scol", code, d, amt, fis)
+            cur, amt_nat = _native(amt, r.get("currency"), r.get("amount_currency"))
+            rec_id = int(r["rec_id"]) if r.get("rec_id") is not None else None
+            if rec_id is not None:
+                seen_col_recids.add(rec_id)
+                row = col_by_recid.get(rec_id)
+                if row is not None:
+                    if row.tx_hash != h:
+                        row.customer_code = code
+                        row.customer_name = name
+                        row.collection_date = d
+                        row.amount = amt
+                        row.currency = cur
+                        row.amount_currency = amt_nat
+                        row.description = (r.get("aciklama") or None)
+                        existing_col.pop(row.tx_hash, None)
+                        row.tx_hash = h
+                        existing_col[h] = row
+                        col_updated += 1
+                    else:
+                        if name and not (row.customer_name or "").strip():
+                            row.customer_name = name
+                        col_skip += 1
+                    continue
             ex = existing_col.get(h)
             if ex is not None:
                 if name and not (ex.customer_name or "").strip():
                     ex.customer_name = name   # boş ismi Sedna'dan doldur
+                if rec_id is not None and ex.sedna_rec_id is None and rec_id not in col_by_recid:
+                    ex.sedna_rec_id = rec_id
+                    col_by_recid[rec_id] = ex
                 col_skip += 1
                 continue
-            cur, amt_nat = _native(amt, r.get("currency"), r.get("amount_currency"))
             col = SalesCollection(
                 customer_code=code, customer_name=name, collection_date=d, amount=amt,
                 currency=cur, amount_currency=amt_nat,
-                description=(r.get("aciklama") or None), tx_hash=h,
+                description=(r.get("aciklama") or None), tx_hash=h, sedna_rec_id=rec_id,
             )
             db.add(col)
             existing_col[h] = col
+            if rec_id is not None:
+                col_by_recid[rec_id] = col
             col_new += 1
+
+        stale_cols = [c for rid, c in col_by_recid.items() if rid not in seen_col_recids]
+        if len(stale_cols) > _MIRROR_SWEEP_CAP:
+            logger.error("Tahsilat aynalama süpürmesi İPTAL: %d bayat satır tavanı (%d) aştı",
+                         len(stale_cols), _MIRROR_SWEEP_CAP)
+        else:
+            for c in stale_cols:
+                db.delete(c)
+                col_removed += 1
 
         log_action(
             db, current_user.id, "create", "sales_invoice", entity_id=None,
-            details=f"Sedna satış faturası: {inv_new} yeni fatura, {col_new} yeni tahsilat",
+            details=(f"Sedna satış faturası: {inv_new} yeni, {inv_updated} güncellendi, "
+                     f"{inv_removed} silindi fatura · {col_new} yeni, {col_updated} güncellendi, "
+                     f"{col_removed} silindi tahsilat"),
             ip_address=ip,
         )
         db.commit()
@@ -209,7 +304,9 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
 
     return {
         "invoices_total": len(inv_rows), "invoices_new": inv_new, "invoices_skipped": inv_skip,
+        "invoices_updated": inv_updated, "invoices_removed": inv_removed,
         "collections_total": len(col_rows), "collections_new": col_new, "collections_skipped": col_skip,
+        "collections_updated": col_updated, "collections_removed": col_removed,
         "advance_accounts": adv_count,
     }
 

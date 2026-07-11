@@ -10,7 +10,7 @@ from datetime import date as date_type
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Date, DateTime, Index, Numeric, String, func
+from sqlalchemy import Boolean, Date, DateTime, Index, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -44,6 +44,8 @@ class SalesInvoice(Base):
     amount_currency: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")  # döviz tutarı (TL ise = amount)
     description: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     tx_hash: Mapped[str] = mapped_column(String(64))
+    # Sedna AccountingTrans.RecId — kalıcı kimlik (Faz B tam aynalama: rec_id upsert + silme)
+    sedna_rec_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -80,4 +82,6 @@ class SalesCollection(Base):
     amount_currency: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")  # döviz tutarı (TL ise = amount)
     description: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     tx_hash: Mapped[str] = mapped_column(String(64))
+    # Sedna AccountingTrans.RecId — kalıcı kimlik (Faz B tam aynalama)
+    sedna_rec_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

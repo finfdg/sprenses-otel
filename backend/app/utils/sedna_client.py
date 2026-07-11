@@ -24,6 +24,7 @@ class SednaUnavailable(Exception):
 # ki pymssql %-biçimlendirme tuzağı (LIKE '320%' içindeki %) tetiklenmesin.
 _CARI_QUERY = """
 SELECT
+    t.RecId                     AS rec_id,
     t.AccountingCode            AS hesap_kodu,
     COALESCE(acc.Remark, '')    AS hesap_adi,
     CONVERT(date, o.FicheDate)  AS tarih,
@@ -49,6 +50,7 @@ ORDER BY t.AccountingCode, o.FicheDate, t.RecId
 # (yalnız hash'e gereken alanlar). {prefix} güvenli (rakam) → gömülü; execute() PARAMETRESİZ.
 _CARI_DELETED_QUERY = """
 SELECT
+    t.RecId                     AS rec_id,
     t.AccountingCode            AS hesap_kodu,
     CONVERT(date, o.FicheDate)  AS tarih,
     t.DocumentNo                AS evrak_no,
@@ -91,6 +93,7 @@ ORDER BY a.Code, b.RecId
 _ISSUED_CHECK_PREFIXES_EXTRA = ("159", "335")  # ana 320'ye eklenen verilen-çek karşı-taraf hesapları
 _ISSUED_CHECK_QUERY = """
 SELECT
+    ck.RecId                            AS check_rec_id,
     REPLACE(t.AccountingCode, ',', '.') AS vendor_code,
     COALESCE(a.Remark, '')              AS vendor_name,
     ck.CheckNo                          AS check_no,
@@ -120,6 +123,7 @@ ORDER BY t.DueDate
 # Fatura = 120 Borç hareketi (DocumentType=1 Hizmet Satış Fatura); tahsilat = 120 Alacak hareketi.
 _SALES_INVOICE_QUERY = """
 SELECT
+    t.RecId                     AS rec_id,
     t.AccountingCode            AS customer_code,
     COALESCE(acc.Remark, '')    AS customer_name,
     CONVERT(date, o.FicheDate)  AS invoice_date,
@@ -139,6 +143,7 @@ ORDER BY o.FicheDate, t.RecId
 
 _SALES_COLLECTION_QUERY = """
 SELECT
+    t.RecId                     AS rec_id,
     t.AccountingCode            AS customer_code,
     COALESCE(acc.Remark, '')    AS customer_name,
     CONVERT(date, o.FicheDate)  AS collection_date,
@@ -756,6 +761,56 @@ def fetch_bank_ledger_max_dates(codes: List[str]) -> dict:
     finally:
         conn.close()
     return {r["code"]: r["max_date"] for r in rows}
+
+
+def fetch_bank_fx_valuation(codes: List[str], year: int, month: int) -> dict:
+    """Aylık değerleme raporu için hesap başına Sedna bakiyeleri (ay sonuna kadar).
+
+    Döner: {code: {tl_balance, fx_balance, valuation_tl}} — tl_balance = SUM(Debit−Credit)
+    (değerleme fişleri DAHİL — değerleme SONRASI defter değeri), fx_balance =
+    SUM(CurrDebit−CurrCredit), valuation_tl = o ayın Owner.Type=4 (kur farkı) düzeltme
+    satırı toplamı (satır yoksa anahtar hiç dönmez → 'Sedna fişi bekleniyor').
+    """
+    safe = _safe_codes(codes)
+    if not safe:
+        return {}
+    year = int(year)
+    month = int(month)
+    next_month = f"{year + 1}-01-01" if month == 12 else f"{year}-{month + 1:02d}-01"
+    month_start = f"{year}-{month:02d}-01"
+    codes_sql = ", ".join("'{}'".format(c) for c in safe)
+
+    balance_q = (
+        "SELECT t.AccountingCode AS code, SUM(t.Debit - t.Credit) AS tl_balance, "
+        "SUM(t.CurrDebit - t.CurrCredit) AS fx_balance "
+        "FROM AccountingTrans t JOIN AccountingOwner o ON o.RecId = t.AccOwnerId "
+        f"WHERE t.AccountingCode IN ({codes_sql}) "
+        "AND ISNULL(t.Deleted, 0) = 0 AND ISNULL(o.Deleted, 0) = 0 "
+        f"AND o.FicheDate IS NOT NULL AND o.FicheDate < '{next_month}' "
+        "GROUP BY t.AccountingCode"
+    )
+    valuation_q = (
+        "SELECT t.AccountingCode AS code, SUM(t.Debit - t.Credit) AS valuation_tl "
+        "FROM AccountingTrans t JOIN AccountingOwner o ON o.RecId = t.AccOwnerId "
+        f"WHERE t.AccountingCode IN ({codes_sql}) AND o.Type = 4 "
+        "AND ISNULL(t.Deleted, 0) = 0 AND ISNULL(o.Deleted, 0) = 0 "
+        f"AND o.FicheDate >= '{month_start}' AND o.FicheDate < '{next_month}' "
+        "GROUP BY t.AccountingCode"
+    )
+    conn = _connect(timeout=120, context="mutabakat-değerleme")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(balance_q)
+        out = {r["code"]: {"tl_balance": r["tl_balance"], "fx_balance": r["fx_balance"],
+                           "valuation_tl": None} for r in cur.fetchall()}
+        cur.execute(valuation_q)
+        for r in cur.fetchall():
+            out.setdefault(r["code"], {"tl_balance": None, "fx_balance": None,
+                                       "valuation_tl": None})["valuation_tl"] = r["valuation_tl"]
+    finally:
+        conn.close()
+    logger.info("Sedna değerleme: %d hesap (%d-%02d)", len(out), year, month)
+    return out
 
 
 # ─── Önbüro/PMS (SednaPrenses) — rezervasyon/doluluk ────────────────────────

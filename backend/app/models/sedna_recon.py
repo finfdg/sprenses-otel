@@ -46,12 +46,16 @@ class SednaBankRecon(Base):
     __tablename__ = "sedna_bank_recon"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    bank_account_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("bank_accounts.id", ondelete="CASCADE"),
+    bank_account_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("bank_accounts.id", ondelete="CASCADE"), nullable=True,
     )
     bank_transaction_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("bank_transactions.id", ondelete="CASCADE"), nullable=True,
     )
+    # Banka-dışı varlık sapmaları (Faz B): eşleşmiş çek/cari kaydında Sedna farkı —
+    # entity_type: 'check' | 'vendor_tx'; bank_account_id bu kayıtlarda NULL olabilir.
+    entity_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    entity_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Sedna tarafı kimliği (AccountingTrans.RecId — kalıcı referans, Sedna'nın kendi
     # SourceId damgalama deseninin bizdeki karşılığı)
     sedna_trans_rec_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

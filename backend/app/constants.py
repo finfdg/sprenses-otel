@@ -96,6 +96,7 @@ class BroadcastModule:
     APPROVAL = "approval"
     SCHEDULED = "scheduled"  # create_scheduled_router varsayılanı
     RECON = "recon"  # Sedna mutabakat (accounting.mutabakat — Uyuşmayan Veriler)
+    SALES_INVOICES = "sales_invoices"  # satış faturaları/tahsilatlar (Sedna aynalama sonrası yayın)
 
     # Satış alanı
     HOTEL_RESERVATION = "hotel_reservation"
@@ -117,8 +118,10 @@ class ReconStatus:
     SEDNA_EXTRA = "sedna_extra"            # Sedna'da var, bankada yok (muhtemel hatalı giriş)
     DIRECTION_FLIP = "direction_flip"      # aynı gün + aynı mutlak tutar + TERS yön (borç/alacak ters)
     DUPLICATE_SUSPECT = "duplicate_suspect"  # Sedna adedi > banka adedi (mükerrer fiş şüphesi)
+    SEDNA_DIFF = "sedna_diff"              # eşleşmiş/korunan yerel kayıtta Sedna sapması (entity_type'lı)
 
-    OPEN = frozenset({SEDNA_PENDING, SEDNA_MISSING, SEDNA_EXTRA, DIRECTION_FLIP, DUPLICATE_SUSPECT})
+    OPEN = frozenset({SEDNA_PENDING, SEDNA_MISSING, SEDNA_EXTRA, DIRECTION_FLIP,
+                      DUPLICATE_SUSPECT, SEDNA_DIFF})
 
 
 class SourceType:

@@ -435,6 +435,8 @@ class FinanceEventService:
         except Exception as e:
             logger.error("invalidate hatası %s/%s: %s", source_type, source_id, e)
             raise
+        # Faz B: silinen kaynağın eşleşme izleri de düşer (fx_differences CASCADE)
+        self._delete_event_matches(db, source_type, source_id)
 
     def match(
         self,
@@ -443,6 +445,9 @@ class FinanceEventService:
         source_id_a: int,
         source_type_b: str,
         source_id_b: int,
+        method: str = "auto",
+        score=None,
+        created_by=None,
     ) -> None:
         """İki kaynağı eşleştir — ikincisi is_matched=True, ilki is_realized=True olur.
 
@@ -451,6 +456,11 @@ class FinanceEventService:
         - bank + credit     → credit is_matched=True
         - bank + advance    → advance is_matched=True
         - bank + cc_payment → cc_payment is_matched=True
+
+        Faz B (2026-07-11): eşleşme `event_matches`'e kalıcı iz olarak yazılır (Sedna
+        AccountingMatch deseni — method/skor/kur); çapraz-para eşleşmede (banka TL ↔
+        hedef döviz) kur farkı `fx_differences`'a kaydedilir (646/656 eşleniği;
+        finance_events'e kalem YAZILMAZ). İkisi de best-effort — eşleşmeyi düşürmez.
         """
         try:
             # A kaynağını is_realized yap
@@ -471,8 +481,61 @@ class FinanceEventService:
                          source_type_a, source_id_a, source_type_b, source_id_b, e)
             raise
 
+        self._record_event_match(db, source_type_a, source_id_a, source_type_b, source_id_b,
+                                 method=method, score=score, created_by=created_by)
+
+    def _record_event_match(self, db: Session, st_a: str, sid_a: int, st_b: str, sid_b: int,
+                            method: str, score, created_by) -> None:
+        """event_matches izi + çapraz-para kur farkı (best-effort — hata eşleşmeyi bozmaz)."""
+        try:
+            from app.models.event_match import EventMatch
+            from app.services import fx_service
+
+            ev_a = db.query(FinanceEvent).filter(
+                FinanceEvent.source_type == st_a, FinanceEvent.source_id == sid_a).first()
+            ev_b = db.query(FinanceEvent).filter(
+                FinanceEvent.source_type == st_b, FinanceEvent.source_id == sid_b).first()
+
+            rate_used = None
+            if ev_b is not None and (ev_b.currency or "TRY") != "TRY":
+                rate_used = fx_service.ledger_rate(db, ev_b.event_date, ev_b.currency)
+
+            m = EventMatch(
+                bank_source_type=st_a, bank_source_id=sid_a,
+                target_source_type=st_b, target_source_id=sid_b,
+                amount=float(ev_b.amount) if (ev_b is not None and ev_b.amount is not None) else None,
+                currency=(ev_b.currency if ev_b is not None else None),
+                rate_used=rate_used,
+                method=method, score=score, created_by=created_by,
+            )
+            db.add(m)
+            db.flush()
+
+            # Çapraz-para kur farkı: banka bacağı TL, hedef kalem döviz (en yaygın senaryo)
+            if (ev_a is not None and ev_b is not None
+                    and (ev_a.currency or "TRY") == "TRY"
+                    and (ev_b.currency or "TRY") != "TRY"):
+                realized_try = float(ev_a.amount_try or ev_a.amount or 0)
+                fx_service.record_match_fx_diff(
+                    db,
+                    event_match_id=m.id,
+                    period=ev_a.event_date,
+                    direction=int(ev_b.direction or -1),
+                    fx_amount=float(ev_b.amount or 0),
+                    fx_currency=ev_b.currency,
+                    estimate_date=ev_b.event_date,
+                    realized_try=realized_try,
+                    description=f"{st_b}#{sid_b} ↔ {st_a}#{sid_a}",
+                )
+        except Exception as e:  # iz kaydı eşleşmeyi asla düşürmesin
+            logger.error("event_match izi yazılamadı %s/%s ↔ %s/%s: %s", st_a, sid_a, st_b, sid_b, e)
+
     def unmatch(self, db: Session, source_type: str, source_id: int) -> None:
-        """Eşleştirmeyi geri al — is_matched=False, matched_event_id=None."""
+        """Eşleştirmeyi geri al — is_matched=False, matched_event_id=None.
+
+        Faz B: kaynağın taraf olduğu event_matches izleri de silinir (fx_differences
+        FK CASCADE ile birlikte düşer).
+        """
         try:
             db.query(FinanceEvent).filter(
                 FinanceEvent.source_type == source_type,
@@ -485,6 +548,24 @@ class FinanceEventService:
         except Exception as e:
             logger.error("unmatch hatası %s/%s: %s", source_type, source_id, e)
             raise
+        self._delete_event_matches(db, source_type, source_id)
+
+    def _delete_event_matches(self, db: Session, source_type: str, source_id: int) -> None:
+        """Kaynağın taraf olduğu event_matches izlerini sil (best-effort)."""
+        try:
+            from sqlalchemy import and_, or_
+
+            from app.models.event_match import EventMatch
+
+            db.query(EventMatch).filter(or_(
+                and_(EventMatch.target_source_type == source_type,
+                     EventMatch.target_source_id == source_id),
+                and_(EventMatch.bank_source_type == source_type,
+                     EventMatch.bank_source_id == source_id),
+            )).delete(synchronize_session=False)
+            db.flush()
+        except Exception as e:
+            logger.error("event_match izi silinemedi %s/%s: %s", source_type, source_id, e)
 
     def sync_tag(self, db: Session, tx_id: int, category_id, category_name, category_color,
                  tag_note, tag_source, payment_method, match_number, vendor_id) -> None:

@@ -45,7 +45,7 @@ _STEPS = [
     {"key": "checks", "label": "Verilen çekler", "module": "finance.checks",
      "run": run_check_import, "broadcast": BroadcastModule.CHECKS},
     {"key": "sales_invoices", "label": "Satış faturaları", "module": "finance.sales_invoices",
-     "run": run_sales_invoice_import, "broadcast": None},
+     "run": run_sales_invoice_import, "broadcast": BroadcastModule.SALES_INVOICES},
     {"key": "stock", "label": "Stok / depo", "module": "stok.maliyet",
      "run": run_stock_import, "broadcast": None},
     {"key": "reservations", "label": "Otel rezervasyonları", "module": "sales.acente_mahsup",
@@ -81,7 +81,10 @@ def _summarize(key: str, d: dict) -> str:
         return (f"{d.get('new_checks', 0)} yeni çek · {d.get('updated_checks', 0)} güncel"
                 f"{extra}")
     if key == "sales_invoices":
-        return f"{d.get('invoices_new', 0)} yeni fatura · {d.get('collections_new', 0)} yeni tahsilat"
+        extra = ""
+        if d.get("invoices_updated") or d.get("invoices_removed"):
+            extra = f" · {d.get('invoices_updated', 0)} güncel · {d.get('invoices_removed', 0)} silindi"
+        return f"{d.get('invoices_new', 0)} yeni fatura · {d.get('collections_new', 0)} yeni tahsilat{extra}"
     if key == "recurring_sync":
         return f"{d.get('entries_synced', 0)} ay senkron ({d.get('definitions', 0)} cari-bağlı kalem)"
     if key == "stock":

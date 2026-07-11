@@ -51,6 +51,9 @@ class VendorTransaction(Base):
     alacak: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
     bakiye: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)
     tx_hash: Mapped[str] = mapped_column(String(64))
+    # Sedna AccountingTrans.RecId — kalıcı kimlik (Faz B): tutar düzeltmesi hash'i koparsa
+    # da satır Sedna'ya bağlı kalır; import UPDATE yapabilir (Sinyal B'ye gerek kalmadan)
+    sedna_rec_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     payment_due_date: Mapped[Optional[date_type]] = mapped_column(Date, nullable=True)
     match_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     payment_method: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

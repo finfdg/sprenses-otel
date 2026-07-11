@@ -71,6 +71,8 @@ class Check(Base):
     amount_tl: Mapped[float] = mapped_column(Numeric(15, 2))
     currency: Mapped[str] = mapped_column(String(5), server_default="TL")
     amount_currency: Mapped[float] = mapped_column(Numeric(15, 2))
+    # Sedna AccCheck.RecId — kalıcı çek kimliği (Faz B)
+    sedna_check_rec_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     transaction_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # Verilen Çek
     status: Mapped[str] = mapped_column(String(20), server_default="pending")  # pending, paid, cancelled
     bank_transaction_id: Mapped[Optional[int]] = mapped_column(

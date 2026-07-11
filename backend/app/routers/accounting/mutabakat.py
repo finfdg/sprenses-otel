@@ -44,6 +44,8 @@ def _item_dict(r: SednaBankRecon, account_name: Optional[str]) -> dict:
         "id": r.id,
         "bank_account_id": r.bank_account_id,
         "account_name": account_name,
+        "entity_type": r.entity_type,
+        "entity_id": r.entity_id,
         "bank_transaction_id": r.bank_transaction_id,
         "sedna_trans_rec_id": r.sedna_trans_rec_id,
         "sedna_voucher": r.sedna_voucher,
@@ -112,6 +114,7 @@ def recon_summary(
 def list_items(
     status: Optional[str] = Query(default=None, pattern="^[a-z_]+$"),
     account_id: Optional[int] = None,
+    entity_type: Optional[str] = Query(default=None, pattern="^(check|vendor_tx)$"),
     include_closed: bool = False,
     q: Optional[str] = None,
     page: int = Query(default=1, ge=1),
@@ -129,6 +132,8 @@ def list_items(
         query = query.filter(SednaBankRecon.status == status)
     if account_id:
         query = query.filter(SednaBankRecon.bank_account_id == account_id)
+    if entity_type:
+        query = query.filter(SednaBankRecon.entity_type == entity_type)
     if q:
         like = f"%{q.strip()}%"
         query = query.filter(or_(
@@ -219,6 +224,62 @@ def update_item(
     broadcast_finance_update(background_tasks, BroadcastModule.RECON, "update")
     acc = db.query(BankAccount).filter(BankAccount.id == item.bank_account_id).first()
     return _item_dict(item, acc.bank_name if acc else None)
+
+
+@router.get("/fx-revaluation")
+def fx_revaluation(
+    year: int = Query(ge=2020, le=2100),
+    month: int = Query(ge=1, le=12),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("accounting.mutabakat", "view")),
+):
+    """Aylık kur değerlemesi raporu — bizim hesap ↔ Sedna Type=4 fişi yan yana.
+
+    Salt rapor (deftere/finance_events'e yazmaz — kullanıcı kararı 2026-07-11).
+    Sedna canlı sorgulanır; tünel kapalıysa 503.
+    """
+    from app.services import fx_service
+
+    try:
+        return fx_service.compute_monthly_revaluation(db, year, month)
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/fx-differences")
+def fx_differences(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("accounting.mutabakat", "view")),
+):
+    """Kur farkı kayıtları (646/656 eşleniği) — çapraz-para eşleşmelerden birikir."""
+    from app.models.event_match import FxDifference
+
+    query = db.query(FxDifference).order_by(FxDifference.period.desc(), FxDifference.id.desc())
+    total = query.count()
+    rows = query.offset((page - 1) * page_size).limit(page_size).all()
+    total_try = float(
+        db.query(func.coalesce(func.sum(FxDifference.amount_try), 0)).scalar() or 0
+    )
+    return {
+        "items": [{
+            "id": r.id,
+            "period": r.period.isoformat() if r.period else None,
+            "amount_try": float(r.amount_try or 0),
+            "rate_estimate": float(r.rate_estimate) if r.rate_estimate is not None else None,
+            "rate_realized": float(r.rate_realized) if r.rate_realized is not None else None,
+            "expected_try": float(r.expected_try) if r.expected_try is not None else None,
+            "realized_try": float(r.realized_try) if r.realized_try is not None else None,
+            "source": r.source,
+            "description": r.description,
+        } for r in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": max(1, math.ceil(total / page_size)),
+        "total_amount_try": total_try,
+    }
 
 
 @router.get("/account-mappings")
