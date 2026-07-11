@@ -5,6 +5,8 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatCurrency, formatCompact } from '$lib/utils/finance';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
@@ -208,6 +210,7 @@
 				kickback_percent: g.kickback_percent ?? 0,
 			});
 			showToast(`${g.name} ayarları kaydedildi`, 'success');
+			markReload(); // endpoint AGENCY_GROUPS broadcast'i yayar — yankı çift yükleme yapmasın
 			load();
 		} catch (e) {
 			console.error('Ayar kaydedilemedi:', e);
@@ -216,6 +219,25 @@
 			savingId = null;
 		}
 	}
+
+	// ── Canlı yenileme ───────────────────────────────────────
+	// Projeksiyon gövdesi rezervasyon + avans + fatura verisinden türediğinden hem sales
+	// hem finance yayınlarını dinler. Panel sekmeleri (Rezervasyonlar / Günlük Hareketler /
+	// Oda Tipleri) KENDİ aboneliğiyle tazelenir (ReservationsPanel'in mevcut sales_updated
+	// handler'ı + DailyActivityPanel/RoomTypesPanel'deki useLiveRefetch) → burada yalnız
+	// projeksiyon verisi yeniden yüklenir.
+	const { markReload } = useLiveRefetch({
+		modules: [BROADCAST_MODULE.SALES_INVOICES, BROADCAST_MODULE.ADVANCES],
+		salesModules: [
+			BROADCAST_MODULE.HOTEL_RESERVATION,
+			BROADCAST_MODULE.ROOM_TYPES,
+			BROADCAST_MODULE.AGENCY_GROUPS,
+		],
+		reload: () => {
+			load();
+			if (activeTab === 'ciro') loadStatus(); // kırılım yalnız açıkken çekilir ($effect deseniyle aynı)
+		},
+	});
 
 	// ── Yaşam döngüsü ────────────────────────────────────────
 	onMount(async () => {

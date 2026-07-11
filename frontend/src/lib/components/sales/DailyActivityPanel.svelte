@@ -16,6 +16,8 @@
 	import Button from '$lib/components/Button.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { CalendarDays, CalendarPlus, CalendarX, Sigma, TrendingUp, RefreshCw, Loader2 } from 'lucide-svelte';
 
 	// Sabitler
@@ -166,6 +168,15 @@
 		startDate = r.start;
 		endDate = r.end;
 		load();
+	});
+
+	// Canlı yenileme — rezervasyon içe aktarması (Sedna sync / XLS) sonrası gün listesi tazelenir
+	// (salt-okuma panel, kendi mutasyonu yok → markReload gerekmez).
+	useLiveRefetch({
+		salesModules: [BROADCAST_MODULE.HOTEL_RESERVATION],
+		reload: () => {
+			if (startDate && endDate) load(); // onMount tarih aralığını kurmadan tetiklenmesin
+		},
 	});
 </script>
 

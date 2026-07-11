@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
@@ -122,6 +124,21 @@
 	function changePageSize(s: number) { pageSize = s; page = 1; loadList(); }
 
 	onMount(() => { loadSummary(); loadList(); });
+
+	// Canlı yenileme — Sedna satış aynalaması / tahsilat eşleşmesi / cari değişimi
+	// sonrası özet + liste (+ açıksa avans görünümü) WS ile tazelenir (salt-okuma sayfa,
+	// kendi mutasyonu yok → markReload gerekmez).
+	useLiveRefetch({
+		modules: [BROADCAST_MODULE.CASH_FLOW, BROADCAST_MODULE.CARILER, BROADCAST_MODULE.SALES_INVOICES],
+		reload: () => {
+			loadSummary();
+			loadList();
+			if (advLoaded) {
+				advLoaded = false; // loadAdvances'in "zaten yüklü" guard'ını kır → taze çek
+				loadAdvances();
+			}
+		},
+	});
 </script>
 
 <svelte:head><title>Satış Faturaları · Sprenses</title></svelte:head>

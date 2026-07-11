@@ -7,6 +7,8 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import { formatCurrency } from '$lib/utils/finance';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { Boxes, Search } from 'lucide-svelte';
 
 	let loading = $state(true);
@@ -41,6 +43,9 @@
 	}
 	$effect(() => { void [page, pageSize, search, inStock]; load(); });
 	onMount(load);
+
+	// Canlı yenileme — Sedna stok senkronu (STOK broadcast'i) sonrası liste tazelenir
+	useLiveRefetch({ modules: [BROADCAST_MODULE.STOK], reload: load });
 </script>
 
 <svelte:head><title>Ürünler & Stok · Sprenses</title></svelte:head>

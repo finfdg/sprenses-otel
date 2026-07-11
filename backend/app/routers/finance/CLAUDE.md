@@ -5,6 +5,45 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Faz 2 — Yapısal Gerçek Zamanlılık (2026-07-12)
+
+Eşleştirme denetiminin Faz 2 paketi (#15/#17/#18/#19; **#20 WS izin filtresi P3 ertelendi** —
+henüz ölçek sorunu değil). Tam anlatım: `docs/modules/websocket.md`.
+
+- **after_commit yayın sigortası (#15)** — `finance_event_service.py` başında: FE yazan HER yol
+  (`_upsert`/`invalidate`/`match`/`unmatch`/`sync_tag` → `_mark_ws(source_type)`) commit'te
+  otomatik, modül-doğru `finance_updated` yayınlar (`_SOURCE_TO_WS_MODULE` haritası +
+  Session `after_commit` listener'ı → `notify_finance_update_sync`, modül-başına 500ms süprese).
+  `after_rollback` pending'i temizler; **nested SAVEPOINT rollback'i temizlemez** (after_rollback
+  yalnız gerçek rollback'te) — nadir sahte event zararsızdır (frontend yalnız yeniden yükler).
+  **Tek-worker varsayımı** (process-global set — finance_broadcast debounce'uyla aynı bilinçli
+  varsayım). Elle broadcast çağrıları geriye uyumlu (süprese + frontend echo-guard çifte
+  yenilemeyi emer). AST bekçisi: `tests/test_broadcast_guard.py`.
+- **Onay executor gerçek modül event'i (#17)** — `approval/requests.py::_EXECUTED_MODULE_EVENTS`:
+  onaylanıp UYGULANAN mutasyon FE yazmıyorsa bile gerçek modül event'i yayınlanır
+  (sales.acente_mahsup→`sales_updated`/ROOM_TYPES · finance.butce + finance.departmanlar→BUTCE ·
+  finance.hakedis→HAKEDIS · accounting.mutabakat→RECON · finance.banks→BANKS). FE yazan
+  handler'lar sigortayla otomatik kapsanır; eşlemede olmayan modül sessiz geçer.
+- **Sedna senkronu arka planda (#18)** — `POST /sedna/sync-all` anında `{started, total, steps}`
+  döner; adımlar arka plan işinde koşar (`_run_sync_all_job` → `run_sync_all_steps` çekirdeği —
+  testler çekirdeği doğrudan çağırabilir, `progress` callback'i opsiyonel). Yeni WS event
+  **`sedna_sync_progress`** (`WSEvent.SEDNA_SYNC_PROGRESS` + `realtime.ts`) adım adım ilerleme
+  yayınlar; her adımın modül yayını **adım biter bitmez** gider (sona biriktirme kalktı);
+  rezervasyon adımı `sales_updated` yayınlar. Topbar canlı ilerleme gösterir.
+- **`GET /sedna/last-sync` tazelik ucu** — cari (`VendorUpload` `sedna://import`) + çek
+  (`CheckUpload` `sedna://import`) + `sedna_recon_runs`; `oldest_hours` = kritik cari+çek
+  adımlarının en eskisi. Topbar "Son: X sa önce" rozeti (>24s amber).
+- **Otomatik timer** — `backend/cron_sedna_sync.py` + `sprenses-sedna-sync.timer` (canlı!):
+  çekirdek adımlar (cariler/ibans/checks/recurring_sync/bank_recon) admin'le 09–21 arası
+  2 saatte bir (Europe/Istanbul; sales-sync ile 1 saat faz farklı — EC2 bellek koruması).
+  Tünel kapalıysa 0 ile çıkar. **Unit'ler `/etc/`'de, git'te DEĞİL** → sunucu yeniden
+  kurulumunda tekrar kurulmalı (`docs/modules/sunucu.md`).
+- **`BroadcastModule.EXCHANGE_RATES`** sabitlendi (döviz cron'unun mevcut literal'i, değer
+  değişmedi); liste sayfaları `useLiveRefetch` composable'ı ile canlıya bağlanır
+  (`lib/utils/liveRefetch.svelte.ts` — frontend tarafı).
+
+---
+
 ## Faz B — Kalıcı Sedna Kimliği + event_matches (2026-07-11)
 
 Sedna mutabakatının ikinci fazı (migration `e5f6a7b8c9d0`; tam anlatım:
@@ -1255,6 +1294,13 @@ def my_endpoint(background_tasks: BackgroundTasks, ...):
 ```
 
 500ms debounce otomatik uygulanır — toplu işlemlerde spam olmaz.
+
+> **Faz 2 notu (2026-07-12):** after_commit sigortası **FE-yazan yolları** kapsar —
+> `finance_event_svc` çağıran mutasyonlar commit'te otomatik yayınlanır (elle broadcast
+> unutulsa bile bayatlık oluşmaz; mevcut çağrılar geriye uyumlu kalabilir). **FE yazMAYAN
+> mutasyonlar** (ör. oda tipi/bütçe kategorisi/tanım CRUD'u) sigorta kapsamı DIŞINDA —
+> onlarda elle `broadcast_finance_update` hâlâ ZORUNLU ve `tests/test_broadcast_guard.py`
+> AST bekçisi bunu zorlar (whitelist'li). Bkz. dosya başındaki "Faz 2" bölümü.
 
 ---
 

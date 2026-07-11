@@ -66,6 +66,30 @@ thrash'ine girdi → SSH dahil her şey dondu ve **dmesg/journal'a hiç OOM kayd
 sayesinde kendiliğinden sıraya girer; ancak `pytest`/`vitest` gibi diğer ağır işler kilitsizdir —
 onların eşzamanlılığını earlyoom + swap tolere eder ama yavaşlatır.
 
+## Sedna Senkron Timer'ı — `sprenses-sedna-sync.timer` (2026-07-12, Faz 2 #18)
+
+Cari/çek/mutabakat Sedna senkronu artık kullanıcı butonunu beklemez — **otomatik timer** ile koşar.
+
+| Alan | Değer |
+|---|---|
+| Script | `backend/cron_sedna_sync.py` (`sprenses-sedna-sync.service`, oneshot, `User=ec2-user`, `TZ=Europe/Istanbul`) |
+| Kapsam | Merkezi senkronun **çekirdek finans adımları**: `cariler`, `ibans`, `checks`, `recurring_sync`, `bank_recon` — `sedna_sync._STEPS` registry'sinden `_CRON_STEP_KEYS` süzgeciyle, **admin** kullanıcısıyla |
+| Zamanlama | `OnCalendar=*-*-* 09,11,13,15,17,19,21:15:00 Europe/Istanbul` + `Persistent=true` (09–21 arası 2 saatte bir, tek saatler :15) |
+| Kapsam DIŞI | Satış faturaları (kendi timer'ı: `sprenses-sales-sync`), stok ve rezervasyon (Topbar butonuyla) |
+
+**Faz farkı gerekçesi (EC2 bellek koruması):** `sprenses-sales-sync.timer` **çift saatler** :15'te
+(08,10,…,22:15 Istanbul) koşar; sedna-sync **tek saatler** :15'te → iki ağır Sedna işi asla aynı anda
+tetiklenmez (t3.medium 4 GB; 2026-07-06 donma dersinin devamı — ağır işler eşzamanlı çalıştırılmaz).
+
+**Dayanıklılık:** Tünel/Sedna kapalıysa script uyarı loglayıp **0 ile çıkar** (timer'ı düşürmez);
+adım-bazlı izolasyon (bir adım patlarsa diğerleri sürer, `db.rollback()` + devam). Not: cron ayrı
+process olduğundan içindeki WS yayını tarayıcılara ulaşmaz — tazelik Topbar'daki
+`GET /finance/sedna/last-sync` rozeti ve sayfa yüklemeleriyle görünür.
+
+**DİKKAT — unit dosyaları `/etc/systemd/system/`'de, git'te DEĞİL** (`sprenses-sedna-sync.service` +
+`.timer`; sales-sync'in aksine `scripts/systemd/` kopyası yok). Sunucu yeniden kurulumunda TZ drop-in'leri
+gibi **elle yeniden oluşturulmalı**. Kontrol: `systemctl list-timers | grep sedna`.
+
 ## Process Saat Dilimi — Europe/Istanbul (2026-07-07, KRİTİK)
 
 **Sorun:** Sunucu sistemi **UTC** (`timedatectl` → `UTC, +0000`). Python `date.today()`/`datetime.now()`

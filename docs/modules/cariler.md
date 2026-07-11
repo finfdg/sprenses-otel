@@ -186,6 +186,14 @@ Bir cari → **0..N** banka hesabı (`bank_name`, `iban`, `account_holder`, `is_
 Cari hareketler Excel'e gerek kalmadan **doğrudan muhasebe programının (Sedna) SQL Server'ından**
 çekilebilir. Excel yükleme aynen korunur — bu **additive** bir kaynaktır.
 
+> **OTOMATİK SENKRON (2026-07-12, Faz 2 #18):** Cari hareketleri + IBAN'lar + verilen çekler +
+> düzenli-ödeme senkronu + banka mutabakatı artık kullanıcı butonunu beklemez —
+> **`sprenses-sedna-sync.timer`** (`backend/cron_sedna_sync.py`, admin'le, 09–21 arası 2 saatte
+> bir, Europe/Istanbul) otomatik koşar; tünel kapalıysa sessizce atlar. Topbar'daki manuel
+> "Sedna" butonu korunur (artık arka planda koşar, `sedna_sync_progress` WS event'iyle canlı
+> ilerleme + `GET /sedna/last-sync` tazelik rozeti). Detay: `docs/modules/sunucu.md` +
+> `docs/modules/websocket.md`.
+
 **Bağlantı (loose coupling):** Sedna ofis LAN'ında (`192.168.2.245`). EC2 oraya **ters SSH
 tüneli** üzerinden erişir (`127.0.0.1:11433` → tünel → Ubuntu → SQL Server). Bağlantı **yalnızca
 import tetiklenince** kurulur; uygulamanın normal işleyişi tünele bağlı **değildir** (tünel

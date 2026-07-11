@@ -6,6 +6,8 @@
 	import Pagination from '$lib/components/Pagination.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { Loader2 } from 'lucide-svelte';
 	import type {
 		LatestRates, ExchangeRate, ChartDataPoint, ParityDataPoint, CurrencyCode
@@ -97,6 +99,17 @@
 	onMount(async () => {
 		await Promise.all([loadLatest(), loadChart(), loadHistory()]);
 		loading = false;
+	});
+
+	// Canlı yenileme — günlük TCMB kur cron'u EXCHANGE_RATES broadcast'i yayınlar;
+	// açık sayfa kur kartları + grafik + tarihçeyi kendini tazeler (salt-okuma sayfa).
+	useLiveRefetch({
+		modules: [BROADCAST_MODULE.EXCHANGE_RATES],
+		reload: () => {
+			loadLatest();
+			loadChart();
+			loadHistory();
+		},
 	});
 
 	// Grafik veya tarihçe değişince yenile

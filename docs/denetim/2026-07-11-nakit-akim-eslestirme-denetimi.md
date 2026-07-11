@@ -168,5 +168,19 @@ kredi N-1 grubunda tüm banka satırlarına ortak match_number + iz), planlı gi
 1-N çek (#12 — avans kısmi eşleşmesi bilinçli ertelendi), çapraz-para aday üretimi (#13 —
 yalnız öneri) ve hafif yarış koruması (`apply_*` FOR UPDATE SKIP LOCKED — #28'in Faz 1 dilimi).
 Doküman: `docs/modules/nakit-akim.md` "Faz 1" + `backend/app/routers/finance/CLAUDE.md`.
-**Kalan fazlar: Faz 2 (yapısal gerçek zamanlılık) + Faz 3 (mutabakat katmanı — bir kısmı Sedna
-mutabakat modülüyle karşılandı).**
+
+**FAZ 2 UYGULANDI (2026-07-12; #20 WS izin filtresi P3 ertelendi — henüz ölçek sorunu değil).**
+Kapsam: **#15** after_commit yayın sigortası (`finance_event_service.py` — FE yazan her yol
+commit'te otomatik modül-doğru yayın; `tests/test_broadcast_guard.py` AST bekçisi) · **#16**
+`useLiveRefetch` composable'ı (`lib/utils/liveRefetch.svelte.ts` — Satış Faturaları/Acente
+Mahsup/Panel KPI/stok×4/döviz bağlandı) · **#17** onay executor gerçek modül event'i
+(`_EXECUTED_MODULE_EVENTS`) · **#18** Sedna sync arka plana + `sedna_sync_progress` ilerleme
+event'i + `GET /sedna/last-sync` tazelik rozeti + `sprenses-sedna-sync.timer` (cari/çek/mutabakat
+otomatik senkron; sales-sync ile faz farklı) · **#19** stok+döviz canlı
+(`BroadcastModule.EXCHANGE_RATES` sabitlendi). Doküman: `docs/modules/websocket.md` +
+`backend/app/routers/finance/CLAUDE.md` "Faz 2" + `docs/modules/sunucu.md` (timer).
+
+**Kalan: Faz 3 kalanları (#21 yaşlanan eşleşmemişler, #22 günlük banka mutabakatı, #24 C5
+banka hesabı silme FE invalidate, #25 tahmin doğruluğu, #26 rezervasyon→FE, #27
+eur_balances-FE, #28 kalan yarış dilimi; C2/C5/C7 sınıfı bulgular) + ertelenen P3'ler
+(#14 öğrenen kurallar, #20 WS izin filtresi) + Karar-3.**

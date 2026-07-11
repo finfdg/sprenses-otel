@@ -94,6 +94,7 @@
 - Yalnızca WS bağlantısı olmayan sayfalar veya WS ile taşınamayan veriler için HTTP çağrısı yapılabilir (ör: ilk sayfa yüklemesi, arama)
 - `setInterval` yalnızca WS keepalive (ping) için kullanılabilir, veri çekme amaçlı **kullanılamaz**
 - **İstisna — Sunucu izleme (`/dashboard/sistem/sunucu`):** sistem metrikleri (CPU/RAM/disk/servis durumu) WS ile taşınmaz, 30 sn'lik `setInterval` ile fetch edilir. Sayfa kapanınca timer durur (`onDestroy`). Bu sınırlı istisna — başka sayfalarda polling yapılamaz.
+- **(2026-07-12, Faz 2)** `finance_events` yazan yollar **after_commit sigortasıyla otomatik yayınlar** (`finance_event_service.py` başı — elle broadcast unutulması bayatlık üretmez; FE yazMAYAN mutasyonlar hâlâ elle broadcast + `tests/test_broadcast_guard.py` AST bekçisi). Yeni liste sayfaları canlı olacaksa **`useLiveRefetch`** composable'ı kullanılır (`lib/utils/liveRefetch.svelte.ts`). Sedna senkronu **arka planda koşar** ve adım adım **`sedna_sync_progress`** WS event'i yayınlar (Topbar canlı ilerleme + "Son: X sa önce" tazelik rozeti). Detay: `docs/modules/websocket.md`.
 
 ### Kod Kalitesi Kuralları
 - **Katman yönü — router router'dan import etmez:** Bir router modülü (`app/routers/...`) **başka bir router'dan saf iş-mantığı fonksiyonu import edemez** (coupling'i yanlış katmana taşır; uzak router'ın iç fonksiyonu değişince sessizce kırılır). Paylaşılan saf domain mantığı `app/services/` (HTTP'siz) veya `app/utils/`'e konur; hem router hem tüketici oradan alır. **Ayrım:** `utils/` = teknik yardımcı (font, dosya doğrulama, audit, response builder); `services/` = domain iş mantığı (Sedna import orchestration, KPI/maliyet hesabı). **services/ router import etmez** (tek yön: router → service → model). Paket-içi `_helpers` import'u (ör. `cariler/_helpers`) serbesttir — sorun yalnız PAKETLER-ARASI router→router'dır. (2026-06-22 mimari denetim D1-1/D1-5: `stock`/`reservation`/`sales` saf fonksiyonları `services/`'e taşındı — `stock_service`/`reservation_service`/`sales_invoice_service`; `_norm_tokens` → `utils/text_match.py`. **Tüm 4 paketler-arası router→router import'u kapatıldı.** Aynı-paket `sedna_sync→sales_invoices.run_sales_invoice_import` bilinçli istisna — finance/ paket-içi, "Sedna servis fonksiyonu" deseni.)
@@ -361,6 +362,7 @@ TEMPLATE:
 | SvelteKit (Frontend) | 3000 | `sprenses-frontend.service` |
 | PostgreSQL | 5432 | `postgresql.service` |
 | Nginx | 443/80 | `nginx.service` |
+| Sedna cari/çek/mutabakat senkronu | — | `sprenses-sedna-sync.timer` (2026-07-12; 09–21 arası 2 saatte bir :15, Europe/Istanbul — `backend/cron_sedna_sync.py` çekirdek adımları admin'le koşar; sales-sync ile 1 saat faz farklı, EC2 bellek koruması. **Unit dosyaları `/etc/systemd/system/`'de — git'te DEĞİL**, sunucu yeniden kurulumunda tekrar oluşturulmalı. Detay: `docs/modules/sunucu.md`) |
 
 ### Deploy Akışı — Zorunlu
 

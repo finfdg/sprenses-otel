@@ -5,6 +5,8 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import { formatCurrency } from '$lib/utils/finance';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { Building2 } from 'lucide-svelte';
 
 	let loading = $state(true);
@@ -25,6 +27,9 @@
 		}
 	}
 	onMount(load);
+
+	// Canlı yenileme — Sedna stok senkronu (STOK broadcast'i) sonrası liste tazelenir
+	useLiveRefetch({ modules: [BROADCAST_MODULE.STOK], reload: load });
 </script>
 
 <svelte:head><title>Depolar · Sprenses</title></svelte:head>

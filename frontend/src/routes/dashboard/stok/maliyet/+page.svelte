@@ -9,6 +9,8 @@
 	import Button from '$lib/components/Button.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatCompact, formatCurrency } from '$lib/utils/finance';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { Flame, BedDouble, Repeat, Trash2, Package, Truck, TrendingUp, Info, TriangleAlert, Printer, Eye, EyeOff, ArrowUp } from 'lucide-svelte';
 
 	const AY = ['', 'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
@@ -256,6 +258,9 @@
 		}
 	}
 	onMount(load);
+
+	// Canlı yenileme — Sedna stok senkronu (STOK broadcast'i) sonrası KPI/özet tazelenir
+	useLiveRefetch({ modules: [BROADCAST_MODULE.STOK], reload: load });
 </script>
 
 <svelte:head><title>Maliyet Kontrol · Sprenses</title></svelte:head>

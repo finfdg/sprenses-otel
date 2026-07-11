@@ -8,6 +8,8 @@
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import { formatCurrency } from '$lib/utils/finance';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { ArrowRightLeft, Search } from 'lucide-svelte';
 
 	const DIR_LABEL: Record<string, string> = { in: 'Alış', out: 'Çıkış', consume: 'Tüketim', count: 'Sayım', other: 'Diğer' };
@@ -54,6 +56,9 @@
 	}
 	$effect(() => { void [page, pageSize, search, direction]; load(); });
 	onMount(load);
+
+	// Canlı yenileme — Sedna stok senkronu (STOK broadcast'i) sonrası liste tazelenir
+	useLiveRefetch({ modules: [BROADCAST_MODULE.STOK], reload: load });
 </script>
 
 <svelte:head><title>Stok Hareketleri · Sprenses</title></svelte:head>

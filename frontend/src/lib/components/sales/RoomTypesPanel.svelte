@@ -30,6 +30,8 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { validateRequired } from '$lib/utils/validation';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 
 	// ───── Types ────────────────────────────────────────
 	type RoomType = {
@@ -117,6 +119,15 @@
 		}
 	});
 
+	// Canlı yenileme — başka oturumun oda tipi CRUD'u (ROOM_TYPES broadcast'i) listeyi tazeler;
+	// kendi kayıt/silme işlemimizin yankısı markReload ile atlanır.
+	const { markReload } = useLiveRefetch({
+		salesModules: [BROADCAST_MODULE.ROOM_TYPES],
+		reload: () => {
+			if (canView) loadData();
+		},
+	});
+
 	// ───── CRUD ─────────────────────────────────────────
 	function openCreate() {
 		editing = null;
@@ -184,6 +195,7 @@
 				showToast('Oda tipi eklendi', 'success');
 			}
 			showModal = false;
+			markReload();
 			await loadData();
 		} catch (err: any) {
 			if (err instanceof ApiError) {
@@ -204,6 +216,7 @@
 		try {
 			await api.delete(`/sales/room-types/${confirmDelete.target.id}`);
 			showToast('Oda tipi silindi', 'success');
+			markReload();
 			await loadData();
 		} catch (err: any) {
 			showToast(err?.message || 'Silinemedi', 'error');

@@ -19,6 +19,7 @@ export const WS_EVENT = {
 	APPROVAL_UPDATED: 'approval_updated',
 	APPROVAL_STATUS_CHANGED: 'approval_status_changed',
 	BANK_STATEMENT_UPLOADED: 'bank_statement_uploaded',
+	SEDNA_SYNC_PROGRESS: 'sedna_sync_progress',
 	ATTENDANCE_UPDATED: 'attendance_updated',
 	SHIFT_SCHEDULE_UPDATED: 'shift_schedule_updated',
 	PERMISSION_CHANGED: 'permission_changed',
@@ -68,6 +69,7 @@ export const BROADCAST_MODULE = {
 	HAKEDIS: 'hakedis', // hak ediş vade tanımları
 	STOK: 'stok', // stok/depo (Sedna stok senkronu)
 	SALES_INVOICES: 'sales_invoices', // satış faturaları/tahsilatlar (Sedna aynalama sonrası yayın)
+	EXCHANGE_RATES: 'exchange_rates', // döviz kurları (TCMB cron → internal yayın)
 	// Satış alanı
 	HOTEL_RESERVATION: 'hotel_reservation',
 	ROOM_TYPES: 'room_types',

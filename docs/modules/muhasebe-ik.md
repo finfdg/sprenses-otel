@@ -128,11 +128,14 @@ ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **
   FE = o ayın **FIFO kalan borcu** (tam fatura değil — kısmi ödeme düşer). Eski tasarım (senkron
   ayda cari FE kalır, recurring FE silinir) FE'yi yeniden yazan akışlarla (generate/regenerate/entry
   update) yarışıp çift sayım üretiyordu (canlıda Su Haziran hem 1,85M recurring hem 1,69M vendor FE).
-- **Tetikleme (üç yol):** (a) Topbar'daki merkezi **Sedna** butonu — cari içe aktarımdan SONRA
+- **Tetikleme (dört yol):** (a) Topbar'daki merkezi **Sedna** butonu — cari içe aktarımdan SONRA
   `recurring_sync` adımı otomatik çalışır (`sedna_sync.py:_STEPS`); (b) Düzenli Ödemeler sayfasındaki
   **"Cari ile Senkronize"** butonu (`POST /accounting/recurring/sync-vendors`); (c) **her
   `sync_vendor_finance_events` çağrısının sonunda zincirleme** (aynı FIFO sonucu paylaşılır —
-  ödeme eşleşince Düzenli Ödemeler durumu + nakit akım kalanı Sedna sync'i beklemeden tazelenir).
+  ödeme eşleşince Düzenli Ödemeler durumu + nakit akım kalanı Sedna sync'i beklemeden tazelenir);
+  (d) **otomatik timer (2026-07-12, Faz 2):** `sprenses-sedna-sync.timer` cari/çek/mutabakat
+  çekirdek adımlarını (recurring_sync dahil) admin'le 09–21 arası 2 saatte bir koşar — cari/çek
+  senkronu artık kullanıcı tetiklemesine bağlı değil (`docs/modules/sunucu.md`).
   Hepsi idempotent. **Onaydan muaf** (operasyonel; cari verisi zaten muhasebede onaylı — Sedna içe
   aktarmaları gibi), audit'li (`recurring_vendor_sync`); izin `accounting.recurring` use.
 - **Cari modülü etkilenmez:** cari net-borç FIFO'su, haftalık ödeme planı, vadesi-geçmiş hesapları

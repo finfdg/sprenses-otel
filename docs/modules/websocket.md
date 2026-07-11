@@ -45,6 +45,9 @@
 ### Finans (Nakit Akım)
 `cash_flow_changed` — herhangi bir finans event'i (vendor tx, bank tx, check, credit payment) değiştiğinde debounce'lu broadcast (`finance_broadcast.py`)
 
+### Sedna Senkronu
+`sedna_sync_progress` — merkezi Sedna senkronunun adım adım ilerlemesi (aşağıdaki "Sedna Senkron İlerlemesi" bölümü)
+
 ### Onay Akışı
 `approval_request` — onay bekliyor
 `approval_decision` — onaylandı/reddedildi
@@ -65,6 +68,77 @@ await manager.broadcast({"type": "announcement", "data": {...}})
 
 ## Debounce (Finans)
 `backend/app/utils/finance_broadcast.py` — 500ms debounce window ile `cash_flow_changed` event'i birleştirilir (batch upload'ta 100 event tek mesajda)
+
+## after_commit Yayın Sigortası (Faz 2 #15, 2026-07-12)
+
+**Sorun sınıfı:** Bir mutasyon endpoint'i/executor'ı/import'u `finance_events`'e yazıyor ama
+`broadcast_finance_update` çağırmayı unutuyor → açık sayfalar sessizce bayat kalıyordu (denetim
+B sınıfı bulgular). **Kalıcı çözüm:** `backend/app/utils/finance_event_service.py` dosyasının
+başındaki sigorta — finance_events'e yazan **HER yol** commit anında otomatik, modül-doğru
+`finance_updated` yayınlar; elle broadcast unutulması artık bayatlık üretmez.
+
+**Mekanizma:**
+- `_SOURCE_TO_WS_MODULE` haritası `source_type` → `BroadcastModule` çevirir
+  (bank→banks · check→checks · credit/cc_payment→credits · advance→advances ·
+  vendor_payment→cariler · tax/recurring/rent_income/rent_expense/dividend/dividend_stopaj→accounting ·
+  salary/withholding/sgk→hr).
+- FE yazan tüm yollar `_mark_ws(source_type)` çağırır: `_upsert` (tüm `upsert_*` metodları buradan
+  geçer), `invalidate`, `match` (iki taraf da), `unmatch`, `sync_tag` (bank). Modül adı
+  process-global `_pending_ws_modules` set'ine eklenir.
+- SQLAlchemy **Session `after_commit`** listener'ı set'i boşaltıp her modül için
+  `notify_finance_update_sync(module, "update")` çağırır; `after_rollback` set'i temizler
+  (gerçek rollback'te sahte yayın yok).
+- `notify_finance_update_sync` (`finance_broadcast.py`) sync context'ten yayın yapar
+  (BackgroundTasks gerekmez; `manager.send_to_all_sync` köprüsü) ve **modül-başına 500ms
+  zaman-tabanlı süprese** uygular — art arda commit'ler (import: commit + FIFO sync + commit)
+  event yağmuru üretmez.
+
+**Bilinçli sınırlar:**
+- **Tek-worker varsayımı:** pending set process-global — `finance_broadcast` debounce set'iyle
+  aynı bilinçli varsayım (uvicorn tek worker).
+- **Nested SAVEPOINT nüansı:** `after_rollback` yalnız gerçek rollback'te tetiklenir; SAVEPOINT
+  (begin_nested) rollback'i pending'i temizlemez → nadir sahte event zararsızdır (frontend
+  yalnız yeniden yükler).
+- **Elle broadcast'ler geriye uyumlu:** mevcut `broadcast_finance_update` çağrıları kaldırılmadı
+  — sync süprese + frontend echo-guard çifte yenilemeyi emer. **FE yazMAYAN mutasyonlar**
+  (ör. oda tipi CRUD, bütçe kategorisi) sigortanın kapsamı DIŞINDA — elle broadcast zorunlu
+  kalır; `tests/test_broadcast_guard.py` AST bekçi testi finans router'larındaki mutasyon
+  endpoint'lerini tarayıp ne FE yazan (sigortalı) ne elle broadcast çağıran endpoint'i
+  whitelist'li olarak yakalar.
+
+## Sedna Senkron İlerlemesi — `sedna_sync_progress` (Faz 2 #18, 2026-07-12)
+
+`POST /api/finance/sedna/sync-all` artık **bloklamaz**: anında `{started: true, total,
+steps: [{key, label}]}` döner (yalnız izinli adımlar); adımlar arka plan işinde
+(`sedna_sync.py::_run_sync_all_job` → `run_sync_all_steps` çekirdeği, kendi DB oturumu) koşar.
+İlerleme **`sedna_sync_progress`** WS event'iyle herkese yayınlanır (Topbar canlı gösterir):
+
+| Aşama | Payload |
+|---|---|
+| Adım başladı | `{ type: "sedna_sync_progress", key, label, index, total, status: "running" }` |
+| Adım bitti | `{ ..., status: "ok" \| "error", summary }` |
+| Koşu bitti | `{ type: "sedna_sync_progress", status: "done", ok_count, total, steps: [...] }` |
+| İş çöktü | `{ status: "done", ok_count: 0, total: 0, error: "Senkron beklenmedik şekilde durdu" }` |
+
+- Sabit: `WSEvent.SEDNA_SYNC_PROGRESS` (`app/constants.py`) ↔ frontend `WS_EVENT` (`realtime.ts`).
+- **Modül yayını adım biter bitmez gider** (sona biriktirme kaldırıldı): her başarılı adım
+  `notify_finance_update_sync(step.broadcast, "upload")` yayınlar → cariler adımı biter bitmez
+  cariler ekranı tazelenir. Rezervasyon adımı ayrıca `sales_updated`
+  (module=`hotel_reservation`, action=`upload`) yayınlar.
+- Tazelik rozeti: `GET /api/finance/sedna/last-sync` (cari/çek `sedna://import` yüklemeleri +
+  `sedna_recon_runs`; `oldest_hours` = kritik cari+çek adımlarının en eskisi) → Topbar
+  "Son: X sa önce" (>24 saat amber).
+- Cari/çek/mutabakat çekirdek adımları ayrıca **otomatik timer** ile koşar
+  (`backend/cron_sedna_sync.py` + `sprenses-sedna-sync.timer` — detay `docs/modules/sunucu.md`).
+
+## `BroadcastModule.EXCHANGE_RATES` (2026-07-12)
+
+Döviz cron'unun (`backend/cron_fetch_exchange_rates.py` → internal broadcast endpoint'i,
+`module=exchange_rates`) öteden beri kullandığı literal, `BroadcastModule.EXCHANGE_RATES`
+sabiti olarak `app/constants.py` + `realtime.ts`'e eklendi (mevcut değer DEĞİŞMEDİ — yalnız
+sabitlendi). Döviz sayfası ve diğer liste sayfaları bu modül event'ine `useLiveRefetch`
+composable'ı (`frontend/src/lib/utils/liveRefetch.svelte.ts`) ile bağlanır — composable'ın
+kendi bölümü bu dosyaya frontend tarafında ayrıca eklenir.
 
 ## Geliştirme Kuralları
 - **Polling yasak** — tüm gerçek zamanlı veri WS üzerinden (CLAUDE.md kuralı)

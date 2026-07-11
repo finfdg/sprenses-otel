@@ -2,6 +2,8 @@
 	import { authState, hasPermission } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
+	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { onMount } from 'svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import CashFlowTAccount from '$lib/components/CashFlowTAccount.svelte';
@@ -72,134 +74,140 @@
 		};
 	}
 
+	// ── Ayrık kart loader'ları (ilk yükleme + WS modül-filtreli canlı yenileme ORTAK) ──
+
+	// Bankalar — blocked_amount düşülerek, EUR karşılığı
+	function loadBanksKpi(): Promise<void> {
+		return Promise.all([
+			api.get<any>('/finance/banks/accounts/'),
+			api.get<any>('/finance/exchange-rates/latest'),
+		]).then(([data, ratesData]) => {
+			const accs = data.items ?? data;
+			const rates = ratesData.rates || [];
+			const eurSelling = rates.find((r: any) => r.currency_code === 'EUR')?.forex_selling;
+			const usdSelling = rates.find((r: any) => r.currency_code === 'USD')?.forex_selling;
+			const eff = (a: any) => (a.last_balance ?? 0) - (a.blocked_amount ?? 0);
+			const totalTRY = accs.filter((a: any) => a.currency === 'TRY').reduce((s: number, a: any) => s + eff(a), 0);
+			const totalEUR = accs.filter((a: any) => a.currency === 'EUR').reduce((s: number, a: any) => s + eff(a), 0);
+			const totalUSD = accs.filter((a: any) => a.currency === 'USD').reduce((s: number, a: any) => s + eff(a), 0);
+			const value = eurSelling > 0
+				? `€${fmt(totalTRY / eurSelling + totalEUR + (usdSelling > 0 ? (totalUSD * usdSelling) / eurSelling : 0))}`
+				: `₺${fmt(totalTRY)}`;
+			kpis.banks = { label: 'Bankalar', value, sub: `${accs.length} hesap`, href: '/dashboard/finans/bankalar' };
+		}).catch(cardError('Bankalar'));
+	}
+
+	// Doluluk
+	function loadOccupancyKpi(): Promise<void> {
+		return api.get<any>('/sales/reservations/summary').then((d) => {
+			const pct = d.kpi?.occupancy_pct;
+			if (pct != null) {
+				kpis.occupancy = {
+					label: 'Doluluk', value: `%${Math.round(pct)}`,
+					sub: d.kpi?.total_rez != null ? `${d.kpi.total_rez} rezervasyon` : 'oda doluluk oranı',
+					href: '/dashboard/satis/acente-mahsup?tab=rezervasyon',
+				};
+			}
+		}).catch(cardError('Doluluk'));
+	}
+
+	// Avanslar
+	function loadAdvancesKpi(): Promise<void> {
+		return Promise.all([
+			api.get<any>('/finance/avanslar/summary'),
+			api.get<any>('/finance/exchange-rates/latest').catch(() => null),
+		]).then(([data, ratesData]) => {
+			const eurSelling = ratesData?.rates?.find((r: any) => r.currency_code === 'EUR')?.forex_selling ?? 0;
+			const usdSelling = ratesData?.rates?.find((r: any) => r.currency_code === 'USD')?.forex_selling ?? 0;
+			let receivedEur = 0, pendingEur = 0, pCount = 0;
+			for (const [currency, val] of Object.entries(data) as [string, any][]) {
+				const toEur = (a: number) => currency === 'EUR' ? a
+					: currency === 'USD' && usdSelling > 0 && eurSelling > 0 ? (a * usdSelling) / eurSelling
+					: eurSelling > 0 ? a / eurSelling : 0;
+				receivedEur += toEur(val.received ?? 0);
+				pendingEur += toEur(val.pending ?? 0);
+				pCount += val.pending_count ?? 0;
+			}
+			kpis.advances = {
+				label: 'Avanslar', value: `€${fmt(pendingEur)}`,
+				sub: `€${fmt(receivedEur)} alındı · ${pCount} bekleyen`, href: '/dashboard/finans/avanslar',
+			};
+		}).catch(cardError('Avanslar'));
+	}
+
+	// Cariler (borç — kırmızı değer)
+	function loadVendorsKpi(): Promise<void> {
+		return api.get<any>('/finance/cariler/vendors/summary').then((d) => {
+			const value = d.negative_total_eur != null ? `€${fmt(d.negative_total_eur)}` : `₺${fmt(Math.abs(d.negative_total ?? 0))}`;
+			kpis.vendors = { label: 'Cariler', value, sub: `${d.negative_count ?? 0} borçlu cari`, href: '/dashboard/finans/cariler', negative: true };
+		}).catch(cardError('Cariler'));
+	}
+
+	// Çekler
+	function loadChecksKpi(): Promise<void> {
+		return api.get<any>('/finance/checks/summary').then((d) => {
+			kpis.checks = {
+				label: 'Çekler',
+				value: d.pending_amount_eur != null ? `€${fmt(d.pending_amount_eur)}` : `₺${fmt(d.pending_amount ?? 0)}`,
+				sub: [`${d.pending_count ?? 0} bekleyen`, d.overdue_count > 0 ? `${d.overdue_count} vadesi geçmiş` : ''].filter(Boolean).join(' · '),
+				href: '/dashboard/finans/cekler',
+			};
+		}).catch(cardError('Çekler'));
+	}
+
+	// Krediler
+	function loadCreditsKpi(): Promise<void> {
+		return api.get<any[]>('/finance/krediler/summary/by-type').then((d) => {
+			const totalCount = d.reduce((s: number, t: any) => s + (t.count ?? 0), 0);
+			const totalEur = d.reduce((s: number, t: any) => s + (t.remaining_amount_eur ?? 0), 0);
+			const value = totalEur > 0 ? `€${fmt(totalEur)}` : `₺${fmt(d.reduce((s: number, t: any) => s + (t.remaining_amount ?? 0), 0))}`;
+			kpis.credits = { label: 'Krediler', value, sub: `${totalCount} ürün · kalan borç`, href: '/dashboard/finans/krediler' };
+		}).catch(cardError('Krediler'));
+	}
+
+	// Son hareketler — son 5 GERÇEKLEŞMİŞ kayıt (end_date=bugün: liste vadeli/planlı
+	// gelecek kayıtları da içerir, filtresiz ilk 5 en ileri vadeli işlemler olurdu)
+	function loadRecent(): Promise<void> {
+		const today = new Date().toISOString().slice(0, 10);
+		return api.get<any>(`/finance/cash-flow/?page_size=5&end_date=${today}`).then((d) => {
+			recent = d.items ?? [];
+		}).catch(cardError('Son Hareketler'));
+	}
+
+	// Bekleyen onaylar
+	function loadPending(): Promise<void> {
+		return Promise.all([
+			api.get<any>('/system/approval/requests/pending/count'),
+			api.get<any>('/system/approval/requests/pending?page_size=5'),
+		]).then(([c, p]) => {
+			pendingItems = p?.items ?? [];
+			pendingCount = c?.count ?? c?.total ?? p?.total ?? pendingItems.length;
+		}).catch(cardError('Bekleyen Onay'));
+	}
+
+	// ── Canlı yenileme — modül-filtreli KISMİ reload ──
+	// Her WS finance_updated/sales_updated event'inde TÜM panel değil, yalnız değişen
+	// modülün kartı yeniden yüklenir (recon gibi kartı olmayan modüller hiçbir şey
+	// tetiklemez). Panel salt-okuma → markReload gerekmez.
+	if (canBanks) useLiveRefetch({ modules: [BROADCAST_MODULE.BANKS], reload: loadBanksKpi });
+	if (canChecks) useLiveRefetch({ modules: [BROADCAST_MODULE.CHECKS], reload: loadChecksKpi });
+	if (canCredits) useLiveRefetch({ modules: [BROADCAST_MODULE.CREDITS], reload: loadCreditsKpi });
+	if (canCariler) useLiveRefetch({ modules: [BROADCAST_MODULE.CARILER], reload: loadVendorsKpi });
+	if (canAdvances) useLiveRefetch({ modules: [BROADCAST_MODULE.ADVANCES], reload: loadAdvancesKpi });
+	if (canApproval) useLiveRefetch({ modules: [BROADCAST_MODULE.APPROVAL], reload: loadPending });
+	if (canOccupancy) useLiveRefetch({ salesModules: [BROADCAST_MODULE.HOTEL_RESERVATION], reload: loadOccupancyKpi });
+
 	onMount(async () => {
 		try {
 			const promises: Promise<void>[] = [];
-
-			// Bankalar — blocked_amount düşülerek, EUR karşılığı
-			if (canBanks) {
-				promises.push(
-					Promise.all([
-						api.get<any>('/finance/banks/accounts/'),
-						api.get<any>('/finance/exchange-rates/latest'),
-					]).then(([data, ratesData]) => {
-						const accs = data.items ?? data;
-						const rates = ratesData.rates || [];
-						const eurSelling = rates.find((r: any) => r.currency_code === 'EUR')?.forex_selling;
-						const usdSelling = rates.find((r: any) => r.currency_code === 'USD')?.forex_selling;
-						const eff = (a: any) => (a.last_balance ?? 0) - (a.blocked_amount ?? 0);
-						const totalTRY = accs.filter((a: any) => a.currency === 'TRY').reduce((s: number, a: any) => s + eff(a), 0);
-						const totalEUR = accs.filter((a: any) => a.currency === 'EUR').reduce((s: number, a: any) => s + eff(a), 0);
-						const totalUSD = accs.filter((a: any) => a.currency === 'USD').reduce((s: number, a: any) => s + eff(a), 0);
-						const value = eurSelling > 0
-							? `€${fmt(totalTRY / eurSelling + totalEUR + (usdSelling > 0 ? (totalUSD * usdSelling) / eurSelling : 0))}`
-							: `₺${fmt(totalTRY)}`;
-						kpis.banks = { label: 'Bankalar', value, sub: `${accs.length} hesap`, href: '/dashboard/finans/bankalar' };
-					}).catch(cardError('Bankalar'))
-				);
-			}
-
-			// Doluluk
-			if (canOccupancy) {
-				promises.push(
-					api.get<any>('/sales/reservations/summary').then((d) => {
-						const pct = d.kpi?.occupancy_pct;
-						if (pct != null) {
-							kpis.occupancy = {
-								label: 'Doluluk', value: `%${Math.round(pct)}`,
-								sub: d.kpi?.total_rez != null ? `${d.kpi.total_rez} rezervasyon` : 'oda doluluk oranı',
-								href: '/dashboard/satis/acente-mahsup?tab=rezervasyon',
-							};
-						}
-					}).catch(cardError('Doluluk'))
-				);
-			}
-
-			// Avanslar
-			if (canAdvances) {
-				promises.push(
-					Promise.all([
-						api.get<any>('/finance/avanslar/summary'),
-						api.get<any>('/finance/exchange-rates/latest').catch(() => null),
-					]).then(([data, ratesData]) => {
-						const eurSelling = ratesData?.rates?.find((r: any) => r.currency_code === 'EUR')?.forex_selling ?? 0;
-						const usdSelling = ratesData?.rates?.find((r: any) => r.currency_code === 'USD')?.forex_selling ?? 0;
-						let receivedEur = 0, pendingEur = 0, pCount = 0;
-						for (const [currency, val] of Object.entries(data) as [string, any][]) {
-							const toEur = (a: number) => currency === 'EUR' ? a
-								: currency === 'USD' && usdSelling > 0 && eurSelling > 0 ? (a * usdSelling) / eurSelling
-								: eurSelling > 0 ? a / eurSelling : 0;
-							receivedEur += toEur(val.received ?? 0);
-							pendingEur += toEur(val.pending ?? 0);
-							pCount += val.pending_count ?? 0;
-						}
-						kpis.advances = {
-							label: 'Avanslar', value: `€${fmt(pendingEur)}`,
-							sub: `€${fmt(receivedEur)} alındı · ${pCount} bekleyen`, href: '/dashboard/finans/avanslar',
-						};
-					}).catch(cardError('Avanslar'))
-				);
-			}
-
-			// Cariler (borç — kırmızı değer)
-			if (canCariler) {
-				promises.push(
-					api.get<any>('/finance/cariler/vendors/summary').then((d) => {
-						const value = d.negative_total_eur != null ? `€${fmt(d.negative_total_eur)}` : `₺${fmt(Math.abs(d.negative_total ?? 0))}`;
-						kpis.vendors = { label: 'Cariler', value, sub: `${d.negative_count ?? 0} borçlu cari`, href: '/dashboard/finans/cariler', negative: true };
-					}).catch(cardError('Cariler'))
-				);
-			}
-
-			// Çekler
-			if (canChecks) {
-				promises.push(
-					api.get<any>('/finance/checks/summary').then((d) => {
-						kpis.checks = {
-							label: 'Çekler',
-							value: d.pending_amount_eur != null ? `€${fmt(d.pending_amount_eur)}` : `₺${fmt(d.pending_amount ?? 0)}`,
-							sub: [`${d.pending_count ?? 0} bekleyen`, d.overdue_count > 0 ? `${d.overdue_count} vadesi geçmiş` : ''].filter(Boolean).join(' · '),
-							href: '/dashboard/finans/cekler',
-						};
-					}).catch(cardError('Çekler'))
-				);
-			}
-
-			// Krediler
-			if (canCredits) {
-				promises.push(
-					api.get<any[]>('/finance/krediler/summary/by-type').then((d) => {
-						const totalCount = d.reduce((s: number, t: any) => s + (t.count ?? 0), 0);
-						const totalEur = d.reduce((s: number, t: any) => s + (t.remaining_amount_eur ?? 0), 0);
-						const value = totalEur > 0 ? `€${fmt(totalEur)}` : `₺${fmt(d.reduce((s: number, t: any) => s + (t.remaining_amount ?? 0), 0))}`;
-						kpis.credits = { label: 'Krediler', value, sub: `${totalCount} ürün · kalan borç`, href: '/dashboard/finans/krediler' };
-					}).catch(cardError('Krediler'))
-				);
-			}
-
-			// Son hareketler — son 5 GERÇEKLEŞMİŞ kayıt (end_date=bugün: liste vadeli/planlı
-			// gelecek kayıtları da içerir, filtresiz ilk 5 en ileri vadeli işlemler olurdu)
-			if (canFinance) {
-				const today = new Date().toISOString().slice(0, 10);
-				promises.push(
-					api.get<any>(`/finance/cash-flow/?page_size=5&end_date=${today}`).then((d) => {
-						recent = d.items ?? [];
-					}).catch(cardError('Son Hareketler'))
-				);
-			}
-
-			// Bekleyen onaylar
-			if (canApproval) {
-				promises.push(
-					Promise.all([
-						api.get<any>('/system/approval/requests/pending/count'),
-						api.get<any>('/system/approval/requests/pending?page_size=5'),
-					]).then(([c, p]) => {
-						pendingItems = p?.items ?? [];
-						pendingCount = c?.count ?? c?.total ?? p?.total ?? pendingItems.length;
-					}).catch(cardError('Bekleyen Onay'))
-				);
-			}
+			if (canBanks) promises.push(loadBanksKpi());
+			if (canOccupancy) promises.push(loadOccupancyKpi());
+			if (canAdvances) promises.push(loadAdvancesKpi());
+			if (canCariler) promises.push(loadVendorsKpi());
+			if (canChecks) promises.push(loadChecksKpi());
+			if (canCredits) promises.push(loadCreditsKpi());
+			if (canFinance) promises.push(loadRecent());
+			if (canApproval) promises.push(loadPending());
 
 			await Promise.allSettled(promises);
 			if (failedCards > 0) showToast('Bazı panel verileri yüklenemedi', 'error');

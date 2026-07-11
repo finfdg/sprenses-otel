@@ -8,50 +8,124 @@
 	import NotificationBell from './NotificationBell.svelte';
 	import Modal from './Modal.svelte';
 	import { isPushSupported, getPushPermissionState, subscribeToPush, requestPushPermission, unsubscribeFromPush } from '$lib/utils/push';
-	import { onlinePresence, wsState, resetReconnect } from '$lib/stores/websocket.svelte';
+	import { onlinePresence, wsState, resetReconnect, onWsEvent } from '$lib/stores/websocket.svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import { Database, Loader2, CheckCircle2, XCircle, MinusCircle, Menu, ArrowLeft, ChevronDown, User, Volume2, Bell, LogOut } from 'lucide-svelte';
+	import { WS_EVENT } from '$lib/constants/realtime';
+	import StatusBadge from './StatusBadge.svelte';
+	import { Database, Loader2, CheckCircle2, XCircle, MinusCircle, Circle, Menu, ArrowLeft, ChevronDown, User, Volume2, Bell, LogOut } from 'lucide-svelte';
 
-	type SednaStep = { key: string; label: string; ok?: boolean; skipped?: boolean; summary: string };
+	type SednaStepStatus = 'pending' | 'running' | 'ok' | 'error' | 'skipped';
+	type SednaStep = { key: string; label: string; status: SednaStepStatus; summary: string };
 
 	let userMenuOpen = $state(false);
 	let onlinePopoverOpen = $state(false);
 	let pushEnabled = $state(false);
 	let pushSupported = $state(false);
-	// Merkezi Sedna senkronizasyonu (tek butonla tüm içe aktarmalar)
+	// Merkezi Sedna senkronizasyonu (tek butonla tüm içe aktarmalar).
+	// POST /sedna/sync-all işi ARKA PLANDA başlatır ({started,total,steps} döner);
+	// adım adım ilerleme WS `sedna_sync_progress` event'leriyle akar (handleSednaProgress).
+	// NOT: İlerleme yalnız WS'te yaşar — sayfa yenilenirse süren işin ilerleme görünümü
+	// kaybolur (kabul edilen sınırlama; iş sunucuda sürer, 'done' event'i açık diğer
+	// oturumlara yine ulaşır).
 	let sednaConfigured = $state(false);
 	let sednaAnyAllowed = $state(false);
 	let sednaSyncing = $state(false);
 	let sednaModalOpen = $state(false);
 	let sednaSteps = $state<SednaStep[]>([]);
+	let sednaProgressText = $state(''); // "3/8 · Verilen çekler…" mini metni
+	// Tazelik rozeti — GET /sedna/last-sync (kritik adımların en eski yaşı, saat)
+	let sednaOldestHours = $state<number | null>(null);
 
 	async function loadSednaSyncStatus() {
 		try {
 			const r = await api.get<{ configured: boolean; any_allowed: boolean }>('/finance/sedna/status');
 			sednaConfigured = !!r.configured;
 			sednaAnyAllowed = !!r.any_allowed;
+			if (sednaConfigured && sednaAnyAllowed) loadLastSync();
 		} catch (e) {
 			console.error('Sedna senkronizasyon durumu alınamadı:', e);
 			sednaConfigured = false;
 		}
 	}
-	async function runSednaSync() {
-		if (sednaSyncing) return;
-		sednaSyncing = true;
+
+	async function loadLastSync() {
 		try {
-			const r = await api.post<{ ok_count: number; total: number; steps: SednaStep[] }>(
+			const r = await api.get<{ oldest_hours: number | null }>('/finance/sedna/last-sync');
+			sednaOldestHours = r.oldest_hours;
+		} catch (e) {
+			console.error('Sedna tazelik bilgisi alınamadı:', e);
+		}
+	}
+
+	function sednaFreshnessLabel(hours: number): string {
+		if (hours < 1) return 'Son: az önce';
+		return `Son: ${Math.round(hours)} sa önce`;
+	}
+
+	async function runSednaSync() {
+		// Koşan senkron varken tekrar tıklama = yeni iş başlatmak yerine canlı adımları göster
+		if (sednaSyncing) {
+			sednaModalOpen = true;
+			return;
+		}
+		sednaSyncing = true;
+		sednaProgressText = 'Başlatılıyor…';
+		sednaSteps = [];
+		try {
+			const r = await api.post<{ started: boolean; total: number; steps: { key: string; label: string }[] }>(
 				'/finance/sedna/sync-all', {}
 			);
-			sednaSteps = r.steps;
-			sednaModalOpen = true;
-			showToast(`Sedna: ${r.ok_count}/${r.total} adım tamamlandı`, r.ok_count === r.total ? 'success' : 'info');
+			// İlk adımın WS event'i POST yanıtından ÖNCE gelmiş olabilir (arka plan işi hemen
+			// başlar) → event'le gelen durumları ezmeden bekleyen adımları tamamla.
+			const seen = new Map(sednaSteps.map((s) => [s.key, s]));
+			sednaSteps = r.steps.map(
+				(s) => seen.get(s.key) ?? { key: s.key, label: s.label, status: 'pending' as const, summary: '' }
+			);
 		} catch (err: any) {
-			console.error('Sedna senkronizasyon hatası:', err);
-			showToast(err?.body?.detail || "Sedna'dan veri çekilemedi (SSH tüneli kapalı olabilir)", 'error');
-		} finally {
 			sednaSyncing = false;
+			sednaProgressText = '';
+			console.error('Sedna senkronizasyon hatası:', err);
+			showToast(err?.body?.detail || "Sedna senkronu başlatılamadı (SSH tüneli kapalı olabilir)", 'error');
 		}
+	}
+
+	// WS `sedna_sync_progress` — adım başlangıcı/bitişi + iş sonu. Broadcast herkese gider:
+	// senkronu başka bir kullanıcı başlattıysa da buton koşar görünür (çifte tetik engellenir).
+	function handleSednaProgress(ev: any) {
+		if (ev?.status === 'done') {
+			sednaSyncing = false;
+			sednaProgressText = '';
+			if (Array.isArray(ev.steps) && ev.steps.length > 0) {
+				sednaSteps = ev.steps.map((s: any) => ({
+					key: s.key,
+					label: s.label,
+					status: s.skipped ? ('skipped' as const) : s.ok ? ('ok' as const) : ('error' as const),
+					summary: s.summary ?? '',
+				}));
+			}
+			if (ev.error) {
+				showToast(ev.error, 'error');
+			} else {
+				showToast(`Sedna: ${ev.ok_count}/${ev.total} adım tamamlandı`, ev.ok_count === ev.total ? 'success' : 'info');
+				sednaModalOpen = true;
+			}
+			loadLastSync(); // rozet "az önce"ye döner
+			return;
+		}
+		// Adım event'i: {key,label,index,total,status:'running'|'ok'|'error',summary?}
+		if (!ev?.key) return;
+		sednaSyncing = true;
+		const step: SednaStep = {
+			key: ev.key,
+			label: ev.label,
+			status: ev.status === 'running' ? 'running' : ev.status === 'ok' ? 'ok' : 'error',
+			summary: ev.summary ?? '',
+		};
+		const idx = sednaSteps.findIndex((s) => s.key === ev.key);
+		if (idx >= 0) sednaSteps[idx] = step;
+		else sednaSteps = [...sednaSteps, step];
+		if (ev.status === 'running') sednaProgressText = `${ev.index}/${ev.total} · ${ev.label}…`;
 	}
 
 	onMount(() => {
@@ -63,10 +137,12 @@
 			pushEnabled = getPushPermissionState() === 'granted';
 		}
 		loadSednaSyncStatus();
+		const unsubSednaProgress = onWsEvent(WS_EVENT.SEDNA_SYNC_PROGRESS, handleSednaProgress);
 		return () => {
 			document.removeEventListener('click', closeMenu);
 			document.removeEventListener('click', closeOnlinePopover);
 			document.removeEventListener('keydown', closeOnEscape);
+			unsubSednaProgress();
 		};
 	});
 
@@ -289,9 +365,8 @@
 	{#if sednaConfigured && sednaAnyAllowed}
 		<button
 			onclick={runSednaSync}
-			disabled={sednaSyncing}
-			class="touch-target flex items-center justify-center gap-1.5 px-2.5 rounded-lg text-teal-700 hover:bg-teal-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-			title="Sedna muhasebe verilerini çek (cari hareketleri · IBAN · verilen çek)"
+			class="touch-target flex items-center justify-center gap-1.5 px-2.5 rounded-lg text-teal-700 hover:bg-teal-50 transition-colors cursor-pointer"
+			title={sednaSyncing ? 'Senkron sürüyor — adımları görmek için tıklayın' : 'Sedna muhasebe verilerini çek (cari hareketleri · IBAN · verilen çek)'}
 			aria-label="Sedna senkronizasyonu"
 		>
 			{#if sednaSyncing}
@@ -299,8 +374,20 @@
 			{:else}
 				<Database size={18} />
 			{/if}
-			<span class="text-xs font-medium hidden sm:inline">{sednaSyncing ? 'Çekiliyor…' : 'Sedna'}</span>
+			<span class="text-xs font-medium hidden sm:inline max-w-44 truncate">{sednaSyncing ? (sednaProgressText || 'Çekiliyor…') : 'Sedna'}</span>
 		</button>
+		<!-- Tazelik rozeti — kritik Sedna adımlarının en eski yaşı; senkron bitince (done) yenilenir -->
+		{#if sednaOldestHours != null && !sednaSyncing}
+			{#if sednaOldestHours > 24}
+				<span class="hidden md:inline-flex" title="Sedna verisi 24 saatten eski — senkron önerilir">
+					<StatusBadge type="warning">{sednaFreshnessLabel(sednaOldestHours)}</StatusBadge>
+				</span>
+			{:else}
+				<span class="hidden md:inline text-[11px] text-gray-500 whitespace-nowrap" title="Son Sedna senkronundan bu yana geçen süre">
+					{sednaFreshnessLabel(sednaOldestHours)}
+				</span>
+			{/if}
+		{/if}
 	{/if}
 	<NotificationBell />
 	<div class="relative user-menu">
