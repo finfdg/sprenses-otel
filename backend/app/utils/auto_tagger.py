@@ -59,6 +59,35 @@ def detect_payment_method(description: str) -> str:
     return "diger"
 
 
+def _sync_finance_events(db: Session, txs) -> None:
+    """Otomatik atanan etiket/cari/ödeme yöntemini finance_events'e yansıt.
+
+    Manuel yol (transaction_tags.tag_transaction) sync_tag kullanır — otomatik yol
+    kullanmıyordu; nakit akım FE'nin denormalize kolonlarından okuduğu için otomatik
+    etiketler ekranda görünmüyordu (2026-07-11 denetim A4). is_matched'a DOKUNMAZ.
+    """
+    if not txs:
+        return
+    from app.utils.finance_event_service import finance_event_svc
+
+    cat_ids = {t.category_id for t in txs if t.category_id}
+    cats = {}
+    if cat_ids:
+        for c in db.query(TransactionCategory).filter(TransactionCategory.id.in_(list(cat_ids))).all():
+            cats[c.id] = c
+    for t in txs:
+        c = cats.get(t.category_id)
+        finance_event_svc.sync_tag(
+            db, t.id,
+            category_id=t.category_id,
+            category_name=c.name if c else None,
+            category_color=c.color if c else None,
+            tag_note=t.tag_note, tag_source=t.tag_source,
+            payment_method=t.payment_method, match_number=t.match_number,
+            vendor_id=t.vendor_id,
+        )
+
+
 def auto_detect_payment_methods(db: Session, overwrite: bool = False) -> Dict[str, int]:
     """Tüm işlemlerin ödeme yöntemini otomatik tespit et.
 
@@ -80,6 +109,7 @@ def auto_detect_payment_methods(db: Session, overwrite: bool = False) -> Dict[st
         counts[method] += 1
 
     db.flush()
+    _sync_finance_events(db, txs)  # ödeme yöntemi FE'ye yansısın (manuel yolla tutarlı)
     return dict(counts)
 
 
@@ -121,6 +151,7 @@ def auto_tag_transactions(
 
     untagged = query.all()
     tagged_count = 0
+    tagged = []
 
     for tx in untagged:
         normalized = _normalize(tx.description)
@@ -130,11 +161,13 @@ def auto_tag_transactions(
                 if cat_id:
                     tx.category_id = cat_id
                     tx.tag_source = "auto"
+                    tagged.append(tx)
                     tagged_count += 1
                 break  # İlk eşleşen kural kazanır
 
     if tagged_count > 0:
         db.flush()
+        _sync_finance_events(db, tagged)  # otomatik kategori FE'ye yansısın
 
     return tagged_count, len(untagged)
 
@@ -247,6 +280,7 @@ def auto_match_vendors(
     )
 
     matched_count = 0
+    matched_txs = []
     vendors_used = set()
     details = []
 
@@ -302,11 +336,13 @@ def auto_match_vendors(
                     (v.hesap_adi for v in vendors if v.id == matched_vendor_id), None
                 )
                 tx.tag_source = "auto"
+                matched_txs.append(tx)
             matched_count += 1
             vendors_used.add(matched_vendor_id)
 
     if matched_count > 0 and not dry_run:
         db.flush()
+        _sync_finance_events(db, matched_txs)  # otomatik cari ataması FE'ye yansısın
 
     return {
         "matched": matched_count,

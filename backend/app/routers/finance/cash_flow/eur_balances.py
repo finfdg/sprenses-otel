@@ -169,6 +169,12 @@ def compute_eur_balances(db: Session) -> dict:
             return round((amount * get_usd(dt)) / get_eur(dt), 2) if get_eur(dt) > 0 else 0
         return amount
 
+    # Kalıcı öteleme haritası (R5 2026-07-11): çek/kredi/KK ham tablolardan okunduğundan
+    # deferral'ın FE'ye işlediği yeni tarih burada görünmüyordu → RunwayChart/PDF eski,
+    # T-Hesap/runway yeni tarihte gösteriyordu (sessiz drift). Harita ile hizalanır.
+    from app.services.deferral_service import get_deferral_map
+    deferral_map = get_deferral_map(db)
+
     # Çek → banka tarihi eşlemesini toplu yükle (N+1 engeli)
     check_btx_ids = [c.bank_transaction_id for c in all_checks if c.bank_transaction_id]
     btx_date_map = {}
@@ -187,7 +193,10 @@ def compute_eur_balances(db: Session) -> dict:
         curr = "EUR" if c.currency != "TL" else "TRY"
         if curr == "TRY":
             amt = float(c.amount_tl)
-        check_date = btx_date_map.get(c.bank_transaction_id, c.due_date) if c.bank_transaction_id else c.due_date
+        if c.bank_transaction_id:
+            check_date = btx_date_map.get(c.bank_transaction_id, c.due_date)
+        else:
+            check_date = deferral_map.get(("check", c.id)) or c.due_date
         check_expense_by_date[check_date] += to_eur(amt, curr, check_date)
 
     # Kredi ürün para birimlerini toplu yükle (N+1 engeli)
@@ -205,10 +214,11 @@ def compute_eur_balances(db: Session) -> dict:
         if _is_held_future("credit", p.id, p.due_date):
             continue  # beklemeye alınmış kredi taksiti → akım-dışı
         curr = credit_currency_map.get(p.credit_product_id, "TRY")
+        eff_due = deferral_map.get(("credit", p.id)) or p.due_date
         if curr == "TRY":
-            credit_expense_by_date[p.due_date] += to_eur(float(p.amount), "TRY", p.due_date)
+            credit_expense_by_date[eff_due] += to_eur(float(p.amount), "TRY", eff_due)
         else:
-            credit_expense_by_date[p.due_date] += float(p.amount) if curr == "EUR" else to_eur(float(p.amount), curr, p.due_date)
+            credit_expense_by_date[eff_due] += float(p.amount) if curr == "EUR" else to_eur(float(p.amount), curr, eff_due)
 
     # Ödenmemiş ve vadesi gelmemiş kredi kartı ekstreleri (son ödeme tarihine göre)
     # Vadesi geçmiş ekstreler hariç — gerçek ödeme banka kaydında zaten var
@@ -223,12 +233,13 @@ def compute_eur_balances(db: Session) -> dict:
         .all()
     )
     for stmt in unpaid_cc_stmts:
-        if _is_held_future("cc_payment", stmt.id, stmt.son_odeme_tarihi):
+        eff_cc = deferral_map.get(("cc_payment", stmt.id)) or stmt.son_odeme_tarihi
+        if _is_held_future("cc_payment", stmt.id, eff_cc):
             continue  # beklemeye alınmış KK ekstresi → akım-dışı
         kalan = float(stmt.toplam_borc) - float(stmt.paid_amount or 0)
         if kalan > 0:
-            cc_expense_by_date[stmt.son_odeme_tarihi] += to_eur(kalan, "TRY", stmt.son_odeme_tarihi)
-            all_date_set.add(stmt.son_odeme_tarihi)
+            cc_expense_by_date[eff_cc] += to_eur(kalan, "TRY", eff_cc)
+            all_date_set.add(eff_cc)
 
     # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — nakit akım
     # tablosuyla aynı sayı EUR başlığında/projeksiyonda da görünsün (kullanıcı isteği 2026-07-04).

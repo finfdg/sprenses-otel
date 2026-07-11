@@ -3,10 +3,11 @@
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -27,6 +28,7 @@ from app.schemas.budget import (
 from app.services import budget_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.pagination import page_meta
 
 router = APIRouter(prefix="/butce", tags=["Bütçe"])
@@ -78,6 +80,7 @@ def list_categories(
 def create_category(
     data: BudgetCategoryCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.butce", "use")),
 ):
@@ -106,6 +109,8 @@ def create_category(
         get_client_ip(request),
     )
 
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "create")
+
     return BudgetCategoryResponse.model_validate(category).model_dump()
 
 
@@ -114,6 +119,7 @@ def update_category(
     cat_id: int,
     data: BudgetCategoryUpdate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.butce", "use")),
 ):
@@ -140,6 +146,8 @@ def update_category(
         get_client_ip(request),
     )
 
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")
+
     return BudgetCategoryResponse.model_validate(category).model_dump()
 
 
@@ -147,6 +155,7 @@ def update_category(
 def delete_category(
     cat_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.butce", "use")),
 ):
@@ -188,6 +197,8 @@ def delete_category(
         cat_id, json.dumps({"name": cat_name}, ensure_ascii=False),
         get_client_ip(request),
     )
+
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "delete")
 
     return {"message": "Kategori silindi."}
 
@@ -231,6 +242,7 @@ def list_budgets(
 def upsert_budget(
     data: BudgetCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.butce", "use")),
 ):
@@ -282,6 +294,8 @@ def upsert_budget(
         .first()
     )
 
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")
+
     return _build_budget_response(budget)
 
 
@@ -289,6 +303,7 @@ def upsert_budget(
 def bulk_upsert_budgets(
     data: BudgetBulkCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.butce", "use")),
 ):
@@ -347,6 +362,8 @@ def bulk_upsert_budgets(
         get_client_ip(request),
     )
 
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")
+
     return {
         "message": f"{created_count} kayıt oluşturuldu, {updated_count} kayıt güncellendi.",
         "created": created_count,
@@ -358,6 +375,7 @@ def bulk_upsert_budgets(
 def delete_budget(
     budget_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.butce", "use")),
 ):
@@ -391,6 +409,8 @@ def delete_budget(
         budget_id, json.dumps(details, ensure_ascii=False, default=str),
         get_client_ip(request),
     )
+
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "delete")
 
     return {"message": "Bütçe kaydı silindi."}
 

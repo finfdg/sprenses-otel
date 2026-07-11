@@ -13,13 +13,15 @@ aktif rezervasyonlarının birebir aynası olur.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import get_current_user, require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
+from app.utils.sales_broadcast import broadcast_sales_update
 from app.utils.sedna_client import SednaUnavailable, sedna_configured
 
 from app.services.reservation_service import run_reservation_import
@@ -40,6 +42,7 @@ def reservation_sedna_status(_: User = Depends(get_current_user)):
 @router.post("/sedna-import")
 def reservation_sedna_import(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -47,6 +50,10 @@ def reservation_sedna_import(
     if not sedna_configured():
         raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
     try:
-        return run_reservation_import(db, current_user, get_client_ip(request))
+        result = run_reservation_import(db, current_user, get_client_ip(request))
     except SednaUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+    broadcast_sales_update(background_tasks, BroadcastModule.HOTEL_RESERVATION, "upload")
+
+    return result

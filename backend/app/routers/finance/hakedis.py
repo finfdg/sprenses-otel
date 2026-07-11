@@ -7,9 +7,10 @@ akışına tabidir (executor da AYNI service'i çağırır — D1-2).
 """
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -19,6 +20,7 @@ from app.schemas.receivable import ReceivableTermUpdate
 from app.services import receivable_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.utils.finance_broadcast import broadcast_finance_update
 
 router = APIRouter(prefix="/hakedis", tags=["Hak Ediş Takibi"])
 
@@ -59,6 +61,7 @@ def update_term(
     customer_code: str,
     data: ReceivableTermUpdate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.hakedis", "use")),
 ):
@@ -88,5 +91,8 @@ def update_term(
     )
     db.commit()
     db.refresh(term)
+
+    broadcast_finance_update(background_tasks, BroadcastModule.HAKEDIS, "update")
+
     return {"id": term.id, "customer_code": term.customer_code,
             "term_days": term.term_days, "notes": term.notes}

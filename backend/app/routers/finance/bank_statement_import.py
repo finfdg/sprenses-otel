@@ -33,6 +33,7 @@ from app.utils.matching_service import (
     _match_cc_to_bank,
     _match_checks_to_bank,
     _match_credits_to_bank,
+    run_post_ingest_processing,
 )
 from app.utils.notification import _notification_to_ws_event, create_notifications
 from app.utils.push import send_push_to_user
@@ -387,25 +388,9 @@ async def _post_upload_processing(
         }
         await _notify_bank_upload(db, viewer_ids, ws_event, current_user.id, background_tasks)
 
-    # Otomatik eşleştirmeler — her biri SAVEPOINT ile izole; biri başarısız olursa diğerleri etkilenmez
-    for match_fn, label, key in [
-        (_match_checks_to_bank, "Çek-banka", "checks_matched"),
-        (_match_credits_to_bank, "Kredi-banka", "credits_matched"),
-        (_match_cc_to_bank, "Kredi kartı-banka", "cc_matched"),
-        (_match_advances_to_bank, "Avans-banka", "advances_matched"),
-    ]:
-        try:
-            nested = db.begin_nested()
-            match_result = match_fn(db)
-            if match_result["matched"] > 0:
-                nested.commit()
-                db.commit()
-                result[key] = match_result["matched"]
-            else:
-                nested.rollback()
-        except Exception as e:
-            db.rollback()
-            logger.error("%s otomatik eşleştirme hatası: %s", label, e, exc_info=True)
+    # Otomatik etiketleme + eşleştirmeler — ortak orkestratör (ekstre + API + rematch
+    # AYNI yol; R1 2026-07-11). Auto-tag matcher'lardan önce koşar, her adım SAVEPOINT'li.
+    result.update(run_post_ingest_processing(db))
 
     broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "upload")
     # Avans eşleşmesi Avanslar sayfasını da ilgilendirir (manuel match ile aynı sinyal)

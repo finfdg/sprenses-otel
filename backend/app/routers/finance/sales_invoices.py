@@ -26,6 +26,8 @@ from app.models.sales_invoice import (
 )
 from app.models.user import User
 from app.utils.audit import log_action
+from app.constants import BroadcastModule
+from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.sedna_client import (
     SednaUnavailable,
     fetch_advance_accounts,
@@ -424,4 +426,6 @@ def sedna_import_sales(
     current_user: User = Depends(require_permission("finance.sales_invoices", "use")),
 ):
     """Sedna satış faturası içe aktarma (tekil endpoint)."""
-    return run_sales_invoice_import(db, current_user, get_client_ip(request))
+    result = run_sales_invoice_import(db, current_user, get_client_ip(request))
+    broadcast_finance_update(background_tasks, BroadcastModule.SALES_INVOICES, "upload")
+    return result

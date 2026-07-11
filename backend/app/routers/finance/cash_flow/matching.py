@@ -21,6 +21,7 @@ from app.models.vendor_transaction import VendorTransaction
 from app.utils.audit import log_action
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
+from app.utils.sync_vendor_fifo import sync_vendor_finance_events
 from app.utils.finance_event_service import finance_event_svc
 
 logger = logging.getLogger(__name__)
@@ -57,10 +58,9 @@ def match_vendor_tx(
     if not vtx:
         raise HTTPException(status_code=404, detail="Cari işlemi bulunamadı")
 
-    # Eşleştirme numarası al (mevcut max + 1)
-    max_bank = db.query(func.max(BankTransaction.match_number)).scalar() or 0
-    max_vendor = db.query(func.max(VendorTransaction.match_number)).scalar() or 0
-    match_number = max(max_bank, max_vendor) + 1
+    # Eşleştirme numarası — sequence (atomik; max()+1 eşzamanlı çakışma + audit
+    # 'asla tekrar kullanılmaz' kuralı ihlali üretiyordu — R2 2026-07-11)
+    match_number = db.execute(sa_text("SELECT nextval('match_number_seq')")).scalar()
 
     # "Cari" kategorisini bul ve ata
     cari_cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Cari").first()
@@ -83,12 +83,38 @@ def match_vendor_tx(
     if not btx.tag_note:
         btx.tag_note = vendor_name
 
+    # Banka bacağını finance_events'e yansıt (kardeş endpoint'lerle tutarlı — R2:
+    # eskiden sync YOKTU, nakit akım FE'den okuduğundan eşleşme ekranda görünmüyordu).
+    # NOT: sync_tag is_matched'a DOKUNMAZ (cari eşleştirmesi banka hareketini gizlemez).
+    cat = db.query(TransactionCategory).filter(TransactionCategory.id == btx.category_id).first() if btx.category_id else None
+    finance_event_svc.sync_tag(
+        db, btx.id,
+        category_id=btx.category_id,
+        category_name=cat.name if cat else None,
+        category_color=cat.color if cat else None,
+        tag_note=btx.tag_note, tag_source=btx.tag_source,
+        payment_method=btx.payment_method, match_number=match_number,
+        vendor_id=btx.vendor_id,
+    )
+    # Kalıcı eşleşme izi (event_matches, method='manual') — finance_event_svc.match()
+    # üzerinden DEĞİL (o is_matched set eder; cari kuralı bunu yasaklar).
+    from app.models.event_match import MATCH_METHOD_MANUAL, EventMatch
+    db.add(EventMatch(
+        bank_source_type="bank", bank_source_id=btx.id,
+        target_source_type="vendor_payment", target_source_id=vtx.id,
+        amount=float(vtx.alacak or 0) or abs(float(btx.amount)), currency="TRY",
+        match_number=match_number, method=MATCH_METHOD_MANUAL, created_by=current_user.id,
+    ))
+
     log_action(
         db, current_user.id, "update", "bank_transaction",
         entity_id=btx.id,
         details=f"Manuel cari eşleştirme [#{match_number}] | Cari: {vendor_name} | Banka: {btx.date} ₺{abs(float(btx.amount)):,.2f}",
         ip_address=get_client_ip(request),
     )
+    db.commit()
+    # Cari bacağı: eşleşme FIFO kalanını değiştirir → vendor_payment FE'leri yeniden yazılır
+    sync_vendor_finance_events(db)
     db.commit()
     broadcast_finance_update(background_tasks, BroadcastModule.CARILER, "match")
 
@@ -201,6 +227,7 @@ class MatchCreditPaymentRequest(BaseModel):
 def match_credit_payment(
     data: MatchCreditPaymentRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.cash_flow", "use")),
 ):
@@ -262,6 +289,7 @@ def match_credit_payment(
         db.rollback()
         raise HTTPException(status_code=500, detail="Kredi eşleştirme sırasında hata oluştu")
 
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "match")
     return {
         "ok": True,
         "product_name": product_name,
@@ -306,6 +334,7 @@ def list_unpaid_credit_payments(
 def unmatch_cc_payment(
     data: MatchCCPaymentRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.cash_flow", "use")),
 ):
@@ -356,6 +385,7 @@ def unmatch_cc_payment(
         ip_address=get_client_ip(request),
     )
     db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "unmatch")
 
     return {"ok": True, "card_name": card_name}
 
@@ -386,3 +416,31 @@ def list_unpaid_cc_statements(
         }
         for s in stmts
     ]
+
+
+@router.post("/cash-flow/rematch")
+def rematch_all(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cash_flow", "use")),
+):
+    """Otomatik etiketleme + 4 eşleştiriciyi elle tetikle (R1 2026-07-11).
+
+    Ekstre yüklemesi/banka API senkronuyla AYNI orkestratör (`run_post_ingest_processing`).
+    Onaydan MUAF — operasyonel eşleştirme (dosya-yükleme istisnası sınıfı,
+    docs/modules/onay-akisi.md kapsam listesi); audit'li + WS yayınlı.
+    """
+    from app.utils.matching_service import run_post_ingest_processing
+
+    results = run_post_ingest_processing(db)
+    log_action(
+        db, current_user.id, "update", "bank_transaction", None,
+        "Yeniden eşleştirme: " + (", ".join(f"{k}={v}" for k, v in results.items()) or "eşleşme yok"),
+        get_client_ip(request),
+    )
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "match")
+    if results.get("advances_matched"):
+        broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "match")
+    return results

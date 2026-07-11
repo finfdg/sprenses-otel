@@ -8,11 +8,12 @@ Oda tipleri (`room_types`) doluluk hesaplamasında payda olarak kullanılır:
 import math
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -27,6 +28,7 @@ from app.schemas.room_type import (
 from app.services import room_type_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
+from app.utils.sales_broadcast import broadcast_sales_update
 
 router = APIRouter(prefix="/room-types", tags=["Oda Tipleri"])
 
@@ -89,6 +91,7 @@ def get_room_type(
 def create_room_type(
     data: RoomTypeCreate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -117,6 +120,9 @@ def create_room_type(
     )
     db.commit()
     db.refresh(rt)
+
+    broadcast_sales_update(background_tasks, BroadcastModule.ROOM_TYPES, "create")
+
     return RoomTypeResponse.model_validate(rt)
 
 
@@ -128,6 +134,7 @@ def update_room_type(
     room_type_id: int,
     data: RoomTypeUpdate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -162,6 +169,9 @@ def update_room_type(
     )
     db.commit()
     db.refresh(rt)
+
+    broadcast_sales_update(background_tasks, BroadcastModule.ROOM_TYPES, "update")
+
     return RoomTypeResponse.model_validate(rt)
 
 
@@ -172,6 +182,7 @@ def update_room_type(
 def delete_room_type(
     room_type_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -199,3 +210,5 @@ def delete_room_type(
         ip_address=get_client_ip(request),
     )
     db.commit()
+
+    broadcast_sales_update(background_tasks, BroadcastModule.ROOM_TYPES, "delete")

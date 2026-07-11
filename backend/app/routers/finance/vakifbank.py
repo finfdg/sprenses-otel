@@ -173,12 +173,21 @@ def run_vakifbank_import(db: Session, current_user: User, ip: str) -> dict:
         ip,
     )
     db.commit()
+
+    # Ekstre yoluyla AYNI son-işlem: otomatik etiketleme + 4 eşleştirici (R1 2026-07-11 —
+    # eskiden API'den gelen gerçekleşmeler çek/kredi/KK/avans tahminleriyle eşleşmeden kalıyordu)
+    match_results = {}
+    if total_new > 0:
+        from app.utils.matching_service import run_post_ingest_processing
+        match_results = run_post_ingest_processing(db)
+
     return {
         "accounts": len(accounts),
         "new_transactions": total_new,
         "skipped": total_skipped,
         "no_account_no": no_account_no,
         "errors": errors,
+        **match_results,
     }
 
 

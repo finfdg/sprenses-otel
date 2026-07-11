@@ -7,11 +7,12 @@ from datetime import datetime
 from typing import Optional
 
 import pytz
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -21,6 +22,7 @@ from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.utils.audit import log_action
+from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.notification import create_and_send_notifications
 
 router = APIRouter(prefix="/onay", tags=["Onay"])
@@ -96,6 +98,7 @@ def assign_department(
     vtx_id: int,
     data: DeptAssignRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.cariler", "use")),
 ):
@@ -128,6 +131,8 @@ def assign_department(
         ip_address=get_client_ip(request),
     )
     db.commit()
+
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")
 
     # Departman müdürüne bildirim gönder
     vendor = db.query(Vendor).filter(Vendor.id == vtx.vendor_id).first()
@@ -237,6 +242,7 @@ def approve_transaction(
     vtx_id: int,
     data: ApprovalAction,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.onay", "use")),
 ):
@@ -291,6 +297,8 @@ def approve_transaction(
     )
     db.commit()
 
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")
+
     # Gönderene bildirim
     if vtx.dept_assigned_by:
         vendor = db.query(Vendor).filter(Vendor.id == vtx.vendor_id).first()
@@ -311,6 +319,7 @@ def reject_transaction(
     vtx_id: int,
     data: ApprovalAction,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.onay", "use")),
 ):
@@ -343,6 +352,8 @@ def reject_transaction(
     )
     db.commit()
 
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")
+
     # Gönderene bildirim
     if vtx.dept_assigned_by:
         create_and_send_notifications(
@@ -361,6 +372,7 @@ def reject_transaction(
 def remove_assignment(
     vtx_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("finance.cariler", "use")),
 ):
@@ -388,5 +400,7 @@ def remove_assignment(
         ip_address=get_client_ip(request),
     )
     db.commit()
+
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")
 
     return {"status": "ok"}

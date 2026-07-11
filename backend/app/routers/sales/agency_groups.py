@@ -3,14 +3,16 @@
 import json
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import get_current_user, require_permission
 from app.models import AgencyGroup, User
 from app.utils.audit import log_action
+from app.utils.sales_broadcast import broadcast_sales_update
 
 router = APIRouter(prefix="/agency-groups", tags=["agency-groups"])
 
@@ -72,6 +74,7 @@ def list_groups(
 @router.post("/", response_model=AgencyGroupResponse, status_code=201)
 def create_group(
     data: AgencyGroupCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -90,6 +93,9 @@ def create_group(
                json.dumps({"name": group.name, "members": group.members,
                            "term_days": group.term_days,
                            "kickback_percent": float(group.kickback_percent)}, ensure_ascii=False))
+
+    broadcast_sales_update(background_tasks, BroadcastModule.AGENCY_GROUPS, "create")
+
     return group
 
 
@@ -97,6 +103,7 @@ def create_group(
 def update_group(
     group_id: int,
     data: AgencyGroupUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -129,12 +136,16 @@ def update_group(
                json.dumps({"name": group.name, "members": group.members,
                            "term_days": group.term_days,
                            "kickback_percent": float(group.kickback_percent)}, ensure_ascii=False))
+
+    broadcast_sales_update(background_tasks, BroadcastModule.AGENCY_GROUPS, "update")
+
     return group
 
 
 @router.delete("/{group_id}", status_code=204)
 def delete_group(
     group_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -145,10 +156,13 @@ def delete_group(
     db.delete(group)
     db.commit()
 
+    broadcast_sales_update(background_tasks, BroadcastModule.AGENCY_GROUPS, "delete")
+
 
 @router.post("/assign", response_model=List[AgencyGroupResponse])
 def assign_agency(
     data: AgencyAssignRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("sales.acente_mahsup", "use")),
 ):
@@ -206,6 +220,8 @@ def assign_agency(
             "removed_from": [g.name for g in current_groups if not target or g.id != target.id],
         }, ensure_ascii=False),
     )
+
+    broadcast_sales_update(background_tasks, BroadcastModule.AGENCY_GROUPS, "update")
 
     # Güncellenmiş tüm grup listesini döndür
     return db.query(AgencyGroup).order_by(AgencyGroup.name).all()

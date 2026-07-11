@@ -96,6 +96,9 @@ class BroadcastModule:
     APPROVAL = "approval"
     SCHEDULED = "scheduled"  # create_scheduled_router varsayılanı
     RECON = "recon"  # Sedna mutabakat (accounting.mutabakat — Uyuşmayan Veriler)
+    BUTCE = "butce"  # bütçe + departman fatura onayı (bütçe actual'ları)
+    HAKEDIS = "hakedis"  # hak ediş vade tanımları
+    STOK = "stok"  # stok/depo (Sedna stok senkronu)
     SALES_INVOICES = "sales_invoices"  # satış faturaları/tahsilatlar (Sedna aynalama sonrası yayın)
 
     # Satış alanı

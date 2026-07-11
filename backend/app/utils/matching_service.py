@@ -699,3 +699,65 @@ def _match_credits_to_bank(db: Session) -> dict:
         db.flush()
 
     return {"matched": matched_count, "total_unpaid": len(unpaid)}
+
+
+# ─── Ortak orkestratör (Revize Faz 0 R1, 2026-07-11) ────────────────────────
+# Ekstre yüklemesi + banka API senkronları + POST /cash-flow/rematch AYNI yolu
+# kullanır: önce otomatik etiketleme (kategori + ödeme yöntemi + cari), sonra
+# 4 matcher — her adım SAVEPOINT izolasyonlu (biri patlarsa diğerleri sürer).
+
+def run_all_matchers(db) -> dict:
+    """4 otomatik eşleştiriciyi SAVEPOINT izolasyonuyla koştur.
+
+    Dönen anahtarlar: checks_matched / credits_matched / cc_matched / advances_matched
+    (yalnız eşleşme olan anahtarlar döner — bank_statement_import ile geriye uyumlu).
+    """
+    results = {}
+    for match_fn, label, key in [
+        (_match_checks_to_bank, "Çek-banka", "checks_matched"),
+        (_match_credits_to_bank, "Kredi-banka", "credits_matched"),
+        (_match_cc_to_bank, "Kredi kartı-banka", "cc_matched"),
+        (_match_advances_to_bank, "Avans-banka", "advances_matched"),
+    ]:
+        try:
+            nested = db.begin_nested()
+            r = match_fn(db)
+            if r["matched"] > 0:
+                nested.commit()
+                db.commit()
+                results[key] = r["matched"]
+            else:
+                nested.rollback()
+        except Exception as e:  # noqa: BLE001 — adım izolasyonu
+            db.rollback()
+            logger.error("%s otomatik eşleştirme hatası: %s", label, e, exc_info=True)
+    return results
+
+
+def run_post_ingest_processing(db) -> dict:
+    """Banka verisi girişi sonrası ortak işlem: otomatik etiketleme + 4 matcher.
+
+    Auto-tag matcher'lardan ÖNCE koşar (atanan vendor_id/kategori eşleştirici
+    isabetini artırır ve nakit akımda anında görünür — sync_tag auto_tagger içinde).
+    """
+    results = {}
+    try:
+        nested = db.begin_nested()
+        from app.utils.auto_tagger import (
+            auto_detect_payment_methods,
+            auto_match_vendors,
+            auto_tag_transactions,
+        )
+        tagged, _total = auto_tag_transactions(db)
+        pm_counts = auto_detect_payment_methods(db)
+        vm = auto_match_vendors(db)
+        nested.commit()
+        db.commit()
+        results["auto_tagged"] = tagged
+        results["payment_methods_detected"] = sum(pm_counts.values())
+        results["vendors_auto_matched"] = vm.get("matched", 0)
+    except Exception as e:  # noqa: BLE001 — etiketleme hatası eşleştirmeyi durdurmasın
+        db.rollback()
+        logger.error("Otomatik etiketleme hatası: %s", e, exc_info=True)
+    results.update(run_all_matchers(db))
+    return results

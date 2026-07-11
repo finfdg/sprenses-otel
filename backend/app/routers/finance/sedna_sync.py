@@ -47,7 +47,7 @@ _STEPS = [
     {"key": "sales_invoices", "label": "Satış faturaları", "module": "finance.sales_invoices",
      "run": run_sales_invoice_import, "broadcast": BroadcastModule.SALES_INVOICES},
     {"key": "stock", "label": "Stok / depo", "module": "stok.maliyet",
-     "run": run_stock_import, "broadcast": None},
+     "run": run_stock_import, "broadcast": BroadcastModule.STOK},
     {"key": "reservations", "label": "Otel rezervasyonları", "module": "sales.acente_mahsup",
      "run": run_reservation_import, "broadcast": None},
     # Sedna çekmez; carilerden TÜRETİR (cari adımından SONRA çalışmalı). Cari-bağlı düzenli
@@ -162,6 +162,11 @@ def sedna_sync_all(
 
     for mod in touched:
         broadcast_finance_update(background_tasks, mod, "upload")
+
+    # Rezervasyon adımı sales_updated yayını ister (finance_updated değil) — R3 2026-07-11
+    if any(r["key"] == "reservations" and r["ok"] for r in results):
+        from app.utils.sales_broadcast import broadcast_sales_update
+        broadcast_sales_update(background_tasks, BroadcastModule.HOTEL_RESERVATION, "upload")
 
     return {
         "configured": True,
