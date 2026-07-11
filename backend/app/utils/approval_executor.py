@@ -511,6 +511,17 @@ def _handle_accounting_mutabakat(db, action_type, entity_id, payload, actor_id):
     elif op == "account_mapping":
         sedna_recon_service.set_account_mapping(
             db, entity_id, payload.get("sedna_account_code"), payload.get("confirmed", False))
+    elif op == "credit_mapping":  # Faz C
+        sedna_recon_service.set_credit_mapping(db, entity_id, payload.get("sedna_account_code"))
+    elif op == "agency_mapping":  # Faz C
+        sedna_recon_service.set_agency_mapping(db, entity_id, payload.get("sedna_account_codes"))
+    elif op == "period_lock":  # Faz C — uyarı-modu dönem kilidi
+        from datetime import date as _date
+
+        from app.services.period_lock_service import set_lock_date
+
+        raw = payload.get("lock_date")
+        set_lock_date(db, _date.fromisoformat(raw) if raw else None, actor_id)
     else:
         raise ValueError(f"Bilinmeyen mutabakat işlemi: {op}")
 

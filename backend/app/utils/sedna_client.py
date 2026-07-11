@@ -813,6 +813,51 @@ def fetch_bank_fx_valuation(codes: List[str], year: int, month: int) -> dict:
     return out
 
 
+def fetch_vendor_balances(prefix: str = "320") -> dict:
+    """Cari bakiye mutabakatı (Faz C): 320 leaf hesap başına canlı borç/alacak toplamı.
+
+    Döner: {code: {"borc": Σdebit, "alacak": Σcredit}} — çift Deleted filtresi.
+    Tek aggregate sorgu (satır satır çekilmez — hızlı).
+    """
+    prefix = "".join(c for c in (prefix or "320") if c.isdigit()) or "320"
+    query = (
+        "SELECT t.AccountingCode AS code, SUM(t.Debit) AS borc, SUM(t.Credit) AS alacak "
+        "FROM AccountingTrans t JOIN AccountingOwner o ON o.RecId = t.AccOwnerId "
+        f"WHERE t.AccountingCode LIKE '{prefix}%' "
+        "AND ISNULL(t.Deleted, 0) = 0 AND ISNULL(o.Deleted, 0) = 0 AND o.FicheDate IS NOT NULL "
+        "GROUP BY t.AccountingCode"
+    )
+    conn = _connect(timeout=120, context="mutabakat-cari-bakiye")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query)  # PARAMETRESİZ (pymssql %-tuzağı)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna cari bakiyeleri: %d hesap (prefix=%s)", len(rows), prefix)
+    return {r["code"]: {"borc": float(r["borc"] or 0), "alacak": float(r["alacak"] or 0)}
+            for r in rows}
+
+
+def fetch_credit_leaf_accounts() -> List[dict]:
+    """Sedna 300.* hesaplarını çek (kredi kod eşleme önerileri — Faz C).
+
+    Anahtarlar: code, remark, curr. Leaf ayrımı çağıranda (3+ nokta).
+    """
+    conn = _connect(timeout=60, context="mutabakat-krediler")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(
+            "SELECT Code AS code, Remark AS remark, Curr AS curr "
+            "FROM Accounting WHERE Code LIKE '300.%' ORDER BY Code"
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d adet 300.* hesabı çekildi", len(rows))
+    return rows
+
+
 # ─── Önbüro/PMS (SednaPrenses) — rezervasyon/doluluk ────────────────────────
 # Stok/cari muhasebe DB'sinden (SednaPrensesMhs2026) AYRI bir DB (SednaPrenses) — aynı
 # btadmin login'i ikisini de okur. Doluluk (geceleme/pax) maliyet KPI'larını besler.

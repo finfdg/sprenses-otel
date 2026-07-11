@@ -13,6 +13,7 @@ from app.models.audit_log import AuditLog
 from app.models.bank_account import BankAccount
 from app.models.bank_statement import BankStatement
 from app.models.event_match import EventMatch, FxDifference
+from app.models.period_lock import FinancePeriodLock
 from app.models.sedna_recon import SednaBankRecon, SednaReconRun
 from app.models.bank_transaction import BankTransaction
 from app.models.budget import Budget, BudgetCategory
@@ -64,6 +65,7 @@ __all__ = [
     "CashFlow",
     "BankAccount", "BankStatement", "BankTransaction", "TransactionCategory",
     "SednaBankRecon", "SednaReconRun", "EventMatch", "FxDifference",
+    "FinancePeriodLock",
     "ExchangeRate",
     "Vendor", "VendorUpload", "VendorTransaction", "VendorBankAccount", "VendorNote",
     "Notification",

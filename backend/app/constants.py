@@ -119,9 +119,10 @@ class ReconStatus:
     DIRECTION_FLIP = "direction_flip"      # aynı gün + aynı mutlak tutar + TERS yön (borç/alacak ters)
     DUPLICATE_SUSPECT = "duplicate_suspect"  # Sedna adedi > banka adedi (mükerrer fiş şüphesi)
     SEDNA_DIFF = "sedna_diff"              # eşleşmiş/korunan yerel kayıtta Sedna sapması (entity_type'lı)
+    BALANCE_DIFF = "balance_diff"          # cari net bakiyesi ↔ Sedna 320 hesap bakiyesi farkı (Faz C)
 
     OPEN = frozenset({SEDNA_PENDING, SEDNA_MISSING, SEDNA_EXTRA, DIRECTION_FLIP,
-                      DUPLICATE_SUSPECT, SEDNA_DIFF})
+                      DUPLICATE_SUSPECT, SEDNA_DIFF, BALANCE_DIFF})
 
 
 class SourceType:

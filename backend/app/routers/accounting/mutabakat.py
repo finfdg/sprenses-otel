@@ -22,7 +22,14 @@ from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models import BankAccount, SednaBankRecon, SednaReconRun
 from app.models.user import User
-from app.schemas.sedna_recon import AccountMappingUpdate, ReconItemAction, ReconRunRequest
+from app.schemas.sedna_recon import (
+    AccountMappingUpdate,
+    AgencyMappingUpdate,
+    CreditMappingUpdate,
+    PeriodLockUpdate,
+    ReconItemAction,
+    ReconRunRequest,
+)
 from app.services import sedna_recon_service
 from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
@@ -90,7 +97,10 @@ def recon_summary(
                 BankAccount.sedna_code_confirmed == True)  # noqa: E712
         .count()
     )
+    from app.services.period_lock_service import get_lock_date
+    lock = get_lock_date(db)
     return {
+        "lock_date": lock.isoformat() if lock else None,
         "open_by_status": by_status,
         "open_total": sum(by_status.values()),
         "oldest_open_date": oldest.isoformat() if oldest else None,
@@ -114,7 +124,7 @@ def recon_summary(
 def list_items(
     status: Optional[str] = Query(default=None, pattern="^[a-z_]+$"),
     account_id: Optional[int] = None,
-    entity_type: Optional[str] = Query(default=None, pattern="^(bank|check|vendor_tx)$"),
+    entity_type: Optional[str] = Query(default=None, pattern="^(bank|check|vendor_tx|vendor_balance)$"),
     include_closed: bool = False,
     q: Optional[str] = None,
     page: int = Query(default=1, ge=1),
@@ -179,6 +189,14 @@ def run_reconciliation(
         raise HTTPException(status_code=503, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    # Faz C: cari bakiye mutabakatı (best-effort — banka taraması başarılıysa kısmi hata koşuyu düşürmez)
+    try:
+        summary.update(sedna_recon_service.run_vendor_reconciliation(db))
+    except Exception as e:
+        db.rollback()
+        summary["vendor_error"] = "Cari bakiye taraması başarısız (Sedna bağlantısını kontrol edin)"
+        import logging
+        logging.getLogger(__name__).error("Cari bakiye mutabakatı hatası: %s", e)
 
     log_action(
         db, current_user.id, "run", "sedna_recon", None,
@@ -283,6 +301,115 @@ def fx_differences(
         "pages": max(1, math.ceil(total / page_size)),
         "total_amount_try": total_try,
     }
+
+
+@router.get("/credit-mappings")
+def credit_mappings(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("accounting.mutabakat", "view")),
+):
+    """Kredi ürünleri ↔ Sedna 300 hesap eşleme durumu + canlı öneriler (Faz C)."""
+    try:
+        return sedna_recon_service.suggest_credit_mappings(db)
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.patch("/credit-mappings/{product_id}")
+def update_credit_mapping(
+    product_id: int,
+    data: CreditMappingUpdate,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("accounting.mutabakat", "use")),
+):
+    """Kredi ürününe Sedna 300 kodu ata/temizle."""
+    approval_resp = check_approval(
+        db, "accounting.mutabakat", product_id, current_user.id, "update",
+        {"op": "credit_mapping", **data.model_dump()},
+    )
+    if approval_resp:
+        return approval_resp
+    try:
+        prod = sedna_recon_service.set_credit_mapping(db, product_id, data.sedna_account_code)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    log_action(db, current_user.id, "update", "credit_product_sedna_map", product_id,
+               json.dumps(data.model_dump(), ensure_ascii=False), get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.RECON, "update")
+    return {"id": prod.id, "name": prod.name, "sedna_account_code": prod.sedna_account_code}
+
+
+@router.get("/agency-mappings")
+def agency_mappings(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("accounting.mutabakat", "view")),
+):
+    """Acente grupları ↔ Sedna 340 avans hesabı eşleme durumu + öneriler (Faz C)."""
+    try:
+        return sedna_recon_service.suggest_agency_mappings(db)
+    except SednaUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.patch("/agency-mappings/{group_id}")
+def update_agency_mapping(
+    group_id: int,
+    data: AgencyMappingUpdate,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("accounting.mutabakat", "use")),
+):
+    """Acente grubuna Sedna 340 kod listesi ata/temizle (para birimi başına ayrı hesap)."""
+    approval_resp = check_approval(
+        db, "accounting.mutabakat", group_id, current_user.id, "update",
+        {"op": "agency_mapping", **data.model_dump()},
+    )
+    if approval_resp:
+        return approval_resp
+    try:
+        g = sedna_recon_service.set_agency_mapping(db, group_id, data.sedna_account_codes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    log_action(db, current_user.id, "update", "agency_group_sedna_map", group_id,
+               json.dumps(data.model_dump(), ensure_ascii=False), get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.RECON, "update")
+    return {"id": g.id, "name": g.name, "sedna_account_codes": list(g.sedna_account_codes or [])}
+
+
+@router.patch("/period-lock")
+def update_period_lock(
+    data: PeriodLockUpdate,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("accounting.mutabakat", "use")),
+):
+    """Dönem kilidi tarihini ata/kaldır (uyarı modu — senkronu BLOKLAMAZ).
+
+    Kilit-öncesi döneme ait yeni uyuşmazlık tespit edilirse ayrı vurgulu bildirim gider.
+    """
+    from datetime import date as date_cls
+
+    from app.services.period_lock_service import set_lock_date
+
+    approval_resp = check_approval(
+        db, "accounting.mutabakat", 0, current_user.id, "update",
+        {"op": "period_lock", **data.model_dump()},
+    )
+    if approval_resp:
+        return approval_resp
+    lock = date_cls.fromisoformat(data.lock_date) if data.lock_date else None
+    set_lock_date(db, lock, current_user.id)
+    log_action(db, current_user.id, "update", "finance_period_lock", None,
+               json.dumps(data.model_dump(), ensure_ascii=False), get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.RECON, "update")
+    return {"lock_date": lock.isoformat() if lock else None}
 
 
 @router.get("/account-mappings")

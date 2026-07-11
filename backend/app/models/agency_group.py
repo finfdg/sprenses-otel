@@ -29,6 +29,9 @@ class AgencyGroup(Base):
     members: Mapped[list] = Column(JSON, nullable=False, default=list)
     term_days: Mapped[int] = Column(Integer, nullable=False, server_default="30")
     kickback_percent: Mapped[float] = Column(Numeric(5, 2), nullable=False, server_default="0")
+    # Sedna 340.01.* avans hesap kodları (Faz C — acente başına PARA BİRİMİ AYRI hesap
+    # olabildiğinden liste: ör. ANEX EUR + ANEX USD; avans mutabakatı kod-öncelikli eşleşir)
+    sedna_account_codes: Mapped[list] = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=text("now()"), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=text("now()"),
                         onupdate=text("now()"), nullable=False)

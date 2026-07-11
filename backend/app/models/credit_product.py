@@ -77,6 +77,8 @@ class CreditProduct(Base):
     details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Sedna 300.* hesap kodu eşlemesi (Faz C — kredi mutabakat/değerleme kapsamı için)
+    sedna_account_code: Mapped[Optional[str]] = mapped_column(String(30), unique=True, nullable=True)
     created_by: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
     )

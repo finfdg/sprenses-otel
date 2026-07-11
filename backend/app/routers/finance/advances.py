@@ -33,8 +33,39 @@ from app.utils.text_match import _norm_tokens
 router = APIRouter(prefix="/avanslar")
 
 
-def _match_account(agency_name: str, currency: str, accounts: list, used: set):
-    """Manuel acente adını Sedna 340 hesabıyla eşleştir (token örtüşmesi + para birimi)."""
+def _agency_code_map(db) -> dict:
+    """Faz C: acente adı (küçük harf) → Sedna 340 kod listesi (agency_groups eşlemesinden).
+
+    Grup adı ve üyeleri anahtar olur; kod-öncelikli eşleşme ad-fuzzy'den önce denenir.
+    """
+    from app.models import AgencyGroup
+
+    out: dict = {}
+    for g in db.query(AgencyGroup).filter(AgencyGroup.sedna_account_codes.isnot(None)).all():
+        codes = list(g.sedna_account_codes or [])
+        if not codes:
+            continue
+        for key in [g.name] + list(g.members or []):
+            k = (str(key) or "").strip().lower()
+            if k:
+                out.setdefault(k, codes)
+    return out
+
+
+def _match_account(agency_name: str, currency: str, accounts: list, used: set,
+                   code_map=None):
+    """Manuel acente adını Sedna 340 hesabıyla eşleştir.
+
+    Faz C: önce KOD-ÖNCELİKLİ (agency_groups.sedna_account_codes — deterministik);
+    kod eşlemesi yoksa mevcut ad-fuzzy (token örtüşmesi + para birimi) fallback.
+    """
+    if code_map:
+        codes = code_map.get((agency_name or "").strip().lower())
+        if codes:
+            cands = [a for a in accounts if a["code"] in codes and a["code"] not in used]
+            if cands:
+                exact = [a for a in cands if a.get("currency") == currency]
+                return (exact or cands)[0]
     mt = _norm_tokens(agency_name)
     if not mt:
         return None
@@ -337,9 +368,10 @@ def sedna_reconciliation(
 
     used: set = set()
     matched = []
+    code_map = _agency_code_map(db)  # Faz C: kod-öncelikli eşleşme
     for name, cur, rec, pend in manual:
         cur = (cur or "EUR")
-        m = _match_account(name, cur, accounts, used)
+        m = _match_account(name, cur, accounts, used, code_map=code_map)
         if m:
             used.add(m["code"])
         s_rec = m["received"] if m else 0.0

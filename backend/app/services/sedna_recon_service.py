@@ -430,14 +430,56 @@ def run_reconciliation(
     db.add(run)
     db.commit()
 
-    if notify and new_items:
-        _notify_new_items(db, new_items)
+    # Faz C: dönem kilidi (uyarı modu) — kilit-öncesi tarihli YENİ uyuşmazlık ayrı bildirilir
+    try:
+        from app.services.period_lock_service import get_lock_date
+        lock = get_lock_date(db)
+    except Exception:
+        lock = None
+    locked_new = [i for i in new_items if lock and i.event_date and i.event_date <= lock]
+    summary["locked_period_new"] = len(locked_new)
+
+    # Faz C: ters-bakiye kontrolü — mevduat hesabı negatife düşmüşse veri/işlem hatası sinyali
+    # (KMH bağlı hesaplar bilerek hariç: negatif bakiye KMH'nin doğası)
+    negatives = []
+    try:
+        from app.models import CreditProduct
+        kmh_ids = {cid for (cid,) in db.query(CreditProduct.linked_account_id)
+                   .filter(CreditProduct.type == "kmh",
+                           CreditProduct.linked_account_id.isnot(None)).all()}
+        for acc in db.query(BankAccount).filter(BankAccount.is_active == True).all():  # noqa: E712
+            if acc.id in kmh_ids:
+                continue
+            last = (db.query(BankTransaction)
+                    .filter(BankTransaction.account_id == acc.id,
+                            BankTransaction.balance.isnot(None))
+                    .order_by(BankTransaction.date.desc(), BankTransaction.id.desc())
+                    .first())
+            if last is not None and float(last.balance) < 0:
+                negatives.append({"account_id": acc.id, "bank_name": acc.bank_name,
+                                  "currency": acc.currency, "balance": float(last.balance)})
+    except Exception as e:  # kontrol koşuyu düşürmesin
+        logger.error("Ters-bakiye kontrolü başarısız: %s", e)
+    summary["negative_balances"] = negatives
+
+    if notify:
+        if new_items:
+            _notify_new_items(db, new_items)
+        if locked_new:
+            _notify_viewers(db, "Kilitli dönemde değişiklik",
+                            f"{len(locked_new)} uyuşmazlık {lock.strftime('%d.%m.%Y')} kilit tarihinden "
+                            "önceki döneme ait — kapanmış ay verisi değişmiş olabilir")
+        if negatives:
+            parts = [f"{n['bank_name']} {n['currency']} {n['balance']:,.2f}" for n in negatives[:5]]
+            _notify_viewers(db, "Ters bakiye uyarısı",
+                            "Mevduat hesabında negatif bakiye: " + " · ".join(parts))
     return summary
 
 
 _CRITICAL_STATUSES = frozenset({
     ReconStatus.DIRECTION_FLIP, ReconStatus.DUPLICATE_SUSPECT,
     ReconStatus.SEDNA_MISSING, ReconStatus.SEDNA_EXTRA, ReconStatus.SEDNA_DIFF,
+    ReconStatus.BALANCE_DIFF,
 })
 
 _STATUS_LABELS = {
@@ -447,6 +489,7 @@ _STATUS_LABELS = {
     ReconStatus.DIRECTION_FLIP: "Yön ters",
     ReconStatus.DUPLICATE_SUSPECT: "Mükerrer şüphesi",
     ReconStatus.SEDNA_DIFF: "Sedna sapması",
+    ReconStatus.BALANCE_DIFF: "Bakiye farkı",
     ReconStatus.MATCHED: "Mutabık",
 }
 
@@ -456,7 +499,8 @@ _STATUS_LABELS = {
 def report_entity_diff(db: Session, entity_type: str, entity_id: int, *,
                        amount: float, currency: str, event_date: date,
                        description: Optional[str], sedna_description: Optional[str],
-                       sedna_rec_id: Optional[int] = None) -> SednaBankRecon:
+                       sedna_rec_id: Optional[int] = None,
+                       status: str = ReconStatus.SEDNA_DIFF) -> SednaBankRecon:
     """Korunan (eşleşmiş/atanmış) yerel kayıtta Sedna sapmasını Uyuşmayan Veriler'e yaz.
 
     Eskiden bu sapmalar importlarda SESSİZCE atlanıyordu. Kayıt (entity_type, entity_id)
@@ -474,8 +518,10 @@ def report_entity_diff(db: Session, entity_type: str, entity_id: int, *,
     if existing is not None:
         if existing.resolution == RESOLUTION_IGNORED:
             return existing  # bilinçli yoksayıldı — yeniden açma
-        existing.status = ReconStatus.SEDNA_DIFF
+        existing.status = status
+        existing.description = (description or "")[:500] or None
         existing.sedna_description = (sedna_description or "")[:500] or None
+        existing.amount = round(float(amount or 0), 2)
         existing.last_seen_at = now
         if existing.resolved_at is not None:  # kapanmıştı, sapma geri geldi → yeniden aç
             existing.resolved_at = None
@@ -486,7 +532,7 @@ def report_entity_diff(db: Session, entity_type: str, entity_id: int, *,
     item = SednaBankRecon(
         entity_type=entity_type, entity_id=entity_id,
         sedna_trans_rec_id=sedna_rec_id,
-        status=ReconStatus.SEDNA_DIFF,
+        status=status,
         amount=round(float(amount or 0), 2), currency=(currency or "TRY")[:3],
         event_date=event_date,
         description=(description or "")[:500] or None,
@@ -521,6 +567,38 @@ def close_stale_entity_diffs(db: Session, entity_type: str, seen_ids: set) -> in
     if closed:
         db.flush()
     return closed
+
+
+def _mutabakat_viewer_ids(db: Session) -> List[int]:
+    """accounting.mutabakat görme yetkisi olan aktif kullanıcı ID'leri."""
+    from app.models import Module, RoleModulePermission, User
+
+    mod = db.query(Module).filter(Module.code == "accounting.mutabakat").first()
+    if not mod:
+        return []
+    rows = (
+        db.query(User.id)
+        .join(RoleModulePermission, User.role_id == RoleModulePermission.role_id)
+        .filter(RoleModulePermission.module_id == mod.id,
+                RoleModulePermission.can_view == True,  # noqa: E712
+                User.is_active == True)  # noqa: E712
+        .all()
+    )
+    return [r.id for r in rows]
+
+
+def _notify_viewers(db: Session, title: str, body: str) -> None:
+    """Mutabakat izleyicilerine tek bildirim (best-effort — koşuyu düşürmez)."""
+    try:
+        from app.utils.notification import create_and_send_notifications_sync
+
+        user_ids = _mutabakat_viewer_ids(db)
+        if user_ids:
+            create_and_send_notifications_sync(
+                db, user_ids, type="recon", title=title, body=body,
+                link="/dashboard/muhasebe/mutabakat")
+    except Exception as e:
+        logger.error("Mutabakat bildirimi gönderilemedi (%s): %s", title, e)
 
 
 def _notify_new_items(db: Session, items: List[SednaBankRecon]) -> None:
@@ -562,6 +640,197 @@ def _notify_new_items(db: Session, items: List[SednaBankRecon]) -> None:
         db.commit()
     except Exception as e:  # bildirim hatası koşuyu düşürmesin
         logger.error("Mutabakat bildirimi gönderilemedi: %s", e)
+
+
+# ─── Faz C: Cari bakiye mutabakatı + kredi/acente kod eşlemesi ──────────────
+
+VENDOR_BALANCE_TOLERANCE = 1.0  # TL — kuruş yuvarlamaları fark sayılmaz
+
+
+def run_vendor_reconciliation(db: Session, fetch_balances=None) -> dict:
+    """Cari NET bakiyesi (Σborç−Σalacak) ↔ Sedna 320 hesap bakiyesi mutabakatı.
+
+    Satır-düzeyi senkron (rec_id/Sinyal A-B) zaten import'ta; bu koşu KALAN sapmayı
+    (Excel-only satır, elle ekleme, korunan-sapma birikimi) bakiye düzeyinde görünür
+    kılar. Fark > tolerans → 'balance_diff' kaydı (entity_type='vendor_balance');
+    fark kapanınca otomatik kapanır. Tünel koparsa exception — kayıtlara dokunulmaz.
+    """
+    from sqlalchemy import func as sa_func
+
+    from app.models import Vendor, VendorTransaction
+
+    fetch_balances = fetch_balances or sedna_client.fetch_vendor_balances
+    sedna = fetch_balances()  # {code: {borc, alacak}} — kopukta exception (koşu bütünlüğü)
+
+    ours = (
+        db.query(Vendor.id, Vendor.hesap_kodu, Vendor.hesap_adi,
+                 sa_func.coalesce(sa_func.sum(VendorTransaction.borc), 0),
+                 sa_func.coalesce(sa_func.sum(VendorTransaction.alacak), 0))
+        .join(VendorTransaction, VendorTransaction.vendor_id == Vendor.id)
+        .group_by(Vendor.id, Vendor.hesap_kodu, Vendor.hesap_adi)
+        .all()
+    )
+
+    diff_ids: set = set()
+    diffs = 0
+    for vid, code, name, borc, alacak in ours:
+        s = sedna.get(code)
+        our_net = round(float(borc or 0) - float(alacak or 0), 2)
+        sedna_net = round((s["borc"] - s["alacak"]) if s else 0.0, 2)
+        fark = round(our_net - sedna_net, 2)
+        if abs(fark) <= VENDOR_BALANCE_TOLERANCE:
+            continue
+        report_entity_diff(
+            db, "vendor_balance", vid,
+            amount=fark, currency="TRY", event_date=_today(),
+            description=(f"{name} ({code}) — bizde net {our_net:,.2f} TL "
+                         f"(borç {float(borc or 0):,.2f} / alacak {float(alacak or 0):,.2f})"),
+            sedna_description=(f"Sedna net {sedna_net:,.2f} TL"
+                               + ("" if s else " (hesap Sedna'da bulunamadı)")
+                               + f" · fark {fark:,.2f} TL"),
+            status=ReconStatus.BALANCE_DIFF,
+        )
+        diff_ids.add(vid)
+        diffs += 1
+
+    auto_closed = close_stale_entity_diffs(db, "vendor_balance", diff_ids)
+    db.commit()
+    return {"vendors_scanned": len(ours), "balance_diffs": diffs,
+            "vendor_auto_closed": auto_closed}
+
+
+def suggest_credit_mappings(db: Session, leafs: Optional[List[dict]] = None) -> dict:
+    """credit_products ↔ Sedna 300 leaf eşleme önerileri (Faz C).
+
+    Sinyaller: banka adı token kesişimi + para birimi + kredi tutarının leaf adında
+    rakam olarak geçmesi ('HALK BANKASI L0004813 6.000.000 TL KREDİ' kalıbı).
+    """
+    from app.models import CreditProduct
+
+    if leafs is None:
+        leafs = sedna_client.fetch_credit_leaf_accounts()
+    leafs = [l for l in leafs if (l.get("code") or "").count(".") >= 3]
+
+    products = (
+        db.query(CreditProduct)
+        .filter(CreditProduct.status == "active")
+        .order_by(CreditProduct.id)
+        .all()
+    )
+    used_codes = {p.sedna_account_code for p in products if p.sedna_account_code}
+
+    items = []
+    suggested = set()
+    for prod in products:
+        bank_tokens = _norm_tokens(prod.bank_name or prod.name or "")
+        prod_ccy = _CURRENCY_TO_SEDNA.get(prod.currency or "TRY", prod.currency or "TRY")
+        amount_digits = str(int(float(prod.total_amount or 0))) if prod.total_amount else ""
+
+        best = None
+        for leaf in leafs:
+            code, remark = leaf.get("code") or "", leaf.get("remark") or ""
+            if code in used_codes and code != prod.sedna_account_code:
+                continue
+            score = 0
+            reasons = []
+            if bank_tokens & _norm_tokens(remark):
+                score += 30
+                reasons.append("banka adı")
+            if (leaf.get("curr") or "TL").strip().upper() == prod_ccy:
+                score += 15
+                reasons.append("para birimi")
+            if amount_digits and len(amount_digits) >= 5:
+                remark_digits = re.sub(r"\D", "", remark)
+                if amount_digits in remark_digits:
+                    score += 40
+                    reasons.append("tutar adda")
+            if best is None or score > best["score"]:
+                best = {"code": code, "remark": remark, "curr": leaf.get("curr"),
+                        "score": score, "reason": " + ".join(reasons)}
+        show = best if (best and best["score"] >= 45 and not prod.sedna_account_code) else None
+        if show:
+            suggested.add(show["code"])
+        items.append({
+            "product_id": prod.id,
+            "name": prod.name,
+            "bank_name": prod.bank_name,
+            "type": prod.type,
+            "currency": prod.currency,
+            "total_amount": float(prod.total_amount or 0),
+            "current_code": prod.sedna_account_code,
+            "suggestion": show,
+        })
+
+    mapped = {p.sedna_account_code for p in products if p.sedna_account_code}
+    unmatched = [l for l in leafs if l["code"] not in mapped and l["code"] not in suggested]
+    return {"products": items, "unmatched_sedna": unmatched}
+
+
+def set_credit_mapping(db: Session, product_id: int, sedna_account_code: Optional[str]):
+    """Kredi ürününe Sedna 300 kodu ata/temizle (router + onay executor ORTAK)."""
+    from app.models import CreditProduct
+
+    prod = db.query(CreditProduct).filter(CreditProduct.id == product_id).first()
+    if not prod:
+        raise ValueError(f"Kredi ürünü bulunamadı: {product_id}")
+    code = (sedna_account_code or "").strip() or None
+    if code is not None:
+        sedna_client._safe_codes([code])
+        if not code.startswith("300"):
+            raise ValueError("Sedna kredi hesabı kodu 300 ile başlamalıdır")
+    prod.sedna_account_code = code
+    db.flush()
+    return prod
+
+
+def suggest_agency_mappings(db: Session, accounts: Optional[List[dict]] = None) -> dict:
+    """agency_groups ↔ Sedna 340.01 avans hesabı önerileri (Faz C).
+
+    Acente başına para birimi AYRI hesap olabildiğinden öneri LİSTE döner
+    (ANEX EUR + ANEX USD). Sinyal: grup adı/üyeleri ↔ hesap adı token kesişimi.
+    """
+    from app.models import AgencyGroup
+
+    if accounts is None:
+        accounts = sedna_client.fetch_advance_accounts()
+    groups = db.query(AgencyGroup).order_by(AgencyGroup.name).all()
+
+    items = []
+    for g in groups:
+        tokens = _norm_tokens(g.name or "")
+        for m in (g.members or []):
+            tokens |= _norm_tokens(str(m))
+        cands = []
+        for a in accounts:
+            a_name = (a.get("name") or "").strip()
+            if tokens & _norm_tokens(a_name):
+                cands.append({"code": a.get("code"), "name": a_name,
+                              "currency": (a.get("currency") or "TL").strip()})
+        items.append({
+            "group_id": g.id,
+            "name": g.name,
+            "current_codes": list(g.sedna_account_codes or []),
+            "suggestions": cands if not g.sedna_account_codes else [],
+        })
+    return {"groups": items}
+
+
+def set_agency_mapping(db: Session, group_id: int, sedna_account_codes: Optional[List[str]]):
+    """Acente grubuna Sedna 340 kod listesi ata/temizle (router + onay executor ORTAK)."""
+    from app.models import AgencyGroup
+
+    g = db.query(AgencyGroup).filter(AgencyGroup.id == group_id).first()
+    if not g:
+        raise ValueError(f"Acente grubu bulunamadı: {group_id}")
+    codes = [c.strip() for c in (sedna_account_codes or []) if c and c.strip()]
+    if codes:
+        sedna_client._safe_codes(codes)
+        for c in codes:
+            if not c.startswith("340"):
+                raise ValueError("Sedna avans hesabı kodu 340 ile başlamalıdır")
+    g.sedna_account_codes = codes or None
+    db.flush()
+    return g
 
 
 # ─── Kullanıcı aksiyonları (router + onay executor ORTAK) ───────────────────

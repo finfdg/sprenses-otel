@@ -62,9 +62,16 @@ _STEPS = [
 
 
 def _run_bank_recon(db, user):
-    from app.services.sedna_recon_service import run_reconciliation
+    from app.services.sedna_recon_service import run_reconciliation, run_vendor_reconciliation
 
-    return run_reconciliation(db, triggered_by=user.id)
+    summary = run_reconciliation(db, triggered_by=user.id)
+    # Faz C: cari bakiye mutabakatı (best-effort — banka taraması sonucu korunur)
+    try:
+        summary.update(run_vendor_reconciliation(db))
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        logger.error("Cari bakiye mutabakatı hatası: %s", e)
+    return summary
 
 
 def _summarize(key: str, d: dict) -> str:
@@ -94,8 +101,11 @@ def _summarize(key: str, d: dict) -> str:
         return (f"{d.get('reservations_new', 0)} yeni · {d.get('reservations_updated', 0)} güncel · "
                 f"{d.get('removed', 0)} iptal/kaldırılan")
     if key == "bank_recon":
+        extra = ""
+        if d.get("balance_diffs") is not None:
+            extra = f" · {d.get('balance_diffs', 0)} cari bakiye farkı"
         return (f"{d.get('accounts_scanned', 0)} hesap · {d.get('new', 0)} yeni uyuşmazlık · "
-                f"{d.get('auto_closed', 0)} otomatik kapandı · {d.get('open', 0)} açık")
+                f"{d.get('auto_closed', 0)} otomatik kapandı · {d.get('open', 0)} açık{extra}")
     return "Tamamlandı"
 
 
