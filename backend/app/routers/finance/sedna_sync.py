@@ -17,12 +17,13 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.constants import BroadcastModule
+from app.constants import BroadcastModule, WSEvent
 from app.database import get_db
 from app.middleware.auth import get_current_user, user_can
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
-from app.utils.finance_broadcast import broadcast_finance_update
+from app.utils.finance_broadcast import broadcast_finance_update, notify_finance_update_sync
+from app.websocket.manager import manager
 from app.services.reservation_service import run_reservation_import
 from app.services.stock_service import run_stock_import
 from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
@@ -127,6 +128,84 @@ def sedna_sync_status(
     }
 
 
+def run_sync_all_steps(db: Session, user: User, ip: str, progress=None) -> dict:
+    """Tüm izinli adımları sırayla koştur (adım-bazlı izolasyon) — SENKRON çekirdek.
+
+    `progress(event_dict)` verilirse her adımın başlangıç/bitişinde çağrılır
+    (arka plan işi WS SEDNA_SYNC_PROGRESS yayınlar; testler doğrudan çağırabilir).
+    Adım yayını ANINDA yapılır (sona biriktirme kaldırıldı — cariler biter bitmez
+    cariler ekranı tazelenir; Faz 2 #18).
+    """
+    results = []
+    allowed = [st for st in _STEPS if user_can(db, user, st["module"], "use")]
+    skipped = [st for st in _STEPS if st not in allowed]
+    for st in skipped:
+        results.append({"key": st["key"], "label": st["label"], "ok": False,
+                        "skipped": True, "summary": "Yetki yok"})
+    total = len(allowed)
+
+    for idx, st in enumerate(allowed, start=1):
+        base = {"key": st["key"], "label": st["label"], "index": idx, "total": total}
+        if progress:
+            progress({"type": WSEvent.SEDNA_SYNC_PROGRESS, **base, "status": "running"})
+        try:
+            detail = st["run"](db, user, ip)
+            summary = _summarize(st["key"], detail)
+            ok = True
+        except HTTPException as e:
+            db.rollback()
+            summary, ok = str(e.detail), False
+        except Exception as e:  # noqa: BLE001 — adım izolasyonu: biri patlarsa diğerleri sürer
+            db.rollback()
+            logger.error("Sedna sync adımı '%s' hatası: %s", st["key"], e, exc_info=True)
+            summary, ok = "Beklenmeyen hata", False
+        results.append({"key": st["key"], "label": st["label"], "ok": ok,
+                        "skipped": False, "summary": summary})
+        if progress:
+            progress({"type": WSEvent.SEDNA_SYNC_PROGRESS, **base,
+                      "status": "ok" if ok else "error", "summary": summary})
+        if ok and st.get("broadcast"):
+            notify_finance_update_sync(st["broadcast"], "upload")
+        if ok and st["key"] == "reservations":
+            manager.send_to_all_sync({"type": WSEvent.SALES_UPDATED,
+                                      "module": BroadcastModule.HOTEL_RESERVATION,
+                                      "action": "upload"})
+
+    summary_dict = {
+        "configured": True,
+        "ok_count": sum(1 for r in results if r["ok"]),
+        "total": len(results),
+        "steps": results,
+    }
+    if progress:
+        progress({"type": WSEvent.SEDNA_SYNC_PROGRESS, "status": "done",
+                  "ok_count": summary_dict["ok_count"], "total": total,
+                  "steps": results})
+    return summary_dict
+
+
+def _run_sync_all_job(user_id: int, ip: str) -> None:
+    """Arka plan Sedna senkron işi — kendi DB oturumu + WS ilerleme yayını."""
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            return
+        run_sync_all_steps(db, user, ip, progress=manager.send_to_all_sync)
+    except Exception as e:  # noqa: BLE001
+        logger.error("Sedna arka plan senkron işi hatası: %s", e, exc_info=True)
+        try:
+            manager.send_to_all_sync({"type": WSEvent.SEDNA_SYNC_PROGRESS,
+                                      "status": "done", "ok_count": 0, "total": 0,
+                                      "error": "Senkron beklenmedik şekilde durdu"})
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
 @router.post("/sync-all")
 def sedna_sync_all(
     request: Request,
@@ -134,43 +213,63 @@ def sedna_sync_all(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Tüm Sedna içe aktarmalarını sırayla çalıştır (izinli adımlar). Adım-bazlı izole."""
+    """Tüm Sedna içe aktarmalarını ARKA PLANDA başlat (Faz 2 #18).
+
+    Eskiden 7-8 adım tek bloklayan HTTP isteğinde koşuyordu (timeout riski +
+    ilerleme görünmüyordu). Artık 202 benzeri hemen döner; adım adım ilerleme
+    WS `sedna_sync_progress` event'leriyle yayınlanır (Topbar canlı gösterir),
+    her adımın modül yayını adım biter bitmez gider.
+    """
     if not sedna_configured():
         raise HTTPException(status_code=503, detail="Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD).")
 
-    ip = get_client_ip(request)
-    results = []
-    touched = set()
+    allowed = [st for st in _STEPS if user_can(db, current_user, st["module"], "use")]
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Hiçbir senkron adımı için yetkiniz yok.")
 
-    for s in _STEPS:
-        base = {"key": s["key"], "label": s["label"]}
-        if not user_can(db, current_user, s["module"], "use"):
-            results.append({**base, "ok": False, "skipped": True, "summary": "Yetki yok"})
-            continue
-        try:
-            detail = s["run"](db, current_user, ip)
-            results.append({**base, "ok": True, "skipped": False, "summary": _summarize(s["key"], detail)})
-            if s.get("broadcast"):
-                touched.add(s["broadcast"])
-        except HTTPException as e:
-            db.rollback()
-            results.append({**base, "ok": False, "skipped": False, "summary": str(e.detail)})
-        except Exception as e:  # noqa: BLE001 — adım izolasyonu: biri patlarsa diğerleri sürer
-            db.rollback()
-            logger.error("Sedna sync adımı '%s' hatası: %s", s["key"], e, exc_info=True)
-            results.append({**base, "ok": False, "skipped": False, "summary": "Beklenmeyen hata"})
-
-    for mod in touched:
-        broadcast_finance_update(background_tasks, mod, "upload")
-
-    # Rezervasyon adımı sales_updated yayını ister (finance_updated değil) — R3 2026-07-11
-    if any(r["key"] == "reservations" and r["ok"] for r in results):
-        from app.utils.sales_broadcast import broadcast_sales_update
-        broadcast_sales_update(background_tasks, BroadcastModule.HOTEL_RESERVATION, "upload")
-
+    background_tasks.add_task(_run_sync_all_job, current_user.id, get_client_ip(request))
     return {
-        "configured": True,
-        "ok_count": sum(1 for r in results if r["ok"]),
-        "total": len(results),
-        "steps": results,
+        "started": True,
+        "total": len(allowed),
+        "steps": [{"key": st["key"], "label": st["label"]} for st in allowed],
+    }
+
+
+@router.get("/last-sync")
+def sedna_last_sync(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Sedna verisinin tazeliği — Topbar rozeti için (Faz 2 #18).
+
+    Kaynaklar: cari (VendorUpload sedna://import), çek (CheckUpload sedna://import),
+    banka mutabakatı (sedna_recon_runs). oldest_hours = kritik adımların en eskisi.
+    """
+    from app.models import SednaReconRun, VendorUpload
+    from app.models.check import CheckUpload
+
+    last_cari = (db.query(VendorUpload.uploaded_at)
+                 .filter(VendorUpload.file_url == "sedna://import")
+                 .order_by(VendorUpload.uploaded_at.desc()).first())
+    last_check = (db.query(CheckUpload.uploaded_at)
+                  .filter(CheckUpload.file_url == "sedna://import")
+                  .order_by(CheckUpload.uploaded_at.desc()).first())
+    last_recon = db.query(SednaReconRun.run_at).order_by(SednaReconRun.id.desc()).first()
+
+    from datetime import datetime, timezone
+
+    def _age_hours(ts):
+        if not ts or not ts[0]:
+            return None
+        dt = ts[0]
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return round((datetime.now(timezone.utc) - dt).total_seconds() / 3600, 1)
+
+    ages = [a for a in (_age_hours(last_cari), _age_hours(last_check)) if a is not None]
+    return {
+        "last_cari_sync": last_cari[0].isoformat() if last_cari and last_cari[0] else None,
+        "last_check_sync": last_check[0].isoformat() if last_check and last_check[0] else None,
+        "last_bank_recon": last_recon[0].isoformat() if last_recon and last_recon[0] else None,
+        "oldest_hours": max(ages) if ages else None,
     }

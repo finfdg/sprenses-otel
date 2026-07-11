@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.constants import WSEvent
+from app.constants import BroadcastModule, WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -44,6 +44,31 @@ from app.websocket.manager import manager
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+
+# Faz 2 #17 (2026-07-12): onaydan UYGULANAN mutasyonun gerçek modül event'i.
+# finance_events yazan handler'ları after_commit sigortası zaten kapsar; FE
+# YAZMAYAN modüller (oda tipleri, bütçe, hakediş, mutabakat) bu eşlemeyle yayınlar
+# — ör. onaylı oda tipi değişikliği ReservationsPanel'i (sales_updated) tazeler.
+_EXECUTED_MODULE_EVENTS = {
+    "sales.acente_mahsup": (WSEvent.SALES_UPDATED, BroadcastModule.ROOM_TYPES),
+    "finance.butce": (WSEvent.FINANCE_UPDATED, BroadcastModule.BUTCE),
+    "finance.departmanlar": (WSEvent.FINANCE_UPDATED, BroadcastModule.BUTCE),
+    "finance.hakedis": (WSEvent.FINANCE_UPDATED, BroadcastModule.HAKEDIS),
+    "accounting.mutabakat": (WSEvent.FINANCE_UPDATED, BroadcastModule.RECON),
+    "finance.banks": (WSEvent.FINANCE_UPDATED, BroadcastModule.BANKS),
+}
+
+
+async def _notify_executed_module(module_code: Optional[str]) -> None:
+    """Uygulanan onaylı mutasyonun modül-özel WS event'i (eşlemede yoksa sessiz)."""
+    ev = _EXECUTED_MODULE_EVENTS.get(module_code or "")
+    if not ev:
+        return
+    try:
+        await manager.send_to_all({"type": ev[0], "module": ev[1], "action": "update"})
+    except Exception as e:
+        logger.error("Onay-sonrası modül yayını hatası (%s): %s", module_code, e)
 
 
 async def _broadcast_approval_update(module_code: Optional[str] = None) -> None:
@@ -381,6 +406,11 @@ async def approve_request(
                f"Onay talebi onaylandı: {req.entity_type}#{req.entity_id} (adım {req.current_step - (0 if was_last_step else 1)})",
                get_client_ip(request))
     db.commit()
+
+    # Uygulanan mutasyonun gerçek modül event'i (Faz 2 #17 — yalnız talep TAMAMEN onaylanıp
+    # payload uygulandıysa; ara adım onayları veri değiştirmez)
+    if req.status == "approved":
+        await _notify_executed_module(req.module_code)
 
     # Bildirimleri gönder
     entity_label = get_entity_type_label(req.entity_type)

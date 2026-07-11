@@ -48,6 +48,60 @@ from app.models.finance_event import (
 
 logger = logging.getLogger(__name__)
 
+# ─── after_commit YAYIN SİGORTASI (Faz 2 #15, 2026-07-12) ────────────────────
+# finance_events'e yazan HER yol (router, onay executor'ı, Sedna importları,
+# auto_tagger, cron) commit'te otomatik finance_updated yayınlar — endpoint'lerin
+# broadcast_finance_update çağırmayı UNUTMASI artık sessiz bayatlık üretmez.
+# Mevcut elle broadcast'ler kalabilir (sync süprese + frontend echo-guard çifte
+# yenilemeyi emer). Tek-worker varsayımı (process-global set — finance_broadcast
+# debounce'uyla aynı bilinçli varsayım). Nested SAVEPOINT rollback'i pending'i
+# temizlemez (after_rollback yalnız gerçek rollback'te) — nadir sahte event
+# zararsızdır (frontend yalnız yeniden yükler).
+from sqlalchemy import event as _sa_event
+from sqlalchemy.orm import Session as _SASession
+
+_pending_ws_modules: set = set()
+
+_SOURCE_TO_WS_MODULE = {
+    "bank": "banks",
+    "check": "checks",
+    "credit": "credits",
+    "cc_payment": "credits",
+    "advance": "advances",
+    "vendor_payment": "cariler",
+    "tax": "accounting",
+    "recurring": "accounting",
+    "rent_income": "accounting",
+    "rent_expense": "accounting",
+    "dividend": "accounting",
+    "dividend_stopaj": "accounting",
+    "salary": "hr",
+    "withholding": "hr",
+    "sgk": "hr",
+}
+
+
+def _mark_ws(source_type) -> None:
+    mod = _SOURCE_TO_WS_MODULE.get(source_type or "")
+    if mod:
+        _pending_ws_modules.add(mod)
+
+
+@_sa_event.listens_for(_SASession, "after_commit")
+def _flush_ws_modules(session) -> None:
+    if not _pending_ws_modules:
+        return
+    mods = list(_pending_ws_modules)
+    _pending_ws_modules.clear()
+    from app.utils.finance_broadcast import notify_finance_update_sync
+    for m in mods:
+        notify_finance_update_sync(m, "update")
+
+
+@_sa_event.listens_for(_SASession, "after_rollback")
+def _drop_ws_modules(session) -> None:
+    _pending_ws_modules.clear()
+
 
 def _dec(val) -> Optional[float]:
     """Decimal/None → float."""
@@ -77,6 +131,8 @@ class FinanceEventService:
             deferred_to = get_deferral_map(db).get((source_type, source_id))
             if deferred_to is not None:
                 fields["event_date"] = deferred_to
+
+        _mark_ws(source_type)  # after_commit yayın sigortası (Faz 2 #15)
 
         now = datetime.now(TZ_ISTANBUL)
         fields["source_type"] = source_type
@@ -398,6 +454,7 @@ class FinanceEventService:
         o kaydın is_matched flag'i de temizlenir — aksi halde karşı taraf
         sonsuza dek gizli kalır (orphan match).
         """
+        _mark_ws(source_type)
         try:
             # Silinecek event'i bul — eşleşme bilgisini temizlemek için
             event = db.query(FinanceEvent).filter(
@@ -462,6 +519,8 @@ class FinanceEventService:
         hedef döviz) kur farkı `fx_differences`'a kaydedilir (646/656 eşleniği;
         finance_events'e kalem YAZILMAZ). İkisi de best-effort — eşleşmeyi düşürmez.
         """
+        _mark_ws(source_type_a)
+        _mark_ws(source_type_b)
         try:
             # A kaynağını is_realized yap
             db.query(FinanceEvent).filter(
@@ -536,6 +595,7 @@ class FinanceEventService:
         Faz B: kaynağın taraf olduğu event_matches izleri de silinir (fx_differences
         FK CASCADE ile birlikte düşer).
         """
+        _mark_ws(source_type)
         try:
             db.query(FinanceEvent).filter(
                 FinanceEvent.source_type == source_type,
@@ -573,6 +633,9 @@ class FinanceEventService:
         NOT: is_matched burada DEĞİŞTİRİLMEZ — sadece match()/unmatch() fonksiyonları değiştirir.
         Cari eşleştirmesi banka hareketini nakit akımdan gizlememeli.
         """
+        _mark_ws("bank")
+        if vendor_id:
+            _pending_ws_modules.add("cariler")
         try:
             # vendor_code'u da çek
             vendor_code = None

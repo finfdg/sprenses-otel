@@ -42,6 +42,34 @@ async def _debounced_send(module: str, action: str) -> None:
         logger.error("finance_broadcast hatası module=%s: %s", module, e)
 
 
+# Hook/sync yolu için modül-başına zaman-tabanlı süprese (500ms) — after_commit
+# sigortası art arda commit'lerde (import: commit + FIFO sync + commit) event
+# yağmuru üretmesin. Tek-worker varsayımı (debounce set'i ile aynı — bilinçli).
+_last_sync_sent: dict = {}
+
+
+def notify_finance_update_sync(module: str, action: str = "update") -> None:
+    """Sync context'ten (after_commit sigortası, arka plan job, cron thread) yayın.
+
+    BackgroundTasks gerektirmez; manager'ın thread-safe köprüsünü kullanır.
+    Aynı modülden 500ms içindeki tekrar çağrılar bastırılır.
+    """
+    import time
+
+    now = time.monotonic()
+    if now - _last_sync_sent.get(module, 0.0) < 0.5:
+        return
+    _last_sync_sent[module] = now
+    try:
+        manager.send_to_all_sync({
+            "type": WSEvent.FINANCE_UPDATED,
+            "module": module,
+            "action": action,
+        })
+    except Exception as e:  # yayın hatası iş akışını düşürmesin
+        logger.error("notify_finance_update_sync hatası module=%s: %s", module, e)
+
+
 def broadcast_finance_update(
     background_tasks: BackgroundTasks,
     module: str,

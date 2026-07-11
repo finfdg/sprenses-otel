@@ -49,6 +49,7 @@ class WSEvent:
     ATTENDANCE_UPDATED = "attendance_updated"  # PDKS giriş/çıkış — canlı pano tazeleme
     SHIFT_SCHEDULE_UPDATED = "shift_schedule_updated"  # vardiya çizelgesi (rota) — canlı tazeleme
     PERMISSION_CHANGED = "permission_changed"
+    SEDNA_SYNC_PROGRESS = "sedna_sync_progress"  # merkezi Sedna senkronu adım-adım ilerleme (Faz 2 #18)
 
     # Oturum / bağlantı
     CONNECTED = "connected"
@@ -99,6 +100,7 @@ class BroadcastModule:
     BUTCE = "butce"  # bütçe + departman fatura onayı (bütçe actual'ları)
     HAKEDIS = "hakedis"  # hak ediş vade tanımları
     STOK = "stok"  # stok/depo (Sedna stok senkronu)
+    EXCHANGE_RATES = "exchange_rates"  # döviz kurları (fx cron → internal yayın; mevcut literal sabitlendi)
     SALES_INVOICES = "sales_invoices"  # satış faturaları/tahsilatlar (Sedna aynalama sonrası yayın)
 
     # Satış alanı
