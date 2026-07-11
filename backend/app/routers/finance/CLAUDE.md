@@ -42,6 +42,14 @@ henüz ölçek sorunu değil). Tam anlatım: `docs/modules/websocket.md`.
   değişmedi); liste sayfaları `useLiveRefetch` composable'ı ile canlıya bağlanır
   (`lib/utils/liveRefetch.svelte.ts` — frontend tarafı).
 
+**Test (2026-07-12):** `tests/test_faz2_realtime.py` (sigorta commit/rollback/500ms-süprese ·
+executor 'recon' modül eventi · `run_sync_all_steps` progress+izolasyon · `POST /sync-all`
+şekli + `_run_sync_all_job` doğrudan · `GET /sedna/last-sync` · cron import) +
+`tests/test_broadcast_guard.py` (AST bekçisi — 20 gerekçeli whitelist girişi, çift yönlü:
+yeni yayınsız mutasyon DA bayat whitelist girişi DE testi kırar). `test_sedna_sync.py`
+yeni endpoint davranışına taşındı: adım-sonuç doğrulamaları `run_sync_all_steps` çekirdeğini
+DOĞRUDAN çağırır; endpoint testi yalnız `{started,total,steps}` + 403/503 doğrular.
+
 ---
 
 ## Faz B — Kalıcı Sedna Kimliği + event_matches (2026-07-11)

@@ -44,14 +44,6 @@ WHITELIST = {
         "yayın/FE bank_statement_import._post_upload_processing'te (paket-içi domain modülü)",
     "finance/banks.py:upload_statement":
         "yayın/FE bank_statement_import._post_upload_processing'te (paket-içi domain modülü)",
-    # Departman metadata — FE yazmaz; onaylı değişiklik requests._EXECUTED_MODULE_EVENTS
-    # (finance.departmanlar → BUTCE) ile yayınlanır, doğrudan CRUD yayın taşımaz (bilinçli)
-    "finance/departmanlar.py:create_department":
-        "service-katmanlı departman metadata CRUD (nakit akım/FE etkisi yok)",
-    "finance/departmanlar.py:update_department":
-        "service-katmanlı departman metadata CRUD (nakit akım/FE etkisi yok)",
-    "finance/departmanlar.py:delete_department":
-        "service-katmanlı departman metadata CRUD (nakit akım/FE etkisi yok)",
     # Ödeme talimatı çalışma listeleri — operasyonel liste/PDF hazırlığı; FE'ye yazmaz
     "finance/payment_instructions.py:create_instruction_list":
         "ödeme talimatı çalışma listesi (operasyonel; finance_events'e yazmaz)",
@@ -69,9 +61,6 @@ WHITELIST = {
     # (run_sync_all_steps adım-anında notify_finance_update_sync çağırır — 2. seviye)
     "finance/sedna_sync.py:sedna_sync_all":
         "arka-plan job adım-anında yayınlar (run_sync_all_steps; 1-seviye kuralın dışında)",
-    # Kategori metadata — kategori LİSTESİ değişimi; etiketleme yayını tag endpoint'lerinde
-    "finance/transaction_tags.py:create_category":
-        "kategori metadata oluşturma (nakit akım kalemi değişmez)",
     # FE senkronu ithal auto_tagger._sync_finance_events'te → after_commit sigortası yayınlar
     "finance/transaction_tags.py:run_auto_match_vendors":
         "FE senkronu utils/auto_tagger içinde (after_commit sigortası yayınlar)",

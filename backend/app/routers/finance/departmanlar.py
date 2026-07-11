@@ -2,11 +2,13 @@
 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
+from app.utils.finance_broadcast import broadcast_finance_update
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.department import Department
@@ -65,6 +67,7 @@ def list_departments(
 
 @router.post("/", response_model=DepartmentResponse, status_code=status.HTTP_201_CREATED)
 def create_department(
+    background_tasks: BackgroundTasks,
     data: DepartmentCreate,
     request: Request,
     db: Session = Depends(get_db),
@@ -95,6 +98,7 @@ def create_department(
         ip_address=get_client_ip(request),
     )
     db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "create")  # departman bütçe/onay ekranlarını besler
     db.refresh(dept)
 
     manager_name = None
@@ -117,6 +121,7 @@ def create_department(
 
 @router.patch("/{dept_id}", response_model=DepartmentResponse)
 def update_department(
+    background_tasks: BackgroundTasks,
     dept_id: int,
     data: DepartmentUpdate,
     request: Request,
@@ -153,6 +158,7 @@ def update_department(
         ip_address=get_client_ip(request),
     )
     db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "update")  # departman bütçe/onay ekranlarını besler
     db.refresh(dept)
 
     manager_name = None
@@ -175,6 +181,7 @@ def update_department(
 
 @router.delete("/{dept_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_department(
+    background_tasks: BackgroundTasks,
     dept_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -203,3 +210,4 @@ def delete_department(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.BUTCE, "delete")  # departman bütçe/onay ekranlarını besler

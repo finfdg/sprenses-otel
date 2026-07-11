@@ -153,6 +153,7 @@ def list_categories(
 
 @router.post("/tags/categories")
 def create_category(
+    background_tasks: BackgroundTasks,
     data: CategoryCreate,
     request: Request,
     db: Session = Depends(get_db),
@@ -186,6 +187,7 @@ def create_category(
         ip_address=get_client_ip(request),
     )
     db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.CASH_FLOW, "update")  # kategori dropdown'ları canlı tazelensin
     db.refresh(cat)
 
     return TransactionCategoryResponse.model_validate(cat).model_dump()
