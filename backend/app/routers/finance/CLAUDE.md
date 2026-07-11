@@ -50,7 +50,8 @@ DEĞİŞMEZ cari kuralı + EventMatch method='manual' izi + 404'ler), `match_cc_
 `unmatch_cc_payment` (kısmi paid_amount birikimi + FE kalan/gizle/yeniden-aç),
 `match_credit_payment` (taksit kapama + kredi FE gizleme + banka sync_tag),
 `_match_credits_to_bank` **N-1 grup eşleşmesi** (faiz+vergi iki satır toplamı ±0.02;
-MEVCUT davranış sabitlendi: yalnız İLK satır `bank_transaction_id` alır — düzeltme Faz 1'de),
+Faz 1 #10 ile davranış GÜNCELLENDİ: ortak match_number TÜM banka satırlarına + satır başına
+EventMatch izi — D bölümü testi yeni davranışa çevrildi, ayrıntı test_faz1_matching.py E),
 `run_post_ingest_processing` (auto-tag→FE sync + SAVEPOINT izolasyonu: auto-tag patlasa
 bile matcher'lar koşar), `POST /cash-flow/rematch` (200/403/audit), eur_balances deferral
 ay-kayması (çek/kredi/KK) + runway hizası, VakıfBank sync→post-ingest zinciri (monkeypatch).
@@ -63,6 +64,43 @@ ay-kayması (çek/kredi/KK) + runway hizası, VakıfBank sync→post-ingest zinc
   (KK dalı zaten ekliyordu; sessiz tutar kaybı). Ayrıca bekleyen çekin **bakiye projeksiyonu**
   (`pending_check_expense_by_date`) hâlâ doğal vadeden düşüyordu → gider çizgisiyle aynı
   eksene (eff tarih) alındı.
+
+---
+
+## Faz 1 Eşleştirme Regresyon Ağı — test_faz1_matching.py (2026-07-11)
+
+`tests/test_faz1_matching.py` (32 test) bugünkü Faz 1 yüzeyini sabitler:
+- **A)** `_match_vendors_to_bank` — otomatik (tutar birebir + isim/vendor sinyali + aynı gün),
+  isimsiz→öneri, `btx.vendor_id` (auto-tagger) isim yerine sinyal, 8-14 gün→öneri, >14 gün→hiç;
+  eşleşmede cari FE `is_matched=False` KALIR (cari kuralı) + banka FE'ye sync_tag.
+- **B)** Öneri yaşam döngüsü — `_upsert_suggestion` idempotent (skor güncellenir),
+  `cleanup_stale_suggestions` (kapanan çek/eşleşen cari süpürülür, açık hedef kalır),
+  `GET /cash-flow/match-suggestions` şekli + check/vendor/scheduled zenginleştirmesi,
+  accept→gerçek eşleşme (method='manual' izi) + öneri düşer, kapanmış hedefe accept→409 +
+  öneri silinir, reject→silinir, avans öneri bandı (8-19 skor).
+- **C)** Çapraz-para çek önerisi — EUR çek × `ledger_rate` ±%1 TL bandı → YALNIZ öneri (skor 40,
+  çek pending kalır); %2 sapma → öneri yok.
+- **D)** 1-N çek — otomatik grup (aynı vendor_code + vade, toplam ±0.02 → hepsi paid + aynı btx)
+  + `POST /cash-flow/match-checks-batch` (200 / yanlış toplam 400 / uygunsuz çek 400 / 404).
+- **E)** Kredi N-1 grup izi — ortak match_number İKİ banka satırında + 2 EventMatch (target=credit)
+  + anapara düşümü.
+- **F)** `unmatch-check` (çek pending + FE açılır + izler silinir) ve `unmatch-credit-payment`
+  (grup çözme: taksit açılır + anapara iadesi + TÜM btx.match_number=None) + 400/404.
+- **G)** Planlı gider köprüsü — 'Vergi/SGK' etiketi: tek aday→`close_entry_via_bank` (entry kapanır
+  + FE is_matched=True, çift sayım biter), tutar bandı dışı→dokunulmaz, iki aday→iki öneri +
+  hiçbiri kapanmaz, öneri accept→kapanış.
+- **H)** Yarış korumaları — `apply_check_bank_match` eşleşmiş çeke False (kayıt değişmez),
+  `match-vendor-tx` eşleşmiş vtx'e 409 (yan etkisiz).
+
+**Testlerin yakaladığı + düzeltilen 2 gerçek bug (2026-07-11, Faz 1):**
+- `cash_flow/matching.py` — Faz 1 endpoint'leri `Check` ve `Advance` modellerini kullanıyordu ama
+  **import edilmemişlerdi** → `GET /match-suggestions`, öneri accept, `unmatch-check` ve
+  `match-checks-batch` her çağrıda `NameError`/500 veriyordu (R2'deki `sa_text` bug'ıyla aynı
+  sınıf). İki model importu eklendi.
+- `matching_service._match_vendors_to_bank` — isimli aday **8-14 gün** bandında skor tam 80'e
+  ulaşıyor (50 tutar + 30 isim) ve `VENDOR_AUTO_MIN`'i geçip OTOMATİK kapanıyordu; kural
+  "otomatik yalnız vade ±`VENDOR_AUTO_WINDOW_DAYS`(7)" idi. Otomatik dal artık `best_diff ≤ 7`
+  şartını açıkça zorlar; geniş-pencere adaylar öneriye düşer.
 
 ---
 

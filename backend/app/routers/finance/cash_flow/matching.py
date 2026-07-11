@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
+from app.models.advance import Advance
 from app.models.bank_transaction import BankTransaction
+from app.models.check import Check
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CreditPayment, CreditProduct
 from app.models.finance_event import SOURCE_BANK, SOURCE_CREDIT
