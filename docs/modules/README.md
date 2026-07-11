@@ -22,6 +22,7 @@
 | Temettü (Kâr Payı Dağıtımı) | `temettu.md` |
 | Kullanıcı Fiş İcmali | `fis-icmali.md` |
 | Mizan (Geçici Mizan) | `mizan.md` |
+| Sedna Mutabakat (Uyuşmayan Veriler) | `sedna-mutabakat.md` |
 | Kimlik Doğrulama | `auth.md` |
 | Sistem — Kullanıcılar | `sistem-kullanicilar.md` |
 | Sistem — Roller | `sistem-roller.md` |

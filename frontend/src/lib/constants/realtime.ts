@@ -63,6 +63,7 @@ export const BROADCAST_MODULE = {
 	HR: 'hr',
 	APPROVAL: 'approval',
 	SCHEDULED: 'scheduled',
+	RECON: 'recon', // Sedna mutabakat (accounting.mutabakat)
 	// Satış alanı
 	HOTEL_RESERVATION: 'hotel_reservation',
 	ROOM_TYPES: 'room_types',
@@ -70,3 +71,16 @@ export const BROADCAST_MODULE = {
 } as const;
 
 export type BroadcastModuleType = (typeof BROADCAST_MODULE)[keyof typeof BROADCAST_MODULE];
+
+// Sedna mutabakat kayıt durumları (`sedna_bank_recon.status` — DB-saklı, DEĞİŞTİRİLEMEZ).
+// Backend karşılığı: `backend/app/constants.py` ReconStatus (iki taraf birebir aynı tutulur).
+export const RECON_STATUS = {
+	MATCHED: 'matched', // birebir/grup eşleşti (kapalı)
+	SEDNA_PENDING: 'sedna_pending', // bankada var, Sedna henüz girmemiş (gecikme)
+	SEDNA_MISSING: 'sedna_missing', // bankada var, Sedna dönem içinde girmemiş (gerçek eksik)
+	SEDNA_EXTRA: 'sedna_extra', // Sedna'da var, bankada yok (muhtemel hatalı giriş)
+	DIRECTION_FLIP: 'direction_flip', // aynı gün + aynı mutlak tutar + TERS yön
+	DUPLICATE_SUSPECT: 'duplicate_suspect', // Sedna adedi > banka adedi (mükerrer fiş şüphesi)
+} as const;
+
+export type ReconStatusType = (typeof RECON_STATUS)[keyof typeof RECON_STATUS];

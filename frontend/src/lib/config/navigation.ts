@@ -113,6 +113,7 @@ export const NAV_GROUPS: NavGroup[] = [
 			{ code: 'accounting.dividend', label: 'Temettü', href: '/dashboard/muhasebe/temettu', icon: [I.currency] },
 			{ code: 'accounting.fis_icmali', label: 'Kullanıcı Fiş İcmali', href: '/dashboard/muhasebe/fis-icmali', icon: [I.chart] },
 			{ code: 'accounting.mizan', label: 'Mizan', href: '/dashboard/muhasebe/mizan', icon: [I.scale] },
+			{ code: 'accounting.mutabakat', label: 'Sedna Mutabakat', href: '/dashboard/muhasebe/mutabakat', icon: [I.docCheck] },
 		],
 	},
 	{

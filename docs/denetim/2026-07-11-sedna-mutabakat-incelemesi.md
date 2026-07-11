@@ -109,8 +109,8 @@ Diğer kritik ölçümler: **dönem kilidi fiilen kapalı** (AccPeriodLock 2016'
 
 ## 8. Kalan Kullanıcı Kararları
 
-1. **EUR raporlamada kur tipi:** eur_balances/runway forex_selling'den forex_buying'e (Sedna hizası) geçirilsin mi, yoksa raporlama selling'de kalıp yalnız mutabakat/değerleme ledger_rate mi kullansın? (Önerimiz: raporlama şimdilik kalsın, mutabakat ledger_rate — davranış değişikliği ayrı onayla.)
-2. **Aylık değerleme FE'ye kalem olarak yazılsın mı** (Faz-2) yoksa rapor katmanında mı kalsın? (Önerimiz: önce rapor; 1-2 ay Sedna'yla yan yana doğrulandıktan sonra karar.)
-3. Muhasebe ekibine **e-posta iletimi** (uyuşmazlık listesi) açılsın mı, kime? (SMTP hazır.)
+1. **EUR raporlamada kur tipi:** ✅ **KARAR VERİLDİ (2026-07-11, kullanıcı onaylı) — ALIŞ kuruna geçildi ve uygulandı.** eur_balances/t_account/runway/_helpers + çek/cari/kredi özetleri + rezervasyon/stok/hakediş servisleri forex_selling'den **forex_buying**'e geçirildi (Sedna TL defter değerleriyle hiza); test fixture'ları forex_buying seed'ler.
+2. **Aylık değerleme FE'ye kalem olarak yazılsın mı:** ✅ **KARAR VERİLDİ (2026-07-11) — RAPOR katmanında kalır, finance_events'e kalem YAZILMAZ** (nakit değil — Claude kararı, kullanıcı yetkilendirdi). Faz B değerleme raporu Sedna Type=4 fişleriyle yan yana doğrulama için kullanılacak.
+3. Muhasebe ekibine **e-posta iletimi** (uyuşmazlık listesi) açılsın mı, kime? (SMTP hazır.) — **HÂLÂ AÇIK.**
 
-**Durum: HENÜZ UYGULANMADI.** Faz A'nın dosya planı ve kuralları uygulamaya hazır netlikte.
+**Durum: Faz A çekirdeği UYGULANDI (2026-07-11)** — `accounting.mutabakat` modülü (motor + Uyuşmayan Veriler sayfası + hesap eşleme + otomatik kapanma + bildirim + sedna_sync adımı); kur alış'a çevrildi. Kalan: değerleme raporu (Faz B), sedna_rec_id kimlikleri, cari mutabakat (Faz C), yıl devri. Modül dokümanı: `docs/modules/sedna-mutabakat.md`.
