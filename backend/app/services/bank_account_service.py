@@ -31,4 +31,15 @@ def apply_account_update(db: Session, acc: BankAccount, update_data: dict) -> No
 
 
 def delete_account(db: Session, acc: BankAccount) -> None:
-    db.delete(acc)
+    """Hesabı eşleşme/FE temizliğiyle sil (Faz 3 #24 — denetim C5 kapatıldı).
+
+    Eskiden yalnız db.delete: cascade işlemleri silerken çek/taksit/avans 'bankasız
+    ödendi' kalıyor, source_type='bank' FE'leri orphan kalıyordu. Router + onay
+    executor'ı bu fonksiyonu ORTAK kullandığından iki yol da temiz.
+    """
+    from app.services.bank_release_service import delete_account_with_cleanup
+
+    totals = delete_account_with_cleanup(db, acc)
+    if totals.get("needs_vendor_sync"):
+        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        sync_vendor_finance_events(db)

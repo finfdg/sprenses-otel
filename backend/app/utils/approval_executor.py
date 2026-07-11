@@ -494,6 +494,45 @@ def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):
         vendor_service.apply_vendor_update(db, vendor, payload)
 
 
+def _handle_finance_banks(db, action_type, entity_id, payload, actor_id):
+    """Onaylanan banka mutasyonu — hesap CRUD + ekstre/işlem silme (Faz 3 #22c).
+
+    Router (banks.py) ile ORTAK: bank_account_service + bank_release_service.
+    payload["op"]: delete_statement | delete_transaction → temizlikli silmeler;
+    op yoksa hesap CRUD (eski simple-crud davranışı birebir).
+    """
+    from app.models import BankAccount, BankStatement, BankTransaction
+    from app.services import bank_account_service, bank_release_service
+
+    op = payload.get("op")
+    if op == "delete_statement":
+        stmt = db.query(BankStatement).filter(BankStatement.id == entity_id).first()
+        if not stmt:
+            raise ValueError(f"Ekstre bulunamadı: {entity_id}")
+        totals = bank_release_service.delete_bank_statement(db, stmt)
+        if totals.get("needs_vendor_sync"):
+            from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+            sync_vendor_finance_events(db)
+        return
+    if op == "delete_transaction":
+        tx = db.query(BankTransaction).filter(BankTransaction.id == entity_id).first()
+        if not tx:
+            raise ValueError(f"Banka işlemi bulunamadı: {entity_id}")
+        bank_release_service.delete_bank_transaction(db, tx)
+        return
+
+    if action_type == "create":
+        bank_account_service.create_account(db, payload, actor_id)
+    elif action_type in ("update", "delete"):
+        acc = db.query(BankAccount).filter(BankAccount.id == entity_id).first()
+        if not acc:
+            raise ValueError(f"Banka hesabı bulunamadı: {entity_id}")
+        if action_type == "update":
+            bank_account_service.apply_account_update(db, acc, payload)
+        else:
+            bank_account_service.delete_account(db, acc)
+
+
 def _handle_accounting_mutabakat(db, action_type, entity_id, payload, actor_id):
     """Onaylanan Sedna Mutabakat mutasyonu (accounting.mutabakat).
 
@@ -634,20 +673,14 @@ def _make_simple_crud_handlers():
     from app.models.advance import Advance
     from app.models.bank_account import BankAccount
     from app.models.room_type import RoomType
-    from app.services import (
-        advance_service,
-        bank_account_service,
-        room_type_service,
-    )
+    from app.services import advance_service, room_type_service
 
     def _loader(model):
         return lambda db, eid: db.query(model).filter(model.id == eid).first()
 
+    # NOT (Faz 3, 2026-07-12): finance.banks bu fabrikadan ÇIKARILDI — ekstre/işlem
+    # silme op'ları özel mantık gerektirir → _handle_finance_banks (açık handler).
     return {
-        "finance.banks": _make_crud_handler(
-            _loader(BankAccount), bank_account_service.create_account,
-            bank_account_service.apply_account_update, bank_account_service.delete_account,
-            "Banka hesabı bulunamadı: {id}", create_takes_actor=True),
         "finance.avanslar": _make_crud_handler(
             _loader(Advance), advance_service.create_advance,
             advance_service.apply_advance_update, advance_service.delete_advance,
@@ -673,6 +706,8 @@ _HANDLERS = {
     "finance.checks": _handle_finance_checks,
     "finance.cariler": _handle_finance_cariler,
     "finance.hakedis": _handle_finance_hakedis,
+    # Finans — Bankalar (hesap CRUD + ekstre/işlem silme op'ları; Faz 3'te fabrikadan çıktı)
+    "finance.banks": _handle_finance_banks,
     # Muhasebe — Temettü (kâr payı dağıtımı, bespoke — fabrika DIŞI)
     "accounting.dividend": _handle_accounting_dividend,
     # Muhasebe — Sedna Mutabakat (Uyuşmayan Veriler; resolve_item + account_mapping)

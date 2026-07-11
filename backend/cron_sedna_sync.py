@@ -57,9 +57,38 @@ def main() -> int:
             except Exception as e:  # noqa: BLE001 — adım izolasyonu
                 db.rollback()
                 logger.error("%s hatası: %s", st["label"], e, exc_info=True)
+        _maybe_notify_aging(db)
         return 0
     finally:
         db.close()
+
+
+def _maybe_notify_aging(db) -> None:
+    """Günün İLK koşusunda (09:15) yaşlanan eşleşmemişler özetini bildir (Faz 3 #21).
+
+    2 saatte bir koşan timer'da her tur bildirmek gürültü olur — yalnız sabah turu.
+    """
+    from datetime import datetime
+
+    import pytz
+
+    now = datetime.now(pytz.timezone("Europe/Istanbul"))
+    if now.hour != 9:
+        return
+    try:
+        from app.routers.finance.cash_flow.aging import compute_aging
+        from app.services.sedna_recon_service import _notify_viewers
+
+        aging = compute_aging(db, days=7, item_limit=1)
+        stale = aging["stale_forecasts"]["total_count"]
+        ub = aging["unmatched_bank"]["count"]
+        if stale or ub:
+            _notify_viewers(
+                db, "Yaşlanan eşleşmemişler",
+                f"7 günden eski: {stale} açık tahmin · {ub} etiketsiz banka hareketi — "
+                "Nakit Akım › Yaşlananlar raporundan inceleyin")
+    except Exception as e:  # bildirim cron'u düşürmesin
+        logger.error("Yaşlanma bildirimi başarısız: %s", e)
 
 
 if __name__ == "__main__":

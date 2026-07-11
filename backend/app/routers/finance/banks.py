@@ -291,6 +291,27 @@ async def upload_statement(
 
     file_path, parsed, file_type, unique_name = await _save_and_parse(file)
 
+    # Faz 3 #22b: ekstre başlığı hesapla uyuşmalı — yanlış hesaba (hatta yanlış para
+    # biriminde) yükleme sessizce kabul ediliyordu (denetim: dedup hesap-bazlı olduğundan
+    # mükerrer de engellenmiyordu). Başlıkta IBAN/para birimi varsa doğrulanır.
+    header = getattr(parsed, "header", None)
+    if header is not None:
+        h_iban = "".join((getattr(header, "iban", "") or "").split()).upper()
+        a_iban = "".join((acc.iban or "").split()).upper()
+        if h_iban and a_iban and h_iban != a_iban:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ekstre IBAN'ı ({h_iban[-8:]}…) seçili hesapla uyuşmuyor — doğru hesabı seçin",
+            )
+        h_cur = (getattr(header, "currency", "") or "").strip().upper()
+        if h_cur in ("TL",):
+            h_cur = "TRY"
+        if h_cur and h_cur != (acc.currency or "TRY").upper():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ekstre para birimi ({h_cur}) hesabın para birimiyle ({acc.currency}) uyuşmuyor",
+            )
+
     result = _process_statement(
         db, acc, parsed, file, file_path, file_type, unique_name,
         current_user, get_client_ip(request),
@@ -454,3 +475,81 @@ def list_statements(
         ).model_dump()
         for s in stmts
     ]
+
+
+# ─── Ekstre / İşlem Silme (Faz 3 #22c, 2026-07-12 — denetim C7) ──────────────
+# Hatalı/yanlış hesaba yüklenmiş ekstrenin geri alma yolu. Gerçek veri silme →
+# onay akışına TABİ (operasyonel eşleştirme istisnası DEĞİL). Tüm temizlik
+# bank_release_service'te (executor'la ORTAK — D1-2).
+
+
+@router.delete("/statements/{statement_id}")
+def delete_statement(
+    statement_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.banks", "use")),
+):
+    """Ekstreyi ve tüm işlemlerini sil — bağlı eşleşmeler çözülür, FE'ler temizlenir."""
+    stmt = db.query(BankStatement).filter(BankStatement.id == statement_id).first()
+    if not stmt:
+        raise HTTPException(status_code=404, detail="Ekstre bulunamadı")
+
+    approval_resp = check_approval(
+        db, "finance.banks", statement_id, current_user.id, "delete",
+        {"op": "delete_statement"},
+    )
+    if approval_resp:
+        return approval_resp
+
+    from app.services.bank_release_service import delete_bank_statement
+
+    totals = delete_bank_statement(db, stmt)
+    if totals.get("needs_vendor_sync"):
+        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        sync_vendor_finance_events(db)
+
+    log_action(db, current_user.id, "delete", "bank_statement", statement_id,
+               f"Ekstre silindi: {totals['transactions']} işlem · çözülen eşleşme "
+               f"çek={totals['checks']} kredi={totals['credits']} avans={totals['advances']} "
+               f"KK={totals['cc']} cari={totals['vendor']}",
+               get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "delete")
+    return {"ok": True, **{k: v for k, v in totals.items() if k != "needs_vendor_sync"}}
+
+
+@router.delete("/transactions/{tx_id}")
+def delete_transaction(
+    tx_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.banks", "use")),
+):
+    """Tekil banka işlemini sil — YALNIZ eşleşmemiş satır (eşleşmişse önce geri alın)."""
+    tx = db.query(BankTransaction).filter(BankTransaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="İşlem bulunamadı")
+
+    approval_resp = check_approval(
+        db, "finance.banks", tx_id, current_user.id, "delete",
+        {"op": "delete_transaction"},
+    )
+    if approval_resp:
+        return approval_resp
+
+    from app.services.bank_release_service import delete_bank_transaction
+
+    try:
+        delete_bank_transaction(db, tx)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    log_action(db, current_user.id, "delete", "bank_transaction", tx_id,
+               f"Banka işlemi silindi: {tx.date} {float(tx.amount):,.2f}",
+               get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "delete")
+    return {"ok": True}

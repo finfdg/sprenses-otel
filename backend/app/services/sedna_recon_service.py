@@ -462,6 +462,14 @@ def run_reconciliation(
         logger.error("Ters-bakiye kontrolü başarısız: %s", e)
     summary["negative_balances"] = negatives
 
+    # Faz 3 #22a: bakiye-zinciri kırılmaları ("banka doğru"nun ön koşulu — kopyamız tam mı)
+    try:
+        chain_breaks = check_balance_chains(db, window_days=window_days)
+    except Exception as e:  # kontrol koşuyu düşürmesin
+        logger.error("Bakiye-zinciri kontrolü başarısız: %s", e)
+        chain_breaks = []
+    summary["balance_chain_breaks"] = chain_breaks
+
     if notify:
         if new_items:
             _notify_new_items(db, new_items)
@@ -473,6 +481,11 @@ def run_reconciliation(
             parts = [f"{n['bank_name']} {n['currency']} {n['balance']:,.2f}" for n in negatives[:5]]
             _notify_viewers(db, "Ters bakiye uyarısı",
                             "Mevduat hesabında negatif bakiye: " + " · ".join(parts))
+        if chain_breaks:
+            parts = [f"{b['bank_name']} {b['date']} (boşluk {b['gap']:,.2f})" for b in chain_breaks[:5]]
+            _notify_viewers(db, "Ekstre bakiye zinciri kırık",
+                            f"{len(chain_breaks)} kırılma — eksik/atlanmış ekstre satırı olabilir: "
+                            + " · ".join(parts))
     return summary
 
 
@@ -640,6 +653,55 @@ def _notify_new_items(db: Session, items: List[SednaBankRecon]) -> None:
         db.commit()
     except Exception as e:  # bildirim hatası koşuyu düşürmesin
         logger.error("Mutabakat bildirimi gönderilemedi: %s", e)
+
+
+# ─── Banka kopyası tamlığı: bakiye-zinciri kontrolü (Faz 3 #22a, 2026-07-12) ───
+# "Banka her zaman doğru" aksiyomu ancak BİZDEKİ kopya tamsa geçerli. Ardışık
+# bakiyeli satırlar arasında Σtutar ≈ bakiye farkı değilse ekstre satırı atlanmış/
+# bozuk demektir — mutabakat o pencerede sahte 'Sedna eksik/fazla' üretir.
+
+BALANCE_CHAIN_TOLERANCE = 0.02  # kuruş yuvarlaması
+
+
+def check_balance_chains(db: Session, window_days: int = 90, max_breaks: int = 20) -> List[dict]:
+    """Hesap başına bakiye zinciri süreklilik kontrolü. Kırılma listesi döner.
+
+    Bakiyesi NULL satırlar (manuel girişler) köprü sayılır: iki bakiyeli satır
+    arasındaki TÜM tutarların toplamı bakiye farkına eşit olmalı.
+    """
+    since = _today() - timedelta(days=window_days)
+    breaks: List[dict] = []
+    accounts = db.query(BankAccount).filter(BankAccount.is_active == True).all()  # noqa: E712
+    for acc in accounts:
+        txs = (db.query(BankTransaction)
+               .filter(BankTransaction.account_id == acc.id,
+                       BankTransaction.date >= since)
+               .order_by(BankTransaction.date.asc(), BankTransaction.id.asc())
+               .all())
+        prev_balance = None
+        pending_sum = 0.0
+        prev_ref = None
+        for t in txs:
+            pending_sum += float(t.amount)
+            if t.balance is None:
+                continue
+            if prev_balance is not None:
+                expected = round(prev_balance + pending_sum, 2)
+                actual = round(float(t.balance), 2)
+                if abs(expected - actual) > BALANCE_CHAIN_TOLERANCE:
+                    breaks.append({
+                        "account_id": acc.id, "bank_name": acc.bank_name,
+                        "currency": acc.currency, "date": t.date.isoformat(),
+                        "expected_balance": expected, "actual_balance": actual,
+                        "gap": round(actual - expected, 2),
+                        "after_tx_id": prev_ref, "tx_id": t.id,
+                    })
+                    if len(breaks) >= max_breaks:
+                        return breaks
+            prev_balance = float(t.balance)
+            pending_sum = 0.0
+            prev_ref = t.id
+    return breaks
 
 
 # ─── Faz C: Cari bakiye mutabakatı + kredi/acente kod eşlemesi ──────────────
