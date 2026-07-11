@@ -51,6 +51,7 @@ from app.routers.messages._helpers import _invalidate_messaging_role_cache
 from app.services.sales_invoice_service import _invalidate_compute_cache as _invalidate_sales_compute_cache
 from app.services.deferral_service import invalidate_deferral_cache
 from app.services.hold_service import invalidate_hold_cache
+from app.services.period_lock_service import invalidate_lock_cache
 from app.middleware.auth import invalidate_module_cache
 from app.models.user import User
 from app.models.module import Module
@@ -195,6 +196,7 @@ def _auto_rollback_and_reset():
     _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın
     invalidate_deferral_cache()  # test izolasyonu: öteleme cache'i (DB rollback ile) sızmasın
     invalidate_hold_cache()  # test izolasyonu: bekletme cache'i (DB rollback ile) sızmasın
+    invalidate_lock_cache()  # test izolasyonu: dönem kilidi cache'i (DB rollback ile) sızmasın
 
     yield session
 
@@ -223,6 +225,7 @@ def _auto_rollback_and_reset():
     _invalidate_sales_compute_cache()  # test izolasyonu: FIFO cache testler arası sızmasın
     invalidate_deferral_cache()  # test izolasyonu: öteleme cache'i (DB rollback ile) sızmasın
     invalidate_hold_cache()  # test izolasyonu: bekletme cache'i (DB rollback ile) sızmasın
+    invalidate_lock_cache()  # test izolasyonu: dönem kilidi cache'i (DB rollback ile) sızmasın
 
 
 @pytest.fixture(autouse=True)

@@ -817,7 +817,12 @@ Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
   açıklamaları aday olamaz). Eşleşen avans `received` olur, FE
   `is_matched=True` + `event_status='received'` (upsert ile — bayat durum kalmasın), banka
   bacağı görünür kalır → beklenen avans + gerçekleşen havale çift sayımı ekstre yüklenince
-  kendiliğinden kapanır. Detay: `docs/modules/avanslar.md`.
+  kendiliğinden kapanır. **Faz C (2026-07-11):** avans Sedna mutabakat raporu
+  (`advances.py` `GET /avanslar/sedna-reconciliation`) artık **KOD-ÖNCELİKLİ** eşleşir —
+  `agency_groups.sedna_account_codes` (340 kod listesi, `accounting.mutabakat`
+  agency-mappings'ten atanır) varsa `_agency_code_map` (grup adı + üyeleri anahtar) ile
+  deterministik; kod yoksa eski ad-fuzzy (token + para birimi) fallback.
+  Detay: `docs/modules/avanslar.md`.
   `banks.py` eskiden bu private fonksiyonları üç kardeş router'dan (`checks.py`, `krediler/`,
   `banks_cc_match.py`) import ediyordu (katman/coupling ihlali) → artık hepsi `app.utils.matching_service`'ten.
   `banks_cc_match.py` **silindi**; `checks.py`/`krediler/__init__.py` matcher'ı utils'ten re-import eder

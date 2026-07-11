@@ -83,6 +83,7 @@ export const RECON_STATUS = {
 	DIRECTION_FLIP: 'direction_flip', // aynı gün + aynı mutlak tutar + TERS yön
 	DUPLICATE_SUSPECT: 'duplicate_suspect', // Sedna adedi > banka adedi (mükerrer fiş şüphesi)
 	SEDNA_DIFF: 'sedna_diff', // eşleşmiş/korunan yerel kayıtta (çek/cari) Sedna sapması — entity_type'lı
+	BALANCE_DIFF: 'balance_diff', // cari net bakiyesi ↔ Sedna 320 hesap bakiyesi farkı (Faz C, entity_type='vendor_balance')
 } as const;
 
 export type ReconStatusType = (typeof RECON_STATUS)[keyof typeof RECON_STATUS];

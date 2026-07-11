@@ -52,7 +52,7 @@
 |---|---|---|---|
 | `GET` | `/avanslar/` | view | Liste (sayfalı, filtrelenebilir) |
 | `GET` | `/avanslar/summary` | view | Özet (para birimine göre) |
-| `GET` | `/avanslar/sedna-reconciliation` | view | Sedna 340 hesap mutabakatı (isim+para birimi eşleştirme skoru) |
+| `GET` | `/avanslar/sedna-reconciliation` | view | Sedna 340 hesap mutabakatı — **kod-öncelikli** (Faz C), yoksa isim+para birimi eşleştirme skoru |
 | `POST` | `/avanslar/` | use | Yeni avans oluştur |
 | `PATCH` | `/avanslar/{id}` | use | Avans güncelle |
 | `DELETE` | `/avanslar/{id}` | use | Avans sil (sadece pending) |
@@ -86,6 +86,20 @@ avansları banka **gelir** işlemleriyle otomatik eşleştirir (çek/kredi/KK il
   — event_status'ün bayat kalmaması için upsert şart, çek düzeltmesindeki desen)
 - Eşleşme olursa `BroadcastModule.ADVANCES` "match" broadcast'i de gönderilir
 - Testler: `tests/test_advances.py::test_auto_match_advance_*` (7 test)
+
+## Sedna Mutabakatı — Kod-Öncelikli Eşleşme (Faz C, 2026-07-11)
+
+`GET /avanslar/sedna-reconciliation` (manuel avans ↔ Sedna **340** "Alınan Sipariş Avansları")
+artık **kod-öncelikli** eşleşir:
+
+- `agency_groups.sedna_account_codes` (JSON **liste** — acente başına para birimi AYRI 340
+  hesabı olabilir: ANEX EUR ≠ ANEX USD) `accounting.mutabakat` modülünün
+  `GET/PATCH /mutabakat/agency-mappings` ekranından atanır.
+- Raporda `_agency_code_map` (grup adı **ve** üyeleri anahtar, küçük harf) kod eşlemesi olan
+  acenteyi **deterministik** eşler; adaylar içinde para birimi birebir olan tercih edilir.
+- Kod eşlemesi yoksa eski **ad-fuzzy** yol (token örtüşmesi + para birimi) fallback olarak
+  aynen çalışır — davranış geriye uyumlu.
+- Detay: `docs/modules/sedna-mutabakat.md` (Faz C bölümü).
 
 ## Audit Log Entegrasyonu
 

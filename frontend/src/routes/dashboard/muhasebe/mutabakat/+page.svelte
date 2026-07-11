@@ -21,7 +21,7 @@
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import {
 		AlertTriangle, Ban, Check, ChevronDown, CircleCheck, Coins, Eye, Hourglass,
-		Link2, RefreshCw, RotateCcw, Scale, Search, ShieldAlert, Unplug, X,
+		Landmark, Link2, Lock, RefreshCw, RotateCcw, Scale, Search, ShieldAlert, Unplug, Users, X,
 	} from 'lucide-svelte';
 
 	// Sabitler
@@ -33,6 +33,7 @@
 		[RECON_STATUS.DIRECTION_FLIP]: 'Yön Ters',
 		[RECON_STATUS.DUPLICATE_SUSPECT]: 'Mükerrer Şüphesi',
 		[RECON_STATUS.SEDNA_DIFF]: 'Sedna Sapması',
+		[RECON_STATUS.BALANCE_DIFF]: 'Bakiye Farkı',
 	};
 	const STATUS_BADGE: Record<string, BadgeType> = {
 		[RECON_STATUS.MATCHED]: 'success',
@@ -42,6 +43,7 @@
 		[RECON_STATUS.DIRECTION_FLIP]: 'error',
 		[RECON_STATUS.DUPLICATE_SUSPECT]: 'error',
 		[RECON_STATUS.SEDNA_DIFF]: 'error',
+		[RECON_STATUS.BALANCE_DIFF]: 'error',
 	};
 	const RESOLUTION_LABELS: Record<string, string> = {
 		manual: 'Elle çözüldü',
@@ -61,6 +63,7 @@
 		{ value: 'bank', label: 'Banka' },
 		{ value: 'check', label: 'Çek' },
 		{ value: 'vendor_tx', label: 'Cari' },
+		{ value: 'vendor_balance', label: 'Cari Bakiye' },
 	];
 	const FX_STATUS_LABELS: Record<string, string> = {
 		mutabik: 'Mutabık',
@@ -93,12 +96,26 @@
 	let page = $state(1);
 	let pageSize = $state(50);
 
-	// Veri state — hesap eşleme
+	// Veri state — hesap eşleme (banka ↔ 102)
 	let mappings = $state<{ accounts: any[]; unmatched_sedna: any[] } | null>(null);
 	let mappingsLoading = $state(false);
 	let mappingsError = $state('');
 	let mapInputs = $state<Record<number, string>>({});
 	let mapSaving = $state<Record<number, boolean>>({});
+
+	// Veri state — kredi eşleme (krediler ↔ 300) — bağımsız yüklenir (banka 503 olsa da çalışır)
+	let creditMaps = $state<{ products: any[]; unmatched_sedna: any[] } | null>(null);
+	let creditLoading = $state(false);
+	let creditError = $state('');
+	let creditInputs = $state<Record<number, string>>({});
+	let creditSaving = $state<Record<number, boolean>>({});
+
+	// Veri state — acente avans eşleme (gruplar ↔ 340) — bağımsız yüklenir
+	let agencyMaps = $state<{ groups: any[] } | null>(null);
+	let agencyLoading = $state(false);
+	let agencyError = $state('');
+	let agencySelected = $state<Record<number, string[]>>({}); // grup → seçili öneri kodları (PB başına ayrı hesap)
+	let agencySaving = $state<Record<number, boolean>>({});
 
 	// Veri state — hesap filtresi seçenekleri (finance.banks izni varsa canlı liste)
 	let bankAccounts = $state<{ id: number; name: string }[]>([]);
@@ -121,6 +138,7 @@
 	let activeTab = $state('items');
 	let scanning = $state(false);
 	let showUnmatched = $state(false);
+	let showCreditUnmatched = $state(false);
 	let lastLoadAt = 0; // WS yankı guard'ı (CashFlowTAccount deseni)
 
 	// Filtre state
@@ -148,6 +166,20 @@
 	let showAcceptConfirm = $state(false);
 	let clearTarget = $state<any>(null);
 	let showClearConfirm = $state(false);
+
+	// Kredi/acente eşleme aksiyon state
+	let creditAcceptTarget = $state<any>(null);
+	let showCreditAcceptConfirm = $state(false);
+	let creditClearTarget = $state<any>(null);
+	let showCreditClearConfirm = $state(false);
+	let agencyClearTarget = $state<any>(null);
+	let showAgencyClearConfirm = $state(false);
+
+	// Dönem kilidi state
+	let showLockModal = $state(false);
+	let lockDateInput = $state('');
+	let lockSaving = $state(false);
+	let showLockRemoveConfirm = $state(false);
 
 	// Türetilmiş — özet kartları + sekmeler + hesap seçenekleri
 	let criticalCount = $derived.by(() => {
@@ -259,6 +291,49 @@
 		}
 	}
 
+	async function loadCreditMappings() {
+		creditLoading = true;
+		creditError = '';
+		try {
+			const data = await api.get<any>('/accounting/mutabakat/credit-mappings');
+			creditMaps = data;
+			const inputs: Record<number, string> = {};
+			for (const p of data.products) inputs[p.product_id] = p.current_code || '';
+			creditInputs = inputs;
+		} catch (err: any) {
+			console.error('Kredi eşleme verisi yüklenemedi:', err);
+			creditMaps = null;
+			creditError = err?.message && err.message !== 'Bir hata oluştu' ? err.message : SEDNA_DOWN_MSG;
+		} finally {
+			creditLoading = false;
+		}
+	}
+
+	async function loadAgencyMappings() {
+		agencyLoading = true;
+		agencyError = '';
+		try {
+			const data = await api.get<any>('/accounting/mutabakat/agency-mappings');
+			agencyMaps = data;
+			const sel: Record<number, string[]> = {};
+			for (const g of data.groups) sel[g.group_id] = [];
+			agencySelected = sel;
+		} catch (err: any) {
+			console.error('Acente eşleme verisi yüklenemedi:', err);
+			agencyMaps = null;
+			agencyError = err?.message && err.message !== 'Bir hata oluştu' ? err.message : SEDNA_DOWN_MSG;
+		} finally {
+			agencyLoading = false;
+		}
+	}
+
+	function loadAllMappings() {
+		// Üç bölüm bağımsız yüklenir — biri 503 dönerse diğerleri çalışmaya devam eder
+		loadMappings();
+		loadCreditMappings();
+		loadAgencyMappings();
+	}
+
 	async function loadBankAccounts() {
 		// Dropdown için banka hesap listesi — finance.banks izni gerekir; yoksa items'tan türetilir
 		if (!hasPermission('finance.banks', 'view')) return;
@@ -306,7 +381,14 @@
 			if ((r?.accounts_scanned ?? 0) === 0) {
 				showToast('Eşlenmiş (onaylı) hesap yok — önce Hesap Eşleme sekmesinden hesapları eşleyin', 'info');
 			} else {
-				showToast(`${r.accounts_scanned} hesap tarandı · ${r['new']} yeni uyuşmazlık · ${r.auto_closed} otomatik kapandı`, 'success');
+				let msg = `${r.accounts_scanned} hesap tarandı · ${r['new']} yeni uyuşmazlık · ${r.auto_closed} otomatik kapandı`;
+				if (r.balance_diffs != null) msg += ` · ${r.balance_diffs} cari bakiye farkı`;
+				showToast(msg, 'success');
+			}
+			if (r?.vendor_error) showToast(r.vendor_error, 'warning');
+			if (Array.isArray(r?.negative_balances) && r.negative_balances.length > 0) {
+				const parts = r.negative_balances.slice(0, 3).map((n: any) => `${n.bank_name} ${fmtAmount(n.balance, n.currency)}`);
+				showToast(`Ters bakiye: ${parts.join(' · ')}`, 'warning');
 			}
 			await Promise.all([loadSummary(), loadItems()]);
 		} catch (err: any) {
@@ -388,10 +470,115 @@
 		await saveMapping(acc.account_id, code || null, Boolean(code), code ? 'Sedna kodu kaydedildi' : 'Eşleme temizlendi');
 	}
 
+	// Kredi eşleme aksiyonları (banka bölümündeki desenle aynı)
+	async function saveCreditMapping(productId: number, code: string | null, successMsg: string) {
+		creditSaving[productId] = true;
+		try {
+			const resp = await api.patch<any>(`/accounting/mutabakat/credit-mappings/${productId}`, {
+				sedna_account_code: code,
+			});
+			if (resp?.requires_approval || resp?.request_id) {
+				showToast('İşlem onaya gönderildi', 'info');
+				return;
+			}
+			showToast(successMsg, 'success');
+			await loadCreditMappings();
+		} catch (err: any) {
+			console.error('Kredi eşleme kaydedilemedi:', err);
+			showToast(err?.message || 'Kredi eşleme kaydedilemedi', 'error');
+		} finally {
+			creditSaving[productId] = false;
+		}
+	}
+
+	function openCreditAccept(prod: any) { creditAcceptTarget = prod; showCreditAcceptConfirm = true; }
+	function openCreditClear(prod: any) { creditClearTarget = prod; showCreditClearConfirm = true; }
+	async function confirmCreditAccept() {
+		if (creditAcceptTarget?.suggestion) {
+			await saveCreditMapping(creditAcceptTarget.product_id, creditAcceptTarget.suggestion.code, 'Öneri onaylandı — kredi eşlendi');
+		}
+	}
+	async function confirmCreditClear() {
+		if (creditClearTarget) await saveCreditMapping(creditClearTarget.product_id, null, 'Eşleme temizlendi');
+	}
+	async function saveCreditManual(prod: any) {
+		const code = (creditInputs[prod.product_id] || '').trim();
+		await saveCreditMapping(prod.product_id, code || null, code ? 'Sedna kodu kaydedildi' : 'Eşleme temizlendi');
+	}
+
+	// Acente avans eşleme aksiyonları (öneri çipleri çoklu seçilebilir — PB başına ayrı hesap)
+	function toggleAgencyCode(groupId: number, code: string) {
+		const cur = agencySelected[groupId] || [];
+		agencySelected[groupId] = cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code];
+	}
+	async function saveAgencyMapping(groupId: number, codes: string[] | null, successMsg: string) {
+		agencySaving[groupId] = true;
+		try {
+			const resp = await api.patch<any>(`/accounting/mutabakat/agency-mappings/${groupId}`, {
+				sedna_account_codes: codes,
+			});
+			if (resp?.requires_approval || resp?.request_id) {
+				showToast('İşlem onaya gönderildi', 'info');
+				return;
+			}
+			showToast(successMsg, 'success');
+			await loadAgencyMappings();
+		} catch (err: any) {
+			console.error('Acente eşleme kaydedilemedi:', err);
+			showToast(err?.message || 'Acente eşleme kaydedilemedi', 'error');
+		} finally {
+			agencySaving[groupId] = false;
+		}
+	}
+	async function saveAgencySelection(g: any) {
+		const codes = agencySelected[g.group_id] || [];
+		if (codes.length === 0) return;
+		await saveAgencyMapping(g.group_id, codes, `${codes.length} hesap eşlendi`);
+	}
+	function openAgencyClear(g: any) { agencyClearTarget = g; showAgencyClearConfirm = true; }
+	async function confirmAgencyClear() {
+		if (agencyClearTarget) await saveAgencyMapping(agencyClearTarget.group_id, null, 'Eşleme temizlendi');
+	}
+
+	// Dönem kilidi aksiyonları (uyarı modu — senkronu durdurmaz)
+	function openLockModal() {
+		lockDateInput = summary?.lock_date || '';
+		showLockModal = true;
+	}
+	async function saveLockDate(value: string | null) {
+		lockSaving = true;
+		try {
+			const resp = await api.patch<any>('/accounting/mutabakat/period-lock', { lock_date: value });
+			if (resp?.requires_approval || resp?.request_id) {
+				showToast('İşlem onaya gönderildi', 'info');
+				showLockModal = false;
+				return;
+			}
+			showToast(value ? `Dönem kilidi ${fmtDate(resp?.lock_date ?? value)} olarak ayarlandı` : 'Dönem kilidi kaldırıldı', 'success');
+			showLockModal = false;
+			await loadSummary();
+		} catch (err: any) {
+			console.error('Dönem kilidi kaydedilemedi:', err);
+			showToast(err?.message || 'Dönem kilidi kaydedilemedi', 'error');
+		} finally {
+			lockSaving = false;
+		}
+	}
+	async function submitLock() {
+		if (!lockDateInput) return;
+		await saveLockDate(lockDateInput);
+	}
+	async function confirmLockRemove() { await saveLockDate(null); }
+
 	// UI yardımcıları
 	function setTab(v: string) {
 		activeTab = v;
-		if (v === 'mappings' && !mappings && !mappingsLoading) loadMappings();
+		if (v === 'mappings') {
+			// Her bölüm kendi endpoint'inden bağımsız yüklenir (biri 503 ise diğerleri çalışır)
+			if (!mappings && !mappingsLoading) loadMappings();
+			if (!creditMaps && !creditLoading) loadCreditMappings();
+			if (!agencyMaps && !agencyLoading) loadAgencyMappings();
+		}
 		if (v === 'fx') {
 			if (!fxData && !fxLoading && !fxError) loadFxRevaluation();
 			if (!fxDiffs && !fxDiffsLoading) loadFxDiffs();
@@ -441,7 +628,7 @@
 			if (Date.now() - lastLoadAt < WS_ECHO_MS) return;
 			loadSummary();
 			loadItems();
-			if (activeTab === 'mappings') loadMappings();
+			if (activeTab === 'mappings') loadAllMappings();
 			if (activeTab === 'fx') loadFxDiffs(); // değerleme canlı Sedna sorgusu — WS'te tetiklenmez, yalnız kur farkı listesi tazelenir
 		});
 	});
@@ -491,6 +678,26 @@
 				icon={Link2}
 				hint={summary.last_run?.run_at ? `Son tarama: ${fmtDateTime(summary.last_run.run_at)}` : 'Henüz tarama yapılmadı'}
 			/>
+		</div>
+
+		<!-- Dönem kilidi şeridi (uyarı modu) -->
+		<div class="flex items-center gap-2 flex-wrap">
+			{#if summary.lock_date}
+				<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+					<Lock size={12} /> Dönem kilidi: {fmtDate(summary.lock_date)}
+				</span>
+				{#if canUse}
+					<Button size="sm" variant="ghost" onclick={openLockModal}>Düzenle</Button>
+				{/if}
+			{:else}
+				<span class="inline-flex items-center gap-1.5 text-sm text-gray-500">
+					<Lock size={14} /> Dönem kilidi yok
+				</span>
+				{#if canUse}
+					<Button size="sm" variant="secondary" onclick={openLockModal}><Lock size={14} /> Kilitle</Button>
+				{/if}
+			{/if}
+			<span class="text-xs text-gray-500">Uyarı modu — senkronu durdurmaz; kilit öncesi döneme ait yeni uyuşmazlıkta bildirim gönderilir.</span>
 		</div>
 	{/if}
 
@@ -653,7 +860,8 @@
 			{/if}
 		</div>
 	{:else if activeTab === 'mappings'}
-		<!-- Hesap Eşleme sekmesi -->
+		<!-- Hesap Eşleme sekmesi — üç bağımsız bölüm: banka (102) · kredi (300) · acente avans (340) -->
+		<h2 class="flex items-center gap-2 text-sm font-semibold text-gray-700"><Landmark size={16} class="text-gray-500" /> Banka Hesapları ↔ Sedna (102)</h2>
 		{#if mappingsLoading}
 			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 				<TableSkeleton rows={5} columns={4} />
@@ -806,6 +1014,313 @@
 					{/if}
 				</div>
 			{/if}
+		{/if}
+
+		<!-- Krediler ↔ Sedna (300) -->
+		<h2 class="flex items-center gap-2 text-sm font-semibold text-gray-700 pt-2"><Coins size={16} class="text-gray-500" /> Krediler ↔ Sedna (300)</h2>
+		{#if creditLoading}
+			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+				<TableSkeleton rows={4} columns={5} />
+			</div>
+		{:else if !creditMaps}
+			<div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 sm:p-8 text-center">
+				<div class="flex justify-center mb-3 text-amber-600"><Unplug size={40} /></div>
+				<h3 class="text-base font-semibold text-amber-800 mb-1">Sedna bağlantısı yok</h3>
+				<p class="text-sm text-amber-700 mb-1">Kredi eşleme önerileri canlı Sedna sorgusu gerektirir — tünel kapalı olabilir.</p>
+				{#if creditError && creditError !== SEDNA_DOWN_MSG}
+					<p class="text-xs text-amber-700 mb-4">{creditError}</p>
+				{:else}
+					<p class="text-xs text-amber-700 mb-4">Tünel açıldıktan sonra tekrar deneyin.</p>
+				{/if}
+				<Button variant="secondary" onclick={loadCreditMappings}><RefreshCw size={15} /> Tekrar Dene</Button>
+			</div>
+		{:else}
+			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+				{#if creditMaps.products.length === 0}
+					<EmptyState icon={Coins} title="Aktif kredi ürünü yok" description="Eşlenecek aktif kredi ürünü bulunamadı. Önce Krediler modülünden ürün ekleyin." />
+				{:else}
+					<!-- Masaüstü tablo -->
+					<div class="hidden md:block overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="border-b border-gray-200 bg-gray-50 text-left">
+									<th class="px-4 py-3 font-medium text-gray-600">Kredi</th>
+									<th class="px-4 py-3 font-medium text-gray-600">PB</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-right">Tutar</th>
+									<th class="px-4 py-3 font-medium text-gray-600">Sedna Kodu</th>
+									<th class="px-4 py-3 font-medium text-gray-600">Öneri</th>
+									{#if canUse}<th class="px-4 py-3 font-medium text-gray-600 text-right">İşlemler</th>{/if}
+								</tr>
+							</thead>
+							<tbody>
+								{#each creditMaps.products as prod (prod.product_id)}
+									<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors align-top">
+										<td class="px-4 py-3">
+											<div class="font-medium text-gray-900 truncate max-w-[200px]" title={prod.name}>{prod.name}</div>
+											<div class="text-xs text-gray-500 mt-0.5">{prod.bank_name || '—'}{#if prod.type}&nbsp;· {prod.type.toUpperCase()}{/if}</div>
+										</td>
+										<td class="px-4 py-3 text-gray-700">{prod.currency || '—'}</td>
+										<td class="px-4 py-3 text-right tabular-nums text-gray-900 whitespace-nowrap">{fmtNum(prod.total_amount)}</td>
+										<td class="px-4 py-3">
+											{#if prod.current_code}
+												<div class="flex items-center gap-2 flex-wrap">
+													<span class="font-mono tabular-nums text-gray-900">{prod.current_code}</span>
+													<StatusBadge type="success">Eşlendi</StatusBadge>
+												</div>
+											{:else}
+												<StatusBadge type="neutral">Eşlenmedi</StatusBadge>
+											{/if}
+										</td>
+										<td class="px-4 py-3">
+											{#if prod.suggestion}
+												<div class="flex items-center gap-1.5">
+													<span class="font-mono tabular-nums text-teal-700 font-medium">{prod.suggestion.code}</span>
+													<span class="text-xs text-gray-500 tabular-nums">%{prod.suggestion.score}</span>
+												</div>
+												<div class="text-xs text-gray-500 mt-0.5 truncate max-w-[220px]" title={prod.suggestion.remark}>{prod.suggestion.remark || '—'}</div>
+												{#if prod.suggestion.reason}<div class="text-xs text-gray-500 mt-0.5">{prod.suggestion.reason}</div>{/if}
+											{:else}
+												<span class="text-gray-500">—</span>
+											{/if}
+										</td>
+										{#if canUse}
+											<td class="px-4 py-3">
+												<div class="flex items-center justify-end gap-1.5 flex-wrap">
+													{#if prod.suggestion}
+														<Button size="sm" onclick={() => openCreditAccept(prod)} loading={creditSaving[prod.product_id]}><Check size={14} /> Onayla</Button>
+													{/if}
+													<Input size="sm" fullWidth={false} class="w-36" bind:value={creditInputs[prod.product_id]} placeholder="300.xx.xx.xxxx" aria-label={`${prod.name} için Sedna kodu`} />
+													<Button size="sm" variant="secondary" onclick={() => saveCreditManual(prod)} loading={creditSaving[prod.product_id]}>Kaydet</Button>
+													{#if prod.current_code}
+														<Button size="sm" variant="ghost" onclick={() => openCreditClear(prod)} title="Eşlemeyi temizle"><X size={14} /> Temizle</Button>
+													{/if}
+												</div>
+											</td>
+										{/if}
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Mobil kart görünümü -->
+					<div class="md:hidden divide-y divide-gray-100">
+						{#each creditMaps.products as prod (prod.product_id)}
+							<div class="p-3 space-y-2">
+								<div class="flex items-start justify-between gap-2">
+									<div class="min-w-0 flex-1">
+										<div class="font-medium text-gray-900 truncate">{prod.name}</div>
+										<div class="text-xs text-gray-500 mt-0.5">{prod.bank_name || '—'} · {prod.currency || '—'} · <span class="tabular-nums">{fmtNum(prod.total_amount)}</span></div>
+									</div>
+									{#if prod.current_code}
+										<StatusBadge type="success">Eşlendi</StatusBadge>
+									{:else}
+										<StatusBadge type="neutral">Eşlenmedi</StatusBadge>
+									{/if}
+								</div>
+								{#if prod.current_code}
+									<div class="text-sm font-mono tabular-nums text-gray-900">{prod.current_code}</div>
+								{/if}
+								{#if prod.suggestion}
+									<div class="text-xs text-gray-600 bg-teal-50 border border-teal-100 rounded-lg p-2">
+										Öneri: <span class="font-mono tabular-nums text-teal-700 font-medium">{prod.suggestion.code}</span>
+										<span class="tabular-nums">(%{prod.suggestion.score})</span>
+										{#if prod.suggestion.remark}<span class="block mt-0.5 text-gray-500">{prod.suggestion.remark}</span>{/if}
+										{#if prod.suggestion.reason}<span class="block mt-0.5 text-gray-500">{prod.suggestion.reason}</span>{/if}
+									</div>
+								{/if}
+								{#if canUse}
+									<div class="flex items-center gap-1.5 flex-wrap">
+										{#if prod.suggestion}
+											<Button size="sm" onclick={() => openCreditAccept(prod)} loading={creditSaving[prod.product_id]}><Check size={14} /> Onayla</Button>
+										{/if}
+										<Input size="sm" fullWidth={false} class="w-32 flex-1" bind:value={creditInputs[prod.product_id]} placeholder="300.xx.xx.xxxx" aria-label={`${prod.name} için Sedna kodu`} />
+										<Button size="sm" variant="secondary" onclick={() => saveCreditManual(prod)} loading={creditSaving[prod.product_id]}>Kaydet</Button>
+										{#if prod.current_code}
+											<Button size="sm" variant="ghost" onclick={() => openCreditClear(prod)} title="Eşlemeyi temizle"><X size={14} /> Temizle</Button>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Sedna tarafında eşlenmemiş 300 hesapları (bilgi amaçlı, açılır/kapanır) -->
+			{#if creditMaps.unmatched_sedna.length > 0}
+				<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+					<button
+						onclick={() => (showCreditUnmatched = !showCreditUnmatched)}
+						aria-expanded={showCreditUnmatched}
+						class="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+					>
+						<span>Sedna tarafında eşlenmemiş kredi hesapları <span class="font-normal text-gray-500">({creditMaps.unmatched_sedna.length})</span></span>
+						<ChevronDown size={16} class="text-gray-500 transition-transform {showCreditUnmatched ? 'rotate-180' : ''}" />
+					</button>
+					{#if showCreditUnmatched}
+						<div class="border-t border-gray-100">
+							<p class="px-4 py-2 text-xs text-gray-500 bg-gray-50 border-b border-gray-100">Bilgi amaçlı — bu Sedna 300 hesapları hiçbir kredi ürünüyle eşlenmemiş.</p>
+							<div class="divide-y divide-gray-50">
+								{#each creditMaps.unmatched_sedna as leaf (leaf.code)}
+									<div class="px-4 py-2 flex items-center gap-3 text-sm">
+										<span class="font-mono tabular-nums text-gray-700 shrink-0">{leaf.code}</span>
+										<span class="text-gray-500 truncate flex-1" title={leaf.remark || ''}>{leaf.remark || '—'}</span>
+										<span class="text-xs text-gray-500 shrink-0">{leaf.curr || ''}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				</div>
+			{/if}
+		{/if}
+
+		<!-- Acente Avans Hesapları ↔ Sedna (340) -->
+		<h2 class="flex items-center gap-2 text-sm font-semibold text-gray-700 pt-2"><Users size={16} class="text-gray-500" /> Acente Avans Hesapları ↔ Sedna (340)</h2>
+		{#if agencyLoading}
+			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+				<TableSkeleton rows={4} columns={4} />
+			</div>
+		{:else if !agencyMaps}
+			<div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 sm:p-8 text-center">
+				<div class="flex justify-center mb-3 text-amber-600"><Unplug size={40} /></div>
+				<h3 class="text-base font-semibold text-amber-800 mb-1">Sedna bağlantısı yok</h3>
+				<p class="text-sm text-amber-700 mb-1">Acente avans hesabı önerileri canlı Sedna sorgusu gerektirir — tünel kapalı olabilir.</p>
+				{#if agencyError && agencyError !== SEDNA_DOWN_MSG}
+					<p class="text-xs text-amber-700 mb-4">{agencyError}</p>
+				{:else}
+					<p class="text-xs text-amber-700 mb-4">Tünel açıldıktan sonra tekrar deneyin.</p>
+				{/if}
+				<Button variant="secondary" onclick={loadAgencyMappings}><RefreshCw size={15} /> Tekrar Dene</Button>
+			</div>
+		{:else}
+			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+				{#if agencyMaps.groups.length === 0}
+					<EmptyState icon={Users} title="Acente grubu yok" description="Eşlenecek acente grubu bulunamadı. Önce Satış modülünden acente grubu tanımlayın." />
+				{:else}
+					<!-- Masaüstü tablo -->
+					<div class="hidden md:block overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="border-b border-gray-200 bg-gray-50 text-left">
+									<th class="px-4 py-3 font-medium text-gray-600">Grup</th>
+									<th class="px-4 py-3 font-medium text-gray-600">Mevcut Kodlar</th>
+									<th class="px-4 py-3 font-medium text-gray-600">Öneriler</th>
+									{#if canUse}<th class="px-4 py-3 font-medium text-gray-600 text-right">İşlemler</th>{/if}
+								</tr>
+							</thead>
+							<tbody>
+								{#each agencyMaps.groups as g (g.group_id)}
+									<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors align-top">
+										<td class="px-4 py-3">
+											<div class="font-medium text-gray-900 truncate max-w-[180px]" title={g.name}>{g.name}</div>
+										</td>
+										<td class="px-4 py-3">
+											{#if (g.current_codes || []).length > 0}
+												<div class="flex items-center gap-1.5 flex-wrap">
+													{#each g.current_codes as c (c)}
+														<span class="inline-flex px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 font-mono tabular-nums text-xs">{c}</span>
+													{/each}
+												</div>
+											{:else}
+												<StatusBadge type="neutral">Eşlenmedi</StatusBadge>
+											{/if}
+										</td>
+										<td class="px-4 py-3">
+											{#if (g.suggestions || []).length > 0}
+												<div class="flex items-center gap-1.5 flex-wrap">
+													{#each g.suggestions as s (s.code)}
+														{@const sel = (agencySelected[g.group_id] || []).includes(s.code)}
+														<button
+															type="button"
+															disabled={!canUse}
+															onclick={() => toggleAgencyCode(g.group_id, s.code)}
+															aria-pressed={sel}
+															title={s.name}
+															class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs transition-colors {sel ? 'bg-teal-700 border-teal-700 text-white' : 'bg-white border-gray-300 text-gray-700'} {canUse ? 'cursor-pointer hover:border-teal-700' : 'cursor-default'}"
+														>
+															<span class="font-mono tabular-nums">{s.code}</span>
+															<span class="truncate max-w-[140px]">{s.name}</span>
+															<span class={sel ? 'text-teal-100' : 'text-gray-500'}>{s.currency}</span>
+														</button>
+													{/each}
+												</div>
+												<p class="text-xs text-gray-500 mt-1">Birden fazla seçilebilir — para birimi başına ayrı hesap.</p>
+											{:else}
+												<span class="text-gray-500">—</span>
+											{/if}
+										</td>
+										{#if canUse}
+											<td class="px-4 py-3">
+												<div class="flex items-center justify-end gap-1.5 flex-wrap">
+													{#if (g.suggestions || []).length > 0}
+														<Button size="sm" onclick={() => saveAgencySelection(g)} loading={agencySaving[g.group_id]} disabled={(agencySelected[g.group_id] || []).length === 0}><Check size={14} /> Kaydet</Button>
+													{/if}
+													{#if (g.current_codes || []).length > 0}
+														<Button size="sm" variant="ghost" onclick={() => openAgencyClear(g)} title="Eşlemeyi temizle"><X size={14} /> Temizle</Button>
+													{/if}
+												</div>
+											</td>
+										{/if}
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Mobil kart görünümü -->
+					<div class="md:hidden divide-y divide-gray-100">
+						{#each agencyMaps.groups as g (g.group_id)}
+							<div class="p-3 space-y-2">
+								<div class="flex items-start justify-between gap-2">
+									<div class="font-medium text-gray-900 truncate min-w-0 flex-1">{g.name}</div>
+									{#if (g.current_codes || []).length === 0}
+										<StatusBadge type="neutral">Eşlenmedi</StatusBadge>
+									{/if}
+								</div>
+								{#if (g.current_codes || []).length > 0}
+									<div class="flex items-center gap-1.5 flex-wrap">
+										{#each g.current_codes as c (c)}
+											<span class="inline-flex px-2 py-0.5 rounded-full bg-gray-100 text-gray-800 font-mono tabular-nums text-xs">{c}</span>
+										{/each}
+									</div>
+								{/if}
+								{#if (g.suggestions || []).length > 0}
+									<div class="flex items-center gap-1.5 flex-wrap">
+										{#each g.suggestions as s (s.code)}
+											{@const sel = (agencySelected[g.group_id] || []).includes(s.code)}
+											<button
+												type="button"
+												disabled={!canUse}
+												onclick={() => toggleAgencyCode(g.group_id, s.code)}
+												aria-pressed={sel}
+												title={s.name}
+												class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs transition-colors {sel ? 'bg-teal-700 border-teal-700 text-white' : 'bg-white border-gray-300 text-gray-700'} {canUse ? 'cursor-pointer' : 'cursor-default'}"
+											>
+												<span class="font-mono tabular-nums">{s.code}</span>
+												<span class="truncate max-w-[120px]">{s.name}</span>
+												<span class={sel ? 'text-teal-100' : 'text-gray-500'}>{s.currency}</span>
+											</button>
+										{/each}
+									</div>
+									<p class="text-xs text-gray-500">Birden fazla seçilebilir — para birimi başına ayrı hesap.</p>
+								{/if}
+								{#if canUse && ((g.suggestions || []).length > 0 || (g.current_codes || []).length > 0)}
+									<div class="flex items-center gap-1.5 flex-wrap">
+										{#if (g.suggestions || []).length > 0}
+											<Button size="sm" onclick={() => saveAgencySelection(g)} loading={agencySaving[g.group_id]} disabled={(agencySelected[g.group_id] || []).length === 0}><Check size={14} /> Kaydet</Button>
+										{/if}
+										{#if (g.current_codes || []).length > 0}
+											<Button size="sm" variant="ghost" onclick={() => openAgencyClear(g)} title="Eşlemeyi temizle"><X size={14} /> Temizle</Button>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
 		{/if}
 	{:else}
 		<!-- Değerleme sekmesi -->
@@ -1087,4 +1602,70 @@
 	cancelText="Vazgeç"
 	danger
 	onConfirm={confirmClear}
+/>
+
+<!-- Kredi Öneri Onayı -->
+<ConfirmDialog
+	bind:show={showCreditAcceptConfirm}
+	title="Öneriyi Onayla"
+	message={creditAcceptTarget?.suggestion ? `${creditAcceptTarget.name} kredisine Sedna ${creditAcceptTarget.suggestion.code} kodu atanacak. Devam edilsin mi?` : ''}
+	confirmText="Onayla"
+	cancelText="Vazgeç"
+	onConfirm={confirmCreditAccept}
+/>
+
+<!-- Kredi Eşleme Temizleme Onayı -->
+<ConfirmDialog
+	bind:show={showCreditClearConfirm}
+	title="Eşlemeyi Temizle"
+	message={creditClearTarget ? `${creditClearTarget.name} kredisinin Sedna kodu (${creditClearTarget.current_code}) kaldırılacak. Devam edilsin mi?` : ''}
+	confirmText="Temizle"
+	cancelText="Vazgeç"
+	danger
+	onConfirm={confirmCreditClear}
+/>
+
+<!-- Acente Eşleme Temizleme Onayı -->
+<ConfirmDialog
+	bind:show={showAgencyClearConfirm}
+	title="Eşlemeyi Temizle"
+	message={agencyClearTarget ? `${agencyClearTarget.name} grubunun Sedna avans hesabı eşlemesi (${(agencyClearTarget.current_codes || []).join(', ')}) kaldırılacak. Devam edilsin mi?` : ''}
+	confirmText="Temizle"
+	cancelText="Vazgeç"
+	danger
+	onConfirm={confirmAgencyClear}
+/>
+
+<!-- Dönem Kilidi Modalı -->
+<Modal bind:show={showLockModal} title="Dönem Kilidi" maxWidth="max-w-md">
+	<form onsubmit={(e) => { e.preventDefault(); submitLock(); }} class="space-y-4">
+		<p class="text-sm text-gray-500">Uyarı modu — senkronu durdurmaz; kilit öncesi döneme ait yeni uyuşmazlıkta bildirim gönderilir.</p>
+		<Field label="Kilit tarihi (bu tarih dahil öncesi kapalı dönem)" for="lock_date" required>
+			{#snippet children({ id })}
+				<Input {id} type="date" bind:value={lockDateInput} required />
+			{/snippet}
+		</Field>
+		<div class="flex items-center justify-between gap-2 pt-2 flex-wrap">
+			{#if summary?.lock_date}
+				<Button variant="danger" onclick={() => (showLockRemoveConfirm = true)} loading={lockSaving}><X size={16} /> Kaldır</Button>
+			{:else}
+				<span></span>
+			{/if}
+			<div class="flex gap-2 ml-auto">
+				<Button variant="secondary" onclick={() => (showLockModal = false)}>Vazgeç</Button>
+				<Button type="submit" loading={lockSaving} disabled={!lockDateInput}><Lock size={16} /> Kaydet</Button>
+			</div>
+		</div>
+	</form>
+</Modal>
+
+<!-- Dönem Kilidi Kaldırma Onayı -->
+<ConfirmDialog
+	bind:show={showLockRemoveConfirm}
+	title="Dönem Kilidini Kaldır"
+	message={summary?.lock_date ? `${fmtDate(summary.lock_date)} tarihli dönem kilidi kaldırılacak; kapalı dönem uyarıları devre dışı kalır. Devam edilsin mi?` : ''}
+	confirmText="Kaldır"
+	cancelText="Vazgeç"
+	danger
+	onConfirm={confirmLockRemove}
 />

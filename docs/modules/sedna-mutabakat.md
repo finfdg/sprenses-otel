@@ -33,16 +33,19 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 | `app/models/sedna_recon.py` | `SednaReconRun` + `SednaBankRecon` modelleri + `RESOLUTION_*` sabitleri |
 | `app/models/bank_account.py` | `sedna_account_code` (String(30), **unique**) + `sedna_code_confirmed` kolonları |
 | `app/schemas/sedna_recon.py` | `ReconItemAction` / `AccountMappingUpdate` / `ReconRunRequest` |
-| `app/services/sedna_recon_service.py` | **Motor** — eşleştirme + koşu + hesap eşleme + kayıt aksiyonları (router + onay executor ORTAK, D1-2) + **Faz B:** `report_entity_diff` / `close_stale_entity_diffs` |
+| `app/services/sedna_recon_service.py` | **Motor** — eşleştirme + koşu + hesap eşleme + kayıt aksiyonları (router + onay executor ORTAK, D1-2) + **Faz B:** `report_entity_diff` / `close_stale_entity_diffs` + **Faz C:** `run_vendor_reconciliation` / `suggest_credit_mappings`+`set_credit_mapping` / `suggest_agency_mappings`+`set_agency_mapping` |
+| `app/services/period_lock_service.py` | **Faz C** — dönem kilidi (uyarı modu): `get_lock_date` (süreç-içi cache) / `set_lock_date` (router + onay executor ORTAK) |
+| `app/models/period_lock.py` | **Faz C** — `FinancePeriodLock` (`finance_period_locks` tek satır tablosu) |
 | `app/services/fx_service.py` | **Faz B** — `ledger_rate` (Sedna-eşdeğer defter kuru) + `record_match_fx_diff` + `compute_monthly_revaluation` |
 | `app/models/event_match.py` | **Faz B** — `EventMatch` (kalıcı eşleşme izi) + `FxDifference` (kur farkı kayıtları) + `MATCH_METHOD_*` sabitleri |
-| `app/routers/accounting/mutabakat.py` | 8 endpoint (`accounting/__init__.py` → `prefix="/mutabakat"`; Faz B: `+ fx-revaluation`, `+ fx-differences`) |
-| `app/utils/sedna_client.py` | `fetch_bank_leaf_accounts` / `fetch_bank_ledger_rows` / `fetch_bank_ledger_max_dates` + `_safe_codes` (kod injection guard) |
-| `app/utils/approval_executor.py` | `_handle_accounting_mutabakat` (op: `resolve_item` \| `account_mapping`) |
+| `app/routers/accounting/mutabakat.py` | 13 endpoint (`accounting/__init__.py` → `prefix="/mutabakat"`; Faz B: `+ fx-revaluation`, `+ fx-differences`; Faz C: `+ credit-mappings` GET/PATCH, `+ agency-mappings` GET/PATCH, `+ period-lock` PATCH) |
+| `app/utils/sedna_client.py` | `fetch_bank_leaf_accounts` / `fetch_bank_ledger_rows` / `fetch_bank_ledger_max_dates` + `_safe_codes` (kod injection guard) + **Faz C:** `fetch_vendor_balances` (320 aggregate) / `fetch_credit_leaf_accounts` (300.*) |
+| `app/utils/approval_executor.py` | `_handle_accounting_mutabakat` (op: `resolve_item` \| `account_mapping` \| **Faz C:** `credit_mapping` \| `agency_mapping` \| `period_lock`) |
 | `app/routers/finance/sedna_sync.py` | `_STEPS` → `bank_recon` adımı (merkezi Sedna butonu) |
 | `app/constants.py` | `ReconStatus` (durum sözlüğü) + `BroadcastModule.RECON` |
 | `alembic/versions/c7d8e9f0a1b2_add_sedna_mutabakat.py` | Migration: 2 tablo + bank_accounts kolonları + RBAC |
 | `alembic/versions/e5f6a7b8c9d0_faz_b_event_matches_fx_sedna_ids.py` | **Faz B migration:** `event_matches` + `fx_differences` + recon `entity_type/entity_id` + kalıcı Sedna RecId kolonları (cari/çek/satış) |
+| `alembic/versions/f7a8b9c0d1e2_faz_c_vendor_recon_mappings_lock.py` | **Faz C migration:** `credit_products.sedna_account_code` (unique) + `agency_groups.sedna_account_codes` (JSON) + `finance_period_locks` tablosu |
 | `tests/ci/02_seed.sql` | Modül seed satırı (id=921) |
 
 ### Frontend
@@ -60,6 +63,24 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 | `sedna_account_code` | String(30), **unique**, null | Eşlenen Sedna 102 leaf kodu (ör. `102.01.02.0003`) |
 | `sedna_code_confirmed` | Boolean, default false | **İnsan onayı** — yalnız onaylı hesaplar taranır |
 
+### `credit_products` (Faz C — eklenen kolon)
+| Kolon | Tip | Açıklama |
+|---|---|---|
+| `sedna_account_code` | String(30), **unique**, null | Eşlenen Sedna **300** leaf kodu (kredi taksit hesabı; `set_credit_mapping` `300` önekini doğrular) |
+
+### `agency_groups` (Faz C — eklenen kolon)
+| Kolon | Tip | Açıklama |
+|---|---|---|
+| `sedna_account_codes` | JSON (liste), null | Eşlenen Sedna **340** avans hesap kodları — **acente başına PARA BİRİMİ AYRI hesap** olabildiğinden LİSTE (ör. ANEX EUR ≠ ANEX USD; `set_agency_mapping` `340` önekini doğrular) |
+
+### `finance_period_locks` (Faz C — yeni tablo, TEK satır)
+| Kolon | Tip | Açıklama |
+|---|---|---|
+| `id` | Integer PK | — |
+| `lock_date` | Date, NOT NULL | Kilit tarihi (**dahil**) — bu tarih ve öncesi "kapanmış dönem" sayılır |
+| `updated_by` | FK users (SET NULL), null | Kilidi son değiştiren kullanıcı |
+| `updated_at` | DateTime(tz), server default now | Son değişiklik zamanı |
+
 ### `sedna_recon_runs` (koşu başlığı — Sedna AccReconOwner deseni)
 | Kolon | Açıklama |
 |---|---|
@@ -73,7 +94,7 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 | Kolon | Açıklama |
 |---|---|
 | `bank_account_id` | FK bank_accounts (CASCADE) — **Faz B'de NULL'a açıldı** (entity sapma kayıtlarında banka hesabı yok) |
-| `entity_type`, `entity_id` | **Faz B** — banka-dışı varlık sapmaları (`check` \| `vendor_tx`; eşleşmiş/korunan yerel kayıtta Sedna farkı). Upsert anahtarı bu ikili; indeks `ix_sedna_bank_recon_entity` |
+| `entity_type`, `entity_id` | **Faz B** — banka-dışı varlık sapmaları (`check` \| `vendor_tx`; eşleşmiş/korunan yerel kayıtta Sedna farkı) + **Faz C:** `vendor_balance` (cari NET bakiye ↔ Sedna 320 bakiye farkı, entity_id=vendor id). Upsert anahtarı bu ikili; indeks `ix_sedna_bank_recon_entity` |
 | `bank_transaction_id` | FK bank_transactions (CASCADE, null) — banka bacağı |
 | `sedna_trans_rec_id`, `sedna_owner_id`, `sedna_voucher` | Sedna bacağı (`AccountingTrans.RecId` = kalıcı kimlik — Sedna'nın kendi SourceId damgalama deseninin bizdeki karşılığı) |
 | `status` | `constants.ReconStatus` (aşağıdaki durum sözlüğü) |
@@ -93,14 +114,19 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/accounting/mutabakat/summary` | view | Açık durum sayıları + en eski açık tarih + son koşu + hesap eşleme kapsamı (`mapped_accounts/total_accounts`) |
-| GET | `/accounting/mutabakat/items` | view | Uyuşmazlık listesi — **sayfalı** (`page`/`page_size≤200`), `sort_by` **whitelist'li** (`event_date\|amount\|status\|detected_at`) + `sort_dir`; filtreler: `status`, `account_id`, **`entity_type` (`bank\|check\|vendor_tx`, Faz B — `bank` = entity_type'ı NULL banka satırları için takma değer)**, `include_closed`, `q` (banka/Sedna açıklamasında arama). Yanıt satırında `entity_type`/`entity_id` alanları |
-| POST | `/accounting/mutabakat/run` | use | Mutabakat taramasını elle tetikle (`window_days` 7–365, varsayılan 45). **Onaydan MUAF** (sınıflandırma — veri mutasyonu değil) + audit + WS broadcast. Tünel kapalı → **503** |
+| GET | `/accounting/mutabakat/summary` | view | Açık durum sayıları + en eski açık tarih + son koşu + hesap eşleme kapsamı (`mapped_accounts/total_accounts`) + **`lock_date`** (Faz C dönem kilidi; yoksa null) |
+| GET | `/accounting/mutabakat/items` | view | Uyuşmazlık listesi — **sayfalı** (`page`/`page_size≤200`), `sort_by` **whitelist'li** (`event_date\|amount\|status\|detected_at`) + `sort_dir`; filtreler: `status`, `account_id`, **`entity_type` (`bank\|check\|vendor_tx\|vendor_balance`, Faz B/C — `bank` = entity_type'ı NULL banka satırları için takma değer)**, `include_closed`, `q` (banka/Sedna açıklamasında arama). Yanıt satırında `entity_type`/`entity_id` alanları |
+| POST | `/accounting/mutabakat/run` | use | Mutabakat taramasını elle tetikle (`window_days` 7–365, varsayılan 45). **Onaydan MUAF** (sınıflandırma — veri mutasyonu değil) + audit + WS broadcast. Tünel kapalı → **503**. **Faz C özet alanları:** `locked_period_new` (kilit-öncesi tarihli yeni uyuşmazlık sayısı) + `negative_balances` (ters-bakiye listesi) + cari bakiye taraması **best-effort** koşulur → `vendors_scanned`/`balance_diffs`/`vendor_auto_closed` (başarısızsa `vendor_error` — banka taraması sonucu korunur) |
 | PATCH | `/accounting/mutabakat/items/{id}` | use + **onay** | Kaydı çöz / yoksay / yeniden aç (`action: resolve\|ignore\|reopen` + `note`) — `check_approval` (op=`resolve_item`) |
 | GET | `/accounting/mutabakat/account-mappings` | view | Hesap eşleme durumu + **canlı Sedna** önerileri (102 leaf, Remark-numara skorlaması) — tünel kapalı → **503** olabilir |
 | PATCH | `/accounting/mutabakat/account-mappings/{account_id}` | use + **onay** | Banka hesabına Sedna 102 kodu ata/onayla/temizle — `check_approval` (op=`account_mapping`) |
 | GET | `/accounting/mutabakat/fx-revaluation` | view | **Faz B** — aylık kur değerlemesi raporu (`year`+`month`; bizim hesap ↔ Sedna Type=4 fişi yan yana). Salt rapor — deftere/FE'ye YAZMAZ. Sedna canlı → tünel kapalıysa **503** |
 | GET | `/accounting/mutabakat/fx-differences` | view | **Faz B** — kur farkı kayıtları (646/656 eşleniği; çapraz-para eşleşmelerden birikir). Sayfalı + `total_amount_try` genel toplam |
+| GET | `/accounting/mutabakat/credit-mappings` | view | **Faz C** — kredi ürünleri ↔ Sedna **300** hesap eşleme durumu + **canlı öneriler** (banka adı +30 · para birimi +15 · kredi tutarı leaf adında +40; eşik ≥45) + `unmatched_sedna`. Tünel kapalı → **503** |
+| PATCH | `/accounting/mutabakat/credit-mappings/{product_id}` | use + **onay** | Kredi ürününe Sedna 300 kodu ata/temizle (`null` = temizle; `300` öneki zorunlu) — `check_approval` (op=`credit_mapping`) |
+| GET | `/accounting/mutabakat/agency-mappings` | view | **Faz C** — acente grupları ↔ Sedna **340** avans hesabı eşleme durumu + öneriler (grup adı/üyeleri ↔ hesap adı token kesişimi; öneri LİSTE — para birimi başına ayrı hesap). Tünel kapalı → **503** |
+| PATCH | `/accounting/mutabakat/agency-mappings/{group_id}` | use + **onay** | Acente grubuna Sedna 340 kod **listesi** ata/temizle (boş liste = temizle; `340` öneki zorunlu) — `check_approval` (op=`agency_mapping`) |
+| PATCH | `/accounting/mutabakat/period-lock` | use + **onay** | **Faz C** — dönem kilidi tarihini ata/kaldır (`lock_date` ISO ya da null; **uyarı modu — senkronu BLOKLAMAZ**) — `check_approval` (op=`period_lock`, entity_id=0) |
 
 ## Eşleştirme Motoru — 3 Geçişli, Adet-Duyarlı
 
@@ -141,6 +167,7 @@ Geçiş 2 ile 3 arasında **yön-tersi kontrolü**: aynı gün + aynı mutlak tu
 | `direction_flip` | Aynı gün + aynı mutlak tutar + **TERS yön** (borç/alacak ters bacaklı fiş) | **3 canlı vaka:** 5.000 TL ve 1.645.000 TL EFT'ler ters bacaklı; en ağırı 4.275.120 TL banka faiz ÖDEMESİ 642 faiz GELİRİ yazılmış (tek fişte ~8,5M TL sapma) |
 | `duplicate_suspect` | Sedna adedi > banka adedi (mükerrer fiş şüphesi) | **13.500 EUR** aynı gün çift girilmiş fiş |
 | `sedna_diff` | **Faz B** — eşleşmiş/KORUNAN yerel kayıtta (çek/cari) Sedna farkı: yerel kayıt otomatik DEĞİŞTİRİLMEZ, fark burada gösterilir (`entity_type`/`entity_id`'li) | Eşleşmiş çekte vade/tutar/iptal farkı; eşleşmiş cari satırının Sedna'da düzeltilmesi/silinmesi |
+| `balance_diff` | **Faz C** ("Bakiye farkı") — cari **NET bakiyesi** (Σborç−Σalacak) ↔ Sedna **320** hesabının canlı bakiyesi farkı (`entity_type='vendor_balance'`, entity_id=vendor id); fark > **1 TL** (`VENDOR_BALANCE_TOLERANCE`) açılır, kapanınca **otomatik kapanır** | Excel-only satır / elle ekleme / korunan-sapma birikiminin bakiye düzeyinde görünür olması |
 
 Frontend karşılığı `lib/constants/realtime.ts`'te tutulur — iki taraf **birebir aynı**
 (merkezi sabitler kuralı; otomatik senkron yok).
@@ -198,19 +225,25 @@ imkânsız. Güvenilir anahtar **skorlamayla** kurulur (`suggest_account_mapping
   verisi değişmez); CLAUDE.md'deki "dosya yükleme, toplu işlem" istisna sınıfına girer.
   Audit (`run`) + WS broadcast yine yapılır.
 - **PATCH endpoint'leri `check_approval`'lıdır:** kayıt aksiyonu (op=`resolve_item`,
-  entity_id=`SednaBankRecon.id`) ve hesap eşleme (op=`account_mapping`, entity_id=`BankAccount.id`).
+  entity_id=`SednaBankRecon.id`), hesap eşleme (op=`account_mapping`, entity_id=`BankAccount.id`)
+  ve **Faz C:** kredi eşleme (op=`credit_mapping`, entity_id=`CreditProduct.id`), acente eşleme
+  (op=`agency_mapping`, entity_id=`AgencyGroup.id`), dönem kilidi (op=`period_lock`, entity_id=0).
 - **Executor handler:** `approval_executor._handle_accounting_mutabakat` — `payload["op"]` ile
-  iki mutasyonu ayırır ve router'la **AYNI service fonksiyonlarını** çağırır
-  (`sedna_recon_service.resolve_recon_item` / `set_account_mapping`) — D1-2 ortak-service deseni,
+  beş mutasyonu ayırır ve router'la **AYNI service fonksiyonlarını** çağırır
+  (`sedna_recon_service.resolve_recon_item` / `set_account_mapping` / `set_credit_mapping` /
+  `set_agency_mapping` + `period_lock_service.set_lock_date`) — D1-2 ortak-service deseni,
   sapma yapısal olarak imkânsız.
 
 ## Bildirim + Gerçek Zamanlılık
 
 - **Yeni KRİTİK uyuşmazlıkta** (`direction_flip`, `duplicate_suspect`, `sedna_missing`,
-  `sedna_extra`, **`sedna_diff`** — Faz B) `accounting.mutabakat` **view** izni olan tüm aktif kullanıcılara **tek toplu
+  `sedna_extra`, **`sedna_diff`** — Faz B, **`balance_diff`** — Faz C) `accounting.mutabakat` **view** izni olan tüm aktif kullanıcılara **tek toplu
   bildirim** gönderilir ("3 Yön ters · 1 Mükerrer şüphesi — Uyuşmayan Veriler ekranından
   inceleyin", link `/dashboard/muhasebe/mutabakat`). `sedna_pending` bildirim üretmez (gecikme
   normaldir).
+- **Faz C bildirimleri** (`_notify_viewers` — mutabakat izleyicilerine, best-effort):
+  **"Kilitli dönemde değişiklik"** (kilit-öncesi tarihli yeni uyuşmazlık — kapanmış ay verisi
+  değişmiş olabilir) ve **"Ters bakiye uyarısı"** (mevduat hesabında negatif bakiye).
 - `notified_at` damgasıyla **tekrar-bildirim yok**; bildirim hatası koşuyu düşürmez (try/except + log).
 - WS: `BroadcastModule.RECON` — koşu ve kayıt aksiyonları sonrası `broadcast_finance_update`
   (polling yasak kuralı gereği ekran WS ile tazelenir).
@@ -222,8 +255,24 @@ imkânsız. Güvenilir anahtar **skorlamayla** kurulur (`suggest_account_mapping
   Skeleton + StatusBadge + Lucide; referans iskelet: `finans/avanslar`).
 - **Özet kartlar:** açık uyuşmazlık toplamı + durum kırılımı + en eski açık tarih + eşlenmiş
   hesap kapsamı (`mapped/total`) + son koşu özeti (`/summary`).
-- **Sekmeler:** Uyuşmazlıklar (durum filtreli liste; satır aksiyonları: Çözüldü / Yoksay /
-  Geri aç — not alanıyla) · Hesap Eşleme (öneri skorları + onay; `unmatched_sedna` listesi).
+- **Sekmeler:** Uyuşmazlıklar (durum + tür filtreli liste — tür: Banka / Çek / Cari /
+  **Cari Bakiye** [`vendor_balance`, Faz C]; satır aksiyonları: Çözüldü / Yoksay / Geri aç —
+  not alanıyla) · Hesap Eşleme · Değerleme (aylık kur değerlemesi + kur farkı kayıtları, Faz B).
+- **Hesap Eşleme — üç bağımsız bölüm (Faz C):** "Banka Hesapları ↔ Sedna (102)" ·
+  "Krediler ↔ Sedna (300)" · "Acente Avans Hesapları ↔ Sedna (340)". Her bölüm **kendi
+  endpoint'inden bağımsız yüklenir** (biri 503 ise diğerleri çalışır) ve aynı 503/amber-uyarı
+  desenini kullanır. Banka + kredi bölümü aynı aksiyon deseni: Öneri Onayla (ConfirmDialog) /
+  elle kod gir + Kaydet / Temizle (danger ConfirmDialog) + `unmatched_sedna` açılır listesi.
+  Acente bölümü: mevcut kodlar çoklu rozet; öneriler **çoklu-seçim çipleri** (kod + ad + PB —
+  para birimi başına ayrı hesap seçilip tek Kaydet ile `sedna_account_codes` listesi yazılır).
+  Tüm PATCH'ler 202 onay desenini destekler (`requires_approval` → "İşlem onaya gönderildi").
+- **Dönem kilidi (Faz C):** özet kartların altında şerit — kilit varsa amber rozet
+  ("Dönem kilidi: DD.MM.YYYY", Lucide `Lock`) + Düzenle; yoksa soluk "Dönem kilidi yok" +
+  Kilitle. Küçük modal: tarih input + Kaldır (danger ConfirmDialog) → `PATCH /period-lock`
+  (202 onay destekli). Açıklama metni sabit: uyarı modu — senkronu durdurmaz.
+- **Tarama toast'ları (Faz C):** koşu özetine `balance_diffs` eklenir ("· X cari bakiye
+  farkı"); `negative_balances` doluysa ikinci **warning** toast ("Ters bakiye: <banka>
+  <tutar>", ilk 3 hesap); `vendor_error` varsa warning toast.
 - **Detay gösterimi:** banka satırı ↔ Sedna fiş bacağı yan yana + `sedna_record_user` /
   `sedna_change_date` ("kime sorulacak").
 - **Tetikleme:** Topbar'daki merkezi **Sedna** butonu `bank_recon` adımını çalıştırır
@@ -349,6 +398,72 @@ Sedna sorguları artık satır kimliği döndürür (`sedna_client`: `Accounting
   import akışı (güncelle + guard + geri-doldurma + silinmiş-korunan sapması), çek sapması,
   satış tam aynalama (düzeltme=tek satır, kaybolan=silinir).
 
+## Faz C (2026-07-11) — Cari Bakiye Mutabakatı + Kod Eşlemeleri + Dönem Kilidi + Ters Bakiye
+
+İnceleme raporundaki Faz C uygulandı (migration `f7a8b9c0d1e2`). Beş katman:
+
+### 1) Cari bakiye mutabakatı — `run_vendor_reconciliation`
+
+`sedna_recon_service.run_vendor_reconciliation(db)`: her carinin **NET bakiyesi**
+(Σ`vendor_transactions.borc` − Σ`alacak`) ↔ Sedna **320** hesabının **canlı** bakiyesi
+(`sedna_client.fetch_vendor_balances` — **tek aggregate sorgu**, satır satır çekilmez; çift
+Deleted filtresi). Fark > **1 TL** (`VENDOR_BALANCE_TOLERANCE` — kuruş yuvarlaması fark
+sayılmaz) → `ReconStatus.BALANCE_DIFF` ("Bakiye farkı", `entity_type='vendor_balance'`,
+entity_id=vendor id) upsert'i; **fark kapanınca otomatik kapanır**
+(`close_stale_entity_diffs`). Hesap Sedna'da hiç yoksa Sedna net 0 kabul edilir ve açıklamaya
+"(hesap Sedna'da bulunamadı)" yazılır.
+
+- **Neden bakiye düzeyi:** satır-düzeyi senkron zaten Faz B rec_id akışında — bu katman
+  **Excel-only satır / elle ekleme / korunan-sapma birikimini** bakiye düzeyinde görünür kılar.
+- **120 (satış/alıcılar) tarafı bilinçli kapsam DIŞI** — bizde o defterin tam karşılığı yok.
+- **Tetikleme:** hem `POST /run` hem `sedna_sync` `bank_recon` adımı banka taramasından sonra
+  koşar; cari kısmı **best-effort** (hata banka taraması sonucunu düşürmez —
+  `vendor_error` / rollback + log). Tünel koparsa `fetch_vendor_balances` exception yükseltir,
+  kayıtlara dokunulmaz.
+
+### 2) Kredi kod eşlemesi — `credit_products.sedna_account_code`
+
+Kredi ürünleri Sedna **300** taksit hesaplarıyla eşlenir (kolon **unique**; migration
+`f7a8b9c0d1e2`). Öneri skorlaması (`suggest_credit_mappings`; yalnız leaf = 3+ noktalı kod):
+banka adı token kesişimi **+30** · para birimi (TRY↔'TL' çevrimiyle) **+15** · kredi
+tutarının leaf adında rakam olarak geçmesi **+40** ("HALK BANKASI L0004813 6.000.000 TL
+KREDİ" kalıbı); öneri eşiği **≥45** ve yalnız kodu boş üründe gösterilir. Endpoint'ler:
+`GET/PATCH /mutabakat/credit-mappings` (PATCH onay-akışlı, `300` öneki + `_safe_codes` doğrulamalı).
+
+### 3) Acente avans kod eşlemesi — `agency_groups.sedna_account_codes`
+
+Acente grupları Sedna **340** avans hesaplarıyla eşlenir — kolon **JSON liste**: acente başına
+**para birimi AYRI 340 hesabı** olabilir (canlı: ANEX EUR ≠ ANEX USD). Öneri sinyali grup
+adı/üyeleri ↔ hesap adı token kesişimi (`suggest_agency_mappings` — kod atanmış grupta öneri
+gösterilmez). Endpoint'ler: `GET/PATCH /mutabakat/agency-mappings` (PATCH onay-akışlı, `340`
+öneki doğrulamalı). **Tüketici:** avans mutabakat raporu
+(`finance/advances.py` `GET /avanslar/sedna-reconciliation`) artık **KOD-ÖNCELİKLİ** eşleşir —
+`_agency_code_map` grup adı + üyelerini anahtar yapar, kod eşlemesi olan acente deterministik
+eşleşir; kod yoksa eski ad-fuzzy (token + para birimi) **fallback** olarak sürer
+(bkz. `docs/modules/avanslar.md`).
+
+### 4) Dönem kilidi — UYARI modu (bloklamaz)
+
+`finance_period_locks` **tek satır** tablo + `period_lock_service` (süreç-içi cache;
+`get_lock_date`/`set_lock_date` — router + onay executor ORTAK). `PATCH /mutabakat/period-lock`
+(`check_approval` op=`period_lock` + executor). Mutabakat koşusu sonunda **kilit tarihinden
+önceki döneme ait YENİ uyuşmazlıklar** sayılır → `summary.locked_period_new` + **"Kilitli
+dönemde değişiklik"** bildirimi. `GET /summary` yanıtına `lock_date` eklendi.
+
+- **BİLİNÇLİ TASARIM:** Sedna'da dönem kilidi fiilen kapalı (AccPeriodLock 2016'da kalmış) →
+  geçmiş fişler her an değişebilir; senkron **geriye dönük çalışmaya DEVAM eder**. Kilit
+  senkronu/mutasyonu DURDURMAZ — yalnız kilit-öncesi değişikliği vurgulu bildirir (kapanmış
+  ay raporları sessizce kaymasın).
+
+### 5) Ters-bakiye kontrolü
+
+Koşu sonunda **aktif mevduat hesaplarının** son ekstre bakiyesi (`bank_transactions.balance`,
+tarih+id sıralı son satır) negatifse → `summary.negative_balances` (hesap/banka/para
+birimi/bakiye listesi) + **"Ters bakiye uyarısı"** bildirimi. **KMH-bağlı hesaplar HARİÇ**
+(`credit_products.type='kmh'` → `linked_account_id`; negatif bakiye KMH'nin doğası). Sedna
+`FinalizedBalance` negatif-bakiye deseninin bizdeki eşleniği; kontrol try/except'lidir —
+hata koşuyu düşürmez.
+
 ## Geliştirme Kuralları
 
 1. **Banka verisi otorite** — motora banka satırı DEĞİŞTİREN kod eklenemez; yeni sınıf
@@ -415,6 +530,9 @@ Bu modül bir **mutabakat/uyarı katmanıdır**, muhasebe sistemi DEĞİLDİR:
 - **Faz B (UYGULANDI, 2026-07-11):** aylık değerleme raporu (bizim hesap ↔ Sedna Type=4 yan
   yana), `sedna_rec_id` kalıcı kimlikleri (cari/çek/satış), `event_matches`/`fx_differences`
   katmanı, korunan-kayıt `sedna_diff` sapmaları — yukarıdaki **Faz B** bölümü.
-- **Faz C (açık):** cari↔Sedna mutabakat sekmesi, kredi/avans kod eşlemesi, dönem kilidi
-  uyarı modu. Yıl devri (`Mhs2027`) tasarımı da açık. Muhasebe ekibine e-posta iletimi
-  **kullanıcı kararı bekliyor**.
+- **Faz C (UYGULANDI, 2026-07-11):** cari bakiye mutabakatı (`balance_diff`), kredi 300 /
+  acente 340 kod eşlemeleri, dönem kilidi (uyarı modu), ters-bakiye kontrolü — yukarıdaki
+  **Faz C** bölümü (migration `f7a8b9c0d1e2`).
+- **Kalan (açık):** yıl devri (`Mhs2027`) tasarımı — **yılbaşından önce çözülmeli** (yukarıdaki
+  KRİTİK bölüm); muhasebe ekibine e-posta iletimi **kullanıcı kararı bekliyor**; ayrıca ilk
+  raporun (nakit akım eşleştirme) **Faz 0-3'ü** ayrıca bekliyor.

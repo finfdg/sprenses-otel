@@ -111,3 +111,24 @@ Sedna girilince/düzeltilince kayıt otomatik kapanır. Tam anlatım: `docs/modu
   KORUNAN yerel çek/cari kaydında Sedna farkı — yerel kayıt otomatik DEĞİŞTİRİLMEZ, importlar
   `report_entity_diff` ile buraya yazar; giderilince `close_stale_entity_diffs` otomatik kapatır.
   `sedna_diff` kritik durum kümesindedir (`_CRITICAL_STATUSES`).
+
+**Faz C eklemeleri (2026-07-11, migration `f7a8b9c0d1e2`):**
+- **Cari bakiye mutabakatı** — `run_vendor_reconciliation`: cari NET bakiyesi (Σborç−Σalacak) ↔
+  Sedna 320 canlı bakiyesi (`fetch_vendor_balances` tek aggregate sorgu); fark > 1 TL →
+  **`ReconStatus.BALANCE_DIFF`** (`balance_diff`, `entity_type='vendor_balance'`), kapanınca
+  otomatik kapanır. `POST /run` ve sedna_sync `bank_recon` adımında **best-effort** koşulur.
+  120 tarafı bilinçli kapsam dışı.
+- **Kod eşlemeleri** — `GET/PATCH /mutabakat/credit-mappings` (`credit_products.
+  sedna_account_code`, unique, 300 leaf; öneri: banka adı+para birimi+tutar-adda skorlaması) ve
+  `GET/PATCH /mutabakat/agency-mappings` (`agency_groups.sedna_account_codes` JSON **liste** —
+  acente başına para birimi ayrı 340 hesabı). Avans mutabakat raporu (`finance/advances.py`
+  `sedna-reconciliation`) artık **kod-öncelikli** eşleşir, ad-fuzzy fallback.
+- **Dönem kilidi (UYARI modu — bloklamaz)** — `finance_period_locks` tek satır +
+  `services/period_lock_service` (süreç-içi cache); `PATCH /mutabakat/period-lock` (onay
+  op=`period_lock`). Kilit-öncesi tarihli yeni uyuşmazlık → `summary.locked_period_new` +
+  "Kilitli dönemde değişiklik" bildirimi; senkron geriye dönük çalışmaya DEVAM eder (Sedna'da
+  kilit fiilen kapalı — bilinçli tasarım).
+- **Ters-bakiye kontrolü** — koşu sonunda aktif mevduat hesabının son bakiyesi negatifse
+  (KMH-bağlı hesaplar HARİÇ) `summary.negative_balances` + "Ters bakiye uyarısı" bildirimi.
+- Executor `_handle_accounting_mutabakat` yeni op'lar: `credit_mapping` / `agency_mapping` /
+  `period_lock` (router ile AYNI service fonksiyonları).
