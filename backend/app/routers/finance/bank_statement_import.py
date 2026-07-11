@@ -28,7 +28,12 @@ from app.utils.bank_parser import compute_tx_hash, parse_excel, parse_pdf
 from app.utils.file_validation import validate_upload_file
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
-from app.utils.matching_service import _match_cc_to_bank, _match_checks_to_bank, _match_credits_to_bank
+from app.utils.matching_service import (
+    _match_advances_to_bank,
+    _match_cc_to_bank,
+    _match_checks_to_bank,
+    _match_credits_to_bank,
+)
 from app.utils.notification import _notification_to_ws_event, create_notifications
 from app.utils.push import send_push_to_user
 from app.websocket.manager import manager
@@ -387,6 +392,7 @@ async def _post_upload_processing(
         (_match_checks_to_bank, "Çek-banka", "checks_matched"),
         (_match_credits_to_bank, "Kredi-banka", "credits_matched"),
         (_match_cc_to_bank, "Kredi kartı-banka", "cc_matched"),
+        (_match_advances_to_bank, "Avans-banka", "advances_matched"),
     ]:
         try:
             nested = db.begin_nested()
@@ -402,3 +408,6 @@ async def _post_upload_processing(
             logger.error("%s otomatik eşleştirme hatası: %s", label, e, exc_info=True)
 
     broadcast_finance_update(background_tasks, BroadcastModule.BANKS, "upload")
+    # Avans eşleşmesi Avanslar sayfasını da ilgilendirir (manuel match ile aynı sinyal)
+    if result.get("advances_matched"):
+        broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "match")

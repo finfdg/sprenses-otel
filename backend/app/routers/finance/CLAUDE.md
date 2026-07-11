@@ -773,6 +773,14 @@ Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
 
 - **Banka eşleştirme servisleri tek modülde (`utils/matching_service.py`):** `_match_cc_to_bank`,
   `_match_checks_to_bank`, `_match_credits_to_bank` artık router'larda değil tek servis modülünde.
+  **2026-07-11 eklendi:** `_match_advances_to_bank` — bekleyen avanslar banka GELİR işlemleriyle
+  otomatik eşleşir (tutar+para birimi birebir; GECİKME acente adı açıklamada geçerse 60 güne,
+  geçmezse 10 güne kadar skorlu; ERKEN ödeme her iki yolda ≤10 gün — daha erken para önceki
+  taksitindir; elle-'alındı' işaretli avansın (pb,tutar,tarih) imzalı hareketi ve "virman"
+  açıklamaları aday olamaz). Eşleşen avans `received` olur, FE
+  `is_matched=True` + `event_status='received'` (upsert ile — bayat durum kalmasın), banka
+  bacağı görünür kalır → beklenen avans + gerçekleşen havale çift sayımı ekstre yüklenince
+  kendiliğinden kapanır. Detay: `docs/modules/avanslar.md`.
   `banks.py` eskiden bu private fonksiyonları üç kardeş router'dan (`checks.py`, `krediler/`,
   `banks_cc_match.py`) import ediyordu (katman/coupling ihlali) → artık hepsi `app.utils.matching_service`'ten.
   `banks_cc_match.py` **silindi**; `checks.py`/`krediler/__init__.py` matcher'ı utils'ten re-import eder

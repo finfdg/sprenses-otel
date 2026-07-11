@@ -63,6 +63,30 @@
 - `status != "cancelled"` ve `bank_transaction_id IS NULL` olan avanslar nakit akıma `source="advance"`, `type="income"` olarak eklenir
 - Banka eşleşmesi olan avanslar nakit akımda banka tarafından gösterilir (çift sayım engellenir)
 
+## Otomatik Banka Eşleştirme (2026-07-11)
+
+Ekstre yüklendiğinde `_match_advances_to_bank` (`app/utils/matching_service.py`) bekleyen
+avansları banka **gelir** işlemleriyle otomatik eşleştirir (çek/kredi/KK ile aynı zincir,
+`bank_statement_import._post_upload_processing`):
+
+- **Zorunlu:** tutar birebir (±0.01) + hesabın para birimi avansın para birimiyle aynı
+- **İsimli yol:** acente adı tokenları (`_norm_tokens`) açıklamada geçiyorsa beklenen
+  tarihten 60 güne kadar GECİKMİŞ ödeme eşleşir (beklenen tarih kabaca girilebilir)
+- **Kör yol:** isim geçmiyorsa yalnız beklenen tarihe yakınlıkla (10 güne kadar gecikme, skorlu)
+  eşleşir — yanlış-pozitif koruması
+- **Erken ödeme sınırı (her iki yol):** para beklenen tarihten en çok 10 gün ÖNCE gelebilir —
+  daha erken gelen para önceki taksitin tahsilatıdır (canlı vaka: 10.06 Swift'i, isimli yolun
+  geriye açık penceresiyle 20.07 taksitine bağlanmıştı; geri alındı + sınır eklendi)
+- **Elle-alındı koruması:** elle 'alındı' işaretlenen avanslar banka işlemine bağlanmaz
+  (btx_id=NULL) → karşılığı olan hareket boşta görünür; aynı (para birimi, tutar, alındı
+  tarihi) imzalı banka hareketleri aday havuzundan düşülür
+- **"virman"** içeren açıklamalar aday olamaz (hesaplar arası aktarım avans tahsilatı değildir)
+- Eşleşince: avans `received` + `received_date/received_amount/bank_transaction_id` set,
+  `finance_event_svc.match()` + `upsert_advance()` (FE `is_matched=True`, `event_status='received'`
+  — event_status'ün bayat kalmaması için upsert şart, çek düzeltmesindeki desen)
+- Eşleşme olursa `BroadcastModule.ADVANCES` "match" broadcast'i de gönderilir
+- Testler: `tests/test_advances.py::test_auto_match_advance_*` (7 test)
+
 ## Audit Log Entegrasyonu
 
 | entity_type | Eylemler |

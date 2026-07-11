@@ -14,6 +14,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.advance import Advance
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.check import Check
@@ -21,6 +22,7 @@ from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CreditPayment, CreditProduct
 from app.models.transaction_category import TransactionCategory
 from app.utils.finance_event_service import finance_event_svc
+from app.utils.text_match import _norm_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +389,148 @@ def _match_checks_to_bank(db: Session) -> dict:
         "matched": matched_count,
         "total_pending": len(pending_checks),
     }
+
+
+# ─── Avans ↔ Banka Eşleştirme ────────────────────────────
+
+# Acente adı banka açıklamasında geçiyorsa (güçlü sinyal) beklenen tarihten bu kadar
+# gün GECİKMEYE izin verilir — avansın beklenen tarihi kabaca girilebilir.
+ADVANCE_NAMED_WINDOW_DAYS = 60
+# İsim eşleşmesi YOKSA yalnız tutar+para birimi+tarih ile eşleşilir (kör yol) —
+# yanlış-pozitif riski nedeniyle dar pencere.
+ADVANCE_BLIND_WINDOW_DAYS = 10
+# Para beklenen tarihten en çok bu kadar gün ÖNCE gelebilir (erken ödeme sınırı).
+# Daha erken gelen para büyük olasılıkla ÖNCEKİ taksitin tahsilatıdır (canlı vaka:
+# 10.06 Swift'i, elle 'alındı' işaretlenmiş 10.06 taksiti yerine 20.07 taksitine
+# bağlanıyordu — isimli yolun geniş penceresi geriye doğru da açıktı).
+ADVANCE_EARLY_DAYS = 10
+
+
+def _match_advances_to_bank(db: Session) -> dict:
+    """Bekleyen avansları banka gelir işlemleriyle otomatik eşleştir.
+
+    Ekstre yüklendiğinde çağrılır. Eşleşme kriterleri:
+    - Banka işlemi GELİR ve hesabın para birimi avansın para birimiyle aynı
+    - Tutar birebir eşleşmeli (±0.01)
+    - Acente adı tokenları açıklamada geçiyorsa geniş tarih penceresi
+      (±ADVANCE_NAMED_WINDOW_DAYS); geçmiyorsa beklenen tarihe yakınlık şartı
+      (skorlu, en çok ±ADVANCE_BLIND_WINDOW_DAYS)
+    - "virman" içeren açıklamalar atlanır (hesaplar arası aktarım avans tahsilatı değildir)
+
+    Eşleşen avanslar 'received' yapılır; FE tarafında avans is_matched=True olur,
+    banka bacağı görünür kalır (çift sayım kapanır).
+    """
+    pending = (
+        db.query(Advance)
+        .filter(Advance.status == "pending", Advance.bank_transaction_id.is_(None))
+        .all()
+    )
+    if not pending:
+        return {"matched": 0, "total_pending": 0}
+
+    # Başka avansla zaten eşleşmiş banka işlemleri aday olamaz
+    already_matched = set(
+        r[0] for r in
+        db.query(Advance.bank_transaction_id)
+        .filter(Advance.bank_transaction_id.isnot(None))
+        .all()
+    )
+
+    # ELLE 'alındı' işaretlenmiş avanslar banka işlemine bağlanmaz (btx_id=NULL) —
+    # onların karşılığı olan banka hareketi 'boşta' görünür. Aynı (para birimi,
+    # tutar, tarih) imzalı hareketleri aday havuzundan düş (canlı vaka: id=217
+    # elle alındı → 10.06 Swift'i başka taksite eşleşiyordu).
+    manual_receipts = set(
+        (a.currency, round(float(a.received_amount or a.amount), 2), a.received_date)
+        for a in db.query(Advance)
+        .filter(Advance.status == "received", Advance.bank_transaction_id.is_(None),
+                Advance.received_date.isnot(None))
+        .all()
+    )
+
+    bank_incomes = (
+        db.query(BankTransaction, BankAccount)
+        .join(BankAccount, BankTransaction.account_id == BankAccount.id)
+        .filter(BankTransaction.type == "income")
+        .all()
+    )
+
+    # (para birimi, tutar) bazlı aday index'i
+    btx_index = defaultdict(list)
+    for tx, acc in bank_incomes:
+        if tx.id in already_matched:
+            continue
+        if "virman" in (tx.description or "").lower():
+            continue
+        key_amount = round(abs(float(tx.amount)), 2)
+        if (acc.currency, key_amount, tx.date) in manual_receipts:
+            continue
+        btx_index[(acc.currency, key_amount)].append(tx)
+
+    if not btx_index:
+        return {"matched": 0, "total_pending": len(pending)}
+
+    matched_count = 0
+    used_btx_ids = set()
+
+    # Beklenen tarihi eski olan önce eşleşsin (aynı tutarlı iki avansta determinizm)
+    for adv in sorted(pending, key=lambda a: a.advance_date):
+        candidates = btx_index.get((adv.currency, round(float(adv.amount), 2)), [])
+        if not candidates:
+            continue
+
+        adv_tokens = _norm_tokens(adv.agency_name)
+        best_match = None
+        best_score = 0
+
+        for tx in candidates:
+            if tx.id in used_btx_ids:
+                continue
+
+            # delta > 0: para beklenenden GEÇ geldi; delta < 0: ERKEN geldi.
+            # Erken geliş her iki yolda da ADVANCE_EARLY_DAYS ile sınırlı —
+            # daha erken para önceki taksite aittir.
+            delta = (tx.date - adv.advance_date).days
+            if delta < -ADVANCE_EARLY_DAYS:
+                continue
+            date_diff = abs(delta)
+            name_hit = bool(adv_tokens and adv_tokens & _norm_tokens(tx.description))
+
+            if name_hit:
+                if delta > ADVANCE_NAMED_WINDOW_DAYS:
+                    continue
+                score = 100 - date_diff
+            else:
+                if delta > ADVANCE_BLIND_WINDOW_DAYS:
+                    continue
+                score = 60 - date_diff * 5
+
+            if score > best_score:
+                best_score = score
+                best_match = tx
+
+        if not best_match or best_score < 20:
+            continue
+
+        adv.status = "received"
+        adv.received_date = best_match.date
+        adv.received_amount = abs(float(best_match.amount))
+        adv.bank_transaction_id = best_match.id
+        used_btx_ids.add(best_match.id)
+        matched_count += 1
+        db.flush()
+        # Banka FE is_realized=True, avans FE is_matched=True; ardından upsert ile
+        # event_status='received' tazelenir (çek düzeltmesindeki desen — match()
+        # yalnız bayrak set eder, durum bayat kalmasın)
+        finance_event_svc.match(db, "bank", best_match.id, "advance", adv.id)
+        finance_event_svc.upsert_advance(db, adv)
+        logger.info(
+            "Avans otomatik eşleşme: btx=%d → adv=%d (%s) | %s %s",
+            best_match.id, adv.id, adv.agency_name,
+            f"{abs(float(best_match.amount)):,.2f}", adv.currency,
+        )
+
+    return {"matched": matched_count, "total_pending": len(pending)}
 
 
 # ─── Kredi ↔ Banka Eşleştirme ────────────────────────────

@@ -111,14 +111,16 @@
 
 ---
 
-## Çekler ve Kredilerle Eşleştirme
+## Çek / Kredi / Kredi Kartı / Avans Eşleştirmesi
 
-Ekstre yüklenince otomatik eşleştirme tetiklenir:
+Ekstre yüklenince otomatik eşleştirme tetiklenir (tümü `app/utils/matching_service.py`):
 
 ```python
-# banks.py → _notify_bank_upload → background task
-_match_checks_to_bank(db)   # checks.py
-_match_credits_to_bank(db)  # krediler.py
+# bank_statement_import.py → _post_upload_processing (her biri SAVEPOINT ile izole)
+_match_checks_to_bank(db)    # bekleyen çekler (gider)
+_match_credits_to_bank(db)   # ödenmemiş kredi taksitleri (gider)
+_match_cc_to_bank(db)        # ödenmemiş KK ekstreleri (gider)
+_match_advances_to_bank(db)  # bekleyen avanslar (GELİR; tutar+döviz birebir, gecikme isimli 60g / kör 10g, erken ≤10g)
 ```
 
 Eşleştirme sonucu `finance_events` tablosunda `is_matched=True` olarak işaretlenir.
