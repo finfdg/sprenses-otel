@@ -5,6 +5,40 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Faz B — Kalıcı Sedna Kimliği + event_matches (2026-07-11)
+
+Sedna mutabakatının ikinci fazı (migration `e5f6a7b8c9d0`; tam anlatım:
+`docs/modules/sedna-mutabakat.md` "Faz B" bölümü). Finans tarafını etkileyen dört değişiklik:
+
+- **`finance_event_svc.match()` artık `event_matches` izi yazar:** her eşleşme
+  (`method: auto|manual|suggestion` + `score` + `created_by` + hedef kalemin `amount/currency`
+  + hedef dövizse `rate_used`=`fx_service.ledger_rate`) `event_matches` tablosuna kalıcı iz
+  olarak düşer (Sedna AccountingMatch deseni). Çapraz-para eşleşmede (banka bacağı TRY ↔ hedef
+  kalem döviz) otomatik **`fx_differences`** kaydı üretilir (646/656 eşleniği; `amount_try`
+  işaretli +kar/−zarar; **finance_events'e kalem YAZILMAZ** — nakit değil). İkisi de
+  **best-effort**: hata loglanır, **eşleşmeyi ASLA düşürmez**. `unmatch()`/`invalidate()`
+  kaynağın taraf olduğu izleri siler (`fx_differences` FK CASCADE ile düşer). Mevcut
+  `is_matched`/`match_number` davranışı DEĞİŞMEDİ (SALT-EK katman).
+- **Kalıcı Sedna kimliği (RecId):** `vendor_transactions.sedna_rec_id`,
+  `checks.sedna_check_rec_id`, `sales_invoices`/`sales_collections.sedna_rec_id` (hepsi partial
+  unique). Sedna sorguları RecId döndürür (`sedna_client`); importlar yeni satıra damgalar +
+  hash'i eşleşen eski satırlara geri-doldurur.
+- **Cari/çek importlarında korunan-kayıt sapmaları:** KORUNAN (eşleşmiş/atanmış) kayıt Sedna
+  farkında ASLA otomatik değişmez → `sedna_recon_service.report_entity_diff` ile Uyuşmayan
+  Veriler'e **`sedna_diff`** kaydı yazılır (`entity_type='vendor_tx'|'check'`); koşu sonunda
+  görülmeyen sapmalar `close_stale_entity_diffs` ile otomatik kapanır. Cari import ayrıca
+  KORUMASIZ satırı rec_id-kimliğiyle **UPDATE** eder (sil+ekle sweep döngüsüne düşmeden; sweep
+  kanıtsız/rec_id'siz artıklar için devrede kalır); korunan satır Sedna'da SİLİNMİŞSE de sapma
+  raporlanır + yeni-hash'li satırın mükerrer insert'i engellenir. Çek import eşleşmiş çekteki
+  vade/tutar/iptal farkını artık sessiz atlamaz (sapma kaydı).
+- **Satış faturaları TAM AYNALAMA:** `run_sales_invoice_import` saf insert-only DEĞİL —
+  rec_id upsert (Sedna'da düzeltilen satır çift satır üretmeden güncellenir) + Sedna aktifinden
+  kaybolan rec_id'li satırın SİLİNMESİ (`_MIRROR_SWEEP_CAP=300` güvenlik tavanı; rec_id'siz eski
+  satırlara dokunulmaz). `sedna_sync` satış adımı artık **`BroadcastModule.SALES_INVOICES`**
+  yayınlar (yeni sabit).
+
+---
+
 ## VakıfBank API — Banka Hesap Hareketleri Doğrudan Çekme (2026-07-10, SANDBOX UÇTAN UCA ÇALIŞIYOR)
 
 Excel/PDF ekstre yüklemesine EK kaynak: VakıfBank Açık Bankacılık API'sinden (`/accountTransactions`,
@@ -1018,6 +1052,9 @@ finance_event_svc.invalidate(db, source_type, source_id)
 
 # Eşleştirme (banka ↔ çek/kredi/avans)
 finance_event_svc.match(db, type_a, id_a, type_b, id_b)
+# Faz B (2026-07-11): match() ayrıca event_matches izi yazar (method/score/created_by
+# opsiyonel kwargs) + çapraz-para eşleşmede fx_differences kaydı üretir — best-effort,
+# eşleşmeyi düşürmez. unmatch()/invalidate() izleri siler. Bkz. "Faz B" bölümü (dosya başı).
 ```
 
 Neden? Nakit akım listesi artık `finance_events` tablosundan okunuyor.
@@ -1348,6 +1385,11 @@ SQL seviyesinde filtrelenir, asla aday gösterilmez:
   - `bulk-delete` endpoint testleri (boş, auth, 5000 limit, korumalı atla, eksik id)
 
 ### Sedna Import — Bayat Satır Otomatik Süpürme (2026-07-02)
+
+> **Güncelleme (2026-07-11, Faz B):** Cari Sedna import'u artık saf insert-only değil —
+> `sedna_rec_id` kimliğiyle KORUMASIZ satırlar doğrudan **UPDATE** edilir, KORUNAN satırdaki
+> fark `sedna_diff` sapması olarak raporlanır (bkz. üstteki "Faz B — Kalıcı Sedna Kimliği +
+> event_matches" bölümü). Aşağıdaki süpürme, rec_id'siz/kanıt-bazlı artıklar için geçerliliğini korur.
 
 **Sorun:** Cari Sedna import'u insert-only + tutar-hash'li; Sedna'da bir hareket sonradan
 düzeltilir/silinirse eski yerel satır kalır (nakit akım/bakiyeyi şişirir). `_compute_removal_candidates`

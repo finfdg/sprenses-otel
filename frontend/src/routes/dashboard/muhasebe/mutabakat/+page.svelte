@@ -20,8 +20,8 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import {
-		AlertTriangle, Ban, Check, ChevronDown, CircleCheck, Eye, Hourglass,
-		Link2, RefreshCw, RotateCcw, Search, ShieldAlert, Unplug, X,
+		AlertTriangle, Ban, Check, ChevronDown, CircleCheck, Coins, Eye, Hourglass,
+		Link2, RefreshCw, RotateCcw, Scale, Search, ShieldAlert, Unplug, X,
 	} from 'lucide-svelte';
 
 	// Sabitler
@@ -32,6 +32,7 @@
 		[RECON_STATUS.SEDNA_EXTRA]: "Sedna'da Fazla",
 		[RECON_STATUS.DIRECTION_FLIP]: 'Yön Ters',
 		[RECON_STATUS.DUPLICATE_SUSPECT]: 'Mükerrer Şüphesi',
+		[RECON_STATUS.SEDNA_DIFF]: 'Sedna Sapması',
 	};
 	const STATUS_BADGE: Record<string, BadgeType> = {
 		[RECON_STATUS.MATCHED]: 'success',
@@ -40,6 +41,7 @@
 		[RECON_STATUS.SEDNA_EXTRA]: 'error',
 		[RECON_STATUS.DIRECTION_FLIP]: 'error',
 		[RECON_STATUS.DUPLICATE_SUSPECT]: 'error',
+		[RECON_STATUS.SEDNA_DIFF]: 'error',
 	};
 	const RESOLUTION_LABELS: Record<string, string> = {
 		manual: 'Elle çözüldü',
@@ -54,6 +56,29 @@
 	const CURRENCY_SYMBOLS: Record<string, string> = { EUR: '€', USD: '$', GBP: '£', TRY: '₺' };
 	const SEDNA_DOWN_MSG = 'Sedna bağlantısı yok — tünel kapalı olabilir';
 	const WS_ECHO_MS = 1500; // sunucu broadcast debounce (500ms) + iletim gecikmesi payı
+	const ENTITY_TYPE_OPTIONS: { value: string; label: string }[] = [
+		{ value: '', label: 'Tüm Türler' },
+		{ value: 'bank', label: 'Banka' },
+		{ value: 'check', label: 'Çek' },
+		{ value: 'vendor_tx', label: 'Cari' },
+	];
+	const FX_STATUS_LABELS: Record<string, string> = {
+		mutabik: 'Mutabık',
+		sapma: 'Sapma',
+		sedna_bekliyor: 'Sedna fişi bekleniyor',
+		veri_eksik: 'Veri eksik',
+	};
+	const FX_STATUS_BADGE: Record<string, BadgeType> = {
+		mutabik: 'success',
+		sapma: 'error',
+		sedna_bekliyor: 'warning',
+		veri_eksik: 'neutral',
+	};
+	const FX_SOURCE_LABELS: Record<string, string> = {
+		match: 'Eşleşme',
+		revaluation: 'Değerleme',
+	};
+	const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
 	// Türetilmiş
 	let canUse = $derived(hasPermission('accounting.mutabakat', 'use'));
@@ -78,6 +103,20 @@
 	// Veri state — hesap filtresi seçenekleri (finance.banks izni varsa canlı liste)
 	let bankAccounts = $state<{ id: number; name: string }[]>([]);
 
+	// Veri state — kur değerlemesi (Değerleme sekmesi; varsayılan dönem = geçen ay)
+	const _lastMonth = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d; })();
+	let fxYear = $state(_lastMonth.getFullYear());
+	let fxMonth = $state(_lastMonth.getMonth() + 1);
+	let fxData = $state<any>(null);
+	let fxLoading = $state(false);
+	let fxError = $state('');
+
+	// Veri state — kur farkı kayıtları (Değerleme sekmesi alt bölümü)
+	let fxDiffs = $state<any>(null);
+	let fxDiffsLoading = $state(false);
+	let fxDiffPage = $state(1);
+	let fxDiffPageSize = $state(25);
+
 	// UI state
 	let activeTab = $state('items');
 	let scanning = $state(false);
@@ -87,6 +126,7 @@
 	// Filtre state
 	let statusFilter = $state('');
 	let accountFilter = $state('');
+	let entityFilter = $state(''); // '' | 'bank' | 'check' | 'vendor_tx'
 	let includeClosed = $state(false);
 	let searchInput = $state(''); // input'a bağlı ham değer
 	let search = $state(''); // 300ms debounce sonrası sorguya giden değer
@@ -118,7 +158,14 @@
 	let tabOptions = $derived([
 		{ value: 'items', label: 'Uyuşmazlıklar', count: summary?.open_total },
 		{ value: 'mappings', label: 'Hesap Eşleme' },
+		{ value: 'fx', label: 'Değerleme' },
 	]);
+	let fxYearOptions = $derived.by(() => {
+		const current = new Date().getFullYear();
+		const years: number[] = [];
+		for (let y = current; y >= current - 4; y--) years.push(y);
+		return years;
+	});
 	let accountOptions = $derived.by(() => {
 		if (bankAccounts.length > 0) return bankAccounts;
 		// finance.banks izni yoksa mevcut listeden türet
@@ -130,7 +177,7 @@
 		}
 		return [...m.entries()].map(([id, name]) => ({ id, name }));
 	});
-	let hasFilters = $derived(Boolean(statusFilter || accountFilter || search || includeClosed));
+	let hasFilters = $derived(Boolean(statusFilter || accountFilter || entityFilter || search || includeClosed));
 
 	// Formatlama
 	function fmtDate(d: string | null): string {
@@ -155,6 +202,10 @@
 		if (!iban) return '—';
 		return '…' + iban.replace(/\s/g, '').slice(-6);
 	}
+	function fmtNum(n: number | null | undefined, digits = 2): string {
+		if (n == null) return '—';
+		return n.toLocaleString('tr-TR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+	}
 
 	// Veri fonksiyonları
 	async function loadSummary() {
@@ -174,6 +225,7 @@
 			params.set('page_size', String(pageSize));
 			if (statusFilter) params.set('status', statusFilter);
 			if (accountFilter) params.set('account_id', accountFilter);
+			if (entityFilter) params.set('entity_type', entityFilter);
 			if (includeClosed) params.set('include_closed', 'true');
 			if (search.trim()) params.set('q', search.trim());
 
@@ -216,6 +268,32 @@
 		} catch (err) {
 			console.error('Banka hesap listesi yüklenemedi:', err);
 			showToast('Banka hesap listesi yüklenemedi — filtre mevcut kayıtlardan türetilecek', 'error');
+		}
+	}
+
+	async function loadFxRevaluation() {
+		fxLoading = true;
+		fxError = '';
+		try {
+			fxData = await api.get<any>(`/accounting/mutabakat/fx-revaluation?year=${fxYear}&month=${fxMonth}`);
+		} catch (err: any) {
+			console.error('Kur değerlemesi yüklenemedi:', err);
+			fxData = null;
+			fxError = err?.message && err.message !== 'Bir hata oluştu' ? err.message : SEDNA_DOWN_MSG;
+		} finally {
+			fxLoading = false;
+		}
+	}
+
+	async function loadFxDiffs() {
+		fxDiffsLoading = true;
+		try {
+			fxDiffs = await api.get<any>(`/accounting/mutabakat/fx-differences?page=${fxDiffPage}&page_size=${fxDiffPageSize}`);
+		} catch (err) {
+			console.error('Kur farkı kayıtları yüklenemedi:', err);
+			showToast('Kur farkı kayıtları yüklenemedi', 'error');
+		} finally {
+			fxDiffsLoading = false;
 		}
 	}
 
@@ -314,9 +392,15 @@
 	function setTab(v: string) {
 		activeTab = v;
 		if (v === 'mappings' && !mappings && !mappingsLoading) loadMappings();
+		if (v === 'fx') {
+			if (!fxData && !fxLoading && !fxError) loadFxRevaluation();
+			if (!fxDiffs && !fxDiffsLoading) loadFxDiffs();
+		}
 	}
 	function changePage(p: number) { page = p; loadItems(); }
 	function changePageSize(s: number) { pageSize = s; page = 1; loadItems(); }
+	function changeFxDiffPage(p: number) { fxDiffPage = p; loadFxDiffs(); }
+	function changeFxDiffPageSize(s: number) { fxDiffPageSize = s; fxDiffPage = 1; loadFxDiffs(); }
 
 	// Arama debounce (300ms): searchInput → search
 	let searchTimer: ReturnType<typeof setTimeout>;
@@ -328,12 +412,21 @@
 	});
 
 	// Filtre değişiminde sayfayı 1'e al ve yeniden yükle (ilk yüklemede tetiklenmez)
-	let filterKey = $derived(`${statusFilter}|${accountFilter}|${includeClosed}|${search}`);
+	let filterKey = $derived(`${statusFilter}|${accountFilter}|${entityFilter}|${includeClosed}|${search}`);
 	let prevFilterKey = '';
 	$effect(() => {
 		const fk = filterKey;
 		if (prevFilterKey && fk !== prevFilterKey) { page = 1; loadItems(); }
 		prevFilterKey = fk;
+	});
+
+	// Değerleme dönemi (yıl/ay) değişince yeniden yükle — yükle butonu yok (ilk yüklemede tetiklenmez)
+	let fxPeriodKey = $derived(`${fxYear}-${fxMonth}`);
+	let prevFxPeriodKey = '';
+	$effect(() => {
+		const fk = fxPeriodKey;
+		if (prevFxPeriodKey && fk !== prevFxPeriodKey) loadFxRevaluation();
+		prevFxPeriodKey = fk;
 	});
 
 	// Lifecycle
@@ -349,6 +442,7 @@
 			loadSummary();
 			loadItems();
 			if (activeTab === 'mappings') loadMappings();
+			if (activeTab === 'fx') loadFxDiffs(); // değerleme canlı Sedna sorgusu — WS'te tetiklenmez, yalnız kur farkı listesi tazelenir
 		});
 	});
 	onDestroy(() => { unsubFinance?.(); });
@@ -420,6 +514,11 @@
 				<option value="">Tüm Durumlar</option>
 				{#each Object.entries(STATUS_LABELS) as [val, label] (val)}
 					<option value={val}>{label}</option>
+				{/each}
+			</Select>
+			<Select size="sm" fullWidth={false} class="flex-1 sm:flex-none" bind:value={entityFilter} aria-label="Kayıt türüne göre filtrele">
+				{#each ENTITY_TYPE_OPTIONS as opt (opt.value)}
+					<option value={opt.value}>{opt.label}</option>
 				{/each}
 			</Select>
 			<Select size="sm" fullWidth={false} class="flex-1 sm:flex-none" bind:value={accountFilter} aria-label="Hesaba göre filtrele">
@@ -553,7 +652,7 @@
 				{/if}
 			{/if}
 		</div>
-	{:else}
+	{:else if activeTab === 'mappings'}
 		<!-- Hesap Eşleme sekmesi -->
 		{#if mappingsLoading}
 			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -708,6 +807,189 @@
 				</div>
 			{/if}
 		{/if}
+	{:else}
+		<!-- Değerleme sekmesi -->
+		<div class="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center sm:flex-wrap">
+			<Select size="sm" fullWidth={false} class="flex-1 sm:flex-none" bind:value={fxMonth} aria-label="Değerleme ayı">
+				{#each MONTH_NAMES as name, i (i)}
+					<option value={i + 1}>{name}</option>
+				{/each}
+			</Select>
+			<Select size="sm" fullWidth={false} class="flex-1 sm:flex-none" bind:value={fxYear} aria-label="Değerleme yılı">
+				{#each fxYearOptions as y (y)}
+					<option value={y}>{y}</option>
+				{/each}
+			</Select>
+			{#if fxData?.month_end}
+				<span class="text-sm text-gray-500 sm:ml-auto">Ay sonu: {fmtDate(fxData.month_end)}</span>
+			{/if}
+		</div>
+		<p class="text-xs text-gray-500">Formül: döviz bakiye × ay sonu TCMB alış − TL defter değeri (Sedna Type=4 fişiyle karşılaştırılır; deftere yazılmaz).</p>
+
+		{#if fxLoading}
+			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+				<TableSkeleton rows={4} columns={9} />
+			</div>
+		{:else if fxError}
+			<div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 sm:p-8 text-center">
+				<div class="flex justify-center mb-3 text-amber-600"><Unplug size={40} /></div>
+				<h3 class="text-base font-semibold text-amber-800 mb-1">Sedna bağlantısı yok</h3>
+				<p class="text-sm text-amber-700 mb-1">Kur değerlemesi canlı Sedna sorgusu gerektirir — tünel kapalı olabilir.</p>
+				{#if fxError !== SEDNA_DOWN_MSG}
+					<p class="text-xs text-amber-700 mb-4">{fxError}</p>
+				{:else}
+					<p class="text-xs text-amber-700 mb-4">Tünel açıldıktan sonra tekrar deneyin.</p>
+				{/if}
+				<Button variant="secondary" onclick={loadFxRevaluation}><RefreshCw size={15} /> Tekrar Dene</Button>
+			</div>
+		{:else if fxData}
+			<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+				{#if fxData.items.length === 0}
+					<EmptyState
+						icon={Scale}
+						title="Değerleme verisi yok"
+						description={fxData.note || 'Bu dönem için eşlenmiş döviz hesabı bulunamadı. Önce Hesap Eşleme sekmesinden döviz hesaplarını eşleyin.'}
+					/>
+				{:else}
+					<!-- Masaüstü tablo -->
+					<div class="hidden md:block overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="border-b border-gray-200 bg-gray-50 text-left">
+									<th class="px-4 py-3 font-medium text-gray-600">Hesap</th>
+									<th class="px-4 py-3 font-medium text-gray-600">PB</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-right">Döviz Bakiye (bizim)</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-right">Sedna Döviz</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-right">Kur (alış)</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-right">Beklenen TL</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-right">Sedna TL Defter</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-right">Sedna Değerleme Fişi</th>
+									<th class="px-4 py-3 font-medium text-gray-600 text-center">Durum</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each fxData.items as it (it.account_id)}
+									<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+										<td class="px-4 py-3">
+											<div class="font-medium text-gray-900 truncate max-w-[160px]" title={it.bank_name}>{it.bank_name}</div>
+											<div class="text-xs text-gray-500 font-mono tabular-nums">{it.sedna_code || '—'}</div>
+										</td>
+										<td class="px-4 py-3 text-gray-700">{it.currency}</td>
+										<td class="px-4 py-3 text-right tabular-nums text-gray-900">{fmtNum(it.our_fx_balance)}</td>
+										<td class="px-4 py-3 text-right tabular-nums text-gray-700">{fmtNum(it.sedna_fx_balance)}</td>
+										<td class="px-4 py-3 text-right tabular-nums text-gray-700">{fmtNum(it.rate, 4)}</td>
+										<td class="px-4 py-3 text-right tabular-nums font-semibold text-gray-900">{fmtNum(it.expected_try)}</td>
+										<td class="px-4 py-3 text-right tabular-nums text-gray-700">{fmtNum(it.sedna_tl_balance)}</td>
+										<td class="px-4 py-3 text-right tabular-nums text-gray-700">{fmtNum(it.sedna_valuation_tl)}</td>
+										<td class="px-4 py-3 text-center">
+											<StatusBadge type={FX_STATUS_BADGE[it.status] ?? 'neutral'}>{FX_STATUS_LABELS[it.status] ?? it.status}</StatusBadge>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Mobil kart görünümü -->
+					<div class="md:hidden divide-y divide-gray-100">
+						{#each fxData.items as it (it.account_id)}
+							<div class="p-3 space-y-1.5">
+								<div class="flex items-start justify-between gap-2">
+									<div class="min-w-0 flex-1">
+										<div class="font-medium text-gray-900 truncate">{it.bank_name} · {it.currency}</div>
+										<div class="text-xs text-gray-500 font-mono tabular-nums mt-0.5">{it.sedna_code || '—'}</div>
+									</div>
+									<StatusBadge type={FX_STATUS_BADGE[it.status] ?? 'neutral'}>{FX_STATUS_LABELS[it.status] ?? it.status}</StatusBadge>
+								</div>
+								<div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+									<div class="text-gray-500">Döviz Bakiye (bizim)</div><div class="text-right tabular-nums text-gray-900">{fmtNum(it.our_fx_balance)}</div>
+									<div class="text-gray-500">Sedna Döviz</div><div class="text-right tabular-nums text-gray-700">{fmtNum(it.sedna_fx_balance)}</div>
+									<div class="text-gray-500">Kur (alış)</div><div class="text-right tabular-nums text-gray-700">{fmtNum(it.rate, 4)}</div>
+									<div class="text-gray-500">Beklenen TL</div><div class="text-right tabular-nums font-semibold text-gray-900">{fmtNum(it.expected_try)}</div>
+									<div class="text-gray-500">Sedna TL Defter</div><div class="text-right tabular-nums text-gray-700">{fmtNum(it.sedna_tl_balance)}</div>
+									<div class="text-gray-500">Sedna Değerleme Fişi</div><div class="text-right tabular-nums text-gray-700">{fmtNum(it.sedna_valuation_tl)}</div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Kur Farkı Kayıtları -->
+		<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+			<div class="flex items-center justify-between gap-2 flex-wrap px-4 py-3 border-b border-gray-100">
+				<h2 class="text-sm font-semibold text-gray-700">Kur Farkı Kayıtları</h2>
+				{#if fxDiffs && fxDiffs.total > 0}
+					{@const net = fxDiffs.total_amount_try ?? 0}
+					<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold tabular-nums {net >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}">
+						{net >= 0 ? 'Net Kambiyo Karı' : 'Net Kambiyo Zararı'} · {fmtAmount(net, 'TRY')}
+					</span>
+				{/if}
+			</div>
+			{#if fxDiffsLoading && !fxDiffs}
+				<TableSkeleton rows={3} columns={6} />
+			{:else if !fxDiffs || fxDiffs.items.length === 0}
+				<EmptyState
+					icon={Coins}
+					title="Henüz kur farkı kaydı yok"
+					description="Çapraz-para eşleşmelerinde otomatik birikir."
+				/>
+			{:else}
+				<!-- Masaüstü tablo -->
+				<div class="hidden md:block overflow-x-auto">
+					<table class="w-full text-sm">
+						<thead>
+							<tr class="border-b border-gray-200 bg-gray-50 text-left">
+								<th class="px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Tarih</th>
+								<th class="px-4 py-3 font-medium text-gray-600 text-right">Tutar TL</th>
+								<th class="px-4 py-3 font-medium text-gray-600 text-right">Tahmin Kuru</th>
+								<th class="px-4 py-3 font-medium text-gray-600 text-right">Gerçekleşen Kur</th>
+								<th class="px-4 py-3 font-medium text-gray-600">Kaynak</th>
+								<th class="px-4 py-3 font-medium text-gray-600">Açıklama</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each fxDiffs.items as r (r.id)}
+								<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+									<td class="px-4 py-3 text-gray-600 whitespace-nowrap">{fmtDate(r.period)}</td>
+									<td class="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap {amountCls(r.amount_try)}">{fmtAmount(r.amount_try, 'TRY')}</td>
+									<td class="px-4 py-3 text-right tabular-nums text-gray-700">{fmtNum(r.rate_estimate, 4)}</td>
+									<td class="px-4 py-3 text-right tabular-nums text-gray-700">{fmtNum(r.rate_realized, 4)}</td>
+									<td class="px-4 py-3 text-gray-700">{FX_SOURCE_LABELS[r.source] ?? r.source ?? '—'}</td>
+									<td class="px-4 py-3 text-gray-600">
+										<div class="truncate max-w-[280px]" title={r.description || ''}>{r.description || '—'}</div>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+
+				<!-- Mobil kart görünümü -->
+				<div class="md:hidden divide-y divide-gray-100">
+					{#each fxDiffs.items as r (r.id)}
+						<div class="p-3">
+							<div class="flex items-start justify-between gap-2 mb-1">
+								<div class="min-w-0 flex-1">
+									<div class="text-xs text-gray-500">{fmtDate(r.period)} · {FX_SOURCE_LABELS[r.source] ?? r.source ?? '—'}</div>
+									{#if r.description}<p class="text-xs text-gray-500 mt-0.5 line-clamp-2">{r.description}</p>{/if}
+								</div>
+								<div class="text-sm font-bold tabular-nums shrink-0 {amountCls(r.amount_try)}">{fmtAmount(r.amount_try, 'TRY')}</div>
+							</div>
+							<div class="text-xs text-gray-500 tabular-nums">Tahmin: {fmtNum(r.rate_estimate, 4)} · Gerçekleşen: {fmtNum(r.rate_realized, 4)}</div>
+						</div>
+					{/each}
+				</div>
+
+				<!-- Sayfalama -->
+				{#if fxDiffs.total > fxDiffPageSize || fxDiffPage > 1}
+					<div class="px-4 border-t border-gray-100">
+						<Pagination page={fxDiffPage} pageSize={fxDiffPageSize} total={fxDiffs.total} onPageChange={changeFxDiffPage} onPageSizeChange={changeFxDiffPageSize} />
+					</div>
+				{/if}
+			{/if}
+		</div>
 	{/if}
 </div>
 
@@ -721,14 +1003,14 @@
 			</div>
 			<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 				<div class="p-3 bg-gray-50 rounded-lg space-y-1.5">
-					<h3 class="text-xs font-semibold text-gray-600 uppercase tracking-wider">Banka Kaydı</h3>
+					<h3 class="text-xs font-semibold text-gray-600 uppercase tracking-wider">{detailItem.entity_type ? 'Yerel Kayıt' : 'Banka Kaydı'}</h3>
 					<div class="text-sm text-gray-700"><span class="text-gray-500">Hesap:</span> {detailItem.account_name || '—'}</div>
 					<div class="text-sm text-gray-700"><span class="text-gray-500">Tarih:</span> {fmtDate(detailItem.event_date)}</div>
 					<div class="text-sm font-semibold tabular-nums {amountCls(detailItem.amount)}">{fmtAmount(detailItem.amount, detailItem.currency)}</div>
 					<p class="text-sm text-gray-600 break-words">{detailItem.description || '—'}</p>
 				</div>
 				<div class="p-3 bg-gray-50 rounded-lg space-y-1.5">
-					<h3 class="text-xs font-semibold text-gray-600 uppercase tracking-wider">Sedna Kaydı</h3>
+					<h3 class="text-xs font-semibold text-gray-600 uppercase tracking-wider">{detailItem.entity_type ? 'Sedna' : 'Sedna Kaydı'}</h3>
 					<div class="text-sm text-gray-700"><span class="text-gray-500">Fiş No:</span> {detailItem.sedna_voucher || '—'}</div>
 					<p class="text-sm text-gray-600 break-words">{detailItem.sedna_description || '—'}</p>
 					<div class="text-sm text-gray-700"><span class="text-gray-500">Kaydeden:</span> {detailItem.sedna_record_user || '—'}</div>

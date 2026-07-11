@@ -39,6 +39,14 @@ Yabancı operatörler (Alltours, Odeon, W2M…) **EUR** çalışır; Sedna 120'd
   Not: büyük operatörler çoğu zaman **net alacaklı** (avans tüketilmiş, bize borçlu) — o an net avans göstermezler.
 - Dedup `tx_hash` ile (kod seviyesinde): fatura `sha256(sinv|kod|tarih|no|tutar)`, tahsilat `sha256(scol|kod|tarih|tutar|fis)`.
 
+> **Faz B (2026-07-11) — saf insert-only KALKTI, TAM AYNALAMA:** iki tabloya da **`sedna_rec_id`**
+> (Sedna `AccountingTrans.RecId`, partial unique) eklendi. Import sırası: (1) rec_id'li yerel satır
+> Sedna'dan **güncellenir** (tutar düzeltmesi çift satır üretmez), (2) hash eşleşen rec_id'siz eski
+> satıra kimlik **geri-doldurulur**, (3) yeni satır rec_id'li eklenir, (4) rec_id'li olup Sedna
+> aktifinden **kaybolan satır silinir** — güvenlik tavanı `_MIRROR_SWEEP_CAP=300` (aşılırsa süpürme
+> iptal, yalnız log); **rec_id'siz eski satırlara dokunulmaz**. Merkezi Sedna sync'in satış adımı
+> artık `BroadcastModule.SALES_INVOICES` yayınlar. Detay: `docs/modules/sedna-mutabakat.md` "Faz B".
+
 ## FIFO tahsil durumu (`_status_map`)
 Her müşteri için: toplam tahsilat havuzu, faturalara **en eskiden** dağıtılır → her fatura için
 `collected` + durum:

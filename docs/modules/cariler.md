@@ -222,6 +222,16 @@ kapalıysa import 503 verir, gerisi çalışır). `SEDNA_PASSWORD` boşsa özell
   Şifre yalnız `.env` (600, gitignore). Bağlantı kuran ters-SSH anahtarı EC2'de kısıtlı
   (`permitlisten=127.0.0.1:11433`, kabuk yok).
 
+> **Faz B (2026-07-11) — Kalıcı Sedna kimliği + korunan-sapma raporu:** `vendor_transactions`
+> artık **`sedna_rec_id`** (Sedna `AccountingTrans.RecId`, partial unique) taşır; Sedna sorgusu
+> RecId döndürür, import yeni satıra damgalar + hash'i eşleşen eski satırlara geri-doldurur.
+> Sedna'da düzeltilen **KORUMASIZ** satır artık sil+ekle değil rec_id-kimlikli **UPDATE** olur
+> (+ FE tazeleme). **KORUNAN** (eşleşmiş/atanmış) satır DEĞİŞMEZ — fark Uyuşmayan Veriler'e
+> **'Sedna sapması'** (`sedna_diff`, `entity_type='vendor_tx'`) yazılır ve yeni-hash'li satırın
+> mükerrer insert'i engellenir; korunan satır Sedna'da SİLİNMİŞSE de sapma raporlanır. Koşu
+> sonunda görülmeyen sapmalar otomatik kapanır (`close_stale_entity_diffs`).
+> Detay: `docs/modules/sedna-mutabakat.md` "Faz B".
+
 ## Kaynakta Olmayan Kayıtların Tespiti (Removal Candidates)
 
 Cari Excel yüklemesi insert-only çalışır — yüklenen dosyada bulunmayan eski kayıtlar otomatik silinmez. Eğer kullanıcı veri kaynağında (muhasebe programı) bir hareketi sildiyse, sistem ile Excel'in yürüyen bakiyesi uyuşmaz hale gelir.

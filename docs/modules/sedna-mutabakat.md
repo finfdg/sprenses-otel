@@ -33,13 +33,16 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 | `app/models/sedna_recon.py` | `SednaReconRun` + `SednaBankRecon` modelleri + `RESOLUTION_*` sabitleri |
 | `app/models/bank_account.py` | `sedna_account_code` (String(30), **unique**) + `sedna_code_confirmed` kolonları |
 | `app/schemas/sedna_recon.py` | `ReconItemAction` / `AccountMappingUpdate` / `ReconRunRequest` |
-| `app/services/sedna_recon_service.py` | **Motor** — eşleştirme + koşu + hesap eşleme + kayıt aksiyonları (router + onay executor ORTAK, D1-2) |
-| `app/routers/accounting/mutabakat.py` | 6 endpoint (`accounting/__init__.py` → `prefix="/mutabakat"`) |
+| `app/services/sedna_recon_service.py` | **Motor** — eşleştirme + koşu + hesap eşleme + kayıt aksiyonları (router + onay executor ORTAK, D1-2) + **Faz B:** `report_entity_diff` / `close_stale_entity_diffs` |
+| `app/services/fx_service.py` | **Faz B** — `ledger_rate` (Sedna-eşdeğer defter kuru) + `record_match_fx_diff` + `compute_monthly_revaluation` |
+| `app/models/event_match.py` | **Faz B** — `EventMatch` (kalıcı eşleşme izi) + `FxDifference` (kur farkı kayıtları) + `MATCH_METHOD_*` sabitleri |
+| `app/routers/accounting/mutabakat.py` | 8 endpoint (`accounting/__init__.py` → `prefix="/mutabakat"`; Faz B: `+ fx-revaluation`, `+ fx-differences`) |
 | `app/utils/sedna_client.py` | `fetch_bank_leaf_accounts` / `fetch_bank_ledger_rows` / `fetch_bank_ledger_max_dates` + `_safe_codes` (kod injection guard) |
 | `app/utils/approval_executor.py` | `_handle_accounting_mutabakat` (op: `resolve_item` \| `account_mapping`) |
 | `app/routers/finance/sedna_sync.py` | `_STEPS` → `bank_recon` adımı (merkezi Sedna butonu) |
 | `app/constants.py` | `ReconStatus` (durum sözlüğü) + `BroadcastModule.RECON` |
 | `alembic/versions/c7d8e9f0a1b2_add_sedna_mutabakat.py` | Migration: 2 tablo + bank_accounts kolonları + RBAC |
+| `alembic/versions/e5f6a7b8c9d0_faz_b_event_matches_fx_sedna_ids.py` | **Faz B migration:** `event_matches` + `fx_differences` + recon `entity_type/entity_id` + kalıcı Sedna RecId kolonları (cari/çek/satış) |
 | `tests/ci/02_seed.sql` | Modül seed satırı (id=921) |
 
 ### Frontend
@@ -69,7 +72,8 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 ### `sedna_bank_recon` (uyuşmazlık kayıtları)
 | Kolon | Açıklama |
 |---|---|
-| `bank_account_id` | FK bank_accounts (CASCADE) |
+| `bank_account_id` | FK bank_accounts (CASCADE) — **Faz B'de NULL'a açıldı** (entity sapma kayıtlarında banka hesabı yok) |
+| `entity_type`, `entity_id` | **Faz B** — banka-dışı varlık sapmaları (`check` \| `vendor_tx`; eşleşmiş/korunan yerel kayıtta Sedna farkı). Upsert anahtarı bu ikili; indeks `ix_sedna_bank_recon_entity` |
 | `bank_transaction_id` | FK bank_transactions (CASCADE, null) — banka bacağı |
 | `sedna_trans_rec_id`, `sedna_owner_id`, `sedna_voucher` | Sedna bacağı (`AccountingTrans.RecId` = kalıcı kimlik — Sedna'nın kendi SourceId damgalama deseninin bizdeki karşılığı) |
 | `status` | `constants.ReconStatus` (aşağıdaki durum sözlüğü) |
@@ -90,11 +94,13 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/accounting/mutabakat/summary` | view | Açık durum sayıları + en eski açık tarih + son koşu + hesap eşleme kapsamı (`mapped_accounts/total_accounts`) |
-| GET | `/accounting/mutabakat/items` | view | Uyuşmazlık listesi — **sayfalı** (`page`/`page_size≤200`), `sort_by` **whitelist'li** (`event_date\|amount\|status\|detected_at`) + `sort_dir`; filtreler: `status`, `account_id`, `include_closed`, `q` (banka/Sedna açıklamasında arama) |
+| GET | `/accounting/mutabakat/items` | view | Uyuşmazlık listesi — **sayfalı** (`page`/`page_size≤200`), `sort_by` **whitelist'li** (`event_date\|amount\|status\|detected_at`) + `sort_dir`; filtreler: `status`, `account_id`, **`entity_type` (`bank\|check\|vendor_tx`, Faz B — `bank` = entity_type'ı NULL banka satırları için takma değer)**, `include_closed`, `q` (banka/Sedna açıklamasında arama). Yanıt satırında `entity_type`/`entity_id` alanları |
 | POST | `/accounting/mutabakat/run` | use | Mutabakat taramasını elle tetikle (`window_days` 7–365, varsayılan 45). **Onaydan MUAF** (sınıflandırma — veri mutasyonu değil) + audit + WS broadcast. Tünel kapalı → **503** |
 | PATCH | `/accounting/mutabakat/items/{id}` | use + **onay** | Kaydı çöz / yoksay / yeniden aç (`action: resolve\|ignore\|reopen` + `note`) — `check_approval` (op=`resolve_item`) |
 | GET | `/accounting/mutabakat/account-mappings` | view | Hesap eşleme durumu + **canlı Sedna** önerileri (102 leaf, Remark-numara skorlaması) — tünel kapalı → **503** olabilir |
 | PATCH | `/accounting/mutabakat/account-mappings/{account_id}` | use + **onay** | Banka hesabına Sedna 102 kodu ata/onayla/temizle — `check_approval` (op=`account_mapping`) |
+| GET | `/accounting/mutabakat/fx-revaluation` | view | **Faz B** — aylık kur değerlemesi raporu (`year`+`month`; bizim hesap ↔ Sedna Type=4 fişi yan yana). Salt rapor — deftere/FE'ye YAZMAZ. Sedna canlı → tünel kapalıysa **503** |
+| GET | `/accounting/mutabakat/fx-differences` | view | **Faz B** — kur farkı kayıtları (646/656 eşleniği; çapraz-para eşleşmelerden birikir). Sayfalı + `total_amount_try` genel toplam |
 
 ## Eşleştirme Motoru — 3 Geçişli, Adet-Duyarlı
 
@@ -134,6 +140,7 @@ Geçiş 2 ile 3 arasında **yön-tersi kontrolü**: aynı gün + aynı mutlak tu
 | `sedna_extra` | Sedna'da var, bankada yok (muhtemel hatalı giriş) | Bankaya yansımayan defter satırları |
 | `direction_flip` | Aynı gün + aynı mutlak tutar + **TERS yön** (borç/alacak ters bacaklı fiş) | **3 canlı vaka:** 5.000 TL ve 1.645.000 TL EFT'ler ters bacaklı; en ağırı 4.275.120 TL banka faiz ÖDEMESİ 642 faiz GELİRİ yazılmış (tek fişte ~8,5M TL sapma) |
 | `duplicate_suspect` | Sedna adedi > banka adedi (mükerrer fiş şüphesi) | **13.500 EUR** aynı gün çift girilmiş fiş |
+| `sedna_diff` | **Faz B** — eşleşmiş/KORUNAN yerel kayıtta (çek/cari) Sedna farkı: yerel kayıt otomatik DEĞİŞTİRİLMEZ, fark burada gösterilir (`entity_type`/`entity_id`'li) | Eşleşmiş çekte vade/tutar/iptal farkı; eşleşmiş cari satırının Sedna'da düzeltilmesi/silinmesi |
 
 Frontend karşılığı `lib/constants/realtime.ts`'te tutulur — iki taraf **birebir aynı**
 (merkezi sabitler kuralı; otomatik senkron yok).
@@ -200,7 +207,7 @@ imkânsız. Güvenilir anahtar **skorlamayla** kurulur (`suggest_account_mapping
 ## Bildirim + Gerçek Zamanlılık
 
 - **Yeni KRİTİK uyuşmazlıkta** (`direction_flip`, `duplicate_suspect`, `sedna_missing`,
-  `sedna_extra`) `accounting.mutabakat` **view** izni olan tüm aktif kullanıcılara **tek toplu
+  `sedna_extra`, **`sedna_diff`** — Faz B) `accounting.mutabakat` **view** izni olan tüm aktif kullanıcılara **tek toplu
   bildirim** gönderilir ("3 Yön ters · 1 Mükerrer şüphesi — Uyuşmayan Veriler ekranından
   inceleyin", link `/dashboard/muhasebe/mutabakat`). `sedna_pending` bildirim üretmez (gecikme
   normaldir).
@@ -231,6 +238,117 @@ imkânsız. Güvenilir anahtar **skorlamayla** kurulur (`suggest_account_mapping
 | Kayıt aksiyonu (`PATCH /items/{id}`) | `sedna_recon` | kayıt id | `action` + `note` |
 | Hesap eşleme (`PATCH /account-mappings/{id}`) | `bank_account_sedna_map` | hesap id | atanan kod + confirmed |
 
+## Faz B (2026-07-11) — Kalıcı Sedna Kimliği + Eşleşme İzi + Kur Farkı Katmanı
+
+İnceleme raporundaki Faz B çekirdeği uygulandı (migration `e5f6a7b8c9d0`).
+**POLİTİKA HATIRLATMASI (değişmez):** banka-kanıtlı / KORUNAN yerel kayıt (eşleşmiş
+`match_number`/`bank_transaction_id` veya departmana atanmış) **ASLA otomatik değiştirilmez** —
+Sedna farkı `sedna_diff` sapma kaydına yazılır, karar insanındır. Korumasız kayıtta ise Sedna
+otoritedir (rec_id-kimlikli güncelleme/aynalama aşağıda).
+
+### 1) `ledger_rate` — Sedna-eşdeğer defter kuru (1 gün kayma, KRİTİK)
+
+`app/services/fx_service.py::ledger_rate(db, value_date, currency)`:
+**defter kuru = `exchange_rates(value_date − 1).forex_buying`** (satır yoksa en yakın ÖNCEKİ
+gün — hafta sonu taşması Sedna ile aynı hizaya gelir; TRY/TL → 1.0; kur bulunamazsa `None`
+döner — sessiz 0 üretmez, çağıran karar verir).
+
+- **Neden −1 gün:** Sedna `ExchangeRate(G).Buying` == bizim `exchange_rates(G−1).forex_buying`.
+  Sedna'daki tarih kurun **"geçerlilik"** tarihi, bizimki **"yayın"** (TCMB bülten) tarihidir →
+  1 gün kayma. Canlı doğrulama (2026-07-11): Sedna fiş kuru **53,3716** = bizim bir önceki
+  günün `forex_buying` değeri (tüm Temmuz satırlarında birebir).
+- Sedna fiş kurları ve ay sonu değerlemesi TCMB **döviz ALIŞ (Buying)** kullanır (Faz A kur
+  kararının devamı). **Yeni kur-duyarlı Sedna-mutabakat kodu bu fonksiyonu çağırmalı**, elle
+  `forex_buying` sorgusu yazmamalı.
+
+### 2) `event_matches` + `fx_differences` (yeni tablolar — `app/models/event_match.py`)
+
+- **`event_matches`** — Sedna `AccountingMatch` deseninin bizdeki karşılığı: hangi banka
+  kaynağı hangi kalemi hangi tutar/kur/yöntemle kapattı (`bank_source_type/id` +
+  `target_source_type/id` + `amount` [hedef para biriminde] + `currency` + `rate_used`
+  [hedef dövizse `ledger_rate`] + `method` `auto|manual|suggestion` + `score` + `created_by`).
+  **SALT-EK katman:** finance_events `is_matched`/`match_number` davranışı DEĞİŞMEZ.
+  `finance_event_service.match()` yazar; `unmatch()`/`invalidate()` kaynağın taraf olduğu
+  izleri siler. Yazma/silme **best-effort** (hata loglanır, eşleşmeyi ASLA düşürmez).
+  İleride öneri kuyruğu (`method='suggestion'` — henüz üretilmiyor) ve kısmi/1-N eşleşme
+  aynı şemayı kullanır.
+- **`fx_differences`** — çapraz-para eşleşmede (banka bacağı TRY ↔ hedef kalem döviz)
+  otomatik kur farkı kaydı; Sedna **646 (kambiyo karı) / 656 (kambiyo zararı)** eşleniği.
+  `amount_try` **işaretli: + = kar, − = zarar** (gider kaleminde beklenenden AZ TL ödemek kar,
+  gelir kaleminde FAZLA TL almak kar — `fx_service.record_match_fx_diff`). `rate_estimate` =
+  kalem vadesindeki `ledger_rate`, `rate_realized` = gerçekleşen TL/döviz oranı; `source`:
+  `match` | `revaluation`. `event_match_id` FK **CASCADE** (eşleşme izi silinince fark da düşer).
+  **finance_events'e kalem YAZILMAZ** (kur farkı nakit hareketi değildir — kullanıcı kararı
+  2026-07-11).
+
+### 3) Aylık kur değerlemesi raporu — `compute_monthly_revaluation`
+
+`fx_service.compute_monthly_revaluation(db, year, month)` (endpoint `GET /fx-revaluation`):
+eşlenmiş (onaylı) **döviz** banka hesapları için bizim hesap ↔ **Sedna Type=4 değerleme fişi**
+yan yana. Değerleme formülü (Sedna ile aynı):
+
+```
+expected_try = ay sonu ekstre döviz bakiyesi × ledger_rate(ay sonu günü)   ← döviz × TCMB ALIŞ
+```
+
+Durum: `mutabik` (fark ≤ %0,5 veya 100 TL) / `sapma` / `sedna_bekliyor` (o ayın Type=4 fişi
+henüz yok — Sedna kapanışı 1-3 ay gecikebilir, sapma SAYILMAZ) / `veri_eksik`.
+**KARAR: değerleme RAPOR katmanında kalır — deftere/finance_events'e YAZMAZ** (kullanıcı
+kararı 2026-07-11; FE'ye/deftere yazma ancak ayrı bir kullanıcı kararıyla açılır).
+
+### 4) Kalıcı Sedna kimliği (RecId) + korunan-kayıt sapmaları
+
+Sedna sorguları artık satır kimliği döndürür (`sedna_client`: `AccountingTrans.RecId` /
+`AccCheck.RecId`) ve yerel tablolara damgalanır — hepsi **partial unique** indeksli
+(`WHERE ... IS NOT NULL`):
+
+| Yerel tablo | Kolon |
+|---|---|
+| `vendor_transactions` | `sedna_rec_id` |
+| `checks` | `sedna_check_rec_id` |
+| `sales_invoices` / `sales_collections` | `sedna_rec_id` |
+
+- **Cari import (`cariler/sedna_import.py`):** rec_id-kimlikli **GÜNCELLEME geçişi** (insert'ten
+  önce) — Sedna'da tutar/tarih/evrak düzeltilen KORUMASIZ satır artık sil+ekle (sweep) döngüsüne
+  düşmez, doğrudan **UPDATE** edilir (+ payment_due + FE tazeleme). KORUNAN satırda fark →
+  `report_entity_diff('vendor_tx', …)` + yeni-hash'li satırın **mükerrer insert'i engellenir**.
+  Korunan satır Sedna'da **SİLİNMİŞSE** (Deleted=1) de sapma raporlanır ("muhasebeyle görüşün").
+  Hash'i eşleşen eski satırlara **rec_id geri-doldurma** yapılır. Koşu sonunda bu koşuda
+  görülmeyen açık sapmalar `close_stale_entity_diffs(db, "vendor_tx", …)` ile otomatik kapanır.
+- **Çek import (`check_import.py`):** EŞLEŞMİŞ çekteki önemli Sedna farkı (vade / native tutar /
+  iptal) artık **sessiz atlanmaz** → `report_entity_diff('check', …)`. `sedna_check_rec_id`
+  yeni satıra yazılır, mevcut/drift satırlara geri-doldurulur. Koşu sonunda
+  `close_stale_entity_diffs(db, "check", …)`.
+- **Satış faturaları (`sales_invoices.py`):** saf insert-only KALKTI → **TAM AYNALAMA**:
+  (1) rec_id'li yerel satır Sedna'dan güncellenir (tutar düzeltmesi çift satır üretmez),
+  (2) hash eşleşen rec_id'siz eski satıra kimlik geri-doldurulur, (3) yeni satır rec_id'li
+  eklenir, (4) rec_id'li olup Sedna aktifinden **kaybolan yerel satır SİLİNİR** — güvenlik
+  tavanı **`_MIRROR_SWEEP_CAP=300`** (aşılırsa süpürme İPTAL, yalnız log; olası kısmi
+  veri/mantık hatası koruması); **rec_id'siz eski satırlara dokunulmaz**. Fatura + tahsilat
+  iki küme için de aynı akış. `sedna_sync` satış adımı artık **`BroadcastModule.SALES_INVOICES`**
+  yayınlar (yeni sabit).
+
+### `sedna_diff` — yeni durum + servis fonksiyonları
+
+- `ReconStatus.SEDNA_DIFF = "sedna_diff"` (`constants.py`) — eşleşmiş/korunan yerel kayıtta
+  Sedna sapması. `sedna_bank_recon`'a **`entity_type`** (`check` | `vendor_tx`) + **`entity_id`**
+  eklendi (upsert anahtarı bu ikili; bu kayıtlarda `bank_account_id` NULL). **Kritik durum
+  kümesindedir** (`_CRITICAL_STATUSES`) — bildirim sınıflandırmasında kritik sayılır
+  (toplu bildirim akışı mutabakat koşusu üzerinden çalışır).
+- `sedna_recon_service.report_entity_diff(...)` — sapma upsert'i: kullanıcı **'yoksay'**
+  dediyse yeniden açmaz; kapanmış kayıtta sapma geri gelirse **yeniden açar**.
+  `close_stale_entity_diffs(...)` — koşuda artık raporlanmayan açık sapmaları otomatik kapatır
+  ("giderilince otomatik kalksın" kuralının entity ayağı).
+- `GET /items` `entity_type` filtresi (`bank|check|vendor_tx` — `bank`, entity_type'ı NULL
+  banka satırlarını seçen takma değerdir; frontend tür filtresinin "Banka" seçeneği) + yanıt
+  satırında `entity_type`/`entity_id`.
+- **Test:** `tests/test_faz_b.py` — `ledger_rate` (önceki gün + hafta sonu taşması + TRY=1 +
+  kur-yok=None), event_match izi (match yazar / unmatch+invalidate siler), çapraz-para kur
+  farkı (+kar/−zarar işareti, aynı-para üretmez, unmatch CASCADE), entity sapma raporu
+  (upsert / yoksay-yeniden-açmaz / auto-close / geri-gelince yeniden açılır), cari rec_id
+  import akışı (güncelle + guard + geri-doldurma + silinmiş-korunan sapması), çek sapması,
+  satış tam aynalama (düzeltme=tek satır, kaybolan=silinir).
+
 ## Geliştirme Kuralları
 
 1. **Banka verisi otorite** — motora banka satırı DEĞİŞTİREN kod eklenemez; yeni sınıf
@@ -260,8 +378,9 @@ imkânsız. Güvenilir anahtar **skorlamayla** kurulur (`suggest_account_mapping
   kredi özetleri + rezervasyon/stok/hakediş servisleri (bkz. `docs/modules/nakit-akim.md`).
 - **Aylık kur değerlemesi RAPOR katmanında kalır — `finance_events`'e kalem YAZILMAZ**
   (Claude kararı, kullanıcı yetkilendirdi): değerleme nakit hareketi değildir; Sedna'da da
-  değerleme fişi döviz bakiyesine dokunmaz. İleride (Faz B) değerleme raporu Sedna Type=4
-  fişleriyle yan yana kıyaslanacak; deftere/FE'ye yazma ancak ayrı kullanıcı kararıyla.
+  değerleme fişi döviz bakiyesine dokunmaz. **Faz B ile uygulandı (2026-07-11):** değerleme
+  raporu Sedna Type=4 fişleriyle yan yana kıyaslanır (`GET /fx-revaluation` — aşağıdaki Faz B
+  bölümü); deftere/FE'ye yazma ancak ayrı kullanıcı kararıyla.
 
 ### YIL DEVRİ RİSKİ — Bilinçli Açık Madde (KRİTİK)
 
@@ -293,7 +412,9 @@ Bu modül bir **mutabakat/uyarı katmanıdır**, muhasebe sistemi DEĞİLDİR:
 
 - **Faz A (UYGULANDI, 2026-07-11):** motor + Uyuşmayan Veriler + hesap eşleme + otomatik
   kapanma + bildirim + sedna_sync adımı + kur ALIŞ geçişi.
-- **Faz B (açık):** aylık değerleme raporu (bizim hesap ↔ Sedna Type=4 yan yana),
-  `sedna_rec_id` kalıcı kimlikleri (cari/çek/satış), `event_matches`/`fx_differences` katmanı.
+- **Faz B (UYGULANDI, 2026-07-11):** aylık değerleme raporu (bizim hesap ↔ Sedna Type=4 yan
+  yana), `sedna_rec_id` kalıcı kimlikleri (cari/çek/satış), `event_matches`/`fx_differences`
+  katmanı, korunan-kayıt `sedna_diff` sapmaları — yukarıdaki **Faz B** bölümü.
 - **Faz C (açık):** cari↔Sedna mutabakat sekmesi, kredi/avans kod eşlemesi, dönem kilidi
-  uyarı modu. Muhasebe ekibine e-posta iletimi **kullanıcı kararı bekliyor**.
+  uyarı modu. Yıl devri (`Mhs2027`) tasarımı da açık. Muhasebe ekibine e-posta iletimi
+  **kullanıcı kararı bekliyor**.

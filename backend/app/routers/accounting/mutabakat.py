@@ -114,7 +114,7 @@ def recon_summary(
 def list_items(
     status: Optional[str] = Query(default=None, pattern="^[a-z_]+$"),
     account_id: Optional[int] = None,
-    entity_type: Optional[str] = Query(default=None, pattern="^(check|vendor_tx)$"),
+    entity_type: Optional[str] = Query(default=None, pattern="^(bank|check|vendor_tx)$"),
     include_closed: bool = False,
     q: Optional[str] = None,
     page: int = Query(default=1, ge=1),
@@ -132,7 +132,10 @@ def list_items(
         query = query.filter(SednaBankRecon.status == status)
     if account_id:
         query = query.filter(SednaBankRecon.bank_account_id == account_id)
-    if entity_type:
+    if entity_type == "bank":
+        # Banka satırları entity_type taşımaz (NULL) — 'bank' takma değeri onları seçer
+        query = query.filter(SednaBankRecon.entity_type.is_(None))
+    elif entity_type:
         query = query.filter(SednaBankRecon.entity_type == entity_type)
     if q:
         like = f"%{q.strip()}%"

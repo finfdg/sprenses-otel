@@ -90,3 +90,24 @@ değildir** — `create_scheduled_router` kullanmazlar. İkisi de **canlı Sedna
 **Yeni canlı-Sedna rapor modülü** eklerken bu deseni izle (fabrika değil): `sedna_client.py`'ye
 `fetch_*` + ayrı router + RBAC modülü + `tests/ci/02_seed.sql` + `navigation.ts`. `require_permission`
 ile korunur; mutasyon olmadığından onay/audit gerekmez.
+
+## Sedna Mutabakat (`accounting.mutabakat`) — Uyuşmayan Veriler
+
+Banka ↔ Sedna 102 defteri mutabakat modülü; fabrika dışı. Router `mutabakat.py`, motor
+`services/sedna_recon_service.py` (router + onay executor `_handle_accounting_mutabakat` ORTAK).
+Kural: **banka verisi HER ZAMAN otorite** — motor banka satırını değiştirmez, yalnız sınıflar;
+Sedna girilince/düzeltilince kayıt otomatik kapanır. Tam anlatım: `docs/modules/sedna-mutabakat.md`.
+
+**Faz B eklemeleri (2026-07-11):**
+- `GET /mutabakat/fx-revaluation` — aylık kur değerlemesi raporu (bizim ay sonu bakiye ×
+  `fx_service.ledger_rate` ↔ Sedna Type=4 fişi yan yana). **Salt rapor — deftere/finance_events'e
+  YAZMAZ** (kullanıcı kararı). `ledger_rate` = `exchange_rates(tarih−1).forex_buying` (Sedna
+  "geçerlilik" vs bizim "yayın" tarihi — 1 gün kayma).
+- `GET /mutabakat/fx-differences` — kur farkı kayıtları (646/656 eşleniği; çapraz-para
+  eşleşmelerden `fx_differences` tablosunda birikir; FE'ye kalem yazılmaz).
+- `GET /mutabakat/items` artık `entity_type` (`bank|check|vendor_tx`) filtresi alır (`bank` =
+  entity_type'ı NULL banka satırları için takma değer — frontend tür filtresi "Banka" seçeneği); yanıt satırında
+  `entity_type`/`entity_id`. Yeni durum **`ReconStatus.SEDNA_DIFF`** (`sedna_diff`): eşleşmiş/
+  KORUNAN yerel çek/cari kaydında Sedna farkı — yerel kayıt otomatik DEĞİŞTİRİLMEZ, importlar
+  `report_entity_diff` ile buraya yazar; giderilince `close_stale_entity_diffs` otomatik kapatır.
+  `sedna_diff` kritik durum kümesindedir (`_CRITICAL_STATUSES`).

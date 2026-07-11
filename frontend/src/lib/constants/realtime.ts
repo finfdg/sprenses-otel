@@ -64,6 +64,7 @@ export const BROADCAST_MODULE = {
 	APPROVAL: 'approval',
 	SCHEDULED: 'scheduled',
 	RECON: 'recon', // Sedna mutabakat (accounting.mutabakat)
+	SALES_INVOICES: 'sales_invoices', // satış faturaları/tahsilatlar (Sedna aynalama sonrası yayın)
 	// Satış alanı
 	HOTEL_RESERVATION: 'hotel_reservation',
 	ROOM_TYPES: 'room_types',
@@ -81,6 +82,7 @@ export const RECON_STATUS = {
 	SEDNA_EXTRA: 'sedna_extra', // Sedna'da var, bankada yok (muhtemel hatalı giriş)
 	DIRECTION_FLIP: 'direction_flip', // aynı gün + aynı mutlak tutar + TERS yön
 	DUPLICATE_SUSPECT: 'duplicate_suspect', // Sedna adedi > banka adedi (mükerrer fiş şüphesi)
+	SEDNA_DIFF: 'sedna_diff', // eşleşmiş/korunan yerel kayıtta (çek/cari) Sedna sapması — entity_type'lı
 } as const;
 
 export type ReconStatusType = (typeof RECON_STATUS)[keyof typeof RECON_STATUS];

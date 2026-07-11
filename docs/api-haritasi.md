@@ -142,11 +142,13 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 
 ### Muhasebe — Sedna Mutabakat (Uyuşmayan Veriler / banka ↔ Sedna 102 defteri)
 - `GET /api/accounting/mutabakat/summary` — Açık durum sayıları + en eski açık tarih + son koşu + hesap eşleme kapsamı. accounting.mutabakat view
-- `GET /api/accounting/mutabakat/items` — Uyuşmazlık listesi (**sayfalı** `page`/`page_size≤200`; `sort_by` **whitelist'li**: `event_date|amount|status|detected_at` + `sort_dir`; filtre: `status`, `account_id`, `include_closed`, `q`). accounting.mutabakat view
+- `GET /api/accounting/mutabakat/items` — Uyuşmazlık listesi (**sayfalı** `page`/`page_size≤200`; `sort_by` **whitelist'li**: `event_date|amount|status|detected_at` + `sort_dir`; filtre: `status`, `account_id`, **`entity_type` `check|vendor_tx`** [Faz B — eşleşmiş çek/cari `sedna_diff` sapmaları], `include_closed`, `q`; yanıt satırında `entity_type`/`entity_id`). accounting.mutabakat view
 - `POST /api/accounting/mutabakat/run` — Mutabakat taramasını elle tetikle (`window_days` 7–365, varsayılan 45; Sedna canlı sorgulanır, tünel kapalı→503). **Onaydan MUAF** — veri mutasyonu değil sınıflandırma (banka verisi HER ZAMAN otorite, motor banka satırını değiştirmez); audit + WS broadcast var. Merkezi Sedna sync'in `bank_recon` adımı da bunu çağırır. accounting.mutabakat use
 - `PATCH /api/accounting/mutabakat/items/{id}` — Kaydı çöz/yoksay/yeniden aç (`action: resolve|ignore|reopen` + not). accounting.mutabakat use + **`check_approval`** (op=`resolve_item`; executor `_handle_accounting_mutabakat`)
 - `GET /api/accounting/mutabakat/account-mappings` — Hesap eşleme durumu + **canlı Sedna** önerileri (102 leaf, Remark-numara + banka adı + para birimi skorlaması) — tünel kapalıysa **503 olabilir**. accounting.mutabakat view
 - `PATCH /api/accounting/mutabakat/account-mappings/{account_id}` — Banka hesabına Sedna 102 kodu ata/onayla/temizle (`sedna_code_confirmed` insan onayı). accounting.mutabakat use + **`check_approval`** (op=`account_mapping`)
+- `GET /api/accounting/mutabakat/fx-revaluation` — **Faz B (2026-07-11):** aylık kur değerlemesi raporu (`year`+`month`) — eşlenmiş döviz hesapları: bizim ay sonu bakiye × `ledger_rate` ↔ Sedna Type=4 değerleme fişi yan yana (`mutabik|sapma|sedna_bekliyor|veri_eksik`). **Salt rapor — deftere/finance_events'e YAZMAZ.** Sedna canlı → tünel kapalıysa 503. accounting.mutabakat view
+- `GET /api/accounting/mutabakat/fx-differences` — **Faz B:** kur farkı kayıtları (Sedna 646/656 eşleniği; çapraz-para eşleşmelerden otomatik birikir, `amount_try` işaretli: +kar/−zarar). Sayfalı + `total_amount_try` genel toplam. accounting.mutabakat view
 - Detaylı bilgi: `docs/modules/sedna-mutabakat.md`
 
 ### İnsan Kaynakları — Maaş & Stopaj

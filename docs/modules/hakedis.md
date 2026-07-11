@@ -106,6 +106,12 @@ Canlı temizlik 2026-07-02: 7 bayat satır / ₺6,57M silindi (ODEON ₺5,8M vir
 ₺616K tarih taşıma + kur farkı). **Kalıcı çözüm (yapılacak):** cari sweep deseni
 (`_sweep_stale_vendor_txns`) sales_invoices import'una da uygulanmalı.
 
+> **✅ ÇÖZÜLDÜ (2026-07-11, Faz B) — tam aynalamaya geçti:** satış import'u artık saf
+> insert-only değil; `sales_invoices`/`sales_collections.sedna_rec_id` (kalıcı Sedna RecId)
+> ile Sedna'da düzeltilen satır **UPDATE** edilir, Sedna aktifinden kaybolan rec_id'li satır
+> **SİLİNİR** (`_MIRROR_SWEEP_CAP=300` güvenlik tavanı; rec_id'siz eski satırlara dokunulmaz).
+> Bkz. `docs/modules/sedna-mutabakat.md` "Faz B".
+
 ## Acente Gruplama (2026-07-02)
 Rezervasyon modülündeki **acente grupları** (`agency_groups`) hak edişte birleşik satır olarak
 gösterilir (ör. ODEON grubu = ODEON TUR + CORAL SEYAHAT). **Eşleme isimle YAPILMAZ** — PMS adları

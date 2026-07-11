@@ -162,6 +162,14 @@ use, onaydan muaf, audit'li).
   aynı-no-farklı-tutar + mükerrer iyileştirme + **tutar-kayması heal (eşleşmemiş) / matched-skip** +
   **159/335 prefix import** + **fetch SQL 320+159+335 kapsamı** + izin/503).
 
+> **Faz B (2026-07-11) — Kalıcı Sedna kimliği + korunan-sapma raporu:** `checks` artık
+> **`sedna_check_rec_id`** (Sedna `AccCheck.RecId`, partial unique) taşır — import yeni çeke
+> damgalar, mevcut/drift satırlara geri-doldurur. **EŞLEŞMİŞ** çekteki önemli Sedna farkı
+> (vade / native tutar / iptal) artık sessiz atlanmaz: yerel kayıt DEĞİŞMEZ (banka-kanıtlı veri
+> korunur), fark Uyuşmayan Veriler'e **'Sedna sapması'** (`sedna_diff`, `entity_type='check'`)
+> yazılır; giderilince otomatik kapanır (`close_stale_entity_diffs`).
+> Detay: `docs/modules/sedna-mutabakat.md` "Faz B".
+
 ---
 
 ## Nakit Akım Entegrasyonu
