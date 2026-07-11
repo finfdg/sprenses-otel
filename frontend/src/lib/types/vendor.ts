@@ -39,6 +39,11 @@ export interface VendorNote {
 	updated_at: string;
 }
 
+export interface VendorNoteWithVendor extends VendorNote {
+	vendor_name: string;
+	vendor_code: string;
+}
+
 export interface VendorTransaction {
 	id: number;
 	vendor_id: number;

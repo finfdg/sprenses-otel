@@ -97,6 +97,85 @@ def test_note_requires_use(client, viewer_user_headers, vendor):
                        headers=viewer_user_headers).status_code == 403
 
 
+# ─── Toplu not listesi (Notlar sekmesi kartı) ────────────
+
+@pytest.fixture
+def two_vendors_with_notes(client, auth_headers, db):
+    """İki cari + üç not (biri yapıldı) — toplu liste testleri için."""
+    v1 = Vendor(hesap_kodu="320.TNOT." + uuid.uuid4().hex[:6], hesap_adi="Toplu Not Cari Bir")
+    v2 = Vendor(hesap_kodu="320.TNOT." + uuid.uuid4().hex[:6], hesap_adi="Toplu Not Cari İki")
+    db.add_all([v1, v2])
+    db.flush()
+    n1 = client.post(f"{C}/vendors/{v1.id}/notes",
+                     json={"text": "852.668,84 TL havale yapılacak"}, headers=auth_headers).json()
+    n2 = client.post(f"{C}/vendors/{v2.id}/notes",
+                     json={"text": "mutabakat farkı için çek listesi istendi"}, headers=auth_headers).json()
+    n3 = client.post(f"{C}/vendors/{v2.id}/notes",
+                     json={"text": "çek vadesi telefonla teyit edildi"}, headers=auth_headers).json()
+    client.patch(f"{C}/vendors/{v2.id}/notes/{n3['id']}", json={"done": True}, headers=auth_headers)
+    return {"v1": v1, "v2": v2, "n1": n1, "n2": n2, "n3": n3}
+
+
+def test_all_notes_list_with_vendor_info(client, auth_headers, two_vendors_with_notes):
+    d = two_vendors_with_notes
+    r = client.get(f"{C}/notes", headers=auth_headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # standart sayfalama metası + open_total
+    assert {"items", "total", "page", "page_size", "pages", "open_total"} <= set(body.keys())
+    ids = [i["id"] for i in body["items"]]
+    assert d["n1"]["id"] in ids and d["n2"]["id"] in ids and d["n3"]["id"] in ids
+    # firma bilgisi satırda
+    item1 = next(i for i in body["items"] if i["id"] == d["n1"]["id"])
+    assert item1["vendor_name"] == "Toplu Not Cari Bir"
+    assert item1["vendor_code"] == d["v1"].hesap_kodu
+    # en yeni en üstte (n3, n2'den sonra eklendi)
+    assert ids.index(d["n3"]["id"]) < ids.index(d["n1"]["id"])
+    # open_total yapılmış notu saymaz
+    assert body["open_total"] >= 2
+
+
+def test_all_notes_done_filter(client, auth_headers, two_vendors_with_notes):
+    d = two_vendors_with_notes
+    open_ids = [i["id"] for i in
+                client.get(f"{C}/notes?done=false", headers=auth_headers).json()["items"]]
+    assert d["n1"]["id"] in open_ids and d["n2"]["id"] in open_ids
+    assert d["n3"]["id"] not in open_ids
+    done_ids = [i["id"] for i in
+                client.get(f"{C}/notes?done=true", headers=auth_headers).json()["items"]]
+    assert d["n3"]["id"] in done_ids and d["n1"]["id"] not in done_ids
+
+
+def test_all_notes_search_text_and_vendor(client, auth_headers, two_vendors_with_notes):
+    d = two_vendors_with_notes
+    # not metninde arama
+    hits = [i["id"] for i in
+            client.get(f"{C}/notes?search=havale", headers=auth_headers).json()["items"]]
+    assert d["n1"]["id"] in hits and d["n2"]["id"] not in hits
+    # firma adında arama — o carinin tüm notları döner
+    hits2 = [i["id"] for i in
+             client.get(f"{C}/notes?search=Cari İki", headers=auth_headers).json()["items"]]
+    assert d["n2"]["id"] in hits2 and d["n3"]["id"] in hits2 and d["n1"]["id"] not in hits2
+    # cari kodunda arama
+    hits3 = [i["id"] for i in
+             client.get(f"{C}/notes?search={d['v1'].hesap_kodu}", headers=auth_headers).json()["items"]]
+    assert hits3 == [d["n1"]["id"]]
+
+
+def test_all_notes_pagination(client, auth_headers, two_vendors_with_notes):
+    r = client.get(f"{C}/notes?page=1&page_size=2", headers=auth_headers).json()
+    assert len(r["items"]) == 2 and r["page_size"] == 2
+    assert r["pages"] >= 2 and r["total"] >= 3
+
+
+def test_all_notes_view_permission(client, viewer_user_headers, two_vendors_with_notes):
+    # salt-okuma GET — view yeterli
+    assert client.get(f"{C}/notes", headers=viewer_user_headers).status_code == 200
+    # auth'suz erişim yasak (login fixture'ının cookie'si temizlenir)
+    client.cookies.clear()
+    assert client.get(f"{C}/notes").status_code == 401
+
+
 # ─── İletişim bilgileri ──────────────────────────────────
 
 def test_contact_update_and_reflected_in_detail(client, auth_headers, vendor):

@@ -366,4 +366,29 @@ Seçili carinin detayı 3 sekmeye bölünmüştür + üstte 3 özet kart.
 - Yine de `require_permission(finance.cariler, use)` + audit (`vendor_note`/`vendor`) + WS broadcast (`CARILER, update`) uygulanır.
 - Vade/durum güncelleme ONAYA TABİ kalmaya devam eder (finansal); iletişim/not değildir.
 
-**Endpoint'ler:** `GET/POST /vendors/{id}/notes`, `PATCH/DELETE /vendors/{id}/notes/{note_id}`, `PATCH /vendors/{id}/contact`. **Migration:** `d8c3f1a2b4e6` (vendors +3 nullable kolon; `vendor_notes` tablosu). **Test:** `tests/test_vendor_notes.py` (9).
+**Endpoint'ler:** `GET/POST /vendors/{id}/notes`, `PATCH/DELETE /vendors/{id}/notes/{note_id}`, `PATCH /vendors/{id}/contact`. **Migration:** `d8c3f1a2b4e6` (vendors +3 nullable kolon; `vendor_notes` tablosu). **Test:** `tests/test_vendor_notes.py` (16).
+
+### Toplu Firma Notları Kartı — "Notlar" üst sekmesi (2026-07-11)
+
+Tüm carilerin notlarını tek listede izleyen kart; Cariler sayfası üst sekmelerine
+(**Dosya Yükle / Cariler / Notlar / Ödeme Planı / Ödeme Talimatı**) eklendi.
+
+- **Backend:** `GET /finance/cariler/notes` — tüm notlar vendor join'iyle (satırda
+  `vendor_name`/`vendor_code`), en yeni en üstte. Parametreler: `page`/`page_size`(≤200),
+  `done` (true/false; yoksa hepsi), `search` (not metni + firma adı + cari kodu, ILIKE).
+  Yanıt: standart sayfalama metası + **`open_total`** (filtre/aramadan bağımsız açık not
+  sayısı — kart başlığındaki amber rozet). Salt-okuma GET → onaydan muaf,
+  `finance.cariler` **view** yeterli. Şema: `VendorNoteListItem` (schemas/vendor.py).
+- **Frontend (kart anatomisi):** başlık (StickyNote ikonu + "Firma Notları" + amber
+  "N açık" rozeti + **Açık/Tamamlanan/Tümü** filtre çipleri, varsayılan **Açık**) →
+  arama satırı (300ms debounce + kayıt sayısı) → satır listesi → sayfalama.
+  Satır: yapıldı onay kutusu (detay sekmesiyle aynı `PATCH .../notes/{id}` toggle;
+  Açık/Tamamlanan filtresinde işaretlenen satır listeden düşer, "Tümü"nde üstü çizili
+  kalır) + firma adı (tıklanınca Cariler sekmesinde o cari **Notlar detay sekmesi açık**
+  şekilde açılır) + mono cari kodu + not metni + yazan/tarih meta + (yapıldıysa yeşil
+  "Yapıldı" rozeti) + sağda cariye-git (ExternalLink) butonu.
+- Boş durum `EmptyState`, yükleme `TableSkeleton`; WS `finance_updated` sekme açıkken
+  listeyi tazeler (polling yok). Not ekleme bu kartta YOK — ekleme cari bağlamı
+  gerektirdiğinden cari detayındaki Notlar sekmesinden yapılır.
+- **Test:** `tests/test_vendor_notes.py` — `test_all_notes_*` (5: vendor bilgisi+sıra,
+  done filtresi, metin/firma/kod araması, sayfalama, view-yeterli/401).

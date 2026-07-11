@@ -7,9 +7,10 @@ endpoint istisnası). Yine de `require_permission(finance.cariler, use)` + audit
 broadcast zorunludur (CLAUDE.md kuralları). `author_name` yazma anında snapshot alınır.
 """
 
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.constants import BroadcastModule
@@ -22,6 +23,7 @@ from app.models.vendor_note import VendorNote
 from app.schemas.vendor import VendorNoteCreate, VendorNoteResponse, VendorNoteUpdate
 from app.utils.audit import log_action
 from app.utils.finance_broadcast import broadcast_finance_update
+from app.utils.pagination import page_meta
 
 from ._helpers import logger
 
@@ -33,6 +35,58 @@ def _require_vendor(db: Session, vendor_id: int) -> Vendor:
     if not vendor:
         raise HTTPException(status_code=404, detail="Cari bulunamadı")
     return vendor
+
+
+# ─── Toplu Not Listesi (tüm firmalar — Notlar sekmesi kartı) ─
+
+@router.get("/notes")
+def list_all_vendor_notes(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    done: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.cariler", "view")),
+):
+    """Tüm carilerin notlarını tek listede döndür (en yeni en üstte).
+
+    `done` filtresi (true/false, yoksa hepsi) + `search` (not metni, firma adı,
+    cari kodu — ILIKE). Yanıta standart sayfalama metasına ek `open_total`
+    (filtre/aramadan bağımsız açık not sayısı — kart rozeti) eklenir.
+    """
+    q = (
+        db.query(VendorNote, Vendor.hesap_adi, Vendor.hesap_kodu)
+        .join(Vendor, VendorNote.vendor_id == Vendor.id)
+    )
+    if done is not None:
+        q = q.filter(VendorNote.done.is_(done))
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        q = q.filter(or_(
+            VendorNote.text.ilike(term),
+            Vendor.hesap_adi.ilike(term),
+            Vendor.hesap_kodu.ilike(term),
+        ))
+    total = q.count()
+    rows = (
+        q.order_by(VendorNote.created_at.desc(), VendorNote.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    items = [
+        {
+            **VendorNoteResponse.model_validate(note).model_dump(),
+            "vendor_name": hesap_adi,
+            "vendor_code": hesap_kodu,
+        }
+        for note, hesap_adi, hesap_kodu in rows
+    ]
+    resp = page_meta(items, total, page, page_size)
+    resp["open_total"] = (
+        db.query(VendorNote).filter(VendorNote.done.is_(False)).count()
+    )
+    return resp
 
 
 # ─── Not Listesi ─────────────────────────────────────────

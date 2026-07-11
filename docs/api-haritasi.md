@@ -83,6 +83,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/finance/cariler/vendors/{id}` — Cari detay + işlemler (+ `contact_person/phone/email` + özet metrikler `overdue`/`overdue_count`/`last_payment_amount`/`last_payment_date`)
 - `PATCH /api/finance/cariler/vendors/{id}/contact` — **Firma iletişim** (yetkili/telefon/e-posta) güncelle. Finansal etkisi yok → **onaydan muaf** (use + audit + broadcast)
 - `GET/POST /api/finance/cariler/vendors/{id}/notes` · `PATCH/DELETE /api/finance/cariler/vendors/{id}/notes/{note_id}` — **Cari notları** (görüşme/takip; ekle/düzenle/sil/`done` toggle). Onaydan muaf; use + audit (`vendor_note`) + broadcast
+- `GET /api/finance/cariler/notes` — **Toplu firma notları** (tüm cariler tek listede, vendor join'li `vendor_name`/`vendor_code`; `done` + `search` filtreleri, paginated + `open_total`). Cariler sayfası "Notlar" sekmesi kartını besler; view yeterli
 - `GET/POST/PATCH/DELETE /api/finance/cariler/vendors/{id}/bank-accounts[/{ba_id}]` — **Cari banka hesapları (IBAN)** — bir cari → 0..N IBAN; biri varsayılan. Sedna'da cari IBAN'ı boş olduğundan burada yönetilir; ödeme talimatında kullanılır. IBAN normalize + mükerrer 409 + varsayılan devri. finance.cariler use, audit'li
 - `GET /api/finance/cariler/payment-schedule` — Haftalık ödeme planı
 - Detaylı bilgi: `docs/modules/cariler.md`

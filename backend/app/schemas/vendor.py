@@ -114,6 +114,12 @@ class VendorNoteResponse(BaseModel):
         from_attributes = True
 
 
+class VendorNoteListItem(VendorNoteResponse):
+    """Toplu not listesi satırı — nota firma bilgisi eklenir (Notlar sekmesi kartı)."""
+    vendor_name: str
+    vendor_code: str
+
+
 # ─── VendorTransaction ──────────────────────────────────
 
 class VendorTransactionResponse(BaseModel):

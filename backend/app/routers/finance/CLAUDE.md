@@ -244,6 +244,12 @@ t_account **listede-kalır-toplam-dışı** + kolon-toplamı-değişmez + realiz
   yok, elle girilir). Aynı migration.
 - **Endpoint'ler (`cariler/notes.py` + `vendors.py`):**
   - `GET/POST /vendors/{id}/notes`, `PATCH/DELETE /vendors/{id}/notes/{note_id}` — not CRUD + `done` toggle.
+  - `GET /notes` (2026-07-11) — **toplu firma notları**: tüm carilerin notları vendor join'iyle tek
+    listede (`vendor_name`/`vendor_code` satırda; `done`/`search` filtreleri, paginated + `open_total`
+    rozet sayacı). Cariler sayfasındaki yeni **"Notlar" üst sekmesi kartını** besler (kart: Açık/
+    Tamamlanan/Tümü çipleri, arama, done toggle, firma adına tıkla→cari Notlar sekmesi). Salt-okuma
+    GET → onaydan muaf, view yeterli. Test: `test_vendor_notes.py::test_all_notes_*` (5).
+    Detay: `docs/modules/cariler.md` "Toplu Firma Notları Kartı".
   - `PATCH /vendors/{id}/contact` — iletişim güncelle.
   - `GET /vendors/{id}` yanıtına eklendi: `contact_person/phone/email` + özet kart metrikleri
     **`overdue`/`overdue_count`** (NET vadesi geçmiş — aşağıya bkz) + **`last_payment_*`**

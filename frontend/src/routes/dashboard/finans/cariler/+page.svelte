@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import type {
 		Vendor, VendorDetail, VendorTransaction, VendorUpload,
-		VendorUploadResult, WeeklyPaymentGroup, RemovalCandidate, BulkDeleteResult, VendorNote
+		VendorUploadResult, WeeklyPaymentGroup, RemovalCandidate, BulkDeleteResult, VendorNote, VendorNoteWithVendor
 	} from '$lib/types/vendor';
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
@@ -19,7 +19,7 @@
 	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
 	import DeptAssignModal from '$lib/components/finance/cariler/DeptAssignModal.svelte';
 	import AddToListModal from '$lib/components/finance/cariler/AddToListModal.svelte';
-	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, Check, X, Calendar, Download, Pencil, Copy, User, StickyNote, ArrowLeft } from 'lucide-svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, Check, X, Calendar, Download, Pencil, Copy, User, StickyNote, ArrowLeft, ExternalLink } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -36,7 +36,7 @@
 	}
 
 	// ─── State ──────────────────────────────────────────
-	let activeView = $state<'upload' | 'vendors' | 'schedule' | 'instructions'>('upload');
+	let activeView = $state<'upload' | 'vendors' | 'notes' | 'schedule' | 'instructions'>('upload');
 
 	// Upload
 	let uploading = $state(false);
@@ -85,6 +85,17 @@
 	let noteSaving = $state(false);
 	let editingNoteId = $state<number | null>(null);
 	let editingNoteText = $state('');
+
+	// Toplu firma notları (Notlar sekmesi kartı)
+	let allNotes = $state<VendorNoteWithVendor[]>([]);
+	let allNotesLoading = $state(false);
+	let allNotesLoaded = $state(false);
+	let allNotesFilter = $state<'open' | 'done' | 'all'>('open');
+	let allNotesSearch = $state('');
+	let allNotesPage = $state(1);
+	let allNotesPages = $state(1);
+	let allNotesTotal = $state(0);
+	let allNotesOpenTotal = $state(0);
 
 	// Firma iletişim bilgileri
 	let contactForm = $state({ contact_person: '', phone: '', email: '' });
@@ -678,6 +689,72 @@
 		});
 	}
 
+	// ─── Toplu Firma Notları (Notlar sekmesi kartı) ────
+	async function loadAllNotes() {
+		allNotesLoading = true;
+		try {
+			const params = new URLSearchParams({
+				page: String(allNotesPage),
+				page_size: '50',
+			});
+			if (allNotesFilter !== 'all') params.set('done', allNotesFilter === 'done' ? 'true' : 'false');
+			if (allNotesSearch.trim()) params.set('search', allNotesSearch.trim());
+			const res = await api.get<any>(`/finance/cariler/notes?${params}`);
+			allNotes = res.items;
+			allNotesTotal = res.total;
+			allNotesPages = res.pages;
+			allNotesOpenTotal = res.open_total;
+		} catch (err) {
+			console.error('Firma notları alınamadı:', err);
+			showToast('Firma notları yüklenemedi', 'error');
+		} finally {
+			allNotesLoading = false;
+			allNotesLoaded = true;
+		}
+	}
+
+	function setAllNotesFilter(f: 'open' | 'done' | 'all') {
+		allNotesFilter = f;
+		allNotesPage = 1;
+		loadAllNotes();
+	}
+
+	let allNotesSearchTimeout: ReturnType<typeof setTimeout>;
+	function onAllNotesSearchInput() {
+		clearTimeout(allNotesSearchTimeout);
+		allNotesSearchTimeout = setTimeout(() => {
+			allNotesPage = 1;
+			loadAllNotes();
+		}, 300);
+	}
+
+	async function toggleAllNoteDone(note: VendorNoteWithVendor) {
+		try {
+			const updated = await api.patch<VendorNote>(`/finance/cariler/vendors/${note.vendor_id}/notes/${note.id}`, { done: !note.done });
+			allNotesOpenTotal = Math.max(0, allNotesOpenTotal + (updated.done ? -1 : 1));
+			if (allNotesFilter === 'all') {
+				allNotes = allNotes.map(n => n.id === note.id ? { ...n, done: updated.done, updated_at: updated.updated_at } : n);
+			} else {
+				// Açık/Tamamlanan filtresinde durum değişen not artık bu listeye ait değil
+				allNotes = allNotes.filter(n => n.id !== note.id);
+				allNotesTotal = Math.max(0, allNotesTotal - 1);
+			}
+		} catch (err) {
+			console.error('Not güncellenemedi:', err);
+			showToast('Not güncellenemedi', 'error');
+		}
+	}
+
+	// Not satırındaki firma adına tıklanınca cariyi Notlar sekmesi açık şekilde aç
+	function openVendorFromNote(note: VendorNoteWithVendor) {
+		activeView = 'vendors';
+		if (vendors.length === 0) loadVendors();
+		if (expandedVendor !== note.vendor_id) {
+			toggleVendorDetail(note.vendor_id);
+		}
+		detailTab = 'notes';
+	}
+
 	// ─── Firma İletişim Bilgileri ──────────────────────
 	async function saveContact(vendorId: number) {
 		contactSaving = true;
@@ -882,6 +959,8 @@
 			loadVendors();
 		} else if (activeView === 'schedule' && schedule.length === 0) {
 			loadSchedule();
+		} else if (activeView === 'notes' && !allNotesLoaded) {
+			loadAllNotes();
 		}
 	});
 
@@ -919,6 +998,7 @@
 			loadSummary();
 			if (activeView === 'vendors') loadVendors();
 			if (activeView === 'upload') loadUploads();
+			if (activeView === 'notes') loadAllNotes();
 		});
 	});
 
@@ -957,6 +1037,7 @@
 			options={[
 				{ value: 'upload', label: 'Dosya Yükle' },
 				{ value: 'vendors', label: 'Cariler' },
+				{ value: 'notes', label: 'Notlar' },
 				{ value: 'schedule', label: 'Ödeme Planı' },
 				{ value: 'instructions', label: 'Ödeme Talimatı' },
 			]}
@@ -1589,6 +1670,74 @@
 				{/if}
 			</div>
 
+		</div>
+	{/if}
+
+	<!-- ═══ NOTLAR (toplu firma notları kartı) ═══ -->
+	{#if activeView === 'notes'}
+		<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+			<!-- Kart başlığı: ikon + başlık + açık rozeti + filtre çipleri -->
+			<div class="px-4 sm:px-5 py-4 border-b border-gray-100 flex items-center gap-2.5 flex-wrap">
+				<StickyNote size={18} class="text-teal-700 shrink-0" />
+				<h3 class="font-semibold text-gray-900">Firma Notları</h3>
+				<span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 text-amber-700 tabular-nums">{allNotesOpenTotal} açık</span>
+				<div class="ml-auto flex items-center gap-1.5 flex-wrap">
+					{#each [{ k: 'open', label: 'Açık' }, { k: 'done', label: 'Tamamlanan' }, { k: 'all', label: 'Tümü' }] as f (f.k)}
+						<button onclick={() => setAllNotesFilter(f.k as any)} class="px-2.5 py-1 rounded-lg text-xs border transition-colors cursor-pointer {allNotesFilter === f.k ? 'bg-teal-700 border-teal-700 text-white font-semibold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}">{f.label}</button>
+					{/each}
+				</div>
+			</div>
+
+			<!-- Arama -->
+			<div class="px-4 sm:px-5 py-3 border-b border-gray-100 flex items-center gap-3">
+				<Input type="search" icon={Search} bind:value={allNotesSearch} oninput={onAllNotesSearchInput} placeholder="Firma veya not içinde ara..." />
+				<span class="text-xs text-gray-500 tabular-nums whitespace-nowrap">{allNotesTotal} not</span>
+			</div>
+
+			<!-- Liste -->
+			{#if allNotesLoading}
+				<div class="p-4"><TableSkeleton rows={6} columns={1} /></div>
+			{:else if allNotes.length === 0}
+				<EmptyState
+					icon={StickyNote}
+					title={allNotesFilter === 'open' ? 'Açık not yok' : allNotesFilter === 'done' ? 'Tamamlanan not yok' : 'Henüz not yok'}
+					description="Cari detayındaki Notlar sekmesinden görüşme notu ekleyebilirsiniz."
+				/>
+			{:else}
+				<div class="divide-y divide-gray-100">
+					{#each allNotes as n (n.id)}
+						<div class="px-4 sm:px-5 py-3 flex items-start gap-3">
+							<button onclick={() => { if (canUse) toggleAllNoteDone(n); }} disabled={!canUse} title="Yapıldı işaretle" class="shrink-0 mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center transition-colors {n.done ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300 hover:border-brass'} {canUse ? 'cursor-pointer' : 'cursor-default'}">{#if n.done}<Check size={13} />{/if}</button>
+							<div class="flex-1 min-w-0">
+								<div class="flex items-baseline gap-2 flex-wrap">
+									<button onclick={() => openVendorFromNote(n)} class="text-[13px] font-semibold text-gray-900 hover:text-teal-700 truncate max-w-full cursor-pointer text-left" title="Cariyi aç">{n.vendor_name}</button>
+									<span class="font-mono text-[10px] text-gray-500">{n.vendor_code}</span>
+								</div>
+								<p class="text-sm mt-0.5 whitespace-pre-wrap break-words {n.done ? 'text-gray-500 line-through' : 'text-gray-800'}">{n.text}</p>
+								<div class="flex items-center gap-2.5 mt-1 text-[11px] text-gray-500 flex-wrap">
+									{#if n.author_name}
+										<span class="inline-flex items-center gap-1"><User size={11} /> {n.author_name}</span>
+									{/if}
+									<span class="tabular-nums">{formatDateTime(n.created_at)}</span>
+									{#if n.done}
+										<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium"><Check size={11} /> Yapıldı</span>
+									{/if}
+								</div>
+							</div>
+							<button onclick={() => openVendorFromNote(n)} class="shrink-0 touch-target p-1.5 text-gray-500 hover:text-teal-700 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" title="Cariye git"><ExternalLink size={15} /></button>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			<!-- Sayfalama -->
+			{#if allNotesPages > 1}
+				<div class="flex items-center justify-between px-4 sm:px-5 py-2.5 border-t border-gray-100 text-xs text-gray-500">
+					<button onclick={() => { allNotesPage--; loadAllNotes(); }} disabled={allNotesPage <= 1} class="px-2 py-1 rounded border border-gray-200 disabled:opacity-40 cursor-pointer">‹ Önceki</button>
+					<span class="tabular-nums">{allNotesPage} / {allNotesPages}</span>
+					<button onclick={() => { allNotesPage++; loadAllNotes(); }} disabled={allNotesPage >= allNotesPages} class="px-2 py-1 rounded border border-gray-200 disabled:opacity-40 cursor-pointer">Sonraki ›</button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 
