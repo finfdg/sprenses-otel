@@ -36,6 +36,14 @@ from app.utils.finance_helpers import MIN_DATE, validate_category
 # Eşleştirme numarası ve ödeme yöntemi seçimi gerektiren kategoriler
 CATEGORIES_WITH_MATCH = {"Cari", "Personel", "Vergi/SGK", "Kira", "Elektrik Faturası", "Su Faturası", "Aidat", "İade"}
 
+# Faz 1 #11 — etiket kategorisi → kapatılabilecek planlı gider türleri (yalnız GİDER;
+# banka çıkışı bu türlerin planlı girişini kanıtlar)
+_SCHEDULED_CATEGORY_MAP = {
+    "Vergi/SGK": ["tax", "sgk", "withholding"],
+    "Personel": ["salary"],
+    "Kira": ["rent_expense"],
+}
+
 # Karşı banka bacağı otomatik eşlenen kategoriler
 CATEGORIES_AUTO_PAIR = {"Virman", "Döviz Satım"}
 
@@ -318,6 +326,33 @@ def tag_transaction(
             if vendor_tx:
                 vendor_tx.match_number = match_number
                 vendor_tx.payment_method = data.payment_method
+
+        # Planlı gider köprüsü (Faz 1 #11): Vergi/SGK · Personel · Kira etiketi yalnız
+        # banka bacağına numara veriyordu; scheduled_entry açık kalıp aynı dönemde
+        # tahmin+gerçekleşen ÇİFT sayılıyordu. Ödeme ayına denk, tutarı ±%2 uyan TEK
+        # açık giriş varsa banka kanıtıyla kapatılır; birden çok aday → öneri kuyruğu.
+        if cat_name in _SCHEDULED_CATEGORY_MAP and not data.vendor_id and tx.date:
+            from app.models.scheduled import ScheduledEntry
+            from app.services.scheduled_service import close_entry_via_bank
+            from app.utils.matching_service import _upsert_suggestion
+
+            amt = abs(float(tx.amount))
+            cands = (
+                db.query(ScheduledEntry)
+                .filter(ScheduledEntry.source_type.in_(_SCHEDULED_CATEGORY_MAP[cat_name]),
+                        ScheduledEntry.is_paid == False,  # noqa: E712
+                        ScheduledEntry.period_year == tx.date.year,
+                        ScheduledEntry.period_month == tx.date.month,
+                        ScheduledEntry.amount >= amt * 0.98,
+                        ScheduledEntry.amount <= amt * 1.02)
+                .all()
+            )
+            if len(cands) == 1:
+                close_entry_via_bank(db, cands[0], tx)
+            elif len(cands) > 1:
+                for e in cands[:5]:
+                    _upsert_suggestion(db, tx.id, e.source_type, e.id,
+                                       float(e.amount), e.currency or "TRY", 50)
 
     # Virman / Döviz Satım: karşı taraftaki işlemi de otomatik etiketle
     # (kur-duyarlı arama — Virman aynı birim, Döviz Satım farklı birim + TCMB TL-değeri)

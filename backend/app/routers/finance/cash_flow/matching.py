@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy import text as sa_text
@@ -23,6 +23,12 @@ from app.utils.audit import log_action
 from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+from app.utils.matching_service import (
+    apply_advance_bank_match,
+    apply_check_bank_match,
+    apply_credit_bank_match,
+    apply_vendor_bank_match,
+)
 from app.utils.finance_event_service import finance_event_svc
 
 logger = logging.getLogger(__name__)
@@ -59,53 +65,16 @@ def match_vendor_tx(
     if not vtx:
         raise HTTPException(status_code=404, detail="Cari işlemi bulunamadı")
 
-    # Eşleştirme numarası — sequence (atomik; max()+1 eşzamanlı çakışma + audit
-    # 'asla tekrar kullanılmaz' kuralı ihlali üretiyordu — R2 2026-07-11)
-    match_number = db.execute(sa_text("SELECT nextval('match_number_seq')")).scalar()
-
-    # "Cari" kategorisini bul ve ata
-    cari_cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Cari").first()
-
-    # Banka işlemine yaz
-    btx.vendor_id = data.vendor_id
-    btx.match_number = match_number
-    btx.payment_method = btx.payment_method or "havale_eft"
-    btx.tag_source = "manual"
-    if cari_cat:
-        btx.category_id = cari_cat.id
-
-    # Cari işlemine yaz
-    vtx.match_number = match_number
-    vtx.payment_method = btx.payment_method
-
+    # Uygulama TEK kaynakta: apply_vendor_bank_match (otomatik matcher + öneri-Onayla
+    # + bu endpoint ORTAK — D1-2). Sequence numara + sync_tag + EventMatch izi +
+    # yarış koruması orada; is_matched'a dokunulmaz (cari kuralı).
+    match_number = apply_vendor_bank_match(db, vtx, btx, method="manual",
+                                           actor_id=current_user.id)
+    if match_number is None:
+        raise HTTPException(status_code=409,
+                            detail="Kayıt bu sırada başka bir eşleşme aldı — sayfayı yenileyin")
     vendor = db.query(Vendor).filter(Vendor.id == data.vendor_id).first()
     vendor_name = vendor.hesap_adi if vendor else ""
-
-    if not btx.tag_note:
-        btx.tag_note = vendor_name
-
-    # Banka bacağını finance_events'e yansıt (kardeş endpoint'lerle tutarlı — R2:
-    # eskiden sync YOKTU, nakit akım FE'den okuduğundan eşleşme ekranda görünmüyordu).
-    # NOT: sync_tag is_matched'a DOKUNMAZ (cari eşleştirmesi banka hareketini gizlemez).
-    cat = db.query(TransactionCategory).filter(TransactionCategory.id == btx.category_id).first() if btx.category_id else None
-    finance_event_svc.sync_tag(
-        db, btx.id,
-        category_id=btx.category_id,
-        category_name=cat.name if cat else None,
-        category_color=cat.color if cat else None,
-        tag_note=btx.tag_note, tag_source=btx.tag_source,
-        payment_method=btx.payment_method, match_number=match_number,
-        vendor_id=btx.vendor_id,
-    )
-    # Kalıcı eşleşme izi (event_matches, method='manual') — finance_event_svc.match()
-    # üzerinden DEĞİL (o is_matched set eder; cari kuralı bunu yasaklar).
-    from app.models.event_match import MATCH_METHOD_MANUAL, EventMatch
-    db.add(EventMatch(
-        bank_source_type="bank", bank_source_id=btx.id,
-        target_source_type="vendor_payment", target_source_id=vtx.id,
-        amount=float(vtx.alacak or 0) or abs(float(btx.amount)), currency="TRY",
-        match_number=match_number, method=MATCH_METHOD_MANUAL, created_by=current_user.id,
-    ))
 
     log_action(
         db, current_user.id, "update", "bank_transaction",
@@ -445,3 +414,317 @@ def rematch_all(
     if results.get("advances_matched"):
         broadcast_finance_update(background_tasks, BroadcastModule.ADVANCES, "match")
     return results
+
+
+# ─── Eşleşme Önerileri (Faz 1 #9 — event_matches method='suggestion') ────────
+
+
+@router.get("/cash-flow/match-suggestions")
+def list_match_suggestions(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("finance.cash_flow", "view")),
+):
+    """Otomatik eşiğin altında kalan eşleşme adayları (insan onayı bekler).
+
+    Otomatik matcher'lar yüksek skoru doğrudan uygular; orta bandı buraya yazar
+    (çapraz-para adayları dahil). Onayla → gerçek eşleşme kurulur; Reddet → silinir.
+    """
+    import math as _math
+
+    from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
+
+    q = (db.query(EventMatch)
+         .filter(EventMatch.method == MATCH_METHOD_SUGGESTION)
+         .order_by(EventMatch.score.desc(), EventMatch.id.desc()))
+    total = q.count()
+    rows = q.offset((page - 1) * page_size).limit(page_size).all()
+
+    items = []
+    for m in rows:
+        btx = db.query(BankTransaction).filter(BankTransaction.id == m.bank_source_id).first()
+        target_desc, target_date = None, None
+        t, tid = m.target_source_type, m.target_source_id
+        if t == "check":
+            c = db.query(Check).filter(Check.id == tid).first()
+            if c:
+                target_desc = f"Çek {c.check_no} · {c.vendor_name}"
+                target_date = c.due_date
+        elif t == "credit":
+            cp = db.query(CreditPayment).filter(CreditPayment.id == tid).first()
+            if cp:
+                prod = db.query(CreditProduct).filter(CreditProduct.id == cp.credit_product_id).first()
+                target_desc = f"{prod.name if prod else 'Kredi'} · Taksit #{cp.installment_no}"
+                target_date = cp.due_date
+        elif t == "advance":
+            a = db.query(Advance).filter(Advance.id == tid).first()
+            if a:
+                target_desc = f"Avans · {a.agency_name}"
+                target_date = a.advance_date
+        elif t == "vendor_payment":
+            v = db.query(VendorTransaction).filter(VendorTransaction.id == tid).first()
+            if v:
+                ven = db.query(Vendor).filter(Vendor.id == v.vendor_id).first()
+                target_desc = f"Cari · {ven.hesap_adi if ven else v.vendor_id}"
+                target_date = v.payment_due_date or v.date
+        elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
+            from app.models.scheduled import ScheduledEntry
+            e = db.query(ScheduledEntry).filter(ScheduledEntry.id == tid).first()
+            if e:
+                target_desc = e.description or f"Planlı gider · {e.source_type}"
+                target_date = e.entry_date
+        items.append({
+            "id": m.id,
+            "score": m.score,
+            "target_source_type": t,
+            "target_source_id": tid,
+            "target_description": target_desc,
+            "target_date": target_date.isoformat() if target_date else None,
+            "amount": float(m.amount or 0),
+            "currency": m.currency,
+            "bank_transaction_id": m.bank_source_id,
+            "bank_date": btx.date.isoformat() if btx else None,
+            "bank_amount": float(btx.amount) if btx else None,
+            "bank_description": btx.description if btx else None,
+        })
+    return {"items": items, "total": total, "page": page, "page_size": page_size,
+            "pages": max(1, _math.ceil(total / page_size))}
+
+
+@router.post("/cash-flow/match-suggestions/{suggestion_id}/accept")
+def accept_match_suggestion(
+    suggestion_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cash_flow", "use")),
+):
+    """Öneriyi onayla → türe uygun apply_* ile gerçek eşleşme kurulur (onaydan muaf —
+    operasyonel eşleştirme, kapsam listesi docs/modules/onay-akisi.md)."""
+    from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
+
+    sug = db.query(EventMatch).filter(EventMatch.id == suggestion_id,
+                                      EventMatch.method == MATCH_METHOD_SUGGESTION).first()
+    if not sug:
+        raise HTTPException(status_code=404, detail="Öneri bulunamadı")
+    btx = db.query(BankTransaction).filter(BankTransaction.id == sug.bank_source_id).first()
+    if not btx:
+        db.delete(sug)
+        db.commit()
+        raise HTTPException(status_code=409, detail="Banka işlemi artık yok — öneri kaldırıldı")
+
+    t, tid = sug.target_source_type, sug.target_source_id
+    ok = False
+    if t == "check":
+        c = db.query(Check).filter(Check.id == tid).first()
+        ok = bool(c) and apply_check_bank_match(db, c, btx, method="manual",
+                                                score=sug.score, actor_id=current_user.id)
+    elif t == "credit":
+        cp = db.query(CreditPayment).filter(CreditPayment.id == tid).first()
+        prod = db.query(CreditProduct).filter(CreditProduct.id == cp.credit_product_id).first() if cp else None
+        ok = bool(cp) and apply_credit_bank_match(db, cp, prod, btx, method="manual",
+                                                  score=sug.score, actor_id=current_user.id)
+    elif t == "advance":
+        a = db.query(Advance).filter(Advance.id == tid).first()
+        ok = bool(a) and apply_advance_bank_match(db, a, btx, method="manual",
+                                                  score=sug.score, actor_id=current_user.id)
+    elif t == "vendor_payment":
+        v = db.query(VendorTransaction).filter(VendorTransaction.id == tid).first()
+        ok = bool(v) and apply_vendor_bank_match(db, v, btx, method="manual",
+                                                 score=sug.score, actor_id=current_user.id) is not None
+    elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
+        from app.models.scheduled import ScheduledEntry
+        from app.services.scheduled_service import close_entry_via_bank
+        e = db.query(ScheduledEntry).filter(ScheduledEntry.id == tid).first()
+        ok = bool(e) and close_entry_via_bank(db, e, btx)
+
+    db.delete(sug)  # kabul edildi ya da bayatladı — öneri her durumda düşer
+    if not ok:
+        db.commit()
+        raise HTTPException(status_code=409,
+                            detail="Hedef bu arada eşleşmiş/kapanmış — öneri kaldırıldı")
+
+    log_action(
+        db, current_user.id, "update", "bank_transaction", btx.id,
+        f"Eşleşme önerisi onaylandı [#{suggestion_id}] {t}#{tid} skor={sug.score}",
+        get_client_ip(request),
+    )
+    db.commit()
+    if t == "vendor_payment":
+        sync_vendor_finance_events(db)
+        db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.CASH_FLOW, "match")
+    return {"ok": True, "target_source_type": t, "target_source_id": tid}
+
+
+@router.post("/cash-flow/match-suggestions/{suggestion_id}/reject")
+def reject_match_suggestion(
+    suggestion_id: int,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cash_flow", "use")),
+):
+    """Öneriyi reddet (silinir — bir sonraki koşuda aynı çift yeniden önerilebilir)."""
+    from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
+
+    sug = db.query(EventMatch).filter(EventMatch.id == suggestion_id,
+                                      EventMatch.method == MATCH_METHOD_SUGGESTION).first()
+    if not sug:
+        raise HTTPException(status_code=404, detail="Öneri bulunamadı")
+    log_action(db, current_user.id, "update", "bank_transaction", sug.bank_source_id,
+               f"Eşleşme önerisi reddedildi [#{suggestion_id}] "
+               f"{sug.target_source_type}#{sug.target_source_id}", get_client_ip(request))
+    db.delete(sug)
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.CASH_FLOW, "match")
+    return {"ok": True}
+
+
+# ─── Geri Alma (Faz 1 #10 — banka↔çek / banka↔kredi) ─────────────────────────
+
+
+class UnmatchCheckRequest(BaseModel):
+    check_id: int
+
+
+@router.post("/cash-flow/unmatch-check")
+def unmatch_check(
+    data: UnmatchCheckRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cash_flow", "use")),
+):
+    """Banka↔çek eşleşmesini geri al (yanlış otomatik eşleşmenin ucuz düzeltmesi).
+
+    Çek 'pending'e döner; banka hareketi serbest kalır. event_matches izi silinir.
+    """
+    check = db.query(Check).filter(Check.id == data.check_id).first()
+    if not check:
+        raise HTTPException(status_code=404, detail="Çek bulunamadı")
+    if check.bank_transaction_id is None:
+        raise HTTPException(status_code=400, detail="Çekin banka eşleşmesi yok")
+
+    old_btx = check.bank_transaction_id
+    check.bank_transaction_id = None
+    if check.status == "paid":
+        check.status = "pending"
+    db.flush()
+    finance_event_svc.unmatch(db, "check", check.id)  # FE açılır + EventMatch izi silinir
+    finance_event_svc.upsert_check(db, check)
+
+    log_action(db, current_user.id, "update", "check", check.id,
+               f"Banka eşleşmesi geri alındı (btx={old_btx}) — çek yeniden bekliyor",
+               get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "unmatch")
+    return {"ok": True, "check_id": check.id, "status": check.status}
+
+
+class UnmatchCreditPaymentRequest(BaseModel):
+    payment_id: int
+
+
+@router.post("/cash-flow/unmatch-credit-payment")
+def unmatch_credit_payment(
+    data: UnmatchCreditPaymentRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cash_flow", "use")),
+):
+    """Banka↔kredi taksit eşleşmesini geri al (N-1 grup dahil).
+
+    Taksit açılır, anapara geri eklenir; grup eşleşmesinde ortak match_number'lı
+    TÜM banka satırları çözülür (event_matches izinden bulunur).
+    """
+    from app.models.event_match import EventMatch
+
+    payment = db.query(CreditPayment).filter(CreditPayment.id == data.payment_id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Taksit bulunamadı")
+    if payment.bank_transaction_id is None and not payment.is_paid:
+        raise HTTPException(status_code=400, detail="Taksitin banka eşleşmesi yok")
+
+    product = db.query(CreditProduct).filter(CreditProduct.id == payment.credit_product_id).first()
+
+    # Grup izi: bu taksite bağlı TÜM banka satırları (event_matches) + ortak match_number
+    linked_btx_ids = [m.bank_source_id for m in db.query(EventMatch).filter(
+        EventMatch.target_source_type == "credit",
+        EventMatch.target_source_id == payment.id,
+        EventMatch.bank_source_type == "bank",
+    ).all()]
+    if payment.bank_transaction_id and payment.bank_transaction_id not in linked_btx_ids:
+        linked_btx_ids.append(payment.bank_transaction_id)
+    for bid in linked_btx_ids:
+        b = db.query(BankTransaction).filter(BankTransaction.id == bid).first()
+        if b is not None and b.match_number is not None:
+            b.match_number = None  # grup izi temizliği (yalnız grup eşleşmesi yazıyor)
+        # NOT: banka FE'sine dokunulmaz — hareket bankada gerçekleşmiştir (realized kalır)
+
+    payment.is_paid = False
+    payment.paid_date = None
+    payment.bank_transaction_id = None
+    if payment.principal and product:
+        product.remaining_amount = float(product.remaining_amount) + float(payment.principal)
+    db.flush()
+    finance_event_svc.unmatch(db, "credit", payment.id)  # FE açılır + EventMatch izleri silinir
+    finance_event_svc.upsert_credit_payment(db, payment, product)
+
+    log_action(db, current_user.id, "update", "credit_payment", payment.id,
+               f"Banka eşleşmesi geri alındı ({len(linked_btx_ids)} banka satırı çözüldü)",
+               get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.CREDITS, "unmatch")
+    return {"ok": True, "payment_id": payment.id, "released_bank_txs": linked_btx_ids}
+
+
+# ─── Manuel 1-N Çek Eşleştirme (Faz 1 #12 — tek EFT → N çek) ─────────────────
+
+
+class MatchChecksBatchRequest(BaseModel):
+    bank_transaction_id: int
+    check_ids: list
+
+
+@router.post("/cash-flow/match-checks-batch")
+def match_checks_batch(
+    data: MatchChecksBatchRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("finance.cash_flow", "use")),
+):
+    """Tek banka gideriyle birden çok çeki kapat (toplam ±0.02 doğrulamalı)."""
+    if not data.check_ids or len(data.check_ids) > 20:
+        raise HTTPException(status_code=400, detail="1-20 arası çek seçilmelidir")
+    btx = db.query(BankTransaction).filter(BankTransaction.id == data.bank_transaction_id).first()
+    if not btx:
+        raise HTTPException(status_code=404, detail="Banka işlemi bulunamadı")
+    checks = db.query(Check).filter(Check.id.in_(data.check_ids)).all()
+    if len(checks) != len(set(data.check_ids)):
+        raise HTTPException(status_code=404, detail="Çeklerden bazıları bulunamadı")
+    for c in checks:
+        if c.status != "pending" or c.bank_transaction_id is not None:
+            raise HTTPException(status_code=400, detail=f"Çek {c.check_no} eşleştirmeye uygun değil")
+    total = round(sum(float(c.amount_tl) for c in checks), 2)
+    if abs(total - abs(float(btx.amount))) > 0.02:
+        raise HTTPException(status_code=400,
+                            detail=f"Toplam uyuşmuyor: çekler {total:,.2f} ₺, banka {abs(float(btx.amount)):,.2f} ₺")
+
+    applied = 0
+    for c in checks:
+        if apply_check_bank_match(db, c, btx, method="manual", actor_id=current_user.id):
+            applied += 1
+    if applied != len(checks):
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Çeklerden biri bu arada eşleşti — yenileyin")
+
+    log_action(db, current_user.id, "update", "bank_transaction", btx.id,
+               f"1-N çek eşleştirme: {applied} çek (toplam {total:,.2f} ₺)",
+               get_client_ip(request))
+    db.commit()
+    broadcast_finance_update(background_tasks, BroadcastModule.CHECKS, "match")
+    return {"ok": True, "matched_checks": applied}

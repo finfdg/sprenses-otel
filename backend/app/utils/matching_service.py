@@ -21,10 +21,30 @@ from app.models.check import Check
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CreditPayment, CreditProduct
 from app.models.transaction_category import TransactionCategory
+from app.models.vendor import Vendor
+from app.models.vendor_transaction import VendorTransaction
 from app.utils.finance_event_service import finance_event_svc
 from app.utils.text_match import _norm_tokens
 
 logger = logging.getLogger(__name__)
+
+# ─── İki-eşikli bantlar (Faz 1 #9, 2026-07-11) ──────────────────────────────
+# Otomatik eşiğin ALTINDA ama öneri-tabanının ÜSTÜNDE kalan en iyi aday otomatik
+# UYGULANMAZ; event_matches'e method='suggestion' kaydı düşer (Eşleşme Önerileri
+# paneli). Mevcut otomatik davranış DEĞİŞMEZ (geçmiş yanlış-pozitif vakalarının
+# panzehiri: KK 13→2, avans yanlış-taksit).
+CHECK_AUTO_MIN = 20
+CHECK_SUGGEST_MIN = 8
+CREDIT_AUTO_MIN = 40
+CREDIT_SUGGEST_MIN = 20
+ADVANCE_AUTO_MIN = 20
+ADVANCE_SUGGEST_MIN = 8
+VENDOR_AUTO_MIN = 80          # cari kapatma FIFO'yu değiştirir → en temkinli alan
+VENDOR_SUGGEST_MIN = 50
+VENDOR_AUTO_WINDOW_DAYS = 7   # otomatik cari eşleşme vade penceresi
+VENDOR_SUGGEST_WINDOW_DAYS = 14
+FX_SUGGEST_TOLERANCE = 0.01   # çapraz-para beklenen-TL bandı ±%1 (yalnız ÖNERİ üretir)
+FX_SUGGEST_WINDOW_DAYS = 10
 
 
 # ─── Kredi Kartı ↔ Banka Eşleştirme ──────────────────────
@@ -238,6 +258,15 @@ def _match_cc_to_bank(db: Session) -> dict:
         if not best_stmt or not best_prod:
             continue
 
+        # Yarış koruması: ekstre hâlâ açık mı (tetikler çoğaldı — Faz 1)
+        locked_stmt = (db.query(CreditCardStatement)
+                       .filter(CreditCardStatement.id == best_stmt.id,
+                               CreditCardStatement.is_paid == False)  # noqa: E712
+                       .with_for_update(skip_locked=True).first())
+        if locked_stmt is None:
+            continue
+        best_stmt = locked_stmt
+
         # Eşleştir
         current_paid = float(best_stmt.paid_amount or 0)
         new_paid = current_paid + payment_amount
@@ -372,18 +401,84 @@ def _match_checks_to_bank(db: Session) -> dict:
                 best_score = score
                 best_match = tx
 
-        if best_match and best_score >= 20:
-            check.bank_transaction_id = best_match.id
-            check.status = "paid"
-            used_btx_ids.add(best_match.id)
-            matched_count += 1
-            db.flush()
-            # finance_events: çek is_matched=True, banka is_realized=True
-            finance_event_svc.match(db, "bank", best_match.id, "check", check.id)
-            # FE'nin event_status/bank_name'ini de tazele — match() yalnız is_matched
-            # set eder; durum 'pending' kalırsa ödenen çek nakit akımda "Ödendi"
-            # rozetiyle GÖRÜNMEZ (2026-07-04 denetim bulgusu: prod'da 41 çek)
-            finance_event_svc.upsert_check(db, check, best_match)
+        if best_match and best_score >= CHECK_AUTO_MIN:
+            # apply_* yarış-korumalı: koşul commit anına kadar değişmiş olabilir
+            if apply_check_bank_match(db, check, best_match, method="auto", score=best_score):
+                used_btx_ids.add(best_match.id)
+                matched_count += 1
+            continue
+        if best_match and best_score >= CHECK_SUGGEST_MIN:
+            # İki-eşikli bant (Faz 1 #9): otomatik eşik altı → öneri
+            _upsert_suggestion(db, best_match.id, "check", check.id,
+                               amt_cur if check.currency != "TL" else amt_tl,
+                               "TRY" if check.currency == "TL" else check.currency, best_score)
+            continue
+
+        # Çapraz-para önerisi (Faz 1 #13): döviz çek TL hesaptan GÜNCEL kurla ödenmiş
+        # olabilir — birebir tutar anahtarı bunu asla yakalayamaz. Beklenen TL bandı
+        # (±%1, defter kuru) içindeki TL gideri YALNIZ ÖNERİ olarak sunulur.
+        if check.currency != "TL" and amt_cur > 0:
+            from app.services.fx_service import ledger_rate
+            fx_best, fx_diff = None, None
+            for tx in bank_expenses:
+                if tx.id in used_btx_ids or tx.id in already_matched_ids:
+                    continue
+                ddiff = abs((tx.date - check.due_date).days)
+                if ddiff > FX_SUGGEST_WINDOW_DAYS:
+                    continue
+                rate = ledger_rate(db, tx.date, check.currency)
+                if not rate:
+                    continue
+                expected_tl = amt_cur * rate
+                delta = abs(abs(float(tx.amount)) - expected_tl)
+                if delta <= expected_tl * FX_SUGGEST_TOLERANCE and (fx_diff is None or delta < fx_diff):
+                    fx_best, fx_diff = tx, delta
+            if fx_best is not None:
+                _upsert_suggestion(db, fx_best.id, "check", check.id, amt_cur, check.currency, 40)
+
+    # 1-N otomatik grup (Faz 1 #12): tek EFT ile birden çok çek ödenmesi — aynı cariye
+    # ait, vadesi ±2 gün içindeki bekleyen çeklerin TOPLAMI bir banka giderine ±0.02
+    # eşitse hepsi kapatılır (kredi faiz+vergi grup deseninin çeke uyarlanması).
+    still_pending = [c for c in pending_checks
+                     if c.status == "pending" and c.bank_transaction_id is None and c.vendor_code]
+    by_vendor = defaultdict(list)
+    for c in still_pending:
+        if c.currency == "TL":  # grup yalnız TL (döviz çekleri çapraz-para önerisine kaldı)
+            by_vendor[c.vendor_code].append(c)
+    for vendor_code, checks_group in by_vendor.items():
+        if len(checks_group) < 2:
+            continue
+        checks_group.sort(key=lambda c: c.due_date)
+        # ±2 gün vade kümeleri
+        i = 0
+        while i < len(checks_group):
+            cluster = [checks_group[i]]
+            j = i + 1
+            while j < len(checks_group) and (checks_group[j].due_date - cluster[0].due_date).days <= 2:
+                cluster.append(checks_group[j])
+                j += 1
+            i = j
+            if len(cluster) < 2:
+                continue
+            total = round(sum(float(c.amount_tl) for c in cluster), 2)
+            cand = None
+            for tx in btx_by_amount.get(total, []):
+                if tx.id in used_btx_ids:
+                    continue
+                if abs((tx.date - cluster[0].due_date).days) <= 5:
+                    cand = tx
+                    break
+            if cand is None:
+                continue
+            applied = 0
+            for c in cluster:
+                if apply_check_bank_match(db, c, cand, method="auto", score=90):
+                    applied += 1
+            if applied:
+                used_btx_ids.add(cand.id)
+                matched_count += applied
+                logger.info("Çek 1-N grup eşleşmesi: btx=%d → %d çek (%s, toplam %s)",
+                            cand.id, applied, vendor_code, f"{total:,.2f}")
 
     return {
         "matched": matched_count,
@@ -509,21 +604,17 @@ def _match_advances_to_bank(db: Session) -> dict:
                 best_score = score
                 best_match = tx
 
-        if not best_match or best_score < 20:
+        if not best_match or best_score < ADVANCE_SUGGEST_MIN:
+            continue
+        if best_score < ADVANCE_AUTO_MIN:
+            _upsert_suggestion(db, best_match.id, "advance", adv.id,
+                               float(adv.amount), adv.currency, best_score)
             continue
 
-        adv.status = "received"
-        adv.received_date = best_match.date
-        adv.received_amount = abs(float(best_match.amount))
-        adv.bank_transaction_id = best_match.id
+        if not apply_advance_bank_match(db, adv, best_match, method="auto", score=best_score):
+            continue
         used_btx_ids.add(best_match.id)
         matched_count += 1
-        db.flush()
-        # Banka FE is_realized=True, avans FE is_matched=True; ardından upsert ile
-        # event_status='received' tazelenir (çek düzeltmesindeki desen — match()
-        # yalnız bayrak set eder, durum bayat kalmasın)
-        finance_event_svc.match(db, "bank", best_match.id, "advance", adv.id)
-        finance_event_svc.upsert_advance(db, adv)
         logger.info(
             "Avans otomatik eşleşme: btx=%d → adv=%d (%s) | %s %s",
             best_match.id, adv.id, adv.agency_name,
@@ -640,18 +731,15 @@ def _match_credits_to_bank(db: Session) -> dict:
                 best_score = score
                 best_match = tx
 
-        if best_match and best_score >= 40:
-            payment.is_paid = True
-            payment.paid_date = best_match.date
-            payment.bank_transaction_id = best_match.id
-            used_btx_ids.add(best_match.id)
-            matched_count += 1
-            # Anapara varsa kalan borcu düşür
-            if payment.principal and product:
-                product.remaining_amount = max(0, float(product.remaining_amount) - float(payment.principal))
-            db.flush()
-            finance_event_svc.match(db, "bank", best_match.id, "credit", payment.id)
+        if best_match and best_score >= CREDIT_AUTO_MIN:
+            if apply_credit_bank_match(db, payment, product, best_match, method="auto", score=best_score):
+                used_btx_ids.add(best_match.id)
+                matched_count += 1
             continue
+        if best_match and best_score >= CREDIT_SUGGEST_MIN:
+            _upsert_suggestion(db, best_match.id, "credit", payment.id, amt,
+                               product.currency or "TRY", best_score)
+            # öneri sonrası grup denemesi de yapılır (aşağıda) — birebir aday zayıftı
 
         # 2. Tek işlem eşleşmedi → aynı gün toplamıyla dene (faiz+vergi ayrı satır)
         prod_currency = product.currency or "TRY"
@@ -672,24 +760,40 @@ def _match_credits_to_bank(db: Session) -> dict:
                 ), 2)
 
                 if abs(available_total - amt) < 0.02:  # Kuruş toleransı
-                    # Eşleşti! İlk işlemi ana eşleşme olarak kullan
-                    first_tx = None
-                    for tx, acc in group["txs"]:
-                        if tx.id not in used_btx_ids:
-                            if first_tx is None:
-                                first_tx = tx
-                            used_btx_ids.add(tx.id)
+                    # Eşleşti! Grubun TÜM banka satırlarına iz bırak (Faz 1 #10):
+                    # ortak match_number + her satır için match() → event_matches izi.
+                    # Eskiden yalnız first_tx bağ alıyordu, diğer satırlar işaretsiz
+                    # kalıyordu (mutabakat denetiminde kanıtsız satır + yarım unmatch).
+                    group_txs = [tx for tx, acc in group["txs"] if tx.id not in used_btx_ids]
+                    first_tx = group_txs[0] if group_txs else None
 
                     if first_tx:
-                        payment.is_paid = True
-                        payment.paid_date = check_date
-                        payment.bank_transaction_id = first_tx.id
+                        # Yarış koruması: taksit hâlâ açık mı?
+                        locked_pay = (db.query(CreditPayment)
+                                      .filter(CreditPayment.id == payment.id,
+                                              CreditPayment.is_paid == False,  # noqa: E712
+                                              CreditPayment.bank_transaction_id.is_(None))
+                                      .with_for_update(skip_locked=True).first())
+                        if locked_pay is None:
+                            break
+                        from sqlalchemy import text as _sa_text
+                        group_mn = db.execute(_sa_text("SELECT nextval('match_number_seq')")).scalar()
+                        locked_pay.is_paid = True
+                        locked_pay.paid_date = check_date
+                        locked_pay.bank_transaction_id = first_tx.id
                         matched_count += 1
-                        # Anapara varsa kalan borcu düşür
-                        if payment.principal and product:
-                            product.remaining_amount = max(0, float(product.remaining_amount) - float(payment.principal))
+                        if locked_pay.principal and product:
+                            product.remaining_amount = max(0, float(product.remaining_amount) - float(locked_pay.principal))
+                        for tx in group_txs:
+                            used_btx_ids.add(tx.id)
+                            if tx.match_number is None:
+                                tx.match_number = group_mn
                         db.flush()
-                        finance_event_svc.match(db, "bank", first_tx.id, "credit", payment.id)
+                        for tx in group_txs:
+                            finance_event_svc.match(db, "bank", tx.id, "credit", locked_pay.id,
+                                                    method="auto", score=90)
+                        logger.info("Kredi N-1 grup eşleşmesi: %d banka satırı → taksit=%d (grup #%s)",
+                                    len(group_txs), locked_pay.id, group_mn)
                     break
             else:
                 continue
@@ -699,6 +803,289 @@ def _match_credits_to_bank(db: Session) -> dict:
         db.flush()
 
     return {"matched": matched_count, "total_unpaid": len(unpaid)}
+
+
+# ─── Öneri kuyruğu (Faz 1 #9 — event_matches method='suggestion') ───────────
+
+def _upsert_suggestion(db: Session, bank_tx_id: int, target_type: str, target_id: int,
+                       amount, currency: str, score: int) -> None:
+    """Otomatik eşiğin altında kalan en iyi adayı öneri olarak kaydet (idempotent).
+
+    Öneri bir EŞLEŞME DEĞİLDİR — finance_events'e dokunulmaz; kullanıcı panelden
+    Onayla deyince ilgili apply_* fonksiyonu gerçek eşleşmeyi kurar.
+    """
+    from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
+
+    ex = (db.query(EventMatch)
+          .filter(EventMatch.method == MATCH_METHOD_SUGGESTION,
+                  EventMatch.bank_source_type == "bank",
+                  EventMatch.bank_source_id == bank_tx_id,
+                  EventMatch.target_source_type == target_type,
+                  EventMatch.target_source_id == target_id)
+          .first())
+    if ex is not None:
+        ex.score = int(score)
+        return
+    db.add(EventMatch(
+        bank_source_type="bank", bank_source_id=bank_tx_id,
+        target_source_type=target_type, target_source_id=target_id,
+        amount=round(float(amount or 0), 2), currency=(currency or "TRY")[:3],
+        method=MATCH_METHOD_SUGGESTION, score=int(score),
+    ))
+    db.flush()
+
+
+def cleanup_stale_suggestions(db: Session) -> int:
+    """Hedefi artık açık olmayan önerileri sil (her orkestratör koşusu sonunda).
+
+    Hedef eşleşmiş/kapanmışsa öneri bayattır — panelde gürültü üretmesin.
+    """
+    from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
+
+    removed = 0
+    for sug in db.query(EventMatch).filter(EventMatch.method == MATCH_METHOD_SUGGESTION).all():
+        stale = False
+        t, tid = sug.target_source_type, sug.target_source_id
+        if t == "check":
+            row = db.query(Check).filter(Check.id == tid).first()
+            stale = row is None or row.status != "pending" or row.bank_transaction_id is not None
+        elif t == "credit":
+            row = db.query(CreditPayment).filter(CreditPayment.id == tid).first()
+            stale = row is None or row.is_paid or row.bank_transaction_id is not None
+        elif t == "advance":
+            row = db.query(Advance).filter(Advance.id == tid).first()
+            stale = row is None or row.status != "pending"
+        elif t == "vendor_payment":
+            row = db.query(VendorTransaction).filter(VendorTransaction.id == tid).first()
+            stale = row is None or row.match_number is not None
+        elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
+            from app.models.scheduled import ScheduledEntry
+            row = db.query(ScheduledEntry).filter(ScheduledEntry.id == tid).first()
+            stale = row is None or row.is_paid
+        # Banka bacağı başka kayda bağlandıysa da bayat
+        if not stale:
+            b = db.query(BankTransaction).filter(BankTransaction.id == sug.bank_source_id).first()
+            if b is None:
+                stale = True
+        if stale:
+            db.delete(sug)
+            removed += 1
+    if removed:
+        db.flush()
+    return removed
+
+
+# ─── Uygulayıcılar (matcher + öneri-Onayla ORTAK; hafif yarış koruması) ──────
+# Her uygulayıcı hedefi FOR UPDATE SKIP LOCKED ile yeniden doğrular (Faz 1 yarış
+# koruması: tetikler çoğaldı — ekstre + API + rematch + öneri onayı; koşullar
+# commit anına kadar değişebilir). Koşul bozulmuşsa False/None döner, eşleşme kurulmaz.
+
+def apply_check_bank_match(db: Session, check: Check, btx: BankTransaction,
+                           method: str = "auto", score=None, actor_id=None) -> bool:
+    """Çeki banka hareketiyle eşle (status='paid'). Yarış-korumalı."""
+    locked = (db.query(Check)
+              .filter(Check.id == check.id, Check.status == "pending",
+                      Check.bank_transaction_id.is_(None))
+              .with_for_update(skip_locked=True).first())
+    if locked is None:
+        return False
+    locked.bank_transaction_id = btx.id
+    locked.status = "paid"
+    db.flush()
+    finance_event_svc.match(db, "bank", btx.id, "check", locked.id,
+                            method=method, score=score, created_by=actor_id)
+    finance_event_svc.upsert_check(db, locked, btx)
+    return True
+
+
+def apply_credit_bank_match(db: Session, payment: CreditPayment, product: CreditProduct,
+                            btx: BankTransaction, method: str = "auto",
+                            score=None, actor_id=None) -> bool:
+    """Kredi taksitini banka hareketiyle eşle (is_paid=True + anapara düşümü). Yarış-korumalı."""
+    locked = (db.query(CreditPayment)
+              .filter(CreditPayment.id == payment.id, CreditPayment.is_paid == False,  # noqa: E712
+                      CreditPayment.bank_transaction_id.is_(None))
+              .with_for_update(skip_locked=True).first())
+    if locked is None:
+        return False
+    locked.is_paid = True
+    locked.paid_date = btx.date
+    locked.bank_transaction_id = btx.id
+    if locked.principal and product:
+        product.remaining_amount = max(0, float(product.remaining_amount) - float(locked.principal))
+    db.flush()
+    finance_event_svc.match(db, "bank", btx.id, "credit", locked.id,
+                            method=method, score=score, created_by=actor_id)
+    return True
+
+
+def apply_advance_bank_match(db: Session, adv: Advance, btx: BankTransaction,
+                             method: str = "auto", score=None, actor_id=None) -> bool:
+    """Avansı banka gelir hareketiyle eşle (status='received'). Yarış-korumalı."""
+    locked = (db.query(Advance)
+              .filter(Advance.id == adv.id, Advance.status == "pending",
+                      Advance.bank_transaction_id.is_(None))
+              .with_for_update(skip_locked=True).first())
+    if locked is None:
+        return False
+    locked.status = "received"
+    locked.received_date = btx.date
+    locked.received_amount = abs(float(btx.amount))
+    locked.bank_transaction_id = btx.id
+    db.flush()
+    finance_event_svc.match(db, "bank", btx.id, "advance", locked.id,
+                            method=method, score=score, created_by=actor_id)
+    finance_event_svc.upsert_advance(db, locked)
+    return True
+
+
+def apply_vendor_bank_match(db: Session, vtx: VendorTransaction, btx: BankTransaction,
+                            method: str = "auto", score=None, actor_id=None):
+    """Cari işlemini banka hareketiyle eşle (match_number bağı) — matcher + manuel
+    endpoint + öneri-Onayla ORTAK (D1-2). is_matched'a DOKUNMAZ (cari kuralı).
+
+    Dönüş: match_number (başarı) | None (yarış/koşul bozuldu).
+    """
+    from sqlalchemy import text as sa_text
+
+    from app.models.event_match import EventMatch
+
+    locked_v = (db.query(VendorTransaction)
+                .filter(VendorTransaction.id == vtx.id, VendorTransaction.match_number.is_(None))
+                .with_for_update(skip_locked=True).first())
+    locked_b = (db.query(BankTransaction)
+                .filter(BankTransaction.id == btx.id, BankTransaction.match_number.is_(None))
+                .with_for_update(skip_locked=True).first())
+    if locked_v is None or locked_b is None:
+        return None
+
+    match_number = db.execute(sa_text("SELECT nextval('match_number_seq')")).scalar()
+    cari_cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Cari").first()
+    vendor = db.query(Vendor).filter(Vendor.id == locked_v.vendor_id).first()
+
+    locked_b.vendor_id = locked_v.vendor_id
+    locked_b.match_number = match_number
+    locked_b.payment_method = locked_b.payment_method or "havale_eft"
+    locked_b.tag_source = "auto" if method == "auto" else "manual"
+    if cari_cat:
+        locked_b.category_id = cari_cat.id
+    if not locked_b.tag_note:
+        locked_b.tag_note = vendor.hesap_adi if vendor else None
+
+    locked_v.match_number = match_number
+    locked_v.payment_method = locked_b.payment_method
+    db.flush()
+
+    finance_event_svc.sync_tag(
+        db, locked_b.id,
+        category_id=locked_b.category_id,
+        category_name=cari_cat.name if cari_cat else None,
+        category_color=cari_cat.color if cari_cat else None,
+        tag_note=locked_b.tag_note, tag_source=locked_b.tag_source,
+        payment_method=locked_b.payment_method, match_number=match_number,
+        vendor_id=locked_b.vendor_id,
+    )
+    db.add(EventMatch(
+        bank_source_type="bank", bank_source_id=locked_b.id,
+        target_source_type="vendor_payment", target_source_id=locked_v.id,
+        amount=float(locked_v.alacak or 0) or abs(float(locked_b.amount)), currency="TRY",
+        match_number=match_number, method=method, score=score, created_by=actor_id,
+    ))
+    db.flush()
+    return match_number
+
+
+# ─── Cari ↔ Banka Eşleştirme (Faz 1 #8 — hacimce en büyük kalem) ─────────────
+
+def _match_vendors_to_bank(db: Session) -> dict:
+    """Açık cari ödeme tahminlerini (vendor_payment FE) banka gider hareketleriyle eşle.
+
+    En temkinli matcher: cari kapatma FIFO'yu değiştirir. OTOMATİK eşleşme yalnız
+    [tutar birebir ±0.01] + [isim/vendor sinyali ZORUNLU] + [vade ±7 gün] üçlüsüyle
+    (skor ≥ VENDOR_AUTO_MIN); isimsiz veya geniş-pencere adaylar ÖNERİ olur.
+    İsim sinyali: cari adı token'ı açıklamada geçiyor VEYA auto_tagger btx'e aynı
+    vendor_id'yi atamış.
+    """
+    from app.models.finance_event import FinanceEvent
+
+    open_fes = (
+        db.query(FinanceEvent)
+        .filter(FinanceEvent.source_type == "vendor_payment",
+                FinanceEvent.is_matched == False,  # noqa: E712
+                FinanceEvent.is_realized == False)  # noqa: E712
+        .all()
+    )
+    if not open_fes:
+        return {"matched": 0, "total_open": 0}
+
+    vendor_names = {v.id: v.hesap_adi for v in db.query(Vendor).all()}
+
+    candidates_q = (
+        db.query(BankTransaction)
+        .filter(BankTransaction.type == "expense",
+                BankTransaction.match_number.is_(None))
+        .all()
+    )
+    btx_by_amount = defaultdict(list)
+    for tx in candidates_q:
+        btx_by_amount[round(abs(float(tx.amount)), 2)].append(tx)
+
+    matched_count = 0
+    suggested = 0
+    used_btx_ids = set()
+
+    for fe in sorted(open_fes, key=lambda f: f.event_date):
+        amt = round(float(fe.amount or 0), 2)
+        if amt <= 0:
+            continue
+        cands = btx_by_amount.get(amt, [])
+        if not cands:
+            continue
+        v_tokens = _norm_tokens(vendor_names.get(fe.vendor_id, "") or (fe.vendor_code or ""))
+
+        best, best_score = None, 0
+        for tx in cands:
+            if tx.id in used_btx_ids:
+                continue
+            date_diff = abs((tx.date - fe.event_date).days)
+            if date_diff > VENDOR_SUGGEST_WINDOW_DAYS:
+                continue
+            name_hit = bool(v_tokens and v_tokens & _norm_tokens(tx.description or ""))
+            vendor_hit = tx.vendor_id is not None and tx.vendor_id == fe.vendor_id
+            score = 50  # tutar birebir
+            if name_hit or vendor_hit:
+                score += 30
+            if date_diff == 0:
+                score += 20
+            elif date_diff <= 3:
+                score += 15
+            elif date_diff <= VENDOR_AUTO_WINDOW_DAYS:
+                score += 10
+            if score > best_score:
+                best_score, best = score, tx
+
+        if best is None or best_score < VENDOR_SUGGEST_MIN:
+            continue
+        vtx = db.query(VendorTransaction).filter(VendorTransaction.id == fe.source_id).first()
+        if vtx is None or vtx.match_number is not None:
+            continue
+        if best_score >= VENDOR_AUTO_MIN:
+            mn = apply_vendor_bank_match(db, vtx, best, method="auto", score=best_score)
+            if mn is not None:
+                used_btx_ids.add(best.id)
+                matched_count += 1
+                logger.info("Cari otomatik eşleşme: btx=%d → vtx=%d (%s) #%s skor=%d",
+                            best.id, vtx.id, vendor_names.get(fe.vendor_id, ""), mn, best_score)
+        else:
+            _upsert_suggestion(db, best.id, "vendor_payment", vtx.id, amt, "TRY", best_score)
+            suggested += 1
+
+    if matched_count:
+        # Eşleşme FIFO kalanını değiştirir → vendor_payment FE'leri yeniden yazılır
+        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        sync_vendor_finance_events(db)
+
+    return {"matched": matched_count, "suggested": suggested, "total_open": len(open_fes)}
 
 
 # ─── Ortak orkestratör (Revize Faz 0 R1, 2026-07-11) ────────────────────────
@@ -718,6 +1105,7 @@ def run_all_matchers(db) -> dict:
         (_match_credits_to_bank, "Kredi-banka", "credits_matched"),
         (_match_cc_to_bank, "Kredi kartı-banka", "cc_matched"),
         (_match_advances_to_bank, "Avans-banka", "advances_matched"),
+        (_match_vendors_to_bank, "Cari-banka", "vendor_payments_matched"),
     ]:
         try:
             nested = db.begin_nested()
@@ -731,6 +1119,18 @@ def run_all_matchers(db) -> dict:
         except Exception as e:  # noqa: BLE001 — adım izolasyonu
             db.rollback()
             logger.error("%s otomatik eşleştirme hatası: %s", label, e, exc_info=True)
+
+    # Bayat önerileri süpür (hedefi kapananlar panelde gürültü üretmesin)
+    try:
+        nested = db.begin_nested()
+        removed = cleanup_stale_suggestions(db)
+        nested.commit()
+        db.commit()
+        if removed:
+            results["stale_suggestions_removed"] = removed
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        logger.error("Öneri temizliği hatası: %s", e)
     return results
 
 

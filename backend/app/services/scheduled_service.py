@@ -87,3 +87,26 @@ def delete_definition(db: Session, defn: ScheduledDefinition) -> None:
     for entry in defn.entries.all():
         finance_event_svc.invalidate(db, entry.source_type, entry.id)
     db.delete(defn)
+
+
+def close_entry_via_bank(db: Session, entry: ScheduledEntry, btx, direction: int = -1) -> bool:
+    """Banka hareketi kanıtıyla planlı girişi kapat (Faz 1 #11 köprüsü).
+
+    Etiketleme (Vergi/SGK · Personel · Kira) banka bacağına match_number verirken
+    scheduled_entry açık kalıyordu → aynı dönemde tahmin + gerçekleşen ÇİFT sayılıyordu.
+    Sıra ÖNEMLİ: önce upsert (FE alanları tazelenir — upsert is_matched=False yazar),
+    SONRA match (is_matched=True + event_matches izi). Yarış-korumalı.
+    """
+    from app.utils.finance_event_service import finance_event_svc
+
+    locked = (db.query(ScheduledEntry)
+              .filter(ScheduledEntry.id == entry.id, ScheduledEntry.is_paid == False)  # noqa: E712
+              .with_for_update(skip_locked=True).first())
+    if locked is None:
+        return False
+    locked.is_paid = True
+    locked.paid_date = btx.date
+    db.flush()
+    finance_event_svc.upsert_scheduled_entry(db, locked, direction=direction)
+    finance_event_svc.match(db, "bank", btx.id, locked.source_type, locked.id, method="auto")
+    return True
