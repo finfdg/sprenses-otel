@@ -105,7 +105,7 @@ def test_currency_conversion_tl_to_eur(client, auth_headers, db):
     Regresyon: önceki sürüm RoomPrice'ı hep EUR sayıyordu → TL sözleşmeler (yerli/WEBRES)
     2026 cirosunu ~2× şişiriyordu (₺5,9M = €5,9M gibi).
     """
-    db.add(ExchangeRate(date=date(WS.year, 1, 2), currency_code="EUR", forex_selling=50.0, unit=1))
+    db.add(ExchangeRate(date=date(WS.year, 1, 2), currency_code="EUR", forex_selling=50.0, forex_buying=50.0, unit=1))
     db.flush()
     _import(client, auth_headers, [
         _row(900010, currency="EUR", room_price=300),     # EUR → 300 €

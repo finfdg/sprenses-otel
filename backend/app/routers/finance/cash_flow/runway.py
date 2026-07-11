@@ -9,9 +9,9 @@ hariçtir — bunlar hesaplar arası iç hareket, gerçek nakit giriş/çıkış
 
 Tüm tutarlar EUR'a çevrilir:
 - `start_eur`: her hesabın son bakiyesi (blocked_amount düşülmüş) o günün EN SON
-  TCMB EUR/USD satış kuruyla EUR'a çevrilir (mobile_dashboard_summary "son bakiye"
+  TCMB EUR/USD alış kuruyla EUR'a çevrilir (mobile_dashboard_summary "son bakiye"
   deseni + eur_balances `to_eur` çevrim mantığı).
-- kalem tutarları: olayın kendi `event_date`'indeki EUR satış kuru (`_get_eur_rate`).
+- kalem tutarları: olayın kendi `event_date`'indeki EUR alış kuru (`_get_eur_rate`).
 Kur yoksa kalem 1 TL = 1 EUR gibi çevrilmez → ATLANIR + `skipped_no_rate` sayılır.
 """
 
@@ -72,19 +72,19 @@ SOURCE_LABELS = {
 router = APIRouter()
 
 
-def _latest_selling(db: Session, currency_code: str) -> Optional[float]:
-    """Verilen döviz için EN SON (birim başına) TCMB satış kuru; yoksa None."""
+def _latest_buying(db: Session, currency_code: str) -> Optional[float]:
+    """Verilen döviz için EN SON (birim başına) TCMB alış kuru; yoksa None."""
     row = (
-        db.query(ExchangeRate.forex_selling, ExchangeRate.unit)
+        db.query(ExchangeRate.forex_buying, ExchangeRate.unit)
         .filter(
             ExchangeRate.currency_code == currency_code,
-            ExchangeRate.forex_selling.isnot(None),
+            ExchangeRate.forex_buying.isnot(None),
         )
         .order_by(ExchangeRate.date.desc())
         .first()
     )
-    if row and row.forex_selling:
-        return float(row.forex_selling) / float(row.unit or 1)
+    if row and row.forex_buying:
+        return float(row.forex_buying) / float(row.unit or 1)
     return None
 
 
@@ -94,7 +94,7 @@ def _compute_start_eur(db: Session) -> float:
     mobile_dashboard_summary'deki tek-sorgu "son bakiye" desenini kopyalar:
     her hesabın max(id) işleminin bakiyesi → effective = last_balance - blocked.
     EUR çevrim: TRY → /eurRate, EUR → aynen, USD → (usd*usdRate)/eurRate,
-    diğer para birimleri → /eurRate (en son satış kurları). Kur yoksa 0 varsayılır
+    diğer para birimleri → /eurRate (en son alış kurları). Kur yoksa 0 varsayılır
     (banka nakdi başlangıç değeri — kalem atlama mantığı yalnız planlı hareketlerde).
     """
     accounts = db.query(BankAccount).all()
@@ -123,8 +123,8 @@ def _compute_start_eur(db: Session) -> float:
     }
     acc_currency = {a.id: (a.currency or "TRY").upper() for a in accounts}
 
-    eur_rate = _latest_selling(db, "EUR")
-    usd_rate = _latest_selling(db, "USD")
+    eur_rate = _latest_buying(db, "EUR")
+    usd_rate = _latest_buying(db, "USD")
 
     total_eur = 0.0
     for acc_id, bal in last_bal.items():
@@ -146,7 +146,7 @@ def _event_eur(
 ) -> Optional[float]:
     """Kalemi EUR'a çevir; çevrilemiyorsa None (çağıran skipped_no_rate sayar).
 
-    EUR kalem → amount aynen; diğerleri → TRY değeri / o tarihteki EUR satış kuru.
+    EUR kalem → amount aynen; diğerleri → TRY değeri / o tarihteki EUR alış kuru.
     TRY değeri: amount_try, yoksa currency TRY ise amount. Kur yoksa/0 ise 1'e
     bölünmez — kalem dışarıda bırakılır.
     """

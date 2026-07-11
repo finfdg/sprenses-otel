@@ -354,8 +354,8 @@ def checks_summary(
             ExchangeRate.date == latest_date,
             ExchangeRate.currency_code == "EUR",
         ).first()
-        if eur_rate and eur_rate.forex_selling and float(eur_rate.forex_selling) > 0:
-            tl_as_eur = pending_tl_only / float(eur_rate.forex_selling)
+        if eur_rate and eur_rate.forex_buying and float(eur_rate.forex_buying) > 0:
+            tl_as_eur = pending_tl_only / float(eur_rate.forex_buying)
             pending_amount_eur = round(tl_as_eur + pending_eur_direct, 2)
         elif pending_eur_direct > 0:
             # Kur yoksa sadece EUR çekleri göster

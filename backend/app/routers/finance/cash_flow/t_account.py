@@ -3,7 +3,7 @@
 Panel yeniden tasarımındaki T-hesap görünümü için: seçilen dönemdeki
 (gün/hafta/ay/yıl) eşleşmemiş finance_events kayıtları giriş (direction=+1)
 ve çıkış (direction=-1) sütunlarına ayrılır, kaynak/kategori bazında
-gruplanır ve tüm tutarlar o günkü TCMB EUR satış kuruyla EUR'a çevrilir.
+gruplanır ve tüm tutarlar o günkü TCMB EUR alış kuruyla EUR'a çevrilir (Sedna defter kuru hizası, 2026-07-11).
 
 Transfer kategorileri (Virman / Döviz Satım / İade) frontend `groupByMonth`
 ile aynı kuralla tamamen hariç tutulur — bunlar hesaplar arası iç hareket
@@ -105,24 +105,24 @@ def _period_range(period: str, offset: int, today: date_cls) -> Tuple[date_cls, 
 
 
 def _eur_rate_for(db: Session, dt: date_cls, cache: Dict[date_cls, Optional[float]]) -> Optional[float]:
-    """dt tarihindeki (<= en yakın) TCMB EUR satış kuru; hiç kur yoksa None.
+    """dt tarihindeki (<= en yakın) TCMB EUR alış kuru; hiç kur yoksa None.
 
     Tek istekte en çok birkaç yüz farklı tarih olduğundan basit sorgu + dict
     cache yeterli (eur_balances'taki bisect-cache burada gereksiz karmaşıklık).
     """
     if dt not in cache:
         row = (
-            db.query(ExchangeRate.forex_selling, ExchangeRate.unit)
+            db.query(ExchangeRate.forex_buying, ExchangeRate.unit)
             .filter(
                 ExchangeRate.currency_code == "EUR",
                 ExchangeRate.date <= dt,
-                ExchangeRate.forex_selling.isnot(None),
+                ExchangeRate.forex_buying.isnot(None),
             )
             .order_by(ExchangeRate.date.desc())
             .first()
         )
-        if row and row.forex_selling:
-            cache[dt] = float(row.forex_selling) / float(row.unit or 1)
+        if row and row.forex_buying:
+            cache[dt] = float(row.forex_buying) / float(row.unit or 1)
         else:
             cache[dt] = None
     return cache[dt]

@@ -32,6 +32,10 @@ class BankAccount(Base):
     holder_name: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     blocked_amount: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")
+    # Sedna hesap planı eşlemesi (102.* leaf kodu — mutabakat ön koşulu; Sedna'da IBAN
+    # alanları boş olduğundan eşleme Remark-numara skorlamasıyla önerilir, insan onayıyla kesinleşir)
+    sedna_account_code: Mapped[Optional[str]] = mapped_column(String(30), unique=True, nullable=True)
+    sedna_code_confirmed: Mapped[bool] = mapped_column(Boolean, server_default="false")
     created_by: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True,
     )

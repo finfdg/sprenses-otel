@@ -85,8 +85,8 @@ def get_vendors_summary(
             ExchangeRate.date == latest_date,
             ExchangeRate.currency_code == "EUR",
         ).first()
-        if eur_obj and eur_obj.forex_selling and float(eur_obj.forex_selling) > 0:
-            negative_total_eur = round(abs(float(negative_total)) / float(eur_obj.forex_selling), 2)
+        if eur_obj and eur_obj.forex_buying and float(eur_obj.forex_buying) > 0:
+            negative_total_eur = round(abs(float(negative_total)) / float(eur_obj.forex_buying), 2)
 
     return {
         "total_borc": total_borc,

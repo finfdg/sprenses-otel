@@ -652,6 +652,112 @@ def fetch_account_transactions(code: str, start: str, end: str, limit: int = 100
     return rows
 
 
+# ─── Banka defteri (102.*) — Sedna Mutabakat (accounting.mutabakat) ─────────
+# AccountingTrans + AccountingOwner; ÇİFT soft-delete filtresi ZORUNLU (canlı fişlerin
+# İÇİNDE Deleted=1 satır var). Döviz hesabında tutar CurrDebit/CurrCredit (Debit/Credit
+# TL karşılığıdır). Ay sonu kur farkı fişleri (Owner.Type=4) ve değerleme satırları
+# (dövizde Rate=0 & CurrDebit=CurrCredit=0) gerçek nakit hareketi DEĞİL — sınıflandırma
+# services/sedna_recon_service.classify_sedna_row'da.
+
+_CODE_SAFE = set("0123456789.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+
+
+def _safe_codes(codes: List[str]) -> List[str]:
+    """Hesap kodlarını injection'a karşı süz (yalnız harf/rakam/nokta — Sedna leaf'leri
+    harf içerebilir: 340.01.01.L001). Geçersiz kod sessizce atılmaz, ValueError."""
+    out = []
+    for c in codes:
+        c = (c or "").strip()
+        if not c or not all(ch in _CODE_SAFE for ch in c):
+            raise ValueError(f"Geçersiz Sedna hesap kodu: {c!r}")
+        out.append(c)
+    return out
+
+
+def fetch_bank_leaf_accounts() -> List[dict]:
+    """Sedna 102.* hesaplarını çek (hesap eşleme önerileri için).
+
+    Anahtarlar: code, remark, curr. Leaf ayrımı (3+ nokta) çağıranda — parent satırlar
+    da döner (102, 102.01 ...). IBAN alanları Sedna'da pratikte boş; eşleme anahtarı
+    Remark'a gömülü hesap numarasıdır.
+    """
+    conn = _connect(timeout=60, context="mutabakat-hesaplar")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(
+            "SELECT Code AS code, Remark AS remark, Curr AS curr "
+            "FROM Accounting WHERE Code LIKE '102.%' ORDER BY Code"
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d adet 102.* hesabı çekildi", len(rows))
+    return rows
+
+
+def fetch_bank_ledger_rows(codes: List[str], start: str) -> List[dict]:
+    """Verilen 102 leaf kodlarının fiş satırlarını çek (FicheDate >= start, canlı satırlar).
+
+    `start` ISO (çağıran doğrular). Tek sorgu — ya hepsi gelir ya SednaUnavailable
+    (kısmi veriyle sahte uyuşmazlık üretilmez). Anahtarlar: rec_id, owner_id, voucher,
+    fiche_date, record_date, change_date, record_user, owner_type, code, debit, credit,
+    curr, rate, curr_debit, curr_credit, remark.
+    """
+    safe = _safe_codes(codes)
+    if not safe:
+        return []
+    codes_sql = ", ".join("'{}'".format(c) for c in safe)
+    query = (
+        "SELECT t.RecId AS rec_id, t.AccOwnerId AS owner_id, o.Voucher AS voucher, "
+        "CONVERT(date, o.FicheDate) AS fiche_date, CONVERT(date, o.RecordDate) AS record_date, "
+        "o.ChangeDate AS change_date, o.RecordUser AS record_user, o.Type AS owner_type, "
+        "t.AccountingCode AS code, t.Debit AS debit, t.Credit AS credit, "
+        "t.Curr AS curr, t.Rate AS rate, t.CurrDebit AS curr_debit, t.CurrCredit AS curr_credit, "
+        "t.Remark1 AS remark "
+        "FROM AccountingTrans t JOIN AccountingOwner o ON o.RecId = t.AccOwnerId "
+        f"WHERE t.AccountingCode IN ({codes_sql}) "
+        "AND ISNULL(t.Deleted, 0) = 0 AND ISNULL(o.Deleted, 0) = 0 "
+        f"AND o.FicheDate IS NOT NULL AND o.FicheDate >= '{start}' "
+        "ORDER BY o.FicheDate, t.RecId"
+    )
+    conn = _connect(timeout=120, context="mutabakat-defter")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query)  # PARAMETRESİZ (pymssql %-tuzağı)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna banka defteri: %d satır (%d hesap, >=%s)", len(rows), len(safe), start)
+    return rows
+
+
+def fetch_bank_ledger_max_dates(codes: List[str]) -> dict:
+    """Hesap başına Sedna'daki EN SON fiş tarihi {code: date} — 'Sedna bekliyor' eşiği için.
+
+    Pencere filtresi YOK (hesabın kapsama sınırını ölçer). Satırı hiç olmayan kod
+    sözlükte bulunmaz.
+    """
+    safe = _safe_codes(codes)
+    if not safe:
+        return {}
+    codes_sql = ", ".join("'{}'".format(c) for c in safe)
+    query = (
+        "SELECT t.AccountingCode AS code, CONVERT(date, MAX(o.FicheDate)) AS max_date "
+        "FROM AccountingTrans t JOIN AccountingOwner o ON o.RecId = t.AccOwnerId "
+        f"WHERE t.AccountingCode IN ({codes_sql}) "
+        "AND ISNULL(t.Deleted, 0) = 0 AND ISNULL(o.Deleted, 0) = 0 AND o.FicheDate IS NOT NULL "
+        "GROUP BY t.AccountingCode"
+    )
+    conn = _connect(timeout=60, context="mutabakat-maxdate")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(query)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    return {r["code"]: r["max_date"] for r in rows}
+
+
 # ─── Önbüro/PMS (SednaPrenses) — rezervasyon/doluluk ────────────────────────
 # Stok/cari muhasebe DB'sinden (SednaPrensesMhs2026) AYRI bir DB (SednaPrenses) — aynı
 # btadmin login'i ikisini de okur. Doluluk (geceleme/pax) maliyet KPI'larını besler.

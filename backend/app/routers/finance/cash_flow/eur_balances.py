@@ -125,21 +125,21 @@ def compute_eur_balances(db: Session) -> dict:
 
     # Tüm EUR/USD kurlarını tek sorguda al ve tarih bazlı cache oluştur
     all_eur_rates = (
-        db.query(ExchangeRate.date, ExchangeRate.forex_selling)
+        db.query(ExchangeRate.date, ExchangeRate.forex_buying)
         .filter(ExchangeRate.currency_code == "EUR")
         .order_by(ExchangeRate.date)
         .all()
     )
     all_usd_rates = (
-        db.query(ExchangeRate.date, ExchangeRate.forex_selling)
+        db.query(ExchangeRate.date, ExchangeRate.forex_buying)
         .filter(ExchangeRate.currency_code == "USD")
         .order_by(ExchangeRate.date)
         .all()
     )
 
     # Tarih → kur dict
-    eur_rate_list = [(r.date, float(r.forex_selling)) for r in all_eur_rates if r.forex_selling]
-    usd_rate_list = [(r.date, float(r.forex_selling)) for r in all_usd_rates if r.forex_selling]
+    eur_rate_list = [(r.date, float(r.forex_buying)) for r in all_eur_rates if r.forex_buying]
+    usd_rate_list = [(r.date, float(r.forex_buying)) for r in all_usd_rates if r.forex_buying]
 
     # Binary search ile en yakın önceki kuru bul
     eur_dates = [r[0] for r in eur_rate_list]

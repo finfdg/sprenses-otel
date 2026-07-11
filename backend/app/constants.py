@@ -95,11 +95,30 @@ class BroadcastModule:
     HR = "hr"
     APPROVAL = "approval"
     SCHEDULED = "scheduled"  # create_scheduled_router varsayılanı
+    RECON = "recon"  # Sedna mutabakat (accounting.mutabakat — Uyuşmayan Veriler)
 
     # Satış alanı
     HOTEL_RESERVATION = "hotel_reservation"
     ROOM_TYPES = "room_types"
     AGENCY_GROUPS = "agency_groups"
+
+
+class ReconStatus:
+    """`sedna_bank_recon.status` değerleri (DB-saklı — DEĞİŞTİRİLEMEZ).
+
+    Banka↔Sedna mutabakat sınıflandırması. Kural: banka verisi HER ZAMAN otorite —
+    motor banka satırını değiştirmez, yalnız sınıflar. Frontend karşılığı
+    `lib/constants/realtime.ts` RECON_STATUS (iki taraf birebir aynı tutulur).
+    """
+
+    MATCHED = "matched"                    # birebir/grup eşleşti (kapalı)
+    SEDNA_PENDING = "sedna_pending"        # bankada var, Sedna henüz girmemiş (gecikme — uyuşmazlık DEĞİL)
+    SEDNA_MISSING = "sedna_missing"        # bankada var, Sedna dönem içinde girmemiş (gerçek eksik)
+    SEDNA_EXTRA = "sedna_extra"            # Sedna'da var, bankada yok (muhtemel hatalı giriş)
+    DIRECTION_FLIP = "direction_flip"      # aynı gün + aynı mutlak tutar + TERS yön (borç/alacak ters)
+    DUPLICATE_SUSPECT = "duplicate_suspect"  # Sedna adedi > banka adedi (mükerrer fiş şüphesi)
+
+    OPEN = frozenset({SEDNA_PENDING, SEDNA_MISSING, SEDNA_EXTRA, DIRECTION_FLIP, DUPLICATE_SUSPECT})
 
 
 class SourceType:

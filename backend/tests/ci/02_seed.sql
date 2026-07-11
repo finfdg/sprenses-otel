@@ -522,3 +522,15 @@ SELECT 1, 920, true, true, now()
 WHERE NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id = 1 AND p.module_id = 920);
 
 SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 920), true);
+
+
+-- Muhasebe → Sedna Mutabakat (banka↔Sedna uyuşmazlık takibi — Uyuşmayan Veriler) — idempotent
+INSERT INTO public.modules (id, name, code, description, icon, parent_id, sort_order, is_active, created_at) VALUES
+  (921, 'Sedna Mutabakat', 'accounting.mutabakat', 'Banka ↔ Sedna uyuşmazlık takibi — uyuşmayan veriler, hesap eşleme', 'scale', 249, 8, true, now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.role_module_permissions (role_id, module_id, can_view, can_use, created_at)
+SELECT 1, 921, true, true, now()
+WHERE NOT EXISTS (SELECT 1 FROM public.role_module_permissions p WHERE p.role_id = 1 AND p.module_id = 921);
+
+SELECT pg_catalog.setval('public.modules_id_seq', GREATEST((SELECT max(id) FROM public.modules), 921), true);

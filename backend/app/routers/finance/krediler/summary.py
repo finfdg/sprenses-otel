@@ -59,8 +59,8 @@ def credit_summary(
             ExchangeRate.date == latest_date,
             ExchangeRate.currency_code == "EUR",
         ).first()
-        if eur_obj and eur_obj.forex_selling and float(eur_obj.forex_selling) > 0:
-            eur_rate = float(eur_obj.forex_selling)
+        if eur_obj and eur_obj.forex_buying and float(eur_obj.forex_buying) > 0:
+            eur_rate = float(eur_obj.forex_buying)
 
     # Tip bazlı EUR karşılığı hesapla
     type_eur: dict = {}

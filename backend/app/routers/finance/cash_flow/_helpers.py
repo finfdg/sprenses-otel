@@ -203,9 +203,9 @@ def _fe_to_response(fe: FinanceEvent) -> dict:
 
 
 def _get_eur_rate(db: Session, target_date) -> float:
-    """Belirli tarih için EUR/TRY satış kuru."""
+    """Belirli tarih için EUR/TRY alış kuru."""
     rate = (
-        db.query(ExchangeRate.forex_selling)
+        db.query(ExchangeRate.forex_buying)
         .filter(ExchangeRate.currency_code == "EUR", ExchangeRate.date <= target_date)
         .order_by(ExchangeRate.date.desc())
         .first()
@@ -214,9 +214,9 @@ def _get_eur_rate(db: Session, target_date) -> float:
 
 
 def _get_usd_rate(db: Session, target_date) -> float:
-    """Belirli tarih için USD/TRY satış kuru."""
+    """Belirli tarih için USD/TRY alış kuru."""
     rate = (
-        db.query(ExchangeRate.forex_selling)
+        db.query(ExchangeRate.forex_buying)
         .filter(ExchangeRate.currency_code == "USD", ExchangeRate.date <= target_date)
         .order_by(ExchangeRate.date.desc())
         .first()

@@ -171,7 +171,7 @@ def compute_operational_kpi(db: Session) -> dict:
     capacity = occ_total["capacity"] or 0
 
     stock_value = float(db.query(func.coalesce(func.sum(StockProduct.current_value), 0)).scalar() or 0)
-    rate_row = (db.query(ExchangeRate.forex_selling).filter(ExchangeRate.currency_code == "EUR")
+    rate_row = (db.query(ExchangeRate.forex_buying).filter(ExchangeRate.currency_code == "EUR")
                 .order_by(ExchangeRate.date.desc()).first())
     eur_rate = float(rate_row[0]) if rate_row and rate_row[0] else None
 

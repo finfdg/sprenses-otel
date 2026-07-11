@@ -40,7 +40,7 @@ CATEGORIES_WITH_MATCH = {"Cari", "Personel", "Vergi/SGK", "Kira", "Elektrik Fatu
 CATEGORIES_AUTO_PAIR = {"Virman", "Döviz Satım"}
 
 # Döviz Satım bacak eşlemesinde TL-değeri toleransı — banka müşteri kuru TCMB
-# forex_selling'den birkaç puan sapabilir (canlı örnek: banka 53,253 ↔ TCMB ~53,4)
+# forex_buying'den birkaç puan sapabilir (canlı örnek: banka 53,253 ↔ TCMB ~53,4)
 FX_PAIR_TOLERANCE = 0.05
 
 router = APIRouter()
@@ -52,7 +52,7 @@ def _norm_currency(cur: Optional[str]) -> str:
 
 
 def _rate_for(db: Session, currency: str, on_date) -> Optional[float]:
-    """Para biriminin TL kuru — o tarihteki (veya öncesindeki son) TCMB forex_selling."""
+    """Para biriminin TL kuru — o tarihteki (veya öncesindeki son) TCMB forex_buying."""
     cur = _norm_currency(currency)
     if cur == "TRY":
         return 1.0
@@ -62,10 +62,10 @@ def _rate_for(db: Session, currency: str, on_date) -> Optional[float]:
         .order_by(ExchangeRate.date.desc())
         .first()
     )
-    if not r or not r.forex_selling:
+    if not r or not r.forex_buying:
         return None
     unit = float(r.unit or 1) or 1
-    return float(r.forex_selling) / unit
+    return float(r.forex_buying) / unit
 
 
 def _find_pair_counterpart(db: Session, tx: BankTransaction, cat_name: str) -> Optional[BankTransaction]:

@@ -12,6 +12,7 @@ from app.models.approval import (
 from app.models.audit_log import AuditLog
 from app.models.bank_account import BankAccount
 from app.models.bank_statement import BankStatement
+from app.models.sedna_recon import SednaBankRecon, SednaReconRun
 from app.models.bank_transaction import BankTransaction
 from app.models.budget import Budget, BudgetCategory
 from app.models.cash_flow import CashFlow
@@ -61,6 +62,7 @@ __all__ = [
     "PushSubscription", "AuditLog",
     "CashFlow",
     "BankAccount", "BankStatement", "BankTransaction", "TransactionCategory",
+    "SednaBankRecon", "SednaReconRun",
     "ExchangeRate",
     "Vendor", "VendorUpload", "VendorTransaction", "VendorBankAccount", "VendorNote",
     "Notification",

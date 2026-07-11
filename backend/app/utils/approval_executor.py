@@ -494,6 +494,27 @@ def _handle_finance_cariler(db, action_type, entity_id, payload, actor_id):
         vendor_service.apply_vendor_update(db, vendor, payload)
 
 
+def _handle_accounting_mutabakat(db, action_type, entity_id, payload, actor_id):
+    """Onaylanan Sedna Mutabakat mutasyonu (accounting.mutabakat).
+
+    Router (accounting/mutabakat.py) ile ORTAK: app/services/sedna_recon_service.
+    İki mutasyon tipi payload["op"] ile ayrılır: "resolve_item" (uyuşmazlık kaydı
+    aksiyonu, entity_id=SednaBankRecon.id) ve "account_mapping" (Sedna kodu atama,
+    entity_id=BankAccount.id). Tarama (POST /run) onaydan muaf → burada yok.
+    """
+    from app.services import sedna_recon_service
+
+    op = payload.get("op")
+    if op == "resolve_item":
+        sedna_recon_service.resolve_recon_item(
+            db, entity_id, payload.get("action", "resolve"), payload.get("note"), actor_id)
+    elif op == "account_mapping":
+        sedna_recon_service.set_account_mapping(
+            db, entity_id, payload.get("sedna_account_code"), payload.get("confirmed", False))
+    else:
+        raise ValueError(f"Bilinmeyen mutabakat işlemi: {op}")
+
+
 def _handle_attendance(db, action_type, entity_id, payload, actor_id):
     """Onaylanan elle giriş/çıkış (hr.attendance) → AttendanceLog oluştur/güncelle/sil.
 
@@ -643,6 +664,8 @@ _HANDLERS = {
     "finance.hakedis": _handle_finance_hakedis,
     # Muhasebe — Temettü (kâr payı dağıtımı, bespoke — fabrika DIŞI)
     "accounting.dividend": _handle_accounting_dividend,
+    # Muhasebe — Sedna Mutabakat (Uyuşmayan Veriler; resolve_item + account_mapping)
+    "accounting.mutabakat": _handle_accounting_mutabakat,
     # İK — Devam Takip (elle giriş/çıkış)
     "hr.attendance": _handle_attendance,
     # İK — Vardiya tanımları

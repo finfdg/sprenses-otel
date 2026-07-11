@@ -244,7 +244,7 @@ def _mk_rate(db, dt, selling, code="EUR"):
     db.query(ExchangeRate).filter(
         ExchangeRate.date == dt, ExchangeRate.currency_code == code
     ).delete()
-    db.add(ExchangeRate(date=dt, currency_code=code, unit=1, forex_selling=selling))
+    db.add(ExchangeRate(date=dt, currency_code=code, unit=1, forex_selling=selling, forex_buying=selling))
     db.flush()
 
 
@@ -361,7 +361,7 @@ class TestEurBalanceOverdueVendor:
         from app.models.exchange_rate import ExchangeRate
         from app.utils.finance_helpers import MIN_DATE
         db.query(ExchangeRate).filter(ExchangeRate.currency_code == "EUR").delete()
-        db.add(ExchangeRate(currency_code="EUR", date=MIN_DATE, unit=1, forex_selling=selling))
+        db.add(ExchangeRate(currency_code="EUR", date=MIN_DATE, unit=1, forex_selling=selling, forex_buying=selling))
         db.flush()
 
     def test_overdue_vendor_not_subtracted_from_balance(self, db):

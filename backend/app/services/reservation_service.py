@@ -28,16 +28,16 @@ _STATUS_LABELS = {1: "Reservation", 2: "InHouse", 3: "CheckOut"}
 
 
 def _currency_to_eur_factors(db: Session) -> Optional[dict]:
-    """Para birimi → 1 birimi kaç EUR (son TCMB forex_selling). {'EUR':1.0,'TL':1/eur_try,...}.
+    """Para birimi → 1 birimi kaç EUR (son TCMB forex_buying). {'EUR':1.0,'TL':1/eur_try,...}.
 
     RoomPrice sözleşme para biriminde (`Contrack.Currency`: EUR/TL/USD). NET CİRO'yu EUR'da
     tutmak için TL/USD tutarları çevrilir — aksi halde TL sözleşmeler (yerli/WEBRES) ciroyu ~50×
     şişirir. EUR kuru yoksa None döner (çağıran yalnız EUR'yu olduğu gibi alır, gerisini 0'lar).
     """
     rows = (
-        db.query(ExchangeRate.currency_code, ExchangeRate.forex_selling, ExchangeRate.unit)
+        db.query(ExchangeRate.currency_code, ExchangeRate.forex_buying, ExchangeRate.unit)
         .filter(ExchangeRate.currency_code.in_(["EUR", "USD", "GBP"]),
-                ExchangeRate.forex_selling.isnot(None))
+                ExchangeRate.forex_buying.isnot(None))
         .order_by(ExchangeRate.currency_code, ExchangeRate.date.desc())
         .all()
     )

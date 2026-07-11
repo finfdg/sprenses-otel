@@ -54,7 +54,17 @@ _STEPS = [
     # ödemelerin (Elektrik→CK, Su→ASAT) tahmini tutarlarını cari gerçek faturayla senkronlar.
     {"key": "recurring_sync", "label": "Düzenli ödeme ↔ cari senkronu", "module": "accounting.recurring",
      "run": run_recurring_vendor_sync, "broadcast": BroadcastModule.ACCOUNTING},
+    # Banka ↔ Sedna mutabakat taraması (Uyuşmayan Veriler) — banka verisi otorite,
+    # yalnız sınıflandırır; Sedna kopuksa adım-izolasyonla diğer adımlar sürer.
+    {"key": "bank_recon", "label": "Banka ↔ Sedna mutabakatı", "module": "accounting.mutabakat",
+     "run": lambda db, user, ip: _run_bank_recon(db, user), "broadcast": BroadcastModule.RECON},
 ]
+
+
+def _run_bank_recon(db, user):
+    from app.services.sedna_recon_service import run_reconciliation
+
+    return run_reconciliation(db, triggered_by=user.id)
 
 
 def _summarize(key: str, d: dict) -> str:
@@ -80,6 +90,9 @@ def _summarize(key: str, d: dict) -> str:
     if key == "reservations":
         return (f"{d.get('reservations_new', 0)} yeni · {d.get('reservations_updated', 0)} güncel · "
                 f"{d.get('removed', 0)} iptal/kaldırılan")
+    if key == "bank_recon":
+        return (f"{d.get('accounts_scanned', 0)} hesap · {d.get('new', 0)} yeni uyuşmazlık · "
+                f"{d.get('auto_closed', 0)} otomatik kapandı · {d.get('open', 0)} açık")
     return "Tamamlandı"
 
 

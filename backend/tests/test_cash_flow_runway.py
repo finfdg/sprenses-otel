@@ -64,7 +64,7 @@ def _mk_rate(db, dt, selling, code="EUR"):
     db.query(ExchangeRate).filter(
         ExchangeRate.date == dt, ExchangeRate.currency_code == code
     ).delete()
-    rate = ExchangeRate(date=dt, currency_code=code, unit=1, forex_selling=selling)
+    rate = ExchangeRate(date=dt, currency_code=code, unit=1, forex_selling=selling, forex_buying=selling)
     db.add(rate)
     db.flush()
     return rate

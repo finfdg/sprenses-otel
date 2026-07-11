@@ -73,13 +73,13 @@ def get_terms_map(db: Session) -> dict:
 # ─── Yardımcılar: kur, grup, avans ───────────────────────
 
 def _latest_rates(db: Session) -> dict:
-    """currency_code → TL kuru (son tarihli TCMB forex_selling / unit). TL=1."""
+    """currency_code → TL kuru (son tarihli TCMB forex_buying / unit). TL=1."""
     rates = {"TL": 1.0, "TRY": 1.0}
     for r in (db.query(ExchangeRate)
               .order_by(ExchangeRate.currency_code, ExchangeRate.date.desc()).all()):
         if r.currency_code not in rates:
             unit = float(r.unit or 1) or 1
-            sell = _f(r.forex_selling)
+            sell = _f(r.forex_buying)
             if sell > 0:
                 rates[r.currency_code] = sell / unit
     return rates
@@ -109,7 +109,7 @@ def _advance_by_code(db: Session, firm_names: dict, rates: dict) -> dict:
 
     340 'Alınan Avanslar' (SalesAdvance) kayıtları muhasebe cari ADLARIYLA tutulur ve 120
     adlarıyla aynı evrendir → `_norm_tokens` alt-küme eşlemesi güvenilir (satis-faturalari
-    `_merged_advances` ile aynı desen). TL karşılığı son TCMB forex_selling ile; native kırılım
+    `_merged_advances` ile aynı desen). TL karşılığı son TCMB forex_buying ile; native kırılım
     tek-para-birimli firmalarda € gösterim için taşınır.
     """
     firm_tokens = {code: _norm_tokens(name or code) for code, name in firm_names.items()}
