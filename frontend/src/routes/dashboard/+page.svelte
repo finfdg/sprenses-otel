@@ -187,7 +187,6 @@
 	// Her WS finance_updated/sales_updated event'inde TÜM panel değil, yalnız değişen
 	// modülün kartı yeniden yüklenir (recon gibi kartı olmayan modüller hiçbir şey
 	// tetiklemez). Panel salt-okuma → markReload gerekmez.
-	if (canBanks) useLiveRefetch({ modules: [BROADCAST_MODULE.BANKS], reload: loadBanksKpi });
 	if (canChecks) useLiveRefetch({ modules: [BROADCAST_MODULE.CHECKS], reload: loadChecksKpi });
 	if (canCredits) useLiveRefetch({ modules: [BROADCAST_MODULE.CREDITS], reload: loadCreditsKpi });
 	if (canCariler) useLiveRefetch({ modules: [BROADCAST_MODULE.CARILER], reload: loadVendorsKpi });
@@ -196,9 +195,10 @@
 	if (canOccupancy) useLiveRefetch({ salesModules: [BROADCAST_MODULE.HOTEL_RESERVATION], reload: loadOccupancyKpi });
 
 	onMount(async () => {
+		// Bankalar KPI kaynağı — runway store (ref-count'lu; T-Hesap içindeki tüketicilerle paylaşılır)
+		if (canBanks && canFinance) unsubRunway = subscribeRunway();
 		try {
 			const promises: Promise<void>[] = [];
-			if (canBanks) promises.push(loadBanksKpi());
 			if (canOccupancy) promises.push(loadOccupancyKpi());
 			if (canAdvances) promises.push(loadAdvancesKpi());
 			if (canCariler) promises.push(loadVendorsKpi());
@@ -213,6 +213,8 @@
 			loading = false;
 		}
 	});
+
+	onDestroy(() => unsubRunway?.());
 
 	function getGreeting(): string {
 		const hour = new Date().getHours();

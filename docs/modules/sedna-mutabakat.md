@@ -483,9 +483,14 @@ hata koşuyu düşürmez.
   `summary.balance_chain_breaks`; kırılma varsa **"Ekstre bakiye zinciri kırık"** bildirimi
   (`_notify_viewers`, ilk 5 kırılma özetiyle — "eksik/atlanmış ekstre satırı olabilir").
   Kontrol try/except'lidir — hata koşuyu düşürmez.
+- **Frontend (2026-07-12, `mutabakat/+page.svelte`):** "Şimdi Tara" sonrası
+  `balance_chain_breaks` doluysa **warning toast** ("Bakiye zinciri kırık: <banka> <tarih>
+  boşluk ₺X" — ilk 2 kırılma) + dönem-kilidi şeridine **kırmızı rozet** ("N bakiye zinciri
+  kırığı", title'da açıklama). Rozet yalnız son taramanın yanıtından beslenir (`GET /summary`
+  bu diziyi döndürmez) → sayfa yenilenince kaybolur, yeni taramada tekrar hesaplanır.
 - Kırılmanın tipik çözümü: ilgili dönemin ekstresini yeniden yüklemek veya bozuk satırı
   `DELETE /banks/transactions/{id}` ile temizlemek (onaya tabi — `docs/modules/bankalar.md`
-  "Faz 3" bölümü).
+  "Faz 3" bölümü; Bankalar sayfasında ekstre/işlem Sil butonları).
 
 ## Geliştirme Kuralları
 

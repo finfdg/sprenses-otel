@@ -232,6 +232,16 @@ silmekti):
 - **İkisi de onay akışına TABİ** (`check_approval` op=`delete_statement`/`delete_transaction`) —
   bunlar eşleştirme-muafiyeti sınıfı DEĞİL, **gerçek veri silme**dir (bkz.
   `docs/modules/onay-akisi.md`). `finance.banks` use + audit + `BANKS` WS yayını.
+- **Frontend UI (2026-07-12, `bankalar/+page.svelte`):** hesap detayındaki **Ekstreler**
+  sekmesinde her satırda Trash2 "Sil" (canUse) → ConfirmDialog ("... ekstresi ve N işlemi
+  silinecek; bağlı çek/kredi/avans eşleşmeleri çözülecek"; N = `new_transactions`) →
+  DELETE; **202 onay deseni** desteklenir (`requires_approval`/`request_id` → "onaya
+  gönderildi" info toast'ı, liste değişmez). Başarıda toast çözülen eşleşme sayaçlarını
+  gösterir ("Ekstre silindi — N işlem · çözülen eşleşme: X çek, Y kredi…") + hesap listesi
+  ve açık hesabın işlem/ekstre listeleri yenilenir. **İşlemler** sekmesinde her satırda
+  hover'da beliren tekil Trash2 (mobilde sürekli görünür) → ConfirmDialog → DELETE; eşleşmiş
+  satırda backend 400 detayı ("önce eşleşmeyi geri al") toast'la gösterilir — işlem yanıtı
+  match bilgisi içermediğinden buton tüm satırlarda görünür, filtre backend'dedir.
 
 ### (#24, denetim C5) Hesap silme = temizlikli silme
 
