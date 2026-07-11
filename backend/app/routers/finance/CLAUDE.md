@@ -42,6 +42,30 @@ sapma raporu/auto-close + cari rec_id importu + çek sapması + satış aynalama
 
 ---
 
+## Eşleştirme Çekirdeği Regresyon Ağı — R6 (2026-07-11)
+
+`tests/test_cash_flow_matching.py` (25 test) — bugüne kadar TAMAMEN testsiz olan eşleştirme
+çekirdeğini sabitler: `match_vendor_tx` (sequence match_number + sync_tag + is_matched
+DEĞİŞMEZ cari kuralı + EventMatch method='manual' izi + 404'ler), `match_cc_payment`/
+`unmatch_cc_payment` (kısmi paid_amount birikimi + FE kalan/gizle/yeniden-aç),
+`match_credit_payment` (taksit kapama + kredi FE gizleme + banka sync_tag),
+`_match_credits_to_bank` **N-1 grup eşleşmesi** (faiz+vergi iki satır toplamı ±0.02;
+MEVCUT davranış sabitlendi: yalnız İLK satır `bank_transaction_id` alır — düzeltme Faz 1'de),
+`run_post_ingest_processing` (auto-tag→FE sync + SAVEPOINT izolasyonu: auto-tag patlasa
+bile matcher'lar koşar), `POST /cash-flow/rematch` (200/403/audit), eur_balances deferral
+ay-kayması (çek/kredi/KK) + runway hizası, VakıfBank sync→post-ingest zinciri (monkeypatch).
+
+**Testlerin yakaladığı + düzeltilen 2 gerçek bug (2026-07-11):**
+- `cash_flow/matching.py` — R2 sequence geçişinde `sa_text` **import edilmemişti** →
+  `match_vendor_tx` her çağrıda `NameError`/500 veriyordu. `from sqlalchemy import text as sa_text` eklendi.
+- `cash_flow/eur_balances.py` (R5) — ötelenen çek/kredinin **eff tarihi `all_date_set`'e
+  eklenmiyordu** → ötelenmiş güne yazılan gider `daily`/`monthly`'de HİÇ görünmüyordu
+  (KK dalı zaten ekliyordu; sessiz tutar kaybı). Ayrıca bekleyen çekin **bakiye projeksiyonu**
+  (`pending_check_expense_by_date`) hâlâ doğal vadeden düşüyordu → gider çizgisiyle aynı
+  eksene (eff tarih) alındı.
+
+---
+
 ## VakıfBank API — Banka Hesap Hareketleri Doğrudan Çekme (2026-07-10, SANDBOX UÇTAN UCA ÇALIŞIYOR)
 
 Excel/PDF ekstre yüklemesine EK kaynak: VakıfBank Açık Bankacılık API'sinden (`/accountTransactions`,
