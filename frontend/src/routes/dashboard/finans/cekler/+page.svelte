@@ -14,7 +14,7 @@
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Loader2, ChevronRight, ArrowUp } from 'lucide-svelte';
+	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Loader2, ChevronRight, ArrowUp, Undo2 } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { pending: 'Bekliyor', paid: 'Ödendi', cancelled: 'İptal' };
 	const STATUS_BADGE: Record<string, BadgeType> = { pending: 'warning', paid: 'success', cancelled: 'neutral' };
@@ -270,6 +270,26 @@
 		} catch (err) {
 			console.error('Durum güncellenemedi:', err);
 			showToast('Durum güncellenemedi', 'error');
+		}
+	}
+
+	// Banka↔çek eşleşmesini geri al — çek yeniden "Bekliyor" olur, banka hareketi serbest kalır
+	function askUnmatchCheck(check: Check) {
+		askConfirm(
+			'Eşleşmeyi Geri Al',
+			`${check.check_no} numaralı çekin banka eşleşmesi kaldırılacak ve çek yeniden "Bekliyor" durumuna dönecek. Devam etmek istiyor musunuz?`,
+			() => unmatchCheck(check.id)
+		);
+	}
+
+	async function unmatchCheck(checkId: number) {
+		try {
+			await api.post('/finance/cash-flow/unmatch-check', { check_id: checkId });
+			showToast('Eşleşme geri alındı — çek yeniden bekliyor', 'success');
+			await loadAll();
+		} catch (err: any) {
+			console.error('Eşleşme geri alma hatası:', err);
+			showToast(err?.message || 'Eşleşme geri alınamadı', 'error');
 		}
 	}
 
@@ -594,6 +614,14 @@
 		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200" title="Banka hareketi ile eşleşti">
 			<Landmark size={12} /> #{check.match_number || 'Banka'}
 		</span>
+		{#if canUse && check.status === 'paid'}
+			<button
+				onclick={() => askUnmatchCheck(check)}
+				class="ml-1 text-gray-500 hover:text-red-600 cursor-pointer align-middle"
+				title="Eşleşmeyi Geri Al — çek yeniden Bekliyor durumuna döner"
+				aria-label="Banka eşleşmesini geri al"
+			><Undo2 size={14} class="inline-block" /></button>
+		{/if}
 	{:else if check.match_number}
 		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200" title="Cari ile eşleşti">
 			<FileText size={12} /> #{check.match_number}

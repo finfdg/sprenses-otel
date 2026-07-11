@@ -851,6 +851,9 @@ Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
   `banks_cc_match.py`) import ediyordu (katman/coupling ihlali) → artık hepsi `app.utils.matching_service`'ten.
   `banks_cc_match.py` **silindi**; `checks.py`/`krediler/__init__.py` matcher'ı utils'ten re-import eder
   (geriye uyum + iç kullanım korunur). Davranış birebir aynı (test: `test_banks_cc_match.py`).
+  **Faz 1 (2026-07-11):** 5. matcher `_match_vendors_to_bank` (cari↔banka) + iki-eşikli öneri
+  bantları (`*_SUGGEST_MIN`/`*_AUTO_MIN`) + ortak `apply_*` uygulayıcıları (yeni eşleştirme yolu
+  yazarken `apply_*` kullan, elle alan set etme) — aşağıdaki "Faz 1 — Eşleştirme Büyütme" bölümüne bkz.
 - **`sales_invoices` performansı:** `_compute` (FIFO) artık 30sn TTL cache'li (`_compute_cached`) — 4
   endpoint (list/summary/advances + yonetim/dashboard) her okumada iki tam tabloyu yeniden RAM'e
   çekmiyordu. `list_invoices` `status` filtresi yokken **gerçek SQL pagination** (count + offset/limit)
@@ -896,6 +899,59 @@ Eşleştirme denetimi (`docs/denetim/2026-07-11-nakit-akim-eslestirme-denetimi.m
   Yeni sabitler: `BroadcastModule.BUTCE/HAKEDIS/STOK` (frontend `realtime.ts` birebir aynı).
 - **Deferral → eur_balances (R5):** çek/kredi/KK tarihleri `get_deferral_map` ile ötelenmiş
   tarihten okunur (RunwayChart/PDF ↔ T-Hesap/runway drift'i kapandı).
+
+## Faz 1 — Eşleştirme Büyütme (2026-07-11)
+
+Aynı denetimin Faz 1 paketi uygulandı (**#14 öğrenen kurallar P3 ERTELENDİ** —
+`event_matches.method/score` alanları eğitim verisi olarak birikiyor). Kullanıcı anlatımı +
+bantlar tablosu: `docs/modules/nakit-akim.md` "Faz 1 (2026-07-11)".
+
+- **5. matcher — cari↔banka (`_match_vendors_to_bank`, #8):** açık `vendor_payment` FE'leri
+  (`is_matched=False ∧ is_realized=False`, tutar = FIFO kalanı) banka giderleriyle. En temkinli
+  alan (cari kapatma FIFO'yu değiştirir): OTOMATİK yalnız [tutar birebir (kuruş) + **isim/vendor
+  sinyali ZORUNLU** (cari adı token'ı açıklamada VEYA btx.vendor_id aynı; sinyalsiz azami skor
+  70) + **vade ±7 gün ZORUNLU** (`VENDOR_AUTO_WINDOW_DAYS` — açık koşul; yakınlık puanı 0g +20 ·
+  ≤3g +15 · ≤7g +10)] → skor ≥ `VENDOR_AUTO_MIN`(80); 50-79 bandı VE 8-14 gün bandındaki isimli
+  adaylar (skor 80 olsa bile) öneri (pencere ≤14 gün). Eşleşince koşu sonunda `sync_vendor_finance_events`
+  (FIFO yeniden yazımı). `is_matched`'a DOKUNMAZ (cari kuralı). Orkestratör artık **5 matcher**
+  + `cleanup_stale_suggestions` koşar (`run_all_matchers` anahtarı `vendor_payments_matched`).
+- **İki-eşikli bantlar (#9, `matching_service.py` başındaki sabitler):**
+  `CHECK 8/20 · CREDIT 20/40 · ADVANCE 8/20 · VENDOR 50/80` (SUGGEST_MIN/AUTO_MIN). Otomatik
+  eşiğin altında kalan en iyi aday `_upsert_suggestion` ile `event_matches(method='suggestion')`
+  kaydı olur (idempotent; finance_events'e DOKUNULMAZ — öneri eşleşme değildir). Uçlar:
+  `GET /cash-flow/match-suggestions` + `POST .../{id}/accept|reject` (Nakit Akım "Eşleşme
+  Önerileri (N)" paneli). Bayat öneriler (hedefi kapanan) her orkestratör koşusunda süpürülür.
+- **Çapraz-para aday üretimi (#13):** birebir eşleşemeyen döviz çek için `fx_service.
+  ledger_rate`(işlem günü) ile beklenen-TL ±%1 (`FX_SUGGEST_TOLERANCE`) bandındaki TL gideri
+  (±10 gün) → YALNIZ öneri (skor 40). Otomatik uygulanmaz.
+- **`apply_*` ORTAK-KAYNAK KURALI (D1-2 deseni):** `apply_check_bank_match` /
+  `apply_credit_bank_match` / `apply_advance_bank_match` / `apply_vendor_bank_match` —
+  otomatik matcher + manuel endpoint + öneri-Onayla ÜÇÜ DE bunları çağırır (`match_vendor_tx`
+  uygulamayı `apply_vendor_bank_match`'e devretti). Hepsi hedefi **FOR UPDATE SKIP LOCKED** ile
+  yeniden doğrular (yarış koruması — tetikler çoğaldı: ekstre + banka API + rematch + öneri
+  onayı); koşul bozulursa False/None döner, manuel uçlar 409 verir. KK matcher'ında kilitli
+  re-check, kredi grup uygulamasında taksit kilidi. **Yeni eşleştirme yolu yazarken `apply_*`
+  kullan — elle alan set etme** (sequence, sync_tag, `event_matches` izi, FE upsert ve yarış
+  koruması tek yerde).
+- **Unmatch uçları (#10):** `POST /cash-flow/unmatch-check` (çek `pending`'e döner, banka
+  serbest, `event_matches` izi silinir) + `POST /cash-flow/unmatch-credit-payment` (taksit
+  açılır + anapara `remaining_amount`'a iade; N-1 grupta `event_matches` izinden bağlı TÜM
+  banka satırları çözülür; banka FE'si realized kalır). Kredi N-1 grup eşleşmesi artık grubun
+  TÜM banka satırlarına ortak `match_number` + satır başına `event_matches` izi yazar
+  (eskiden yalnız ilk satır).
+- **1-N çek (#12):** otomatik — aynı cariye ait vadesi ±2 gün kümelenen TL bekleyen çeklerin
+  toplamı bir banka giderine kuruş düzeyinde denk + tarih ±5 gün → hepsi kapanır (skor 90);
+  manuel — `POST /cash-flow/match-checks-batch` (≤20 çek, toplam ±0.02, yarışta 409 +
+  rollback). Avans kısmi eşleşmesi BİLİNÇLİ ertelendi (`received_amount` elle güncellenebilir;
+  otomatik kısmi Faz 2+).
+- **Planlı gider köprüsü (#11):** `transaction_tags._SCHEDULED_CATEGORY_MAP` (Vergi/SGK →
+  tax/sgk/withholding · Personel → salary · Kira → rent_expense). Etiketlemede işlem ayına denk
+  + tutar ±%2 uyan TEK açık `scheduled_entry` → `scheduled_service.close_entry_via_bank` ile
+  banka kanıtıyla kapanır (**sıra: önce `upsert_scheduled_entry`, SONRA `match`** — upsert
+  is_matched=False yazar); birden çok aday → öneri kuyruğu (ilk 5, skor 50). Yarış-korumalı;
+  öneri-Onayla planlı türlerde de aynı fonksiyonu çağırır.
+- **Onay muafiyeti:** yeni uçlar kapsam listesine eklendi (`docs/modules/onay-akisi.md`
+  "Onaydan Muaf Endpoint'ler").
 
 ---
 

@@ -21,7 +21,7 @@
 | `backend/app/routers/finance/cash_flow/` | Nakit akım paketi (aşağıdaki alt modüller) |
 | `backend/app/routers/finance/cash_flow/__init__.py` | Alt router'ları birleştiren paket girişi |
 | `backend/app/routers/finance/cash_flow/listing.py` | Liste, özet, mobil dashboard endpoint'leri |
-| `backend/app/routers/finance/cash_flow/matching.py` | Eşleştirme endpoint'leri (cari, kredi kartı, kredi) |
+| `backend/app/routers/finance/cash_flow/matching.py` | Eşleştirme endpoint'leri (cari, kredi kartı, kredi) + eşleşme önerileri (accept/reject) + geri alma (unmatch-check/credit) + 1-N çek batch |
 | `backend/app/routers/finance/cash_flow/eur_balances.py` | EUR bakiye endpoint'i + `compute_eur_balances(db)` ortak çekirdeği |
 | `backend/app/routers/finance/cash_flow/report.py` | Nakit akım PDF raporu endpoint'i (ay/gün bazlı EUR tablosu) |
 | `backend/app/routers/finance/cash_flow/runway.py` | Runway / nakit koruma projeksiyonu endpoint'i (ay-içi planlı hareketler EUR) |
@@ -78,7 +78,13 @@
 | `POST` | `/api/finance/cash-flow/match-cc-payment` | `use` | Kredi kartı ödeme eşleştirme |
 | `POST` | `/api/finance/cash-flow/match-credit-payment` | `use` | Kredi taksit ödeme eşleştirme |
 | `POST` | `/api/finance/cash-flow/unmatch-cc-payment` | `use` | Kredi kartı eşleştirme iptali |
-| `POST` | `/api/finance/cash-flow/rematch` | `use` | Otomatik etiketleme + 4 eşleştiriciyi elle tetikler (ekstre yüklemesiyle aynı orkestratör; onaydan muaf — operasyonel; audit + WS) |
+| `POST` | `/api/finance/cash-flow/rematch` | `use` | Otomatik etiketleme + 5 eşleştiriciyi elle tetikler (ekstre yüklemesiyle aynı orkestratör; onaydan muaf — operasyonel; audit + WS) |
+| `GET` | `/api/finance/cash-flow/match-suggestions` | `view` | Eşleşme önerileri listesi — otomatik eşik altındaki en iyi adaylar (skor sıralı, paginated) |
+| `POST` | `/api/finance/cash-flow/match-suggestions/{id}/accept` | `use` | Öneriyi onayla → türe uygun `apply_*` / `close_entry_via_bank` ile gerçek eşleşme (hedef kapanmışsa 409 + öneri düşer) |
+| `POST` | `/api/finance/cash-flow/match-suggestions/{id}/reject` | `use` | Öneriyi reddet (silinir; sonraki koşuda aynı çift yeniden önerilebilir) |
+| `POST` | `/api/finance/cash-flow/unmatch-check` | `use` | Banka↔çek eşleşmesini geri al (çek `pending`'e döner, banka hareketi serbest kalır) |
+| `POST` | `/api/finance/cash-flow/unmatch-credit-payment` | `use` | Banka↔kredi taksit eşleşmesini geri al (N-1 grup: bağlı TÜM banka satırları çözülür + anapara iadesi) |
+| `POST` | `/api/finance/cash-flow/match-checks-batch` | `use` | Tek banka gideriyle birden çok çeki kapat (≤20 çek, toplam ±0.02 doğrulamalı) |
 
 ### Query Parametreleri (GET list)
 - `page` (int, default: 1)
@@ -379,3 +385,138 @@ Revize Faz 0 paketi (R1–R7) uygulandı. Nakit Akım'a dokunan parçalar:
   deferral-EUR regresyonu (`tests/test_cash_flow_matching.py`).
 
 Onay muafiyeti kapsam listesi (R7) ve sıradaki Faz 1 planı için denetim raporuna bakın.
+
+## Faz 1 (2026-07-11)
+
+Eşleştirme denetiminin (`docs/denetim/2026-07-11-nakit-akim-eslestirme-denetimi.md` §6)
+Faz 1 paketi uygulandı — **#14 öğrenen kurallar (P3) bilinçli ERTELENDİ** (aşağıya bkz.).
+Orkestratör artık **5 matcher** koşar (çek / kredi / KK ekstre / avans / **cari**) + her koşu
+sonunda bayat öneri temizliği (`cleanup_stale_suggestions`).
+
+### Cari↔banka otomatik matcher (#8 — 5. matcher)
+
+`matching_service._match_vendors_to_bank`: açık cari ödeme tahminleri (`vendor_payment` FE,
+`is_matched=False ∧ is_realized=False` — tutar FIFO kalanı) banka gider hareketleriyle eşlenir.
+**En temkinli matcher** (cari kapatma FIFO'yu değiştirir):
+
+- **Otomatik** yalnız üçlü koşulla: tutar **birebir** (kuruş düzeyinde, FIFO kalanı) +
+  **isim/vendor sinyali ZORUNLU** (cari adı token'ı banka açıklamasında geçiyor VEYA
+  auto_tagger'ın btx'e atadığı `vendor_id` aynı; sinyalsiz azami skor 70 < eşik) +
+  **vade ±7 gün ZORUNLU** (`VENDOR_AUTO_WINDOW_DAYS` — açık koşul; yakınlık puanı: aynı gün
+  +20 · ≤3 gün +15 · ≤7 gün +10) → skor ≥ 80 (`VENDOR_AUTO_MIN`).
+- **Öneri:** 50–79 bandı VE 8–14 gün bandındaki isimli adaylar (skor 80'e ulaşsa bile geniş
+  pencerede otomatik KAPANMAZ) öneri kuyruğuna düşer; aday penceresi ≤14 gün
+  (`VENDOR_SUGGEST_WINDOW_DAYS`).
+- Eşleşince ortak uygulayıcı `apply_vendor_bank_match` + koşu sonunda
+  `sync_vendor_finance_events` (FIFO yeniden yazımı). **`is_matched`'a DOKUNMAZ** (cari kuralı —
+  banka bacağı nakit akımda görünür kalır).
+
+### İki-eşikli sistem + "Eşleşme Önerileri" paneli (#9)
+
+Her matcher'da otomatik eşiğin ALTINDA ama öneri tabanının ÜSTÜNDE kalan **en iyi aday**
+otomatik UYGULANMAZ; `event_matches`'e `method='suggestion'` kaydı düşer (idempotent
+`_upsert_suggestion`; finance_events'e DOKUNULMAZ — öneri bir eşleşme DEĞİLDİR). Mevcut
+otomatik davranış DEĞİŞMEDİ (geçmiş yanlış-pozitif vakalarının panzehiri: KK 13→2, avans
+yanlış-taksit).
+
+| Matcher | Otomatik eşik (`*_AUTO_MIN`) | Öneri bandı (`*_SUGGEST_MIN` .. eşik-1) |
+|---|---|---|
+| Çek (`CHECK`) | ≥ 20 | 8 – 19 |
+| Kredi (`CREDIT`) | ≥ 40 | 20 – 39 |
+| Avans (`ADVANCE`) | ≥ 20 | 8 – 19 |
+| Cari (`VENDOR`) | ≥ 80 | 50 – 79 |
+| Çapraz-para çek (`FX_SUGGEST_*`) | — (otomatik yok) | sabit skor 40 |
+| Planlı gider köprüsü (çok aday) | — (tek aday doğrudan kapanır) | sabit skor 50 |
+
+- **Endpoint'ler:** `GET /cash-flow/match-suggestions` (view; skor sıralı, paginated) ·
+  `POST .../{id}/accept` (use; türe uygun `apply_*` / planlıda `close_entry_via_bank` ile
+  gerçek eşleşme kurulur; hedef bu arada eşleşmiş/kapanmışsa 409 + öneri düşer) ·
+  `POST .../{id}/reject` (use; öneri silinir — sonraki koşuda aynı çift yeniden önerilebilir).
+  Hepsi onaydan muaf (kapsam listesi `docs/modules/onay-akisi.md`), audit'li, `CASH_FLOW`
+  WS yayınlı.
+- **Bayat temizlik:** `cleanup_stale_suggestions` her orkestratör koşusu sonunda hedefi artık
+  açık olmayan (eşleşmiş/ödenmiş/silinmiş — banka bacağı silinenler dahil) önerileri süpürür →
+  panel gürültü üretmez.
+- **Panel (frontend, 2026-07-11 uygulandı):** Nakit Akım sayfası (`nakit-akim/+page.svelte`)
+  PageHeader'da "Yeniden Eşleştir"in yanında **rozetli "Eşleşme Önerileri" butonu** (N = toplam;
+  0 ise pasif/disabled; rozet sayısı sayfa açılışında `page_size=1` hafif GET ile, rematch ve WS
+  `finance_updated` sonrası tazelenir). Tıklayınca **Modal (max-w-4xl)**: sayfalı liste
+  (`Pagination`, varsayılan 25) — her satır iki yön: SOL banka hareketi (tarih · tutar ·
+  kısaltılmış açıklama), SAĞ hedef (`target_description` · tarih · tutar+PB) + **skor rozeti**
+  (`StatusBadge` warning, "skor N") + **tür etiketi** (`SUG_TYPE_LABELS`: Çek/Kredi/Avans/Cari/
+  Vergi/SGK/Stopaj/Maaş/Kira). **Onayla** (primary) / **Reddet** (ghost + kırmızı X) yalnız `use`
+  yetkisiyle görünür; ikisi de `ConfirmDialog`'dan geçer. Onay/ret sonrası liste + rozet
+  tazelenir; **409/404** ("öneri kaldırıldı"/"bulunamadı" detayı) bilgi toast'ı + liste
+  tazeleme olarak işlenir. Boş liste → `EmptyState` ("Bekleyen öneri yok — otomatik eşleşmeyen
+  adaylar burada birikir"). Panel açıkken dışarıdan WS `finance_updated` gelirse liste yeniden
+  yüklenir; kendi işlemlerimizin yankısı sayfanın mevcut `markSkipWsReload` echo-guard'ıyla
+  atlanır (öneriler zaten elle tazelendiği için). Onay/ret sonrası sayfa aralık dışına düşerse
+  son sayfaya geri çekilir.
+
+### Çapraz-para aday üretimi (#13)
+
+Döviz çek TL hesaptan işlem günü kuruyla ödenmiş olabilir — birebir tutar anahtarı bunu asla
+yakalayamaz. Birebir eşleşme/öneri bulunamayan döviz çeki için: vade ±10 gün
+(`FX_SUGGEST_WINDOW_DAYS`) içindeki TL banka gideri, `ledger_rate`(işlem günü) ile hesaplanan
+beklenen TL'nin ±%1 (`FX_SUGGEST_TOLERANCE`) bandındaysa **YALNIZ öneri** (skor 40) üretilir —
+otomatik uygulanmaz.
+
+### Yarış koruması (hafif — #28'in Faz 1 dilimi)
+
+Tetikler çoğaldı (ekstre + banka API senkronu + rematch + öneri onayı) →
+`apply_check/credit/advance/vendor_bank_match` hedefi **`FOR UPDATE SKIP LOCKED`** ile yeniden
+doğrular; koşul bozulmuşsa eşleşme kurulmaz (`False`/`None` döner; manuel uçlar 409 verir).
+KK matcher'ında kilitli re-check, kredi N-1 grup uygulamasında taksit kilidi.
+
+### Uygulayıcılar ORTAK (D1-2 deseni)
+
+`apply_check_bank_match` / `apply_credit_bank_match` / `apply_advance_bank_match` /
+`apply_vendor_bank_match` (`utils/matching_service.py`) — otomatik matcher + manuel endpoint +
+öneri-Onayla ÜÇÜ DE aynı fonksiyonu çağırır (`match_vendor_tx` uygulamayı
+`apply_vendor_bank_match`'e devretti). **Yeni eşleştirme yolu yazarken `apply_*` kullan — elle
+alan set etme** (sequence, sync_tag, `event_matches` izi ve yarış koruması tek yerde).
+
+### Geri alma uçları (#10)
+
+- `POST /cash-flow/unmatch-check` — çek `pending`'e döner, banka hareketi serbest kalır;
+  `finance_event_svc.unmatch` çek FE'sini açar + `event_matches` izini siler.
+- `POST /cash-flow/unmatch-credit-payment` — taksit açılır + **anapara iadesi**
+  (`remaining_amount`'a geri eklenir); **N-1 grupta** `event_matches` izinden bu taksite bağlı
+  **TÜM banka satırları** çözülür (`match_number` temizlenir). Banka FE'sine dokunulmaz
+  (hareket bankada gerçekleşmiştir — realized kalır).
+- Kredi N-1 grup eşleşmesi artık grubun TÜM banka satırlarına **ortak `match_number`** + satır
+  başına `event_matches` izi yazar (eskiden yalnız ilk satır iz alıyordu → mutabakatta kanıtsız
+  satır + yarım geri alma).
+- **Frontend (2026-07-11):** Çekler sayfasında (`cekler/+page.svelte`) banka-eşleşmiş
+  (`bank_transaction_id` dolu + `status='paid'`) çekin eşleşme rozetinin yanında ikon-only
+  **Geri Al** (Lucide `Undo2`, `ConfirmDialog`'lu, `canUse` guard) → `unmatch-check`; Krediler
+  sayfasında (`krediler/+page.svelte`) ödeme planındaki ödenmiş+banka-eşleşmiş taksit satırında
+  aynı desen (`Undo2` ikon, yoğun-tablo ikon-only istisnası) → `unmatch-credit-payment`. İkisi
+  de başarıda toast + tam veri tazeleme yapar.
+
+### 1-N çek (#12)
+
+- **Otomatik:** aynı cariye (`vendor_code`) ait, vadesi ±2 gün kümelenen **TL** bekleyen
+  çeklerin toplamı bir banka giderine kuruş düzeyinde denk ve tarih ±5 gün içindeyse hepsi
+  topluca kapanır (skor 90 — kredi faiz+vergi N-1 grup deseninin çeke uyarlanması).
+- **Manuel:** `POST /cash-flow/match-checks-batch` — tek banka gideriyle ≤20 çek, toplam ±0.02
+  doğrulamalı; çeklerden biri bu arada eşleşirse 409 + rollback.
+- **Avans kısmi eşleşmesi BİLİNÇLİ ERTELENDİ:** `Advance.received_amount` elle güncellenebilir;
+  otomatik kısmi eşleşme Faz 2+.
+
+### Planlı gider köprüsü (#11)
+
+Vergi/SGK · Personel · Kira **etiketi** banka bacağına numara verirken `scheduled_entry` açık
+kalıyordu → aynı dönemde tahmin + gerçekleşen ÇİFT sayılıyordu.
+`_SCHEDULED_CATEGORY_MAP` (`transaction_tags.py`): Vergi/SGK → tax/sgk/withholding ·
+Personel → salary · Kira → rent_expense. Banka işleminin ayına denk (`period_year/month`) +
+tutar ±%2 uyan **TEK açık giriş** varsa `scheduled_service.close_entry_via_bank` ile banka
+kanıtıyla kapatılır (**sıra ÖNEMLİ: önce `upsert_scheduled_entry`, SONRA `match`** — upsert
+`is_matched=False` yazar, match en son gelmeli); birden çok aday → öneri kuyruğu (ilk 5,
+skor 50). `close_entry_via_bank` yarış-korumalı; öneri-Onayla planlı türlerde de aynı
+fonksiyonu çağırır.
+
+### Ertelenen — #14 öğrenen kurallar (P3)
+
+accept/reject sinyalinden kural öğrenme (learned_match_rules) uygulanmadı;
+`event_matches.method/score` alanları eğitim verisi olarak birikmeye devam ediyor.

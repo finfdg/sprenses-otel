@@ -51,7 +51,13 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `POST /api/finance/cash-flow/match-cc-payment` — Kredi kartı ödeme eşleştirme
 - `POST /api/finance/cash-flow/match-credit-payment` — Kredi taksit ödeme eşleştirme
 - `POST /api/finance/cash-flow/unmatch-cc-payment` — Kredi kartı eşleştirme iptali
-- `POST /api/finance/cash-flow/rematch` — Otomatik etiketleme + 4 eşleştiriciyi elle tetikler (use; ekstre yüklemesi/banka API senkronuyla AYNI orkestratör `run_post_ingest_processing`; onaydan MUAF — operasyonel eşleştirme, kapsam listesi `docs/modules/onay-akisi.md`; audit + BANKS/ADVANCES WS yayını; yanıt eşleşme sayaçları)
+- `POST /api/finance/cash-flow/rematch` — Otomatik etiketleme + 5 eşleştiriciyi elle tetikler (use; ekstre yüklemesi/banka API senkronuyla AYNI orkestratör `run_post_ingest_processing`; onaydan MUAF — operasyonel eşleştirme, kapsam listesi `docs/modules/onay-akisi.md`; audit + BANKS/ADVANCES WS yayını; yanıt eşleşme sayaçları)
+- `GET /api/finance/cash-flow/match-suggestions` — Eşleşme önerileri listesi (view; otomatik eşik altındaki en iyi adaylar `event_matches method='suggestion'`; skor sıralı, paginated `{items,total,page,page_size,pages}`; bantlar: çek 8-19 · kredi 20-39 · avans 8-19 · cari 50-79 · çapraz-para sabit 40; bayat öneriler her orkestratör koşusunda süpürülür — Faz 1, 2026-07-11)
+- `POST /api/finance/cash-flow/match-suggestions/{id}/accept` — Öneriyi onayla (use; türe uygun `apply_*` / planlı giderde `close_entry_via_bank` ile gerçek eşleşme kurulur; hedef bu arada eşleşmiş/kapanmışsa 409 + öneri düşer; onaydan MUAF — kapsam listesi `docs/modules/onay-akisi.md`; audit + CASH_FLOW WS)
+- `POST /api/finance/cash-flow/match-suggestions/{id}/reject` — Öneriyi reddet (use; öneri silinir — sonraki koşuda aynı çift yeniden önerilebilir; onaydan MUAF; audit + CASH_FLOW WS)
+- `POST /api/finance/cash-flow/unmatch-check` — Banka↔çek eşleşmesini geri al (use; body `{check_id}`; çek `pending`'e döner, banka hareketi serbest kalır, `event_matches` izi silinir; onaydan MUAF; audit + CHECKS WS)
+- `POST /api/finance/cash-flow/unmatch-credit-payment` — Banka↔kredi taksit eşleşmesini geri al (use; body `{payment_id}`; N-1 grupta `event_matches` izinden bağlı TÜM banka satırları çözülür + anapara `remaining_amount`'a iade edilir; banka FE'si realized kalır; onaydan MUAF; audit + CREDITS WS)
+- `POST /api/finance/cash-flow/match-checks-batch` — Tek banka gideriyle birden çok çeki kapat (use; body `{bank_transaction_id, check_ids[]}` — 1-20 çek; toplam ±0.02 doğrulamalı, çeklerden biri bu arada eşleşirse 409; onaydan MUAF; audit + CHECKS WS)
 - Detaylı bilgi: `docs/modules/nakit-akim.md`
 
 ### Finans — Satış Faturaları (Otel oda satışları + tahsilat)

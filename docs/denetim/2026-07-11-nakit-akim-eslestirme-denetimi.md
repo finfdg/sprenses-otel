@@ -160,7 +160,13 @@ Bu rapor yazıldıktan sonra aynı gün ikinci raporun (Sedna mutabakat) üç fa
 | R6 | Eşleştirme çekirdeği test ağı: 4 manuel endpoint + `_match_credits_to_bank` (N-1) + rematch | Eski #7 |
 | R7 | Karar-1 belgeleme: eşleştirme endpoint'leri onay-muafiyet kapsam listesi → docs/modules/onay-akisi.md | Doküman |
 
-**Durum: REVİZE FAZ 0 (R1-R7) UYGULANDI (2026-07-11 gece).** Sıradaki: **Faz 1** — cari↔banka
-matcher, iki-eşikli öneri paneli (`event_matches` üzerinde), unmatch endpoint'leri, planlı gider
-köprüsü, kısmi/1-N eşleştirme, çapraz-para aday üretimi; başında hafif yarış koruması (matcher
-girişinde durum yeniden-doğrulama).
+**Durum: REVİZE FAZ 0 (R1-R7) + FAZ 1 UYGULANDI (2026-07-11 gece; #14 öğrenen kurallar P3
+ertelendi — `event_matches.method/score` eğitim verisi olarak birikiyor).** Faz 1 kapsamı:
+cari↔banka matcher (#8, 5. matcher), iki-eşikli öneri sistemi + "Eşleşme Önerileri" paneli
+(#9, `event_matches method='suggestion'` + GET/accept/reject uçları), unmatch uçları (#10 —
+kredi N-1 grubunda tüm banka satırlarına ortak match_number + iz), planlı gider köprüsü (#11),
+1-N çek (#12 — avans kısmi eşleşmesi bilinçli ertelendi), çapraz-para aday üretimi (#13 —
+yalnız öneri) ve hafif yarış koruması (`apply_*` FOR UPDATE SKIP LOCKED — #28'in Faz 1 dilimi).
+Doküman: `docs/modules/nakit-akim.md` "Faz 1" + `backend/app/routers/finance/CLAUDE.md`.
+**Kalan fazlar: Faz 2 (yapısal gerçek zamanlılık) + Faz 3 (mutabakat katmanı — bir kısmı Sedna
+mutabakat modülüyle karşılandı).**

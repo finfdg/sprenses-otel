@@ -282,6 +282,20 @@ kredileri **zaman çizgisi** olarak gösterir (`creditTimeline()` + `TIER_*` map
 - Tutar farkı ≤ %1 ve tarih farkı ≤ 3 gün toleransı
 - Gruplanmış ödemeler (faiz+ana para ayrı transferler) de desteklenir
 
+### Faz 1 (2026-07-11) — öneri bandı, N-1 grup izi ve geri alma
+
+- **İki-eşikli bant:** skor ≥ 40 otomatik eşleşir; **20–39 bandındaki** en iyi aday
+  "Eşleşme Önerileri" kuyruğuna düşer (`event_matches method='suggestion'`; Nakit Akım
+  sayfasındaki panelden Onayla/Reddet).
+- **N-1 grup izi:** faiz+vergi ayrı satır grup eşleşmesi artık grubun **TÜM banka
+  satırlarına** ortak `match_number` + satır başına `event_matches` izi yazar (eskiden
+  yalnız ilk satır iz alıyordu → mutabakatta kanıtsız satır + yarım geri alma).
+- **Geri alma:** `POST /cash-flow/unmatch-credit-payment` taksiti açar + anaparayı
+  `remaining_amount`'a iade eder; N-1 grupta bağlı TÜM banka satırlarını çözer
+  (banka FE'si realized kalır).
+- Eşleşme kurulumu ortak `apply_credit_bank_match` uygulayıcısıyla (FOR UPDATE SKIP LOCKED
+  yarış-korumalı; grup uygulamasında taksit kilidi). Detay: `docs/modules/nakit-akim.md` "Faz 1".
+
 ---
 
 ## Kredi Kapatma (Erken Tahsil / Kapanış) — 2026-05-26
@@ -421,3 +435,18 @@ tüm aktif kredilerin taksitlerini (**ödenen + kalan**) ay ay akordiyon olarak 
   4. Kart `id="credit-{p.id}"` ile hedeflenir, `scroll-mt-20` ile topbar altında kalmaz
 - Listede aktif olarak genişletilmiş kredi, legend'da `bg-gray-100` ile vurgulanır
 - **Neden EUR?** — Finans modülünde EUR birincil raporlama para birimi (Nakit Akım, Bankalar da EUR toplam gösterir); TL'nin volatilitesi çoklu para biriminde net büyüklük kıyasını zorlaştırır
+
+---
+
+## Taksit Eşleşmesini Geri Al (2026-07-11, frontend)
+
+Ödeme planında **ödenmiş + banka-eşleşmiş** (`is_paid` + `bank_transaction_id` dolu) taksit
+satırının aksiyonlarında ikon-only **Geri Al** butonu (Lucide `Undo2`, `canUse` + ürün kapalı
+değilken; yoğun-tablo ikon-only istisnası — mevcut X/durum butonlarıyla aynı düzen).
+`ConfirmDialog` onayı ("taksit yeniden Bekliyor durumuna dönecek", danger değil) sonrası
+`POST /api/finance/cash-flow/unmatch-credit-payment {payment_id}` çağrılır: taksit açılır,
+anapara `remaining_amount`'a iade edilir, N-1 grup eşleşmesindeki bağlı TÜM banka satırları
+çözülür. Başarıda toast + `loadData()`. Endpoint izni `finance.cash_flow use` — backend
+detayı: `docs/modules/nakit-akim.md` "Geri alma uçları (#10)". Not: bankayla eşleşmiş taksitte
+doğru geri alma yolu budur; "Ödendi" rozetine tıklamak yalnız `is_paid`'i çevirir, banka
+eşleşmesini ÇÖZMEZ.

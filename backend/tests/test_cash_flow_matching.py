@@ -478,8 +478,10 @@ class TestMatchCreditPayment:
 class TestCreditGroupMatch:
     """Faiz+vergi ayrı banka satırı senaryosu: aynı gün + aynı banka + aynı para
     biriminde iki satırın toplamı taksite ±0.02 eşitse taksit kapanır.
-    MEVCUT davranış sabitlenir: yalnız İLK satır bank_transaction_id alır
-    (ikinci satır kullanılmış sayılır ama bağ taşımaz — düzeltme Faz 1'de)."""
+    Faz 1 #10 (2026-07-11) davranışı: grup eşleşmesinde ortak match_number TÜM banka
+    satırlarına yazılır + her satır için event_matches izi düşer (eskiden yalnız
+    ilk satır bağ alıyordu — mutabakat denetiminde kanıtsız satır kalıyordu).
+    Ayrıntılı grup-izi testleri: tests/test_faz1_matching.py (E bölümü)."""
 
     def test_two_rows_sum_matches_installment(self, db):
         due = TODAY + timedelta(days=5)
@@ -502,14 +504,28 @@ class TestCreditGroupMatch:
         p = db.get(CreditPayment, payment.id)
         assert p.is_paid is True
         assert p.paid_date == due
-        # MEVCUT davranış: bağ yalnız grubun İLK satırına yazılır
+        # FK bağı grubun İLK satırına yazılır (tek kolon); diğer satır taksite FK almaz
         assert p.bank_transaction_id in (btx_faiz.id, btx_vergi.id)
         linked = p.bank_transaction_id
         other = btx_vergi.id if linked == btx_faiz.id else btx_faiz.id
-        # İkinci satır hiçbir taksite bağlanmaz (grup içinde tüketildi)
         assert db.query(CreditPayment).filter(
             CreditPayment.bank_transaction_id == other
         ).count() == 0
+
+        # Faz 1 #10: ortak match_number grubun TÜM banka satırlarında
+        b1 = db.get(BankTransaction, btx_faiz.id)
+        b2 = db.get(BankTransaction, btx_vergi.id)
+        assert b1.match_number is not None
+        assert b1.match_number == b2.match_number
+
+        # Her satır için event_matches izi (target=credit, method=auto)
+        traces = db.query(EventMatch).filter(
+            EventMatch.target_source_type == "credit",
+            EventMatch.target_source_id == payment.id,
+        ).all()
+        assert len(traces) == 2
+        assert {t.bank_source_id for t in traces} == {btx_faiz.id, btx_vergi.id}
+        assert all(t.method == "auto" for t in traces)
 
         # Kredi FE gizlendi (çift sayım engeli)
         credit_fe = _fe(db, "credit", payment.id)

@@ -19,7 +19,7 @@
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import {
 		CreditCard, ChevronRight, ChevronLeft, FileDown, Plus, CheckCircle2, Info,
-		RotateCcw, X, CornerDownLeft, Landmark, Pencil, Trash2, CalendarDays,
+		RotateCcw, X, CornerDownLeft, Landmark, Pencil, Trash2, CalendarDays, Undo2,
 	} from 'lucide-svelte';
 	import type { LatestRates } from '$lib/types/exchange-rate';
 
@@ -668,6 +668,24 @@
 			} catch (e: any) { console.error('Ödeme silme hatası:', e); showToast(e?.message || 'Taksit silinemedi', 'error'); }
 		});
 	}
+	// Banka↔taksit eşleşmesini geri al — taksit yeniden açılır, bağlı banka satırları çözülür
+	function askUnmatchPayment(pay: any) {
+		askConfirm(
+			'Eşleşmeyi Geri Al',
+			`Taksit ${pay.installment_no || ''} için banka eşleşmesi kaldırılacak ve taksit yeniden "Bekliyor" durumuna dönecek. Devam edilsin mi?`,
+			async () => {
+				try {
+					await api.post('/finance/cash-flow/unmatch-credit-payment', { payment_id: pay.id });
+					showToast('Eşleşme geri alındı — taksit yeniden açıldı', 'success');
+					await loadData();
+				} catch (e: any) {
+					console.error('Eşleşme geri alma hatası:', e);
+					showToast(e?.message || 'Eşleşme geri alınamadı', 'error');
+				}
+			},
+			{ confirmText: 'Geri Al', danger: false }
+		);
+	}
 
 	// ─── Kapat / Yeniden Aç ─────────────────────────────────
 	function openCloseModal(p: any) {
@@ -1001,6 +1019,9 @@
 																			<button onclick={() => togglePaid(pay)} class="text-[10.5px] font-semibold px-2.5 py-1 rounded cursor-pointer {pay.is_paid ? 'text-emerald-700 bg-emerald-50' : overdue ? 'text-red-700 bg-red-50' : 'text-brass-dark bg-brass-soft'}" title={pay.is_paid ? 'Geri al' : 'Ödendi işaretle'}>
 																				{pay.is_paid ? 'Ödendi' : overdue ? 'Gecikmiş' : 'Bekliyor'}
 																			</button>
+																			{#if pay.is_paid && pay.bank_transaction_id}
+																				<button onclick={() => askUnmatchPayment(pay)} class="ml-1.5 text-gray-500 hover:text-teal-700 cursor-pointer align-middle" title="Eşleşmeyi Geri Al — taksit yeniden Bekliyor durumuna döner" aria-label="Banka eşleşmesini geri al"><Undo2 size={13} class="inline-block" /></button>
+																			{/if}
 																			<button onclick={() => deletePayment(pay.id)} class="ml-1.5 text-red-500 hover:text-red-600 cursor-pointer align-middle" title="Sil" aria-label="Taksiti sil"><X size={13} class="inline-block" /></button>
 																		{:else}
 																			<span class="text-[10.5px] font-semibold px-2.5 py-1 rounded {pay.is_paid ? 'text-emerald-700 bg-emerald-50' : p.status === 'closed' ? 'text-gray-600 bg-gray-100' : overdue ? 'text-red-700 bg-red-50' : 'text-brass-dark bg-brass-soft'}">

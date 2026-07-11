@@ -319,7 +319,7 @@ Aşağıdaki endpoint'ler `check_approval()` çağırmaz — bu bir eksik değil
 
 | Dosya | Endpoint'ler |
 |---|---|
-| `finance/cash_flow/matching.py` | `POST /cash-flow/match-vendor-tx` · `match-cc-payment` · `match-credit-payment` · `unmatch-cc-payment` · `rematch` |
+| `finance/cash_flow/matching.py` | `POST /cash-flow/match-vendor-tx` · `match-cc-payment` · `match-credit-payment` · `unmatch-cc-payment` · `rematch` · **Faz 1 (2026-07-11):** `match-suggestions/{id}/accept` · `match-suggestions/{id}/reject` · `unmatch-check` · `unmatch-credit-payment` · `match-checks-batch` |
 | `finance/cariler/matching.py` | `POST /transactions/{vtx_id}/match-check/{check_id}` · `DELETE .../unmatch-check` · `DELETE .../unmatch` |
 | `finance/transaction_tags.py` | `PATCH /tags/transactions/{tx_id}` · `POST /tags/transactions/bulk` · `POST /tags/auto-tag` · `POST /tags/auto-match-vendors` |
 | `finance/checks.py` | `POST /checks/match-bank` |
@@ -334,6 +334,14 @@ sonrası yüzlerce eşleşme onay kuyruğunu doldururdu (operasyonel felç).
 **Koruma katmanı onay yerine şudur:** hepsi `require_permission(..., "use")` +
 `log_action` audit kaydı + WS broadcast (`broadcast_finance_update`) taşır — kim, neyi,
 ne zaman eşleştirdi izlenebilir.
+
+**Faz 1 ekleri (2026-07-11) — aynı sınıf, aynı gerekçe:** Eşleşme önerisi accept/reject
+(öneriyi gerçek eşleşmeye çevirir ya da siler), geri alma uçları (`unmatch-check` /
+`unmatch-credit-payment` — "eşleştirme yanlışsa cezasız geri alınır" ilkesinin kendisi)
+ve 1-N çek toplu eşleştirme (`match-checks-batch`) yalnız kayıtlar arası **bağı**
+kurar/çözer; para hareketi oluşturmaz/silmez, tutar/vade/durum alanı değiştirmez
+(çek `status` geçişi eşleşmenin doğal sonucudur — pending↔paid, matcher ile birebir aynı
+`apply_*` yolu). Bu yüzden muaftır; use + audit + WS koruması aynen uygulanır.
 
 **Sınır:** Vade, durum veya tutar **değiştiren** mutasyonlar (çek durumu, cari vade günü,
 kredi ödemesi, avans CRUD vb.) onaya **TABİ kalır** — yukarıdaki "Entegre Modüller"

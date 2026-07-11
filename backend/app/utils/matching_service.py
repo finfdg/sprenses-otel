@@ -1043,7 +1043,7 @@ def _match_vendors_to_bank(db: Session) -> dict:
             continue
         v_tokens = _norm_tokens(vendor_names.get(fe.vendor_id, "") or (fe.vendor_code or ""))
 
-        best, best_score = None, 0
+        best, best_score, best_diff = None, 0, None
         for tx in cands:
             if tx.id in used_btx_ids:
                 continue
@@ -1062,14 +1062,18 @@ def _match_vendors_to_bank(db: Session) -> dict:
             elif date_diff <= VENDOR_AUTO_WINDOW_DAYS:
                 score += 10
             if score > best_score:
-                best_score, best = score, tx
+                best_score, best, best_diff = score, tx, date_diff
 
         if best is None or best_score < VENDOR_SUGGEST_MIN:
             continue
         vtx = db.query(VendorTransaction).filter(VendorTransaction.id == fe.source_id).first()
         if vtx is None or vtx.match_number is not None:
             continue
-        if best_score >= VENDOR_AUTO_MIN:
+        # Otomatik yol yalnız DAR pencerede (±VENDOR_AUTO_WINDOW_DAYS): isimli aday
+        # 8-14 gün bandında skor tam 80'e ulaşabiliyordu (50 tutar + 30 isim) → geniş
+        # pencere adayı otomatik kapanıyordu. Docstring kuralı ("vade ±7 gün ZORUNLU")
+        # burada açıkça zorlanır; geniş-pencere adaylar öneriye düşer.
+        if best_score >= VENDOR_AUTO_MIN and best_diff is not None and best_diff <= VENDOR_AUTO_WINDOW_DAYS:
             mn = apply_vendor_bank_match(db, vtx, best, method="auto", score=best_score)
             if mn is not None:
                 used_btx_ids.add(best.id)

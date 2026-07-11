@@ -11,8 +11,12 @@
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
 	import Button from '$lib/components/Button.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import StatusBadge from '$lib/components/StatusBadge.svelte';
 	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
-	import { Filter, AlertTriangle, Receipt, Check, FileDown, RefreshCw } from 'lucide-svelte';
+	import { Filter, AlertTriangle, Receipt, Check, FileDown, RefreshCw, Link2, ArrowRight, X } from 'lucide-svelte';
 	import {
 		cashFlowCache,
 		loadAllCashFlow,
@@ -29,10 +33,44 @@
 	import type { CashFlowItem as CashFlowItemType, TransactionCategory } from '$lib/types/finance';
 	import { groupByMonth, getTodayKeys, monthKeysToDateRange } from '$lib/utils/finance';
 
+	// Eşleşme önerisi hedef türü sözlüğü (backend target_source_type)
+	const SUG_TYPE_LABELS: Record<string, string> = {
+		check: 'Çek', credit: 'Kredi', advance: 'Avans', vendor_payment: 'Cari',
+		tax: 'Vergi', sgk: 'SGK', withholding: 'Stopaj', salary: 'Maaş', rent_expense: 'Kira',
+	};
+	const CUR_SYMBOL: Record<string, string> = { TRY: '₺', TL: '₺', EUR: '€', USD: '$', GBP: '£' };
+
+	interface MatchSuggestion {
+		id: number;
+		score: number;
+		target_source_type: string;
+		target_source_id: number;
+		target_description: string | null;
+		target_date: string | null;
+		amount: number;
+		currency: string | null;
+		bank_transaction_id: number;
+		bank_date: string | null;
+		bank_amount: number | null;
+		bank_description: string | null;
+	}
+
 	// $state — data
 	let autoTagging = $state(false);
 	let rematching = $state(false);
 	let pdfLoading = $state(false);
+
+	// Eşleşme önerileri paneli
+	let suggestionsTotal = $state(0);
+	let showSuggestions = $state(false);
+	let sugItems = $state<MatchSuggestion[]>([]);
+	let sugLoading = $state(false);
+	let sugPage = $state(1);
+	let sugPageSize = $state(25);
+	let sugTotal = $state(0);
+	let sugConfirm = $state<{ show: boolean; title: string; message: string; confirmText: string; danger: boolean; onConfirm: () => void | Promise<void> }>({
+		show: false, title: '', message: '', confirmText: 'Onayla', danger: false, onConfirm: () => {},
+	});
 
 	// Cari eşleştirme modu (cariler sayfasından gelince)
 	let matchMode = $state(false);
@@ -123,6 +161,118 @@
 		} catch (e) {
 			console.error('Nakit akım yeniden yüklenemedi:', e);
 			showToast('Veriler yüklenemedi', 'error');
+		}
+	}
+
+	// ─── Eşleşme önerileri ──────────────────────────────────
+	function fmtSugDate(d: string | null): string {
+		if (!d) return '—';
+		const [y, m, day] = d.split('-');
+		return `${day}.${m}.${y}`;
+	}
+
+	function fmtSugAmount(n: number | null | undefined, currency?: string | null): string {
+		if (n == null) return '—';
+		const cur = currency || 'TRY';
+		const sym = CUR_SYMBOL[cur] ?? cur + ' ';
+		return sym + n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	}
+
+	/** Rozet sayısı için yalnız toplamı çek (page_size=1 — hafif istek). */
+	async function loadSuggestionCount() {
+		try {
+			const res = await api.get<{ total: number }>('/finance/cash-flow/match-suggestions?page=1&page_size=1');
+			suggestionsTotal = res.total;
+		} catch (err) {
+			console.error('Eşleşme önerisi sayısı alınamadı:', err);
+		}
+	}
+
+	async function loadSuggestions() {
+		sugLoading = true;
+		try {
+			const res = await api.get<{ items: MatchSuggestion[]; total: number; pages: number }>(
+				`/finance/cash-flow/match-suggestions?page=${sugPage}&page_size=${sugPageSize}`
+			);
+			// Onay/ret sonrası sayfa aralık dışına düştüyse son sayfaya çekil
+			if (res.items.length === 0 && res.total > 0 && sugPage > 1) {
+				sugPage = Math.max(1, res.pages);
+				sugLoading = false;
+				await loadSuggestions();
+				return;
+			}
+			sugItems = res.items;
+			sugTotal = res.total;
+			suggestionsTotal = res.total;
+		} catch (err) {
+			console.error('Eşleşme önerileri yüklenemedi:', err);
+			showToast('Eşleşme önerileri yüklenemedi', 'error');
+		}
+		sugLoading = false;
+	}
+
+	function openSuggestions() {
+		sugPage = 1;
+		showSuggestions = true;
+		loadSuggestions();
+	}
+
+	function askAcceptSuggestion(s: MatchSuggestion) {
+		sugConfirm = {
+			show: true,
+			title: 'Öneriyi Onayla',
+			message: `Banka hareketi "${s.target_description || SUG_TYPE_LABELS[s.target_source_type] || s.target_source_type}" kaydıyla eşleştirilecek. Onaylıyor musunuz?`,
+			confirmText: 'Onayla',
+			danger: false,
+			onConfirm: () => acceptSuggestion(s),
+		};
+	}
+
+	async function acceptSuggestion(s: MatchSuggestion) {
+		markSkipWsReload();
+		try {
+			await api.post(`/finance/cash-flow/match-suggestions/${s.id}/accept`, {});
+			showToast('Eşleşme onaylandı', 'success');
+			await Promise.all([loadSuggestions(), loadCashFlowItems(true), loadCashFlowEurBalances()]);
+		} catch (err: any) {
+			console.error('Öneri onaylama hatası:', err);
+			const msg = err?.message || 'Öneri onaylanamadı';
+			if (msg.includes('kaldırıldı') || msg.includes('bulunamadı')) {
+				// 409/404 — hedef bu arada eşleşmiş/kapanmış, öneri düştü → bilgi ver + tazele
+				showToast(msg, 'info');
+				await loadSuggestions();
+			} else {
+				showToast(msg, 'error');
+			}
+		}
+	}
+
+	function askRejectSuggestion(s: MatchSuggestion) {
+		sugConfirm = {
+			show: true,
+			title: 'Öneriyi Reddet',
+			message: `"${s.target_description || SUG_TYPE_LABELS[s.target_source_type] || s.target_source_type}" önerisi silinecek (bir sonraki eşleştirme koşusunda yeniden önerilebilir). Reddedilsin mi?`,
+			confirmText: 'Reddet',
+			danger: true,
+			onConfirm: () => rejectSuggestion(s),
+		};
+	}
+
+	async function rejectSuggestion(s: MatchSuggestion) {
+		markSkipWsReload();
+		try {
+			await api.post(`/finance/cash-flow/match-suggestions/${s.id}/reject`, {});
+			showToast('Öneri reddedildi', 'success');
+			await loadSuggestions();
+		} catch (err: any) {
+			console.error('Öneri reddetme hatası:', err);
+			const msg = err?.message || 'Öneri reddedilemedi';
+			if (msg.includes('bulunamadı')) {
+				showToast(msg, 'info');
+				await loadSuggestions();
+			} else {
+				showToast(msg, 'error');
+			}
 		}
 	}
 
@@ -361,7 +511,7 @@
 			} else {
 				showToast('Yeni eşleşme bulunamadı', 'info');
 			}
-			await Promise.all([loadCashFlowItems(true), loadCashFlowUntaggedCount(), loadCashFlowEurBalances()]);
+			await Promise.all([loadCashFlowItems(true), loadCashFlowUntaggedCount(), loadCashFlowEurBalances(), loadSuggestionCount()]);
 		} catch (err: any) {
 			console.error('Yeniden eşleştirme hatası:', err);
 			showToast(err?.body?.detail || 'Yeniden eşleştirme başarısız', 'error');
@@ -448,13 +598,20 @@
 		// Eşleştirme modunda her zaman taze veri çek, normal modda cache kullan
 		await loadAllCashFlow(matchMode);
 
+		// Öneri rozeti sayısı (bloklamadan)
+		loadSuggestionCount();
+
 		// Finans güncelleme event'ini dinle — başka kullanıcı değişiklik yapınca otomatik yenile
 		unsubFinance = onWsEvent('finance_updated', () => {
 			if (skipNextWsReload) {
+				// Kendi işlemimizin yankısı — öneriler zaten elle tazelendi
 				skipNextWsReload = false;
 				refreshCashFlowLight();
 				return;
 			}
+			// Panel açıkken öneri listesini, kapalıyken rozet sayısını tazele
+			if (showSuggestions) loadSuggestions();
+			else loadSuggestionCount();
 			refreshCashFlowFull();
 		});
 	});
@@ -484,6 +641,16 @@
 					<RefreshCw size={16} /> <span class="hidden sm:inline">Yeniden Eşleştir</span>
 				</Button>
 			{/if}
+			<Button
+				variant="secondary"
+				onclick={openSuggestions}
+				disabled={suggestionsTotal === 0}
+				ariaLabel="Eşleşme Önerileri"
+				title="Otomatik eşiğin altında kalan eşleşme adaylarını incele (onayla/reddet)"
+			>
+				<Link2 size={16} /> <span class="hidden sm:inline">Eşleşme Önerileri</span>
+				<span class="min-w-[1.25rem] h-5 px-1 rounded-full text-[11px] font-semibold tabular-nums flex items-center justify-center {suggestionsTotal > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}">{suggestionsTotal}</span>
+			</Button>
 			<Button
 				variant="secondary"
 				loading={pdfLoading}
@@ -639,6 +806,75 @@
 		onCCMatchStart={handleCCMatchStart}
 	/>
 {/if}
+
+<!-- Eşleşme Önerileri paneli -->
+<Modal bind:show={showSuggestions} title="Eşleşme Önerileri" maxWidth="max-w-4xl">
+	{#if sugLoading}
+		<TableSkeleton rows={5} columns={3} showHeader={false} />
+	{:else if sugItems.length === 0}
+		<EmptyState icon={Link2} title="Bekleyen öneri yok" description="Otomatik eşleşmeyen adaylar burada birikir" />
+	{:else}
+		<div class="space-y-2">
+			{#each sugItems as s (s.id)}
+				<div class="border border-gray-200 rounded-xl p-3 flex flex-col lg:flex-row lg:items-center gap-3">
+					<!-- SOL: banka hareketi -->
+					<div class="flex-1 min-w-0">
+						<div class="text-[10px] tracking-wide uppercase text-gray-500 font-semibold mb-0.5">Banka Hareketi</div>
+						<div class="flex items-baseline gap-2 flex-wrap">
+							<span class="tabular-nums text-xs text-gray-500">{fmtSugDate(s.bank_date)}</span>
+							<span class="tabular-nums text-sm font-semibold text-gray-900">{fmtSugAmount(s.bank_amount)}</span>
+						</div>
+						<div class="text-xs text-gray-500 truncate" title={s.bank_description || ''}>{s.bank_description || '—'}</div>
+					</div>
+
+					<div class="hidden lg:flex text-gray-500 shrink-0"><ArrowRight size={16} /></div>
+
+					<!-- SAĞ: hedef kayıt -->
+					<div class="flex-1 min-w-0">
+						<div class="flex items-center gap-1.5 mb-0.5 flex-wrap">
+							<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{SUG_TYPE_LABELS[s.target_source_type] ?? s.target_source_type}</span>
+							<StatusBadge type="warning">skor {Math.round(s.score)}</StatusBadge>
+						</div>
+						<div class="text-sm font-medium text-gray-800 truncate" title={s.target_description || ''}>{s.target_description || '—'}</div>
+						<div class="flex items-baseline gap-2">
+							<span class="tabular-nums text-xs text-gray-500">{fmtSugDate(s.target_date)}</span>
+							<span class="tabular-nums text-sm font-semibold text-gray-900">{fmtSugAmount(s.amount, s.currency)}</span>
+						</div>
+					</div>
+
+					{#if canUse}
+						<div class="flex gap-1.5 shrink-0 justify-end">
+							<Button size="sm" onclick={() => askAcceptSuggestion(s)} title="Öneriyi onayla — eşleşme kurulur">
+								<Check size={14} /> Onayla
+							</Button>
+							<Button variant="ghost" size="sm" onclick={() => askRejectSuggestion(s)} title="Öneriyi reddet — öneri silinir">
+								<X size={14} class="text-red-600" /> Reddet
+							</Button>
+						</div>
+					{/if}
+				</div>
+			{/each}
+		</div>
+		<Pagination
+			page={sugPage}
+			pageSize={sugPageSize}
+			total={sugTotal}
+			onPageChange={(p) => { sugPage = p; loadSuggestions(); }}
+			onPageSizeChange={(sz) => { sugPageSize = sz; sugPage = 1; loadSuggestions(); }}
+		/>
+	{/if}
+</Modal>
+
+<!-- Öneri onay/ret diyaloğu -->
+<ConfirmDialog
+	bind:show={sugConfirm.show}
+	title={sugConfirm.title}
+	message={sugConfirm.message}
+	confirmText={sugConfirm.confirmText}
+	cancelText="Vazgeç"
+	danger={sugConfirm.danger}
+	onConfirm={sugConfirm.onConfirm}
+/>
 
 <!-- PDF Rapor önizleme (iOS Safari uyumlu) -->
 <PdfPreviewModal bind:this={pdfModal} />
