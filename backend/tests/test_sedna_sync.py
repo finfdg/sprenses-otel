@@ -41,7 +41,8 @@ def test_status_admin_all_allowed(client, auth_headers):
         j = r.json()
         assert j["configured"] is True and j["any_allowed"] is True
         assert {s["key"] for s in j["steps"]} == {"cariler", "ibans", "checks", "sales_invoices",
-                                                   "recurring_sync", "stock", "reservations"}
+                                                   "recurring_sync", "stock", "reservations",
+                                                   "bank_recon"}
         assert all(s["allowed"] for s in j["steps"])  # admin hepsini yapabilir
 
 
@@ -60,11 +61,13 @@ def test_sync_all_runs_all_steps(client, auth_headers, db):
          patch("app.services.stock_service.fetch_stock_depots", return_value=[]), \
          patch("app.services.stock_service.fetch_stock_products", return_value=[]), \
          patch("app.services.stock_service.fetch_stock_movements", return_value=[]), \
-         patch("app.services.reservation_service.fetch_reservations", return_value=[]):
+         patch("app.services.reservation_service.fetch_reservations", return_value=[]), \
+         patch("app.utils.sedna_client.fetch_bank_ledger_rows", return_value=[]), \
+         patch("app.utils.sedna_client.fetch_bank_ledger_max_dates", return_value={}):
         r = client.post(f"{PREFIX}/sync-all", headers=auth_headers)
         assert r.status_code == 200, r.text
         j = r.json()
-        assert j["ok_count"] == 7 and j["total"] == 7
+        assert j["ok_count"] == 8 and j["total"] == 8
         by = {s["key"]: s for s in j["steps"]}
         assert by["cariler"]["ok"] and by["ibans"]["ok"] and by["checks"]["ok"] and by["sales_invoices"]["ok"]
         assert by["recurring_sync"]["ok"]  # cari adımından sonra türetilen senkron
@@ -77,6 +80,8 @@ def test_sync_all_runs_all_steps(client, auth_headers, db):
         assert "senkron" in by["recurring_sync"]["summary"]
         assert "depo" in by["stock"]["summary"]
         assert "yeni" in by["reservations"]["summary"]
+        assert by["bank_recon"]["ok"]       # banka ↔ Sedna mutabakat taraması
+        assert "hesap" in by["bank_recon"]["summary"]
 
         # DB etkisi: cari + IBAN + çek oluştu (sıralı çalıştı → IBAN cariye bağlandı)
         vid = db.execute(text("SELECT id FROM vendors WHERE hesap_kodu='320.88.01.0001'")).scalar()
