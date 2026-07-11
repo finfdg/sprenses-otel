@@ -37,6 +37,9 @@ Sedna mutabakatının ikinci fazı (migration `e5f6a7b8c9d0`; tam anlatım:
   satırlara dokunulmaz). `sedna_sync` satış adımı artık **`BroadcastModule.SALES_INVOICES`**
   yayınlar (yeni sabit).
 
+Test: `tests/test_faz_b.py` (ledger_rate + event_match izi + çapraz-para fx diff + entity
+sapma raporu/auto-close + cari rec_id importu + çek sapması + satış aynalama).
+
 ---
 
 ## VakıfBank API — Banka Hesap Hareketleri Doğrudan Çekme (2026-07-10, SANDBOX UÇTAN UCA ÇALIŞIYOR)
