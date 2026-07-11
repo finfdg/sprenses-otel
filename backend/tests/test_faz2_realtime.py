@@ -23,7 +23,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.config import settings
-from app.constants import BroadcastModule, WSEvent
+from app.constants import BroadcastModule, ReconStatus, WSEvent
 from app.main import app
 from app.middleware.rate_limit import login_limiter
 from app.models import BankAccount, SednaBankRecon, SednaReconRun, VendorUpload
@@ -256,7 +256,7 @@ class TestExecutedModuleEvent:
         db.add(acc)
         db.flush()
         item = SednaBankRecon(
-            bank_account_id=acc.id, status="sedna_missing", amount=1500.0,
+            bank_account_id=acc.id, status=ReconStatus.SEDNA_MISSING, amount=1500.0,
             currency="TRY", event_date=date.today() - timedelta(days=3),
             description="Faz2 banka test satırı",
         )
@@ -376,6 +376,7 @@ class TestSyncAllEndpointAndJob:
         arka plan işinde koşar (sahte adımlar DB'ye yazmaz → test-DB temiz kalır)."""
         monkeypatch.setattr(sedna_sync, "_STEPS", _fake_steps())
         monkeypatch.setattr(settings, "sedna_password", "testpw")
+        _reset_broadcast_state()
         r = client.post(f"{PREFIX}/sync-all", headers=auth_headers)
         assert r.status_code == 200, r.text
         j = r.json()
@@ -383,6 +384,7 @@ class TestSyncAllEndpointAndJob:
         assert j["total"] == 2
         assert j["steps"] == [{"key": "s_ok", "label": "Sahte Adım 1"},
                               {"key": "s_err", "label": "Sahte Adım 2"}]
+        _reset_broadcast_state()  # bg job notify süprese sözlüğünü kirletmesin
 
     def test_run_sync_all_job_directly(self, db, monkeypatch):
         """_run_sync_all_job kendi SessionLocal'ini açar; sahte adımlar DB'ye yazmadığından

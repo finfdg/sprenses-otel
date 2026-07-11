@@ -469,22 +469,36 @@
 	</div>
 </header>
 
-<!-- Sedna senkronizasyon sonucu -->
+<!-- Sedna senkronizasyonu — canlı ilerleme + sonuç (adım satırları WS event'leriyle dolar) -->
 <Modal bind:show={sednaModalOpen} title="Sedna Senkronizasyonu" maxWidth="max-w-md">
 	<div class="p-4 sm:p-5 space-y-2">
-		<p class="text-xs text-gray-500 mb-1">Muhasebe (Sedna) veritabanından çekilen veriler:</p>
-		{#each sednaSteps as s}
-			<div class="flex items-start gap-2.5 p-2.5 rounded-lg border {s.ok ? 'border-emerald-200 bg-emerald-50' : s.skipped ? 'border-gray-200 bg-gray-50' : 'border-red-200 bg-red-50'}">
-				{#if s.ok}
+		<p class="text-xs text-gray-500 mb-1">
+			{#if sednaSyncing}
+				Muhasebe (Sedna) veritabanından çekiliyor — {sednaSteps.filter((s) => s.status === 'ok' || s.status === 'error').length}/{sednaSteps.length} adım tamamlandı:
+			{:else}
+				Muhasebe (Sedna) veritabanından çekilen veriler:
+			{/if}
+		</p>
+		{#each sednaSteps as s (s.key)}
+			<div class="flex items-start gap-2.5 p-2.5 rounded-lg border
+				{s.status === 'ok' ? 'border-emerald-200 bg-emerald-50'
+				: s.status === 'error' ? 'border-red-200 bg-red-50'
+				: s.status === 'running' ? 'border-teal-200 bg-teal-50/50'
+				: 'border-gray-200 bg-gray-50'}">
+				{#if s.status === 'ok'}
 					<CheckCircle2 size={18} class="text-emerald-600 shrink-0 mt-0.5" />
-				{:else if s.skipped}
+				{:else if s.status === 'error'}
+					<XCircle size={18} class="text-red-600 shrink-0 mt-0.5" />
+				{:else if s.status === 'running'}
+					<Loader2 size={18} class="text-teal-700 animate-spin shrink-0 mt-0.5" />
+				{:else if s.status === 'skipped'}
 					<MinusCircle size={18} class="text-gray-400 shrink-0 mt-0.5" />
 				{:else}
-					<XCircle size={18} class="text-red-600 shrink-0 mt-0.5" />
+					<Circle size={18} class="text-gray-300 shrink-0 mt-0.5" />
 				{/if}
 				<div class="min-w-0">
 					<p class="text-sm font-medium text-gray-900">{s.label}</p>
-					<p class="text-xs text-gray-600 mt-0.5">{s.summary}</p>
+					<p class="text-xs text-gray-600 mt-0.5">{s.status === 'running' ? 'Çekiliyor…' : s.status === 'pending' ? 'Sırada' : s.summary}</p>
 				</div>
 			</div>
 		{/each}

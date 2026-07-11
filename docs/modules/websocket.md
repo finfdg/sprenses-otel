@@ -137,8 +137,65 @@ Döviz cron'unun (`backend/cron_fetch_exchange_rates.py` → internal broadcast 
 `module=exchange_rates`) öteden beri kullandığı literal, `BroadcastModule.EXCHANGE_RATES`
 sabiti olarak `app/constants.py` + `realtime.ts`'e eklendi (mevcut değer DEĞİŞMEDİ — yalnız
 sabitlendi). Döviz sayfası ve diğer liste sayfaları bu modül event'ine `useLiveRefetch`
-composable'ı (`frontend/src/lib/utils/liveRefetch.svelte.ts`) ile bağlanır — composable'ın
-kendi bölümü bu dosyaya frontend tarafında ayrıca eklenir.
+composable'ı (`frontend/src/lib/utils/liveRefetch.svelte.ts`) ile bağlanır (aşağıdaki bölüm).
+
+## useLiveRefetch — Ortak Canlı-Yenileme Helper'ı (Frontend, Faz 2, 2026-07-11)
+
+**Dosya:** `frontend/src/lib/utils/liveRefetch.svelte.ts`
+
+**KURAL:** Yeni bir liste/özet sayfası canlı olacaksa (WS `finance_updated` / `sales_updated`
+yayınıyla kendini tazeleyecekse) elle `onWsEvent` aboneliği yazma — `useLiveRefetch` kullan.
+Modül filtresi, echo-guard ve `onDestroy` temizliği tek yerde çözülür.
+
+```ts
+import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
+import { BROADCAST_MODULE } from '$lib/constants/realtime';
+
+// Bileşen init'inde (script gövdesinde — onMount İÇİNDE DEĞİL; onDestroy kaydı için gerekir)
+const { markReload } = useLiveRefetch({
+	modules: [BROADCAST_MODULE.CASH_FLOW, BROADCAST_MODULE.CARILER], // finance_updated filtresi
+	salesModules: [BROADCAST_MODULE.HOTEL_RESERVATION],              // (ops.) sales_updated filtresi
+	reload: () => { loadSummary(); loadList(); },                    // sayfanın mevcut load fonksiyonları
+	echoMs: 1500,                                                    // (ops.) yankı penceresi
+});
+// Sayfanın KENDİ mutasyonundan sonra, doğrudan reload yapmadan ÖNCE:
+markReload(); // endpoint'in broadcast yankısı echoMs içinde atlanır → çift yükleme olmaz
+```
+
+**Davranış:**
+- `modules` verildiyse `finance_updated` dinlenir: `payload.module` listedeyse (veya liste
+  **boşsa her event'te**) `reload()` çağrılır; hiç verilmezse `finance_updated` dinlenmez.
+  `salesModules` aynı kuralla `sales_updated` için.
+- **Reconnect sentetik yayını** (`payload.reconnect === true`, modül bilgisi taşımaz) filtreden
+  MUAF — kopukluk sırasında kaçan event'lerin telafisi için her zaman reload tetikler.
+- **Echo-guard:** son `markReload()`'dan `echoMs` (varsayılan 1500ms) içinde gelen event kendi
+  mutasyonumuzun broadcast yankısı sayılıp atlanır (kanıtlanmış desen: `runway.svelte.ts` —
+  sunucu debounce 500ms + iletim gecikmesi payı).
+
+**Bağlı sayfalar (Faz 2, 2026-07-11):**
+- `finans/satis-faturalari` — CASH_FLOW + CARILER + SALES_INVOICES (özet + liste + açıksa avans görünümü)
+- `satis/acente-mahsup` — finance: SALES_INVOICES + ADVANCES · sales: HOTEL_RESERVATION +
+  ROOM_TYPES + AGENCY_GROUPS (projeksiyon `load()`, ciro sekmesi açıksa `loadStatus()`;
+  `saveGroup` mutasyonu `markReload` kullanır). Gömülü paneller kendi aboneliğiyle:
+  `DailyActivityPanel` = HOTEL_RESERVATION, `RoomTypesPanel` = ROOM_TYPES (+CRUD'da `markReload`);
+  `ReservationsPanel` mevcut payload-bağımlı `sales_updated` handler'ını korur (synthetic kuralı).
+- Panel `dashboard/+page` — **modül-başına KISMİ reload**: onMount'taki inline loader'lar ayrık
+  fonksiyonlara çıkarıldı (`loadBanksKpi`/`loadChecksKpi`/`loadCreditsKpi`/`loadVendorsKpi`/
+  `loadAdvancesKpi`/`loadPending`/`loadOccupancyKpi`); her modül kendi kartını yeniler
+  (banks→banka · checks→çek · credits→kredi · cariler→cari · advances→avans · approval→bekleyen
+  onay · sales HOTEL_RESERVATION→doluluk). `recon` gibi kartı olmayan modüller hiçbir kartı
+  tetiklemez; tüm panelin toptan reload'u yok.
+- Stok 4 sayfa (`stok/{maliyet,urunler,hareketler,depolar}`) — STOK
+- `finans/doviz` — EXCHANGE_RATES (kur kartları + grafik + tarihçe)
+
+**Topbar Sedna akışı (frontend tarafı):** `lib/components/Topbar.svelte` —
+`sedna_sync_progress` dinler; koşarken butonda spinner + `"3/8 · Verilen çekler…"` mini metni,
+koşarken tekrar tıklama yeni iş başlatmaz canlı adım modalını açar (adım satırları event'lerle
+dolar: pending→running→ok/error), `done`'da toplam özet toast + sonuç modalı + tazelik rozeti
+yenilenir. Broadcast herkese gittiğinden başka kullanıcının senkronu da butonda koşar görünür.
+**Sayfa yenilenirse ilerleme görünümü kaybolur** (kabul — iş sunucuda sürer). Tazelik rozeti:
+buton yanında "Son: X sa önce" (`oldest_hours < 1` → "az önce"; `> 24` → amber `StatusBadge` +
+title uyarısı); Topbar mount'ta bir kez + her `done` event'inde `GET /finance/sedna/last-sync`.
 
 ## Geliştirme Kuralları
 - **Polling yasak** — tüm gerçek zamanlı veri WS üzerinden (CLAUDE.md kuralı)
