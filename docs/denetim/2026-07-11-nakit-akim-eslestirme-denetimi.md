@@ -116,3 +116,48 @@
 
 - Bu rapor uygulandıkça maddeler işaretlenmeli; UI sapmaları `docs/ui-degisiklik-gunlugu.md` geleneğiyle izlenir.
 - İlgili önceki denetimler: `2026-07-01-tam-modul-denetimi.md` (modül kuralları), `2026-07-05-v3-kurumsal-denetim.md` (altyapı).
+
+---
+
+## 9. Yeniden Değerlendirme (2026-07-11 gece — Sedna Mutabakat Faz A+B+C sonrası)
+
+Bu rapor yazıldıktan sonra aynı gün ikinci raporun (Sedna mutabakat) üç fazı tamamen uygulandı.
+28 madde + 3 karar, 4 paralel denetçiyle güncel koda karşı dosya:satır kanıtıyla yeniden doğrulandı.
+
+### Durum özeti
+
+| Durum | Maddeler |
+|---|---|
+| ✅ **YAPILDI** | **#23** satış faturası süpürmesi (Faz B tam aynalama, `_MIRROR_SWEEP_CAP`) · **Karar-2** çapraz-para kur farkı kaydı (`fx_differences` + `ledger_rate`, FE dışı) |
+| 🟡 **KISMEN** | **#4** broadcast turu (SALES_INVOICES + RECON kapandı; stok/rezervasyon/bütçe/onay/hakediş/sales/2 matching endpoint'i açık) · **#9** öneri kuyruğu (`event_matches` `method='suggestion'` altyapısı hazır — ayrı `match_suggestions` tablosu artık GEREKSİZ; iş mantığı+UI açık) · **#13** çapraz-para (kur kaydı+alış hizası tamam; matcher'ların çapraz-para ADAY üretmesi açık) · **#25** tahmin doğruluğu (event_matches tahmin↔gerçekleşme çiftlerini artık saklıyor; rapor endpoint'i açık) · **Karar-1** (mutabakat modülü için belgelendi; eşleştirme endpoint'leri kapsam listesi onay-akisi.md'de hâlâ yok) |
+| 🔴 **AÇIK** | Kalan 22 madde (Faz 0'ın 6'sı, Faz 1'in 5'i, Faz 2'nin 6'sı, Faz 3'ün 5'i) + Karar-3 |
+
+### Mutabakat altyapısının getirdiği tasarım revizyonları
+
+1. **#2 match-vendor-tx** genişledi: sequence + sync_tag + FIFO senkronuna ek, `event_matches`'e
+   `method='manual'` iz yazılmalı — ama `finance_event_svc.match()` üzerinden DEĞİL (cari
+   eşleştirmesi `is_matched`'ı değiştirmez kuralı korunur; doğrudan EventMatch kaydı).
+2. **#9 öneri kuyruğu**: yeni tablo yerine `event_matches(method='suggestion', score=...)` kullanılır —
+   Faz B şeması bunun için tasarlandı; kabul = method'u auto/manual'a çevirip match() çağırmak.
+3. **#6 deferral-EUR**: kısa vadeli yama (deferral haritası) Faz 0'da kalır; kökten çözüm **#27**
+   (eur_balances'ın FE'den okuması) Faz B'nin FE-otoritesi güçlendirmesiyle daha cazip — Faz 2'ye öne alındı.
+4. **#1 orkestratör** daha da önemli: API-sync'te matcher koşmaması artık mutabakat ekranında da
+   gürültü üretiyor (eşleşmeyen kalemler recon'a düşüyor); ayrıca `sedna_sync._STEPS` + `bank_recon`
+   adımı hazır şablon.
+5. **#28 yarış koruması**: orkestratör tetikleri çoğaltacağı için hafif kısmı (matcher girişinde durum
+   yeniden-doğrulama) Faz 1 başına alınmalı.
+6. **#18**: sync-all'a bank_recon 8. adımı eklendiğinden koşu süresi uzadı — arka plan + ilerleme ihtiyacı arttı.
+
+### REVİZE FAZ 0 (uygulanacak sıra)
+
+| # | İş | Not |
+|---|---|---|
+| R1 | `run_all_matchers` orkestratörü (utils/matching_service) + auto-tag'in akışa bağlanması + auto_tagger `sync_tag` düzeltmesi + `POST /cash-flow/rematch` + VakıfBank sync bağlantısı + UI "Yeniden Eşleştir" | Eski #1+#3 birleşik (aynı dosyalar) |
+| R2 | match-vendor-tx: sequence + sync_tag + sync_vendor_finance_events + EventMatch 'manual' izi (is_matched'a dokunmadan) | Eski #2 genişletilmiş |
+| R3 | Broadcast delik kapatma (küçülmüş kapsam): STOK sabiti + stok/rezervasyon adımları + tekil sedna-import'lar + match_credit_payment/unmatch_cc_payment + bütçe 6 + onay 4 + hakediş + sales CRUD 7 | Eski #4 kalanı |
+| R4 | Global reconnect (+layout online/visibility → resetReconnect) + Topbar bağlantı göstergesi + synthetic sales_updated | Eski #5 |
+| R5 | Deferral → eur_balances yaması + runway↔eur-balances regresyon testi | Eski #6 (kökten çözüm #27 Faz 2'de) |
+| R6 | Eşleştirme çekirdeği test ağı: 4 manuel endpoint + `_match_credits_to_bank` (N-1) + rematch | Eski #7 |
+| R7 | Karar-1 belgeleme: eşleştirme endpoint'leri onay-muafiyet kapsam listesi → docs/modules/onay-akisi.md | Doküman |
+
+**Durum: REVİZE FAZ 0 HENÜZ UYGULANMADI** (kullanıcı yeniden değerlendirme istedi; kod değişikliği yapılmadı).
