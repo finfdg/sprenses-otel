@@ -47,6 +47,29 @@ Kullanıcı anlatımı: `docs/modules/nakit-akim.md` "Faz 3" + `docs/modules/ban
 - **C2:** Panel banka KPI'sı artık runway `start_eur` kaynağından (frontend paralel) —
   Panel / Nakit Akım / runway üç görünüm tek sayı.
 
+**Test (2026-07-12):** `tests/test_faz3_integrity.py` (31 test) — release matrisi
+(çek / kredi tekil-FK / kredi **N-1 grup**: iki btx'in ortak match_number izi + anapara
+iadesi / avans / cari match_number çifti + needs_vendor_sync / KK paid_amount geri-düşme),
+`delete_bank_transaction` (eşleşmemiş silinir + öneri izi düşer; eşleşmişe ValueError +
+kayıt durur), `delete_bank_statement` uçtan-uca, hesap-silme C5 regresyonu, DELETE
+endpoint'leri (200 sayaçlı / eşleşmişe 400 / 404 / viewer 403) + **onay akışı regresyonu**
+(workflow'lu DELETE statement → 202 + veri değişmez → onay → executor uygular), upload
+başlık doğrulaması (yanlış IBAN / para birimi → 400; `_save_and_parse` monkeypatch'li,
+'TL'→TRY normalizasyonu), `compute_aging` + endpoint izinleri, `forecast-accuracy`
+(by_type medyan + by_vendor `suggested_payment_days` |medyan|≥3 kuralı + öneri izleri
+hariç), `check_balance_chains` (tutarlı / tek-kırılma gap / NULL-bakiye köprü / tolerans)
++ `run_reconciliation` summary'de `balance_chain_breaks` (Sedna fetch enjekte).
+
+**Testin yakaladığı + düzeltilen gerçek bug (2026-07-12):** `delete_bank_statement`
+`db.delete(stmt)`'in işlemleri cascade ile sileceğini varsayıyordu ("FK CASCADE" yorumu)
+ama `bank_transactions.statement_id` FK'sı **ON DELETE SET NULL** (migration
+`2b4495d4c8f5`) → ekstre silinince işlemler `statement_id=NULL` **orphan** kalıyordu
+(FE'leri invalidate edildiğinden nakit akımda görünmezler ama banka listesinde/bakiye
+zincirinde dururlardı — sessiz tutarsızlık). İşlemler artık release + FE-invalidate
+sonrası **açıkça** `db.delete(tx)` ile silinir (`sedna_bank_recon` izleri
+`bank_transaction_id` FK CASCADE ile birlikte düşer). Executor aynı servisi
+kullandığından onaylı silme yolu da düzeldi.
+
 ---
 
 ## Faz 2 — Yapısal Gerçek Zamanlılık (2026-07-12)
