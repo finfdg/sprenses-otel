@@ -175,8 +175,25 @@ Düzeltme davranışı: yanlış otomatik etiket **başka bir kategoriye manuel 
 ise kalıcı değildir — sonraki otomatik koşu (ekstre yüklemesi / Sedna sync / rematch) kurala
 uyan işlemi yeniden etiketler; bu, tüm otomatik kurallar için geçerli genel davranıştır.
 
-**Yönetilen kategoriler:** "Döviz Satışı" (cyan) ve "Acenta" (teal) yoksa
-`_get_or_create_category` ile otomatik oluşturulur (migration gerekmez, test DB'de de çalışır).
+### Banka Havale/EFT Komisyon Tespiti (2026-07-13, `_tag_bank_fees`)
+
+Banka ücret/komisyon kalemleri Etiketsiz kalıyordu; **"Havale Komisyonları"** kategorisine
+etiketlenir (yalnız GİDER, kelime kurallarından ÖNCE — "EFT ÜCRETİ" açıklaması Virman'a düşmesin):
+
+1. **Ücret anahtar kelimesi** (`ucret|ucr|bsmv|kkdf|komisyon|masraf|kom`) + tutar tavanı
+   (TRY ≤2.500, döviz hesabı ≤100) — tavan üstü "komisyon" içeren gerçek ödemeler (ör. kredi
+   kullandırım komisyonu) bu başlığa girmez, eski kurallara düşer.
+2. **Yapı Kredi ücret bacağı deseni:** "Diğer Internet - Mobil <karşı taraf>" önekli KÜÇÜK
+   gider (TRY ≤250, döviz ≤25) — YK her transferin ücret+BSMV bacağını bu önekle ayrı yazar
+   (canlı: ₺15,96+₺0,80 çiftleri). Aynı önekli BÜYÜK tutarlar kart borcu ödemesidir
+   (maskeli PAN, ₺10K+) → tavan zorunlu.
+
+İlk canlı koşu (2026-07-13): 198 kalem (~₺10.317) etiketlendi. Mevcut "Komisyon" (25 işlem)
+ve boş "Havale Masrafı"/"Pos Aidat Gideri" kategorilerine dokunulmadı.
+
+**Yönetilen kategoriler:** "Döviz Satışı" (cyan), "Acenta" (teal) ve "Havale Komisyonları"
+(amber) yoksa `_get_or_create_category` ile otomatik oluşturulur (migration gerekmez, test
+DB'de de çalışır; unique(name) yarışı SAVEPOINT'le emilir).
 
 ---
 

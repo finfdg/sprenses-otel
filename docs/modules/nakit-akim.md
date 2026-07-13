@@ -661,3 +661,11 @@ Kullanıcı isteği üç parça (Panel T-Hesap cetveli):
 Detay: `docs/modules/transaction-tags.md` "Döviz Satışı Kuralı" + "Acenta Tahsilatı Tespiti".
 Test: `tests/test_auto_tagger.py` (15) + `test_cash_flow_taccount.py::TestTAccountBankName` +
 frontend `bankBadge.test.ts` / `cashflow.test.ts`.
+
+4. **(Aynı gün, ikinci istek) Banka ücretleri "Havale Komisyonları" başlığında** — banka
+   ücret/komisyon kalemleri (YK'nin transfer başına ayrı yazdığı ₺15,96+₺0,80 ücret+BSMV
+   bacakları, "Diğer Diğer KOM", POS bakım ücretleri, BSMV kesintileri) Etiketsiz'te
+   birikiyordu. `auto_tagger._tag_bank_fees`: ücret anahtar kelimesi (tavan TRY ≤2.500) veya
+   "Diğer Internet - Mobil" ücret-bacağı öneki (tavan TRY ≤250 — aynı önekli ₺10K+ tutarlar
+   maskeli-PAN kart ödemesi, etiketlenmez). İlk canlı koşu: 198 kalem (~₺10.317).
+   Detay: `docs/modules/transaction-tags.md` "Banka Havale/EFT Komisyon Tespiti".

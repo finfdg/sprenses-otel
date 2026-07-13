@@ -21,8 +21,15 @@ Panel T-Hesap isteği (kullanıcı): acenta tahsilatları "Acenta" başlığınd
   ("seyahat acent|travel|acente|…"). Virman/hesaplar-arası ve misafir (120.26.*) hariç.
   `auto_tag_transactions` içinde kelime kurallarından ÖNCE koşar; manuel etiketi asla ezmez
   (yalnız `category_id IS NULL`).
-- **Yönetilen kategoriler** "Acenta" (teal) / "Döviz Satışı" (cyan) yoksa
-  `_get_or_create_category` ile runtime oluşturulur (migration yok — test DB'de de çalışır).
+- **`auto_tagger._tag_bank_fees` (aynı gün eklendi)** — banka ücret/komisyonları
+  "Havale Komisyonları"na: ücret anahtar kelimesi (ucret/ucr/bsmv/kkdf/komisyon/masraf/kom;
+  TRY ≤2.500, döviz ≤100) VEYA YK ücret bacağı deseni ("Diğer Internet - Mobil" öneki +
+  TRY ≤250, döviz ≤25 — aynı önekli ₺10K+ tutarlar maskeli-PAN kart ödemesidir, tavan
+  zorunlu). Yalnız GİDER; kelime kurallarından önce koşar ("EFT ÜCRETİ" Virman'a düşmesin).
+  İlk canlı koşu 198 kalem (~₺10.317).
+- **Yönetilen kategoriler** "Acenta" (teal) / "Döviz Satışı" (cyan) / "Havale Komisyonları"
+  (amber) yoksa `_get_or_create_category` ile runtime oluşturulur (migration yok — test DB'de
+  de çalışır; unique(name) ilk-koşu yarışı SAVEPOINT ile emilir).
 - **`t_account.py`** item'ları `bank_name` taşır (FE.bank_name + KK projeksiyon kart bankası) →
   frontend `bankBadge.ts` marka renkli kısaltma rozeti çizer (`CashFlowTAccount.svelte`).
 
