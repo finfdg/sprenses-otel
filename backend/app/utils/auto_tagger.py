@@ -2,11 +2,16 @@
 import logging
 import re
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from datetime import timedelta
+from typing import Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.models.agency_group import AgencyGroup
+from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
+from app.models.reservation import Reservation
+from app.models.sales_invoice import SalesCollection
 from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
@@ -119,14 +124,45 @@ def _normalize(text: str) -> str:
 
 
 # Kategori adı → regex pattern (normalize edilmiş metin üzerinde çalışır)
+# "Döviz Satışı" kuralı "Kredi"den ÖNCE gelmeli: "YapiKrediFX+ Dvz Satis" açıklaması
+# "kredi" desenini de içerir — döviz satışı kredi kullanımı DEĞİLDİR (2026-07-13).
 AUTO_TAG_RULES: List[Tuple[str, str]] = [
     ("Virman", r"virman|havale|eft |transfer"),
+    ("Döviz Satışı", r"dvz sat|doviz sat"),
     ("POS", r"pos |kkiv|kart "),
     ("Kredi", r"kredi|taksit|kmh"),
     ("Personel", r"maas|personel|ucret"),
     ("Vergi/SGK", r"vergi|sgk|sgdp|tahsilat"),
     ("Komisyon", r"komisyon|masraf"),
 ]
+
+# Kural motoru tarafından yönetilen (yoksa otomatik oluşturulan) kategoriler → renk
+# (renkler frontend colorMap.ts paletinden — bilinmeyen renk gray'e düşer)
+MANAGED_CATEGORY_COLORS: Dict[str, str] = {
+    "Döviz Satışı": "cyan",
+    "Acenta": "teal",
+}
+
+
+def _get_or_create_category(db: Session, name: str) -> TransactionCategory:
+    """Yönetilen kategoriyi getir; yoksa oluştur (idempotent, commit ETMEZ).
+
+    İlk-koşu yarışı: eşzamanlı iki işlem (ekstre yüklemesi + Sedna sync) aynı anda
+    oluşturmaya çalışırsa unique(name) ihlali SAVEPOINT ile yutulur ve kayıt yeniden
+    okunur — çağıranın transaction'ı bozulmaz (inceleme bulgusu 2026-07-13).
+    """
+    cat = db.query(TransactionCategory).filter(TransactionCategory.name == name).first()
+    if cat is None:
+        from sqlalchemy.exc import IntegrityError
+
+        try:
+            with db.begin_nested():
+                cat = TransactionCategory(name=name, color=MANAGED_CATEGORY_COLORS.get(name, "gray"))
+                db.add(cat)
+        except IntegrityError:
+            cat = db.query(TransactionCategory).filter(TransactionCategory.name == name).first()
+        db.flush()
+    return cat
 
 
 def auto_tag_transactions(
@@ -135,12 +171,18 @@ def auto_tag_transactions(
 ) -> Tuple[int, int]:
     """Etiketlenmemiş işlemlere otomatik kural uygula.
 
+    Sıra: önce veri-temelli acenta tahsilatı tespiti (Sedna tahsilat/acente adları —
+    genel kelime kurallarından daha yüksek sinyal), sonra kelime kuralları.
+
     Returns:
         (etiketlenen_sayı, toplam_etiketsiz_sayı)
     """
-    # Kategori adı → id eşlemesi
+    # Kategori adı → id eşlemesi (yönetilen kural kategorileri yoksa oluşturulur)
     categories = db.query(TransactionCategory).all()
     cat_map = {c.name: c.id for c in categories}
+    for managed in MANAGED_CATEGORY_COLORS:
+        if managed not in cat_map:
+            cat_map[managed] = _get_or_create_category(db, managed).id
 
     # Etiketlenmemiş işlemleri al
     query = db.query(BankTransaction).filter(
@@ -150,10 +192,11 @@ def auto_tag_transactions(
         query = query.filter(BankTransaction.id.in_(transaction_ids))
 
     untagged = query.all()
-    tagged_count = 0
-    tagged = []
+    tagged = _tag_agency_collections(db, untagged, cat_map[AGENCY_CATEGORY])
 
     for tx in untagged:
+        if tx.category_id is not None:  # acenta geçişinde etiketlendi
+            continue
         normalized = _normalize(tx.description)
         for cat_name, pattern in AUTO_TAG_RULES:
             if re.search(pattern, normalized):
@@ -162,14 +205,198 @@ def auto_tag_transactions(
                     tx.category_id = cat_id
                     tx.tag_source = "auto"
                     tagged.append(tx)
-                    tagged_count += 1
                 break  # İlk eşleşen kural kazanır
 
-    if tagged_count > 0:
+    if tagged:
         db.flush()
         _sync_finance_events(db, tagged)  # otomatik kategori FE'ye yansısın
 
-    return tagged_count, len(untagged)
+    return len(tagged), len(untagged)
+
+
+# ─── Acenta Tahsilatı Tespiti (2026-07-13; hassasiyet sertleştirmesi aynı gün) ──
+# Panel/Nakit Akım'da acente ödemeleri "Etiketsiz" kalıyordu (banka açıklaması
+# kırpık: "TRAVE/020726/278982", "SEYAHAT ACENT/030726/..."). Üç sinyalle
+# "Acenta" kategorisine etiketlenir (yalnız GELİR işlemleri):
+#   1) Sedna tahsilat eşleşmesi — sales_collections'taki acente tahsilatıyla
+#      tutar+para birimi birebir, tarih ±4 gün; her tahsilat EN ÇOK BİR işlemi
+#      etiketler (tüketilir — aynı paranın devam-transferi ikinci kez etiketlenmesin).
+#   2) Acente adı token'ı — agency_groups (ad+üyeler), rezervasyon acenteleri ve
+#      isim-ipucu-doğrulanmış tahsilat müşteri adlarından; ≥2 token AYNI acenteden
+#      veya tek token ≥8 karakter (jenerik kelimeler ayrıca elenir).
+#   3) Açıklama ipucu — "seyahat acent", "travel", "acente/acenta" gibi kalıplar.
+# Guard'lar (çok-ajanlı inceleme bulguları, canlı dry-run'la doğrulandı 2026-07-13):
+#   - Virman/hesaplar-arası açıklamalar aday olamaz.
+#   - havale/EFT/FAST/transfer görünümlü açıklamada SALT-TUTAR eşleşmesi YETMEZ
+#     (kendi bankalar-arası transferler + misafir FAST ödemeleri tutar çakışmasıyla
+#     Acenta'ya düşüyordu) — isim token'ı veya açıklama ipucu eş-sinyali şart.
+#   - 120.01.* segmenti saf acente DEĞİL (canlıda Vodafone/TT Mobil/banka ATM-kira/
+#     gerçek kişi var) → banka/telekom/kira adlı tahsilatlar blok listesiyle elenir;
+#     token havuzuna yalnız isim-ipucu-doğrulanmış acenteler girer.
+#   - Jenerik kelimeler (işletmeciliği/otel/hotels/group/turkiye/bankasi…) token olamaz.
+
+AGENCY_CATEGORY = "Acenta"
+_AGENCY_CODE_PREFIX = "120.01."  # Sedna acente ağırlıklı cari segmenti (saf değil!)
+_AGENCY_NAME_HINT = re.compile(r"turizm|travel|seyahat|acent|touristik|reisen|holiday|tour")
+# Acente OLMADIĞI kesin tahsilat müşterileri (120.01.* içinde banka ATM-kira,
+# telekom, market/kuyum kiracıları görüldü — canlı bulgu)
+_AGENCY_NAME_BLOCK = re.compile(
+    r"banka|bankasi|vodafone|telekom|tt mobil|iletisim|sigorta|\batm\b|kira|elektrik|"
+    r"enerji|belediye|market|kuyum|restaurant|restoran"
+)
+_AGENCY_DESC_HINT = re.compile(r"seyahat acent|travel|acente|acenta|touristik|reisen")
+# Transfer görünümlü açıklama: salt-tutar eşleşmesine güvenilmez (eş-sinyal şart)
+_TRANSFERISH = re.compile(r"havale|\beft\b|transfer|\bfast\b|para gonder")
+_AGENCY_DATE_WINDOW_DAYS = 4
+_AGENCY_MIN_SINGLE_TOKEN = 8  # tek token eşleşmesinde asgari uzunluk
+# Acente adlarında ayırt edici SAYILMAYACAK jenerik kelimeler (_SKIP_WORDS'e ek):
+# otelcilik/kurumsal/banka/telekom/coğrafya kelimeleri tek başına veya çapraz-acente
+# kombinasyonla eşleşme üretmesin (canlı yanlış-pozitif sınıfı).
+_AGENCY_TOKEN_SKIP = {
+    "isletmeciligi", "isletmecilik", "isletme", "otel", "otelcilik", "oteli",
+    "hotel", "hotels", "holding", "group", "grup", "gmbh", "services", "service",
+    "online", "global", "turkiye", "bankasi", "banka", "garanti", "vodafone",
+    "telekom", "telekomuni", "iletisim", "mobil", "distance", "frankfurt",
+    "turkey", "kongre", "organizasyon", "yatirim", "yatirimlari",
+}
+
+
+def _agency_name_tokens(name: str) -> Set[str]:
+    """TEK acente adından ayırt edici (normalize) token kümesi çıkar."""
+    tokens: Set[str] = set()
+    if not name:
+        return tokens
+    cleaned = re.sub(r"\([^)]*\)", "", name)
+    cleaned = re.sub(r"[.\-/,;:]+", " ", cleaned)
+    for w in cleaned.split():
+        norm = _normalize(w.strip())
+        if (
+            len(norm) < _MIN_WORD_LEN
+            or norm in _SKIP_WORDS
+            or norm in _AGENCY_TOKEN_SKIP
+            or norm.isdigit()
+        ):
+            continue
+        tokens.add(norm)
+    return tokens
+
+
+def _agency_collection_signals(db: Session) -> Tuple[Dict[Tuple[int, str], List[dict]], List[Set[str]]]:
+    """Acente tahsilat sinyalleri.
+
+    Döner: (amount_index, token_sets)
+    - amount_index: (kuruş, para birimi) → [{"date", "col_id"}] — kuruş hassasiyetinde
+      int anahtar (float sapması olmasın). Döviz tahsilatın TL karşılığı (amount) ayrıca
+      TRY anahtarıyla eklenir (EUR faturalı acente TL EFT'yle ödeyebilir); col_id ortak →
+      tek tahsilat toplamda EN ÇOK BİR işlemi etiketler.
+    - token_sets: ACENTE BAZINDA token kümeleri (çapraz-acente 2'li kombinasyon
+      eşleşme sayılmasın — auto_match_vendors'daki cari-bazlı keyword deseni).
+    """
+    amount_index: Dict[Tuple[int, str], List[dict]] = defaultdict(list)
+    token_sets: List[Set[str]] = []
+
+    collections = (
+        db.query(SalesCollection)
+        .filter(SalesCollection.customer_code.like("120.%"))
+        .all()
+    )
+    for col in collections:
+        norm_name = _normalize(col.customer_name or "")
+        if _AGENCY_NAME_BLOCK.search(norm_name):
+            continue  # banka/telekom/kiracı — acente değil (120.01.* içinde de olabilir)
+        has_hint = bool(_AGENCY_NAME_HINT.search(norm_name))
+        is_agency = (col.customer_code or "").startswith(_AGENCY_CODE_PREFIX) or has_hint
+        if not is_agency:
+            continue
+        # Token havuzuna yalnız isim-ipucu-doğrulanmış acenteler girer (segment saf
+        # değil: kişi/karışık kayıtların adları token üretmesin); tutar sinyali için
+        # segment yeterli (kuruş+para birimi+tarih birebir eşleşme zaten güçlü kanıt).
+        if has_hint:
+            tokens = _agency_name_tokens(col.customer_name or "")
+            if tokens:
+                token_sets.append(tokens)
+        cur = (col.currency or "TL").upper()
+        cur = "TRY" if cur == "TL" else cur
+        native = float(col.amount_currency or 0) or float(col.amount or 0)
+        if native:
+            amount_index[(int(round(native * 100)), cur)].append(
+                {"date": col.collection_date, "col_id": col.id}
+            )
+        if cur != "TRY" and col.amount:
+            amount_index[(int(round(float(col.amount) * 100)), "TRY")].append(
+                {"date": col.collection_date, "col_id": col.id}
+            )
+
+    for grp in db.query(AgencyGroup).all():
+        for name in [grp.name or ""] + list(grp.members or []):
+            tokens = _agency_name_tokens(name)
+            if tokens:
+                token_sets.append(tokens)
+    for (agency,) in db.query(Reservation.agency).distinct().all():
+        tokens = _agency_name_tokens(agency or "")
+        if tokens:
+            token_sets.append(tokens)
+
+    return amount_index, token_sets
+
+
+def _tag_agency_collections(
+    db: Session, untagged: List[BankTransaction], agency_cat_id: int
+) -> List[BankTransaction]:
+    """Etiketsiz GELİR işlemlerinden acenta tahsilatlarını işaretle (commit ETMEZ)."""
+    internal_move = re.compile(r"virman|hesaplar[i]? aras[i]|hesaplarim arasi")
+    candidates = [
+        tx for tx in untagged
+        if tx.type == "income" and not internal_move.search(_normalize(tx.description or ""))
+    ]
+    if not candidates:
+        return []
+
+    # Açıklama ipucu sinyalsiz de çalışır — Sedna verisi boşken erken dönme (test bulgusu)
+    amount_index, token_sets = _agency_collection_signals(db)
+    all_tokens: Set[str] = set().union(*token_sets) if token_sets else set()
+    account_currency = {a.id: (a.currency or "TRY").upper() for a in db.query(BankAccount).all()}
+    window = timedelta(days=_AGENCY_DATE_WINDOW_DAYS)
+    consumed_cols: Set[int] = set()  # tüketilen tahsilatlar (bir tahsilat = en çok bir işlem)
+    tagged: List[BankTransaction] = []
+
+    for tx in candidates:
+        normalized = _normalize(tx.description or "")
+        desc_hit = bool(_AGENCY_DESC_HINT.search(normalized))
+
+        # Acente adı token eşleşmesi: AYNI acenteden ≥2 token veya tek token ≥8 karakter
+        token_hit = False
+        if all_tokens:
+            desc_words = {w for w in re.split(r"[^a-z0-9]+", normalized) if w}
+            hits = desc_words & all_tokens
+            if hits:
+                token_hit = any(len(h) >= _AGENCY_MIN_SINGLE_TOKEN for h in hits) or any(
+                    len(desc_words & ts) >= 2 for ts in token_sets
+                )
+
+        matched = desc_hit or token_hit
+
+        # Sedna tahsilat tutar eşleşmesi — transfer görünümlü açıklamada (havale/EFT/
+        # FAST/transfer) SALT-TUTAR yetmez: isim/ipucu eş-sinyali olmadan etiketleme
+        # (kendi transferleri + misafir FAST'leri tutar çakışmasına düşüyordu).
+        if not matched and amount_index and not _TRANSFERISH.search(normalized):
+            cur = account_currency.get(tx.account_id, "TRY")
+            cur = "TRY" if cur == "TL" else cur
+            key = (int(round(abs(float(tx.amount)) * 100)), cur)
+            for entry in amount_index.get(key, []):
+                if entry["col_id"] in consumed_cols:
+                    continue
+                if abs(tx.date - entry["date"]) <= window:
+                    consumed_cols.add(entry["col_id"])
+                    matched = True
+                    break
+
+        if matched:
+            tx.category_id = agency_cat_id
+            tx.tag_source = "auto"
+            tagged.append(tx)
+
+    return tagged
 
 
 # ─── Cari Bazlı Otomatik Eşleştirme ──────────────────────────────────

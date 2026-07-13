@@ -138,3 +138,37 @@ describe('aggregateRows — members (bekletme kimliği)', () => {
 		expect(rows[0].members).toEqual([]);
 	});
 });
+
+describe('aggregateRows — bank_name taşıma (banka amblemi, 2026-07-13)', () => {
+	it('tekil satır kalemin bankasını aynen taşır; yoksa null', () => {
+		const rows = aggregateRows(
+			[
+				{ name: 'Çek A', amount_eur: 10, amount_native: 500, currency: 'TRY', bank_name: 'Yapı Kredi' },
+				{ name: 'Çek B', amount_eur: 5, amount_native: 250, currency: 'TRY' },
+			],
+			false
+		);
+		expect(rows[0].bank_name).toBe('Yapı Kredi');
+		expect(rows[1].bank_name).toBeNull();
+	});
+
+	it('toplu satırda tüm kalemler aynı bankaysa taşınır, karışıksa null', () => {
+		const same = aggregateRows(
+			[
+				{ name: 'Firma X', amount_eur: 10, amount_native: 500, currency: 'TRY', bank_name: 'Halkbank' },
+				{ name: 'Firma X', amount_eur: 5, amount_native: 250, currency: 'TRY', bank_name: 'Halkbank' },
+			],
+			true
+		);
+		expect(same[0].bank_name).toBe('Halkbank');
+
+		const mixed = aggregateRows(
+			[
+				{ name: 'Firma Y', amount_eur: 10, amount_native: 500, currency: 'TRY', bank_name: 'Halkbank' },
+				{ name: 'Firma Y', amount_eur: 5, amount_native: 250, currency: 'TRY', bank_name: 'VakıfBank' },
+			],
+			true
+		);
+		expect(mixed[0].bank_name).toBeNull();
+	});
+});

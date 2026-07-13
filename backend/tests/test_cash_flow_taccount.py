@@ -477,3 +477,29 @@ class TestTAccountFaaliyetFinansman:
         assert round(body["faaliyet_net_eur"] + body["finansman_net_eur"], 2) == body["net_eur"]
         # Finansman neti = +80 (avans) - 40 (kredi) = +40 EUR
         assert body["finansman_net_eur"] == 40.0
+
+
+class TestTAccountBankName:
+    """Kalemler banka adını taşır — frontend satır başı banka amblemi (2026-07-13)."""
+
+    def test_items_carry_bank_name(self, client, auth_headers, db):
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+
+        _mk_fe(db, direction=1, amount=5000, category_name="T-BANKA ROZET",
+               bank_name="Yapı Kredi", description="T-BANKA ROZET GELİR")
+        _mk_fe(db, direction=-1, amount=2000, source_type="check",
+               bank_name="VakıfBank", description="T-BANKA ROZET ÇEK")
+        _mk_fe(db, direction=-1, amount=1000, source_type="vendor_payment",
+               description="T-BANKA ROZET CARİ")  # bankasız → None
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+
+        g = _group(body, "giris", "T-BANKA ROZET")
+        assert g and g["items"][0]["bank_name"] == "Yapı Kredi"
+        cek = _group(body, "cikis", "Verilen Çekler")
+        item = next(i for i in cek["items"] if i["name"] == "T-BANKA ROZET ÇEK")
+        assert item["bank_name"] == "VakıfBank"
+        cari = _group(body, "cikis", "Cari Ödemeleri")
+        item = next(i for i in cari["items"] if i["name"] == "T-BANKA ROZET CARİ")
+        assert item["bank_name"] is None

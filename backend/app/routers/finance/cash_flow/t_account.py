@@ -263,6 +263,9 @@ def t_account(
                 # Bekletme (hold) kimliği — frontend bu kalemi beklemeye alabilsin
                 "source_type": fe.source_type,
                 "source_id": fe.source_id,
+                # Banka amblemi (frontend satır başı rozeti) — banka hareketi / çek
+                # ödeme bankası / kredi taksit bankası; bilinmiyorsa None (rozet çizilmez)
+                "bank_name": fe.bank_name,
             })
 
     # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — dönemi kapsayan
@@ -309,6 +312,7 @@ def t_account(
                 # Kart bazlı bekletme kimliği (gerçek FE değil ama kart CreditProduct.id'siyle bekletilir)
                 "source_type": "cc_projection" if proj_card_id is not None else None,
                 "source_id": proj_card_id,
+                "bank_name": proj.get("bank_name"),
             })
 
     def _finalize(direction: int) -> list:

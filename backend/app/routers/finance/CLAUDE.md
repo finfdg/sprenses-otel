@@ -5,6 +5,32 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Acenta / Döviz Satışı Otomatik Etiketleme + T-Hesap Banka Amblemi (2026-07-13)
+
+Panel T-Hesap isteği (kullanıcı): acenta tahsilatları "Acenta" başlığında, döviz satışları
+"Kredi" değil "Döviz Satışı" başlığında, satır başında banka amblemi.
+
+- **`auto_tagger.AUTO_TAG_RULES`** — "Döviz Satışı" kuralı (`dvz sat|doviz sat`) **"Kredi"den
+  ÖNCE**: "Yapi**Kredi**FX+ Dvz Satis" açıklaması kredi desenini de içeriyordu → 28 döviz satışı
+  canlıda yanlış Kredi etiketlenmişti (geriye dönük düzeltildi). "Döviz Satım" (iç transfer,
+  T-Hesap'tan hariç) AYRI kategoridir — karıştırma.
+- **`auto_tagger._tag_agency_collections`** — etiketsiz GELİR işlemlerini üç sinyalle "Acenta"ya
+  etiketler: Sedna `sales_collections` tutar+para birimi+tarih(±4g) eşleşmesi (120.01.* acente
+  segmenti; kırpık açıklamalarda tek güvenilir sinyal) · acente adı token'ları (agency_groups +
+  reservations.agency + tahsilat adları; ≥2 token veya tek ≥8 karakter) · açıklama ipucu
+  ("seyahat acent|travel|acente|…"). Virman/hesaplar-arası ve misafir (120.26.*) hariç.
+  `auto_tag_transactions` içinde kelime kurallarından ÖNCE koşar; manuel etiketi asla ezmez
+  (yalnız `category_id IS NULL`).
+- **Yönetilen kategoriler** "Acenta" (teal) / "Döviz Satışı" (cyan) yoksa
+  `_get_or_create_category` ile runtime oluşturulur (migration yok — test DB'de de çalışır).
+- **`t_account.py`** item'ları `bank_name` taşır (FE.bank_name + KK projeksiyon kart bankası) →
+  frontend `bankBadge.ts` marka renkli kısaltma rozeti çizer (`CashFlowTAccount.svelte`).
+
+Test: `tests/test_auto_tagger.py` + `TestTAccountBankName`. Doküman:
+`docs/modules/transaction-tags.md`, `docs/modules/nakit-akim.md`.
+
+---
+
 ## Faz 3 — Mutabakat ve Tek Gerçek (2026-07-12)
 
 Eşleştirme denetiminin Faz 3 paketi (#21/#22/#24/#25; **#26 rezervasyon→FE ve #27

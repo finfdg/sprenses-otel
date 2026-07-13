@@ -636,3 +636,28 @@ bilinçli, aksi 403 toast'ı üretirdi).
 - **#27 eur_balances'ın FE'den okuması:** çift motorun (C3) kökten çözümü ama
   **davranış-eşitliği doğrulaması** gerektiren ayrı büyük iş.
 - **#14 öğrenen kurallar + #20 WS izin filtresi:** P3 — önceki fazlardan ertelenmiş durumda.
+
+## T-Hesap: Acenta / Döviz Satışı Grupları + Banka Amblemi (2026-07-13)
+
+Kullanıcı isteği üç parça (Panel T-Hesap cetveli):
+
+1. **Acenta tahsilatları "Acenta" başlığı altında** — acente ödemeleri banka açıklaması kırpık
+   geldiğinden ("TRAVE/020726/278982", "SEYAHAT ACENT/…") "Etiketsiz"te kalıyordu. Veri-temelli
+   otomatik etiketleme eklendi (`auto_tagger._tag_agency_collections`): Sedna `sales_collections`
+   tutar+para birimi+tarih(±4 gün) eşleşmesi · acente adı token'ları (agency_groups + rezervasyon
+   acenteleri + tahsilat müşteri adları) · açıklama ipuçları ("seyahat acent", "travel"…). Yalnız
+   GELİR işlemleri; virman/hesaplar-arası ve bireysel misafir ön ödemeleri (120.26.*) hariç.
+2. **Döviz satışları "Döviz Satışı" başlığında** — "YapiKrediFX+ Dvz Satis" açıklaması `kredi`
+   desenini içerdiğinden yanlışlıkla **Kredi** etiketleniyordu (gelir sütununda sahte "Kredi"
+   grubu). `AUTO_TAG_RULES`'a Kredi'den ÖNCE "Döviz Satışı" kuralı eklendi; canlıdaki 28 yanlış
+   etiket geriye dönük düzeltildi. ("Döviz Satım" = iç transfer, T-Hesap'tan hariç — o ayrı kalır.)
+3. **Satır başında banka amblemi** — `t-account` item'larına `bank_name` eklendi (banka hareketi /
+   çekin ödeme bankası / kredi taksit bankası / KK projeksiyon kart bankası). Frontend
+   `lib/utils/bankBadge.ts` banka adını marka renkli kısaltma rozetine çevirir (YK lacivert,
+   VB sarı, HB mavi…; bilinmeyen banka baş harfleri + gri; bankasız kalem rozetsiz).
+   `CashFlowTAccount.svelte` her satırın başında rozeti gösterir; toplu cari satırında üyelerin
+   bankası tekse taşınır, karışıksa gösterilmez (`cashflow.ts aggregateRows`).
+
+Detay: `docs/modules/transaction-tags.md` "Döviz Satışı Kuralı" + "Acenta Tahsilatı Tespiti".
+Test: `tests/test_auto_tagger.py` (15) + `test_cash_flow_taccount.py::TestTAccountBankName` +
+frontend `bankBadge.test.ts` / `cashflow.test.ts`.

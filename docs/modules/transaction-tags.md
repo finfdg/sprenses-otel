@@ -131,6 +131,53 @@ Bu sayede nakit akım raporunda kategori bazlı gruplama yapılabilir.
 2. **Ödeme yöntemi:** EFT/Havale transferleri vs. POS ödemeleri ayrımı
 3. **Cari eşleştirme:** Açıklamadaki cari kodu/adı `vendors` tablosunda aranır
 
+### Döviz Satışı Kuralı (2026-07-13)
+
+`AUTO_TAG_RULES`'ta **"Döviz Satışı"** kuralı (`dvz sat|doviz sat`) **"Kredi" kuralından ÖNCE**
+gelir — "Döviz Internet - Mobil **YapiKredi**FX+ Dvz Satis" açıklaması "kredi" desenini de
+içerdiğinden döviz satışları yanlışlıkla Kredi etiketleniyordu (canlı bug; Panel T-Hesap'ta
+"Kredi" gelir grubu olarak görünüyordu). Mevcut **"Döviz Satım"** kategorisiyle karıştırma:
+Döviz Satım = çift-bacak iç transfer (T-Hesap/nakit akımdan HARİÇ), **Döviz Satışı = görünür
+kategori** (kullanıcı kararı — döviz bozdurma geliri/gideri T-Hesap'ta başlık olarak izlenir).
+
+### Acenta Tahsilatı Tespiti (2026-07-13, `_tag_agency_collections`)
+
+Acente ödemelerinin banka açıklaması çoğu zaman kırpık gelir ("TRAVE/020726/278982",
+"SEYAHAT ACENT/030726/…") → kelime kuralı yetmez. Etiketsiz **GELİR** işlemleri üç sinyalle
+**"Acenta"** kategorisine etiketlenir (auto_tag_transactions içinde, kelime kurallarından ÖNCE):
+
+1. **Sedna tahsilat eşleşmesi:** `sales_collections`'taki acente tahsilatıyla (120.01.* kodu
+   veya turizm/travel isim ipuçlu 120.*) tutar + para birimi birebir (kuruş), tarih ±4 gün.
+   Döviz tahsilatın TL karşılığı (amount) TRY hesap eşleşmesi için ayrıca indekslenir.
+2. **Acente adı token'ı:** `agency_groups` (ad+üyeler) + `reservations.agency` + acente
+   tahsilat müşteri adlarından ayırt edici token'lar; ≥2 token veya tek token ≥8 karakter
+   (auto_match_vendors kalite kuralı).
+3. **Açıklama ipucu:** `seyahat acent|travel|acente|acenta|touristik|reisen`.
+
+Guard'lar (çok-ajanlı inceleme + canlı dry-run sonrası sertleştirildi, 2026-07-13):
+- Yalnız `type='income'`; "virman/hesaplar arası" açıklamaları aday olamaz.
+- **Transfer görünümlü açıklamada (havale/EFT/FAST/transfer/para gönder) salt-tutar eşleşmesi
+  YETMEZ** — isim token'ı veya açıklama ipucu eş-sinyali şart (kendi bankalar-arası
+  transferler + misafir FAST ödemeleri tutar çakışmasıyla Acenta'ya düşüyordu).
+- **Her tahsilat en çok BİR işlemi etiketler** (tüketilir) — aynı paranın devam-transferi
+  ikinci kez etiketlenmez.
+- **120.01.* saf acente segmenti DEĞİL** (canlıda Vodafone, TT Mobil, banka ATM-kira,
+  gerçek kişi kayıtları var) → banka/telekom/kira/market adlı tahsilat müşterileri blok
+  listesiyle (`_AGENCY_NAME_BLOCK`) tamamen elenir; token havuzuna yalnız isim-ipucu-doğrulanmış
+  acente adları girer.
+- **Jenerik kelimeler token olamaz** (`_AGENCY_TOKEN_SKIP`: işletmeciliği/otel/hotels/group/
+  turkiye/bankasi/vodafone…) ve ≥2-token kuralı **aynı acentenin** kümesinden sağlanmalı
+  (çapraz-acente kombinasyon eşleşme sayılmaz).
+- Bireysel misafir tahsilatları (120.26.*) **bilinçli hariç** (acenta değildir).
+
+Düzeltme davranışı: yanlış otomatik etiket **başka bir kategoriye manuel taşınırsa kalıcıdır**
+(kural yalnız `category_id IS NULL` işler). Etiketi tamamen KALDIRMAK (Etiketsiz'e çevirmek)
+ise kalıcı değildir — sonraki otomatik koşu (ekstre yüklemesi / Sedna sync / rematch) kurala
+uyan işlemi yeniden etiketler; bu, tüm otomatik kurallar için geçerli genel davranıştır.
+
+**Yönetilen kategoriler:** "Döviz Satışı" (cyan) ve "Acenta" (teal) yoksa
+`_get_or_create_category` ile otomatik oluşturulur (migration gerekmez, test DB'de de çalışır).
+
 ---
 
 ## Audit Log Entegrasyonu

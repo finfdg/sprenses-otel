@@ -47,6 +47,8 @@ export type CashItem = {
 	/** Bekletme kimliği (varsa) — projeksiyon/sentetik kalemlerde null. */
 	source_type?: string | null;
 	source_id?: number | null;
+	/** Hareketin bankası (varsa) — satır başı banka amblemi için. */
+	bank_name?: string | null;
 };
 
 export type CashRow = {
@@ -59,6 +61,8 @@ export type CashRow = {
 	count: number;
 	/** Bu satırı oluşturan bekletilebilir kaynak kalemleri (toplu satırda tümü) — hold-batch için. */
 	members: SourceRef[];
+	/** Tekil banka adı; toplu satırda bankalar karışıksa/boşsa null (→ amblem çizilmez). */
+	bank_name: string | null;
 };
 
 /** Bir kalemin bekletilebilir kaynak kimliğini döner (yoksa null). */
@@ -83,15 +87,16 @@ export function aggregateRows(items: CashItem[], aggregate: boolean): CashRow[] 
 				currency: it.currency,
 				count: 1,
 				members: ref ? [ref] : [],
+				bank_name: it.bank_name ?? null,
 			};
 		});
 	}
-	const map = new Map<string, { name: string; eur: number; native: number; currencies: Set<string>; count: number; members: SourceRef[] }>();
+	const map = new Map<string, { name: string; eur: number; native: number; currencies: Set<string>; count: number; members: SourceRef[]; banks: Set<string | null> }>();
 	const order: string[] = [];
 	for (const it of items) {
 		let r = map.get(it.name);
 		if (!r) {
-			r = { name: it.name, eur: 0, native: 0, currencies: new Set<string>(), count: 0, members: [] };
+			r = { name: it.name, eur: 0, native: 0, currencies: new Set<string>(), count: 0, members: [], banks: new Set<string | null>() };
 			map.set(it.name, r);
 			order.push(it.name);
 		}
@@ -99,6 +104,7 @@ export function aggregateRows(items: CashItem[], aggregate: boolean): CashRow[] 
 		r.native += it.amount_native;
 		r.currencies.add(it.currency);
 		r.count++;
+		r.banks.add(it.bank_name ?? null);
 		const ref = _sourceRef(it);
 		if (ref) r.members.push(ref);
 	}
@@ -112,5 +118,6 @@ export function aggregateRows(items: CashItem[], aggregate: boolean): CashRow[] 
 			currency: r.currencies.size === 1 ? [...r.currencies][0] : null,
 			count: r.count,
 			members: r.members,
+			bank_name: r.banks.size === 1 ? [...r.banks][0] : null,
 		}));
 }
