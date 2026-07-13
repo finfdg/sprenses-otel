@@ -65,6 +65,10 @@
 				? `${labelIso(firstNeg.date)}'de bakiye negatife düşüyor`
 				: 'Dönem boyunca nakit pozitif kalıyor',
 			zeroY: mapY(0).toFixed(1),
+			// Çizgi rengini 0 çizgisinde böl: üstü (pozitif) yeşil, altı (negatif) turuncu.
+			// Gradyan stop'u 0'ın viewBox içindeki dikey oranına (0..1) konur → tek polyline
+			// hem yeşil hem turuncu görünür (negatife düşene kadar yeşil devam eder).
+			zeroOffset: Math.min(1, Math.max(0, mapY(0) / 120)).toFixed(4),
 			lowX: mapX(low.t).toFixed(1),
 			lowY: mapY(low.bal).toFixed(1),
 			lowLabel: `${labelIso(low.date)} · ${signed(low.bal)}`,
@@ -117,8 +121,14 @@
 			<div class="relative" style="touch-action:none" role="img" aria-label="Dönem banka bakiyesi runway eğrisi — üzerinde gezinerek gün ve bakiye görün"
 				onpointermove={onChartMove} onpointerdown={onChartMove} onpointerleave={onChartLeave}>
 				<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" aria-hidden="true">
+					<defs>
+						<linearGradient id="runwayStroke" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="120">
+							<stop offset={proj.zeroOffset} stop-color="#8fd0a8" />
+							<stop offset={proj.zeroOffset} stop-color="#e8a06a" />
+						</linearGradient>
+					</defs>
 					<line x1="0" y1={proj.zeroY} x2="620" y2={proj.zeroY} stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
-					<polyline points={proj.pts} fill="none" stroke={proj.negative ? '#e8a06a' : '#8fd0a8'} stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+					<polyline points={proj.pts} fill="none" stroke="url(#runwayStroke)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
 					<circle cx={proj.lowX} cy={proj.lowY} r="4.5" fill="#e8c979" />
 				</svg>
 				{#if hoverIdx !== null && proj.byDay[hoverIdx]}
