@@ -604,11 +604,15 @@ bilinçli, aksi 403 toast'ı üretirdi).
 
 `RunwayChart.svelte` iki kullanıcı isteğiyle güncellendi:
 
-- **Renk 0 çizgisinde bölünür:** Çizgi tek renk değildi — dönem içinde herhangi bir gün
-  negatife düşerse TÜM çizgi turuncu oluyordu (Ağustos ay başında pozitifken bile). Artık
-  SVG `linearGradient` (userSpaceOnUse, dikey; iki stop aynı `offset = mapY(0)/120`
-  noktasında) ile 0'ın ÜSTÜ yeşil (`#8fd0a8`), ALTI turuncu (`#e8a06a`) — bakiye negatife
-  düştüğü noktadan itibaren turuncuya döner. Tümü-pozitif dönem tamamen yeşil kalır.
+- **Renk 0 çizgisinde bölünür (KESKİN geçiş):** Çizgi tek renk değildi — dönem içinde
+  herhangi bir gün negatife düşerse TÜM çizgi turuncu oluyordu (Ağustos ay başında
+  pozitifken bile). Çözüm: çizgi **0-kesişim noktalarında ayrı polyline segmentlerine**
+  bölünür (doğrusal enterpolasyonla kesişim noktası bulunur) — pozitif segment yeşil
+  (`#8fd0a8`), negatif turuncu (`#e8a06a`); renk TAM kesişimde değişir. İlk deneme dikey
+  `linearGradient` idi (iki stop aynı offset'te) ama 0'a yakın seyreden çizgide stroke
+  genişliği renk sınırını kestiğinden iki renk harmanlanıp geçiş bulanık görünüyordu →
+  kullanıcı isteğiyle segment bölmeye geçildi (aynı gün). Tümü-pozitif dönem tamamen
+  yeşil kalır.
 - **Devreden bakiye ("Devir" noktası):** Grafik yalnız `daily`'de kaydı olan (hareketli)
   günleri çizdiğinden, dönem başında hareket yoksa çizgi ay ortasından başlıyordu (canlı:
   Ağustos 7 Ağu'dan başlıyordu). Artık dönemden ÖNCEKİ son bilinen bakiye (önceki dönemin

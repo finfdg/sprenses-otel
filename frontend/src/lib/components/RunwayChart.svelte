@@ -72,7 +72,33 @@
 		const top = 12, bottom = 108;
 		const mapX = (t: number) => ((t - startT) / spanMs) * 620;
 		const mapY = (v: number) => bottom - ((v - (lo - pad)) / ((hi + pad) - (lo - pad))) * (bottom - top);
-		const pts = pts0.map((p) => `${mapX(p.t).toFixed(1)},${mapY(p.bal).toFixed(1)}`).join(' ');
+		// KESKİN renk geçişi (kullanıcı isteği 2026-07-13): çizgi 0-kesişim noktalarında AYRI
+		// polyline segmentlerine bölünür — pozitif segment yeşil, negatif turuncu. (Önceki dikey
+		// gradyan, 0'a yakın seyreden çizgide stroke genişliği renk sınırını kestiğinden iki
+		// rengi harmanlıyor, geçiş bulanık görünüyordu.)
+		const fmtPt = (x: number, y: number) => `${x.toFixed(1)},${y.toFixed(1)}`;
+		const segments: { pts: string; color: string }[] = [];
+		let segPts: string[] = [fmtPt(mapX(pts0[0].t), mapY(pts0[0].bal))];
+		let segPos = pts0[0].bal >= 0;
+		const flushSeg = () => {
+			if (segPts.length >= 2) segments.push({ pts: segPts.join(' '), color: segPos ? '#8fd0a8' : '#e8a06a' });
+		};
+		for (let i = 1; i < pts0.length; i++) {
+			const a = pts0[i - 1], b = pts0[i];
+			const bPos = b.bal >= 0;
+			if (bPos !== segPos) {
+				// 0'ı kestiği noktayı doğrusal enterpolasyonla bul — renk TAM burada değişir
+				// (işaret farklı olduğundan payda sıfır olamaz)
+				const f = (0 - a.bal) / (b.bal - a.bal);
+				const cross = fmtPt(mapX(a.t + f * (b.t - a.t)), mapY(0));
+				segPts.push(cross);
+				flushSeg();
+				segPts = [cross];
+				segPos = bPos;
+			}
+			segPts.push(fmtPt(mapX(b.t), mapY(b.bal)));
+		}
+		flushSeg();
 
 		let low = pts0[0];
 		for (const p of pts0) if (p.bal < low.bal) low = p;
@@ -85,17 +111,13 @@
 		const startEur = balances?.total_balance_eur ?? pts0[pts0.length - 1].bal;
 
 		return {
-			pts, negative, startEur,
+			segments, negative, startEur,
 			statusText: firstNeg
 				? (firstNeg.carry
 					? 'Dönem negatif devir bakiyesiyle başlıyor'
 					: `Bakiye ${labelIso(firstNeg.date)} tarihinde negatife düşüyor`)
 				: 'Dönem boyunca nakit pozitif kalıyor',
 			zeroY: mapY(0).toFixed(1),
-			// Çizgi rengini 0 çizgisinde böl: üstü (pozitif) yeşil, altı (negatif) turuncu.
-			// Gradyan stop'u 0'ın viewBox içindeki dikey oranına (0..1) konur → tek polyline
-			// hem yeşil hem turuncu görünür (negatife düşene kadar yeşil devam eder).
-			zeroOffset: Math.min(1, Math.max(0, mapY(0) / 120)).toFixed(4),
 			// Kenar kırpılmasına karşı clamp — 1'inci gün (devir) / son gün minimumsa daire (r=4.5)
 			// viewBox kenarında yarım çizilmesin
 			lowX: Math.min(615.5, Math.max(4.5, mapX(low.t))).toFixed(1),
@@ -150,14 +172,10 @@
 			<div class="relative" style="touch-action:none" role="img" aria-label="Dönem banka bakiyesi runway eğrisi — üzerinde gezinerek gün ve bakiye görün"
 				onpointermove={onChartMove} onpointerdown={onChartMove} onpointerleave={onChartLeave}>
 				<svg viewBox="0 0 620 120" preserveAspectRatio="none" class="w-full h-[88px] block" aria-hidden="true">
-					<defs>
-						<linearGradient id="runwayStroke" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="120">
-							<stop offset={proj.zeroOffset} stop-color="#8fd0a8" />
-							<stop offset={proj.zeroOffset} stop-color="#e8a06a" />
-						</linearGradient>
-					</defs>
 					<line x1="0" y1={proj.zeroY} x2="620" y2={proj.zeroY} stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7" />
-					<polyline points={proj.pts} fill="none" stroke="url(#runwayStroke)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+					{#each proj.segments as seg}
+						<polyline points={seg.pts} fill="none" stroke={seg.color} stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+					{/each}
 					<circle cx={proj.lowX} cy={proj.lowY} r="4.5" fill="#e8c979" />
 				</svg>
 				{#if hoverIdx !== null && proj.byDay[hoverIdx]}
