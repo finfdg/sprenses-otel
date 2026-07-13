@@ -5,6 +5,43 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Cari Sedna Import — Cari Değişimi + RecId-Silinme + Senkron Hata Görünürlüğü (2026-07-13)
+
+**Canlı hata:** "Sedna verilerini çek" → "Cari hareketleri: İçe aktarma sırasında veritabanı
+hatası oluştu" — muhasebeci Sedna'da bir faturayı (FEF...1058, RecId 33044) FİNDER YANGIN
+(F041) carisinden FİNDER ELEKTRONİK (F040) carisine taşımıştı. Faz B güncelleme geçişi cari
+değişiminde satırı atlıyordu ("sweep/manuel akışına bırak") ama insert geçişi aynı RecId'li
+yeni satırı eklemeye çalışıp `ix_vendor_transactions_sedna_rec_id` UNIQUE ihlaliyle **TÜM
+cari adımını her senkronda düşürüyordu**. Üç düzeltme (`cariler/sedna_import.py`):
+
+- **Cari değişimi artık taşınır:** Aynı RecId Sedna'da başka hesap koduna geçtiyse KORUNMASIZ
+  yerel satır Sedna otoritesiyle **yeni cariye taşınır** (`row.vendor_id` + tüm alanlar + hash
+  + FE tazeleme). KORUNAN (eşleşmiş/atanmış) satır yerinde kalır → `report_entity_diff` ile
+  "cari değişimi: ESKİ → YENİ" sapması + mükerrer insert engeli.
+- **RecId-kimlikli silinme geçişi:** Sedna `Deleted=1` kümesindeki RecId yerelde duruyorsa
+  satır KESİN bayattır (kimlik birebir — kod/tutar değişse, cari kapsam dışı kalsa bile;
+  hash-bazlı süpürme bu durumu yakalayamıyordu çünkü hash hesap kodunu içerir). Korunmasız →
+  FE invalidate + sil (`_SWEEP_SAFETY_CAP` devre kesicili); korunan → sapma raporu. Canlı
+  senaryo buydu: fatura önce F041→F040 taşındı (crash), senkron düzelmeden F040'tan da
+  silindi → F041-hash'li yerel artık ancak RecId ile yakalanabildi (id 11000 otomatik
+  temizlendi; F041'in diğer 2 bayat kopyası elle silindi).
+- **Insert savunması:** `sedna_rec_id` damgası yerelde zaten damgalıysa yeni satır **damgasız**
+  eklenir (UNIQUE ihlali importu düşürmez); geri-doldurma geçişi aynı `stamped_recids`
+  kümesini paylaşır.
+
+**Senkron adım hataları artık Hata Logları'nda (`sedna_sync._log_step_error`):** Adım
+izolasyonu hatayı yuttuğundan global exception handler'a hiç ulaşmıyor, `error_logs` boş
+kalıyordu (kullanıcı bulgusu: "hata görünüyor ama hata kayıtlarında yok"). Başarısız adım
+artık `error_logs`'a yazılır (source=`sedna_sync.<key>`, tam traceback zinciriyle).
+**503 YAZILMAZ** (tünel kapalı/yapılandırılmamış = bilinen operasyonel durum — adım başına
+gürültü olurdu). Best-effort: log yazımı senkronu asla düşürmez.
+
+**Test:** `test_cariler_sedna.py` (cari değişimi taşıma / korunan-sapma / rec_id-silinme
+kapsam-dışı / korunan-silinme sapması / çift-rec_id insert savunması, 5 yeni) +
+`test_faz2_realtime.py::test_failed_step_writes_error_log_503_skipped`.
+
+---
+
 ## Acenta / Döviz Satışı Otomatik Etiketleme + T-Hesap Banka Amblemi (2026-07-13)
 
 Panel T-Hesap isteği (kullanıcı): acenta tahsilatları "Acenta" başlığında, döviz satışları

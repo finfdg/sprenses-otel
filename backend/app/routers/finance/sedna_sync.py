@@ -13,6 +13,7 @@ Bir adımın hatası diğerlerini durdurmaz (adım-bazlı izolasyon).
 Frontend butonu otomatik olarak yeni adımı çalıştırıp sonucunu gösterir.
 """
 import logging
+import traceback
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -73,6 +74,37 @@ def _run_bank_recon(db, user):
         db.rollback()
         logger.error("Cari bakiye mutabakatı hatası: %s", e)
     return summary
+
+
+def _log_step_error(db: Session, step: dict, exc: Exception, user, ip) -> None:
+    """Başarısız senkron adımını error_logs'a yaz — Hata Logları UI'da görünsün (2026-07-13).
+
+    Adım hataları izolasyonla yakalandığından global exception handler'a (main.py)
+    hiç ulaşmaz → eskiden yalnız journald + senkron modalında görünüyor, Hata Logları
+    boş kalıyordu. 503 (tünel kapalı / yapılandırılmamış) bilinen operasyonel durum
+    olduğundan YAZILMAZ (her adımda tekrarlanıp gürültü olurdu). Best-effort: log
+    yazımı patlarsa senkron akışını düşürmez. Çağıran db.rollback() yaptıktan sonra
+    çağırmalı (temiz session'a commit edilir).
+    """
+    if isinstance(exc, HTTPException) and exc.status_code == 503:
+        return
+    try:
+        from app.models.error_log import ErrorLog
+        message = exc.detail if isinstance(exc, HTTPException) else str(exc)
+        db.add(ErrorLog(
+            level="ERROR",
+            source=f"sedna_sync.{step['key']}",
+            message=f"Sedna senkron adımı '{step['label']}' başarısız: {message}"[:2000],
+            traceback=traceback.format_exc()[:5000],
+            method="POST",
+            path="/api/finance/sedna/sync-all",
+            user_id=user.id if user else None,
+            ip_address=ip,
+        ))
+        db.commit()
+    except Exception:  # noqa: BLE001 — log yazımı senkronu asla düşürmesin
+        db.rollback()
+        logger.exception("Sedna senkron adım hatası error_logs'a yazılamadı")
 
 
 def _summarize(key: str, d: dict) -> str:
@@ -154,10 +186,12 @@ def run_sync_all_steps(db: Session, user: User, ip: str, progress=None) -> dict:
             ok = True
         except HTTPException as e:
             db.rollback()
+            _log_step_error(db, st, e, user, ip)
             summary, ok = str(e.detail), False
         except Exception as e:  # noqa: BLE001 — adım izolasyonu: biri patlarsa diğerleri sürer
             db.rollback()
             logger.error("Sedna sync adımı '%s' hatası: %s", st["key"], e, exc_info=True)
+            _log_step_error(db, st, e, user, ip)
             summary, ok = "Beklenmeyen hata", False
         results.append({"key": st["key"], "label": st["label"], "ok": ok,
                         "skipped": False, "summary": summary})

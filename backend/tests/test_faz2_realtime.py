@@ -349,6 +349,47 @@ class TestRunSyncAllSteps:
         # Adım yayını ANINDA: yalnız başarılı adım için (hatalı adım yayınlamaz)
         assert notify_calls == [("checks", "upload")]
 
+    def test_failed_step_writes_error_log_503_skipped(self, db, monkeypatch):
+        """Adım hatası error_logs'a yazılır (Hata Logları görünürlüğü, 2026-07-13) —
+        adım izolasyonu hatayı yuttuğundan global handler'a hiç ulaşmıyordu, senkron
+        hataları UI Hata Logları'nda görünmüyordu. 503 (tünel kapalı) bilinen
+        operasyonel durum → YAZILMAZ (adım başına gürültü olurdu)."""
+        from app.models.error_log import ErrorLog
+
+        def _db_boom(db_, user_, ip_):
+            raise HTTPException(status_code=500, detail="İçe aktarma sırasında veritabanı hatası oluştu.")
+
+        def _tunnel_down(db_, user_, ip_):
+            raise HTTPException(status_code=503, detail="Sedna kapalı")
+
+        def _unexpected(db_, user_, ip_):
+            raise ValueError("beklenmedik patlama")
+
+        monkeypatch.setattr(sedna_sync, "_STEPS", [
+            {"key": "e500", "label": "Hatalı Adım", "module": "finance.checks",
+             "run": _db_boom, "broadcast": None},
+            {"key": "e503", "label": "Tünel Adımı", "module": "finance.checks",
+             "run": _tunnel_down, "broadcast": None},
+            {"key": "eunexp", "label": "Sürpriz Adım", "module": "finance.checks",
+             "run": _unexpected, "broadcast": None},
+        ])
+        admin = _admin(db)
+        before = db.query(ErrorLog).count()
+
+        result = sedna_sync.run_sync_all_steps(db, admin, "1.2.3.4")
+
+        assert result["ok_count"] == 0
+        assert db.query(ErrorLog).count() == before + 2  # 500 + beklenmedik; 503 YOK
+        logs = db.query(ErrorLog).order_by(ErrorLog.id.desc()).limit(2).all()
+        by_source = {log.source: log for log in logs}
+        assert set(by_source) == {"sedna_sync.e500", "sedna_sync.eunexp"}
+        assert "veritabanı hatası" in by_source["sedna_sync.e500"].message
+        assert "Hatalı Adım" in by_source["sedna_sync.e500"].message
+        assert "beklenmedik patlama" in by_source["sedna_sync.eunexp"].message
+        assert by_source["sedna_sync.e500"].user_id == admin.id
+        assert by_source["sedna_sync.e500"].ip_address == "1.2.3.4"
+        assert by_source["sedna_sync.e500"].path == "/api/finance/sedna/sync-all"
+
     def test_unpermitted_steps_skipped(self, db, monkeypatch):
         """İzinsiz kullanıcının TÜM adımları 'Yetki yok' ile atlanır (koşulmadan)."""
         monkeypatch.setattr(sedna_sync, "_STEPS", _fake_steps())

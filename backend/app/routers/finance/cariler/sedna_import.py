@@ -258,10 +258,21 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
                 if tx is None or tx.tx_hash == row.tx_hash:
                     continue
                 vendor = vendor_map.get(tx.hesap_kodu)
-                if vendor is None or vendor.id != row.vendor_id:
-                    continue  # cari değişimi — sweep/manuel akışına bırak
+                if vendor is None:
+                    continue  # savunmacı: kod bu koşuda çözülemedi — dokunma
+                # Cari değişimi: aynı RecId Sedna'da artık BAŞKA hesap kodunda (muhasebe
+                # hareketi başka cariye taşımış). Eskiden burada atlanıyordu ("sweep/manuel")
+                # ama insert geçişi aynı rec_id'li yeni satırı eklemeye çalışıp UNIQUE
+                # ihlaliyle TÜM importu düşürüyordu (canlı hata 2026-07-13, rec_id 33044).
+                # Artık korunmasız satır Sedna otoritesiyle yeni cariye TAŞINIR.
+                vendor_changed = vendor.id != row.vendor_id
                 guarded = row.match_number is not None or row.dept_status in ("assigned", "approved")
                 if guarded:
+                    vendor_note = ""
+                    if vendor_changed:
+                        old_vendor = db.get(Vendor, row.vendor_id)
+                        old_code = old_vendor.hesap_kodu if old_vendor else f"id={row.vendor_id}"
+                        vendor_note = f" · cari değişimi: {old_code} → {tx.hesap_kodu}"
                     report_entity_diff(
                         db, "vendor_tx", row.id,
                         amount=float(tx.alacak or tx.borc or 0), currency="TRY",
@@ -269,13 +280,19 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
                         description=(f"Yerel: {row.date} borç {row.borc} alacak {row.alacak} "
                                      f"evrak {row.evrak_no or '-'}"),
                         sedna_description=(f"Sedna: {tx.date} borç {tx.borc} alacak {tx.alacak} "
-                                           f"evrak {tx.evrak_no or '-'} · {tx.description or ''}"),
+                                           f"evrak {tx.evrak_no or '-'} · {tx.description or ''}"
+                                           f"{vendor_note}"),
                         sedna_rec_id=row.sedna_rec_id,
                     )
                     diff_ids.add(row.id)
                     existing.add((vendor.id, tx.tx_hash))  # mükerrer insert engeli
                     continue
                 # Korunmayan satır → Sedna otorite: alanları güncelle + FE tazele
+                if vendor_changed:
+                    logger.warning(
+                        "Sedna cari değişimi: tx id=%s rec_id=%s yeni cari %s (vendor_id %s → %s)",
+                        row.id, row.sedna_rec_id, tx.hesap_kodu, row.vendor_id, vendor.id)
+                    row.vendor_id = vendor.id
                 row.date = tx.date
                 row.evrak_no = tx.evrak_no
                 row.transaction_type = tx.transaction_type
@@ -296,6 +313,65 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
                 existing.add((vendor.id, tx.tx_hash))
                 updated_count += 1
 
+        # ── Faz B: rec_id-kimlikli SİLİNME geçişi (2026-07-13) ──
+        # Sedna'da Deleted=1 olan RecId yerelde hâlâ duruyorsa satır KESİN bayattır
+        # (rec kimliği birebir; kod/tutar değişse bile). Hash-bazlı süpürme hesap kodu
+        # değişince yakalayamıyordu (canlı: FEF...1058 F041→F040 taşınıp silindi;
+        # F041-hash'li yerel satır hem hash hem kapsam dışı kaldı). Korunan satır
+        # SİLİNMEZ → sapma raporlanır (mevcut politika).
+        deleted_recids = {int(r["rec_id"]) for r in deleted_rows if r.get("rec_id") is not None}
+        deleted_recids -= set(parsed_by_recid.keys())  # savunmacı: aktifte de görünen rec'e dokunma
+        recid_deleted_count = 0
+        if deleted_recids:
+            from app.services.sedna_recon_service import report_entity_diff
+            doomed = (
+                db.query(VendorTransaction)
+                .filter(VendorTransaction.sedna_rec_id.in_(list(deleted_recids)))
+                .all()
+            )
+            unguarded_doomed = [
+                r for r in doomed
+                if r.match_number is None and r.dept_status not in ("assigned", "approved")
+            ]
+            if len(unguarded_doomed) > _SWEEP_SAFETY_CAP:
+                logger.error(
+                    "Rec_id-silinme geçişi İPTAL: %d satır güvenlik tavanını (%d) aştı "
+                    "(olası Sedna veri sorunu) — hiçbiri silinmedi.",
+                    len(unguarded_doomed), _SWEEP_SAFETY_CAP)
+                unguarded_doomed = []
+            unguarded_ids = {r.id for r in unguarded_doomed}
+            for row in doomed:
+                if row.id in unguarded_ids:
+                    finance_event_svc.invalidate(db, "vendor_payment", row.id)
+                    logger.warning(
+                        "Sedna'da silinmiş (RecId %s) yerel cari satırı silindi: id=%s cari_id=%s "
+                        "tarih=%s borç=%s alacak=%s evrak=%s",
+                        row.sedna_rec_id, row.id, row.vendor_id, row.date, row.borc,
+                        row.alacak, row.evrak_no)
+                    db.delete(row)
+                    recid_deleted_count += 1
+                else:
+                    report_entity_diff(
+                        db, "vendor_tx", row.id,
+                        amount=float(row.alacak or row.borc or 0), currency="TRY",
+                        event_date=row.date,
+                        description=(f"Eşleşmiş/atanmış yerel kayıt: {row.date} borç {row.borc} "
+                                     f"alacak {row.alacak} evrak {row.evrak_no or '-'}"),
+                        sedna_description="Sedna'da SİLİNMİŞ (Deleted=1, RecId) — muhasebeyle görüşün",
+                        sedna_rec_id=row.sedna_rec_id,
+                    )
+                    diff_ids.add(row.id)
+            if recid_deleted_count:
+                db.flush()
+
+        # Yerelde zaten damgalı rec_id kümesi — insert aynı rec_id'yi İKİNCİ satıra yazmaz
+        # (partial-unique ihlali tüm importu düşürür; çakışan satır damgasız eklenir,
+        # kimlik eski satır temizlenince sonraki koşunun geri-doldurmasıyla çözülür).
+        stamped_recids = {
+            rid for (rid,) in db.query(VendorTransaction.sedna_rec_id)
+            .filter(VendorTransaction.sedna_rec_id.isnot(None)).all()
+        }
+
         new_count = 0
         skipped = 0
         for tx in parsed:
@@ -307,15 +383,23 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
             payment_due = None
             if tx.alacak > 0 and tx.date:
                 payment_due = calculate_payment_friday(tx.date, vendor.payment_days)
+            rid = rec_by_hash.get(tx.tx_hash)
+            if rid is not None and rid in stamped_recids:
+                logger.warning(
+                    "Sedna rec_id çakışması: %s başka yerel satırda damgalı — yeni satır damgasız eklendi (evrak=%s)",
+                    rid, tx.evrak_no)
+                rid = None
             vtx = VendorTransaction(
                 vendor_id=vendor.id, upload_id=upload.id, date=tx.date,
                 evrak_no=tx.evrak_no, transaction_type=tx.transaction_type, fis_no=tx.fis_no,
                 description=tx.description, borc=tx.borc, alacak=tx.alacak, bakiye=tx.bakiye,
                 tx_hash=tx.tx_hash, payment_due_date=payment_due,
-                sedna_rec_id=rec_by_hash.get(tx.tx_hash),
+                sedna_rec_id=rid,
             )
             db.add(vtx)
             db.flush()
+            if rid is not None:
+                stamped_recids.add(rid)
             if payment_due:
                 finance_event_svc.upsert_vendor_tx(db, vtx, vendor, float(tx.alacak))
             existing.add(key)
@@ -323,10 +407,6 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
 
         # ── Faz B: rec_id geri-doldurma (hash'i eşleşen eski satırlara kimlik damgası) ──
         if rec_by_hash and vids:
-            stamped_recids = {
-                rid for (rid,) in db.query(VendorTransaction.sedna_rec_id)
-                .filter(VendorTransaction.sedna_rec_id.isnot(None)).all()
-            }
             for row in (
                 db.query(VendorTransaction)
                 .filter(VendorTransaction.vendor_id.in_(vids),
@@ -390,6 +470,8 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
         details = f"Sedna içe aktarma: {new_count} yeni, {skipped} mükerrer"
         if updated_count:
             details += f", {updated_count} rec_id-güncellendi"
+        if recid_deleted_count:
+            details += f", {recid_deleted_count} rec_id-silinmiş temizlendi"
         if diff_ids:
             details += f", {len(diff_ids)} korunan-sapma raporlandı"
         if swept_ids:

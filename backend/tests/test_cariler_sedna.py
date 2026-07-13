@@ -117,6 +117,155 @@ def test_sedna_import_auto_sweeps_stale_rows(client, auth_headers, db):
     assert sum(float(x.borc or 0) for x in rows) == 75000 + 999
 
 
+# --- Cari değişimi (Faz B rec_id, 2026-07-13 canlı hata regresyonu) ---
+
+def _srow(code, name, evrak, alacak, rec, tarih=date(2026, 6, 2)):
+    return {"hesap_kodu": code, "hesap_adi": name, "tarih": tarih,
+            "evrak_no": evrak, "islem_tipi": "Hizmet Alış Fatura", "fis_no": None,
+            "aciklama": f"ev{evrak}", "borc": 0, "alacak": alacak, "pay_day": 0,
+            "rec_id": rec}
+
+
+def _import(client, auth_headers, rows, deleted=None):
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_cari_transactions", return_value=rows), \
+         patch(f"{TARGET}.fetch_cari_deleted_rows", return_value=deleted or []):
+        return client.post(f"{PREFIX}/sedna-import", headers=auth_headers)
+
+
+def test_sedna_import_vendor_change_moves_unguarded_row(client, auth_headers, db):
+    """Cari değişimi (2026-07-13 canlı hata): Sedna'da hareket başka cariye taşınırsa
+    (RecId aynı, hesap_kodu farklı) korunmasız yerel satır YENİ cariye TAŞINMALI.
+    Eskiden update geçişi atlıyor, insert aynı rec_id ile UNIQUE ihlali verip TÜM
+    importu 500 düşürüyordu (canlı: rec_id 33044, FİNDER F041→F040)."""
+    from app.models.vendor import Vendor
+    from app.models.vendor_transaction import VendorTransaction
+
+    r1 = _import(client, auth_headers, [_srow("320.77.03.Y041", "YANLIŞ CARİ", "FEF1058", 60441.46, 933044)])
+    assert r1.status_code == 200, r1.text
+    old_v = db.query(Vendor).filter(Vendor.hesap_kodu == "320.77.03.Y041").first()
+    row = db.query(VendorTransaction).filter(VendorTransaction.sedna_rec_id == 933044).one()
+    assert row.vendor_id == old_v.id
+    row_id = row.id
+
+    # Sedna: aynı RecId artık başka hesap kodunda (muhasebe cariyi düzeltti)
+    r2 = _import(client, auth_headers, [_srow("320.77.03.D040", "DOĞRU CARİ", "FEF1058", 60441.46, 933044)])
+    assert r2.status_code == 200, r2.text  # eskiden 500 (UniqueViolation)
+
+    db.expire_all()
+    new_v = db.query(Vendor).filter(Vendor.hesap_kodu == "320.77.03.D040").first()
+    rows = db.query(VendorTransaction).filter(VendorTransaction.sedna_rec_id == 933044).all()
+    assert len(rows) == 1, "mükerrer satır oluşmamalı"
+    assert rows[0].id == row_id and rows[0].vendor_id == new_v.id, "satır yeni cariye taşınmalı"
+    assert db.query(VendorTransaction).filter(
+        VendorTransaction.vendor_id == old_v.id).count() == 0, "eski caride bayat kopya kalmamalı"
+
+
+def test_sedna_import_vendor_change_guarded_reports_diff(client, auth_headers, db):
+    """Korunan (eşleşmiş) satırda cari değişimi: satır YERİNDE kalır, sapma (sedna_diff)
+    raporlanır, yeni cariye mükerrer satır EKLENMEZ ve import düşmez."""
+    from app.models import SednaBankRecon
+    from app.models.vendor import Vendor
+    from app.models.vendor_transaction import VendorTransaction
+
+    r1 = _import(client, auth_headers, [_srow("320.77.04.Y042", "KORUNAN ESKİ", "FEF2099", 500.0, 944055)])
+    assert r1.status_code == 200, r1.text
+    row = db.query(VendorTransaction).filter(VendorTransaction.sedna_rec_id == 944055).one()
+    row.match_number = 987654  # banka/çek eşleşmiş — korunan
+    db.commit()
+    row_id = row.id
+
+    r2 = _import(client, auth_headers, [_srow("320.77.04.D042", "KORUNAN YENİ", "FEF2099", 500.0, 944055)])
+    assert r2.status_code == 200, r2.text
+
+    db.expire_all()
+    old_v = db.query(Vendor).filter(Vendor.hesap_kodu == "320.77.04.Y042").first()
+    new_v = db.query(Vendor).filter(Vendor.hesap_kodu == "320.77.04.D042").first()
+    row = db.query(VendorTransaction).filter(VendorTransaction.id == row_id).one()
+    assert row.vendor_id == old_v.id, "korunan satır eski carisinde kalmalı"
+    assert db.query(VendorTransaction).filter(
+        VendorTransaction.vendor_id == new_v.id).count() == 0, "mükerrer insert engellenmeli"
+    diff = db.query(SednaBankRecon).filter(
+        SednaBankRecon.entity_type == "vendor_tx",
+        SednaBankRecon.entity_id == row_id).one()
+    assert diff.resolved_at is None
+    assert "cari değişimi" in (diff.sedna_description or "")
+    assert "320.77.04.D042" in (diff.sedna_description or "")
+
+
+def test_sedna_import_recid_deleted_sweeps_even_out_of_scope(client, auth_headers, db):
+    """Rec_id-kimlikli silinme (2026-07-13): Sedna'da Deleted=1 olan RecId'nin yerel satırı
+    hesap kodu DEĞİŞMİŞ (hash uyuşmaz) ve cari kapsam DIŞI olsa bile silinmeli.
+    Canlı senaryo: fatura F041→F040 taşınıp ardından silindi; hash-bazlı süpürme
+    F041-hash'li satırı yakalayamıyordu."""
+    from app.models.vendor import Vendor
+    from app.models.vendor_transaction import VendorTransaction
+
+    r1 = _import(client, auth_headers, [_srow("320.77.06.S041", "SİLİNEN CARİ", "FEF3001", 750.0, 977088)])
+    assert r1.status_code == 200, r1.text
+    row = db.query(VendorTransaction).filter(VendorTransaction.sedna_rec_id == 977088).one()
+    row_id = row.id
+
+    # Sedna: hareket önce S040'a taşınmış SONRA silinmiş → aktifte yok, Deleted'da S040 koduyla.
+    # Aktif parse'ta S041 de yok (kapsam dışı) — buna rağmen rec kimliğiyle silinmeli.
+    aktif = [_srow("320.77.06.BASKA", "İLGİSİZ CARİ", "FEF3999", 10.0, 977999)]
+    deleted = [{"hesap_kodu": "320.77.06.S040", "tarih": date(2026, 6, 2),
+                "evrak_no": "FEF3001", "borc": 0, "alacak": 750.0, "rec_id": 977088}]
+    r2 = _import(client, auth_headers, aktif, deleted=deleted)
+    assert r2.status_code == 200, r2.text
+
+    db.expire_all()
+    assert db.query(VendorTransaction).filter(VendorTransaction.id == row_id).first() is None, \
+        "Sedna'da rec_id'siyle silinmiş satır yerelden de silinmeli"
+    v = db.query(Vendor).filter(Vendor.hesap_kodu == "320.77.06.S041").first()
+    assert db.query(VendorTransaction).filter(VendorTransaction.vendor_id == v.id).count() == 0
+
+
+def test_sedna_import_recid_deleted_guarded_kept_with_diff(client, auth_headers, db):
+    """Korunan (eşleşmiş) satırın RecId'si Sedna'da silinmişse: satır KORUNUR, sapma raporlanır."""
+    from app.models import SednaBankRecon
+    from app.models.vendor_transaction import VendorTransaction
+
+    r1 = _import(client, auth_headers, [_srow("320.77.07.K051", "KORUNAN SİLİNEN", "FEF4001", 300.0, 988099)])
+    assert r1.status_code == 200, r1.text
+    row = db.query(VendorTransaction).filter(VendorTransaction.sedna_rec_id == 988099).one()
+    row.match_number = 987655  # eşleşmiş — korunan
+    db.commit()
+    row_id = row.id
+
+    aktif = [_srow("320.77.07.BASKA", "İLGİSİZ CARİ", "FEF4999", 10.0, 988999)]
+    deleted = [{"hesap_kodu": "320.77.07.K051", "tarih": date(2026, 6, 2),
+                "evrak_no": "FEF4001", "borc": 0, "alacak": 300.0, "rec_id": 988099}]
+    r2 = _import(client, auth_headers, aktif, deleted=deleted)
+    assert r2.status_code == 200, r2.text
+
+    db.expire_all()
+    assert db.query(VendorTransaction).filter(VendorTransaction.id == row_id).first() is not None, \
+        "korunan satır silinmemeli"
+    diff = db.query(SednaBankRecon).filter(
+        SednaBankRecon.entity_type == "vendor_tx",
+        SednaBankRecon.entity_id == row_id).one()
+    assert diff.resolved_at is None
+    assert "SİLİNMİŞ" in (diff.sedna_description or "")
+
+
+def test_sedna_import_duplicate_recid_rows_insert_without_crash(client, auth_headers, db):
+    """Savunmacı insert koruması: aynı rec_id iki parse satırında görünürse ikincisi
+    DAMGASIZ eklenir — partial-unique ihlali importu düşürmez."""
+    from app.models.vendor import Vendor
+    from app.models.vendor_transaction import VendorTransaction
+
+    imp = [_srow("320.77.05.G001", "GUARD CARİ", "EV1", 100.0, 966077),
+           _srow("320.77.05.G001", "GUARD CARİ", "EV2", 200.0, 966077)]
+    r = _import(client, auth_headers, imp)
+    assert r.status_code == 200, r.text
+
+    v = db.query(Vendor).filter(Vendor.hesap_kodu == "320.77.05.G001").first()
+    rows = db.query(VendorTransaction).filter(VendorTransaction.vendor_id == v.id).all()
+    assert len(rows) == 2, "iki satır da eklenmeli"
+    assert len([x for x in rows if x.sedna_rec_id == 966077]) == 1, "rec_id yalnız BİR satırda damgalı olmalı"
+
+
 # --- Sedna IBAN içe aktarma (dbo.Bank → vendor_bank_accounts) ---
 
 FAKE_IBAN_ROWS = [
