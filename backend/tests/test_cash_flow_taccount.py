@@ -503,3 +503,23 @@ class TestTAccountBankName:
         cari = _group(body, "cikis", "Cari Ödemeleri")
         item = next(i for i in cari["items"] if i["name"] == "T-BANKA ROZET CARİ")
         assert item["bank_name"] is None
+
+
+class TestTAccountAgencyDisplayName:
+    """Acenta banka kalemi adı tag_note'tan (çözülen acente adı) gelir (2026-07-13)."""
+
+    def test_agency_item_shows_tag_note_instead_of_description(self, client, auth_headers, db):
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+        _mk_fe(db, direction=1, amount=5000, category_name="Acenta",
+               tag_note="NORDİC LEİSURE TRAVEL",
+               description="Diğer Diğer TRAVE/020726/278982")
+        _mk_fe(db, direction=1, amount=3000, category_name="Acenta",
+               description="Diğer Diğer SEYAHAT ACENT/999/1")  # tag_note yok → açıklama
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+        g = _group(body, "giris", "Acenta")
+        names = [i["name"] for i in g["items"]]
+        assert "NORDİC LEİSURE TRAVEL" in names
+        assert "Diğer Diğer SEYAHAT ACENT/999/1" in names
+        assert "Diğer Diğer TRAVE/020726/278982" not in names

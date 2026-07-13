@@ -69,9 +69,14 @@ Panel T-Hesap isteği (kullanıcı): acenta tahsilatları "Acenta" başlığınd
   de çalışır; unique(name) ilk-koşu yarışı SAVEPOINT ile emilir).
 - **`t_account.py`** item'ları `bank_name` taşır (FE.bank_name + KK projeksiyon kart bankası) →
   frontend `bankBadge.ts` marka renkli kısaltma rozeti çizer (`CashFlowTAccount.svelte`).
+- **Acenta kaleminde görünen ad = acente adı (aynı gün, kullanıcı isteği):** etiketleme
+  sırasında çözülen acentenin kısa adı (`_short_agency_name` — "PGST ANTALYA TURİZM SEYAHAT
+  ACENTASI TAŞ…" → "PGST") `tag_note`'a yazılır; `t_account._item_name` Acenta banka
+  kalemlerinde karışık açıklama yerine `tag_note` gösterir (çözülemezse açıklamaya düşer).
+  Mevcut 37 kayıt geriye dönük dolduruldu (hepsi çözüldü).
 
-Test: `tests/test_auto_tagger.py` + `TestTAccountBankName`. Doküman:
-`docs/modules/transaction-tags.md`, `docs/modules/nakit-akim.md`.
+Test: `tests/test_auto_tagger.py` + `TestTAccountBankName` + `TestTAccountAgencyDisplayName`.
+Doküman: `docs/modules/transaction-tags.md`, `docs/modules/nakit-akim.md`.
 
 ---
 

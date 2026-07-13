@@ -160,8 +160,21 @@ def _group_label(fe: FinanceEvent) -> str:
     return SOURCE_LABELS.get(fe.source_type, fe.source_type)
 
 
+# Acenta kalemlerinde görünen ad tag_note'tan gelir (auto_tagger acente adını çözer)
+AGENCY_LABEL = "Acenta"
+
+
 def _item_name(fe: FinanceEvent) -> str:
-    """Kalem adı: açıklama → banka adı → çek no → kaynak etiketi."""
+    """Kalem adı: (Acenta → çözülen acente adı) → açıklama → banka adı → çek no → etiket.
+
+    Acenta tahsilatlarının banka açıklaması kırpık/karışıktır ("Diğer Diğer
+    TRAVE/020726/278982", "Swift şubeden para yatırma Ref: …") — auto_tagger
+    eşleşen acente adını tag_note'a yazar; kullanıcı satırda onu görür (2026-07-13).
+    """
+    if fe.source_type == SOURCE_BANK and fe.category_name == AGENCY_LABEL:
+        note = (fe.tag_note or "").strip()
+        if note:
+            return note
     return (
         (fe.description or "").strip()
         or (fe.bank_name or "").strip()

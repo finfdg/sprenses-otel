@@ -330,19 +330,52 @@ def _agency_name_tokens(name: str) -> Set[str]:
     return tokens
 
 
-def _agency_collection_signals(db: Session) -> Tuple[Dict[Tuple[int, str], List[dict]], List[Set[str]]]:
+# Görünen ad üretiminde atılan ek son-ek/tür kelimeleri (_SKIP_WORDS + _AGENCY_TOKEN_SKIP'e ek)
+_AGENCY_DISPLAY_DROP = {
+    "seyahat", "acentasi", "acentesi", "acenta", "acente", "tas", "vat",
+    "tasimacilik", "org", "flug", "yat", "eml", "emlak",
+}
+
+
+def _short_agency_name(name: str) -> str:
+    """Tahsilat müşteri adından KISA görünen ad üret ("PGST ANTALYA TURİZM SEYAHAT
+    ACENTASI TAŞ..." → "PGST"). Kurumsal/tür kelimeleri atılır, ilk 3 anlamlı kelime
+    kalır — T-Hesap satırında karışık banka açıklaması yerine bu gösterilir."""
+    cleaned = re.sub(r"\([^)]*\)", "", name or "")
+    cleaned = re.sub(r"[.\-/,;:]+", " ", cleaned)
+    kept = []
+    for w in cleaned.split():
+        norm = _normalize(w.strip())
+        digit_ratio = sum(ch.isdigit() for ch in norm) / len(norm) if norm else 1.0
+        if (
+            len(norm) < 2
+            or norm in _SKIP_WORDS
+            or norm in _AGENCY_TOKEN_SKIP
+            or norm in _AGENCY_DISPLAY_DROP
+            or digit_ratio > 0.5  # referans/vergi numarası; "W2M" gibi markalar kalır
+        ):
+            continue
+        kept.append(w.strip())
+        if len(kept) >= 3:
+            break
+    short = " ".join(kept).strip()
+    return short[:40] if short else (name or "").strip()[:40]
+
+
+def _agency_collection_signals(db: Session) -> Tuple[Dict[Tuple[int, str], List[dict]], List[Tuple[str, Set[str]]]]:
     """Acente tahsilat sinyalleri.
 
     Döner: (amount_index, token_sets)
-    - amount_index: (kuruş, para birimi) → [{"date", "col_id"}] — kuruş hassasiyetinde
-      int anahtar (float sapması olmasın). Döviz tahsilatın TL karşılığı (amount) ayrıca
-      TRY anahtarıyla eklenir (EUR faturalı acente TL EFT'yle ödeyebilir); col_id ortak →
-      tek tahsilat toplamda EN ÇOK BİR işlemi etiketler.
-    - token_sets: ACENTE BAZINDA token kümeleri (çapraz-acente 2'li kombinasyon
-      eşleşme sayılmasın — auto_match_vendors'daki cari-bazlı keyword deseni).
+    - amount_index: (kuruş, para birimi) → [{"date", "col_id", "name"}] — kuruş
+      hassasiyetinde int anahtar (float sapması olmasın). Döviz tahsilatın TL karşılığı
+      (amount) ayrıca TRY anahtarıyla eklenir (EUR faturalı acente TL EFT'yle ödeyebilir);
+      col_id ortak → tek tahsilat toplamda EN ÇOK BİR işlemi etiketler. "name" = kısa
+      acente adı (görünen ad — tag_note'a yazılır).
+    - token_sets: ACENTE BAZINDA (kısa_ad, token kümesi) çiftleri (çapraz-acente 2'li
+      kombinasyon eşleşme sayılmasın — auto_match_vendors'daki cari-bazlı keyword deseni).
     """
     amount_index: Dict[Tuple[int, str], List[dict]] = defaultdict(list)
-    token_sets: List[Set[str]] = []
+    token_sets: List[Tuple[str, Set[str]]] = []
 
     collections = (
         db.query(SalesCollection)
@@ -357,34 +390,36 @@ def _agency_collection_signals(db: Session) -> Tuple[Dict[Tuple[int, str], List[
         is_agency = (col.customer_code or "").startswith(_AGENCY_CODE_PREFIX) or has_hint
         if not is_agency:
             continue
+        short_name = _short_agency_name(col.customer_name or "")
         # Token havuzuna yalnız isim-ipucu-doğrulanmış acenteler girer (segment saf
         # değil: kişi/karışık kayıtların adları token üretmesin); tutar sinyali için
         # segment yeterli (kuruş+para birimi+tarih birebir eşleşme zaten güçlü kanıt).
         if has_hint:
             tokens = _agency_name_tokens(col.customer_name or "")
             if tokens:
-                token_sets.append(tokens)
+                token_sets.append((short_name, tokens))
         cur = (col.currency or "TL").upper()
         cur = "TRY" if cur == "TL" else cur
         native = float(col.amount_currency or 0) or float(col.amount or 0)
         if native:
             amount_index[(int(round(native * 100)), cur)].append(
-                {"date": col.collection_date, "col_id": col.id}
+                {"date": col.collection_date, "col_id": col.id, "name": short_name}
             )
         if cur != "TRY" and col.amount:
             amount_index[(int(round(float(col.amount) * 100)), "TRY")].append(
-                {"date": col.collection_date, "col_id": col.id}
+                {"date": col.collection_date, "col_id": col.id, "name": short_name}
             )
 
     for grp in db.query(AgencyGroup).all():
         for name in [grp.name or ""] + list(grp.members or []):
             tokens = _agency_name_tokens(name)
             if tokens:
-                token_sets.append(tokens)
+                # Grubun görünen adı grup adıdır (üyeler tek markanın varyantları)
+                token_sets.append((_short_agency_name(grp.name or name), tokens))
     for (agency,) in db.query(Reservation.agency).distinct().all():
         tokens = _agency_name_tokens(agency or "")
         if tokens:
-            token_sets.append(tokens)
+            token_sets.append((_short_agency_name(agency or ""), tokens))
 
     return amount_index, token_sets
 
@@ -403,7 +438,7 @@ def _tag_agency_collections(
 
     # Açıklama ipucu sinyalsiz de çalışır — Sedna verisi boşken erken dönme (test bulgusu)
     amount_index, token_sets = _agency_collection_signals(db)
-    all_tokens: Set[str] = set().union(*token_sets) if token_sets else set()
+    all_tokens: Set[str] = set().union(*(ts for _, ts in token_sets)) if token_sets else set()
     account_currency = {a.id: (a.currency or "TRY").upper() for a in db.query(BankAccount).all()}
     window = timedelta(days=_AGENCY_DATE_WINDOW_DAYS)
     consumed_cols: Set[int] = set()  # tüketilen tahsilatlar (bir tahsilat = en çok bir işlem)
@@ -413,22 +448,30 @@ def _tag_agency_collections(
         normalized = _normalize(tx.description or "")
         desc_hit = bool(_AGENCY_DESC_HINT.search(normalized))
 
-        # Acente adı token eşleşmesi: AYNI acenteden ≥2 token veya tek token ≥8 karakter
+        # Acente adı token eşleşmesi: AYNI acenteden ≥2 token veya tek token ≥8 karakter.
+        # Eşleşen kümenin acente adı görünen ad olarak saklanır (tag_note).
         token_hit = False
+        token_name: Optional[str] = None
         if all_tokens:
             desc_words = {w for w in re.split(r"[^a-z0-9]+", normalized) if w}
-            hits = desc_words & all_tokens
-            if hits:
-                token_hit = any(len(h) >= _AGENCY_MIN_SINGLE_TOKEN for h in hits) or any(
-                    len(desc_words & ts) >= 2 for ts in token_sets
-                )
+            if desc_words & all_tokens:
+                for name, ts in token_sets:
+                    inter = desc_words & ts
+                    if len(inter) >= 2 or any(len(h) >= _AGENCY_MIN_SINGLE_TOKEN for h in inter):
+                        token_hit = True
+                        token_name = name
+                        break
 
         matched = desc_hit or token_hit
 
-        # Sedna tahsilat tutar eşleşmesi — transfer görünümlü açıklamada (havale/EFT/
-        # FAST/transfer) SALT-TUTAR yetmez: isim/ipucu eş-sinyali olmadan etiketleme
-        # (kendi transferleri + misafir FAST'leri tutar çakışmasına düşüyordu).
-        if not matched and amount_index and not _TRANSFERISH.search(normalized):
+        # Sedna tahsilat tutar eşleşmesi — İKİ amaçla: (a) eşleşme sinyali (yalnız
+        # transfer-görünümlü OLMAYAN açıklamada — kendi transferleri + misafir FAST'leri
+        # tutar çakışmasına düşüyordu), (b) hint/token'la eşleşmiş kalemin GÖRÜNEN ADINI
+        # tahsilat müşterisinden çözmek (kırpık açıklama yerine acente adı, tag_note).
+        amount_name: Optional[str] = None
+        need_signal = not matched and not _TRANSFERISH.search(normalized)
+        need_name = matched and token_name is None
+        if amount_index and (need_signal or need_name):
             cur = account_currency.get(tx.account_id, "TRY")
             cur = "TRY" if cur == "TL" else cur
             key = (int(round(abs(float(tx.amount)) * 100)), cur)
@@ -437,12 +480,18 @@ def _tag_agency_collections(
                     continue
                 if abs(tx.date - entry["date"]) <= window:
                     consumed_cols.add(entry["col_id"])
+                    amount_name = entry["name"]
                     matched = True
                     break
 
         if matched:
             tx.category_id = agency_cat_id
             tx.tag_source = "auto"
+            # Görünen ad: tahsilat müşterisi > token acentesi (T-Hesap karışık banka
+            # açıklaması yerine bunu gösterir); çözülemezse açıklama kalır.
+            display = amount_name or token_name
+            if display and not tx.tag_note:
+                tx.tag_note = display
             tagged.append(tx)
 
     return tagged

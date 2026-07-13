@@ -669,3 +669,10 @@ frontend `bankBadge.test.ts` / `cashflow.test.ts`.
    "Diğer Internet - Mobil" ücret-bacağı öneki (tavan TRY ≤250 — aynı önekli ₺10K+ tutarlar
    maskeli-PAN kart ödemesi, etiketlenmez). İlk canlı koşu: 198 kalem (~₺10.317).
    Detay: `docs/modules/transaction-tags.md` "Banka Havale/EFT Komisyon Tespiti".
+
+5. **(Aynı gün, üçüncü istek) Acenta kaleminde ad = acente adı** — "Açıklamalar çok karışık,
+   sadece acente isimlerini yazsa" isteği üzerine Acenta etiketlenen işleme çözülen acentenin
+   kısa adı `tag_note` olarak yazılır ve T-Hesap satırında açıklama yerine o gösterilir
+   (ör. "Diğer Diğer TRAVE/020726/278982" → "NORDİC LEİSURE TRAVEL", "Swift şubeden para
+   yatırma Ref: …" → "ALLTOURS FLUGREİSEN"). Ad çözülemezse açıklama görünmeye devam eder.
+   Detay: `docs/modules/transaction-tags.md` "Görünen ad = acente adı".

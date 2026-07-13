@@ -175,6 +175,14 @@ Düzeltme davranışı: yanlış otomatik etiket **başka bir kategoriye manuel 
 ise kalıcı değildir — sonraki otomatik koşu (ekstre yüklemesi / Sedna sync / rematch) kurala
 uyan işlemi yeniden etiketler; bu, tüm otomatik kurallar için geçerli genel davranıştır.
 
+**Görünen ad = acente adı (2026-07-13, kullanıcı isteği):** Acenta etiketi atılırken eşleşen
+acentenin KISA adı (`_short_agency_name` — kurumsal/tür kelimeleri atılır: "PGST ANTALYA
+TURİZM SEYAHAT ACENTASI TAŞ…" → "PGST") **`tag_note`'a yazılır** (tutar eşleşmesinde tahsilat
+müşterisinden, token eşleşmesinde acente kümesinin adından; salt-ipucu eşleşmesinde de tutar/token
+çözümü ayrıca denenir). Panel T-Hesap `_item_name` Acenta kalemlerinde karışık banka açıklaması
+("Diğer Diğer TRAVE/020726/278982", "Swift şubeden para yatırma Ref: …") yerine bu adı gösterir;
+ad çözülemezse açıklamaya düşer. Mevcut 37 kayıt 2026-07-13'te geriye dönük dolduruldu.
+
 ### Banka Havale/EFT Komisyon Tespiti (2026-07-13, `_tag_bank_fees`)
 
 Banka ücret/komisyon kalemleri Etiketsiz kalıyordu; **"Havale Komisyonları"** kategorisine

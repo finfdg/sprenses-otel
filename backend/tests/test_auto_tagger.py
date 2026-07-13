@@ -357,3 +357,47 @@ class TestBankFeeTagging:
         auto_tag_transactions(db, [big_leg.id, small_fee.id])
         assert _cat_of(db, big_leg) != "Havale Komisyonları"
         assert _cat_of(db, small_fee) == "Havale Komisyonları"
+
+
+class TestAgencyDisplayName:
+    """Acenta kaleminde görünen ad = çözülen acente adı (tag_note; 2026-07-13)."""
+
+    def test_short_agency_name(self, client):
+        from app.utils.auto_tagger import _short_agency_name
+        assert _short_agency_name("PGST ANTALYA TURİZM SEYAHAT ACENTASI TAŞ. VE TİC.") == "PGST"
+        assert _short_agency_name("OTS Open Travel Services AG") == "OTS Open Travel"
+        assert _short_agency_name("NORDİC LEİSURE TRAVEL GROUP AB ( NLTG )") == "NORDİC LEİSURE TRAVEL"
+        assert _short_agency_name("FUN AND SUN HOTELS OTEL İŞLETMECİLİĞİ TURİZM") == "FUN AND SUN"
+        assert _short_agency_name("MAYTATİL TURİZM LİMİTED ŞİRKETİ") == "MAYTATİL"
+        assert _short_agency_name("W2M S.L.U VAT:B62880992") == "W2M"
+
+    def test_amount_match_sets_tag_note(self, client, db):
+        acc = _mk_account(db, currency="EUR")
+        _mk_collection(
+            db, code="120.01.02.0016", name="NORDİC LEİSURE TRAVEL GROUP AB ( NLTG )",
+            col_date=TODAY, amount_tl=1952684.03, currency="EUR", amount_currency=36781.33,
+        )
+        btx = _mk_btx(db, acc, amount=36781.33, desc="Diğer Diğer TRAVE/020726/278982")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == AGENCY_CATEGORY
+        assert btx.tag_note == "NORDİC LEİSURE TRAVEL"
+
+    def test_hint_match_resolves_name_from_collection(self, client, db):
+        """Açıklama ipucuyla eşleşen kalem bile adını tutar-eş tahsilattan çözer."""
+        acc = _mk_account(db, currency="EUR")
+        _mk_collection(
+            db, code="120.01.01.P003", name="PGST ANTALYA TURİZM SEYAHAT ACENTASI TAŞ.",
+            col_date=TODAY, amount_tl=717785.55, currency="EUR", amount_currency=13500.00,
+        )
+        btx = _mk_btx(db, acc, amount=13500.00, desc="Diğer Diğer SEYAHAT ACENT/030726/352484")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == AGENCY_CATEGORY
+        assert btx.tag_note == "PGST"
+
+    def test_unresolvable_hint_keeps_tag_note_empty(self, client, db):
+        """Çözülemeyen (tahsilatsız/token'sız) ipucu kalemi tag_note almaz → açıklama görünür."""
+        acc = _mk_account(db, currency="EUR")
+        btx = _mk_btx(db, acc, amount=4321.00, desc="Diğer Diğer SEYAHAT ACENT/999999/1")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == AGENCY_CATEGORY
+        assert btx.tag_note is None
