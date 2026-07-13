@@ -5,6 +5,9 @@
 	AYNI kaynak → iki görünüm tutarlı; GERÇEK günlük banka bakiyesi: geçmiş=fiili, gelecek=projeksiyon).
 	Seçili dönemin (`startDate..endDate`) günlük bakiyeleri dilimlenip çizilir → dönem sekmesi ve
 	ileri/geri gezinmeyle değişir. Bakiye 0 çizgisinin altına düşerse "negatife düşüyor" uyarısı.
+	Çizgi rengi 0 çizgisinde bölünür (üstü yeşil / altı turuncu — negatife düşene kadar yeşil,
+	2026-07-13) ve dönem başında hareket yoksa önceki dönemin kapanış bakiyesi 1'inci güne
+	"Devir" noktası olarak eklenir → çizgi her zaman dönem başından başlar (aynı gün).
 	(2026-07-06: önce T-Hesap akışından geriye-hesaplanıyordu → geçmiş bakiyeler yanlış çıkıyordu
 	[1 Tem gerçek €6.822 iken −€14.916 gösteriyordu]; eur_balances gerçek bakiyeye geçildi.)
 -->
@@ -30,15 +33,37 @@
 	const proj = $derived.by(() => {
 		const daily = balances?.daily;
 		if (!daily || !startDate || !endDate) return null;
+		const mkPt = (d: string, bal: number, carry = false) => ({
+			t: new Date(d + 'T00:00:00').getTime(), bal, date: d, carry,
+		});
+		const allDates = Object.keys(daily).sort();
 		// Seçili dönem içindeki hareketli günlerin GERÇEK banka bakiyeleri (tarih sıralı)
-		const pts0 = Object.keys(daily)
+		const pts0 = allDates
 			.filter((d) => d >= startDate && d <= endDate)
-			.sort()
-			.map((d) => ({ t: new Date(d + 'T00:00:00').getTime(), bal: daily[d].balance_eur, date: d }));
-		if (pts0.length === 0) return null;
+			.map((d) => mkPt(d, daily[d].balance_eur));
+		// DEVREDEN BAKİYE (2026-07-13, kullanıcı isteği): dönem başında hareket yoksa çizgi ay
+		// ortasından başlıyordu (ilk hareketli gün). Dönemden ÖNCEKİ son bilinen bakiye 1'inci
+		// güne "Devir" noktası olarak eklenir → çizgi her zaman dönem başından başlar. Son
+		// hareket dönem sonundan önce bitiyorsa bakiye dönem sonuna düz uzatılır (hareketsiz
+		// günlerde bakiye değişmez). Dönemde hiç hareket yoksa düz devir çizgisi çizilir.
+		const prevDate = allDates.filter((d) => d < startDate).pop();
+		const carryBal = prevDate !== undefined ? daily[prevDate].balance_eur : null;
 
 		const startT = new Date(startDate + 'T00:00:00').getTime();
-		const endT = new Date(endDate + 'T00:00:00').getTime();
+		// Günlük görünümde (start==end) eksen 0 uzunlukta kalır → 1 günlük eksen kullanılır;
+		// böylece düz devir/uzatma çizgisi görünmez nokta değil tam-genişlik çizgi olur.
+		const endT0 = new Date(endDate + 'T00:00:00').getTime();
+		const endT = endT0 > startT ? endT0 : startT + 86400000;
+
+		if (pts0.length === 0) {
+			if (carryBal === null) return null;
+			pts0.push(mkPt(startDate, carryBal, true), { ...mkPt(endDate, carryBal), t: endT });
+		} else {
+			if (pts0[0].date > startDate && carryBal !== null) pts0.unshift(mkPt(startDate, carryBal, true));
+			const lastPt = pts0[pts0.length - 1];
+			if (lastPt.t < endT) pts0.push({ ...mkPt(endDate, lastPt.bal), t: endT });
+		}
+
 		const spanMs = Math.max(1, endT - startT);
 		const vals = pts0.map((p) => p.bal);
 		const hi = Math.max(0, ...vals);
@@ -62,19 +87,23 @@
 		return {
 			pts, negative, startEur,
 			statusText: firstNeg
-				? `${labelIso(firstNeg.date)}'de bakiye negatife düşüyor`
+				? (firstNeg.carry
+					? 'Dönem negatif devir bakiyesiyle başlıyor'
+					: `Bakiye ${labelIso(firstNeg.date)} tarihinde negatife düşüyor`)
 				: 'Dönem boyunca nakit pozitif kalıyor',
 			zeroY: mapY(0).toFixed(1),
 			// Çizgi rengini 0 çizgisinde böl: üstü (pozitif) yeşil, altı (negatif) turuncu.
 			// Gradyan stop'u 0'ın viewBox içindeki dikey oranına (0..1) konur → tek polyline
 			// hem yeşil hem turuncu görünür (negatife düşene kadar yeşil devam eder).
 			zeroOffset: Math.min(1, Math.max(0, mapY(0) / 120)).toFixed(4),
-			lowX: mapX(low.t).toFixed(1),
+			// Kenar kırpılmasına karşı clamp — 1'inci gün (devir) / son gün minimumsa daire (r=4.5)
+			// viewBox kenarında yarım çizilmesin
+			lowX: Math.min(615.5, Math.max(4.5, mapX(low.t))).toFixed(1),
 			lowY: mapY(low.bal).toFixed(1),
 			lowLabel: `${labelIso(low.date)} · ${signed(low.bal)}`,
 			endBal,
 			byDay: pts0.map((p) => ({
-				date: p.date, bal: p.bal,
+				date: p.date, bal: p.bal, carry: p.carry,
 				xPct: (mapX(p.t) / 620) * 100, yPct: (mapY(p.bal) / 120) * 100,
 			})),
 			firstLabel: labelIso(startDate),
@@ -139,7 +168,7 @@
 						style="left:{h.xPct}%;top:{h.yPct}%;transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(232,236,243,.18)"></div>
 					<div class="absolute pointer-events-none rounded-lg border px-2 py-1 whitespace-nowrap"
 						style="left:{tipLeft}%;top:{h.yPct}%;transform:translate(-50%,calc(-100% - 12px));background:#0f1b30;border-color:#2c405f;box-shadow:0 6px 18px -6px rgba(0,0,0,.6)">
-						<div class="tabular-nums text-[9.5px] text-teal-300 tracking-[0.4px]">{labelIso(h.date)}</div>
+						<div class="tabular-nums text-[9.5px] text-teal-300 tracking-[0.4px]">{labelIso(h.date)}{h.carry ? ' · Devir' : ''}</div>
 						<div class="tabular-nums text-[13px] font-semibold" style="color:{h.bal >= 0 ? '#8fd0a8' : '#f0a58f'}">{signed(h.bal)}</div>
 					</div>
 				{/if}

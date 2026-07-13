@@ -600,6 +600,25 @@ atlanıyordu) ve BANKS `useLiveRefetch` satırı KALDIRILDI (tazelik runway stor
 yalnız o izin de varsa dolar (banks-izinli ama cash_flow-izinsiz kullanıcıda kart gizli —
 bilinçli, aksi 403 toast'ı üretirdi).
 
+### Panel Runway Grafiği — 0-bölmeli renk + devreden bakiye (2026-07-13)
+
+`RunwayChart.svelte` iki kullanıcı isteğiyle güncellendi:
+
+- **Renk 0 çizgisinde bölünür:** Çizgi tek renk değildi — dönem içinde herhangi bir gün
+  negatife düşerse TÜM çizgi turuncu oluyordu (Ağustos ay başında pozitifken bile). Artık
+  SVG `linearGradient` (userSpaceOnUse, dikey; iki stop aynı `offset = mapY(0)/120`
+  noktasında) ile 0'ın ÜSTÜ yeşil (`#8fd0a8`), ALTI turuncu (`#e8a06a`) — bakiye negatife
+  düştüğü noktadan itibaren turuncuya döner. Tümü-pozitif dönem tamamen yeşil kalır.
+- **Devreden bakiye ("Devir" noktası):** Grafik yalnız `daily`'de kaydı olan (hareketli)
+  günleri çizdiğinden, dönem başında hareket yoksa çizgi ay ortasından başlıyordu (canlı:
+  Ağustos 7 Ağu'dan başlıyordu). Artık dönemden ÖNCEKİ son bilinen bakiye (önceki dönemin
+  kapanışı) 1'inci güne sentetik nokta olarak eklenir → çizgi her zaman dönem başından
+  başlar; tooltip'te "· Devir" etiketi taşır. Simetrik olarak son hareket dönem sonundan
+  önce bitiyorsa bakiye dönem sonuna düz uzatılır (hareketsiz günlerde bakiye değişmez);
+  dönemde hiç hareket yoksa düz devir çizgisi çizilir (eskiden grafik hiç çizilmiyordu).
+  Veri zaten kümülatif (`compute_eur_balances` — aylar arası süreklilik backend'de var);
+  bu değişiklik SALT görsel dilimleme katmanında.
+
 ### Ertelenenler (bilinçli)
 
 - **#26 rezervasyon gelirinin FE'ye taşınması:** Karar-3 **çift-sayım matrisi** kullanıcıyla
