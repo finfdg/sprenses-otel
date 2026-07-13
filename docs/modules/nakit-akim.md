@@ -622,6 +622,11 @@ bilinçli, aksi 403 toast'ı üretirdi).
   dönemde hiç hareket yoksa düz devir çizgisi çizilir (eskiden grafik hiç çizilmiyordu).
   Veri zaten kümülatif (`compute_eur_balances` — aylar arası süreklilik backend'de var);
   bu değişiklik SALT görsel dilimleme katmanında.
+- **"Bugün" işareti:** Bugün seçili dönemin içindeyse grafikte dikey altın kesikli çizgi +
+  eğriyle kesişimde koyu-dolgulu altın-halkalı nokta + eksen satırında altın "Bugün"
+  etiketi (kenar 1/31 etiketleriyle çakışmasın diye %6–94 clamp) gösterilir. Bugün dönem
+  dışındaysa (ör. Ağustos görünümü) işaret çizilmez. Karşılaştırma yerel gece yarısıyla
+  (`setHours(0,0,0,0)`) yapılır — nokta t'leri de yerel gece yarısı.
 
 ### Ertelenenler (bilinçli)
 

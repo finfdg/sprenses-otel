@@ -110,8 +110,29 @@
 		const endBal = pts0[pts0.length - 1].bal;
 		const startEur = balances?.total_balance_eur ?? pts0[pts0.length - 1].bal;
 
+		// BUGÜN işareti (2026-07-13, kullanıcı isteği): bugün seçili dönemin içindeyse dikey
+		// altın referans çizgisi + eğri üzerinde nokta + eksende "Bugün" etiketi gösterilir.
+		// Nokta t'ler yerel gece yarısı (new Date(d+'T00:00:00')) olduğundan karşılaştırma
+		// yerel gece yarısıyla yapılır.
+		const t0 = new Date();
+		t0.setHours(0, 0, 0, 0);
+		const todayT = t0.getTime();
+		let today: { xPct: number; yPct: number | null } | null = null;
+		if (todayT >= startT && todayT <= endT) {
+			let yPct: number | null = null;
+			for (let i = 1; i < pts0.length; i++) {
+				const a = pts0[i - 1], b = pts0[i];
+				if (a.t <= todayT && todayT <= b.t) {
+					const f = b.t === a.t ? 0 : (todayT - a.t) / (b.t - a.t);
+					yPct = (mapY(a.bal + f * (b.bal - a.bal)) / 120) * 100;
+					break;
+				}
+			}
+			today = { xPct: (mapX(todayT) / 620) * 100, yPct };
+		}
+
 		return {
-			segments, negative, startEur,
+			segments, negative, startEur, today,
 			statusText: firstNeg
 				? (firstNeg.carry
 					? 'Dönem negatif devir bakiyesiyle başlıyor'
@@ -178,6 +199,13 @@
 					{/each}
 					<circle cx={proj.lowX} cy={proj.lowY} r="4.5" fill="#e8c979" />
 				</svg>
+				{#if proj.today}
+					<!-- Bugün işareti: dikey altın çizgi + eğri üzerinde nokta (hover katmanının altında) -->
+					<div class="absolute inset-y-0 pointer-events-none border-l-[1.5px] border-dashed" style="left:{proj.today.xPct}%;border-color:rgba(232,201,121,.75)"></div>
+					{#if proj.today.yPct !== null}
+						<div class="absolute w-[10px] h-[10px] rounded-full pointer-events-none border-2" style="left:{proj.today.xPct}%;top:{proj.today.yPct}%;transform:translate(-50%,-50%);background:#0f1b30;border-color:#e8c979;box-shadow:0 0 0 3px rgba(232,201,121,.28)"></div>
+					{/if}
+				{/if}
 				{#if hoverIdx !== null && proj.byDay[hoverIdx]}
 					{@const h = proj.byDay[hoverIdx]}
 					{@const tipLeft = Math.max(14, Math.min(86, h.xPct))}
@@ -191,8 +219,13 @@
 					</div>
 				{/if}
 			</div>
-			<div class="flex justify-between tabular-nums text-[9.5px] text-teal-300 mt-1">
-				<span>{proj.firstLabel}</span><span>{proj.lastLabel}</span>
+			<div class="relative flex justify-between tabular-nums text-[9.5px] text-teal-300 mt-1">
+				<span>{proj.firstLabel}</span>
+				{#if proj.today}
+					<!-- Kenardaki 1/31 etiketleriyle çakışmasın diye %6-94 aralığına clamp'lenir -->
+					<span class="absolute font-semibold uppercase tracking-[0.5px] pointer-events-none" style="left:{Math.max(6, Math.min(94, proj.today.xPct))}%;transform:translateX(-50%);color:#e8c979">Bugün</span>
+				{/if}
+				<span>{proj.lastLabel}</span>
 			</div>
 		</div>
 		<div class="text-[11.5px] text-teal-200 mt-2">En düşük bakiye: <span class="{proj.negative ? 'text-red-300' : 'text-brass-light'} font-semibold">{proj.lowLabel}</span> · Dönem sonu: <span class="text-white font-semibold">{signed(proj.endBal)}</span></div>
