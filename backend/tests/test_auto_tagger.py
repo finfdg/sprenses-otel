@@ -305,3 +305,55 @@ class TestAgencyTagging:
         )
         assert fe is not None
         assert fe.category_name == AGENCY_CATEGORY
+
+
+class TestBankFeeTagging:
+    """Banka havale/EFT komisyon tespiti — 'Havale Komisyonları' (2026-07-13)."""
+
+    def test_yk_fee_leg_small_amount_tagged(self, client, db):
+        """YK ücret bacağı ('Diğer Internet - Mobil X', küçük tutar) → Havale Komisyonları."""
+        acc = _mk_account(db, currency="TRY")
+        fee = _mk_btx(db, acc, amount=-15.96, desc="Diğer Internet - Mobil FARUK SEVİK")
+        bsmv = _mk_btx(db, acc, amount=-0.80, desc="Diğer Internet - Mobil FARUK SEVİK")
+        auto_tag_transactions(db, [fee.id, bsmv.id])
+        assert _cat_of(db, fee) == "Havale Komisyonları"
+        assert _cat_of(db, bsmv) == "Havale Komisyonları"
+
+    def test_masked_pan_cc_payment_not_tagged_as_fee(self, client, db):
+        """Aynı önekli BÜYÜK tutar (maskeli PAN kart borcu, canlı ₺15.000) ücret DEĞİLDİR."""
+        acc = _mk_account(db, currency="TRY")
+        btx = _mk_btx(db, acc, amount=-15000.00, desc="Diğer Internet - Mobil INT 650837******7261 0707")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Havale Komisyonları"
+
+    def test_fee_keyword_tagged(self, client, db):
+        """Ücret anahtar kelimeli küçük giderler (ücr/kom) → Havale Komisyonları."""
+        acc = _mk_account(db, currency="TRY")
+        pos_fee = _mk_btx(db, acc, amount=-590.00, desc="000742062-06.AyFiz.POSYaz.Donm.Bkm.Ücr")
+        kom = _mk_btx(db, acc, amount=-143.64, desc="Diğer Diğer KOM")
+        auto_tag_transactions(db, [pos_fee.id, kom.id])
+        assert _cat_of(db, pos_fee) == "Havale Komisyonları"
+        assert _cat_of(db, kom) == "Havale Komisyonları"
+
+    def test_big_amount_with_fee_keyword_not_fee(self, client, db):
+        """Tavan üstü 'komisyon' içeren gerçek ödeme bu başlığa girmez (eski kurala düşer)."""
+        acc = _mk_account(db, currency="TRY")
+        btx = _mk_btx(db, acc, amount=-50000.00, desc="KREDİ KULLANDIRIM KOMİSYONU ÖDEMESİ")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Havale Komisyonları"
+
+    def test_income_with_fee_keyword_not_tagged(self, client, db):
+        """Ücret iadesi (GELİR) ücret olarak etiketlenmez."""
+        acc = _mk_account(db, currency="TRY")
+        btx = _mk_btx(db, acc, amount=25.00, desc="MASRAF İADESİ")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Havale Komisyonları"
+
+    def test_fx_account_fee_cap(self, client, db):
+        """Döviz hesabında ücret tavanı daha dar: €30 ücret bacağı etiketlenmez, €5 masraf etiketlenir."""
+        acc = _mk_account(db, currency="EUR")
+        big_leg = _mk_btx(db, acc, amount=-30.00, desc="Diğer Internet - Mobil ODEME X")
+        small_fee = _mk_btx(db, acc, amount=-5.00, desc="HVL.MASRAFI")
+        auto_tag_transactions(db, [big_leg.id, small_fee.id])
+        assert _cat_of(db, big_leg) != "Havale Komisyonları"
+        assert _cat_of(db, small_fee) == "Havale Komisyonları"

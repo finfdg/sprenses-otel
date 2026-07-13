@@ -141,6 +141,7 @@ AUTO_TAG_RULES: List[Tuple[str, str]] = [
 MANAGED_CATEGORY_COLORS: Dict[str, str] = {
     "Döviz Satışı": "cyan",
     "Acenta": "teal",
+    "Havale Komisyonları": "amber",
 }
 
 
@@ -193,9 +194,10 @@ def auto_tag_transactions(
 
     untagged = query.all()
     tagged = _tag_agency_collections(db, untagged, cat_map[AGENCY_CATEGORY])
+    tagged.extend(_tag_bank_fees(db, untagged, cat_map[FEE_CATEGORY]))
 
     for tx in untagged:
-        if tx.category_id is not None:  # acenta geçişinde etiketlendi
+        if tx.category_id is not None:  # acenta/ücret geçişinde etiketlendi
             continue
         normalized = _normalize(tx.description)
         for cat_name, pattern in AUTO_TAG_RULES:
@@ -212,6 +214,53 @@ def auto_tag_transactions(
         _sync_finance_events(db, tagged)  # otomatik kategori FE'ye yansısın
 
     return len(tagged), len(untagged)
+
+
+# ─── Banka Havale/EFT Komisyon Tespiti (2026-07-13) ──────────────────
+# Banka ücret/komisyon kalemleri "Etiketsiz" kalıyordu. İki sinyalle
+# "Havale Komisyonları" kategorisine etiketlenir (yalnız GİDER, kelime
+# kurallarından ÖNCE — "EFT ÜCRETİ" gibi açıklamalar Virman'a düşmesin):
+#   1) Ücret anahtar kelimesi (ücret/ücr/bsmv/kkdf/komisyon/masraf/kom) + tutar tavanı
+#      (TRY ≤2.500, döviz ≤100) — büyük tutarlı "komisyon" içeren gerçek ödemeler
+#      (ör. kredi kullandırım komisyonu) bu başlığa girmez, eski kurallara düşer.
+#   2) Yapı Kredi ücret bacağı deseni: "Diğer Internet - Mobil <karşı taraf>" önekli
+#      KÜÇÜK gider (TRY ≤250, döviz ≤25) — YK her transferin ücret+BSMV bacağını bu
+#      önekle ayrı yazar (canlı: ₺15,96+₺0,80 çiftleri, ₺37/₺1,85, ₺199,41/₺9,97).
+#      Aynı önekli BÜYÜK tutarlar kart borcu ödemesidir (maskeli PAN, ₺10K+) → tavan şart.
+
+FEE_CATEGORY = "Havale Komisyonları"
+_FEE_KEYWORD = re.compile(r"ucret|\bucr\b|bsmv|kkdf|komisyon|masraf|\bkom\b")
+_FEE_LEG_PREFIX = "diger internet - mobil"  # normalize edilmiş YK ücret bacağı öneki
+_FEE_KEYWORD_CAP_TRY = 2500.0
+_FEE_KEYWORD_CAP_FX = 100.0
+_FEE_LEG_CAP_TRY = 250.0
+_FEE_LEG_CAP_FX = 25.0
+
+
+def _tag_bank_fees(
+    db: Session, untagged: List[BankTransaction], fee_cat_id: int
+) -> List[BankTransaction]:
+    """Etiketsiz GİDER işlemlerinden banka ücret/komisyonlarını işaretle (commit ETMEZ)."""
+    expenses = [tx for tx in untagged if tx.category_id is None and tx.type == "expense"]
+    if not expenses:
+        return []
+    account_currency = {a.id: (a.currency or "TRY").upper() for a in db.query(BankAccount).all()}
+    tagged: List[BankTransaction] = []
+    for tx in expenses:
+        normalized = _normalize(tx.description or "")
+        amount = abs(float(tx.amount))
+        is_try = account_currency.get(tx.account_id, "TRY") in ("TRY", "TL")
+        keyword_cap = _FEE_KEYWORD_CAP_TRY if is_try else _FEE_KEYWORD_CAP_FX
+        leg_cap = _FEE_LEG_CAP_TRY if is_try else _FEE_LEG_CAP_FX
+        matched = (
+            (_FEE_KEYWORD.search(normalized) is not None and amount <= keyword_cap)
+            or (normalized.startswith(_FEE_LEG_PREFIX) and amount <= leg_cap)
+        )
+        if matched:
+            tx.category_id = fee_cat_id
+            tx.tag_source = "auto"
+            tagged.append(tx)
+    return tagged
 
 
 # ─── Acenta Tahsilatı Tespiti (2026-07-13; hassasiyet sertleştirmesi aynı gün) ──
