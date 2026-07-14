@@ -180,7 +180,9 @@
 		<div class="flex items-start justify-between gap-4">
 			<div>
 				<div class="text-[10px] uppercase tracking-[0.6px] text-teal-300">Bankadaki Nakit</div>
-				<div class="tabular-nums text-[22px] font-semibold text-white mt-0.5">{fmtEur(proj.startEur)}</div>
+				<!-- Negatif bakiyede eksi işareti + kırmızı ton — fmtEur mutlak değer alır (2026-07-14
+				     kullanıcı bulgusu: −€2.741 işaretsiz "€2.741" görünüp gerçek nakitle çelişki algısı yarattı) -->
+				<div class="tabular-nums text-[22px] font-semibold mt-0.5 {proj.startEur < 0 ? 'text-red-300' : 'text-white'}">{proj.startEur < 0 ? '−' : ''}{fmtEur(proj.startEur)}</div>
 			</div>
 			<div class="text-right max-w-[60%]">
 				<div class="text-[10px] uppercase tracking-[0.6px] text-teal-300">Durum</div>
