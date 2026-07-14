@@ -988,6 +988,25 @@ süiti 140 yeşil).
 
 ---
 
+## CC Eşleştirici — Auto-Tag Açlığı Düzeltmesi (2026-07-14)
+
+**Canlı hata:** QNB Corporate (\*6075) 09.07 ekstresi (₺1.909.336) 13.07'de bankadan ödendiği
+halde "Bekliyor" kaldı → Panel'de banka nakdi €32.809 iken projeksiyon −€2.741 gösterdi
+(banka bacağı gerçekleşmiş + ekstre FE'si bekleyen = çift düşüm). **Kök neden (regresyon,
+R1 2026-07-11):** orkestratörde auto-tag matcher'lardan ÖNCE koşar; `AUTO_TAG_RULES`'taki
+`POS = r"pos |kkiv|kart "` kuralı "…nolu kart ödemesi" açıklamalı GİDERİ "POS" etiketledi,
+`_match_cc_to_bank` ise yalnız `category_id IS NULL` işlemleri taradığından ödemeyi hiç
+görmedi (R1 öncesi auto-tag upload akışında koşmadığından aynı açıklamalı Oca-May
+ödemeleri sorunsuz eşleşmişti). **Çözüm (`matching_service._match_cc_to_bank`):** tarama
+filtresi artık etiketsiz VEYA **otomatik**-etiketli (`tag_source='auto'`) giderleri kapsar;
+KK kategorisindeki auto etiketler hariç (zaten eşleşmiş ödeme — yeniden taranıp
+`paid_amount` mükerrer artmasın), **manuel etiket kullanıcı kararıdır → dokunulmaz**.
+Bu filtre yalnız CC matcher'ındaydı; diğer 4 matcher kategori filtrelemez (etkilenmez).
+Canlı veri aynı yoldan onarıldı (btx 6233 → stmt 18). Test:
+`test_banks_cc_match.py::TestAutoTaggedRescan` (3).
+
+---
+
 ## Kredi Kartı Ekstresi Projeksiyonu — Nakit Akım (2026-07-04, YENİ)
 
 **İhtiyaç:** 5 kredi kartının ekstreleri her ay düzenli gelir ama hepsi sisteme yüklenmez.

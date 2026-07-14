@@ -12,6 +12,7 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Optional
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.advance import Advance
@@ -176,16 +177,24 @@ def _match_cc_to_bank(db: Session) -> dict:
     if not last4_to_stmts:
         return {"matched": 0}
 
-    # Zaten etiketlenmiş banka işlemlerini atla
     kk_cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Kredi Kartı Borç Ödeme").first()
 
-    # Etiketlenmemiş banka gider işlemleri
+    # Etiketsiz VE otomatik-etiketli gider işlemleri taranır. Auto-tag orkestratörde
+    # matcher'lardan ÖNCE koşar (run_post_ingest_processing) → "kart ödemesi" açıklamalı
+    # gider POS gibi genel bir kelime kuralına düşünce salt-NULL filtre onu bu matcher'dan
+    # kalıcı saklıyordu (canlı: ₺1,9M QNB kart ödemesi POS etiketiyle eşleşemedi,
+    # 2026-07-14). Manuel etiket kullanıcı kararıdır → dokunulmaz; KK kategorisindeki
+    # auto etiket zaten eşleşmiş ödemedir → yeniden taranıp paid_amount mükerrer artmasın.
+    if kk_cat:
+        tag_filter = or_(
+            BankTransaction.category_id.is_(None),
+            and_(BankTransaction.tag_source == "auto", BankTransaction.category_id != kk_cat.id),
+        )
+    else:
+        tag_filter = BankTransaction.category_id.is_(None)
     bank_expenses = (
         db.query(BankTransaction)
-        .filter(
-            BankTransaction.type == "expense",
-            BankTransaction.category_id.is_(None),
-        )
+        .filter(BankTransaction.type == "expense", tag_filter)
         .all()
     )
 

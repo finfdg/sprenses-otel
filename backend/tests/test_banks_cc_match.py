@@ -13,6 +13,7 @@ from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CreditProduct
+from app.models.transaction_category import TransactionCategory
 from app.utils.matching_service import (
     _extract_last4_from_desc,
     _get_card_last4,
@@ -289,3 +290,77 @@ class TestMatchCcWrittenLast4:
         btx.description = "Kart İşlemleri - 6075 ile biten hesaba virman"
         db.commit()
         assert _match_cc_to_bank(db)["matched"] == 0
+
+
+class TestAutoTaggedRescan:
+    """Auto-tag'lenmiş giderler matcher'dan saklanmaz (2026-07-14 canlı bulgu).
+
+    Orkestratörde auto-tag matcher'lardan ÖNCE koşar; "kart ödemesi" açıklamalı gider
+    POS kelime kuralına ("kart ") düşünce eski salt-`category_id IS NULL` filtresi onu
+    KK matcher'ından kalıcı saklıyordu → ₺1,9M QNB ödemesi eşleşmedi, ekstre FE'si
+    bekleyen kalıp bakiyeyi çift düşürdü. Kural: auto etiket yeniden taranır (KK
+    kategorisindekiler hariç — zaten eşleşmiş), manuel etiket kullanıcı kararıdır.
+    """
+
+    @staticmethod
+    def _get_or_create_cat(db, name):
+        cat = db.query(TransactionCategory).filter(TransactionCategory.name == name).first()
+        if cat is None:
+            cat = TransactionCategory(name=name, color="gray")
+            db.add(cat)
+            db.flush()
+        return cat
+
+    @staticmethod
+    def _setup(db, *, amount, toplam_borc, category, tag_source, last4="6075"):
+        prod = CreditProduct(type="kredi_karti", name="QNB Corporate",
+                             details=json.dumps({"kart_no_son4": last4}))
+        db.add(prod)
+        db.flush()
+        stmt = CreditCardStatement(
+            credit_product_id=prod.id, kesim_tarihi=date(2026, 7, 9),
+            son_odeme_tarihi=date(2026, 7, 14), toplam_borc=toplam_borc,
+            is_paid=False, paid_amount=0,
+        )
+        acc = BankAccount(bank_name="QNB", iban=f"TR{uuid4().hex}", currency="TRY")
+        db.add(acc)
+        db.add(stmt)
+        db.flush()
+        # Canlı biçim: kelime ("kart ödemesi") + maskeli PAN birlikte
+        btx = BankTransaction(
+            account_id=acc.id, date=date(2026, 7, 13),
+            description=f"Kart İşlemleri - CEP_ŞUBE 979203******{last4} nolu kart ödemesi",
+            amount=-amount, balance=0, type="expense", tx_hash=f"test-ccat-{uuid4().hex}",
+            category_id=category.id if category else None, tag_source=tag_source,
+        )
+        db.add(btx)
+        db.commit()
+        return prod, stmt, btx
+
+    def test_auto_tagged_expense_still_matches(self, db):
+        # Canlı senaryo (btx 6233): auto-tag POS etiketi vurmuş → matcher yine görmeli
+        pos = self._get_or_create_cat(db, "POS")
+        prod, stmt, btx = self._setup(db, amount=1909336.13, toplam_borc=1909336.13,
+                                      category=pos, tag_source="auto")
+        assert _match_cc_to_bank(db)["matched"] == 1
+        db.expire_all()
+        assert db.get(CreditCardStatement, stmt.id).is_paid is True
+
+    def test_manual_tagged_expense_not_touched(self, db):
+        # Manuel etiket kullanıcı kararı → matcher dokunmaz
+        cari = self._get_or_create_cat(db, "Cari")
+        prod, stmt, btx = self._setup(db, amount=50000.0, toplam_borc=50000.0,
+                                      category=cari, tag_source="manual")
+        assert _match_cc_to_bank(db)["matched"] == 0
+        db.expire_all()
+        assert db.get(CreditCardStatement, stmt.id).is_paid is False
+
+    def test_already_matched_kk_auto_not_reapplied(self, db):
+        # KK kategorili auto etiket = önceki koşuda eşleşmiş ödeme → yeniden taranıp
+        # başka açık ekstreye paid_amount mükerrer yazılmasın
+        kk = self._get_or_create_cat(db, "Kredi Kartı Borç Ödeme")
+        prod, stmt, btx = self._setup(db, amount=50000.0, toplam_borc=50000.0,
+                                      category=kk, tag_source="auto")
+        assert _match_cc_to_bank(db)["matched"] == 0
+        db.expire_all()
+        assert db.get(CreditCardStatement, stmt.id).is_paid is False
