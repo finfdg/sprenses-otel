@@ -27,7 +27,7 @@
 	import HeldList from '$lib/components/HeldList.svelte';
 	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
 	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/runway.svelte';
-	import { aggregateRows, AGGREGATE_LABELS, daySourceRank, type CashRow } from '$lib/utils/cashflow';
+	import { aggregateRows, AGGREGATE_LABELS, daySourceRank, firstTippingRow, type CashRow } from '$lib/utils/cashflow';
 	import { bankBadge } from '$lib/utils/bankBadge';
 	import { HOLDABLE_SOURCE_TYPES } from '$lib/constants/finance';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
@@ -211,29 +211,24 @@
 		return { realized, pending: total - realized, hasData: raw.length > 0 };
 	}
 
-	// Bugünkü toplam banka nakdi (runway grafiğiyle aynı kaynak) — ilk-açık yürüyüşünün başlangıcı
-	const startCash = $derived(cashFlowCache.eurBalances?.total_balance_eur ?? null);
+	// Bugünkü SAF banka nakdi — runway `start_eur` (= backend `_compute_start_eur`; Bankalar KPI +
+	// RunwayChart başlığıyla TEK kaynak, C2). ilk-açık yürüyüşünün başlangıcı. **`eur_balances.
+	// total_balance_eur` KULLANILMAZ** — o değer bugün son banka ekstresinden sonraysa bugünün
+	// ödenmemiş ödemesini zaten düşüyor → tipping yürüyüşü aynı ödemeyi tekrar düşünce ÇİFT sayım
+	// ("para hâlâ bankada" 2026-07-06 ilkesi + kullanıcı bulgusu 2026-07-16). Saf nakit → tek düşüm.
+	const startCash = $derived(runwayStore.data?.start_eur ?? null);
 
-	// İLK AÇIK: bugünkü nakitten başlayıp BEKLEYEN çıkışları kronolojik yürüt; bakiyeyi ilk kez
+	// İLK AÇIK: bugünkü saf nakitten başlayıp BEKLEYEN çıkışları kronolojik yürüt; bakiyeyi ilk kez
 	// negatife düşüren ödeme = "nakit buraya yetmiyor" (kullanıcı isteği 2026-07-07 — yalnız o TEK
 	// satır kırmızı). Yalnız ÇIKIŞ + bekleyen segment + tarih görünümünde anlamlı (kronolojik).
 	// Aynı `dateBuckets(data.cikis, false)` render'da kullanılır → (date, catLabel, rowIdx) birebir eşleşir.
+	// Yürüyüş mantığı saf `firstTippingRow`'da (test: cashflow.test.ts — çift-sayım regresyonu).
 	const tippingCikis = $derived.by(() => {
 		if (!data || startCash == null || sideView.cikis !== 'bekleyen' || !dateView.cikis) return null;
 		// Bekleyen giriş: gün başına EUR (o günün ödemelerinden ÖNCE nakde eklenir); held HARİÇ (parkta)
 		const inflowByDate = new Map<string, number>();
 		for (const g of data.giris) for (const it of g.items) if (!it.is_realized && !it.is_held) inflowByDate.set(it.date, (inflowByDate.get(it.date) ?? 0) + it.amount_eur);
-		let avail = startCash;
-		for (const day of dateBuckets(data.cikis, false).days) {
-			avail += inflowByDate.get(day.date) ?? 0;
-			for (const cat of day.cats) {
-				for (let i = 0; i < cat.rows.length; i++) {
-					avail -= cat.rows[i].amount_eur;
-					if (avail < 0) return { date: day.date, catLabel: cat.label, rowIdx: i };
-				}
-			}
-		}
-		return null; // dönem boyunca nakit yetiyor
+		return firstTippingRow(startCash, inflowByDate, dateBuckets(data.cikis, false).days);
 	});
 
 	// Dönem etiketi — start/end_date'ten (README biçimleri)
@@ -287,7 +282,7 @@
 			try {
 				cache.clear();
 				await load();
-				if (cashFlowCache.eurBalances) await loadCashFlowEurBalances(); // startCash + RunwayChart
+				if (cashFlowCache.eurBalances) await loadCashFlowEurBalances(); // RunwayChart eğrisi (başlık+tipping runway start_eur'den)
 			} finally {
 				lastRefreshAt = Date.now();
 				refreshInFlight = null;
@@ -412,8 +407,9 @@
 		</div>
 	</div>
 
-	<!-- Bankadaki nakit runway grafiği — gerçek günlük bakiye (eur_balances), dönem aralığına göre dilimlenir -->
-	<RunwayChart balances={cashFlowCache.eurBalances} startDate={data?.start_date} endDate={data?.end_date} />
+	<!-- Bankadaki nakit runway grafiği — başlık SAF banka nakdi (runway start_eur; Bankalar KPI ile aynı),
+	     eğri gerçek günlük bakiye projeksiyonu (eur_balances), dönem aralığına göre dilimlenir -->
+	<RunwayChart balances={cashFlowCache.eurBalances} startEur={runwayStore.data?.start_eur} startDate={data?.start_date} endDate={data?.end_date} />
 
 	<!-- MOBİL ÖZET KARTI (kapalıyken) — Bugün için Giriş/Çıkış/Net mini kutuları -->
 	<button type="button" onclick={() => (expanded = true)}

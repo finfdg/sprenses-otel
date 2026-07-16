@@ -600,6 +600,22 @@ atlanıyordu) ve BANKS `useLiveRefetch` satırı KALDIRILDI (tazelik runway stor
 yalnız o izin de varsa dolar (banks-izinli ama cash_flow-izinsiz kullanıcıda kart gizli —
 bilinçli, aksi 403 toast'ı üretirdi).
 
+**C2 genişletildi — RunwayChart başlığı + tipping de `start_eur` (2026-07-16, çift-sayım düzeltmesi):**
+`RunwayChart`'ın **"BANKADAKİ NAKİT" başlığı** ve **"nakit yetmiyor" (`tippingCikis`) yürüyüşünün
+başlangıç nakdi** eskiden `eur_balances.total_balance_eur` kullanıyordu — o değer
+`daily[bugün].balance_eur`'dur ve bugün son banka ekstresinden SONRAYSA bugünün **ödenmemiş**
+planlı ödemelerini zaten düşer. Sonuç: (a) başlık gerçek banka nakdinin altında görünüyordu
+("para hâlâ bankada" 2026-07-06 ilkesine aykırı, Bankalar KPI'sıyla da tutarsız); (b) tipping
+yürüyüşü bu net değerden başlayıp **aynı bugünkü ödemeyi tekrar düşünce** ödeme henüz ödenmemişken
+erken "yetmiyor" damgası basıyordu (ÇİFT SAYIM — kullanıcı bulgusu: "bugünkü ödeme ödenmedi, neden
+hem nakitten düşülüyor hem de yetmiyor deniyor"). İkisi de artık **`runwayStore.data.start_eur`**
+(saf banka nakdi) kullanır → başlık = Bankalar KPI = tipping başlangıcı TEK sayı; tipping her ödemeyi
+tam bir kez düşer. **EĞRİ** (`RunwayChart` çizgisi) DEĞİŞMEDİ — hâlâ `eur_balances.daily`
+projeksiyonudur (son-of-gün bakiyesi; bugünün ödemesini yansıttığından başlığın altında seyredebilir,
+bilgilendirici). Tipping yürüyüşü saf `cashflow.ts::firstTippingRow`'a çıkarıldı (çift-sayım
+regresyon testi: `cashflow.test.ts`). Değişen dosyalar: `CashFlowTAccount.svelte` (startCash +
+RunwayChart `startEur` prop'u), `RunwayChart.svelte` (`startEur` prop), `cashflow.ts`.
+
 ### Panel Runway Grafiği — 0-bölmeli renk + devreden bakiye (2026-07-13)
 
 `RunwayChart.svelte` iki kullanıcı isteğiyle güncellendi:

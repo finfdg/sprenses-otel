@@ -14,7 +14,12 @@
 <script lang="ts">
 	type DayBal = { balance_eur: number };
 	type Balances = { daily?: Record<string, DayBal>; total_balance_eur?: number } | null;
-	let { balances, startDate, endDate }: { balances: Balances; startDate?: string; endDate?: string } = $props();
+	// startEur = "BANKADAKİ NAKİT" başlığı için SAF banka nakdi (runway `start_eur` = `_compute_start_eur`;
+	// Bankalar KPI ile TEK kaynak, C2). `balances.total_balance_eur` fallback yalnız geriye uyum içindir —
+	// o değer bugün son ekstreden sonraysa bugünün ÖDENMEMİŞ ödemesini düşer ("para hâlâ bankada"
+	// ilkesine aykırı, kullanıcı bulgusu 2026-07-16). EĞRİ ayrı: daily projeksiyon (bugünkü noktası
+	// bugünün planlı ödemelerini yansıtır → başlığın ALTINDA seyredebilir; bu bilgilendiricidir).
+	let { balances, startEur, startDate, endDate }: { balances: Balances; startEur?: number; startDate?: string; endDate?: string } = $props();
 
 	const MONTHS_SHORT = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
 	function fmtEur(n: number): string {
@@ -108,7 +113,8 @@
 		const firstNeg = pts0.find((p) => p.bal < 0) ?? null;
 		const negative = firstNeg !== null;
 		const endBal = pts0[pts0.length - 1].bal;
-		const startEur = balances?.total_balance_eur ?? pts0[pts0.length - 1].bal;
+		// Başlık = SAF banka nakdi (prop). Prop yoksa geriye-uyum fallback (total_balance_eur → son nokta).
+		const headEur = startEur ?? balances?.total_balance_eur ?? pts0[pts0.length - 1].bal;
 
 		// BUGÜN işareti (2026-07-13, kullanıcı isteği): bugün seçili dönemin içindeyse dikey
 		// altın referans çizgisi + eğri üzerinde nokta + eksende "Bugün" etiketi gösterilir.
@@ -132,7 +138,7 @@
 		}
 
 		return {
-			segments, negative, startEur, today,
+			segments, negative, startEur: headEur, today,
 			statusText: firstNeg
 				? (firstNeg.carry
 					? 'Dönem negatif devir bakiyesiyle başlıyor'

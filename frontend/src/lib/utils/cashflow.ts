@@ -121,3 +121,39 @@ export function aggregateRows(items: CashItem[], aggregate: boolean): CashRow[] 
 			bank_name: r.banks.size === 1 ? [...r.banks][0] : null,
 		}));
 }
+
+// ── "Nakit buraya yetmiyor" yürüyüşü (T-Hesap tarih görünümü, ÇIKIŞ sütunu) ──
+
+/** Tipping yürüyüşü için gerekli minimal gün yapısı (dateBuckets çıktısıyla yapısal uyumlu). */
+export type TippingDay = { date: string; cats: { label: string; rows: { amount_eur: number }[] }[] };
+export type TippingHit = { date: string; catLabel: string; rowIdx: number };
+
+/**
+ * BUGÜNKÜ SAF banka nakdinden (`startCash` = runway `start_eur` = `_compute_start_eur`) başlayıp
+ * bekleyen çıkışları kronolojik yürütür; bakiyeyi ilk kez negatife düşüren ödemenin konumunu döner
+ * (o TEK satır kırmızı "nakit yetmiyor" işaretlenir). Her günün bekleyen girişi o günün ödemelerinden
+ * ÖNCE nakde eklenir.
+ *
+ * KRİTİK — `startCash` SAF banka nakdi olmalı (bugünkü bekleyen ödemeler DÜŞÜLMEMİŞ). Eskiden
+ * `eur_balances.total_balance_eur` kullanılıyordu; o değer bugün son banka ekstresinden sonraysa
+ * bugünün ödenmemiş ödemesini ZATEN düşmüş oluyordu → yürüyüş aynı ödemeyi tekrar düşünce ödeme
+ * ÇİFT sayılıp erken "yetmiyor" damgası basıyordu (kullanıcı bulgusu 2026-07-16). Saf nakitten
+ * başlayınca her ödeme tam bir kez düşülür ve son-of-bugün bakiyesi projeksiyon eğrisiyle hizalanır.
+ */
+export function firstTippingRow(
+	startCash: number,
+	inflowByDate: Map<string, number>,
+	days: TippingDay[],
+): TippingHit | null {
+	let avail = startCash;
+	for (const day of days) {
+		avail += inflowByDate.get(day.date) ?? 0;
+		for (const cat of day.cats) {
+			for (let i = 0; i < cat.rows.length; i++) {
+				avail -= cat.rows[i].amount_eur;
+				if (avail < 0) return { date: day.date, catLabel: cat.label, rowIdx: i };
+			}
+		}
+	}
+	return null; // dönem boyunca nakit yetiyor
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateRows, AGGREGATE_LABELS, daySourceRank, type CashItem } from './cashflow';
+import { aggregateRows, AGGREGATE_LABELS, daySourceRank, firstTippingRow, type CashItem, type TippingDay } from './cashflow';
 
 const mk = (name: string, eur: number, native: number, currency = 'TRY'): CashItem => ({
 	name,
@@ -170,5 +170,58 @@ describe('aggregateRows — bank_name taşıma (banka amblemi, 2026-07-13)', () 
 			true
 		);
 		expect(mixed[0].bank_name).toBeNull();
+	});
+});
+
+describe('firstTippingRow — "nakit buraya yetmiyor" yürüyüşü (çift-sayım regresyonu 2026-07-16)', () => {
+	const day = (date: string, ...cats: [string, ...number[]][]): TippingDay => ({
+		date,
+		cats: cats.map(([label, ...amts]) => ({ label, rows: amts.map((amount_eur) => ({ amount_eur })) })),
+	});
+
+	it('ÇİFT-SAYIM YOK: saf nakde SIĞAN bugünkü ödeme işaretlenmez', () => {
+		// Kök bug: startCash olarak eur_balances.total_balance_eur (= saf nakit − bugünkü ödeme)
+		// kullanılıyordu; yürüyüş bugünkü ödemeyi TEKRAR düşünce negatife düşüp yanlış işaretliyordu.
+		// SAF nakitten (1000) başlayınca 800'lük bugünkü ödeme tek kez düşülür → 200 ≥ 0 → işaret YOK.
+		const days = [day('2026-07-16', ['Cari Ödemeleri', 800])];
+		expect(firstTippingRow(1000, new Map(), days)).toBeNull();
+		// Kanıt: aynı senaryoda hatalı "net" başlangıç (1000 − 800 = 200) 800'ü tekrar düşüp işaretlerdi.
+		expect(firstTippingRow(200, new Map(), days)).toEqual({ date: '2026-07-16', catLabel: 'Cari Ödemeleri', rowIdx: 0 });
+	});
+
+	it('gerçek açık: bakiyeyi ilk kez negatife düşüren ödemeyi (date, catLabel, rowIdx) ile döner', () => {
+		const days = [day('2026-07-18', ['Verilen Çekler', 600, 600])];
+		expect(firstTippingRow(1000, new Map(), days)).toEqual({ date: '2026-07-18', catLabel: 'Verilen Çekler', rowIdx: 1 });
+	});
+
+	it('gün girişi ödemelerden ÖNCE nakde eklenir (aynı gün)', () => {
+		const days = [day('2026-07-16', ['Cari Ödemeleri', 550])];
+		const inflow = new Map([['2026-07-16', 500]]);
+		// 100 + 500 − 550 = 50 ≥ 0 → yetiyor
+		expect(firstTippingRow(100, inflow, days)).toBeNull();
+		// giriş olmasa 100 − 550 = −450 → işaretlenirdi
+		expect(firstTippingRow(100, new Map(), days)).toEqual({ date: '2026-07-16', catLabel: 'Cari Ödemeleri', rowIdx: 0 });
+	});
+
+	it('giriş/çıkış günler arası kümülatif taşınır', () => {
+		const days = [day('2026-07-16', ['Vergiler', 250]), day('2026-07-17', ['KK Borç Ödemeleri', 100])];
+		const inflow = new Map([['2026-07-16', 300]]);
+		// gün1: 0 + 300 − 250 = 50; gün2: 50 − 100 = −50 → gün2 işaretlenir
+		expect(firstTippingRow(0, inflow, days)).toEqual({ date: '2026-07-17', catLabel: 'KK Borç Ödemeleri', rowIdx: 0 });
+	});
+
+	it('gün içinde birden çok kategori — doğru kategori + satır indeksi', () => {
+		const days = [day('2026-07-16', ['Verilen Çekler', 300], ['Cari Ödemeleri', 400, 500])];
+		// 600 − 300(çek) = 300; − 400(cari#0) = −100 → cari rowIdx 0
+		expect(firstTippingRow(600, new Map(), days)).toEqual({ date: '2026-07-16', catLabel: 'Cari Ödemeleri', rowIdx: 0 });
+	});
+
+	it('dönem boyunca yetiyorsa null', () => {
+		const days = [day('2026-07-16', ['Cari Ödemeleri', 100, 100]), day('2026-07-20', ['Vergiler', 200])];
+		expect(firstTippingRow(10000, new Map(), days)).toBeNull();
+	});
+
+	it('boş gün listesi → null', () => {
+		expect(firstTippingRow(500, new Map(), [])).toBeNull();
 	});
 });
