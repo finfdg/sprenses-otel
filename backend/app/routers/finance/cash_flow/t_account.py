@@ -228,10 +228,14 @@ def t_account(
     for fe in events:
         if fe.direction not in groups:
             continue
-        # Vadesi geçmiş GERÇEKLEŞMEMİŞ kalemler bu listeye GİRMEZ (hem GİDER hem GELİR): gerçekleştiyse
-        # zaten realized görünür; olmadıysa GİDER "Vadesi Geçenler", GELİR "Vadesi Geçen Tahsilatlar"
-        # bölümünde takip edilir → bekleyen giriş/çıkış şişmez (kullanıcı: gider 2026-07-05, gelir 2026-07-07).
-        if not fe.is_realized and fe.event_date < today:
+        # Vadesi geçmiş VEYA BUGÜN vadeli GERÇEKLEŞMEMİŞ kalemler bu listeye GİRMEZ (hem GİDER hem
+        # GELİR): gerçekleştiyse zaten realized görünür; olmadıysa GİDER "Vadesi Geçenler", GELİR
+        # "Vadesi Geçen Tahsilatlar" bölümünde takip edilir → bekleyen giriş/çıkış şişmez.
+        # `<= today` (bugün dahil, kullanıcı isteği 2026-07-16): bugün vadeli ama ödenmemiş kalem de
+        # overdue sayılır → `runway.py` ile aynı sınır; kalem ya akışta ya overdue'da (çift gösterim
+        # yok, tipping "nakit yetmiyor" bugünkü ödenmemiş kaleme basılmaz). Realized (ödenmiş) bugünkü
+        # kalem AKIŞTA KALIR (Gerçekleşen). (Kullanıcı: gider 2026-07-05, gelir 2026-07-07.)
+        if not fe.is_realized and fe.event_date <= today:
             continue
         eur = _event_eur(db, fe, rate_cache)
         if eur is None:

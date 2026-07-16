@@ -299,10 +299,13 @@ def runway(
             "deferred": is_deferred,
             "original_date": original_date.isoformat() if original_date else None,
         }
-        if fe.event_date < today:
-            # Vadesi geçmiş ödenmemiş: GİDER → "Vadesi Geçenler"; GELİR → "Vadesi Geçen Tahsilatlar"
-            # (beklenen ama gelmemiş avans/kira/tahsilat; kullanıcı isteği 2026-07-07 — eskiden
-            # düşürülüp hiçbir yerde gösterilmiyordu, ayrıca T-Hesap girişinde bekleyen sayılıyordu).
+        if fe.event_date <= today:
+            # Vadesi geçmiş VEYA BUGÜN vadeli ödenmemiş: GİDER → "Vadesi Geçenler"; GELİR → "Vadesi
+            # Geçen Tahsilatlar". BUGÜN dahil (`<= today`, kullanıcı isteği 2026-07-16): bugün vadeli
+            # ama ödenmemiş kalem (ör. su faturası) bekleyen çıkışta değil, hemen Vadesi Geçenler'de
+            # gösterilir. `t_account.py` de aynı sınırı kullanır → kalem ya akışta ya overdue'da olur
+            # (çift gösterim yok). (beklenen ama gelmemiş avans/kira/tahsilat; kullanıcı isteği
+            # 2026-07-07 — eskiden düşürülüp hiçbir yerde gösterilmiyordu, T-Hesap'ta bekleyen sayılıyordu.)
             if fe.direction == DIRECTION_EXPENSE:
                 overdue.append(item)
             elif fe.direction == DIRECTION_INCOME:

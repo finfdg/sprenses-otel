@@ -213,6 +213,24 @@ class TestTAccountGrouping:
         assert "GELMEMIS AVANS" not in names       # vadesi geçmiş gerçekleşmemiş gelir → hariç
         assert "GERCEKLESEN GELIR" in names         # gerçekleşmiş gelir → dahil
 
+    def test_today_due_unpaid_excluded_realized_kept(self, client, auth_headers, db):
+        """BUGÜN vadeli ÖDENMEMİŞ (is_realized=False) kalem cetvele GİRMEZ — artık overdue sayılır
+        (runway ile aynı `<= today` sınırı, kullanıcı isteği 2026-07-16); tipping "nakit yetmiyor"
+        bugünkü ödenmemiş kaleme basılmaz. BUGÜN vadeli GERÇEKLEŞMİŞ (ödenmiş) kalem AKIŞTA KALIR."""
+        _reset_eur_rates(db)
+        today = date.today()
+        _mk_rate(db, today, 40.0)
+        _mk_fe(db, event_date=today, direction=-1, is_realized=False,
+               source_type="recurring", amount=5000, description="BUGUN ODENMEMIS")
+        _mk_fe(db, event_date=today, direction=-1, is_realized=True,
+               source_type="bank", amount=3000, description="BUGUN ODENMIS")
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+        names = [i["name"] for g in body["cikis"] for i in g["items"]]
+        assert "BUGUN ODENMEMIS" not in names     # bugün vadeli ödenmemiş → hariç (overdue)
+        assert "BUGUN ODENMIS" in names            # bugün gerçekleşmiş → dahil
+
 
 class TestTAccountRealizedSplit:
     """Grup bazında gerçekleşen/bekleyen bölünmesi (2026-07-06) — frontend '✓ Gerçekleşen'
@@ -224,16 +242,19 @@ class TestTAccountRealizedSplit:
         _mk_rate(db, MIN_DATE, 50)
         today = date.today()
         # Aynı grupta (Düzenli Ödemeler) karışık: 1 gerçekleşen + 2 bekleyen.
-        # Bekleyenler bugüne yazılır (event_date < today olsa vadesi-geçmiş filtresi eler).
+        # Bekleyenler GELECEK bir güne yazılır — bugün/geçmiş vadeli ödenmemiş kalem artık
+        # "Vadesi Geçenler"e alınır (event_date <= today filtresi eler, 2026-07-16) → akışta kalması
+        # için > today olmalı. Gelecek ayın 1'i her zaman > today (offset=1 penceresinde).
+        nxt = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
         _mk_fe(db, source_type="recurring", direction=-1, amount=5000,
-               is_realized=True, event_date=today, description="T-REC ODENDI")
+               is_realized=True, event_date=nxt, description="T-REC ODENDI")
         _mk_fe(db, source_type="recurring", direction=-1, amount=2000,
-               is_realized=False, event_date=today, description="T-REC BEKLIYOR A")
+               is_realized=False, event_date=nxt, description="T-REC BEKLIYOR A")
         _mk_fe(db, source_type="recurring", direction=-1, amount=3000,
-               is_realized=False, event_date=today, description="T-REC BEKLIYOR B")
+               is_realized=False, event_date=nxt, description="T-REC BEKLIYOR B")
         db.commit()
 
-        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+        body = client.get(f"{URL}?period=monthly&offset=1", headers=auth_headers).json()
         g = _group(body, "cikis", "Düzenli Ödemeler")
         assert g is not None
         assert g["item_count"] == 3

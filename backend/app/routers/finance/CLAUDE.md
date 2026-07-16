@@ -5,6 +5,40 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Bugün Vadeli Ödenmemiş → "Vadesi Geçenler" (2026-07-16)
+
+**Kullanıcı isteği:** "su faturası bugün ve henüz ödenmediği için vadesi geçende gösterelim.
+mantık şu olsun: bugün vadesi gelenleri hemen vadesi geçen listesinde göstersin." (Canlı belirti:
+bugün vadeli ama ödenmemiş su faturası Panel T-Hesap ÇIKIŞ sütununda "16 Temmuz" altında + "NAKİT
+BURAYA YETMİYOR" tipping rozetiyle görünüyordu → bekleyen akışta değil, Vadesi Geçenler'de olmalı.)
+
+**Değişiklik — overdue sınırı `< today` → `<= today` (İKİ dosyada, birlikte):**
+- `runway.py` (Panel `OverdueList`'i besler): bugün vadeli GERÇEKLEŞMEMİŞ kalem artık GİDER→`overdue`
+  / GELİR→`overdue_income` dizisine düşer (`inflows`/`outs`'a değil).
+- `t_account.py` (Panel T-Hesap ÇIKIŞ/GİRİŞ + tipping'i besler): bugün vadeli GERÇEKLEŞMEMİŞ kalem
+  cetvel akışından çıkar (Vadesi Geçenler'de takip edilir). Realized (ödenmiş) bugünkü kalem AKIŞTA
+  KALIR (Gerçekleşen).
+
+**Neden ikisi birden:** Tasarım kuralı bir kalemin ya akışta ya overdue'da olması (çift gösterim
+yok — "bekleyen giriş/çıkış şişmez"). Yalnız runway değişse kalem hem OverdueList'te hem T-Hesap
+akışında görünürdü. İki dosya aynı `<= today` sınırını kullanır → tutarlı; tipping "nakit yetmiyor"
+bugünkü ödenmemiş kaleme artık BASILMAZ (o kalem overdue'da).
+
+**Kapsam DIŞI — bakiye eğrisi (`eur_balances.py`):** Panel RunwayChart'ın koyu-kart bakiye eğrisi
+ayrı bir projeksiyondur; DEĞİŞMEDİ (bugünkü ödemeyi projeksiyona yansıtmaya devam eder — bilgilendirici).
+Başlık zaten saf banka nakdi (`start_eur`, 2026-07-16 önceki düzeltme). `is_realized=False` filtresi
+runway sorgusunda zaten var → yalnız ödenmemiş kalemler etkilenir.
+
+**Test:** `test_payment_deferral.py::TestRunwayOverdue::test_overdue_contains_today_due_unpaid`
+(bugün gider→overdue / bugün gelir→overdue_income, outs/inflows'ta DEĞİL) +
+`test_cash_flow_taccount.py::test_today_due_unpaid_excluded_realized_kept` (bugün ödenmemiş cetvelden
+hariç, bugün ödenmiş dahil). Güncellenen testler: `test_group_realized_counters_and_item_flags` +
+`test_dates_sorted_ascending` (bekleyenler artık GELECEK tarihli olmalı). Ayrıca ilgisiz tarih-flake
+düzeltildi: `test_cash_flow_hold._mk_card` ödeme günü bugüne göreli (sabit 15 → ayın 15'inden sonra
+kırılıyordu).
+
+---
+
 ## Cari Sedna Import — Cari Değişimi + RecId-Silinme + Senkron Hata Görünürlüğü (2026-07-13)
 
 **Canlı hata:** "Sedna verilerini çek" → "Cari hareketleri: İçe aktarma sırasında veritabanı

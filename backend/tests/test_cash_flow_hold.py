@@ -8,6 +8,7 @@ Kapsam:
 - eur_balances: future-pending held projeksiyondan çıkar (bakiye düşmez)
 """
 
+import calendar
 import itertools
 import json
 from datetime import date, timedelta
@@ -329,10 +330,17 @@ class TestCcProjectionHold:
     """KK ekstre tahmini rezervi (kırmızı satır sorunu 2026-07-07) kart bazında bekletilebilir."""
 
     def _mk_card(self, db, limit=200000.0):
+        # Ödeme günü bugüne GÖRELİ → cari-ay projeksiyon son-ödeme vadesi HER ZAMAN >= bugün.
+        # (Sabit son_odeme_gunu=15 idi → ayın 15'inden sonra runway `due < today` ile projeksiyonu
+        # atlıyor, held boş kalıp test kırılıyordu — tarih-flake; bugüne göreli deterministik.)
+        today = date.today()
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        son_odeme = min(today.day + 3, last_day)
+        kesim = max(1, son_odeme - 5)
         product = CreditProduct(
             type="kredi_karti", name=f"HOLD KART {next(_SEQ)}", bank_name="Test Bank",
             total_amount=limit, remaining_amount=0, status="active",
-            details=json.dumps({"ekstre_kesim_gunu": 10, "son_odeme_gunu": 15}),
+            details=json.dumps({"ekstre_kesim_gunu": kesim, "son_odeme_gunu": son_odeme}),
         )
         db.add(product)
         db.flush()

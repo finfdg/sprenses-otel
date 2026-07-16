@@ -278,6 +278,25 @@ class TestRunwayOverdue:
         names = [o["name"] for o in body["overdue"]]
         assert "RW VADESİ GEÇEN" in names
 
+    def test_overdue_contains_today_due_unpaid(self, client, auth_headers, db):
+        """BUGÜN vadeli ödenmemiş kalem de `overdue`/`overdue_income`'a düşer, bekleyen
+        `outs`/`inflows`'a DEĞİL (kullanıcı isteği 2026-07-16: "bugün vadesi geleni hemen
+        vadesi geçen listesinde göster" — su faturası bugün vadeli ama ödenmedi)."""
+        _mk_rate(db, MIN_DATE, 50)
+        today = date.today()
+        _mk_fe(db, event_date=today, amount=5000, source_type="recurring", direction=-1,
+               description="RW BUGÜN GİDER")
+        _mk_fe(db, event_date=today, amount=8000, currency="EUR", source_type="advance",
+               direction=1, description="RW BUGÜN TAHSİLAT")
+        db.commit()
+        heavy_limiter._requests.clear()
+
+        body = client.get(RUNWAY_URL, headers=auth_headers).json()
+        assert "RW BUGÜN GİDER" in [o["name"] for o in body["overdue"]]
+        assert "RW BUGÜN GİDER" not in [o["name"] for o in body["outs"]]
+        assert "RW BUGÜN TAHSİLAT" in [o["name"] for o in body["overdue_income"]]
+        assert "RW BUGÜN TAHSİLAT" not in [o["name"] for o in body["inflows"]]
+
     def test_overdue_income_separate_from_expenses(self, client, auth_headers, db):
         """Vadesi geçmiş GELİR (beklenen ama gelmemiş tahsilat) `overdue_income`'a düşer —
         `overdue` (gider) listesine KARIŞMAZ (kullanıcı isteği 2026-07-07)."""

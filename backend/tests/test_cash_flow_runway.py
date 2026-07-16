@@ -188,10 +188,12 @@ class TestRunwayEvents:
         _reset_rates(db, "EUR")
         _mk_rate(db, MIN_DATE, 50)
         today, start, end = _this_month_bounds()
-        # iki farklı ay-içi tarih (bugün ve bugün+3, ay sonuna clamp)
+        # iki farklı GELECEK ay-içi tarih (bugün+2 ve bugün+3, ay sonuna clamp). Bugün/geçmiş
+        # vadeli ödenmemiş kalem artık overdue'ya alınır (2026-07-16) → outs'ta kalması için > today.
+        d_early = min(today + timedelta(days=2), end)
         d_late = min(today + timedelta(days=3), end)
         _mk_fe(db, event_date=d_late, direction=-1, description="RW GEÇ", amount=500)
-        _mk_fe(db, event_date=today, direction=-1, description="RW ERKEN", amount=500)
+        _mk_fe(db, event_date=d_early, direction=-1, description="RW ERKEN", amount=500)
         db.commit()
         outs = client.get(URL, headers=auth_headers).json()["outs"]
         dates = [o["date"] for o in outs]
