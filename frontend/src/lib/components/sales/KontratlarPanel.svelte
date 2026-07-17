@@ -733,9 +733,9 @@
 																	href={`/api/sales/kontratlar/documents/${doc.id}/download`}
 																	download><Download class="w-3.5 h-3.5" /> İndir</a>
 																{#if canUse}
-																	<button class="text-red-600 hover:underline text-xs ml-2 cursor-pointer"
+																	<button class="text-red-600 hover:text-red-800 ml-2 cursor-pointer" title="Sil"
 																		onclick={() => confirmDelete = { show: true, kind: 'document', id: doc.id, label: doc.original_name }}>
-																		Sil</button>
+																		<Trash2 class="w-3.5 h-3.5" /></button>
 																{/if}
 															</span>
 														</li>
@@ -961,8 +961,9 @@
 <!-- Belge yükleme modalı -->
 <Modal bind:show={showUploadModal} title="Belge Yükle" maxWidth="max-w-xl">
 	<div class="grid gap-3">
-		<FileDropzone accept=".pdf,.xls,.xlsx,.xlsm" maxSize={26214400}
+		<FileDropzone accept=".pdf,.xls,.xlsx" maxSize={20971520}
 			label="PDF veya Excel dosyasını buraya sürükleyin"
+			hint="PDF en çok 20 MB · Excel (.xls/.xlsx) en çok 10 MB"
 			onSelect={(files) => uploadFile = files[0]}
 			onError={(errs) => showToast(errs.join(', '), 'error')} />
 		{#if uploadFile}

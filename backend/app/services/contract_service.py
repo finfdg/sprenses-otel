@@ -147,6 +147,13 @@ def get_child(db: Session, kind: str, child_id: int):
 
 
 def apply_child_update(db: Session, kind: str, obj, data: dict):
+    """Alt varlık güncelle. Üst-bağ kolonları (contract_id/plan_id/action_id) update'te
+    DEĞİŞTİRİLEMEZ — kayıt başka kontrata/plana sessizce taşınamaz (denetim bulgusu #2,
+    2026-07-17); taşıma gerekiyorsa sil + yeniden ekle."""
+    for parent_key in ("contract_id", "plan_id", "action_id"):
+        if parent_key in data and data[parent_key] != getattr(obj, parent_key, None):
+            raise ValueError(
+                f"'{parent_key}' güncellemeyle değiştirilemez — kaydı silip doğru üst kayda yeniden ekleyin.")
     for k, v in _normalize(data).items():
         setattr(obj, k, v)
     db.flush()

@@ -128,6 +128,43 @@ class TestContractCRUD:
         assert r.status_code == 400
         assert "ait değil" in r.json()["detail"]
 
+    def test_child_update_cannot_move_parent(self, client, auth_headers, db):
+        """Update ile üst-bağ (plan_id) DEĞİŞTİRİLEMEZ — taksit başka plana sessizce
+        taşınamaz (denetim bulgusu #2, 2026-07-17)."""
+        g = _mk_group(db)
+        c = client.post(f"{PREFIX}/", json=_contract_payload(g.id), headers=auth_headers).json()
+        p1 = client.post(f"{PREFIX}/{c['id']}/children/plans", headers=auth_headers,
+                         json={"plan_type": "advance"}).json()
+        p2 = client.post(f"{PREFIX}/{c['id']}/children/plans", headers=auth_headers,
+                         json={"plan_type": "eb_prepayment"}).json()
+        inst = client.post(f"{PREFIX}/{c['id']}/children/installments", headers=auth_headers,
+                           json={"plan_id": p1["id"], "due_date": "2026-05-01",
+                                 "amount": 100}).json()
+        r = client.patch(f"{PREFIX}/children/installments/{inst['id']}",
+                         headers=auth_headers, json={"plan_id": p2["id"]})
+        assert r.status_code == 400
+        assert "değiştirilemez" in r.json()["detail"]
+        # Aynı plan_id gönderilirse (no-op) engellenmez
+        r2 = client.patch(f"{PREFIX}/children/installments/{inst['id']}",
+                          headers=auth_headers,
+                          json={"plan_id": p1["id"], "notes": "not güncellendi"})
+        assert r2.status_code == 200
+        assert r2.json()["notes"] == "not güncellendi"
+
+    def test_document_group_contract_cross_check(self, client, auth_headers, db):
+        """Belge, kontratın grubundan farklı bir agency_group_id ile yüklenemez
+        (denetim bulgusu #5)."""
+        import io
+        g1, g2 = _mk_group(db), _mk_group(db)
+        c = client.post(f"{PREFIX}/", json=_contract_payload(g1.id), headers=auth_headers).json()
+        pdf = b"%PDF-1.4 test icerik\n%%EOF"
+        r = client.post(f"{PREFIX}/documents", headers=auth_headers,
+                        files={"file": ("test.pdf", io.BytesIO(pdf), "application/pdf")},
+                        data={"agency_group_id": str(g2.id), "contract_id": str(c["id"]),
+                              "doc_type": "contract"})
+        assert r.status_code == 400
+        assert "uyuşmuyor" in r.json()["detail"]
+
 
 class TestContractRBAC:
     def test_view_required(self, client, no_perm_user_headers):
@@ -205,3 +242,40 @@ class TestContractApproval:
         assert inst is not None, "Onay sonrası taksit oluşmalıydı"
         assert inst.due_date == date.fromisoformat(due)
         assert float(inst.amount) == 100000
+
+    def test_update_and_delete_via_approval_regression(self, db, client, auth_headers):
+        """Executor'ın update (kind=None) ve delete (kind=installments) dalları uçtan-uca:
+        onaylı kontrat güncellemesi uygulanır, onaylı taksit silme gerçekleşir
+        (denetim bulgusu #3 — yalnız create dalları test ediliyordu)."""
+        _, req_role, req_client = _make_actor(db, {
+            "sales.kontratlar": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "sales.kontratlar", req_role, app_role)
+
+        g = _mk_group(db)
+        c = client.post(f"{PREFIX}/", json=_contract_payload(g.id), headers=auth_headers).json()
+        plan = client.post(f"{PREFIX}/{c['id']}/children/plans", headers=auth_headers,
+                           json={"plan_type": "advance"}).json()
+        inst = client.post(f"{PREFIX}/{c['id']}/children/installments", headers=auth_headers,
+                           json={"plan_id": plan["id"], "due_date": "2026-06-01",
+                                 "amount": 5000}).json()
+
+        # UPDATE (kontrat, kind=None): title değişikliği onaya düşer → onaylanınca uygulanır
+        resp = req_client.patch(f"{PREFIX}/{c['id']}", json={"title": "Onaylı Yeni Başlık"})
+        assert resp.status_code == 202, resp.text
+        ap = app_client.post(f"{API}/requests/{resp.json()['request_id']}/approve", json={})
+        assert ap.status_code == 200, f"update dalı bozuksa 500: {ap.text}"
+        db.expire_all()
+        assert db.query(AgencyContract).filter(
+            AgencyContract.id == c["id"]).first().title == "Onaylı Yeni Başlık"
+
+        # DELETE (alt varlık, kind=installments): onaylanınca taksit silinir
+        resp = req_client.delete(f"{PREFIX}/children/installments/{inst['id']}")
+        assert resp.status_code == 202, resp.text
+        ap = app_client.post(f"{API}/requests/{resp.json()['request_id']}/approve", json={})
+        assert ap.status_code == 200, f"delete dalı bozuksa 500: {ap.text}"
+        db.expire_all()
+        assert db.query(ContractInstallment).filter(
+            ContractInstallment.id == inst["id"]).first() is None

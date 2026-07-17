@@ -14,6 +14,12 @@ from app.models.contract import (
     ALL_DOC_TYPES, ALL_INSTALLMENT_STATUS, ALL_PLAN_TYPES,
 )
 
+# Sözde-enum alan whitelist'leri (denetim bulgusu #10 — API doğrudan çağrılırsa da sıkı)
+FX_RULE_PATTERN = "^(checkin_tcmb_buying|checkout_tcmb_buying|fixed_rate|none)$"
+PRICING_MODEL_PATTERN = "^(pp|pu|mixed|pp_multiplier|occupancy_total)$"
+DUE_BASIS_PATTERN = ("^(checkout|invoice_date|invoice_receipt|self_billing|"
+                     "before_checkin|first_friday_after_checkin)$")
+
 
 # --- Kontrat ---
 class ContractCreate(BaseModel):
@@ -26,13 +32,13 @@ class ContractCreate(BaseModel):
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None
     currency: str = Field(default="EUR", max_length=5)
-    fx_rule: Optional[str] = Field(default=None, max_length=40)
+    fx_rule: Optional[str] = Field(default=None, pattern=FX_RULE_PATTERN)
     fx_fixed_rate: Optional[float] = Field(default=None, ge=0)
-    pricing_model: Optional[str] = Field(default=None, max_length=30)
+    pricing_model: Optional[str] = Field(default=None, pattern=PRICING_MODEL_PATTERN)
     board_default: str = Field(default="AI", max_length=10)
     min_stay_default: Optional[int] = Field(default=None, ge=0, le=30)
     release_days_default: Optional[int] = Field(default=None, ge=0, le=60)
-    invoice_due_basis: Optional[str] = Field(default=None, max_length=40)
+    invoice_due_basis: Optional[str] = Field(default=None, pattern=DUE_BASIS_PATTERN)
     invoice_due_days: Optional[int] = Field(default=None, ge=0, le=180)
     markets: Optional[List[str]] = None
     exclusive_markets: Optional[List[str]] = None
@@ -55,13 +61,13 @@ class ContractUpdate(BaseModel):
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None
     currency: Optional[str] = Field(default=None, max_length=5)
-    fx_rule: Optional[str] = Field(default=None, max_length=40)
+    fx_rule: Optional[str] = Field(default=None, pattern=FX_RULE_PATTERN)
     fx_fixed_rate: Optional[float] = Field(default=None, ge=0)
-    pricing_model: Optional[str] = Field(default=None, max_length=30)
+    pricing_model: Optional[str] = Field(default=None, pattern=PRICING_MODEL_PATTERN)
     board_default: Optional[str] = Field(default=None, max_length=10)
     min_stay_default: Optional[int] = Field(default=None, ge=0, le=30)
     release_days_default: Optional[int] = Field(default=None, ge=0, le=60)
-    invoice_due_basis: Optional[str] = Field(default=None, max_length=40)
+    invoice_due_basis: Optional[str] = Field(default=None, pattern=DUE_BASIS_PATTERN)
     invoice_due_days: Optional[int] = Field(default=None, ge=0, le=180)
     markets: Optional[List[str]] = None
     exclusive_markets: Optional[List[str]] = None

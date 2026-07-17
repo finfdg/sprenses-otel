@@ -397,7 +397,10 @@ def update_child(
     if approval_resp:
         return approval_resp
 
-    contract_service.apply_child_update(db, kind, obj, data)
+    try:
+        contract_service.apply_child_update(db, kind, obj, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     log_action(db, current_user.id, "update", f"contract_{kind}", entity_id=child_id,
                details=None, ip_address=get_client_ip(request))
     db.commit()
@@ -455,9 +458,15 @@ async def upload_document(
         raise HTTPException(status_code=400, detail=f"Geçersiz belge türü: {doc_type}")
     if not db.query(AgencyGroup).filter(AgencyGroup.id == agency_group_id).first():
         raise HTTPException(status_code=404, detail="Acente grubu bulunamadı")
-    if contract_id and not db.query(AgencyContract).filter(
-            AgencyContract.id == contract_id).first():
-        raise HTTPException(status_code=404, detail="Kontrat bulunamadı")
+    if contract_id:
+        c = db.query(AgencyContract).filter(AgencyContract.id == contract_id).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Kontrat bulunamadı")
+        # Çapraz tutarlılık: belge, kontratın grubundan farklı gruba kaydedilemez
+        if c.agency_group_id != agency_group_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Kontrat farklı bir acente grubuna ait — grup ile kontrat uyuşmuyor")
 
     content = await validate_upload_file(file, allowed_types=["pdf", "excel"])
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
@@ -507,9 +516,16 @@ def update_document_meta(
     if not doc:
         raise HTTPException(status_code=404, detail="Belge bulunamadı")
     payload = data.model_dump(exclude_unset=True)
-    if payload.get("contract_id") and not db.query(AgencyContract).filter(
-            AgencyContract.id == payload["contract_id"]).first():
-        raise HTTPException(status_code=404, detail="Kontrat bulunamadı")
+    if payload.get("contract_id"):
+        c = db.query(AgencyContract).filter(
+            AgencyContract.id == payload["contract_id"]).first()
+        if not c:
+            raise HTTPException(status_code=404, detail="Kontrat bulunamadı")
+        # Çapraz tutarlılık: belge yalnız kendi grubunun kontratına bağlanabilir
+        if c.agency_group_id != doc.agency_group_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Kontrat, belgenin acente grubundan farklı — bağlanamaz")
 
     contract_service.apply_document_meta(db, doc, payload)
     log_action(db, current_user.id, "update", "contract_document", entity_id=doc.id,

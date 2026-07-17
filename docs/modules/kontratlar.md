@@ -111,3 +111,24 @@ Regresyon testleri: `test_create_contract_via_approval_regression`,
    Sedna 340 bakiyeleri İZLEME görünümü. SPO bantları doluluk/ciro grafiklerine overlay.
 5. Faz 3: sezon sonu kickback/mutabakat hesaplayıcısı + allotment × doluluk.
 6. Faz 4: fiyat doğrulama motoru (contract_rates + kombinasyon aritmetiği + oda eşleme).
+
+## Denetim ve Düzeltmeler (2026-07-17, modul-denetci 7.5/10 → bulgular kapatıldı)
+
+- **RBAC erişim kırığı (Yüksek):** tek-kod route guard, yalnız `sales.kontratlar` izni olan
+  kullanıcıyı sayfadan atıyordu → `NavItem.altCodes` eklendi (`lib/config/navigation.ts`):
+  acente-mahsup rotası `sales.acente_mahsup` VEYA `sales.kontratlar` ile geçer;
+  sidebar görünürlüğü (`Sidebar.itemVisible`) ve `+layout` guard'ı
+  (`requiredModulesForPath` — çoklu kod, OR) aynı konfigden beslenir. Sekme-gömülü
+  yeni modüller için desen budur.
+- **Üst-bağ değişmezliği (Orta):** `apply_child_update` artık `contract_id/plan_id/action_id`
+  değişikliğini reddeder — kayıt başka kontrata/plana taşınamaz (sil + yeniden ekle).
+  Test: `test_child_update_cannot_move_parent`.
+- **Onay update/delete regresyonu (Orta):** `test_update_and_delete_via_approval_regression`
+  — executor'ın kind=None/update ve kind=installments/delete dalları uçtan uca.
+- **Belge çapraz tutarlılık (Orta):** yükleme + metadata PATCH'inde kontrat.grup ↔ belge.grup
+  eşleşmesi zorunlu. Test: `test_document_group_contract_cross_check`.
+- **Şema whitelist (Düşük):** `fx_rule`/`pricing_model`/`invoice_due_basis` pattern'li.
+- **FileDropzone (Düşük):** `.xlsm` kaldırıldı, limit ipucu gerçek değerlerle (PDF 20 MB / Excel 10 MB).
+- **BİLİNÇLİ uygulanmayan öneri:** `/summary` endpoint'ini dosya sonuna taşıma — FastAPI
+  rota sırası gereği `/summary`, `/{contract_id}`'den ÖNCE tanımlı olmak zorunda
+  (int path param "summary" string'ini 422'ye düşürür); taşınırsa endpoint kırılır.

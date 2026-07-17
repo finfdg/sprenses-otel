@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { loadAuth, refreshAuth, logout, authState, hasPermission } from '$lib/stores/auth.svelte';
-	import { requiredModuleForPath } from '$lib/config/navigation';
+	import { requiredModulesForPath } from '$lib/config/navigation';
 	import { sidebar, closeSidebar } from '$lib/stores/ui.svelte';
 	import { unlockAudio } from '$lib/stores/notification.svelte';
 	import { connectWebSocket, disconnectWebSocket, onWsEvent, resetReconnect, wsState } from '$lib/stores/websocket.svelte';
@@ -28,8 +28,8 @@
 		const user = authState.user;
 		if (!user) return;
 		const pathname = $page.url.pathname;
-		const required = requiredModuleForPath(pathname);
-		if (required && !hasPermission(required, 'view')) {
+		const required = requiredModulesForPath(pathname);
+		if (required && !required.some((c) => hasPermission(c, 'view'))) {
 			showToast('Bu sayfaya erişim yetkiniz yok', 'error');
 			goto('/dashboard', { replaceState: true });
 		}

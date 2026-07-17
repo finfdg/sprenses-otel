@@ -37,9 +37,14 @@
 		return action === 'view' ? p.can_view : p.can_use;
 	}
 
+	// NavItem görünür mü? Ana kod VEYA sekme-gömülü ek kodlardan (altCodes) biri yeterli
+	function itemVisible(it: NavItem): boolean {
+		return hasPerm(it.code) || (it.altCodes ?? []).some((c) => hasPerm(c));
+	}
+
 	// Bir grubun en az bir alt sayfasına görme izni var mı? (grup başlığını göster)
 	function groupVisible(group: NavGroup): boolean {
-		return group.items.some((it) => hasPerm(it.code));
+		return group.items.some(itemVisible);
 	}
 
 	// markAsRead optimistik güncellemesinden sonra sunucu sync'ini engelle
@@ -300,7 +305,7 @@
 				{#if expandedGroups[group.key] && !collapsed}
 					<div class="ml-4 space-y-0.5">
 						{#each group.items as it (it.href)}
-							{#if hasPerm(it.code)}
+							{#if itemVisible(it)}
 								<a
 									href={it.href}
 									class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors {itemActive(it) ? 'bg-teal-600 text-white font-medium' : 'text-teal-300 hover:bg-teal-600/60 hover:text-white'}"

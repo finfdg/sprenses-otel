@@ -18,6 +18,10 @@
 export interface NavItem {
 	/** Modül izin kodu — hasPerm(code) ve route guard için */
 	code: string;
+	/** Aynı rotada yaşayan EK modül kodları (sekme-gömülü modüller — ör. acente-mahsup
+	 *  içindeki Kontratlar sekmesi `sales.kontratlar`). Route guard ve sidebar görünürlüğü
+	 *  bu kodlardan HERHANGİ BİRİ ile geçer (OR). */
+	altCodes?: string[];
 	label: string;
 	href: string;
 	/** SVG <path d="..."> değer(ler)i */
@@ -132,7 +136,7 @@ export const NAV_GROUPS: NavGroup[] = [
 		items: [
 			// 2026-07-09: Otel Rezervasyon, Günlük Hareketler ve Oda Tipleri modülleri
 			// bu tek modülün sekmeleri altında birleştirildi (izin: sales.acente_mahsup).
-			{ code: 'sales.acente_mahsup', label: 'Acente Mahsup & Nakit Akım', href: '/dashboard/satis/acente-mahsup', icon: [I.scale] },
+			{ code: 'sales.acente_mahsup', altCodes: ['sales.kontratlar'], label: 'Acente Mahsup & Nakit Akım', href: '/dashboard/satis/acente-mahsup', icon: [I.scale] },
 		],
 	},
 	{
@@ -166,18 +170,29 @@ export const NAV_GROUPS: NavGroup[] = [
  * Eşleşme yoksa null (ör. /dashboard panel — izin gerekmez).
  */
 export function requiredModuleForPath(pathname: string): string | null {
-	const routes: Array<{ href: string; code: string }> = [
-		{ href: '/dashboard/mesajlasma', code: 'messaging' },
-		{ href: '/dashboard/asistan', code: 'ai.asistan' },
+	const codes = requiredModulesForPath(pathname);
+	return codes ? codes[0] : null;
+}
+
+/**
+ * Rotanın kabul ettiği modül kodları (OR) — sekme-gömülü modüller (altCodes) dahil.
+ * Kullanıcıda bu kodlardan HERHANGİ BİRİNİN view izni varsa sayfaya girebilir
+ * (2026-07-17: sales.kontratlar sekmesi için eklendi — tek-kod guard, yalnız
+ * kontrat izni olan kullanıcıyı sayfadan atıyordu).
+ */
+export function requiredModulesForPath(pathname: string): string[] | null {
+	const routes: Array<{ href: string; codes: string[] }> = [
+		{ href: '/dashboard/mesajlasma', codes: ['messaging'] },
+		{ href: '/dashboard/asistan', codes: ['ai.asistan'] },
 	];
 	for (const g of NAV_GROUPS) {
-		for (const it of g.items) routes.push({ href: it.href, code: it.code });
+		for (const it of g.items) routes.push({ href: it.href, codes: [it.code, ...(it.altCodes ?? [])] });
 	}
 	// En spesifik (uzun) href önce
 	routes.sort((a, b) => b.href.length - a.href.length);
 	for (const r of routes) {
 		if (pathname === r.href || pathname.startsWith(r.href + '/')) {
-			return r.code;
+			return r.codes;
 		}
 	}
 	return null;
