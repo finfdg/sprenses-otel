@@ -260,7 +260,20 @@ def compute_eur_balances(db: Session) -> dict:
         cc_projection_expense_by_date[pdt] += to_eur(float(proj["amount"]), "TRY", pdt)
         all_date_set.add(pdt)
 
-    # CC tarihleri eklenmiş olabilir, yeniden sırala
+    # Kontrat taksitleri (advances'a netlenmiş) + TAM CİRO tahsilat projeksiyonu
+    # (#26 kararı varyant iii, 2026-07-17 — okuma-anında servis, FE YAZILMAZ;
+    # çift-sayım korumaları contract_projection_service docstring'inde).
+    from app.services.contract_projection_service import contract_inflow_projections
+    contract_income_by_date = defaultdict(float)
+    _cproj = contract_inflow_projections(db, today=today_date)
+    for _ci in _cproj["installments"] + _cproj["ciro_monthly"]:
+        _cdt = date_cls.fromisoformat(_ci["date"])
+        if _cdt <= today_date:
+            continue  # vadesi geçmiş taksit bakiyeye eklenmez (runway "Vadesi Geçen Tahsilatlar"da)
+        contract_income_by_date[_cdt] += float(_ci["amount_eur"])
+        all_date_set.add(_cdt)
+
+    # CC/kontrat tarihleri eklenmiş olabilir, yeniden sırala
     all_dates = sorted(all_date_set)
 
     # Çekle eşleşen banka işlem ID'leri (çift sayım engeli)
@@ -397,13 +410,15 @@ def compute_eur_balances(db: Session) -> dict:
             # Bekleyen avanslar ve planlı gelirler gelir olarak eklenir (giderden düşülür)
             cumulative_future_expense -= advance_income_by_date.get(dt, 0)
             cumulative_future_expense -= scheduled_income_by_date.get(dt, 0)
+            # Kontrat taksitleri (net) + beklenen ciro tahsilatı (#26-iii)
+            cumulative_future_expense -= contract_income_by_date.get(dt, 0)
             total_balance = round(last_known_bank_eur - cumulative_future_expense, 2)
         else:
             total_balance = last_known_bank_eur
 
         # Günlük gelir/gider EUR (tüm kaynaklar dahil)
         inc_eur = (bank_income_by_date.get(dt, 0) + advance_income_by_date.get(dt, 0) +
-                   scheduled_income_by_date.get(dt, 0))
+                   scheduled_income_by_date.get(dt, 0) + contract_income_by_date.get(dt, 0))
         exp_eur = (bank_expense_by_date.get(dt, 0) + check_expense_by_date.get(dt, 0) +
                    credit_expense_by_date.get(dt, 0) + cc_expense_by_date.get(dt, 0) +
                    cc_projection_expense_by_date.get(dt, 0) +

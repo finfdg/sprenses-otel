@@ -1106,6 +1106,100 @@ def _match_vendors_to_bank(db: Session) -> dict:
 # kullanır: önce otomatik etiketleme (kategori + ödeme yöntemi + cari), sonra
 # 4 matcher — her adım SAVEPOINT izolasyonlu (biri patlarsa diğerleri sürer).
 
+def _match_contract_installments_to_bank(db: Session) -> dict:
+    """Bekleyen kontrat taksitlerini banka gelir işlemleriyle otomatik eşleştir (Faz 2).
+
+    Avans eşleştiricisinden SONRA koşar — advances BİRİNCİL temsildir (çift-sayım kural
+    seti [1]); avansa bağlanmış banka işlemleri burada aday olamaz. guarantee_check
+    planları (otelin verdiği teminat) kapsam dışı. Kriterler avans eşleştiricisiyle aynı
+    ruhta: tutar birebir + para birimi; grup adı/üye tokenı açıklamada geçiyorsa geniş
+    pencere (±60g), geçmiyorsa vadeye yakınlık (±10g). Eşleşen taksit paid + banka bağı.
+    """
+    from app.models.agency_group import AgencyGroup
+    from app.models.contract import (
+        INSTALLMENT_PAID, INSTALLMENT_PENDING, PLAN_TYPE_GUARANTEE_CHECK,
+        AgencyContract, ContractInstallment, ContractPaymentPlan,
+    )
+
+    rows = (
+        db.query(ContractInstallment, AgencyContract)
+        .join(ContractPaymentPlan, ContractInstallment.plan_id == ContractPaymentPlan.id)
+        .join(AgencyContract, ContractPaymentPlan.contract_id == AgencyContract.id)
+        .filter(
+            ContractPaymentPlan.plan_type != PLAN_TYPE_GUARANTEE_CHECK,
+            ContractInstallment.status == INSTALLMENT_PENDING,
+            ContractInstallment.bank_transaction_id.is_(None),
+            ContractInstallment.amount.isnot(None),
+            ContractInstallment.due_date.isnot(None),
+        )
+        .order_by(ContractInstallment.due_date.asc())
+        .all()
+    )
+    if not rows:
+        return {"matched": 0, "total_pending": 0}
+
+    groups = {g.id: g for g in db.query(AgencyGroup).all()}
+
+    # Avans/çek/taksit ile zaten eşleşmiş banka işlemleri aday olamaz
+    used = set(r[0] for r in db.query(Advance.bank_transaction_id)
+               .filter(Advance.bank_transaction_id.isnot(None)).all())
+    used |= set(r[0] for r in db.query(Check.bank_transaction_id)
+                .filter(Check.bank_transaction_id.isnot(None)).all())
+    used |= set(r[0] for r in db.query(ContractInstallment.bank_transaction_id)
+                .filter(ContractInstallment.bank_transaction_id.isnot(None)).all())
+
+    bank_incomes = (
+        db.query(BankTransaction, BankAccount)
+        .join(BankAccount, BankTransaction.account_id == BankAccount.id)
+        .filter(BankTransaction.type == "income")
+        .all()
+    )
+    btx_index = defaultdict(list)
+    for tx, acc in bank_incomes:
+        if tx.id in used or "virman" in (tx.description or "").lower():
+            continue
+        btx_index[(acc.currency, round(abs(float(tx.amount)), 2))].append(tx)
+
+    matched = 0
+    for inst, contract in rows:
+        cands = btx_index.get((inst.currency, round(float(inst.amount), 2)), [])
+        if not cands:
+            continue
+        g = groups.get(contract.agency_group_id)
+        name_tokens = set()
+        if g:
+            name_tokens |= _norm_tokens(g.name)
+            for m in (g.members or []):
+                name_tokens |= _norm_tokens(m)
+        best = None
+        for tx in cands:
+            if tx.id in used:
+                continue
+            desc_tokens = _norm_tokens(tx.description or "")
+            named = bool(name_tokens & desc_tokens)
+            delta = abs((tx.date - inst.due_date).days)
+            window = ADVANCE_NAMED_WINDOW_DAYS if named else ADVANCE_BLIND_WINDOW_DAYS
+            if delta > window:
+                continue
+            score = (0 if named else 1, delta)
+            if best is None or score < best[0]:
+                best = (score, tx)
+        if best:
+            tx = best[1]
+            inst.status = INSTALLMENT_PAID
+            inst.paid_date = tx.date
+            inst.bank_transaction_id = tx.id
+            inst.notes = ((inst.notes or "") +
+                          f" | Banka eşleşmesi: btx#{tx.id} {tx.date}")[:300]
+            used.add(tx.id)
+            matched += 1
+
+    if matched:
+        from app.services.contract_projection_service import invalidate_cache
+        invalidate_cache()
+    return {"matched": matched, "total_pending": len(rows)}
+
+
 def run_all_matchers(db) -> dict:
     """4 otomatik eşleştiriciyi SAVEPOINT izolasyonuyla koştur.
 
@@ -1118,6 +1212,7 @@ def run_all_matchers(db) -> dict:
         (_match_credits_to_bank, "Kredi-banka", "credits_matched"),
         (_match_cc_to_bank, "Kredi kartı-banka", "cc_matched"),
         (_match_advances_to_bank, "Avans-banka", "advances_matched"),
+        (_match_contract_installments_to_bank, "Kontrat taksiti-banka", "contract_installments_matched"),
         (_match_vendors_to_bank, "Cari-banka", "vendor_payments_matched"),
     ]:
         try:

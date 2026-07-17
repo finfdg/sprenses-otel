@@ -332,6 +332,47 @@ def t_account(
                 "bank_name": proj.get("bank_name"),
             })
 
+    # Kontrat taksitleri (advances'a netlenmiş) + TAM CİRO tahsilat projeksiyonu — GİRİŞ
+    # tarafına iki projeksiyon grubu (#26 kararı varyant iii, 2026-07-17; okuma-anında
+    # servis, FE yazılmaz — cc_projection deseniyle aynı). Vadesi geçmiş taksitler burada
+    # GÖSTERİLMEZ (runway "Vadesi Geçen Tahsilatlar" bölümünde — çift gösterim yok).
+    from app.services.contract_projection_service import contract_inflow_projections
+    _cproj = contract_inflow_projections(db, today=today)
+    _contract_feed = (
+        [("Kontrat Taksitleri (Projeksiyon)", "finansman", i,
+          i["label"] + (" — KOŞULLU" if i.get("conditional") else ""))
+         for i in _cproj["installments"]] +
+        [("Beklenen Ciro Tahsilatı (Projeksiyon)", "faaliyet", i, i["label"])
+         for i in _cproj["ciro_monthly"]]
+    )
+    for _glabel, _section_name, _ci, _iname in _contract_feed:
+        _cdt = date_cls.fromisoformat(_ci["date"])
+        if _cdt < start or _cdt > end or _cdt <= today:
+            continue
+        _eur = float(_ci["amount_eur"])
+        group = groups[DIRECTION_INCOME].setdefault(
+            _glabel, {"label": _glabel, "total_eur": 0.0, "item_count": 0,
+                      "realized_eur": 0.0, "realized_count": 0,
+                      "held_eur": 0.0, "held_count": 0,
+                      "section": _section_name, "items": []}
+        )
+        group["item_count"] += 1
+        group["total_eur"] += _eur
+        totals[DIRECTION_INCOME] += _eur
+        if len(group["items"]) < MAX_ITEMS_PER_GROUP:
+            group["items"].append({
+                "name": _iname,
+                "date": _ci["date"],
+                "amount_eur": round(_eur, 2),
+                "amount_native": round(_eur, 2),
+                "currency": "EUR",
+                "is_realized": False,
+                "is_held": False,
+                "source_type": None,  # FE değil — bekletme kimliği yok (projeksiyon)
+                "source_id": None,
+                "bank_name": None,
+            })
+
     def _finalize(direction: int) -> list:
         result = list(groups[direction].values())
         for g in result:

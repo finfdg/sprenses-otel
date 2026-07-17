@@ -132,3 +132,84 @@ Regresyon testleri: `test_create_contract_via_approval_regression`,
 - **BİLİNÇLİ uygulanmayan öneri:** `/summary` endpoint'ini dosya sonuna taşıma — FastAPI
   rota sırası gereği `/summary`, `/{contract_id}`'den ÖNCE tanımlı olmak zorunda
   (int path param "summary" string'ini 422'ye düşürür); taşınırsa endpoint kırılır.
+
+## Faz 1b — Veri Yükleme (2026-07-17, TAMAMLANDI)
+
+- **27 kontrat** seed edildi (16 operatör; workflow: 16 yazar + 16 doğrulayıcı ajan;
+  kaynak: kontrat klasörü çıkarımları). Dönemler, ödeme planları/taksitler, EB/SPO
+  aksiyonları + bantları, kontenjanlar, kesintiler dahil. Loader idempotent (kod bazlı
+  skip): scratchpad `load_seeds.py`.
+- **79 belge** arşivlendi (`uploads/contract_files/`, 175 MB) — klasör→grup eşlemeli,
+  doc_type path'ten çıkarımlı, sezon path'inden kontrata bağlı. macOS kaynaklı NFD
+  Unicode klasör adları (İrelsTravel, Roket Türkiye) NFC normalize edilerek çözüldü.
+- **`sedna_contrack_ids` otomatik dolduruldu:** grup üyesi acentelerin rezervasyon
+  Contrack'leri, checkin çoğunluğu + DAR-pencere tercihiyle (yıllık şemsiye kontratın
+  sezon kontratlarını yutmasını önler) kontratlara atandı. YAKLAŞIKTIR — Faz 4'te
+  rate-list bazında netleşir. Örn. ALLTOURS-S26→[2122,2123], ODEON-S26-CORAL→9 Contrack.
+- **Taksit durumu politikası (uygulanan):** belge "ödendi" diyorsa paid; 2025 vadeli
+  sabit avanslar paid varsayıldı; ardından **Sedna 340 `received` bakiyesi grup
+  taksitlerine KRONOLOJİK mahsup edildi** — tam karşılanan pending → paid (notlu).
+  Sonuç: AllTours 15.02/15.03/10.04/10.07 taksitleri paid (5,25M € received kanıtı),
+  Odeon 8 çekin tümü paid (944k € received ≥ 800k). Webres 50k ve W2M 2. taksit
+  340-bütçesini aşıyor ama belge/varsayım kanıtıyla paid bırakıldı (uyarı loglandı).
+  Banka-işlem düzeyinde kesinleşme Faz 2 eşleştiricisinde.
+- **Önemli konvansiyon — `guarantee_check` = GİDEN teminat:** tek guarantee_check planı
+  Odeon'a verilen 2×24M TL ifa teminatı çekleridir (tahsil beklenmez, 31.10.2026 iade).
+  `/summary` ve liste satırı bekleyen-taksit toplamları bu plan tipini ve kontrat para
+  biriminden farklı taksitleri HARİÇ tutar (karışık PB tek sayıya indirgenmez; yalnız
+  EUR toplanır). **Faz 2 gelir projeksiyonu da guarantee_check'i almayacak.**
+- Canlı doğrulama (2026-07-17): aktif 27 kontrat · bekleyen 4,8M € (800k koşullu) ·
+  30 gün içinde 500k · **vadesi geçmiş 800k / 3 taksit = W2M Şubat–Nisan** (muhtemel
+  %70 performans şartı durdurması — ilk gerçek alacak-takip bulgusu, operatörle
+  görüşülmeli).
+
+## Faz 2 — Nakit Akım Entegrasyonu (2026-07-17, TAMAMLANDI)
+
+`contract_projection_service` (okuma-anında, FE'siz) üç nakit tüketicisini besler;
+4 vektörlü çift-sayım kural seti uygulandı; taksit↔banka otomatik eşleştirici
+matching_service'e eklendi; SPO takvimi endpoint'i + panel bant görünümü canlıda.
+Detay: `docs/modules/nakit-akim.md` "#26 KARARI KAPANDI" bölümü.
+
+## Faz 3 — Kesinti Tahmini + Kontenjan Kullanımı (2026-07-17, TAMAMLANDI)
+
+- `GET /sales/kontratlar/deductions-forecast?year=` — sezon sonu kickback/kesinti
+  TAHMİNİ: kontrat cirosu (önce **Sedna Contrack eşlemeli** — aynı grubun iki kontratı
+  birbirinin cirosunu saymaz; eşleme yoksa grup üyeleri + geçerlilik aralığı fallback)
+  üzerine `contract_deductions` uygulanır (fatura-başı %, baremli sezon-sonu tier'lar,
+  sabit tutarlar). Mutabakat masasına hazırlık — "beklenen vs operatör bildirimi".
+- `GET /sales/kontratlar/allotment-usage?start&end` — günlük satılan oda vs kontenjan:
+  ortalama/tepe kullanım %, aşım günleri, taahhüt eşiği (`guaranteed_share_percent`).
+  Rezervasyon seçimi Contrack-öncelikli.
+- UI: KontratlarPanel'de iki toggle bölüm (kesinti tablosu + kullanım çubuğu; kırmızı
+  bar = kontenjan aşımı). Canlı ilk değerler (Tem-Ağu 2026): ODEON %76, ALLTOURS %74
+  (200 oda, %80 taahhüt), NORDIC %50 (10 gün aşım), PEGAS %21.
+- ODEON Contrack ayrımı elle netleştirildi: CORALTR contrack'leri (2147/2148) →
+  ODEON-YEARLY-CORAL-IC; 7 uluslararası contrack → ODEON-S26 (kesinti/kontenjan sahibi);
+  ratelist kontratı (ODEON-S26-CORAL) Faz 4'te kendi eşlemesini alacak (notlu).
+
+## Faz 4a — Fiyat Doğrulama Altyapısı + Rate'siz Denetim Motoru (2026-07-17, TAMAMLANDI)
+
+- **Tablolar** (migration `c9e1a3b5d7f2`): `contract_rates` (4 fiyat arketipi:
+  base_price / multiplier / fixed_total; occupancy_code; market_scope) +
+  `contract_child_policies`. CRUD kind'ları: `rates`, `child-policies` (onay akışlı).
+- **`GET /sales/kontratlar/price-audit?start&end&tolerance=3`** — rate matrisi OLMADAN
+  çalışan denetimler: (1) para birimi uyumsuzluğu, (2) dönem boşluğu (**kapsama
+  korumalı**: dönem verisi sezonun <%70'ini kapsıyorsa atlanır — AllTours taranmış
+  kontratında yalnız P1 bantları okunabilmişti, yanlış-pozitif önlenir),
+  (3) min-stay ihlali, (4) Contrack-içi fiyat tutarlılığı (aynı dönem×oda×doluluk
+  grubunda gecelik HAM fiyat — sözleşme PB, EUR çevrimi değil — medyandan sapma;
+  büyükten küçüğe sıralı; EB kademeleri meşru sapma üretebilir, notlu).
+  `rate_rows>0` olduğunda kontrat-fiyat kıyası bu motora eklenecek.
+- Canlı ilk koşum (May–Eki 2026, 5.182 rezervasyon): 95 para birimi uyumsuzluğu
+  (Webres EUR rezervasyonlar TL iç-pazar kontratında — EU protokolü ayrımı bilgisi),
+  14 min-stay, 3.052 dönem-kontrolü düşük-kapsama nedeniyle atlandı.
+- UI: KontratlarPanel "Fiyat/kural denetimi" toggle bölümü (rozet sayaçları + bulgu tablosu).
+
+## Faz 4b — AÇIK: Rate Matrisi Veri Girişi
+
+Rate listeleri çoğunlukla TARANMIŞ (16 kontrat × ~8 dönem × 7-12 oda × doluluk
+kombinasyonu) — seed workflow'u fiyatları BİLİNÇLİ kopyalamadı (güvenilirlik).
+Giriş yolları: (a) elle CRUD (`rates` kind), (b) ayrı okuma-workflow'u ile
+data_confidence=scanned_approx işaretli toplu giriş + operatör teyidi. Rate'ler
+girildikçe price-audit kontrat-fiyat kıyası otomatik devreye girer; aksiyon motoru
+(kümüle/best-price aritmetiği, kontrat başına birim test) bu veriyle birlikte yazılmalı.

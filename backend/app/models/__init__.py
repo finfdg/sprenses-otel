@@ -3,8 +3,8 @@ from app.models.agency_code_map import AgencyCodeMap
 from app.models.agency_code_override import AgencyCodeOverride
 from app.models.contract import (
     AgencyContract, ContractAction, ContractActionTier, ContractAllotment,
-    ContractDeduction, ContractDocument, ContractInstallment, ContractPaymentPlan,
-    ContractPeriod, ContractRoomType,
+    ContractChildPolicy, ContractDeduction, ContractDocument, ContractInstallment,
+    ContractPaymentPlan, ContractPeriod, ContractRate, ContractRoomType,
 )
 from app.models.agency_group import AgencyGroup
 from app.models.approval import (
@@ -90,6 +90,7 @@ __all__ = [
     "AgencyContract", "ContractDocument", "ContractPeriod", "ContractRoomType",
     "ContractPaymentPlan", "ContractInstallment", "ContractAction",
     "ContractActionTier", "ContractAllotment", "ContractDeduction",
+    "ContractRate", "ContractChildPolicy",
     "SalesInvoice", "SalesCollection", "SalesAdvance",
     "ReceivableTerm",
     "ScheduledDefinition", "ScheduledEntry",

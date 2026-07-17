@@ -370,3 +370,55 @@ class ContractDeduction(Base):
     notes: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
 
     contract = relationship("AgencyContract", back_populates="deductions")
+
+
+class ContractRate(Base):
+    """Fiyat matrisi satırı (Faz 4) — 4 arketip tek yapıda:
+    saf PP/PU → base_price; PP×çarpan → base_price+multiplier;
+    kombinasyon-toplam (DerTour/Fun&Sun) → fixed_total. Veri girişi Faz 4b."""
+
+    __tablename__ = "contract_rates"
+    __table_args__ = (
+        Index("ix_contract_rates_contract", "contract_id"),
+        Index("ix_contract_rates_period", "period_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("agency_contracts.id", ondelete="CASCADE"), nullable=False)
+    period_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("contract_periods.id", ondelete="CASCADE"), nullable=True)
+    contract_room_type_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("contract_room_types.id", ondelete="CASCADE"), nullable=True)
+    board: Mapped[str] = mapped_column(String(10), server_default="AI")
+    occupancy_code: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # 2AD / SGL / 2AD+1CHD(7-17)
+    price_type: Mapped[str] = mapped_column(String(20), server_default="per_person_night")
+    base_price: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    multiplier: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
+    fixed_total: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    min_payer: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    market_scope: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    data_confidence: Mapped[str] = mapped_column(String(30), server_default=CONFIDENCE_VERIFIED)
+    notes: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+
+
+class ContractChildPolicy(Base):
+    """Çocuk yaş bandı politikası (Faz 4) — rezervasyonda yaş verisi olmadığından
+    doğrulama yaklaşık kalır (tolerans eşiğiyle)."""
+
+    __tablename__ = "contract_child_policies"
+    __table_args__ = (Index("ix_contract_child_policies_contract", "contract_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    contract_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("agency_contracts.id", ondelete="CASCADE"), nullable=False)
+    contract_room_type_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("contract_room_types.id", ondelete="SET NULL"), nullable=True)
+    child_order: Mapped[int] = mapped_column(Integer, server_default="1")
+    age_min: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)
+    age_max: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)
+    discount_percent: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+    fixed_price: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    period_scope: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    data_confidence: Mapped[str] = mapped_column(String(30), server_default=CONFIDENCE_VERIFIED)
+    notes: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)

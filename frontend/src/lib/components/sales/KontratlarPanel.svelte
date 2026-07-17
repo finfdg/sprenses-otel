@@ -110,6 +110,18 @@
 		plan_id: 0, due_date: '', amount: null as number | null, currency: 'EUR',
 		is_conditional: false, condition_note: '', notes: '',
 	});
+	let showCalendar = $state(false);
+	let showDeductions = $state(false);
+	let deductions = $state<any[]>([]);
+	let deductionsLoading = $state(false);
+	let showAllotments = $state(false);
+	let showAudit = $state(false);
+	let audit = $state<any>(null);
+	let auditLoading = $state(false);
+	let allotments = $state<any[]>([]);
+	let allotmentsLoading = $state(false);
+	let calendarItems = $state<any[]>([]);
+	let calendarLoading = $state(false);
 	let showUploadModal = $state(false);
 	let uploadMeta = $state({ doc_type: 'contract', doc_date: '', notes: '' });
 	let uploadFile = $state<File | null>(null);
@@ -157,6 +169,98 @@
 			loading = false;
 		}
 	}
+
+	async function toggleCalendar() {
+		showCalendar = !showCalendar;
+		if (!showCalendar || calendarItems.length) return;
+		calendarLoading = true;
+		try {
+			const start = new Date();
+			const end = new Date(Date.now() + 90 * 86400000);
+			const iso = (d: Date) => d.toISOString().slice(0, 10);
+			const res: any = await api.get(
+				`/sales/kontratlar/actions-calendar?start=${iso(start)}&end=${iso(end)}`);
+			// Takvimde yalnız tarih-bantlı aksiyonlar çizilir (kontrat-geneli olanlar listede zaten)
+			calendarItems = res.items.filter((a: any) => a.sales_start || a.tiers?.some((t: any) => t.stay_start));
+		} catch (e) {
+			console.error('Aksiyon takvimi yüklenemedi:', e);
+			showToast('Aksiyon takvimi yüklenemedi', 'error');
+		} finally {
+			calendarLoading = false;
+		}
+	}
+
+	// Bant konumu: bugün..+90g penceresinde yüzde (CSS left/width)
+	function bandPos(startS: string | null, endS: string | null): { left: number; width: number } | null {
+		const w0 = Date.now();
+		const w1 = w0 + 90 * 86400000;
+		const s0 = startS ? new Date(startS + 'T00:00:00').getTime() : w0;
+		const s1 = endS ? new Date(endS + 'T23:59:59').getTime() : w1;
+		if (s1 < w0 || s0 > w1) return null;
+		const left = Math.max(0, ((s0 - w0) / (w1 - w0)) * 100);
+		const right = Math.min(100, ((s1 - w0) / (w1 - w0)) * 100);
+		return { left, width: Math.max(1.5, right - left) };
+	}
+
+	async function toggleDeductions() {
+		showDeductions = !showDeductions;
+		if (!showDeductions || deductions.length) return;
+		deductionsLoading = true;
+		try {
+			const res: any = await api.get(
+				`/sales/kontratlar/deductions-forecast?year=${new Date().getFullYear()}`);
+			deductions = res.items;
+		} catch (e) {
+			console.error('Kesinti tahmini yüklenemedi:', e);
+			showToast('Kesinti tahmini yüklenemedi', 'error');
+		} finally {
+			deductionsLoading = false;
+		}
+	}
+
+	async function toggleAllotments() {
+		showAllotments = !showAllotments;
+		if (!showAllotments || allotments.length) return;
+		allotmentsLoading = true;
+		try {
+			const iso = (d: Date) => d.toISOString().slice(0, 10);
+			const start = new Date();
+			const end = new Date(Date.now() + 60 * 86400000);
+			const res: any = await api.get(
+				`/sales/kontratlar/allotment-usage?start=${iso(start)}&end=${iso(end)}`);
+			allotments = res.items;
+		} catch (e) {
+			console.error('Kontenjan kullanımı yüklenemedi:', e);
+			showToast('Kontenjan kullanımı yüklenemedi', 'error');
+		} finally {
+			allotmentsLoading = false;
+		}
+	}
+
+	async function toggleAudit() {
+		showAudit = !showAudit;
+		if (!showAudit || audit) return;
+		auditLoading = true;
+		try {
+			const iso = (d: Date) => d.toISOString().slice(0, 10);
+			const start = new Date(Date.now() - 60 * 86400000);
+			const end = new Date(Date.now() + 120 * 86400000);
+			audit = await api.get(
+				`/sales/kontratlar/price-audit?start=${iso(start)}&end=${iso(end)}`);
+		} catch (e) {
+			console.error('Fiyat denetimi yüklenemedi:', e);
+			showToast('Fiyat denetimi yüklenemedi', 'error');
+		} finally {
+			auditLoading = false;
+		}
+	}
+
+	const AUDIT_TYPE_LABELS: Record<string, string> = {
+		currency_mismatch: 'Para birimi uyumsuz',
+		period_gap: 'Dönem boşluğu',
+		min_stay_violation: 'Min. konaklama ihlali',
+		price_deviation: 'Fiyat sapması',
+	};
 
 	async function loadGroups() {
 		try {
@@ -432,7 +536,8 @@
 	<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
 		<StatCard icon={ScrollText} label="Aktif Kontrat" value={String(summary.active_contracts)} />
 		<StatCard icon={Wallet} label="Bekleyen Taksit"
-			value={fmtMoney(summary.pending_installment_total)} />
+			value={fmtMoney(summary.pending_installment_total)}
+			hint={summary.conditional_pending ? `${fmtMoney(summary.conditional_pending)} koşullu` : ''} />
 		<StatCard icon={CalendarClock} label="30 Gün İçinde Vade"
 			value={fmtMoney(summary.due_next_30d)} />
 		<StatCard icon={AlertTriangle} label="Vadesi Geçen"
@@ -466,6 +571,199 @@
 			<Button size="sm" onclick={openAdd}><Plus class="w-4 h-4" /> Yeni Kontrat</Button>
 		{/if}
 	</div>
+</div>
+
+<!-- Aksiyon takvimi (90 gün) + Faz 3 araçları -->
+<div class="mb-4 flex flex-wrap gap-x-5 gap-y-1">
+	<button class="text-sm text-teal-700 hover:underline inline-flex items-center gap-1 cursor-pointer"
+		onclick={toggleCalendar}>
+		<CalendarClock class="w-4 h-4" />
+		{showCalendar ? 'Aksiyon takvimini gizle' : 'Aksiyon takvimi (90 gün)'}
+	</button>
+	<button class="text-sm text-teal-700 hover:underline inline-flex items-center gap-1 cursor-pointer"
+		onclick={toggleDeductions}>
+		<Wallet class="w-4 h-4" />
+		{showDeductions ? 'Kesinti tahminini gizle' : 'Sezon sonu kesinti tahmini'}
+	</button>
+	<button class="text-sm text-teal-700 hover:underline inline-flex items-center gap-1 cursor-pointer"
+		onclick={toggleAllotments}>
+		<ScrollText class="w-4 h-4" />
+		{showAllotments ? 'Kontenjan kullanımını gizle' : 'Kontenjan kullanımı (60 gün)'}
+	</button>
+	<button class="text-sm text-teal-700 hover:underline inline-flex items-center gap-1 cursor-pointer"
+		onclick={toggleAudit}>
+		<AlertTriangle class="w-4 h-4" />
+		{showAudit ? 'Fiyat denetimini gizle' : 'Fiyat/kural denetimi'}
+	</button>
+</div>
+<div class="mb-4">
+	{#if showCalendar}
+		<div class="mt-2 bg-white border border-gray-200 rounded-xl shadow-sm p-4 overflow-x-auto">
+			{#if calendarLoading}
+				<TableSkeleton rows={4} columns={2} />
+			{:else if calendarItems.length === 0}
+				<p class="text-sm text-gray-500">Önümüzdeki 90 günde tarih-bantlı aksiyon yok.</p>
+			{:else}
+				<div class="min-w-[640px] grid gap-1.5">
+					<div class="flex justify-between text-[11px] text-gray-500 pl-[220px]">
+						<span>bugün</span><span>+30 gün</span><span>+60 gün</span><span>+90 gün</span>
+					</div>
+					{#each calendarItems as a (a.action_id)}
+						{@const salesPos = bandPos(a.sales_start, a.open_ended ? null : a.sales_end)}
+						<div class="flex items-center gap-2">
+							<div class="w-[212px] shrink-0 text-xs truncate" title={a.title}>
+								<span class="font-medium">{a.group_name}</span>
+								<span class="text-gray-500"> · {a.title ?? a.action_type}</span>
+							</div>
+							<div class="relative h-5 flex-1 bg-gray-50 rounded">
+								{#if salesPos}
+									<div class="absolute h-2 top-0.5 rounded bg-teal-700/70"
+										style={`left:${salesPos.left}%;width:${salesPos.width}%`}
+										title={`Satış: ${a.sales_start ?? '—'} – ${a.open_ended ? 'ikinci bildirime kadar' : (a.sales_end ?? '—')}`}></div>
+								{/if}
+								{#each a.tiers as t, ti (ti)}
+									{@const tp = bandPos(t.stay_start, t.stay_end)}
+									{#if tp}
+										<div class="absolute h-2 bottom-0.5 rounded bg-brass"
+											style={`left:${tp.left}%;width:${tp.width}%`}
+											title={`Konaklama: ${t.stay_start ?? '—'} – ${t.stay_end ?? '—'}${t.discount_percent != null ? ` · %${t.discount_percent}` : ''}`}></div>
+									{/if}
+								{/each}
+							</div>
+						</div>
+					{/each}
+					<p class="text-[11px] text-gray-500 mt-1">
+						<span class="inline-block w-3 h-2 rounded bg-teal-700/70 align-middle"></span> satış penceresi ·
+						<span class="inline-block w-3 h-2 rounded bg-brass align-middle"></span> konaklama bandı (indirim)
+					</p>
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	{#if showDeductions}
+		<div class="mt-2 bg-white border border-gray-200 rounded-xl shadow-sm p-4 overflow-x-auto">
+			{#if deductionsLoading}
+				<TableSkeleton rows={4} columns={4} />
+			{:else if deductions.length === 0}
+				<p class="text-sm text-gray-500">Kesinti tanımlı kontrat yok.</p>
+			{:else}
+				<table class="w-full text-sm min-w-[560px]">
+					<thead><tr class="text-left text-xs text-gray-600 uppercase border-b border-gray-200">
+						<th class="px-2 py-1.5">Kontrat</th>
+						<th class="px-2 py-1.5 text-right">Ciro (EUR)</th>
+						<th class="px-2 py-1.5 text-right">Tahmini Kesinti</th>
+						<th class="px-2 py-1.5">Kalemler</th>
+					</tr></thead>
+					<tbody>
+						{#each deductions as d (d.contract_code)}
+							<tr class="border-b border-gray-100 align-top">
+								<td class="px-2 py-1.5 whitespace-nowrap">
+									<span class="font-medium">{d.group_name}</span>
+									<span class="text-xs text-gray-500"> {d.contract_code}</span>
+								</td>
+								<td class="px-2 py-1.5 text-right tabular-nums">{fmtMoney(d.ciro_eur)}</td>
+								<td class="px-2 py-1.5 text-right tabular-nums font-medium">{fmtMoney(d.total_estimate)}</td>
+								<td class="px-2 py-1.5 text-xs text-gray-600">
+									{#each d.lines as l, li (li)}
+										<div>{l.deduction_type}{l.percent != null ? ` %${l.percent}` : ''}{l.currency !== 'EUR' ? ` (${l.currency})` : ''} — {fmtMoney(l.amount_native, l.currency)}</div>
+									{/each}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+				<p class="text-[11px] text-gray-500 mt-2">Cari yıl çıkış cirosu üzerinden hesaplanır (Sedna Contrack eşlemeli); operatör bildirimiyle karşılaştırma içindir — mutabakat masasına hazırlık.</p>
+			{/if}
+		</div>
+	{/if}
+
+	{#if showAudit}
+		<div class="mt-2 bg-white border border-gray-200 rounded-xl shadow-sm p-4 overflow-x-auto">
+			{#if auditLoading}
+				<TableSkeleton rows={4} columns={4} />
+			{:else if audit}
+				<div class="flex flex-wrap gap-2 mb-3">
+					<StatusBadge type="info">{audit.counts.checked ?? 0} rezervasyon denetlendi</StatusBadge>
+					{#if audit.counts.currency_mismatch}<StatusBadge type="warning">{audit.counts.currency_mismatch} para birimi</StatusBadge>{/if}
+					{#if audit.counts.min_stay_violation}<StatusBadge type="warning">{audit.counts.min_stay_violation} min-stay</StatusBadge>{/if}
+					{#if audit.counts.period_gap}<StatusBadge type="warning">{audit.counts.period_gap} dönem boşluğu</StatusBadge>{/if}
+					{#if audit.counts.price_deviation}<StatusBadge type="neutral">{audit.counts.price_deviation} fiyat sapması (EB/SPO etkisi olabilir)</StatusBadge>{/if}
+					{#if !audit.counts.rate_rows}<StatusBadge type="neutral">rate matrisi henüz girilmedi (Faz 4b) — kontrat-fiyat kıyası pasif</StatusBadge>{/if}
+				</div>
+				{#if audit.findings.length === 0}
+					<p class="text-sm text-gray-500">Bulgu yok.</p>
+				{:else}
+					<table class="w-full text-xs min-w-[640px]">
+						<thead><tr class="text-left text-gray-600 uppercase border-b border-gray-200">
+							<th class="px-2 py-1.5">Tür</th><th class="px-2 py-1.5">Acente</th>
+							<th class="px-2 py-1.5">Voucher</th><th class="px-2 py-1.5">Giriş</th>
+							<th class="px-2 py-1.5">Detay</th>
+						</tr></thead>
+						<tbody>
+							{#each audit.findings.slice(0, 60) as f, fi (fi)}
+								<tr class="border-b border-gray-50">
+									<td class="px-2 py-1 whitespace-nowrap">{AUDIT_TYPE_LABELS[f.type] ?? f.type}</td>
+									<td class="px-2 py-1 whitespace-nowrap">{f.agency}</td>
+									<td class="px-2 py-1 whitespace-nowrap">{f.voucher ?? '—'}</td>
+									<td class="px-2 py-1 whitespace-nowrap">{fmtDate(f.checkin)}</td>
+									<td class="px-2 py-1 text-gray-600">{f.detail}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
+			{/if}
+		</div>
+	{/if}
+
+	{#if showAllotments}
+		<div class="mt-2 bg-white border border-gray-200 rounded-xl shadow-sm p-4 overflow-x-auto">
+			{#if allotmentsLoading}
+				<TableSkeleton rows={4} columns={5} />
+			{:else if allotments.length === 0}
+				<p class="text-sm text-gray-500">Kontenjan tanımlı kontrat yok.</p>
+			{:else}
+				<table class="w-full text-sm min-w-[620px]">
+					<thead><tr class="text-left text-xs text-gray-600 uppercase border-b border-gray-200">
+						<th class="px-2 py-1.5">Kontrat</th>
+						<th class="px-2 py-1.5 text-right">Kontenjan</th>
+						<th class="px-2 py-1.5 text-right">Ort. Satılan</th>
+						<th class="px-2 py-1.5">Kullanım</th>
+						<th class="px-2 py-1.5 text-right">Tepe / Aşım</th>
+					</tr></thead>
+					<tbody>
+						{#each allotments as a (a.contract_code)}
+							<tr class="border-b border-gray-100">
+								<td class="px-2 py-1.5 whitespace-nowrap">
+									<span class="font-medium">{a.group_name}</span>
+									<span class="text-xs text-gray-500"> {a.contract_code}</span>
+									{#if a.guaranteed_share_percent}
+										<span class="text-[11px] text-amber-700"> · %{a.guaranteed_share_percent} taahhüt</span>
+									{/if}
+								</td>
+								<td class="px-2 py-1.5 text-right tabular-nums">{a.allotment_rooms} oda</td>
+								<td class="px-2 py-1.5 text-right tabular-nums">{a.avg_sold}</td>
+								<td class="px-2 py-1.5 w-40">
+									<div class="h-2 bg-gray-100 rounded overflow-hidden">
+										<div class="h-2 rounded {a.utilization_pct > 100 ? 'bg-red-500' : 'bg-teal-700'}"
+											style={`width:${Math.min(100, a.utilization_pct)}%`}></div>
+									</div>
+									<span class="text-[11px] text-gray-500 tabular-nums">%{a.utilization_pct}</span>
+								</td>
+								<td class="px-2 py-1.5 text-right tabular-nums">
+									{a.max_sold}
+									{#if a.days_over_allotment > 0}
+										<span class="text-red-600 text-xs"> · {a.days_over_allotment}g aşım</span>
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <!-- İçerik -->

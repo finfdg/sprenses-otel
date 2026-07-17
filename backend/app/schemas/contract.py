@@ -192,3 +192,33 @@ class DocumentMetaUpdate(BaseModel):
                                     pattern="^(" + "|".join(ALL_DOC_TYPES) + ")$")
     doc_date: Optional[date] = None
     notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class RateCreate(BaseModel):
+    period_id: Optional[int] = None
+    contract_room_type_id: Optional[int] = None
+    board: str = Field(default="AI", max_length=10)
+    occupancy_code: Optional[str] = Field(default=None, max_length=30)
+    price_type: str = Field(default="per_person_night",
+                            pattern="^(per_person_night|per_unit_night)$")
+    base_price: Optional[float] = Field(default=None, ge=0)
+    multiplier: Optional[float] = Field(default=None, ge=0, le=20)
+    fixed_total: Optional[float] = Field(default=None, ge=0)
+    min_payer: Optional[int] = Field(default=None, ge=0, le=12)
+    market_scope: Optional[str] = Field(default=None, max_length=100)
+    data_confidence: str = Field(default="verified",
+                                 pattern="^(" + "|".join(ALL_CONFIDENCE) + ")$")
+    notes: Optional[str] = Field(default=None, max_length=300)
+
+
+class ChildPolicyCreate(BaseModel):
+    contract_room_type_id: Optional[int] = None
+    child_order: int = Field(default=1, ge=1, le=4)
+    age_min: Optional[float] = Field(default=None, ge=0, le=18)
+    age_max: Optional[float] = Field(default=None, ge=0, le=18)
+    discount_percent: Optional[float] = Field(default=None, ge=0, le=100)
+    fixed_price: Optional[float] = Field(default=None, ge=0)
+    period_scope: Optional[str] = Field(default=None, max_length=100)
+    data_confidence: str = Field(default="verified",
+                                 pattern="^(" + "|".join(ALL_CONFIDENCE) + ")$")
+    notes: Optional[str] = Field(default=None, max_length=300)

@@ -692,3 +692,36 @@ frontend `bankBadge.test.ts` / `cashflow.test.ts`.
    (ör. "Diğer Diğer TRAVE/020726/278982" → "NORDİC LEİSURE TRAVEL", "Swift şubeden para
    yatırma Ref: …" → "ALLTOURS FLUGREİSEN"). Ad çözülemezse açıklama görünmeye devam eder.
    Detay: `docs/modules/transaction-tags.md` "Görünen ad = acente adı".
+
+## #26 KARARI KAPANDI — TAM CİRO Projeksiyonu (2026-07-17, kullanıcı kararı: varyant iii)
+
+Beklenen acente tahsilatı ana projeksiyona girdi. Uygulama **okuma-anında servis**
+(`services/contract_projection_service.py`, cc_projection deseni) — finance_events'e
+YAZILMAZ: bayat kayıt riski sıfır, #27 çift-motor drift'i yok. Üç tüketici:
+
+- **eur_balances:** `contract_income_by_date` — gelecek güne taksit (net) + aylık ciro kalemi.
+- **runway:** vadesi geçmiş taksitler "Vadesi Geçen Tahsilatlar"a KALEM KALEM
+  (`contract_installment:{id}`, KOŞULLU etiketi ile); cari ay vadeliler girişlere;
+  cari ay ciro pseudo-kalemi ay sonu. SOURCE_LABELS: "Kontrat Taksiti".
+- **t_account:** GİRİŞ tarafına iki projeksiyon grubu — "Kontrat Taksitleri (Projeksiyon)"
+  (finansman) + "Beklenen Ciro Tahsilatı (Projeksiyon)" (faaliyet); hold kimliği yok.
+
+**Çift-sayım kural seti (4 vektör, kontrat analizi raporundan — UYGULANDI):**
+1. `advances` tablosu BİRİNCİL (kullanıcı elle işletiyor; FE'leri zaten projeksiyonda) —
+   kontrat taksitleri grup bazında kronolojik FIFO ile pending-advance havuzuna NETLENİR;
+   yalnız havuzu aşan kısım projeksiyona girer (canlı: Alltours 940k advances ↔ 1M taksit
+   → net 60k).
+2. `guarantee_check` planları (otelin VERDİĞİ teminat — Odeon 2×24M TL) hiçbir gelir
+   görünümüne girmez.
+3. TAM CİRO serisi `compute_settlement`'tan (340-mahsuplu); CARİ YIL vadeli sözleşmesel
+   girişler (pending advances + net taksitler) serinin başından FIFO kırpılır — aynı para
+   iki kez sayılmaz. 2027+ taksitleri kırpmaya girmez (2027 cirosundan mahsup edilecek).
+   Ertesi yıla taşan tahsilat (tail) Ocak sonu tek kalem.
+4. Banka gerçekleşmesi: `_match_contract_installments_to_bank` (matching_service, avans
+   eşleştiricisinden SONRA koşar; avansa bağlı işlemler aday olamaz) → taksit paid +
+   `bank_transaction_id`; projeksiyon cache'i invalidate edilir.
+
+Koşullu taksitler (W2M %70 ciro şartı) `KOŞULLU` etiketiyle ayrışır. Canlı ilk bulgu:
+W2M Şubat–Nisan 800k € vadesi geçmiş/koşullu → "Vadesi Geçen Tahsilatlar"da.
+Test: `tests/test_contract_projection.py`. SPO takvimi: `GET /sales/kontratlar/actions-calendar`
++ KontratlarPanel 90-günlük bant görünümü (grafik overlay'leri ileriki iterasyon).

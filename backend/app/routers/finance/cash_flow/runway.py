@@ -67,6 +67,7 @@ SOURCE_LABELS = {
     "rent_income": "Alınan Kira",
     "advance": "Avans",
     "bank": "Banka",
+    "contract_installment": "Kontrat Taksiti",  # okuma-anında projeksiyon (FE'siz, #26-iii)
 }
 
 router = APIRouter()
@@ -352,6 +353,52 @@ def runway(
             held.append(proj_item)
         else:
             outs.append(proj_item)
+    # Kontrat taksitleri (advances'a netlenmiş) + TAM CİRO tahsilat projeksiyonu (#26-iii,
+    # 2026-07-17 — okuma-anında servis, FE yazılmaz). Vadesi geçen taksitler "Vadesi Geçen
+    # Tahsilatlar"a kalem kalem düşer (alacak takibi); cari ay vadeliler girişlere.
+    from app.services.contract_projection_service import contract_inflow_projections
+    _cproj = contract_inflow_projections(db, today=today)
+    for _ci in _cproj["installments"]:
+        _cdt = date_cls.fromisoformat(_ci["date"])
+        if _cdt > month_end:
+            continue  # runway yalnız cari ay penceresi
+        _name = _ci["label"] + (" — KOŞULLU" if _ci.get("conditional") else "")
+        _item = {
+            "id": f"contract_installment:{_ci['installment_id']}",
+            "date": _ci["date"],
+            "name": _name,
+            "amount_eur": round(float(_ci["amount_eur"]), 2),
+            "amount_native": round(float(_ci["amount_eur"]), 2),
+            "currency": "EUR",
+            "source_type": "contract_installment",
+            "deferred": False,
+            "original_date": _ci["date"],
+            "projected": True,
+        }
+        if _cdt <= today:
+            overdue_income.append(_item)
+        else:
+            _inf = dict(_item)
+            _inf.pop("source_type")
+            inflows.append(_inf)
+    for _ci in _cproj["ciro_monthly"]:
+        _cdt = date_cls.fromisoformat(_ci["date"])
+        if _cdt <= today or _cdt > month_end:
+            continue
+        inflows.append({
+            "id": f"contract_ciro:{_ci['month']}",
+            "date": _ci["date"],
+            "name": _ci["label"],
+            "amount_eur": round(float(_ci["amount_eur"]), 2),
+            "amount_native": round(float(_ci["amount_eur"]), 2),
+            "currency": "EUR",
+            "deferred": False,
+            "original_date": _ci["date"],
+            "projected": True,
+        })
+    inflows.sort(key=lambda x: x["date"])
+    overdue_income.sort(key=lambda x: x["date"])
+
     outs.sort(key=lambda x: x["date"])  # projeksiyonlar sona eklendi → tarih sırasına çek
 
     return {

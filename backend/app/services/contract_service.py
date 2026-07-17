@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.contract import (
     AgencyContract, ContractAction, ContractActionTier, ContractAllotment,
-    ContractDeduction, ContractDocument, ContractInstallment, ContractPaymentPlan,
-    ContractPeriod, ContractRoomType,
+    ContractChildPolicy, ContractDeduction, ContractDocument, ContractInstallment,
+    ContractPaymentPlan, ContractPeriod, ContractRate, ContractRoomType,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,8 @@ KIND_MODELS = {
     "tiers": (ContractActionTier, "via_parent"),
     "allotments": (ContractAllotment, "contract_id"),
     "deductions": (ContractDeduction, "contract_id"),
+    "rates": (ContractRate, "contract_id"),
+    "child-policies": (ContractChildPolicy, "contract_id"),
 }
 
 _DATE_FIELDS = {
