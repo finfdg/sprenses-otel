@@ -127,6 +127,8 @@ def run_reservation_import(db: Session, current_user: User, ip: Optional[str] = 
                 "per_adult": per_adult,
                 "rez_status": "Definite",
                 "status": _STATUS_LABELS.get(r["status_code"]),
+                # Rezervasyon↔kontrat bağı (Sedna Contrack.RecId — kontrat modülü anahtarı)
+                "sedna_contrack_id": r.get("contrack_id"),
             }
             cur = existing.get(r["rec_id"])
             if cur:

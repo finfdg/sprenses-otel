@@ -74,6 +74,7 @@ export const BROADCAST_MODULE = {
 	HOTEL_RESERVATION: 'hotel_reservation',
 	ROOM_TYPES: 'room_types',
 	AGENCY_GROUPS: 'agency_groups',
+	KONTRATLAR: 'kontratlar', // acente kontrat arşivi + ödeme planı/aksiyon (sales.kontratlar)
 } as const;
 
 export type BroadcastModuleType = (typeof BROADCAST_MODULE)[keyof typeof BROADCAST_MODULE];

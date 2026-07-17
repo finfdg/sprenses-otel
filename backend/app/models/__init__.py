@@ -1,5 +1,11 @@
 from app.models.advance import Advance
 from app.models.agency_code_map import AgencyCodeMap
+from app.models.agency_code_override import AgencyCodeOverride
+from app.models.contract import (
+    AgencyContract, ContractAction, ContractActionTier, ContractAllotment,
+    ContractDeduction, ContractDocument, ContractInstallment, ContractPaymentPlan,
+    ContractPeriod, ContractRoomType,
+)
 from app.models.agency_group import AgencyGroup
 from app.models.approval import (
     ApprovalRequest,
@@ -80,7 +86,10 @@ __all__ = [
     "DividendInstallment", "DividendPayment",
     "ErrorLog",
     "Reservation", "ReservationUpload",
-    "RoomType", "AgencyGroup", "AgencyCodeMap",
+    "RoomType", "AgencyGroup", "AgencyCodeMap", "AgencyCodeOverride",
+    "AgencyContract", "ContractDocument", "ContractPeriod", "ContractRoomType",
+    "ContractPaymentPlan", "ContractInstallment", "ContractAction",
+    "ContractActionTier", "ContractAllotment", "ContractDeduction",
     "SalesInvoice", "SalesCollection", "SalesAdvance",
     "ReceivableTerm",
     "ScheduledDefinition", "ScheduledEntry",

@@ -162,3 +162,13 @@ manuel "Sedna" butonu da aynı import'u çalıştırır. Kurulum: `scripts/syste
 - Veri tazeliği `finance.sales_invoices` import'una bağlıdır (Topbar "Sedna" butonu / merkezi sync).
 - v2 adayları (bilinçli ertelendi): vadesi geçenler için günlük bildirim (Notification+push),
   Excel export, firma takip notu geçmişi.
+
+## Yerel Kod Düzeltme Katmanı — agency_code_overrides (2026-07-17)
+
+`agency_code_map` Sedna satış senkronunda silinip yeniden yüklendiğinden elle ekleme kalıcı
+olamaz → kalıcı düzeltmeler **`agency_code_overrides`** tablosunda (pms_name unique → acc_code
++ notes). `receivable_service._group_map` Sedna haritasını kurduktan sonra override'ları üzerine
+yazar (override kazanır). Seed kayıtları: NORDIC→120.01.02.0016, AKAY İNŞ→120.01.01.A001
+(fatura kanıtı), CORAL DEU→O016 (teyit bekliyor). Ayrıca 10 operatörün kontrat vadesi
+`receivable_terms`'e girildi (kaynak maddeler notes'ta). Test:
+`test_hakedis.py::TestGroupingAndAdvances::test_code_override_wins_over_sedna_map`.

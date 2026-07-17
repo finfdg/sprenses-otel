@@ -160,3 +160,14 @@ Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
   düzeltir — pano grup dışı ciroyu şeffaf gösterir.
 - **Avans yaklaşıklığı:** `advance_received` tüm-zamanlı 340 bakiyesidir (tek yıla değil); EUR'ya güncel
   kurla çevrilir. Projeksiyon için kabul edilebilir; kesin muhasebe için Satış Faturaları/Hak Ediş'e bakılır.
+
+## Kontrat Gerçekleriyle Grup Konfigürasyonu (2026-07-17, Kontrat Faz 0)
+
+16 tur operatörü kontrat analizi sonrası: 10 eksik grup açıldı (FUN & SUN, W2M, OTS, PEGAS,
+NORDIC, DERTOUR, AKDEM, DIANA, IRELS, ROKET), bozuk BYEBYE grubu ALLTOURS'a birleştirildi
+(aynı tüzel kişi/cari — kontrat kanıtı), `term_days`/`kickback_percent` kontrat değerlerine
+çekildi (ör. ALLTOURS 21g/%3, ODEON 21g/%5, WEBRES 7g/%3, IRELS 0g/%1), `sedna_account_codes`
+bilinen 340 hesaplarıyla dolduruldu → avans kod-öncelikli eşleşmesi deterministik.
+`reservations.sedna_contrack_id` kolonu eklendi (migration `a1c4e7f9b2d5`) — Sedna Contrack
+bağı, gelecek kontrat modülünün (fiyat doğrulama/allotment) anahtarı. Detay:
+`backend/app/routers/finance/CLAUDE.md` "Kontrat Entegrasyonu Faz 0".

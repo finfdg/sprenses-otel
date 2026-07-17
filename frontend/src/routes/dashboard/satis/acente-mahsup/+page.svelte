@@ -18,6 +18,7 @@
 	import ReservationsPanel from '$lib/components/sales/ReservationsPanel.svelte';
 	import DailyActivityPanel from '$lib/components/sales/DailyActivityPanel.svelte';
 	import RoomTypesPanel from '$lib/components/sales/RoomTypesPanel.svelte';
+	import KontratlarPanel from '$lib/components/sales/KontratlarPanel.svelte';
 	import {
 		Settings2, Target, TrendingUp, LineChart, Wallet, Coins, ArrowRight, Inbox, ChevronRight
 	} from 'lucide-svelte';
@@ -34,6 +35,8 @@
 		{ value: 'fatura', label: 'Satış Faturaları' },
 		{ value: 'nakit', label: 'Nakit Akım' },
 		{ value: 'oda', label: 'Oda Tipleri' },
+		// Kontratlar sekmesi AYRI izin kodudur (sales.kontratlar) — görünürlük aşağıda filtrelenir
+		{ value: 'kontrat', label: 'Kontratlar' },
 	];
 	// Projeksiyon gövdesi (senaryo barı + KPI + tablolar) yalnız bu sekmelerde görünür;
 	// diğerleri kendi panel bileşenini (keep-alive) render eder.
@@ -61,6 +64,10 @@
 
 	// ── Türetilmiş ───────────────────────────────────────────
 	let canConfig = $derived(hasPermission('sales.acente_mahsup', 'use'));
+	// Kontratlar sekmesi ayrı modül izniyle görünür (sales.kontratlar view)
+	let visibleTabs = $derived(
+		hasPermission('sales.kontratlar', 'view') ? TABS : TABS.filter((t) => t.value !== 'kontrat')
+	);
 
 	// ── State ────────────────────────────────────────────────
 	let loading = $state(true);
@@ -308,7 +315,7 @@
 
 	<!-- Sekmeler (her zaman görünür; dar ekranda yatay kaydırma) -->
 	<div class="overflow-x-auto">
-		<SegmentedControl options={TABS} value={activeTab} onchange={selectTab} ariaLabel="Sekmeler" class="min-w-max" />
+		<SegmentedControl options={visibleTabs} value={activeTab} onchange={selectTab} ariaLabel="Sekmeler" class="min-w-max" />
 	</div>
 
 	{#if isProjectionTab}
@@ -788,6 +795,9 @@
 	{/if}
 	{#if visitedTabs.has('oda')}
 		<div class={activeTab === 'oda' ? '' : 'hidden'}><RoomTypesPanel /></div>
+	{/if}
+	{#if visitedTabs.has('kontrat')}
+		<div class={activeTab === 'kontrat' ? '' : 'hidden'}><KontratlarPanel /></div>
 	{/if}
 </div>
 

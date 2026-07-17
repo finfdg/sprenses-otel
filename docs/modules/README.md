@@ -37,6 +37,7 @@
 | Günlük Hareketler (rezervasyon/iptal) | `gunluk-hareketler.md` |
 | Acente Mahsup & Nakit Akım | `acente-mahsup.md` |
 | Oda Tipleri | `oda-tipleri.md` |
+| Kontratlar | `kontratlar.md` |
 | Yedekleme | `yedekleme.md` |
 | E-posta Bildirim (SMTP) | `eposta-bildirim.md` |
 | Sistem — Dokümanlar | `sistem-dokumanlar.md` |

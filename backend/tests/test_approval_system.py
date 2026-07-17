@@ -1586,7 +1586,13 @@ class TestExecutorImportIntegrity:
                 for alias in node.names:
                     try:
                         mod = importlib.import_module(node.module)
-                        getattr(mod, alias.name)
+                        try:
+                            getattr(mod, alias.name)
+                        except AttributeError:
+                            # `from paket import submodul` deseni: submodül henüz import
+                            # edilmemişse paket attribute'u olmaz (sıra-bağımlı yanlış-negatif,
+                            # 2026-07-17'de yakalandı) → submodül olarak çözmeyi dene.
+                            importlib.import_module(f"{node.module}.{alias.name}")
                     except (ImportError, AttributeError) as exc:
                         failures.append(f"satır {node.lineno}: {node.module}.{alias.name} → {exc}")
         assert not failures, "Çözülemeyen executor import'ları:\n" + "\n".join(failures)

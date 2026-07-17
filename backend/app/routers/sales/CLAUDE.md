@@ -87,3 +87,22 @@ modülüne katkı kurallarını içerir.
 
 Detay: `docs/modules/otel-rezervasyon.md`, `docs/modules/oda-tipleri.md`,
 `docs/modules/ucak-rezervasyon.md`.
+
+## Kontratlar (`contracts.py`, `sales.kontratlar`) — 2026-07-17
+
+16 tur operatörünün kontrat arşivi + metadata (Faz 1). **AYRI RBAC modülü** (id 925) —
+`sales.acente_mahsup` DEĞİL, çünkü executor `_HANDLERS` modül koduna tek handler bağlar
+ve o kod RoomType CRUD'una tahsisli; ayrıca kontratlara özel onay workflow'u kurulabilsin.
+
+- Mutasyon mantığı `services/contract_service.py`'de ORTAK (D1-2) — router +
+  `_handle_sales_kontratlar` aynı fonksiyonları çağırır. Alt varlıklar tek `kind` ucu
+  (`KIND_MODELS` sözlüğü); onay payload'ı `_kind` (+create'te `_contract_id`) taşır,
+  tarihler `_coerce_date` ile normalize edilir.
+- Belge yükleme onay DIŞI (dosya istisnası) ama `validate_upload_file` + audit +
+  broadcast'li; dosyalar `uploads/contract_files/` altında UUID adla.
+- Broadcast: `BroadcastModule.KONTRATLAR` (frontend `BROADCAST_MODULE.KONTRATLAR` —
+  iki taraf senkron tutulur). Panel: `lib/components/sales/KontratlarPanel.svelte`
+  (acente-mahsup sekmesi, görünürlük `hasPermission('sales.kontratlar','view')`).
+- `data_confidence` disiplini: taranmış belgeden gelen değerler `scanned_approx`,
+  elle düzeltilmiş/çelişkili değerler `needs_confirmation` — Faz 2-4 tüketicileri
+  bu bayrağı dikkate almalı. Detay + faz yol haritası: `docs/modules/kontratlar.md`.

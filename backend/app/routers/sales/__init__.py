@@ -3,7 +3,7 @@ acente mahsup projeksiyonu. Tek RBAC modülü: sales.acente_mahsup (2026-07-09 b
 
 from fastapi import APIRouter
 
-from app.routers.sales import acente_mahsup, agency_groups, reservations, room_types
+from app.routers.sales import acente_mahsup, agency_groups, contracts, reservations, room_types
 from app.routers.sales.reservations import daily_activity
 
 router = APIRouter()
@@ -12,3 +12,4 @@ router.include_router(daily_activity.router, prefix="/daily-activity", tags=["sa
 router.include_router(room_types.router, tags=["sales-room-types"])
 router.include_router(agency_groups.router, tags=["sales-agency-groups"])
 router.include_router(acente_mahsup.router, prefix="/acente-mahsup", tags=["sales-acente-mahsup"])
+router.include_router(contracts.router, tags=["sales-kontratlar"])

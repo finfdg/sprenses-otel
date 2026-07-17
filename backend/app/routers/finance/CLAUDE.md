@@ -2023,6 +2023,42 @@ app/routers/finance/
 
 ---
 
+## Kontrat Entegrasyonu Faz 0 (2026-07-17)
+
+16 tur operatörünün kontrat klasörü analizi sonrası (rapor: kontrat-entegrasyon-raporu
+artifact'i) quick-win düzeltmeleri — kontrat modülü (sales tarafı) gelmeden önce veri
+katmanı kontrat gerçekleriyle hizalandı:
+
+- **`agency_code_overrides` (YENİ tablo):** PMS acente adı → 120 cari kodu **yerel düzeltme
+  katmanı**. Neden: `agency_code_map` Sedna satış senkronunda **silinip yeniden yüklenir**
+  (`sales_invoices.py` delete+insert) — elle ek kalıcı olamaz. `receivable_service._group_map`
+  Sedna haritasını kurduktan sonra override'ları ÜZERİNE yazar (override kazanır). Seed:
+  `NORDIC`→120.01.02.0016 (kısa PMS adı haritada yoktu), `AKAY İNŞ...`→120.01.01.A001
+  (harita 0123 diyordu, 12 fatura A001'de — kanıt bazlı düzeltme), `CORAL DEU`→O016
+  (RU/PL/CZ emsali; muhasebe teyidi bekliyor). Test: `test_code_override_wins_over_sedna_map`.
+- **`receivable_terms` kontrat vadeleri girildi:** AllTours/Odeon 21 (C-Out+21), Coral 30,
+  W2M/OTS 21, Libero 14, Akay 14, Webres/Webres EU 7, Nordic 30 (self-billing — sabit vade
+  yok, yaklaşık). Kaynak kontrat maddeleri notes alanında.
+- **`agency_groups` kontrat gerçekleriyle:** 10 eksik grup açıldı (FUN & SUN, W2M, OTS,
+  PEGAS, NORDIC, DERTOUR, AKDEM, DIANA, IRELS, ROKET — 16 operatörün tamamı, kullanıcı
+  kararı); bozuk BYEBYE grubu silindi (tek-boşluklu 'BYEBYE D' üyesi hiç eşleşmiyordu,
+  üyeler kontrat kanıtıyla ALLTOURS'a taşındı — alltours flugreisen/byebye gmbh aynı tüzel
+  kişi, aynı cari A001); `term_days`/`kickback_percent` kontrat değerlerine çekildi;
+  `sedna_account_codes` dolduruldu (ALLTOURS 340.02.01.0017, ODEON 340.01.01.0044,
+  W2M 340.01.01.0006, LIBERO 340.01.01.L001, WEBRES 0002+0021) → avans kod-öncelikli
+  eşleşmesi (`advances._agency_code_map`) bu operatörlerde artık deterministik.
+- **`reservations.sedna_contrack_id` (YENİ kolon, migration `a1c4e7f9b2d5`):** Sedna
+  `Contrack.RecId` — rezervasyon↔kontrat bağının anahtarı. `_RESERVATION_QUERY`'ye
+  `r.ContrackId` eklendi (join zaten vardı), `reservation_service` upsert'i yazıyor;
+  sonraki Sedna senkronunda dolar. Kontrat modülünün fiyat doğrulama/allotment
+  eşleşmesi bu kolona bağlanacak.
+- **Kickback yaklaşımı notu:** fatura-başı kesintiler (AllTours %3, W2M %3, OTS %3...)
+  `kickback_percent`'e yazıldı — compute_settlement bunu Aralık'a tek kalem yazar
+  (zamanlama yaklaşık, toplam doğru). Baremli/karma kesintiler (Odeon, Fun&Sun) Faz 1
+  `contract_deductions` modelinde tam temsil edilecek.
+
+---
+
 ## Önemli Dosyalar
 
 | Dosya | Açıklama |

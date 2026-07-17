@@ -18,6 +18,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models.agency_code_map import AgencyCodeMap
+from app.models.agency_code_override import AgencyCodeOverride
 from app.models.agency_group import AgencyGroup
 from app.models.exchange_rate import ExchangeRate
 from app.models.receivable_term import DEFAULT_TERM_DAYS, ReceivableTerm
@@ -95,6 +96,10 @@ def _group_map(db: Session) -> dict:
     """
     name_to_code = {m.pms_name.strip().upper(): m.acc_code
                     for m in db.query(AgencyCodeMap).all()}
+    # Yerel düzeltme katmanı Sedna haritasının ÜZERİNE yazılır (agency_code_overrides —
+    # Sedna senkronu agency_code_map'i silip yeniden yüklediğinden kalıcı ekler buradadır)
+    name_to_code.update({o.pms_name.strip().upper(): o.acc_code
+                         for o in db.query(AgencyCodeOverride).all()})
     out: dict = {}
     for g in db.query(AgencyGroup).all():
         for member in (g.members or []):

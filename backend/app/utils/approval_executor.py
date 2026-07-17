@@ -661,6 +661,65 @@ def _handle_shift_schedule(db, action_type, entity_id, payload, actor_id):
             hr_service.delete_assignment(db, a)
 
 
+def _handle_sales_kontratlar(db, action_type, entity_id, payload, actor_id):
+    """Kontratlar (sales.kontratlar) — contract_service ile ORTAK (D1-2).
+
+    payload'da `_kind` YOKSA kontratın kendisi, VARSA alt varlık (periods/room-types/
+    plans/installments/actions/tiers/allotments/deductions — contract_service.KIND_MODELS).
+    Alt varlık create'te kontrat kimliği `_contract_id` alanında taşınır. Tarihler
+    payload_json'da string gelir → service `_coerce_date` normalize eder.
+    """
+    from app.services import contract_service
+    from app.utils.audit import log_action
+
+    data = dict(payload)
+    kind = data.pop("_kind", None)
+
+    if kind is None:
+        if action_type == "create":
+            c = contract_service.create_contract(db, data)
+            log_action(db, actor_id, "create", "agency_contract", c.id,
+                       f"Onaylı kontrat: {c.code}")
+        elif action_type == "update":
+            from app.models.contract import AgencyContract
+            c = db.query(AgencyContract).filter(AgencyContract.id == entity_id).first()
+            if not c:
+                raise ValueError(f"Kontrat bulunamadı: {entity_id}")
+            contract_service.apply_contract_update(db, c, data)
+            log_action(db, actor_id, "update", "agency_contract", c.id,
+                       f"Onaylı güncelleme: {c.code}")
+        elif action_type == "delete":
+            from app.models.contract import AgencyContract
+            c = db.query(AgencyContract).filter(AgencyContract.id == entity_id).first()
+            if c:
+                log_action(db, actor_id, "delete", "agency_contract", c.id,
+                           f"Onaylı silme: {c.code}")
+                contract_service.delete_contract(db, c)
+        return
+
+    if kind not in contract_service.KIND_MODELS:
+        raise ValueError(f"Bilinmeyen kontrat alt varlık türü: {kind}")
+
+    if action_type == "create":
+        contract_id = data.pop("_contract_id", None)
+        if not contract_id:
+            raise ValueError("Alt varlık onayında _contract_id eksik")
+        obj = contract_service.create_child(db, kind, contract_id, data)
+        log_action(db, actor_id, "create", f"contract_{kind}", obj.id,
+                   f"Onaylı ekleme (kontrat #{contract_id})")
+    elif action_type == "update":
+        obj = contract_service.get_child(db, kind, entity_id)
+        if not obj:
+            raise ValueError(f"Kontrat alt kaydı bulunamadı: {kind}/{entity_id}")
+        contract_service.apply_child_update(db, kind, obj, data)
+        log_action(db, actor_id, "update", f"contract_{kind}", entity_id, "Onaylı güncelleme")
+    elif action_type == "delete":
+        obj = contract_service.get_child(db, kind, entity_id)
+        if obj:
+            contract_service.delete_child(db, kind, obj)
+            log_action(db, actor_id, "delete", f"contract_{kind}", entity_id, "Onaylı silme")
+
+
 # ── Uniform basit-CRUD handler'ları (factory ile) ────────────
 # Bu 4 modül create/update/delete'te tek service çağrısı yapar (özel mantık yok) →
 # _make_crud_handler ile üretilir. Router'larla ORTAK service (D1-2 deseni); davranış
@@ -718,6 +777,8 @@ _HANDLERS = {
     "hr.shifts": _handle_shifts,
     # İK — Vardiya çizelgesi (rota)
     "hr.shift_schedule": _handle_shift_schedule,
+    # Satış — Kontratlar (kontrat + kind-tabanlı alt varlıklar; contract_service ORTAK)
+    "sales.kontratlar": _handle_sales_kontratlar,
 }
 
 # Uniform basit-CRUD modülleri (finance.banks/avanslar/departmanlar, sales.acente_mahsup)

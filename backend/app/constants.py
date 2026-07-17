@@ -107,6 +107,7 @@ class BroadcastModule:
     HOTEL_RESERVATION = "hotel_reservation"
     ROOM_TYPES = "room_types"
     AGENCY_GROUPS = "agency_groups"
+    KONTRATLAR = "kontratlar"  # acente kontrat arşivi + ödeme planı/aksiyon (sales.kontratlar)
 
 
 class ReconStatus:

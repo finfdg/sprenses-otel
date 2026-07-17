@@ -61,12 +61,16 @@ class Reservation(Base):
         Index("ix_reservations_agency", "agency"),
         Index("ix_reservations_nation", "nation"),
         Index("ix_reservations_room_type", "room_type"),
+        Index("ix_reservations_sedna_contrack", "sedna_contrack_id"),
         Index("ix_reservations_checkin_agency", "checkin_date", "agency"),
         Index("ix_reservations_checkin_nation", "checkin_date", "nation"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     rec_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Sedna Contrack.RecId — rezervasyon↔acente kontratı bağı (kontrat modülü fiyat
+    # doğrulama/allotment eşleşmesinin anahtarı; Sedna SQL'inde join zaten vardı, 2026-07-17)
+    sedna_contrack_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     upload_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("reservation_uploads.id", ondelete="SET NULL"), nullable=True,
     )

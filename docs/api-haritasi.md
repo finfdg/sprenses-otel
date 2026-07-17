@@ -336,6 +336,26 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/sales/daily-activity/status` — Sedna etkin mi (`{configured}`); tünel kapalı→503
 - Salt-okunur (yalnız GET) → onay akışı kapsam dışı. Detaylı bilgi: `docs/modules/gunluk-hareketler.md`
 
+### Satış — Kontratlar (sales.kontratlar)
+
+> Acente kontrat arşivi + metadata (16 tur operatörü). Mutasyonlar onay akışlı;
+> alt varlıklar tek `kind` ucu (periods/room-types/plans/installments/actions/tiers/
+> allotments/deductions). Detay: `docs/modules/kontratlar.md`.
+
+- `GET /api/sales/kontratlar/` — Liste (sayfalı; `group_id`/`season`/`status` filtre) · view
+- `GET /api/sales/kontratlar/summary` — Stat kartları (bekleyen/30 gün/geciken taksit) · view
+- `GET /api/sales/kontratlar/{id}` — İç içe tam detay · view
+- `POST /api/sales/kontratlar/` — Yeni kontrat · use + onay
+- `PATCH /api/sales/kontratlar/{id}` — Güncelle · use + onay
+- `DELETE /api/sales/kontratlar/{id}` — Sil (banka-eşleşmeli taksit varsa 400) · use + onay
+- `POST /api/sales/kontratlar/{id}/children/{kind}` — Alt varlık ekle · use + onay (`_kind` payload)
+- `PATCH /api/sales/kontratlar/children/{kind}/{child_id}` — Alt varlık güncelle · use + onay
+- `DELETE /api/sales/kontratlar/children/{kind}/{child_id}` — Alt varlık sil · use + onay
+- `POST /api/sales/kontratlar/documents` — Belge yükle (multipart, pdf+excel) · use (onay DIŞI — dosya istisnası)
+- `GET /api/sales/kontratlar/documents/{id}/download` — Belge indir · view
+- `PATCH /api/sales/kontratlar/documents/{id}` — Belge metadata · use
+- `DELETE /api/sales/kontratlar/documents/{id}` — Belge sil · use
+
 ### Satış — Oda Tipleri
 - `GET /api/sales/room-types/` — Oda tipi listesi + toplam kapasite (`total_capacity`)
 - `GET /api/sales/room-types/{id}` — Tek kayıt

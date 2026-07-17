@@ -892,6 +892,7 @@ SELECT
     r.NationalityMarketCode        AS nation,
     r.RoomPrice                    AS room_price,
     c.Currency                     AS currency,
+    r.ContrackId                   AS contrack_id,
     r.Status                       AS status_code,
     CONVERT(date, r.CancelDate)    AS cancel_date
 FROM Reservation r

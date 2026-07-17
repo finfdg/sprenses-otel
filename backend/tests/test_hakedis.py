@@ -135,6 +135,32 @@ class TestGroupingAndAdvances:
         inv_nos = sorted(i["invoice_no"] for i in d.json()["items"])
         assert inv_nos == ["G1", "G2"]
 
+    def test_code_override_wins_over_sedna_map(self, client, auth_headers, db):
+        """agency_code_overrides Sedna haritasının ÜZERİNE yazar: haritadaki yanlış kod
+        yerine override kodu kullanılır. (Sedna senkronu agency_code_map'i silip yeniden
+        yüklediğinden kalıcı düzeltmeler bu tabloda yaşar — 2026-07-17 kontrat analizi.)"""
+        from app.models.agency_code_map import AgencyCodeMap
+        from app.models.agency_code_override import AgencyCodeOverride
+        from app.models.agency_group import AgencyGroup
+
+        today = date.today()
+        _mk_invoice(db, "120.95.01.D001", "OVERRIDE DOĞRU A.Ş.",
+                    today - timedelta(days=10), 6000, invoice_no="OV1")
+        db.add(AgencyCodeMap(pms_name="OVERRIDETEST", acc_code="120.95.01.YANLIS"))
+        db.add(AgencyCodeOverride(pms_name="OVERRIDETEST", acc_code="120.95.01.D001",
+                                  notes="test: harita yanlış, faturalar D001'de"))
+        db.add(AgencyGroup(name="OVERRIDEGRUP", members=["OVERRIDETEST"]))
+        db.commit()
+        from app.services.sales_invoice_service import _invalidate_compute_cache
+        _invalidate_compute_cache()
+
+        r = client.get(f"{PREFIX}/", headers=auth_headers)
+        assert r.status_code == 200
+        rows = {f["name"]: f for f in r.json()["firms"]}
+        g = rows.get("OVERRIDEGRUP")
+        assert g and g["is_group"] is True, "Override kodu üzerinden grup satırı oluşmalı"
+        assert g["open_tl"] == 6000  # fatura, haritadaki yanlış kodda değil override kodunda
+
     def test_advance_netting(self, client, auth_headers, db):
         """340 avansı (isim-eşli) firmadan düşülür: net_open_tl = max(0, open - advance_tl)."""
         from app.models.sales_invoice import SalesAdvance
