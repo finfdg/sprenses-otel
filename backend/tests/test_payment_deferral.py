@@ -403,3 +403,46 @@ class TestEurBalanceOverdueVendor:
         after = compute_eur_balances(db)["daily"].get(str(today), {}).get("balance_eur", 0)
         # Bugünkü bakiye DEĞİŞMEZ — vadesi geçmiş ödenmemiş para hâlâ bankada (düşülmez)
         assert round(base - after) == 0, f"overdue cari yanlışlıkla bakiyeden düşüldü: base={base} after={after}"
+
+    def test_today_due_unpaid_not_subtracted_from_today_point(self, db):
+        """BUGÜN vadeli ödenmemiş planlı gider bugün noktasından DÜŞÜLMEZ (kullanıcı kararı
+        2026-07-18: "henüz ödenmedi, ödenip ödenmeyeceği belli değil" — grafik bugün noktası =
+        saf banka nakdi = Bankadaki Nakit başlığı). Projeksiyon yarından itibaren başlar."""
+        from datetime import date, timedelta
+        from app.models.bank_account import BankAccount
+        from app.models.bank_transaction import BankTransaction
+        from app.models.finance_event import FinanceEvent
+        from app.routers.finance.cash_flow.eur_balances import compute_eur_balances
+
+        self._rate(db, 50.0)
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        fut = today + timedelta(days=2)
+
+        acc = BankAccount(bank_name="OD Test Bank 2", iban="TR990000000000000000000078",
+                          currency="TRY", is_active=True)
+        db.add(acc)
+        db.flush()
+        db.add(BankTransaction(account_id=acc.id, date=yesterday, amount=100000,
+                               type="income", balance=100000,
+                               description="AÇILIŞ", tx_hash="od-today-seed"))
+        # Bugün vadeli ödenmemiş düzenli ödeme (50.000 TL = 1000 EUR @50)
+        db.add(FinanceEvent(event_date=today, amount=50000, direction=-1, currency="TRY",
+                            source_type="recurring", source_id=778002,
+                            description="BUGÜN VADELİ ÖDEME", is_matched=False, is_realized=False))
+        # Yarından sonraki planlı gider (25.000 TL = 500 EUR) — projeksiyona GİRER
+        db.add(FinanceEvent(event_date=fut, amount=25000, direction=-1, currency="TRY",
+                            source_type="recurring", source_id=778003,
+                            description="GELECEK GİDER", is_matched=False, is_realized=False))
+        db.flush()
+
+        daily = compute_eur_balances(db)["daily"]
+        bank_bal = daily[str(yesterday)]["balance_eur"]
+        today_bal = daily[str(today)]["balance_eur"]
+        fut_bal = daily[str(fut)]["balance_eur"]
+        # Bugün noktası = son banka nakdi (bugünkü ödenmemiş kalem düşülmedi)
+        assert round(today_bal - bank_bal) == 0, \
+            f"bugün noktası banka nakdine eşit değil: banka={bank_bal} bugün={today_bal}"
+        # Gelecek gün: yalnız bugünden SONRAKİ kalem düşer (bugünkü kalem orada da düşülmez)
+        assert round(today_bal - fut_bal) == 500, \
+            f"gelecek projeksiyon yanlış: bugün={today_bal} gelecek={fut_bal}"

@@ -395,23 +395,23 @@ def compute_eur_balances(db: Session) -> dict:
             # Bakiye = GERÇEK banka nakdi (vadesi geçmiş ödenmemiş düşülmez — yukarıdaki nota bkz)
             total_balance = last_known_bank_eur
         elif last_bank_date and dt > last_bank_date:
-            # Gelecek günlerde: son banka bakiyesi - bloke çekler - kümülatif giderler + beklenen gelirler
-            # Bekleyen çekleri sadece gelecek olanları (due > bugün) ekle — geçmiş olanlar overdue'da
+            # Projeksiyona YALNIZ bugünden SONRAKİ (dt > bugün) planlı kalemler girer — bugün
+            # (ve son ekstre ile bugün arası) vadeli ödenmemiş kalem bakiyeden DÜŞÜLMEZ
+            # (kullanıcı kararı 2026-07-18: "henüz ödenmedi, ödenip ödenmeyeceği belli değil" —
+            # bugün noktası = saf banka nakdi, Bankadaki Nakit başlığıyla eşit; kalem ödenince
+            # gerçek banka hareketiyle düşer, o ana kadar Vadesi Geçenler'de izlenir).
             if dt > today_date:
                 cumulative_future_expense += pending_check_expense_by_date.get(dt, 0)
-            cumulative_future_expense += credit_expense_by_date.get(dt, 0)
-            cumulative_future_expense += cc_expense_by_date.get(dt, 0)
-            cumulative_future_expense += cc_projection_expense_by_date.get(dt, 0)
-            # Cari: yalnız BUGÜN ve sonrası gelecek gidere girer; vadesi geçmiş (< bugün)
-            # cari overdue_vendor_total'da bloke edildi → çift sayım olmasın
-            if dt >= today_date:
+                cumulative_future_expense += credit_expense_by_date.get(dt, 0)
+                cumulative_future_expense += cc_expense_by_date.get(dt, 0)
+                cumulative_future_expense += cc_projection_expense_by_date.get(dt, 0)
                 cumulative_future_expense += vendor_expense_by_date.get(dt, 0)
-            cumulative_future_expense += scheduled_expense_by_date.get(dt, 0)
-            # Bekleyen avanslar ve planlı gelirler gelir olarak eklenir (giderden düşülür)
-            cumulative_future_expense -= advance_income_by_date.get(dt, 0)
-            cumulative_future_expense -= scheduled_income_by_date.get(dt, 0)
-            # Kontrat taksitleri (net) + beklenen ciro tahsilatı (#26-iii)
-            cumulative_future_expense -= contract_income_by_date.get(dt, 0)
+                cumulative_future_expense += scheduled_expense_by_date.get(dt, 0)
+                # Bekleyen avanslar ve planlı gelirler gelir olarak eklenir (giderden düşülür)
+                cumulative_future_expense -= advance_income_by_date.get(dt, 0)
+                cumulative_future_expense -= scheduled_income_by_date.get(dt, 0)
+                # Kontrat taksitleri (net) + beklenen ciro tahsilatı (#26-iii)
+                cumulative_future_expense -= contract_income_by_date.get(dt, 0)
             total_balance = round(last_known_bank_eur - cumulative_future_expense, 2)
         else:
             total_balance = last_known_bank_eur
