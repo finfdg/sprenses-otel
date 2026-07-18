@@ -801,6 +801,13 @@ def _match_credits_to_bank(db: Session) -> dict:
                         for tx in group_txs:
                             finance_event_svc.match(db, "bank", tx.id, "credit", locked_pay.id,
                                                     method="auto", score=90)
+                        # Grubun tüm banka bacakları "Kredi/Leasing" etiketi alır
+                        # (tekil eşleşme yoluyla aynı kural; manuel etiket korunur)
+                        from app.utils.auto_tagger import (LEASING_CATEGORY,
+                                                           _get_or_create_category)
+                        _get_or_create_category(db, LEASING_CATEGORY)
+                        for tx in group_txs:
+                            _tag_scheduled_bank_leg(db, tx, LEASING_CATEGORY)
                         logger.info("Kredi N-1 grup eşleşmesi: %d banka satırı → taksit=%d (grup #%s)",
                                     len(group_txs), locked_pay.id, group_mn)
                     break
@@ -934,6 +941,13 @@ def apply_credit_bank_match(db: Session, payment: CreditPayment, product: Credit
     db.flush()
     finance_event_svc.match(db, "bank", btx.id, "credit", locked.id,
                             method=method, score=score, created_by=actor_id)
+    # Banka bacağı kanonik "Kredi/Leasing" etiketi alır (2026-07-18): kredi/leasing
+    # taksit havaleleri kelime kurallarıyla Virman/Cari'ye düşebiliyordu (canlı:
+    # "HAVALE ... NOLU ÖDEME PLANI" Halk Leasing taksitleri "Cari"de görünüyordu).
+    # Manuel etiket _tag_scheduled_bank_leg içinde korunur.
+    from app.utils.auto_tagger import LEASING_CATEGORY, _get_or_create_category
+    _get_or_create_category(db, LEASING_CATEGORY)
+    _tag_scheduled_bank_leg(db, btx, LEASING_CATEGORY)
     return True
 
 

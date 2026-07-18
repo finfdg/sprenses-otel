@@ -239,6 +239,15 @@ class TestLeasingRule:
         auto_tag_transactions(db, [btx.id])
         assert _cat_of(db, btx) == "Kredi/Leasing"
 
+    def test_halkbank_odeme_plani_tagged(self, client, db):
+        """'HAVALE ... NOLU ÖDEME PLANI' (Halk Leasing formatı — leasing kelimesi yok)
+        de Kredi/Leasing'e düşer (2026-07-18 ikinci kullanıcı bulgusu)."""
+        _ensure_category(db, "Virman", "purple")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-1887.19, desc="HAVALE 2600046701 NOLU ÖDEME PLANI")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Kredi/Leasing"
+
     def test_plain_havale_still_virman(self, client, db):
         """Leasing geçmeyen havale Virman kalır (kural sırası regresyonu)."""
         _ensure_category(db, "Virman", "purple")

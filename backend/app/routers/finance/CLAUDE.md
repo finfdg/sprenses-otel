@@ -226,8 +226,13 @@ olarak yeniden adlandırılarak** oraya taşındı. Dört parça:
    Nakit Akım sayfası/runway'deki "Kredi / Leasing Taksitleri" etiketi (frontend) o sayfalara
    özgü — bilinçli dokunulmadı.
 
-Geriye dönük: 24 leasing kaydı yeniden etiketlendi (17 vendor bağı korundu). Test:
-`TestLeasingRule` + `test_leasing_bank_leg_tagged_kredi_leasing_not_cari` +
+5. **Kredi eşleşmesi bacak etiketi (aynı gün, ikinci bulgu):** Halkbank leasing taksiti
+   "HAVALE 2600046701 NOLU ÖDEME PLANI" leasing kelimesi taşımaz → desene `nolu odeme
+   plani` eklendi; ayrıca kredi taksitine eşleşen HER banka bacağı (`apply_credit_bank_match`
+   + N-1 grup yolu) `_tag_scheduled_bank_leg` ile "Kredi/Leasing" etiketi alır (manuel korunur).
+
+Geriye dönük: 24+3 leasing kaydı yeniden etiketlendi (17 vendor bağı korundu). Test:
+`TestLeasingRule` + `TestCreditBankLegTagging` + `test_leasing_bank_leg_tagged_kredi_leasing_not_cari` +
 `test_credit_and_bank_leasing_merged_under_kredi_leasing`. Detay: `docs/modules/transaction-tags.md`.
 
 ## Sedna Karşı-Hesap Denetimi + Kural Düzeltmeleri (2026-07-18, aynı gün devam)

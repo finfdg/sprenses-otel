@@ -177,6 +177,15 @@ başlığı "Kredi/Leasing" olarak yeniden adlandırılarak** oraya taşınması
   birleştirmesiyle aynı desen; karma grubun `section`'ı deterministik "finansman").
 - **Geriye dönük düzeltme:** 24 leasing kaydı (Cari/Virman/Vergi-SGK'ya dağılmıştı)
   kural motoruyla yeniden etiketlendi; 17'sindeki cari (vendor_id) bağı korundu.
+- **"NOLU ÖDEME PLANI" deseni + kredi eşleşmesi bacak etiketi (aynı gün, ikinci bulgu):**
+  Halkbank leasing taksiti "HAVALE 2600046701 NOLU ÖDEME PLANI" hiç leasing kelimesi
+  taşımaz → `_LEASING_PATTERN`'e `nolu odeme plani` eklendi. Ayrıca **kredi taksitine
+  eşleşen HER banka bacağı** (tekil `apply_credit_bank_match` + N-1 grup yolu) artık
+  `_tag_scheduled_bank_leg` ile kanonik **"Kredi/Leasing"** etiketi alır — kelime kuralı
+  Virman/Cari verse bile kredi kanıtı düzeltir; **manuel etiket korunur**. Canlıdaki 3
+  Halkbank kaydı (Mayıs/Haziran/Temmuz, taksitleri "Halk Leasing 2600046701" ürünüyle
+  zaten eşleşikti) yeniden etiketlendi. Test: `TestCreditBankLegTagging` (3) +
+  `TestLeasingRule::test_halkbank_odeme_plani_tagged`.
 
 Test: `test_auto_tagger.py::TestLeasingRule` (4) +
 `test_faz1_matching.py::TestVendorMatcher::test_leasing_bank_leg_tagged_kredi_leasing_not_cari` +

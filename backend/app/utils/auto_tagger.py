@@ -144,7 +144,10 @@ def _strip_bank_noise(normalized: str) -> str:
 # buraya taşındı — grup anahtarı etikettir, t_account planlı kredi grubu da aynı
 # string'i taşır ve tek başlıkta birleşir).
 LEASING_CATEGORY = "Kredi/Leasing"
-_LEASING_PATTERN = re.compile(r"leasing|finansal kiralama")
+# "nolu odeme plani": Halkbank leasing taksit formatı "HAVALE 2600046701 NOLU ÖDEME
+# PLANI" hiç leasing kelimesi taşımaz (2026-07-18 kullanıcı bulgusu) — yapılandırılmış
+# ödeme planı havalesi kredi/leasing sınıfıdır; yanlış pozitif görülürse manuel düzeltilir.
+_LEASING_PATTERN = re.compile(r"leasing|finansal kiralama|nolu odeme plani")
 
 
 def is_leasing_description(description: Optional[str]) -> bool:

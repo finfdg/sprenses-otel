@@ -565,6 +565,67 @@ class TestCreditGroupMatch:
 # ═══════════════ E) run_post_ingest_processing — ortak orkestratör ═══════════════
 
 
+class TestCreditBankLegTagging:
+    """Kredi taksitine eşleşen banka bacağı 'Kredi/Leasing' etiketi alır (2026-07-18).
+
+    Canlı bulgu: 'HAVALE 2600046701 NOLU ÖDEME PLANI' Halk Leasing taksitleri kelime
+    kuralı Virman/Cari verdiğinden Panel T-Hesap'ta 'Cari' başlığında görünüyordu.
+    Manuel etiket korunur (_tag_scheduled_bank_leg kuralı).
+    """
+
+    def _cat_name(self, db, btx_id):
+        b = db.get(BankTransaction, btx_id)
+        if b.category_id is None:
+            return None
+        return db.get(TransactionCategory, b.category_id).name
+
+    def test_single_match_tags_leg_kredi_leasing(self, db):
+        due = TODAY - timedelta(days=1)
+        product, payment = _mk_credit_payment(db, due_date=due, amount=1887.19,
+                                              bank_name="Halkbank")
+        acc = _mk_account(db, bank_name="Halkbank")
+        btx = _mk_btx(db, acc, amount=-1887.19, tx_date=due,
+                      desc="HAVALE 2600046701 NOLU ÖDEME PLANI")
+        finance_event_svc.upsert_bank_tx(db, btx, acc)
+        db.commit()
+
+        assert _match_credits_to_bank(db)["matched"] == 1
+        db.expire_all()
+        assert self._cat_name(db, btx.id) == "Kredi/Leasing"
+        fe = _fe(db, "bank", btx.id)
+        assert fe is not None and fe.category_name == "Kredi/Leasing"
+
+    def test_manual_tag_preserved(self, db):
+        cari = _ensure_category(db, "Cari")
+        due = TODAY - timedelta(days=1)
+        product, payment = _mk_credit_payment(db, due_date=due, amount=5432.10,
+                                              bank_name="Halkbank")
+        acc = _mk_account(db, bank_name="Halkbank")
+        btx = _mk_btx(db, acc, amount=-5432.10, tx_date=due,
+                      desc="HAVALE MANUEL ETİKETLİ TAKSİT")
+        btx.category_id = cari.id
+        btx.tag_source = "manual"
+        db.commit()
+
+        assert _match_credits_to_bank(db)["matched"] == 1
+        db.expire_all()
+        assert self._cat_name(db, btx.id) == "Cari"  # kullanıcı kararı ezilmez
+
+    def test_group_match_tags_all_legs(self, db):
+        due = TODAY + timedelta(days=2)
+        product, payment = _mk_credit_payment(db, due_date=due, amount=10000.0,
+                                              bank_name="Grup Etiket Bankası")
+        acc = _mk_account(db, bank_name="Grup Etiket Bankası")
+        b1 = _mk_btx(db, acc, amount=-9000, tx_date=due, desc="XFAIZ TAHAKKUKU")
+        b2 = _mk_btx(db, acc, amount=-1000, tx_date=due, desc="XBSMV KESINTISI")
+        db.commit()
+
+        assert _match_credits_to_bank(db)["matched"] == 1
+        db.expire_all()
+        assert self._cat_name(db, b1.id) == "Kredi/Leasing"
+        assert self._cat_name(db, b2.id) == "Kredi/Leasing"
+
+
 class TestRunPostIngestProcessing:
     def test_auto_tag_syncs_fe_and_matchers_run(self, db):
         """Auto-tag matcher'lardan önce koşar, FE'ye sync_tag yazar (A4 düzeltmesi);
