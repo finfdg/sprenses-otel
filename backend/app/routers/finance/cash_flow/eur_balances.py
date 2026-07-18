@@ -49,10 +49,13 @@ def compute_eur_balances(db: Session) -> dict:
     acc_map = {a.id: a for a in accounts}
     acc_blocked = {a.id: float(a.blocked_amount) if a.blocked_amount else 0 for a in accounts}
 
-    # Dahili transfer / iade kategori ID'leri (gelir/giderden çıkarılacak)
+    # Dahili transfer / iade kategori ID'leri (gelir/giderden çıkarılacak).
+    # "Pos Bloke Çözme" (2026-07-18): POS bloke çözümü hesaplar arası virmandır —
+    # iki bacağı da günlük gelir/gider toplamına girmez (bakiye zaten banka
+    # ekstresinden gelir, etkilenmez).
     transfer_cat_ids = set()
     for cat in db.query(TransactionCategory).filter(
-        TransactionCategory.name.in_(["Virman", "Döviz Satım", "İade"])
+        TransactionCategory.name.in_(["Virman", "Döviz Satım", "İade", "Pos Bloke Çözme"])
     ).all():
         transfer_cat_ids.add(cat.id)
 

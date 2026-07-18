@@ -1249,7 +1249,7 @@ _SCHEDULED_KEYWORDS = {
 # Eşleşen banka bacağına atanan kategori → T-Hesap'ta doğru başlık (salary→Personel;
 # sgk/stopaj→Vergi/SGK — _SCHEDULED_CATEGORY_MAP köprüsüyle aynı yön eşlemesi)
 _SCHEDULED_CANONICAL_CATEGORY = {"salary": "Personel", "sgk": "Vergi/SGK", "withholding": "Vergi/SGK"}
-_TRANSFER_CATEGORY_NAMES = ("Virman", "Döviz Satım", "İade", "Döviz Satışı")
+_TRANSFER_CATEGORY_NAMES = ("Virman", "Döviz Satım", "İade", "Döviz Satışı", "Pos Bloke Çözme")
 SCHEDULED_LOOKBACK_DAYS = 90       # geriye dönük temizlik penceresi (ref tarihi)
 SCHEDULED_CAND_WINDOW_DAYS = 15    # aday banka hareketi ± penceresi
 SCHEDULED_MIN_BLIND_AMOUNT = 1_000_000  # kelimesiz (etiketsiz toplu transfer) yolu alt sınırı

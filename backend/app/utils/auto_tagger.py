@@ -155,6 +155,15 @@ def is_leasing_description(description: Optional[str]) -> bool:
     return bool(_LEASING_PATTERN.search(_normalize(description or "")))
 
 
+# POS bloke çözümü (2026-07-18, kullanıcı isteği): "UBLK/.../POS BLOKE ÇÖZÜM" hareketleri
+# gerçek gelir/gider DEĞİL — bloke POS hesabından ana hesaba virmandır. Kelime kuralı
+# YAZILMAZ (aynı açıklamayı taşıyan küçük ücret/aidat bacakları gerçek giderdir);
+# yalnız KARŞI BACAĞI bulunan (aynı gün, zıt işaretli aynı tutar, farklı hesap) çiftler
+# `_tag_pos_bloke_transfers` ile bu kategoriye alınır. T-Hesap bu kategoriyi kendi
+# başlığında GÖSTERİR ama kolon toplamına KATMAZ (t_account.INFO_CATEGORIES).
+POS_BLOKE_CATEGORY = "Pos Bloke Çözme"
+_POS_BLOKE_RE = re.compile(r"pos bloke")
+
 # Kategori adı → regex pattern (normalize edilmiş metin üzerinde çalışır)
 # "Döviz Satışı" kuralı "Kredi/Leasing"den ÖNCE gelmeli: "YapiKrediFX+ Dvz Satis"
 # açıklaması "kredi" desenini de içerir — döviz satışı kredi kullanımı DEĞİLDİR (2026-07-13).
@@ -188,6 +197,7 @@ MANAGED_CATEGORY_COLORS: Dict[str, str] = {
     "Havale Komisyonları": "amber",
     "Temettü": "purple",
     LEASING_CATEGORY: "orange",  # eski "Kredi" kategorisinin devamı (DB'de rename edildi)
+    POS_BLOKE_CATEGORY: "purple",  # hesaplar arası virman sınıfı (Virman ile aynı renk ailesi)
 }
 
 
@@ -239,7 +249,10 @@ def auto_tag_transactions(
         query = query.filter(BankTransaction.id.in_(transaction_ids))
 
     untagged = query.all()
-    tagged = _tag_agency_collections(db, untagged, cat_map[AGENCY_CATEGORY])
+    # POS bloke çiftleri EN ÖNCE: gelir bacağı acenta tahsilat tutarıyla çakışıp
+    # yanlışlıkla Acenta'ya, gider bacağı "pos " kelimesiyle POS'a düşmesin
+    tagged = _tag_pos_bloke_transfers(db, untagged, cat_map[POS_BLOKE_CATEGORY])
+    tagged.extend(_tag_agency_collections(db, untagged, cat_map[AGENCY_CATEGORY]))
     tagged.extend(_tag_bank_fees(db, untagged, cat_map[FEE_CATEGORY]))
 
     for tx in untagged:
@@ -260,6 +273,59 @@ def auto_tag_transactions(
         _sync_finance_events(db, tagged)  # otomatik kategori FE'ye yansısın
 
     return len(tagged), len(untagged)
+
+
+# ─── POS Bloke Çözümü Virman Tespiti (2026-07-18) ────────────────────
+# Banka POS bloke çözümünde parayı bloke hesaptan ana hesaba aktarır: bloke hesapta
+# GİDER + ana hesapta aynı gün aynı tutarlı GELİR bacağı oluşur (canlı: Halkbank
+# 2L/2A hesapları). İkisi de iç transferdir → "Pos Bloke Çözme". Aynı açıklamalı
+# ama EŞSİZ (karşı bacaksız) kalemler gerçek ücret/aidat gideridir — dokunulmaz,
+# ücret/kelime kurallarına düşerler. Karşı bacak sonradan gelen ekstreyle de
+# gelebilir: eşi bulunduğunda önceden OTOMATİK etiketlenmiş bacak da hizalanır
+# (manuel etiket kullanıcı kararıdır → asla ezilmez).
+
+_POS_BLOKE_AMOUNT_TOLERANCE = 0.02
+
+
+def _tag_pos_bloke_transfers(
+    db: Session, untagged: List[BankTransaction], cat_id: int
+) -> List[BankTransaction]:
+    """POS bloke çözüm çiftlerini (iki bacak) etiketle (commit ETMEZ)."""
+    from sqlalchemy import func
+
+    cands = [
+        tx for tx in untagged
+        if tx.category_id is None and _POS_BLOKE_RE.search(_normalize(tx.description or ""))
+    ]
+    tagged: List[BankTransaction] = []
+    for tx in cands:
+        if tx.category_id is not None:  # bu geçişte karşı bacak olarak etiketlendi
+            continue
+        counterpart = (
+            db.query(BankTransaction)
+            .filter(
+                BankTransaction.id != tx.id,
+                BankTransaction.date == tx.date,
+                BankTransaction.account_id != tx.account_id,
+                BankTransaction.type != tx.type,
+                BankTransaction.description.ilike("%pos bloke%"),
+                func.abs(BankTransaction.amount + tx.amount) <= _POS_BLOKE_AMOUNT_TOLERANCE,
+            )
+            .first()
+        )
+        if counterpart is None:
+            continue  # karşı bacak yok → ücret/aidat bacağı, diğer kurallara düşer
+        tx.category_id = cat_id
+        tx.tag_source = "auto"
+        tagged.append(tx)
+        # Geç gelen ekstre durumu: eş bacak daha önce başka kurala düşmüş olabilir
+        if counterpart.category_id is None or (
+            counterpart.tag_source == "auto" and counterpart.category_id != cat_id
+        ):
+            counterpart.category_id = cat_id
+            counterpart.tag_source = "auto"
+            tagged.append(counterpart)
+    return tagged
 
 
 # ─── Banka Havale/EFT Komisyon Tespiti (2026-07-13) ──────────────────

@@ -684,6 +684,32 @@ pending — Personel birleştirmesi deseni; karma grubun `section`'ı determinis
 24 canlı kayıt geriye dönük taşındı. Detay: `docs/modules/transaction-tags.md` "Leasing →
 Kredi/Leasing"; test: `TestLeasingRule` + `test_credit_and_bank_leasing_merged_under_kredi_leasing`.
 
+## T-Hesap: "Pos Bloke Çözme" — Toplam-Dışı Bilgi Grubu (2026-07-18)
+
+Kullanıcı isteği: "POS bloke çözme aslında bir para çıkışı değil — karşılığı başka banka
+hesabına virman yapılıyor. Pos Bloke Çözme başlığı altında göster ama toplama dahil etme."
+
+- **Yeni kavram — toplam-dışı bilgi kategorisi (`t_account.INFO_CATEGORIES`):** grup
+  T-Hesap'ta kendi başlığıyla GÖRÜNÜR (her iki kolonda; kalemler + kendi toplamı) ama
+  **kolon toplamı / net / gerçekleşen sayaçlarına ve faaliyet-finansman netlerine GİRMEZ**.
+  Virman'dan farkı: Virman (`TRANSFER_CATEGORIES`) sorgudan tamamen dışlanır ve hiç
+  görünmez; bilgi grubu listelenir. Yanıtta grup `in_total: false` taşır; frontend
+  (`CashFlowTAccount.svelte`) başlık yanında gri **"toplam dışı"** rozeti çizer, tarih
+  görünümünde gün toplamına ve tipping girişlerine katmaz.
+- **Etiketleme:** çift-bacak tespiti `auto_tagger._tag_pos_bloke_transfers` — yalnız
+  karşı bacağı (aynı gün, zıt işaretli aynı tutar, farklı hesap) bulunan "POS BLOKE"
+  kayıtları; eşsiz ücret/aidat bacakları gerçek gider olarak eski kurallarında kalır.
+  Detay: `docs/modules/transaction-tags.md` "POS Bloke Çözümü".
+- **Tutarlılık:** Nakit Akım sayfası `groupByMonth` (`NO_TOTAL_CATEGORIES`) kalemleri
+  gösterir ama ay/gün toplamına katmaz (ödenen çek `is_matched` deseniyle aynı);
+  `compute_eur_balances` günlük banka gelir/gider toplamları da hariç tutar (bakiye zaten
+  ekstreden gelir, etkilenmez); PDF rapor notu güncellendi; eşleştiriciler bu kategoriyi
+  aday almaz (`_TRANSFER_CATEGORY_NAMES`).
+- **Canlı doğrulama (Haziran):** "Pos Aidat Gideri" €11.308 → **€98** (yalnız gerçek
+  ücretler); "Pos Bloke Çözme" GİRİŞ=ÇIKIŞ=€19.527 simetrik, toplamlara dahil değil.
+
+Test: `TestTAccountInfoCategory` + `TestPosBlokeTransfers` + `finance.test.ts`.
+
 ## T-Hesap: Acenta / Döviz Satışı Grupları + Banka Amblemi (2026-07-13)
 
 Kullanıcı isteği üç parça (Panel T-Hesap cetveli):

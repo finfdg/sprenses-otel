@@ -578,3 +578,66 @@ class TestAgencyDisplayName:
         auto_tag_transactions(db, [btx.id])
         assert _cat_of(db, btx) == AGENCY_CATEGORY
         assert btx.tag_note is None
+
+
+class TestPosBlokeTransfers:
+    """POS bloke çözüm çiftleri 'Pos Bloke Çözme' olur (2026-07-18): parayı bloke
+    hesaptan ana hesaba taşıyan İKİ bacak (aynı gün, zıt işaretli aynı tutar, farklı
+    hesap) iç virmandır. Karşı bacaksız (ücret/aidat) kalemler kelime kurallarına düşer;
+    manuel etiket asla ezilmez."""
+
+    DESC = "UBLK/1376/000000003787614             /POS BLOKE ÇÖZÜM"
+
+    def test_paired_legs_both_tagged(self, client, db):
+        acc_bloke = _mk_account(db, currency="EUR")
+        acc_main = _mk_account(db, currency="EUR")
+        out_leg = _mk_btx(db, acc_bloke, amount=-5100, desc=self.DESC)
+        in_leg = _mk_btx(db, acc_main, amount=5100, desc=self.DESC)
+        auto_tag_transactions(db, [out_leg.id, in_leg.id])
+        assert _cat_of(db, out_leg) == "Pos Bloke Çözme"
+        assert _cat_of(db, in_leg) == "Pos Bloke Çözme"
+        assert out_leg.tag_source == "auto" and in_leg.tag_source == "auto"
+
+    def test_unpaired_fee_leg_falls_to_word_rules(self, client, db):
+        """Aynı açıklamalı ama EŞSİZ gider (banka kesintisi) transfer sayılmaz."""
+        acc = _mk_account(db)
+        fee = _mk_btx(db, acc, amount=-3871.78, desc=self.DESC)
+        auto_tag_transactions(db, [fee.id])
+        assert _cat_of(db, fee) == "POS"  # "pos " kelime kuralı — Pos Bloke Çözme DEĞİL
+
+    def test_same_account_pair_not_matched(self, client, db):
+        """Karşı bacak FARKLI hesapta olmalı — aynı hesapta zıt tutar çift sayılmaz."""
+        acc = _mk_account(db)
+        out_leg = _mk_btx(db, acc, amount=-1500, desc=self.DESC)
+        in_leg = _mk_btx(db, acc, amount=1500, desc=self.DESC)
+        auto_tag_transactions(db, [out_leg.id, in_leg.id])
+        assert _cat_of(db, out_leg) != "Pos Bloke Çözme"
+        assert _cat_of(db, in_leg) != "Pos Bloke Çözme"
+
+    def test_late_counterpart_retags_auto_leg(self, client, db):
+        """Karşı bacak sonraki ekstreyle gelirse önceden OTOMATİK etiketlenen bacak hizalanır."""
+        acc_bloke = _mk_account(db)
+        acc_main = _mk_account(db)
+        out_leg = _mk_btx(db, acc_bloke, amount=-170000, desc=self.DESC)
+        auto_tag_transactions(db, [out_leg.id])
+        assert _cat_of(db, out_leg) == "POS"  # eşi henüz yok → kelime kuralı
+        in_leg = _mk_btx(db, acc_main, amount=170000, desc=self.DESC)
+        auto_tag_transactions(db, [in_leg.id])
+        assert _cat_of(db, in_leg) == "Pos Bloke Çözme"
+        assert _cat_of(db, out_leg) == "Pos Bloke Çözme"
+        assert out_leg.tag_source == "auto"
+
+    def test_manual_counterpart_not_overridden(self, client, db):
+        """Manuel etiketli karşı bacak kullanıcı kararıdır — dokunulmaz."""
+        acc_bloke = _mk_account(db)
+        acc_main = _mk_account(db)
+        out_leg = _mk_btx(db, acc_bloke, amount=-2000, desc=self.DESC)
+        virman = _get_or_create_category(db, "Virman")
+        out_leg.category_id = virman.id
+        out_leg.tag_source = "manual"
+        db.flush()
+        in_leg = _mk_btx(db, acc_main, amount=2000, desc=self.DESC)
+        auto_tag_transactions(db, [in_leg.id])
+        assert _cat_of(db, in_leg) == "Pos Bloke Çözme"
+        assert _cat_of(db, out_leg) == "Virman"
+        assert out_leg.tag_source == "manual"

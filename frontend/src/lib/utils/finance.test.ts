@@ -208,6 +208,20 @@ describe('groupByMonth', () => {
 		expect(result[0].days[0].incomeItems).toHaveLength(1);
 		expect(result[0].days[0].total_income).toBe(0);
 	});
+
+	it("'Pos Bloke Çözme' listede görünür ama toplama dahil olmaz (2026-07-18)", () => {
+		const items = [
+			makeItem({ id: 1, date: '2026-07-16', amount: 170000, type: 'income', category_name: 'Pos Bloke Çözme' }),
+			makeItem({ id: 2, date: '2026-07-16', amount: 170000, type: 'expense', category_name: 'Pos Bloke Çözme' }),
+			makeItem({ id: 3, date: '2026-07-16', amount: 799, type: 'expense', category_name: 'POS' }),
+		];
+		const result = groupByMonth(items);
+
+		expect(result[0].days[0].incomeItems).toHaveLength(1);
+		expect(result[0].days[0].expenseItems).toHaveLength(2);
+		expect(result[0].total_income).toBe(0);
+		expect(result[0].total_expense).toBe(799); // yalnız gerçek gider (POS ücreti)
+	});
 });
 
 // ─── getTodayKeys ────────────────────────────────────────────

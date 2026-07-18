@@ -33,7 +33,9 @@
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
 
 	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; is_held?: boolean; source_type?: string | null; source_id?: number | null; bank_name?: string | null };
-	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[]; realized_eur?: number; realized_count?: number; held_eur?: number; held_count?: number };
+	// in_total=false → toplam-dışı bilgi grubu (ör. "Pos Bloke Çözme" — hesaplar arası
+	// virman): listede görünür, kolon toplamı/net/gün toplamına GİRMEZ (backend INFO_CATEGORIES)
+	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[]; realized_eur?: number; realized_count?: number; held_eur?: number; held_count?: number; in_total?: boolean };
 	type TData = {
 		period: string; offset: number; start_date: string; end_date: string;
 		giris: TGroup[]; cikis: TGroup[];
@@ -46,7 +48,7 @@
 	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
 	// Held (beklemeye alınmış) satırlar sarı gösterilir, toplama katılmaz → ayrı `heldRows`.
 	type DateRow = { name: string; amountLabel: string; amount_eur: number; members: SourceRef[]; bank_name: string | null };
-	type DateCat = { label: string; rank: number; totalEur: number; rows: DateRow[]; heldRows: DateRow[] };
+	type DateCat = { label: string; rank: number; totalEur: number; inTotal: boolean; rows: DateRow[]; heldRows: DateRow[] };
 	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
 	// İleri (gelecek dönem) navigasyon üst sınırı — backend le=24 ile aynı
@@ -152,11 +154,11 @@
 	// ── Tarih görünümü — segment'e göre kalemleri düzleştir; GÜN → KATEGORİ alt-grubu → satır.
 	// Kategori "Cari Ödemeleri" ise satırlar firma bazında TOPLU (aggregateRows), diğerlerinde her kalem AYRI.
 	function dateBuckets(groups: TGroup[], realized: boolean): { days: DateDay[]; hasMore: boolean; moreText: string } {
-		const flat: (TItem & { cat: string })[] = [];
-		for (const g of groups) for (const it of g.items) if (!!it.is_realized === realized) flat.push({ ...it, cat: g.label });
+		const flat: (TItem & { cat: string; inTotal: boolean })[] = [];
+		for (const g of groups) for (const it of g.items) if (!!it.is_realized === realized) flat.push({ ...it, cat: g.label, inTotal: g.in_total !== false });
 		flat.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
-		const byDate = new Map<string, { date: string; label: string; totalEur: number; catMap: Map<string, (TItem & { cat: string })[]> }>();
+		const byDate = new Map<string, { date: string; label: string; totalEur: number; catMap: Map<string, (TItem & { cat: string; inTotal: boolean })[]> }>();
 		const dayOrder: string[] = [];
 		for (const it of flat) {
 			let day = byDate.get(it.date);
@@ -166,7 +168,8 @@
 				byDate.set(it.date, day);
 				dayOrder.push(it.date);
 			}
-			if (!it.is_held) day.totalEur += it.amount_eur; // held gün toplamına katılmaz
+			// held + toplam-dışı bilgi kategorisi (Pos Bloke Çözme) gün toplamına katılmaz
+			if (!it.is_held && it.inTotal) day.totalEur += it.amount_eur;
 			let catItems = day.catMap.get(it.cat);
 			if (!catItems) { catItems = []; day.catMap.set(it.cat, catItems); }
 			catItems.push(it);
@@ -186,6 +189,7 @@
 						// Grup tek kaynak türünden oluşur (backend etiket=kaynak) → ilk kalem yeterli
 						rank: daySourceRank(items[0]?.source_type),
 						totalEur: counted.reduce((s, it) => s + it.amount_eur, 0),
+						inTotal: items[0]?.inTotal !== false,
 						rows: aggregateRows(counted, agg).map(toRow),
 						heldRows: aggregateRows(heldItems, agg).map(toRow),
 					};
@@ -225,9 +229,13 @@
 	// Yürüyüş mantığı saf `firstTippingRow`'da (test: cashflow.test.ts — çift-sayım regresyonu).
 	const tippingCikis = $derived.by(() => {
 		if (!data || startCash == null || sideView.cikis !== 'bekleyen' || !dateView.cikis) return null;
-		// Bekleyen giriş: gün başına EUR (o günün ödemelerinden ÖNCE nakde eklenir); held HARİÇ (parkta)
+		// Bekleyen giriş: gün başına EUR (o günün ödemelerinden ÖNCE nakde eklenir);
+		// held + toplam-dışı bilgi grupları (in_total=false) HARİÇ (akım-dışı)
 		const inflowByDate = new Map<string, number>();
-		for (const g of data.giris) for (const it of g.items) if (!it.is_realized && !it.is_held) inflowByDate.set(it.date, (inflowByDate.get(it.date) ?? 0) + it.amount_eur);
+		for (const g of data.giris) {
+			if (g.in_total === false) continue;
+			for (const it of g.items) if (!it.is_realized && !it.is_held) inflowByDate.set(it.date, (inflowByDate.get(it.date) ?? 0) + it.amount_eur);
+		}
 		return firstTippingRow(startCash, inflowByDate, dateBuckets(data.cikis, false).days);
 	});
 
@@ -518,10 +526,14 @@
 					<ChevronDown size={13} class="shrink-0 text-gray-500 transition-transform {open[k] ? '' : '-rotate-90'}" />
 					<span class="text-[13px] font-semibold text-gray-900 truncate">{g.label}</span>
 					<span class="text-[11px] text-gray-500 shrink-0">{g.item_count} işlem</span>
+					{#if g.in_total === false}
+						<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 border border-gray-200 rounded px-1 py-0.5"
+							title="Hesaplar arası virman — kolon toplamına ve net'e dahil değildir">toplam dışı</span>
+					{/if}
 					{#if !realized && (g.held_eur ?? 0) > 0}
 						<span class="text-[10px] text-amber-600 shrink-0" title="Beklemeye alınan (toplama dahil değil)">+{fmtEur(g.held_eur ?? 0)} beklemede</span>
 					{/if}
-					<span class="ml-auto tabular-nums text-[13px] text-gray-800 shrink-0">{fmtEur(g.total_eur)}</span>
+					<span class="ml-auto tabular-nums text-[13px] {g.in_total === false ? 'text-gray-500' : 'text-gray-800'} shrink-0">{fmtEur(g.total_eur)}</span>
 				</button>
 				{#if open[k]}
 					<div class="pb-1">
@@ -576,6 +588,10 @@
 							</button>
 						{:else}
 							<span class="text-[11px] font-semibold text-gray-700 truncate">{cat.label}</span>
+						{/if}
+						{#if !cat.inTotal}
+							<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-100 border border-gray-200 rounded px-1 py-0.5"
+								title="Hesaplar arası virman — gün toplamına ve net'e dahil değildir">toplam dışı</span>
 						{/if}
 						<span class="ml-auto tabular-nums text-[10.5px] font-semibold text-gray-500 shrink-0">{fmtEur(cat.totalEur)}</span>
 					</div>

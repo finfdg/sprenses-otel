@@ -605,3 +605,43 @@ class TestTAccountAgencyDisplayName:
         assert "NORDİC LEİSURE TRAVEL" in names
         assert "Diğer Diğer SEYAHAT ACENT/999/1" in names
         assert "Diğer Diğer TRAVE/020726/278982" not in names
+
+
+class TestTAccountInfoCategory:
+    """'Pos Bloke Çözme' toplam-dışı bilgi grubu (2026-07-18, kullanıcı isteği):
+    POS bloke çözümü hesaplar arası virmandır — kalemler kendi başlığında GÖRÜNÜR
+    ama kolon toplamı / net / gerçekleşen sayaçlarına ve section netlerine GİRMEZ."""
+
+    def test_pos_bloke_visible_but_excluded_from_totals(self, client, auth_headers, db):
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)  # 1 EUR = 50 TRY
+
+        _mk_fe(db, direction=-1, amount=5000, category_name="T-INFO GİDER",
+               description="GERÇEK GİDER")                                    # -100 EUR sayılır
+        _mk_fe(db, direction=-1, amount=10000, category_name="Pos Bloke Çözme",
+               description="UBLK POS BLOKE ÇÖZÜM ÇIKIŞ")                      # görünür, sayılmaz
+        _mk_fe(db, direction=1, amount=10000, category_name="Pos Bloke Çözme",
+               description="UBLK POS BLOKE ÇÖZÜM GİRİŞ")                      # görünür, sayılmaz
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+
+        # Grup her iki kolonda da GÖRÜNÜR, in_total=False + kendi toplamını taşır
+        grp_out = _group(body, "cikis", "Pos Bloke Çözme")
+        assert grp_out is not None and grp_out["in_total"] is False
+        assert grp_out["total_eur"] == 200.0
+        assert any(i["name"] == "UBLK POS BLOKE ÇÖZÜM ÇIKIŞ" for i in grp_out["items"])
+        grp_in = _group(body, "giris", "Pos Bloke Çözme")
+        assert grp_in is not None and grp_in["in_total"] is False
+
+        # Normal grup in_total=True taşır
+        normal = _group(body, "cikis", "T-INFO GİDER")
+        assert normal is not None and normal["in_total"] is True
+
+        # Kolon toplamı / gerçekleşen / net yalnız gerçek gideri içerir
+        assert body["total_out_eur"] == 100.0
+        assert body["realized_out_eur"] == 100.0
+        assert body["total_in_eur"] == 0.0
+        assert body["net_eur"] == -100.0
+        # Faaliyet/Finansman mutabakatı korunur (info grubu section netlerine girmez)
+        assert round(body["faaliyet_net_eur"] + body["finansman_net_eur"], 2) == body["net_eur"]

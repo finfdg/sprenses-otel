@@ -140,6 +140,34 @@ içerdiğinden döviz satışları yanlışlıkla Kredi etiketleniyordu (canlı 
 Döviz Satım = çift-bacak iç transfer (T-Hesap/nakit akımdan HARİÇ), **Döviz Satışı = görünür
 kategori** (kullanıcı kararı — döviz bozdurma geliri/gideri T-Hesap'ta başlık olarak izlenir).
 
+### POS Bloke Çözümü — "Pos Bloke Çözme" Çift-Bacak Tespiti (2026-07-18, kullanıcı isteği)
+
+Halkbank POS bloke çözümü ("UBLK/1376/... /POS BLOKE ÇÖZÜM") parayı **bloke POS
+hesabından** (2L/2A IBAN'lı hesaplar) **ana hesaba** taşır — gerçek gelir/gider değil,
+hesaplar arası virmandır. Kalemler daha önce karışık etiketleniyordu (Pos Aidat Gideri /
+POS / Virman) ve Panel T-Hesap ÇIKIŞ toplamını şişiriyordu (canlı: Haziran "Pos Aidat
+Gideri" €11.308 görünüyordu; gerçek ücretler yalnız €98).
+
+- **Kelime kuralı YOK** — aynı açıklamayı taşıyan küçük **ücret/aidat bacakları**
+  (₺799, €31, ₺3.871 gibi) gerçek giderdir ve eski kurallarında kalır. Yalnız
+  **karşı bacağı bulunan** kayıt transfer sayılır: `_tag_pos_bloke_transfers`
+  (`auto_tagger.py`, acenta/ücret geçişlerinden ÖNCE koşar) aynı gün + zıt işaretli
+  aynı tutar (±0.02) + **farklı hesap** + açıklamasında "pos bloke" olan eşi arar;
+  bulursa İKİ bacağı da **"Pos Bloke Çözme"** yapar (`POS_BLOKE_CATEGORY`, purple,
+  `MANAGED_CATEGORY_COLORS` → yoksa runtime oluşur).
+- **Geç gelen ekstre:** karşı bacak sonraki yüklemeyle gelirse, önceden OTOMATİK
+  etiketlenmiş bacak da hizalanır; **manuel etiket asla ezilmez**.
+- **Toplam-dışı görünürlük:** `t_account.INFO_CATEGORIES` bu kategoriyi kendi başlığı
+  altında GÖSTERİR ama kolon toplamı/net/gerçekleşen sayaçlarına KATMAZ (`in_total=false`
+  bayrağı + frontend "toplam dışı" rozeti). Nakit Akım sayfası (`finance.ts
+  NO_TOTAL_CATEGORIES`) ve `compute_eur_balances` günlük gelir/gider toplamları da hariç
+  tutar; `matching_service._TRANSFER_CATEGORY_NAMES`'e eklendi (eşleştirme adayı olamaz).
+- **Geriye dönük düzeltme (2026-07-18):** canlıdaki 8 çift (16 kayıt, May–Tem) yeni
+  kategoriye taşındı + FE'ler senkronlandı; 8 eşsiz ücret bacağına dokunulmadı.
+
+Test: `test_auto_tagger.py::TestPosBlokeTransfers` (5) +
+`test_cash_flow_taccount.py::TestTAccountInfoCategory` + `finance.test.ts` (groupByMonth).
+
 ### Banka Adı Gürültüsü — Yapı Kredi Yanlış Pozitifi (2026-07-18, `_strip_bank_noise`)
 
 FAST/EFT açıklamaları **karşı tarafın bankasını** içerir: "... hesabından **Yapı ve Kredi

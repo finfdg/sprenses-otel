@@ -16,6 +16,11 @@ export function formatCompact(amount: number, currency: string = 'TRY'): string 
 // Dahili transfer kategorileri — gelir/gider toplamlarından hariç tutulur
 const TRANSFER_CATEGORIES = new Set(['Virman', 'Döviz Satım', 'İade']);
 
+// Toplam-dışı bilgi kategorileri — kalem listede görünür ama ay/gün toplamına girmez.
+// Backend karşılığı: t_account.INFO_CATEGORIES (POS bloke çözümü = hesaplar arası virman;
+// karşılığı başka banka hesabına geçer, gerçek gelir/gider değildir — 2026-07-18).
+const NO_TOTAL_CATEGORIES = new Set(['Pos Bloke Çözme']);
+
 export function groupByMonth(items: CashFlowItem[]): MonthGroup[] {
 	const groups: Record<string, MonthGroup> = {};
 	const dayMap: Record<string, Record<string, DayGroup>> = {};
@@ -49,9 +54,12 @@ export function groupByMonth(items: CashFlowItem[]): MonthGroup[] {
 		}
 
 		const amountForBalance = item.amount;
-		// Toplam-dışı: dahili transferler + karşı kayıtla eşleşmiş bilgi satırları
-		// (ör. ödenen çek "Ödendi" rozetiyle listede kalır ama para banka bacağında sayılır)
-		const isTransfer = item.category_name && TRANSFER_CATEGORIES.has(item.category_name);
+		// Toplam-dışı: dahili transferler + toplam-dışı bilgi kategorileri (Pos Bloke Çözme)
+		// + karşı kayıtla eşleşmiş bilgi satırları (ör. ödenen çek "Ödendi" rozetiyle
+		// listede kalır ama para banka bacağında sayılır)
+		const isTransfer =
+			item.category_name &&
+			(TRANSFER_CATEGORIES.has(item.category_name) || NO_TOTAL_CATEGORIES.has(item.category_name));
 		const excludeFromTotals = isTransfer || item.is_matched === true;
 
 		if (item.type === 'income') {

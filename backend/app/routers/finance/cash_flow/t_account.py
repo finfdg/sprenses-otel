@@ -35,6 +35,14 @@ from app.utils.finance_helpers import MIN_DATE
 # Transfer kategorileri — frontend groupByMonth (TRANSFER_CATEGORIES) ile birebir aynı
 TRANSFER_CATEGORIES = ("Virman", "Döviz Satım", "İade")
 
+# Toplam-dışı bilgi kategorileri (2026-07-18, kullanıcı isteği): POS bloke çözümü
+# hesaplar arası virmandır (karşılığı başka banka hesabına geçer) — kalemleri kendi
+# başlığı altında GÖRÜNÜR ama kolon toplamı / net / gerçekleşen sayaçlarına GİRMEZ.
+# Virman'dan farkı: Virman tamamen gizlenir, bunlar bilgi amaçlı listelenir.
+# Frontend `in_total=False` bayrağıyla "toplam dışı" rozeti çizer ve tarih
+# görünümündeki gün toplamlarından hariç tutar (CashFlowTAccount.svelte).
+INFO_CATEGORIES = ("Pos Bloke Çözme",)
+
 # Grup başına yanıtta dönecek en fazla kalem (item_count gerçek sayıyı taşır). 500: aylık/haftalık/
 # günlük görünümü tam kapsar (yoğun ay cari ~142); yalnız yıllık gibi uç toplamalar "+N kalem daha"
 # ile Nakit Akım sayfasına yönlendirir. GZip + frontend cari-birleştirme yükü tolere eder (2026-07-07).
@@ -262,10 +270,14 @@ def t_account(
         is_held = (not fe.is_realized) and ((fe.source_type, fe.source_id) in hold_set)
 
         label = _group_label(fe)
+        # Toplam-dışı bilgi grubu (POS bloke çözümü): grup kendi toplamını taşır ama
+        # kolon toplamı/net/gerçekleşen sayaçlarına eklenmez
+        in_total = label not in INFO_CATEGORIES
         group = groups[fe.direction].setdefault(
             label, {"label": label, "total_eur": 0.0, "item_count": 0,
                     "realized_eur": 0.0, "realized_count": 0,
                     "held_eur": 0.0, "held_count": 0,
+                    "in_total": in_total,
                     "section": _section(fe.source_type, label), "items": []}
         )
         group["item_count"] += 1
@@ -278,11 +290,13 @@ def t_account(
             group["held_count"] += 1
         else:
             group["total_eur"] += eur
-            totals[fe.direction] += eur
+            if in_total:
+                totals[fe.direction] += eur
             if fe.is_realized:
                 group["realized_eur"] += eur
                 group["realized_count"] += 1
-                realized[fe.direction] += eur
+                if in_total:
+                    realized[fe.direction] += eur
         if len(group["items"]) < MAX_ITEMS_PER_GROUP:
             group["items"].append({
                 "name": _item_name(fe),
@@ -407,10 +421,12 @@ def t_account(
     giris = _finalize(DIRECTION_INCOME)
     cikis = _finalize(DIRECTION_EXPENSE)
 
-    # Faaliyet / Finansman neti (yalnız yeniden-mercek — net toplamı değiştirmez)
+    # Faaliyet / Finansman neti (yalnız yeniden-mercek — net toplamı değiştirmez).
+    # Toplam-dışı bilgi grupları (in_total=False) burada da hariç — aksi halde
+    # faaliyet_net + finansman_net = net_eur eşitliği bozulur.
     def _section_net(section: str) -> float:
-        inc = sum(g["total_eur"] for g in giris if g.get("section") == section)
-        exp = sum(g["total_eur"] for g in cikis if g.get("section") == section)
+        inc = sum(g["total_eur"] for g in giris if g.get("section") == section and g.get("in_total", True))
+        exp = sum(g["total_eur"] for g in cikis if g.get("section") == section and g.get("in_total", True))
         return round(inc - exp, 2)
 
     faaliyet_net = _section_net("faaliyet")

@@ -187,6 +187,32 @@ Panel T-Hesap isteği (kullanıcı): acenta tahsilatları "Acenta" başlığınd
 Test: `tests/test_auto_tagger.py` + `TestTAccountBankName` + `TestTAccountAgencyDisplayName`.
 Doküman: `docs/modules/transaction-tags.md`, `docs/modules/nakit-akim.md`.
 
+## POS Bloke Çözümü — "Pos Bloke Çözme" Toplam-Dışı Grubu (2026-07-18, kullanıcı isteği)
+
+POS bloke çözümü ("UBLK/... /POS BLOKE ÇÖZÜM") parayı bloke POS hesabından ana hesaba
+taşır — iç virmandır, gerçek gelir/gider değildir. Kullanıcı: "Pos Bloke Çözme başlığı
+altında göster ama toplama dahil etme." Üç parça:
+
+1. **Çift-bacak etiketleme (`auto_tagger._tag_pos_bloke_transfers`):** kelime kuralı YOK
+   (aynı açıklamalı küçük ücret bacakları gerçek giderdir). Karşı bacağı (aynı gün, zıt
+   işaretli aynı tutar ±0.02, FARKLI hesap, "pos bloke" açıklamalı) bulunan kayıt + eşi
+   birlikte `POS_BLOKE_CATEGORY`'ye alınır; acenta/ücret geçişlerinden ÖNCE koşar (gelir
+   bacağı tahsilat tutarıyla çakışıp Acenta'ya düşmesin). Geç gelen ekstrede eş bulununca
+   önceden OTOMATİK etiketli bacak hizalanır; manuel etiket ezilmez.
+2. **T-Hesap toplam-dışı görünürlük (`t_account.INFO_CATEGORIES`):** grup listede görünür
+   (`in_total: false` bayrağıyla), kolon toplamı/net/realized sayaçları/section netleri
+   HARİÇ. Frontend "toplam dışı" rozeti + tarih görünümü gün toplamı/tipping hariç tutar.
+   Virman'dan FARKI: Virman hiç görünmez, bu grup bilgi amaçlı listelenir. **Yeni
+   toplam-dışı kategori eklerken:** `INFO_CATEGORIES` + frontend `NO_TOTAL_CATEGORIES`
+   (utils/finance.ts) + `eur_balances` transfer-adı listesi + `matching_service.
+   _TRANSFER_CATEGORY_NAMES` dördü birlikte güncellenmeli.
+3. **Geriye dönük düzeltme:** canlıdaki 8 çift (16 kayıt) taşındı + FE sync; 8 eşsiz ücret
+   bacağı yerinde (Haziran "Pos Aidat Gideri" €11.308 → €98; "Pos Bloke Çözme" iki kolonda
+   simetrik €19.527, toplamlara dahil değil).
+
+Test: `TestPosBlokeTransfers` (5) + `TestTAccountInfoCategory` + `finance.test.ts`.
+Detay: `docs/modules/transaction-tags.md` + `docs/modules/nakit-akim.md`.
+
 ## Banka Adı Gürültüsü — Yapı Kredi "Kredi" Yanlış Pozitifi (2026-07-18)
 
 FAST/EFT açıklamalarındaki **karşı taraf banka adı** ("... hesabından Yapı ve Kredi Bankası
