@@ -26,6 +26,7 @@ from app.models.user import User
 from app.utils.finance_broadcast import broadcast_finance_update, notify_finance_update_sync
 from app.websocket.manager import manager
 from app.services.reservation_service import run_reservation_import
+from app.services.salary_sync_service import run_salary_sedna_sync
 from app.services.stock_service import run_stock_import
 from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 from app.utils.sedna_client import sedna_configured
@@ -56,6 +57,10 @@ _STEPS = [
     # ödemelerin (Elektrik→CK, Su→ASAT) tahmini tutarlarını cari gerçek faturayla senkronlar.
     {"key": "recurring_sync", "label": "Düzenli ödeme ↔ cari senkronu", "module": "accounting.recurring",
      "run": run_recurring_vendor_sync, "broadcast": BroadcastModule.ACCOUNTING},
+    # Maaş tahmini ↔ Sedna bordro (335 tahakkuk) senkronu — ödenmemiş, ayı bitmiş
+    # dönemlerin tutarını gerçek bordroya çeker (services/salary_sync_service.py).
+    {"key": "salary_sync", "label": "Maaş ↔ Sedna bordro senkronu", "module": "hr.salary",
+     "run": run_salary_sedna_sync, "broadcast": BroadcastModule.HR},
     # Banka ↔ Sedna mutabakat taraması (Uyuşmayan Veriler) — banka verisi otorite,
     # yalnız sınıflandırır; Sedna kopuksa adım-izolasyonla diğer adımlar sürer.
     {"key": "bank_recon", "label": "Banka ↔ Sedna mutabakatı", "module": "accounting.mutabakat",
@@ -127,6 +132,9 @@ def _summarize(key: str, d: dict) -> str:
         return f"{d.get('invoices_new', 0)} yeni fatura · {d.get('collections_new', 0)} yeni tahsilat{extra}"
     if key == "recurring_sync":
         return f"{d.get('entries_synced', 0)} ay senkron ({d.get('definitions', 0)} cari-bağlı kalem)"
+    if key == "salary_sync":
+        return (f"{d.get('entries_updated', 0)} maaş dönemi güncellendi"
+                f" ({d.get('entries_checked', 0)} açık dönem tarandı)")
     if key == "stock":
         return (f"{d.get('movements_new', 0)} yeni hareket · {d.get('products', 0)} ürün · "
                 f"{d.get('depots', 0)} depo")

@@ -89,6 +89,23 @@ def delete_definition(db: Session, defn: ScheduledDefinition) -> None:
     db.delete(defn)
 
 
+def _btx_amount_for_entry(db: Session, entry: ScheduledEntry, btx):
+    """Banka kanıtının girişe yazılabilir tutarı — yalnız para birimleri aynıysa (TRY↔TRY).
+
+    Döviz hesabından çıkan ödeme girişin TRY tahminini ezmemeli (kur çevirisi bu
+    katmanın işi değil); o durumda None döner ve tahmin korunur.
+    """
+    from app.models.bank_account import BankAccount
+
+    entry_cur = (entry.currency or "TRY").upper()
+    acc = db.query(BankAccount).filter(BankAccount.id == btx.account_id).first()
+    acc_cur = ((acc.currency if acc else None) or "TRY").upper()
+    norm = {"TL": "TRY"}
+    if norm.get(entry_cur, entry_cur) != norm.get(acc_cur, acc_cur):
+        return None
+    return round(abs(float(btx.amount)), 2)
+
+
 def close_entry_via_bank(db: Session, entry: ScheduledEntry, btx, direction: int = -1) -> bool:
     """Banka hareketi kanıtıyla planlı girişi kapat (Faz 1 #11 köprüsü).
 
@@ -96,6 +113,9 @@ def close_entry_via_bank(db: Session, entry: ScheduledEntry, btx, direction: int
     scheduled_entry açık kalıyordu → aynı dönemde tahmin + gerçekleşen ÇİFT sayılıyordu.
     Sıra ÖNEMLİ: önce upsert (FE alanları tazelenir — upsert is_matched=False yazar),
     SONRA match (is_matched=True + event_matches izi). Yarış-korumalı.
+
+    2026-07-18: banka kanıtı girişin TAHMİNİ tutarını da GERÇEK tutara çeker (aynı
+    para birimiyse) — "maaş tahminini otomatik güncelle" isteğinin ödeme bacağı.
     """
     from app.utils.finance_event_service import finance_event_svc
 
@@ -106,7 +126,51 @@ def close_entry_via_bank(db: Session, entry: ScheduledEntry, btx, direction: int
         return False
     locked.is_paid = True
     locked.paid_date = btx.date
+    actual = _btx_amount_for_entry(db, locked, btx)
+    if actual and actual > 0:
+        locked.amount = actual
     db.flush()
     finance_event_svc.upsert_scheduled_entry(db, locked, direction=direction)
     finance_event_svc.match(db, "bank", btx.id, locked.source_type, locked.id, method="auto")
     return True
+
+
+def attach_bank_to_paid_entry(db: Session, entry: ScheduledEntry, btx, direction: int = -1) -> bool:
+    """Elle 'ödendi' işaretlenmiş ama bankayla EŞLEŞMEMİŞ girişi banka kanıtına bağla.
+
+    Kullanıcı girişi UI'dan ödendi yapınca FE `is_realized=True, is_matched=False`
+    kalır; banka bacağı da gerçekleşmiş olduğundan aynı ödeme ÇİFT sayılır (canlı:
+    Mayıs–Temmuz maaşları). Bu fonksiyon eşleşmeyi kurar → planlı bacak toplamdan
+    düşer, banka bacağı tek gerçek olur. Tutar/tarih banka kanıtına çekilir.
+    """
+    from app.models.finance_event import FinanceEvent
+    from app.utils.finance_event_service import finance_event_svc
+
+    locked = (db.query(ScheduledEntry)
+              .filter(ScheduledEntry.id == entry.id, ScheduledEntry.is_paid == True)  # noqa: E712
+              .with_for_update(skip_locked=True).first())
+    if locked is None:
+        return False
+    fe = (db.query(FinanceEvent)
+          .filter(FinanceEvent.source_type == locked.source_type,
+                  FinanceEvent.source_id == locked.id).first())
+    if fe is not None and fe.is_matched:
+        return False  # zaten bir banka kanıtına bağlı
+    locked.paid_date = btx.date
+    actual = _btx_amount_for_entry(db, locked, btx)
+    if actual and actual > 0:
+        locked.amount = actual
+    db.flush()
+    finance_event_svc.upsert_scheduled_entry(db, locked, direction=direction)
+    finance_event_svc.match(db, "bank", btx.id, locked.source_type, locked.id, method="auto")
+    return True
+
+
+def link_entry_to_bank(db: Session, entry: ScheduledEntry, btx, direction: int = -1) -> bool:
+    """Girişi durumuna göre banka kanıtına bağla — açıksa kapat, ödenmişse eşle.
+
+    Matcher (`_match_scheduled_to_bank`) ve öneri-Onayla yolu ORTAK çağırır.
+    """
+    if entry.is_paid:
+        return attach_bank_to_paid_entry(db, entry, btx, direction=direction)
+    return close_entry_via_bank(db, entry, btx, direction=direction)

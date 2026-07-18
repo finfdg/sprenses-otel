@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("sedna-sync-cron")
 
-_CRON_STEP_KEYS = {"cariler", "ibans", "checks", "recurring_sync", "bank_recon"}
+_CRON_STEP_KEYS = {"cariler", "ibans", "checks", "recurring_sync", "salary_sync", "bank_recon"}
 
 
 def main() -> int:

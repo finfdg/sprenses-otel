@@ -161,6 +161,22 @@ sayısı + toplam EUR saklanır. Kayıt-seviye geri yükleme için daha sonra
 - `test_bulk_delete_over_5000_rejected` — DoS limiti
 - `test_bulk_delete_unauthorized` — auth zorunlu
 
+## Doluluk Barı — Boş vs. Fazla Etiketi (2026-07-18)
+
+Günlük/aylık doluluk barlarında (Rezervasyon sekmesi, `ReservationsPanel.svelte`) bar etiketi
+`N/kapasite dolu · M boş` biçimindeydi. Backend `empty = max(kapasite − dolu, 0)` ile boşu **0'a
+kırptığından** overbooking günlerinde ("348/341 dolu") etiket anlamsız "0 boş" gösteriyordu.
+
+**Kural:** Fazlalık varsa (dolu > kapasite) etiket `boş` yerine **`fazla`** gösterir —
+`fazla = dolu − kapasite`. Değilse eskisi gibi `boş`. Hesap **frontend'de** yapılır
+(`room_nights` + `capacity`/`capacity_nights` zaten payload'da; backend'e `overflow` alanı
+eklenmedi):
+- Günlük satır: `{@const overflow = day.room_nights - day.capacity}` → `overflow > 0 ? 'fazla' : 'boş'`
+- Aylık satır: `{@const monthOverflow = m.room_nights - m.capacity_nights}` (desktop + mobil özet)
+
+Alttaki "Toplam kapasite / Boş: X oda-gece" özeti **değişmedi** — o dönem toplamı satılmamış
+oda-gece metriğidir (overbooking günleri 0 katkı verir, mahsuplaşmaz).
+
 ### İlk Çalıştırma (2026-05-26)
 İlk uygulamadan önce 100 hayalet kayıt 2026 dönemi içinde "Definite" olarak duruyordu
 (toplam ~100.270 EUR, ALLTOURS D / W2M / BYEBYE D ağırlıklı). Manuel SQL DELETE +

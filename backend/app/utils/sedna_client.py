@@ -839,6 +839,44 @@ def fetch_vendor_balances(prefix: str = "320") -> dict:
             for r in rows}
 
 
+# ─── Personel bordrosu (335 Personele Borçlar) — maaş tahmini senkronu ───────
+# Aylık toplam: alacak = bordro TAHAKKUKU (o ayın personel maliyeti — maaş, kıdem,
+# huzur hakkı dahil), borç = yapılan ÖDEMELER (toplu maaş + avans + icra). Maaş
+# tahmini senkronu tahakkuku kullanır (bkz. services/salary_sync_service.py).
+# Çift Deleted filtresi ZORUNLU (canlı fişlerin içinde Deleted=1 satır var).
+_PAYROLL_MONTHLY_QUERY = """
+SELECT
+    CONVERT(varchar(7), o.FicheDate, 120) AS ay,
+    SUM(t.Credit) AS tahakkuk,
+    SUM(t.Debit)  AS odenen
+FROM AccountingTrans t
+JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
+WHERE t.AccountingCode LIKE '335%'
+  AND ISNULL(t.Deleted, 0) = 0 AND ISNULL(o.Deleted, 0) = 0
+  AND o.FicheDate IS NOT NULL
+GROUP BY CONVERT(varchar(7), o.FicheDate, 120)
+"""
+
+
+def fetch_personnel_payroll() -> List[dict]:
+    """Sedna 335 hesabının aylık tahakkuk/ödeme toplamlarını çek.
+
+    Anahtarlar: ay ('YYYY-MM'), tahakkuk (alacak toplamı), odenen (borç toplamı).
+    DB yıl-bazlı (Mhs2026) olduğundan yalnız o mali yılın ayları döner.
+    """
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+    conn = _connect(timeout=60, context="bordro")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_PAYROLL_MONTHLY_QUERY)  # PARAMETRESİZ (pymssql %-tuzağı)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d aylık bordro (335) toplamı çekildi", len(rows))
+    return rows
+
+
 def fetch_credit_leaf_accounts() -> List[dict]:
     """Sedna 300.* hesaplarını çek (kredi kod eşleme önerileri — Faz C).
 

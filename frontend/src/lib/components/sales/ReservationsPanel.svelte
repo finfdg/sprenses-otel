@@ -1044,6 +1044,7 @@
 						{#each displayedMonthly as m}
 							{@const monthKey = m.month.split('-')[1]}
 							{@const prevM = prevMonthMap ? prevMonthMap.get(monthKey) : null}
+							{@const monthOverflow = m.room_nights - m.capacity_nights}
 							<div>
 								<!-- Tıklanabilir bar — drill-down aç/kapat -->
 								<button
@@ -1071,7 +1072,11 @@
 													<span class:drop-shadow-sm={m.occupancy_pct >= 25}>
 														{formatInt(m.room_nights)}<span class="opacity-75 hidden sm:inline">/{formatInt(m.capacity_nights)}</span> dolu
 													</span>
-													<span class="opacity-75 ml-1 hidden sm:inline">· {formatInt(m.empty_nights)} boş</span>
+													{#if monthOverflow > 0}
+															<span class="opacity-75 ml-1 hidden sm:inline">· {formatInt(monthOverflow)} fazla</span>
+														{:else}
+															<span class="opacity-75 ml-1 hidden sm:inline">· {formatInt(m.empty_nights)} boş</span>
+														{/if}
 												</span>
 												<span class="font-semibold text-gray-700 whitespace-nowrap flex items-center gap-1 sm:gap-1.5 shrink-0">
 													{#if prevM}
@@ -1094,7 +1099,7 @@
 										</div>
 										<!-- Mobilde bar dışında "X boş · ciro" özet satırı (sm+ desktop'ta gizli — bilgi bar içinde) -->
 										<div class="flex sm:hidden items-center justify-between px-2 mt-0.5 text-[11px] text-gray-500">
-											<span>{formatInt(m.empty_nights)} boş</span>
+											<span>{monthOverflow > 0 ? `${formatInt(monthOverflow)} fazla` : `${formatInt(m.empty_nights)} boş`}</span>
 											<span class="font-semibold text-gray-700 flex items-center gap-1">
 												{#if prevM}
 													{@const ePctM = yoyPct(m.eur, prevM.eur)}
@@ -1181,6 +1186,7 @@
 													{@const dateNum = Number(day.date.slice(-2))}
 													{@const isWeekend = day.weekday >= 5}
 													{@const prevDay = prevDayMap ? prevDayMap.get(day.date.slice(-2)) : null}
+													{@const overflow = day.room_nights - day.capacity}
 													<div class="flex items-start gap-3 text-xs">
 														<!-- Sol etiket: gün + hafta günü -->
 														<div class="w-16 sm:w-20 shrink-0 flex items-center gap-1.5 pt-0.5">
@@ -1202,7 +1208,11 @@
 																		<span class:drop-shadow-sm={day.occupancy_pct >= 25}>
 																			{formatInt(day.room_nights)}<span class="opacity-75">/{day.capacity}</span> dolu
 																		</span>
-																		<span class="opacity-75 ml-1 hidden sm:inline">· {formatInt(day.empty)} boş</span>
+																		{#if overflow > 0}
+																			<span class="opacity-75 ml-1 hidden sm:inline">· {formatInt(overflow)} fazla</span>
+																		{:else}
+																			<span class="opacity-75 ml-1 hidden sm:inline">· {formatInt(day.empty)} boş</span>
+																		{/if}
 																	</span>
 																	<span class="font-semibold text-gray-700 whitespace-nowrap flex items-center gap-1.5">
 																		{#if prevDay}
