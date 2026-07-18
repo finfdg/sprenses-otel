@@ -170,6 +170,66 @@ class TestBankNameNoise:
             != "kredi"
         )
 
+    def test_truncated_bank_name_not_tagged_kredi(self, client, db):
+        """Banka adın başını kırpabiliyor: '...VE KREDİ BANKASI A.Ş.' de Kredi tetiklememeli."""
+        _ensure_category(db, "Kredi", "orange")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=4863, desc="Para Gönder Diğer VE KREDİ BANKASI A.Ş. AHMET DEMİR")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Kredi"
+
+
+class TestVergiTaksitRule:
+    """'Vergi Tahsilatı … Taksit:1' banka formatı Kredi'ye düşmemeli (Sedna denetimi 2026-07-18).
+
+    Canlıda 35 vergi ödemesi (KDV/stopaj/konaklama vergisi/MTV, ₺8,6M) 'taksit'
+    kelimesiyle Kredi etiketlenmişti.
+    """
+
+    def test_vergi_tahsilati_with_taksit_tagged_vergi(self, client, db):
+        _ensure_category(db, "Vergi/SGK", "red")
+        _ensure_category(db, "Kredi", "orange")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-1663355, desc=(
+            "Vergi Tahsilatı 0015/0015/KDV GERÇEK Tahsilatı Dönem :11/2025/11/2025 Taksit:1 Vkn/Tc"
+        ))
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Vergi/SGK"
+
+    def test_real_kredi_taksit_tahsilati_stays_kredi(self, client, db):
+        """'KREDİ TAKSİT TAHSİLATI' gerçek kredi hareketidir — Kredi kalır (regresyon)."""
+        _ensure_category(db, "Vergi/SGK", "red")
+        _ensure_category(db, "Kredi", "orange")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-50000, desc="KREDİ TAKSİT TAHSİLATI 4101728829 3/12")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Kredi"
+
+
+class TestTemettuRule:
+    """Temettü/ortak ödemeleri havale/EFT kelimesiyle Virman'a düşmemeli (2026-07-18)."""
+
+    def test_temettu_havale_tagged_temettu_not_virman(self, client, db):
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-170000, desc="HAVALE Temettü avans ödemesi")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Temettü"
+
+    def test_ortaklara_odenen_eft_tagged_temettu(self, client, db):
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-304583, desc=(
+            "Hesaba giden EFT 04.11.2025 TARİHLİ GENEL KURUL KARARINA İSTİNADEN ORTAKLARA ÖDENEN 1. TAKSİT"
+        ))
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Temettü"
+
+    def test_plain_havale_still_virman(self, client, db):
+        _ensure_category(db, "Virman", "purple")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-25000, desc="HAVALE Kendi hesabına gönderim")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Virman"
+
 
 class TestAgencyTagging:
     def test_collection_amount_date_currency_match(self, client, db):

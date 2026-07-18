@@ -154,6 +154,38 @@ kapsıyor). Aynı düzeltmede **Personel** kuralına `avans` ve `yillik izin` an
 eklendi (personel avansları ve yıllık izin ödemeleri artık Personel'e düşer — "avans" içeren
 tek gelir kaydı da bir avans iadesiydi, Personel tutarlı). Test: `test_auto_tagger.py::TestBankNameNoise`.
 
+### Vergi "Taksit:" Yanlış Pozitifi + Temettü Kuralı (2026-07-18, Sedna denetimi)
+
+2026 işlemlerinin Sedna fiş karşı-hesaplarıyla toplu karşılaştırması (aşağıdaki denetim) iki
+kural hatası daha buldu:
+
+1. **"Vergi Tahsilatı … Taksit:1 …" banka formatı** "taksit" kelimesiyle Kredi'ye düşüyordu
+   (35 kayıt/₺8,6M: KDV, stopaj, konaklama vergisi, MTV, damga). Çözüm: **spesifik**
+   `("Vergi/SGK", r"vergi tahsilat|sgk tahsilat|vergi dairesi")` kuralı Kredi'den ÖNCE;
+   genel `vergi|sgk|sgdp|tahsilat` kuralı yerinde kaldı ki "KREDİ TAKSİT TAHSİLATI" gibi
+   gerçek kredi hareketleri Kredi'de kalsın (listede aynı kategori iki kez yer alabilir —
+   ilk eşleşen kazanır).
+2. **Temettü/ortak ödemeleri** ("HAVALE Temettü …", "EFT … ORTAKLARA ÖDENEN …") havale/eft
+   kelimesiyle Virman'a düşüyordu (Sedna 331 Ortaklara Borçlar). Çözüm: `("Temettü",
+   r"temettu|ortaklara odenen")` kuralı **Virman'dan ÖNCE**; "Temettü" yönetilen kategori
+   (purple, yoksa otomatik oluşur).
+3. `_strip_bank_noise` genişledi: banka bazı açıklamalarda adın başını kırpıyor
+   ("…VE KREDİ BANKASI A.Ş.") → `\bkredi\s+bankasi` alternatifi eklendi.
+
+Test: `test_auto_tagger.py::TestVergiTaksitRule` + `TestTemettuRule` + `TestBankNameNoise`.
+
+### Sedna Karşı-Hesap Denetimi ve Toplu Düzeltme (2026-07-18)
+
+2026-01-01'den itibaren 2.603 banka işlemi Sedna 102.* defter satırlarıyla eşlendi (%89;
+tarih+tutar, ±3 gün) ve fişin **karşı-hesap bacağından** muhasebedeki gerçek grup çıkarıldı.
+Uygulanan düzeltmeler: 39 yanlış etiket sıfırlanıp düzeltilmiş kural motoruyla yeniden
+etiketlendi; 386 etiketsiz işlem Sedna grubuna göre dolduruldu (**tag_source='manual'**,
+kural motoru üretmediği için; 82'si güvenli karar olmadığından bilinçli atlandı: karışık 770
+gider, kasa hareketi, karışık müşteri tahsilatı). Önemli doğrulama: "Kira Geliri" etiketleri
+DOĞRU (ATM/baz istasyonu kiracıları Sedna'da 120 müşteri hesabında); Döviz Satım↔Virman,
+KK Borç Ödeme↔Kredi(300), Pos Aidat/Komisyon↔780 farkları bilinçli adlandırmadır, hata değil.
+Eşleşmeyen ~280 yerel işlemin 240'ı ≤500₺ banka kesintisi (Sedna toplu işler).
+
 ### Acenta Tahsilatı Tespiti (2026-07-13, `_tag_agency_collections`)
 
 Acente ödemelerinin banka açıklaması çoğu zaman kırpık gelir ("TRAVE/020726/278982",

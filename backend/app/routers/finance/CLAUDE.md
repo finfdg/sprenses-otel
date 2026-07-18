@@ -201,6 +201,25 @@ izin ücreti / kira / cari ödemesi canlıda yanlış "Kredi" etiketlendi (geriy
 Test: `tests/test_auto_tagger.py::TestBankNameNoise` (6 test).
 Doküman: `docs/modules/transaction-tags.md` §"Banka Adı Gürültüsü".
 
+## Sedna Karşı-Hesap Denetimi + Kural Düzeltmeleri (2026-07-18, aynı gün devam)
+
+2026 işlemleri Sedna fiş **karşı-hesap** bacaklarıyla toplu karşılaştırıldı (2.603 işlem,
+%89 eşleşme). Bulunan ve düzeltilen:
+
+- **"Vergi Tahsilatı … Taksit:1" → Kredi yanlışı (35 kayıt/₺8,6M):** spesifik
+  `("Vergi/SGK", r"vergi tahsilat|sgk tahsilat|vergi dairesi")` kuralı Kredi'den ÖNCE eklendi;
+  genel vergi kuralı yerinde ("KREDİ TAKSİT TAHSİLATI" Kredi kalır — regresyon testli).
+- **Temettü kuralı (Virman'dan ÖNCE):** `("Temettü", r"temettu|ortaklara odenen")` — ortak
+  ödemeleri "havale/eft" ile Virman'a düşüyordu. "Temettü" MANAGED_CATEGORY_COLORS'ta (purple).
+- **`_strip_bank_noise` genişledi:** kırpık banka adı "…VE KREDİ BANKASI A.Ş." için
+  `\bkredi\s+bankasi` alternatifi.
+- **Toplu veri düzeltmesi:** 39 yanlış etiket kural motoruyla yeniden etiketlendi; 386
+  etiketsiz Sedna grubundan dolduruldu (tag_source='manual'; 82 bilinçli atlandı).
+  2026 etiketsiz sayısı 479→94.
+
+Test: `TestVergiTaksitRule` + `TestTemettuRule`. Doküman: `docs/modules/transaction-tags.md`
+§"Vergi Taksit Yanlış Pozitifi" + §"Sedna Karşı-Hesap Denetimi".
+
 ---
 
 ## Faz 3 — Mutabakat ve Tek Gerçek (2026-07-12)

@@ -129,7 +129,9 @@ def _normalize(text: str) -> str:
 # avansları Kredi başlığına düştü). Kural eşleşmesinden ÖNCE banka adı metinden
 # çıkarılır. `\b` sayesinde "konut kredisi" gibi gerçek kredi ifadeleri etkilenmez;
 # "YapiKrediFX+" bu desene girmez (onu Döviz Satışı kural sırası kapsıyor).
-_BANK_NAME_NOISE = re.compile(r"yapi\s+(ve\s+)?kredi\b(\s+bankasi)?|\byapikredi\b")
+# "kredi bankasi" alternatifi: banka bazı açıklamalarda adın başını kırpar
+# ("...VE KREDİ BANKASI A.Ş.") — Sedna denetiminde yakalandı (2026-07-18).
+_BANK_NAME_NOISE = re.compile(r"yapi\s+(ve\s+)?kredi\b(\s+bankasi)?|\byapikredi\b|\bkredi\s+bankasi")
 
 
 def _strip_bank_noise(normalized: str) -> str:
@@ -141,9 +143,17 @@ def _strip_bank_noise(normalized: str) -> str:
 # "Döviz Satışı" kuralı "Kredi"den ÖNCE gelmeli: "YapiKrediFX+ Dvz Satis" açıklaması
 # "kredi" desenini de içerir — döviz satışı kredi kullanımı DEĞİLDİR (2026-07-13).
 AUTO_TAG_RULES: List[Tuple[str, str]] = [
+    # Temettü Virman'dan ÖNCE: "HAVALE Temettü ..." / "EFT ... ORTAKLARA ÖDENEN ..."
+    # açıklamaları havale/eft ile Virman'a düşüyordu (Sedna 331 denetimi, 2026-07-18)
+    ("Temettü", r"temettu|ortaklara odenen"),
     ("Virman", r"virman|havale|eft |transfer"),
     ("Döviz Satışı", r"dvz sat|doviz sat"),
     ("POS", r"pos |kkiv|kart "),
+    # Spesifik vergi deseni Kredi'den ÖNCE: "Vergi Tahsilatı ... Taksit:1 ..." banka
+    # formatı "taksit" ile Kredi'ye düşüyordu (35 kayıt/₺8,6M — Sedna denetimi,
+    # 2026-07-18). Genel vergi kuralı AŞAĞIDA kalır ki "KREDİ TAKSİT TAHSİLATI"
+    # gibi gerçek kredi hareketleri Kredi'de kalsın.
+    ("Vergi/SGK", r"vergi tahsilat|sgk tahsilat|vergi dairesi"),
     ("Kredi", r"kredi|taksit|kmh"),
     ("Personel", r"maas|personel|ucret|avans|yillik izin"),
     ("Vergi/SGK", r"vergi|sgk|sgdp|tahsilat"),
@@ -156,6 +166,7 @@ MANAGED_CATEGORY_COLORS: Dict[str, str] = {
     "Döviz Satışı": "cyan",
     "Acenta": "teal",
     "Havale Komisyonları": "amber",
+    "Temettü": "purple",
 }
 
 
