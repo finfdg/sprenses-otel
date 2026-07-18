@@ -775,7 +775,7 @@ görünmesin.
 
 | Parça | Dosya |
 |---|---|
-| Başlık birleştirme | `cash_flow/t_account.py` `SOURCE_LABELS` — **aynı gün revize (kullanıcı):** salary → "Personel"; withholding/sgk → **"Vergi/SGK"** (vergisel yükümlülük; banka "Vergi/SGK" kategorisiyle birleşir) |
+| Başlık birleştirme | `cash_flow/t_account.py` `SOURCE_LABELS` — **aynı gün revize (kullanıcı):** salary → "Personel"; withholding/sgk/**dividend_stopaj** → **"Vergi/SGK"** (vergisel yükümlülük; banka "Vergi/SGK" kategorisiyle birleşir — ayrı "Temettü Stopajı" başlığı kalktı) |
 | Sedna bordro sorgusu | `utils/sedna_client.py::fetch_personnel_payroll` (335 aylık tahakkuk/ödeme) |
 | Maaş senkron servisi | `services/salary_sync_service.py` (yalnız ödenmemiş + ayı bitmiş dönem; tahakkuk < mevcut tahminin %40'ı → "bordro işlenmemiş", atla) |
 | Senkron adımı | `sedna_sync._STEPS` `salary_sync` (izin `hr.salary` use) + cron `_CRON_STEP_KEYS` |

@@ -58,7 +58,9 @@ SOURCE_LABELS = {
     "withholding": "Vergi/SGK",
     "sgk": "Vergi/SGK",
     "dividend": "Temettü",
-    "dividend_stopaj": "Temettü Stopajı",
+    # Kâr payı stopajı da vergisel yükümlülük → "Vergi/SGK" grubuyla birleşir
+    # (2026-07-18 kullanıcı isteği — stopaj/SGK revizyonuyla aynı gün)
+    "dividend_stopaj": "Vergi/SGK",
     "rent_expense": "Verilen Kiralar",
     "rent_income": "Alınan Kiralar",
 }

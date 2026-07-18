@@ -15,8 +15,10 @@ altında birleştir; Sedna'yı da kontrol et; tahmini maaş rakamını otomatik 
 `SOURCE_LABELS`'ta önce `salary`/`withholding`/`sgk` → hepsi "Personel" yapılmıştı; **aynı gün
 kullanıcı revizyonu:** stopaj/SGK **vergisel yükümlülüktür** → `withholding`/`sgk` →
 **"Vergi/SGK"** (banka "Vergi/SGK" kategorisiyle aynı string → o grupla birleşir; SGK
-yapılandırma taksitleri dahil). Yalnız `salary` → **"Personel"** kaldı ve banka "Personel"
-kategorisiyle birleşir. Eski ayrı "Maaş"/"Stopaj"/"SGK" başlıkları yok; DB `source_type`
+yapılandırma taksitleri dahil). `dividend_stopaj` da aynı gün "Vergi/SGK"ya alındı (kâr payı
+stopajı = vergisel yükümlülük; ayrı "Temettü Stopajı" başlığı kalktı — yalnız T-Hesap etiketi,
+runway/aging bilgi etiketleri değişmedi). Yalnız `salary` → **"Personel"** kaldı ve banka
+"Personel" kategorisiyle birleşir. Eski ayrı "Maaş"/"Stopaj"/"SGK" başlıkları yok; DB `source_type`
 değişmedi. Test: `test_personel_birlestirme.py::TestTAccountPersonelMerge` +
 `test_cash_flow_taccount.py::test_withholding_sgk_grouped_under_vergi_sgk_salary_under_personel`.
 

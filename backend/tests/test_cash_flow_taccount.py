@@ -156,6 +156,8 @@ class TestTAccountGrouping:
                description="T-TEST SGK Haziran")
         _mk_fe(db, source_type="salary", direction=-1, amount=4000, is_realized=True,
                description="T-TEST MAAŞ Haziran")
+        _mk_fe(db, source_type="dividend_stopaj", direction=-1, amount=1000, is_realized=True,
+               description="T-TEST TEMETTÜ STOPAJI")
         db.commit()
 
         body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
@@ -165,7 +167,9 @@ class TestTAccountGrouping:
         names = [i["name"] for i in vergi["items"]]
         assert "T-TEST STOPAJ Haziran" in names
         assert "T-TEST SGK Haziran" in names
+        assert "T-TEST TEMETTÜ STOPAJI" in names  # dividend_stopaj da vergisel grupta
         assert "T-TEST MAAŞ Haziran" not in names
+        assert _group(body, "cikis", "Temettü Stopajı") is None
 
         personel = _group(body, "cikis", "Personel")
         assert personel is not None
