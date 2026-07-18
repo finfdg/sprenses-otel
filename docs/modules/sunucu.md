@@ -57,7 +57,7 @@ thrash'ine girdi → SSH dahil her şey dondu ve **dmesg/journal'a hiç OOM kayd
 | Build kilidi + heap sınırı | `scripts/deploy-frontend.sh`: `flock` ile aynı anda tek build (ikincisi 10 dk'ya kadar sırada bekler) + `NODE_OPTIONS=--max-old-space-size=1536` |
 
 **Kontrol komutları:**
-- `free -h` / `swapon --show` — 2 GB swap görünmeli
+- `free -h` / `swapon --show` — toplam 4 GB swap görünmeli (`/swapfile` + `/swapfile2`, 2026-07-18'den beri)
 - `systemctl status earlyoom` — `active` olmalı
 - `sudo journalctl -u earlyoom | grep -i kill` — earlyoom bir süreç sonlandırdıysa burada görünür (build gizemli şekilde ölürse önce buraya bak)
 - Donma şüphesinde geçmiş analizi: `sar -r -f /var/log/sa/saGG` (GG = ayın günü) — "boş RAM çöküşü + eksik örnek" deseni bellek kilitlenmesinin imzasıdır
@@ -65,6 +65,40 @@ thrash'ine girdi → SSH dahil her şey dondu ve **dmesg/journal'a hiç OOM kayd
 **Kural:** İki oturumda aynı anda deploy/ağır test tetiklemekten kaçının. Frontend build'i kilit
 sayesinde kendiliğinden sıraya girer; ancak `pytest`/`vitest` gibi diğer ağır işler kilitsizdir —
 onların eşzamanlılığını earlyoom + swap tolere eder ama yavaşlatır.
+
+### Swap Doygunluğu Olayı — Claude Oturumları (2026-07-18)
+
+**Olay:** 18 Temmuz 12:22–12:23'te earlyoom iki Vite build'ini (1364 MB ve 1013 MB RSS) SIGTERM'ledi;
+araya yan kurban olarak kullanıcı-scope `dbus-broker` da (VmRSS 1 MB — öldürülmesi hiç bellek
+kazandırmadı) girdi. **Kök neden:** 08:30–12:20 arasında açılan ~10 eşzamanlı uzun ömürlü Claude
+(ccd-cli) oturumu — her biri ana süreç + 2 MCP sunucusu (playwright + postgres, npm/node ağacı) —
+boşta kaldıkça kernel tarafından swap'a itildi ve oturum aileleri **tek başına ~1,8 GB swap** tuttu
+(2 GB'ın %90'ı). earlyoom'un öldürme koşulu "RAM %10 **VE** swap %10 altı" olduğundan, swap kronik
+doluyken her build denemesi (tepe ~1,4–1,8 GB) RAM'i %10 altına indirip SIGTERM yedi. Boş swap dün
+gece %97 idi; oturumlar açıldıkça 4 saatte %9'a düştü (earlyoom saatlik raporlarında izlenebilir).
+
+**Alınan önlemler (2026-07-18):**
+
+| Önlem | Detay |
+|---|---|
+| Swap 2 GB → 4 GB | İkinci kalıcı dosya `/swapfile2` (2 GB, `dd` ile — xfs'te swap için `fallocate` delik riski taşır; `chmod 600` + `mkswap` + `swapon` + fstab `defaults,nofail`). **Ekleme yönlü** büyütme: dolu `/swapfile`'a dokunulmadı, `swapoff` çalıştırılmadı |
+| earlyoom `--avoid` + dbus | `/etc/default/earlyoom` regex'ine `dbus-.*` eklendi — 1 MB'lık dbus-broker'ın anlamsız öldürülmesi (kullanıcı systemd oturumunu bozabilir) engellendi |
+| Build öncesi bellek bekçisi | `scripts/deploy-frontend.sh`: kilit alındıktan sonra `MemAvailable + SwapFree < 2500 MB` ise build hiç başlamaz; hata mesajı en büyük swap kullanıcılarını listeler |
+
+**Swap'ı güvenli boşaltma (drain) — kurallar:**
+
+- **`swapoff` YASAK koşulu:** boş RAM (`MemAvailable`) < swap kullanımı iken `swapoff` **asla çalıştırılmaz** —
+  2 GB'lık sayfa geri-okuması RAM'i bitirir, earlyoom'u tetikler, en kötüsünde 2026-07-06 tarzı thrash'e girer.
+- **Doğal drain tercih edilir:** swap'taki sayfaların sahibi süreçler (boştaki Claude oturumları) kapanınca
+  swap girdileri anında serbest kalır — `swapoff` gerekmez. Biriken boş oturumları claude.ai/code
+  arayüzünden kapatmak/arşivlemek en etkili boşaltmadır.
+- **Konsolidasyon (opsiyonel, bakım penceresinde):** İki dosya yerine tek 4 GB dosya istenirse: önce yeni
+  4 GB dosya `swapon`, sonra boş RAM + yeni swap toplamı eski dosyanın kullanımını rahatça karşılıyorken
+  `swapoff /swapfile`, ardından eski dosya silinip fstab güncellenir. Acele gerektiren bir durum değil.
+
+**Kural (oturum hijyeni):** t3.medium 4 GB'da her eşzamanlı Claude oturumu ~0,3–1 GB sanal ayak izi
+bırakır ve süreçler oturum kapatılana dek yaşar. **Biriken bitmiş oturumları kapatın** — 7+ eşzamanlı
+oturum swap'ı doldurur ve build'leri earlyoom'a kurban eder.
 
 ## Sedna Senkron Timer'ı — `sprenses-sedna-sync.timer` (2026-07-12, Faz 2 #18)
 

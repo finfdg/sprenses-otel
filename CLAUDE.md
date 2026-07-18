@@ -215,7 +215,7 @@ TEMPLATE:
 - **OS:** Amazon Linux 2023 (EC2, t3.medium — 2 vCPU / 4 GB)
 - **Web Server:** Nginx 1.28.1 + Let's Encrypt SSL
 - **Domain:** sprenses.com
-- **Bellek koruması (2026-07-06):** 2 GB swap (`/swapfile`, `vm.swappiness=10`) + `earlyoom` (kaynaktan derlendi, `/usr/local/bin`) — RAM tükenince makine kilitlenmek yerine en büyük süreci (tipik: node build) sonlandırır; frontend build'leri `deploy-frontend.sh` içinde `flock` ile sıralıdır. Sebep: 5–6 Temmuz 2026'da iki eşzamanlı build RAM'i tüketip swap'sız thrash ile makineyi iki kez dondurdu. Detay: `docs/modules/sunucu.md`.
+- **Bellek koruması (2026-07-06, swap büyütme 2026-07-18):** 4 GB swap (`/swapfile` + `/swapfile2`, `vm.swappiness=10`) + `earlyoom` (kaynaktan derlendi, `/usr/local/bin`; `--avoid` listesinde dbus dahil) — RAM tükenince makine kilitlenmek yerine en büyük süreci (tipik: node build) sonlandırır; frontend build'leri `deploy-frontend.sh` içinde `flock` ile sıralıdır ve build öncesi **bellek bekçisi** (`MemAvailable+SwapFree < 2500 MB` → build reddedilir) vardır. Sebep: 5–6 Temmuz 2026'da iki eşzamanlı build RAM'i tüketip swap'sız thrash ile makineyi iki kez dondurdu; 18 Temmuz 2026'da ~10 eşzamanlı Claude oturumu 2 GB swap'ı doldurup build'leri earlyoom'a kurban etti (**oturum hijyeni:** biriken bitmiş Claude oturumlarını kapatın). `swapoff`, boş RAM < swap kullanımı iken **asla** çalıştırılmaz. Detay: `docs/modules/sunucu.md`.
 
 ## Proje Yapısı
 
