@@ -42,9 +42,10 @@ MAX_ITEMS_PER_GROUP = 500
 
 # Banka dışı kaynaklar için sabit Türkçe grup etiketleri
 # (bank → category_name ile gruplanır, bilinmeyen kaynak → source_type)
-# Personel birleştirmesi (2026-07-18, kullanıcı isteği): maaş/stopaj/SGK planlı
-# kalemleri banka "Personel" kategorisiyle AYNI string'i taşır → T-Hesap'ta tek
-# "Personel" grubunda toplanırlar (grup anahtarı etikettir; DB source_type değişmez).
+# Personel birleştirmesi (2026-07-18, kullanıcı isteği — aynı gün revize): YALNIZ maaş
+# planlı kalemleri banka "Personel" kategorisiyle AYNI string'i taşır → tek "Personel"
+# grubu. Stopaj/SGK vergisel yükümlülüktür → banka "Vergi/SGK" kategorisiyle aynı
+# string'i taşır ve o grupla birleşir (grup anahtarı etikettir; DB source_type değişmez).
 SOURCE_LABELS = {
     "check": "Verilen Çekler",
     "credit": "Kredi / Leasing Taksitleri",
@@ -54,8 +55,8 @@ SOURCE_LABELS = {
     "tax": "Vergiler",
     "recurring": "Düzenli Ödemeler",
     "salary": "Personel",
-    "withholding": "Personel",
-    "sgk": "Personel",
+    "withholding": "Vergi/SGK",
+    "sgk": "Vergi/SGK",
     "dividend": "Temettü",
     "dividend_stopaj": "Temettü Stopajı",
     "rent_expense": "Verilen Kiralar",

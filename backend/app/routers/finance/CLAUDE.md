@@ -11,12 +11,14 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 altında birleştir; Sedna'yı da kontrol et; tahmini maaş rakamını otomatik güncelleyen yapı kur;
 çift görünmesin." Üç parça halinde uygulandı:
 
-### 1) T-Hesap tek "Personel" başlığı (`t_account.py`)
-`SOURCE_LABELS`'ta `salary`/`withholding`/`sgk` → hepsi **"Personel"**. Grup anahtarı etiket
-string'i olduğundan planlı kalemler banka **"Personel" kategorisiyle AYNI grupta** toplanır
-(eski ayrı "Maaş"/"Stopaj"/"SGK" başlıkları kalktı; DB `source_type` değişmedi). SGK/stopaj
-**banka gerçekleşmeleri** "Vergi/SGK" kategorisinde kalır (KDV vb. devlet ödemeleriyle birlikte
-— bilinçli; eşleşme kurulunca planlı bacak zaten düşer, toplam şişmez).
+### 1) T-Hesap tek "Personel" başlığı (`t_account.py`) — AYNI GÜN REVİZE
+`SOURCE_LABELS`'ta önce `salary`/`withholding`/`sgk` → hepsi "Personel" yapılmıştı; **aynı gün
+kullanıcı revizyonu:** stopaj/SGK **vergisel yükümlülüktür** → `withholding`/`sgk` →
+**"Vergi/SGK"** (banka "Vergi/SGK" kategorisiyle aynı string → o grupla birleşir; SGK
+yapılandırma taksitleri dahil). Yalnız `salary` → **"Personel"** kaldı ve banka "Personel"
+kategorisiyle birleşir. Eski ayrı "Maaş"/"Stopaj"/"SGK" başlıkları yok; DB `source_type`
+değişmedi. Test: `test_personel_birlestirme.py::TestTAccountPersonelMerge` +
+`test_cash_flow_taccount.py::test_withholding_sgk_grouped_under_vergi_sgk_salary_under_personel`.
 
 ### 2) Maaş tahmini ↔ Sedna bordro senkronu (`services/salary_sync_service.py`)
 - **Kaynak:** Sedna **335 Personele Borçlar** aylık **tahakkuk** (alacak) toplamı —

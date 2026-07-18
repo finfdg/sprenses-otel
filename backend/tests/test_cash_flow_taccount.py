@@ -142,6 +142,35 @@ class TestTAccountGrouping:
         assert any(i["name"] == "T-TEST ÇEK FİRMASI" and i["amount_eur"] == 80.0
                    for i in cekler["items"])
 
+    def test_withholding_sgk_grouped_under_vergi_sgk_salary_under_personel(self, client, auth_headers, db):
+        """Stopaj/SGK planlı kalemleri 'Vergi/SGK' grubuna, maaş 'Personel'e düşer
+        (2026-07-18 revizyonu — üçü tek 'Personel' grubunda toplanıyordu)."""
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+
+        # is_realized=True: bugün-vadeli ödenmemiş kalem T-Hesap'tan dışlanır (ayrı kural);
+        # burada sınanan SOURCE_LABELS gruplaması — gerçekleşen/bekleyen için aynı yol.
+        _mk_fe(db, source_type="withholding", direction=-1, amount=2000, is_realized=True,
+               description="T-TEST STOPAJ Haziran")
+        _mk_fe(db, source_type="sgk", direction=-1, amount=3000, is_realized=True,
+               description="T-TEST SGK Haziran")
+        _mk_fe(db, source_type="salary", direction=-1, amount=4000, is_realized=True,
+               description="T-TEST MAAŞ Haziran")
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+
+        vergi = _group(body, "cikis", "Vergi/SGK")
+        assert vergi is not None
+        names = [i["name"] for i in vergi["items"]]
+        assert "T-TEST STOPAJ Haziran" in names
+        assert "T-TEST SGK Haziran" in names
+        assert "T-TEST MAAŞ Haziran" not in names
+
+        personel = _group(body, "cikis", "Personel")
+        assert personel is not None
+        assert any(i["name"] == "T-TEST MAAŞ Haziran" for i in personel["items"])
+
     def test_transfer_categories_fully_excluded(self, client, auth_headers, db):
         """Virman / Döviz Satım / İade kalemleri cetvelde hiç yer almaz."""
         _reset_eur_rates(db)

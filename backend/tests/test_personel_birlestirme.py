@@ -115,14 +115,16 @@ def _mk_eur_rate(db, dt, value=48.0):
 
 class TestTAccountPersonelMerge:
     def test_source_labels_merged(self):
+        # 2026-07-18 revizyonu (kullanıcı): stopaj/SGK vergisel yükümlülük →
+        # banka "Vergi/SGK" kategorisiyle birleşir; yalnız maaş "Personel"de kalır.
         from app.routers.finance.cash_flow.t_account import SOURCE_LABELS
         assert SOURCE_LABELS["salary"] == "Personel"
-        assert SOURCE_LABELS["sgk"] == "Personel"
-        assert SOURCE_LABELS["withholding"] == "Personel"
+        assert SOURCE_LABELS["sgk"] == "Vergi/SGK"
+        assert SOURCE_LABELS["withholding"] == "Vergi/SGK"
 
     def test_taccount_groups_planned_and_bank_under_personel(self, client, auth_headers, db):
-        """Maaş + SGK planlı kalemleri ve 'Personel' etiketli banka gideri T-Hesap'ta
-        TEK 'Personel' grubunda toplanır (ayrı Maaş/SGK başlığı kalmaz)."""
+        """Maaş planlısı + 'Personel' etiketli banka gideri TEK 'Personel' grubunda;
+        SGK planlısı 'Vergi/SGK' grubuna düşer (ayrı Maaş/SGK başlığı kalmaz)."""
         _mk_eur_rate(db, TODAY - timedelta(days=1))
         cat = _ensure_category(db, "Personel")
         acc = _mk_account(db)
@@ -138,12 +140,15 @@ class TestTAccountPersonelMerge:
         resp = client.get("/api/finance/cash-flow/t-account?period=monthly&offset=0",
                           headers=auth_headers)
         assert resp.status_code == 200, resp.text
-        labels = [g["label"] for g in resp.json()["cikis"]]
+        body = resp.json()
+        labels = [g["label"] for g in body["cikis"]]
         assert "Personel" in labels
         for eski in ("Maaş", "SGK", "Stopaj"):
             assert eski not in labels
-        grp = next(g for g in resp.json()["cikis"] if g["label"] == "Personel")
-        assert grp["item_count"] >= 3  # 2 planlı + 1 banka bacağı aynı grupta
+        grp = next(g for g in body["cikis"] if g["label"] == "Personel")
+        assert grp["item_count"] >= 2  # maaş planlısı + banka bacağı aynı grupta
+        vergi = next(g for g in body["cikis"] if g["label"] == "Vergi/SGK")
+        assert vergi["item_count"] >= 1  # SGK planlısı vergisel grupta
 
 
 # ─── 2) Maaş ↔ Sedna bordro senkronu ─────────────────────────────────────────
