@@ -1,7 +1,7 @@
 """Otomatik etiketleme kuralları — Döviz Satışı + Acenta tahsilatı tespiti (2026-07-13).
 
 Kapsam:
-- "Döviz Satışı" kuralı "Kredi"den ÖNCE çalışır ("YapiKrediFX+ Dvz Satis" açıklaması
+- "Döviz Satışı" kuralı "Kredi/Leasing"den ÖNCE çalışır ("YapiKrediFX+ Dvz Satis" açıklaması
   "kredi" desenini de içerdiğinden yanlışlıkla Kredi etiketleniyordu).
 - Acenta tahsilatı tespiti: Sedna tahsilat (tutar+para birimi+tarih) eşleşmesi,
   acente adı token'ı, açıklama ipucu; yalnız GELİR; virman/hesaplar-arası hariç.
@@ -90,14 +90,14 @@ class TestFxSaleRule:
     def test_real_credit_still_tagged_kredi(self, client, db):
         """Gerçek kredi hareketi Kredi kalır (regresyon)."""
         _get_or_create_category(db, "Döviz Satışı")  # yönetilen kategori varken bile
-        kredi = db.query(TransactionCategory).filter(TransactionCategory.name == "Kredi").first()
+        kredi = db.query(TransactionCategory).filter(TransactionCategory.name == "Kredi/Leasing").first()
         if kredi is None:
-            db.add(TransactionCategory(name="Kredi", color="orange"))
+            db.add(TransactionCategory(name="Kredi/Leasing", color="orange"))
             db.flush()
         acc = _mk_account(db)
         btx = _mk_btx(db, acc, amount=-50000, desc="KREDİ TAKSİT ÖDEMESİ 3/12")
         auto_tag_transactions(db, [btx.id])
-        assert _cat_of(db, btx) == "Kredi"
+        assert _cat_of(db, btx) == "Kredi/Leasing"
 
     def test_managed_categories_created_idempotent(self, client, db):
         c1 = _get_or_create_category(db, "Döviz Satışı")
@@ -143,7 +143,7 @@ class TestBankNameNoise:
 
     def test_bank_name_alone_not_tagged_kredi(self, client, db):
         """Başka anahtar kelime yoksa banka adı tek başına hiçbir kural tetiklemez."""
-        _ensure_category(db, "Kredi", "orange")
+        _ensure_category(db, "Kredi/Leasing", "orange")
         acc = _mk_account(db)
         btx = _mk_btx(db, acc, amount=-30000, desc="FAST Anlık Ödeme ARALIK KİRA ÖDEMESİ" + self.YK_SUFFIX)
         auto_tag_transactions(db, [btx.id])
@@ -151,11 +151,11 @@ class TestBankNameNoise:
 
     def test_real_credit_from_yapikredi_account_still_kredi(self, client, db):
         """Gerçek kredi kelimesi banka adı dışında geçiyorsa Kredi kalır."""
-        _ensure_category(db, "Kredi", "orange")
+        _ensure_category(db, "Kredi/Leasing", "orange")
         acc = _mk_account(db)
         btx = _mk_btx(db, acc, amount=-50000, desc="İHTİYAÇ KREDİSİ TAKSİT ÖDEMESİ 3/12" + self.YK_SUFFIX)
         auto_tag_transactions(db, [btx.id])
-        assert _cat_of(db, btx) == "Kredi"
+        assert _cat_of(db, btx) == "Kredi/Leasing"
 
     def test_payment_method_stays_fast(self, client, db):
         from app.utils.auto_tagger import detect_payment_method
@@ -172,11 +172,11 @@ class TestBankNameNoise:
 
     def test_truncated_bank_name_not_tagged_kredi(self, client, db):
         """Banka adın başını kırpabiliyor: '...VE KREDİ BANKASI A.Ş.' de Kredi tetiklememeli."""
-        _ensure_category(db, "Kredi", "orange")
+        _ensure_category(db, "Kredi/Leasing", "orange")
         acc = _mk_account(db)
         btx = _mk_btx(db, acc, amount=4863, desc="Para Gönder Diğer VE KREDİ BANKASI A.Ş. AHMET DEMİR")
         auto_tag_transactions(db, [btx.id])
-        assert _cat_of(db, btx) != "Kredi"
+        assert _cat_of(db, btx) != "Kredi/Leasing"
 
 
 class TestVergiTaksitRule:
@@ -188,7 +188,7 @@ class TestVergiTaksitRule:
 
     def test_vergi_tahsilati_with_taksit_tagged_vergi(self, client, db):
         _ensure_category(db, "Vergi/SGK", "red")
-        _ensure_category(db, "Kredi", "orange")
+        _ensure_category(db, "Kredi/Leasing", "orange")
         acc = _mk_account(db)
         btx = _mk_btx(db, acc, amount=-1663355, desc=(
             "Vergi Tahsilatı 0015/0015/KDV GERÇEK Tahsilatı Dönem :11/2025/11/2025 Taksit:1 Vkn/Tc"
@@ -199,11 +199,53 @@ class TestVergiTaksitRule:
     def test_real_kredi_taksit_tahsilati_stays_kredi(self, client, db):
         """'KREDİ TAKSİT TAHSİLATI' gerçek kredi hareketidir — Kredi kalır (regresyon)."""
         _ensure_category(db, "Vergi/SGK", "red")
-        _ensure_category(db, "Kredi", "orange")
+        _ensure_category(db, "Kredi/Leasing", "orange")
         acc = _mk_account(db)
         btx = _mk_btx(db, acc, amount=-50000, desc="KREDİ TAKSİT TAHSİLATI 4101728829 3/12")
         auto_tag_transactions(db, [btx.id])
-        assert _cat_of(db, btx) == "Kredi"
+        assert _cat_of(db, btx) == "Kredi/Leasing"
+
+
+class TestLeasingRule:
+    """Leasing ödemeleri 'Kredi/Leasing' başlığına düşer (2026-07-18 kullanıcı isteği).
+
+    Canlıda 24 leasing ödemesi 'havale' (Virman) / 'tahsilat' (Vergi/SGK) kelimeleri
+    ve cari eşleşmesiyle yanlış başlıklara (çoğu 'Cari') dağılmıştı.
+    """
+
+    def test_qnb_leasing_tahsilat_not_vergi(self, client, db):
+        _ensure_category(db, "Vergi/SGK", "red")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-955.88, desc=(
+            "Ödeme İşlemleri - 2500515201 - QNB Leasing Türkiye TAHSİLATI OTOMATIK"
+        ))
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Kredi/Leasing"
+
+    def test_vakif_leasing_havale_not_virman(self, client, db):
+        _ensure_category(db, "Virman", "purple")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-6145, desc=(
+            "Gönderilen havale VAKIF LEASİNG 11. TAKSİT / TR54 0001 5001"
+        ))
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Kredi/Leasing"
+
+    def test_finansal_kiralama_tagged(self, client, db):
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-5517, desc=(
+            "Gönderilen havale VAKIF FİNANSAL KİRALAMA A.O. sözleşme ödemesi"
+        ))
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Kredi/Leasing"
+
+    def test_plain_havale_still_virman(self, client, db):
+        """Leasing geçmeyen havale Virman kalır (kural sırası regresyonu)."""
+        _ensure_category(db, "Virman", "purple")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-1000, desc="Gönderilen havale AHMET DEMİR")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Virman"
 
 
 class TestTemettuRule:

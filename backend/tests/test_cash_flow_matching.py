@@ -569,7 +569,7 @@ class TestRunPostIngestProcessing:
     def test_auto_tag_syncs_fe_and_matchers_run(self, db):
         """Auto-tag matcher'lardan önce koşar, FE'ye sync_tag yazar (A4 düzeltmesi);
         ardından matcher'lar koşar (çek eşleşmesi kanıt)."""
-        _ensure_category(db, "Kredi")
+        _ensure_category(db, "Kredi/Leasing")
         acc = _mk_account(db, bank_name="Orkestratör Bankası")
         # Auto-tag kuralına uyan etiketlenmemiş gider ("kredi" kelimesi)
         btx_kredi = _mk_btx(db, acc, amount=-777, desc="XKURUM KREDI TAKSIT KESINTISI")
@@ -588,7 +588,7 @@ class TestRunPostIngestProcessing:
         # auto_tagger sync_tag kanıtı: FE'de kategori adı dolu
         fe = _fe(db, "bank", btx_kredi.id)
         assert fe is not None, "auto-tag FE'ye yansımadı (_sync_finance_events)"
-        assert fe.category_name == "Kredi"
+        assert fe.category_name == "Kredi/Leasing"
         assert fe.tag_source == "auto"
         # Çek matcher gerçekten koştu
         c = db.get(Check, check.id)

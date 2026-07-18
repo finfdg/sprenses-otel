@@ -254,6 +254,27 @@ class TestVendorMatcher:
         assert bank_fe.match_number == v.match_number
         assert bank_fe.is_matched is False
 
+    def test_leasing_bank_leg_tagged_kredi_leasing_not_cari(self, db):
+        """Leasing ödemesinin banka bacağı cari eşleşmesinde 'Cari' değil
+        'Kredi/Leasing' etiketi alır (2026-07-18 — eşleşme bağı yine kurulur)."""
+        acc = _mk_account(db)
+        vendor, vtx = _mk_vendor_invoice(db, alacak=6145.0, due=TODAY,
+                                         name="VAKIF FINANSAL KIRALAMA ORTAKLIGI")
+        btx = _mk_btx(db, acc, amount=-6145.0, tx_date=TODAY,
+                      desc="Gönderilen havale VAKIF FINANSAL KIRALAMA LEASING 11. TAKSİT")
+        db.commit()
+
+        res = _match_vendors_to_bank(db)
+        assert res["matched"] == 1
+
+        db.expire_all()
+        b = db.get(BankTransaction, btx.id)
+        assert b.match_number is not None  # cari eşleşme bağı kuruldu
+        cat = db.get(TransactionCategory, b.category_id)
+        assert cat is not None and cat.name == "Kredi/Leasing"
+        bank_fe = _fe(db, "bank", btx.id)
+        assert bank_fe is not None and bank_fe.category_name == "Kredi/Leasing"
+
     def test_no_name_signal_gives_suggestion_not_auto(self, db):
         """İsim/vendor sinyali YOK → tutar+gün uysa da otomatik DEĞİL, öneri
         (skor 70 → 50-79 bandı)."""

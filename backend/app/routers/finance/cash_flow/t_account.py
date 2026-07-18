@@ -46,9 +46,14 @@ MAX_ITEMS_PER_GROUP = 500
 # planlı kalemleri banka "Personel" kategorisiyle AYNI string'i taşır → tek "Personel"
 # grubu. Stopaj/SGK vergisel yükümlülüktür → banka "Vergi/SGK" kategorisiyle aynı
 # string'i taşır ve o grupla birleşir (grup anahtarı etikettir; DB source_type değişmez).
+# Kredi birleştirmesi (2026-07-18, kullanıcı isteği): planlı kredi taksitleri banka
+# "Kredi/Leasing" kategorisiyle (eski adı "Kredi"; leasing ödemeleri de artık bu
+# kategoride) AYNI string'i taşır → tek "Kredi/Leasing" grubu. Ödenen taksit banka
+# bacağında realized, ödenmemişi planlı bacakta pending olarak aynı başlıkta görünür
+# (Personel birleştirmesiyle aynı desen; grup anahtarı etikettir, DB source_type değişmez).
 SOURCE_LABELS = {
     "check": "Verilen Çekler",
-    "credit": "Kredi / Leasing Taksitleri",
+    "credit": "Kredi/Leasing",
     "cc_payment": "KK Borç Ödemeleri",
     "vendor_payment": "Cari Ödemeleri",
     "advance": "Avanslar",
@@ -76,7 +81,12 @@ UNTAGGED_LABEL = "Etiketsiz"
 FINANSMAN_SOURCES = {"advance", "credit"}
 
 
-def _section(source_type: str) -> str:
+def _section(source_type: str, label: Optional[str] = None) -> str:
+    # "Kredi/Leasing" grubu karma kaynaklıdır (planlı credit + banka bacağı) — section
+    # ilk event'in kaynağına göre değişmesin diye etiket bazında finansmana sabitlenir
+    # (kredi taksit/leasing ödemesi nakit akışı finansmandır; 2026-07-18 birleştirmesi).
+    if label == SOURCE_LABELS["credit"]:
+        return "finansman"
     return "finansman" if source_type in FINANSMAN_SOURCES else "faaliyet"
 
 # Tarih gezgini ok tıklamaları art arda istek üretir — heavy_limiter (10/dk) gezinmeyi
@@ -256,7 +266,7 @@ def t_account(
             label, {"label": label, "total_eur": 0.0, "item_count": 0,
                     "realized_eur": 0.0, "realized_count": 0,
                     "held_eur": 0.0, "held_count": 0,
-                    "section": _section(fe.source_type), "items": []}
+                    "section": _section(fe.source_type, label), "items": []}
         )
         group["item_count"] += 1
         # Grup bazında gerçekleşen/bekleyen bölünmesi (2026-07-06): frontend ödenmişleri

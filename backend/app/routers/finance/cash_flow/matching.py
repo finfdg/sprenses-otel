@@ -224,8 +224,9 @@ def match_credit_payment(
         payment.paid_date = btx.date
         payment.bank_transaction_id = btx.id
 
-        # Banka işlemini etiketle
-        kredi_cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Kredi").first()
+        # Banka işlemini etiketle ("Kredi" kategorisi 2026-07-18'de "Kredi/Leasing"e çevrildi)
+        from app.utils.auto_tagger import LEASING_CATEGORY, _get_or_create_category
+        kredi_cat = _get_or_create_category(db, LEASING_CATEGORY)
         btx.category_id = kredi_cat.id if kredi_cat else None
         btx.tag_source = "manual"
         btx.payment_method = product.type if product else "kredi"

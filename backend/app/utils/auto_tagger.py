@@ -139,22 +139,39 @@ def _strip_bank_noise(normalized: str) -> str:
     return _BANK_NAME_NOISE.sub(" ", normalized)
 
 
+# Kredi/leasing banka hareketlerinin ortak başlığı (2026-07-18 kullanıcı isteği:
+# eski "Kredi" kategorisi "Kredi/Leasing"e çevrildi, leasing ödemeleri "Cari"den
+# buraya taşındı — grup anahtarı etikettir, t_account planlı kredi grubu da aynı
+# string'i taşır ve tek başlıkta birleşir).
+LEASING_CATEGORY = "Kredi/Leasing"
+_LEASING_PATTERN = re.compile(r"leasing|finansal kiralama")
+
+
+def is_leasing_description(description: Optional[str]) -> bool:
+    """Açıklama bir leasing ödemesi mi? (normalize edilmiş metinde desen araması)."""
+    return bool(_LEASING_PATTERN.search(_normalize(description or "")))
+
+
 # Kategori adı → regex pattern (normalize edilmiş metin üzerinde çalışır)
-# "Döviz Satışı" kuralı "Kredi"den ÖNCE gelmeli: "YapiKrediFX+ Dvz Satis" açıklaması
-# "kredi" desenini de içerir — döviz satışı kredi kullanımı DEĞİLDİR (2026-07-13).
+# "Döviz Satışı" kuralı "Kredi/Leasing"den ÖNCE gelmeli: "YapiKrediFX+ Dvz Satis"
+# açıklaması "kredi" desenini de içerir — döviz satışı kredi kullanımı DEĞİLDİR (2026-07-13).
 AUTO_TAG_RULES: List[Tuple[str, str]] = [
+    # Leasing EN ÖNCE: "Gönderilen havale VAKIF LEASİNG 11. TAKSİT" açıklaması
+    # "havale" ile Virman'a, "QNB Leasing ... TAHSİLATI" ise "tahsilat" ile
+    # Vergi/SGK'ya düşüyordu (2026-07-18 canlı bulgu — 24 kayıt yanlış başlıkta).
+    (LEASING_CATEGORY, _LEASING_PATTERN.pattern),
     # Temettü Virman'dan ÖNCE: "HAVALE Temettü ..." / "EFT ... ORTAKLARA ÖDENEN ..."
     # açıklamaları havale/eft ile Virman'a düşüyordu (Sedna 331 denetimi, 2026-07-18)
     ("Temettü", r"temettu|ortaklara odenen"),
     ("Virman", r"virman|havale|eft |transfer"),
     ("Döviz Satışı", r"dvz sat|doviz sat"),
     ("POS", r"pos |kkiv|kart "),
-    # Spesifik vergi deseni Kredi'den ÖNCE: "Vergi Tahsilatı ... Taksit:1 ..." banka
-    # formatı "taksit" ile Kredi'ye düşüyordu (35 kayıt/₺8,6M — Sedna denetimi,
+    # Spesifik vergi deseni Kredi/Leasing'den ÖNCE: "Vergi Tahsilatı ... Taksit:1 ..."
+    # banka formatı "taksit" ile Kredi'ye düşüyordu (35 kayıt/₺8,6M — Sedna denetimi,
     # 2026-07-18). Genel vergi kuralı AŞAĞIDA kalır ki "KREDİ TAKSİT TAHSİLATI"
-    # gibi gerçek kredi hareketleri Kredi'de kalsın.
+    # gibi gerçek kredi hareketleri Kredi/Leasing'de kalsın.
     ("Vergi/SGK", r"vergi tahsilat|sgk tahsilat|vergi dairesi"),
-    ("Kredi", r"kredi|taksit|kmh"),
+    (LEASING_CATEGORY, r"kredi|taksit|kmh"),
     ("Personel", r"maas|personel|ucret|avans|yillik izin"),
     ("Vergi/SGK", r"vergi|sgk|sgdp|tahsilat"),
     ("Komisyon", r"komisyon|masraf"),
@@ -167,6 +184,7 @@ MANAGED_CATEGORY_COLORS: Dict[str, str] = {
     "Acenta": "teal",
     "Havale Komisyonları": "amber",
     "Temettü": "purple",
+    LEASING_CATEGORY: "orange",  # eski "Kredi" kategorisinin devamı (DB'de rename edildi)
 }
 
 

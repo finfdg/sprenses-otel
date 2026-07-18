@@ -175,6 +175,34 @@ class TestTAccountGrouping:
         assert personel is not None
         assert any(i["name"] == "T-TEST MAAŞ Haziran" for i in personel["items"])
 
+    def test_credit_and_bank_leasing_merged_under_kredi_leasing(self, client, auth_headers, db):
+        """Planlı kredi taksiti + banka 'Kredi/Leasing' kategorili hareket TEK
+        'Kredi/Leasing' grubunda birleşir (2026-07-18 birleştirmesi — eski 'Kredi'
+        banka başlığı + 'Kredi / Leasing Taksitleri' planlı başlığı ayrıydı;
+        leasing ödemeleri de Cari'den bu başlığa taşındı)."""
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)
+
+        _mk_fe(db, direction=-1, amount=5000, is_realized=True,
+               category_name="Kredi/Leasing",
+               description="T-TEST QNB LEASING ÖDEMESİ")           # banka bacağı (gerçekleşen)
+        _mk_fe(db, source_type="credit", direction=-1, amount=2500,
+               is_realized=False, event_date=date.today() + timedelta(days=5),
+               description="T-TEST KREDİ TAKSİTİ 5/12")            # planlı taksit (bekleyen)
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+
+        grp = _group(body, "cikis", "Kredi/Leasing")
+        assert grp is not None
+        names = [i["name"] for i in grp["items"]]
+        assert "T-TEST QNB LEASING ÖDEMESİ" in names
+        assert "T-TEST KREDİ TAKSİTİ 5/12" in names
+        assert grp["realized_count"] == 1 and grp["item_count"] == 2
+        # Karma kaynaklı grup deterministik olarak finansman sayılır
+        assert grp["section"] == "finansman"
+        assert _group(body, "cikis", "Kredi / Leasing Taksitleri") is None
+
     def test_transfer_categories_fully_excluded(self, client, auth_headers, db):
         """Virman / Döviz Satım / İade kalemleri cetvelde hiç yer almaz."""
         _reset_eur_rates(db)
@@ -520,7 +548,7 @@ class TestTAccountFaaliyetFinansman:
 
         # section alanı gruplarda var
         avans = _group(body, "giris", "Avanslar")
-        kredi = _group(body, "cikis", "Kredi / Leasing Taksitleri")
+        kredi = _group(body, "cikis", "Kredi/Leasing")
         cari = _group(body, "cikis", "Cari Ödemeleri")
         assert avans and avans["section"] == "finansman"
         assert kredi and kredi["section"] == "finansman"

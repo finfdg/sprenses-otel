@@ -154,6 +154,34 @@ kapsıyor). Aynı düzeltmede **Personel** kuralına `avans` ve `yillik izin` an
 eklendi (personel avansları ve yıllık izin ödemeleri artık Personel'e düşer — "avans" içeren
 tek gelir kaydı da bir avans iadesiydi, Personel tutarlı). Test: `test_auto_tagger.py::TestBankNameNoise`.
 
+### Leasing → "Kredi/Leasing" (2026-07-18, kullanıcı isteği — kategori RENAME)
+
+Panel T-Hesap'ta leasing ödemeleri (QNB Leasing otomatik tahsilatı, Vakıf Leasing taksit
+havaleleri — 24 kayıt) "Cari" başlığı altında görünüyordu; kullanıcı bunların **"Kredi"
+başlığı "Kredi/Leasing" olarak yeniden adlandırılarak** oraya taşınmasını istedi:
+
+- **Kategori rename (DB):** `transaction_categories` "Kredi" → **"Kredi/Leasing"** (id/renk
+  aynı, orange). `finance_events.category_name` denormalize kopyaları güncellendi (104 kayıt).
+  Kod artık `auto_tagger.LEASING_CATEGORY` sabitini kullanır; `MANAGED_CATEGORY_COLORS`'a
+  eklendi (yoksa runtime oluşturulur — test DB'de de çalışır).
+- **Leasing kuralı EN ÖNDE:** `(LEASING_CATEGORY, r"leasing|finansal kiralama")` tüm
+  kuralların başında — "Gönderilen havale VAKIF LEASİNG 11. TAKSİT" açıklaması "havale" ile
+  **Virman'a**, "QNB Leasing ... TAHSİLATI" ise "tahsilat" ile **Vergi/SGK'ya** düşüyordu.
+  Eski `("Kredi", r"kredi|taksit|kmh")` kuralı aynı yerinde, hedefi artık `LEASING_CATEGORY`.
+- **Cari eşleşmesi istisnası (`apply_vendor_bank_match`):** leasing şirketi Sedna'da 320'li
+  cari olduğundan cari matcher banka bacağını **"Cari"** etiketliyordu (24 kaydın kök nedeni
+  buydu). Artık `is_leasing_description()` doğruysa banka bacağı **"Kredi/Leasing"** etiketi
+  alır; **eşleşme bağı (match_number/vendor_id) yine kurulur** — yalnız görünen başlık değişir.
+- **T-Hesap birleşmesi:** `t_account.SOURCE_LABELS["credit"]` da `"Kredi/Leasing"` yapıldı —
+  planlı kredi taksitleri + banka kredi/leasing hareketleri **tek grupta** (Personel
+  birleştirmesiyle aynı desen; karma grubun `section`'ı deterministik "finansman").
+- **Geriye dönük düzeltme:** 24 leasing kaydı (Cari/Virman/Vergi-SGK'ya dağılmıştı)
+  kural motoruyla yeniden etiketlendi; 17'sindeki cari (vendor_id) bağı korundu.
+
+Test: `test_auto_tagger.py::TestLeasingRule` (4) +
+`test_faz1_matching.py::TestVendorMatcher::test_leasing_bank_leg_tagged_kredi_leasing_not_cari` +
+`test_cash_flow_taccount.py::test_credit_and_bank_leasing_merged_under_kredi_leasing`.
+
 ### Vergi "Taksit:" Yanlış Pozitifi + Temettü Kuralı (2026-07-18, Sedna denetimi)
 
 2026 işlemlerinin Sedna fiş karşı-hesaplarıyla toplu karşılaştırması (aşağıdaki denetim) iki

@@ -672,6 +672,18 @@ eğrisi; ay NAKİT GİRİŞ/ÇIKIŞ kalemleri bugünkü kalemleri göstermeye de
   **davranış-eşitliği doğrulaması** gerektiren ayrı büyük iş.
 - **#14 öğrenen kurallar + #20 WS izin filtresi:** P3 — önceki fazlardan ertelenmiş durumda.
 
+## T-Hesap: "Kredi/Leasing" Birleşik Başlığı (2026-07-18)
+
+Kullanıcı isteği: "Cari" altında görünen leasing ödemeleri, "Kredi" başlığı **"Kredi/Leasing"**
+olarak yeniden adlandırılarak oraya taşındı. Banka "Kredi" kategorisi DB'de "Kredi/Leasing"e
+RENAME edildi; leasing açıklamaları (`leasing|finansal kiralama`) için en-önde auto-tag kuralı
+eklendi; cari eşleşmesi leasing bacağını artık "Cari" yerine "Kredi/Leasing" etiketler (eşleşme
+bağı korunur); `t_account.SOURCE_LABELS["credit"]` da aynı string'e çekildi → **planlı kredi
+taksitleri + banka kredi/leasing hareketleri tek grupta** (ödenen taksit realized, ödenmemişi
+pending — Personel birleştirmesi deseni; karma grubun `section`'ı deterministik "finansman").
+24 canlı kayıt geriye dönük taşındı. Detay: `docs/modules/transaction-tags.md` "Leasing →
+Kredi/Leasing"; test: `TestLeasingRule` + `test_credit_and_bank_leasing_merged_under_kredi_leasing`.
+
 ## T-Hesap: Acenta / Döviz Satışı Grupları + Banka Amblemi (2026-07-13)
 
 Kullanıcı isteği üç parça (Panel T-Hesap cetveli):

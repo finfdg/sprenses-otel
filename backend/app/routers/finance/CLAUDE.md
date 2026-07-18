@@ -205,6 +205,31 @@ izin ücreti / kira / cari ödemesi canlıda yanlış "Kredi" etiketlendi (geriy
 Test: `tests/test_auto_tagger.py::TestBankNameNoise` (6 test).
 Doküman: `docs/modules/transaction-tags.md` §"Banka Adı Gürültüsü".
 
+## Leasing → "Kredi/Leasing" Birleştirmesi (2026-07-18, kullanıcı isteği)
+
+Panel T-Hesap'ta "Cari" altında görünen leasing ödemeleri, **"Kredi" başlığı "Kredi/Leasing"
+olarak yeniden adlandırılarak** oraya taşındı. Dört parça:
+
+1. **Kategori RENAME (DB):** `transaction_categories` "Kredi" → "Kredi/Leasing" (id 3, orange
+   korundu) + `finance_events.category_name` güncellendi (104 kayıt). Kod referansı:
+   `auto_tagger.LEASING_CATEGORY` sabiti (+ `MANAGED_CATEGORY_COLORS` → test DB'de otomatik
+   oluşur). "Kredi" adına string sorgu YAZMA — sabiti kullan.
+2. **Leasing kuralı en önde:** `(LEASING_CATEGORY, r"leasing|finansal kiralama")` — leasing
+   açıklamaları "havale"→Virman / "tahsilat"→Vergi-SGK'ya düşüyordu. Eski Kredi kuralının
+   hedefi de `LEASING_CATEGORY` oldu (yeri değişmedi).
+3. **`apply_vendor_bank_match` istisnası:** leasing şirketi 320'li cari olduğundan cari
+   matcher banka bacağını "Cari" etiketliyordu (kök neden). Artık `is_leasing_description()`
+   doğruysa bacak "Kredi/Leasing" olur; **eşleşme bağı aynen kurulur**.
+4. **T-Hesap grubu birleşti:** `t_account.SOURCE_LABELS["credit"]` = `"Kredi/Leasing"` —
+   planlı taksitler + banka kredi/leasing hareketleri tek başlık (Personel deseni). Karma
+   grubun `section`'ı etiket bazında deterministik **"finansman"** (`_section(st, label)`).
+   Nakit Akım sayfası/runway'deki "Kredi / Leasing Taksitleri" etiketi (frontend) o sayfalara
+   özgü — bilinçli dokunulmadı.
+
+Geriye dönük: 24 leasing kaydı yeniden etiketlendi (17 vendor bağı korundu). Test:
+`TestLeasingRule` + `test_leasing_bank_leg_tagged_kredi_leasing_not_cari` +
+`test_credit_and_bank_leasing_merged_under_kredi_leasing`. Detay: `docs/modules/transaction-tags.md`.
+
 ## Sedna Karşı-Hesap Denetimi + Kural Düzeltmeleri (2026-07-18, aynı gün devam)
 
 2026 işlemleri Sedna fiş **karşı-hesap** bacaklarıyla toplu karşılaştırıldı (2.603 işlem,

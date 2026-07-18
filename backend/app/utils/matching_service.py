@@ -978,7 +978,15 @@ def apply_vendor_bank_match(db: Session, vtx: VendorTransaction, btx: BankTransa
         return None
 
     match_number = db.execute(sa_text("SELECT nextval('match_number_seq')")).scalar()
-    cari_cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Cari").first()
+    # Leasing ödemesinin banka bacağı "Cari" değil "Kredi/Leasing" etiketi alır
+    # (2026-07-18 kullanıcı isteği): leasing şirketi Sedna'da 320'li cari olduğundan
+    # cari eşleşmesi bacağı "Cari" başlığına çekiyordu — eşleşme bağı yine kurulur.
+    from app.utils.auto_tagger import (LEASING_CATEGORY, _get_or_create_category,
+                                       is_leasing_description)
+    if is_leasing_description(locked_b.description):
+        cari_cat = _get_or_create_category(db, LEASING_CATEGORY)
+    else:
+        cari_cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Cari").first()
     vendor = db.query(Vendor).filter(Vendor.id == locked_v.vendor_id).first()
 
     locked_b.vendor_id = locked_v.vendor_id
