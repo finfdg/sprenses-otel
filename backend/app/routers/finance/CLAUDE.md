@@ -183,6 +183,24 @@ Panel T-Hesap isteği (kullanıcı): acenta tahsilatları "Acenta" başlığınd
 Test: `tests/test_auto_tagger.py` + `TestTAccountBankName` + `TestTAccountAgencyDisplayName`.
 Doküman: `docs/modules/transaction-tags.md`, `docs/modules/nakit-akim.md`.
 
+## Banka Adı Gürültüsü — Yapı Kredi "Kredi" Yanlış Pozitifi (2026-07-18)
+
+FAST/EFT açıklamalarındaki **karşı taraf banka adı** ("... hesabından Yapı ve Kredi Bankası
+A.Ş. X hesabına giden FAST ödemesi") "kredi" desenini tetikliyordu → 18 personel avansı /
+izin ücreti / kira / cari ödemesi canlıda yanlış "Kredi" etiketlendi (geriye dönük düzeltildi:
+16'sı kural motoruyla Personel'e, kira→Kira ve cari→Cari elle `manual`).
+
+- **`auto_tagger._strip_bank_noise`** — hem `auto_tag_transactions` hem `detect_payment_method`
+  kural eşleşmesinden ÖNCE banka adı kalıplarını (`yapi (ve) kredi (bankasi)`, `yapikredi`)
+  normalize metinden çıkarır. `\b` sınırı: "ihtiyaç kredisi"/"kredi kartı" etkilenmez;
+  "YapiKrediFX+" desene girmez (Döviz Satışı kural sırası kapsıyor, üstteki bölüm).
+- **Personel kuralı genişledi:** `maas|personel|ucret` → `+ avans|yillik izin` (personel
+  avansları ve "YILLIK İZİN ÖDEMESİ" artık Personel'e düşer; "avans" içeren tek gelir kaydı
+  avans iadesiydi — Personel tutarlı).
+
+Test: `tests/test_auto_tagger.py::TestBankNameNoise` (6 test).
+Doküman: `docs/modules/transaction-tags.md` §"Banka Adı Gürültüsü".
+
 ---
 
 ## Faz 3 — Mutabakat ve Tek Gerçek (2026-07-12)

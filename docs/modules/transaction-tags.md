@@ -140,6 +140,20 @@ içerdiğinden döviz satışları yanlışlıkla Kredi etiketleniyordu (canlı 
 Döviz Satım = çift-bacak iç transfer (T-Hesap/nakit akımdan HARİÇ), **Döviz Satışı = görünür
 kategori** (kullanıcı kararı — döviz bozdurma geliri/gideri T-Hesap'ta başlık olarak izlenir).
 
+### Banka Adı Gürültüsü — Yapı Kredi Yanlış Pozitifi (2026-07-18, `_strip_bank_noise`)
+
+FAST/EFT açıklamaları **karşı tarafın bankasını** içerir: "... hesabından **Yapı ve Kredi
+Bankası A.Ş.** YALÇIN YAVUZ hesabına giden FAST ödemesi". Bu "kredi" kelimesi ödemenin
+niteliğinden değil alıcının bankasından gelir — 18 personel avansı / izin ücreti / kira /
+cari ödemesi yanlışlıkla **Kredi** etiketlenmişti (canlı bug, geriye dönük düzeltildi).
+Çözüm: hem `auto_tag_transactions` hem `detect_payment_method` kural eşleşmesinden ÖNCE
+`_strip_bank_noise()` ile banka adı kalıplarını (`yapi (ve) kredi (bankasi)`, `yapikredi`)
+metinden çıkarır. `\b` sınırı sayesinde "ihtiyaç **kredisi**", "kredi kartı" gibi gerçek
+kredi ifadeleri etkilenmez; "YapiKrediFX+" bu desene girmez (onu Döviz Satışı kural sırası
+kapsıyor). Aynı düzeltmede **Personel** kuralına `avans` ve `yillik izin` anahtar kelimeleri
+eklendi (personel avansları ve yıllık izin ödemeleri artık Personel'e düşer — "avans" içeren
+tek gelir kaydı da bir avans iadesiydi, Personel tutarlı). Test: `test_auto_tagger.py::TestBankNameNoise`.
+
 ### Acenta Tahsilatı Tespiti (2026-07-13, `_tag_agency_collections`)
 
 Acente ödemelerinin banka açıklaması çoğu zaman kırpık gelir ("TRAVE/020726/278982",

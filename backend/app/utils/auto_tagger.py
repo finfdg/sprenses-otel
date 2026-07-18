@@ -57,7 +57,7 @@ def detect_payment_method(description: str) -> str:
     Normalize edilmiş metin üzerinde regex ile eşleşme yapar.
     Eşleşme bulunamazsa 'diger' döndürür.
     """
-    norm = _normalize(description)
+    norm = _strip_bank_noise(_normalize(description))
     for method, pattern in PAYMENT_METHOD_RULES:
         if re.search(pattern, norm):
             return method
@@ -123,6 +123,20 @@ def _normalize(text: str) -> str:
     return text.translate(_TR_MAP).lower()
 
 
+# Karşı-taraf banka adı kural anahtar kelimesi içerebilir: FAST/EFT açıklamasındaki
+# "Yapı ve Kredi Bankası A.Ş. ... hesabına giden" ifadesi, ödemenin niteliği kredi
+# olmadığı halde "kredi" desenini tetikliyordu (2026-07-18 canlı bulgu — personel
+# avansları Kredi başlığına düştü). Kural eşleşmesinden ÖNCE banka adı metinden
+# çıkarılır. `\b` sayesinde "konut kredisi" gibi gerçek kredi ifadeleri etkilenmez;
+# "YapiKrediFX+" bu desene girmez (onu Döviz Satışı kural sırası kapsıyor).
+_BANK_NAME_NOISE = re.compile(r"yapi\s+(ve\s+)?kredi\b(\s+bankasi)?|\byapikredi\b")
+
+
+def _strip_bank_noise(normalized: str) -> str:
+    """Normalize edilmiş metinden karşı-taraf banka adlarını çıkar."""
+    return _BANK_NAME_NOISE.sub(" ", normalized)
+
+
 # Kategori adı → regex pattern (normalize edilmiş metin üzerinde çalışır)
 # "Döviz Satışı" kuralı "Kredi"den ÖNCE gelmeli: "YapiKrediFX+ Dvz Satis" açıklaması
 # "kredi" desenini de içerir — döviz satışı kredi kullanımı DEĞİLDİR (2026-07-13).
@@ -131,7 +145,7 @@ AUTO_TAG_RULES: List[Tuple[str, str]] = [
     ("Döviz Satışı", r"dvz sat|doviz sat"),
     ("POS", r"pos |kkiv|kart "),
     ("Kredi", r"kredi|taksit|kmh"),
-    ("Personel", r"maas|personel|ucret"),
+    ("Personel", r"maas|personel|ucret|avans|yillik izin"),
     ("Vergi/SGK", r"vergi|sgk|sgdp|tahsilat"),
     ("Komisyon", r"komisyon|masraf"),
 ]
@@ -199,7 +213,7 @@ def auto_tag_transactions(
     for tx in untagged:
         if tx.category_id is not None:  # acenta/ücret geçişinde etiketlendi
             continue
-        normalized = _normalize(tx.description)
+        normalized = _strip_bank_noise(_normalize(tx.description))
         for cat_name, pattern in AUTO_TAG_RULES:
             if re.search(pattern, normalized):
                 cat_id = cat_map.get(cat_name)

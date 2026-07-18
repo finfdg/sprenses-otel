@@ -105,6 +105,72 @@ class TestFxSaleRule:
         assert c1.id == c2.id
 
 
+def _ensure_category(db, name, color="gray"):
+    cat = db.query(TransactionCategory).filter(TransactionCategory.name == name).first()
+    if cat is None:
+        cat = TransactionCategory(name=name, color=color)
+        db.add(cat)
+        db.flush()
+    return cat
+
+
+class TestBankNameNoise:
+    """Karşı-taraf banka adındaki 'kredi' kelimesi kural tetiklememeli (2026-07-18).
+
+    Canlı bug: "Yapı ve Kredi Bankası A.Ş. ... hesabına giden FAST" açıklamalı
+    personel avansları Kredi başlığına düşüyordu (18 kayıt).
+    """
+
+    YK_SUFFIX = (
+        " (17/07/2026 tarihli 2787824369 sorgu no'lu MURAT-A TURİZM TİCARET SANAYİ VE "
+        "İNŞAAT ANONİM ŞİRKETİ hesabından Yapı ve Kredi Bankası A.Ş. YALÇIN YAVUZ "
+        "hesabına giden FAST ödemesi)"
+    )
+
+    def test_fast_avans_to_yapikredi_tagged_personel_not_kredi(self, client, db):
+        _ensure_category(db, "Personel", "pink")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-20000, desc="FAST Anlık Ödeme TEMMUZ AVANS" + self.YK_SUFFIX)
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Personel"
+
+    def test_izin_ucreti_to_yapikredi_tagged_personel(self, client, db):
+        _ensure_category(db, "Personel", "pink")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-24800, desc="FAST Anlık Ödeme YILLIK İZİN ÖDEMESİ" + self.YK_SUFFIX)
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Personel"
+
+    def test_bank_name_alone_not_tagged_kredi(self, client, db):
+        """Başka anahtar kelime yoksa banka adı tek başına hiçbir kural tetiklemez."""
+        _ensure_category(db, "Kredi", "orange")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-30000, desc="FAST Anlık Ödeme ARALIK KİRA ÖDEMESİ" + self.YK_SUFFIX)
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) is None
+
+    def test_real_credit_from_yapikredi_account_still_kredi(self, client, db):
+        """Gerçek kredi kelimesi banka adı dışında geçiyorsa Kredi kalır."""
+        _ensure_category(db, "Kredi", "orange")
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, amount=-50000, desc="İHTİYAÇ KREDİSİ TAKSİT ÖDEMESİ 3/12" + self.YK_SUFFIX)
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Kredi"
+
+    def test_payment_method_stays_fast(self, client, db):
+        from app.utils.auto_tagger import detect_payment_method
+
+        assert detect_payment_method("FAST Anlık Ödeme TEMMUZ AVANS" + self.YK_SUFFIX) == "fast"
+
+    def test_payment_method_bank_name_not_kredi(self, client, db):
+        from app.utils.auto_tagger import detect_payment_method
+
+        assert (
+            detect_payment_method("Para Gönder Yapı ve Kredi Bankası A.Ş. hesabına gönderilen tutar")
+            != "kredi"
+        )
+
+
 class TestAgencyTagging:
     def test_collection_amount_date_currency_match(self, client, db):
         """Sedna acente tahsilatıyla tutar+para birimi birebir, tarih ±4 gün → Acenta.
