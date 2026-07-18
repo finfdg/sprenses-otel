@@ -114,3 +114,25 @@ Doğrulama: `sudo cat /proc/$(systemctl show -p MainPID --value sprenses-api.ser
 Alternatif kalıcı çözüm: sistem TZ'sini de İstanbul yapmak (`sudo timedatectl set-timezone Europe/Istanbul`)
 — ama DB zaten bağlantı başına İstanbul kullandığından ve loglar UTC beklenebildiğinden, yalnız uygulama
 process'lerine TZ vermek daha az yan etkili tercih edildi. Kök CLAUDE.md "Saat Dilimi" bölümüne de işlendi.
+
+## TLS Sertifikası — Let's Encrypt Otomatik Yenileme (2026-07-18, KRİTİK OLAY)
+
+**Olay:** 17 Temmuz 2026 22:23 (İstanbul) — Let's Encrypt sertifikasının süresi doldu.
+`certbot-renew.timer` **disabled** durumdaydı (hiç etkinleştirilmemiş), sertifika hiç yenilenmedi.
+Canlı belirti (18 Tem sabahı): Panel'de "Nakit akım projeksiyonu / T hesap verisi / projeksiyon
+bakiyeleri yüklenemedi" toast'ları — tarayıcı süresi dolmuş sertifikayla TLS el sıkışmasını
+reddettiğinden **hiçbir API isteği sunucuya ulaşamadı** (nginx access log'da isteklerin hiç
+görünmemesi ayırt edici işaretti; backend/nginx tamamen sağlıklıydı). 2026-07-05 v3 kurumsal
+denetimdeki "TLS yenilemeye 12 gün" Kritik bulgusu tam öngörüldüğü gibi gerçekleşti.
+
+**Çözüm:**
+```bash
+sudo certbot renew                                # nginx plugin — yeniler + nginx'i reload eder
+sudo systemctl enable --now certbot-renew.timer   # kalıcı otomatik yenileme (günde 2 kez dener)
+```
+Doğrulama: `sudo certbot certificates` (Expiry Date geleceğe bakmalı) +
+`echo | openssl s_client -connect 127.0.0.1:443 -servername sprenses.com | openssl x509 -noout -dates`.
+
+**DİKKAT — sunucu yeniden kurulursa** certbot kurulumundan sonra `certbot-renew.timer`'ın
+**enabled** olduğu mutlaka kontrol edilmeli (`systemctl list-timers | grep certbot`) — Amazon Linux
+2023'te certbot paketi timer'ı varsayılan **kapalı** kurar; elle açılmazsa 90 gün sonra site yine düşer.
