@@ -5,6 +5,59 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Personel Birleştirmesi — Tek Başlık + Sedna Bordro Senkronu + Dedup (2026-07-18)
+
+**Kullanıcı isteği:** "Personel ödemeleri farklı başlıklar altında — hepsini Personel başlığı
+altında birleştir; Sedna'yı da kontrol et; tahmini maaş rakamını otomatik güncelleyen yapı kur;
+çift görünmesin." Üç parça halinde uygulandı:
+
+### 1) T-Hesap tek "Personel" başlığı (`t_account.py`)
+`SOURCE_LABELS`'ta `salary`/`withholding`/`sgk` → hepsi **"Personel"**. Grup anahtarı etiket
+string'i olduğundan planlı kalemler banka **"Personel" kategorisiyle AYNI grupta** toplanır
+(eski ayrı "Maaş"/"Stopaj"/"SGK" başlıkları kalktı; DB `source_type` değişmedi). SGK/stopaj
+**banka gerçekleşmeleri** "Vergi/SGK" kategorisinde kalır (KDV vb. devlet ödemeleriyle birlikte
+— bilinçli; eşleşme kurulunca planlı bacak zaten düşer, toplam şişmez).
+
+### 2) Maaş tahmini ↔ Sedna bordro senkronu (`services/salary_sync_service.py`)
+- **Kaynak:** Sedna **335 Personele Borçlar** aylık **tahakkuk** (alacak) toplamı —
+  `sedna_client.fetch_personnel_payroll()` (`_PAYROLL_MONTHLY_QUERY`, çift Deleted filtresi).
+- **Kural:** yalnız **ödenmemiş + ayı bitmiş** dönemlerin `ScheduledEntry.amount`'u tahakkuka
+  çekilir + FE upsert. Gelecek ayların **mevsimsel elle tahminlerine dokunulmaz**; tahakkuk
+  mevcut tahminin **%40'ının altındaysa** "bordro işlenmemiş" sayılır (ay ortası 335 alacağı
+  yalnız avans/icra kalemleridir) → atlanır, bordro işlenince sonraki koşuda güncellenir.
+- **Tetikleme:** `sedna_sync._STEPS` yeni adım **`salary_sync`** (izin `hr.salary` use,
+  broadcast `HR`) + cron `_CRON_STEP_KEYS`'e eklendi (2 saatte bir otomatik).
+
+### 3) Planlı personel ↔ banka dedup (`matching_service._match_scheduled_to_bank`)
+Gerçek maaş toplu transferleri ("Para Gönder Internet - Mobil ...") kelime taşımaz ve
+etiketlenmediğinden Faz 1 #11 köprüsü hiç tetiklenmiyordu → planlı bacak açık kalıp banka
+bacağıyla **ÇİFT sayılıyordu** (canlı: Mayıs–Temmuz maaşları elle-ödendi + eşleşmesiz).
+Yeni 7. matcher (orkestratörde):
+- **Kural tablosu** (r = |btx|/giriş tutarı, d = gün farkı; referans = paid_date/entry_date):
+  anahtar kelime (maas/personel/ucret/bordro · sgk/mosip · muhtasar/stopaj — genel "vergi"
+  bilerek yok, KDV yanlış bağlanmasın) + d≤5 +
+  0.75≤r≤1.30 + TEK aday → **OTOMATİK**; kelimesiz (etiketsiz, ≥1M) yalnız **elle-ödendi**
+  girişlerde d≤2 + 0.85≤r≤1.15 + TEK aday → OTOMATİK; diğer her şey → **ÖNERİ** (skor 60/50).
+  Açık girişte kelimesiz otomatik BİLEREK yok (aynı gün benzer tutarlı cari EFT riski).
+- **`scheduled_service` yeni fonksiyonlar:** `attach_bank_to_paid_entry` (elle-ödendi ama
+  eşleşmemiş girişi bankaya bağlar — geriye dönük çift-sayım temizliği) + `link_entry_to_bank`
+  (duruma göre close/attach; matcher + öneri-Onayla ORTAK yol). `close_entry_via_bank` artık
+  **banka kanıtının tutarını girişe yazar** (yalnız aynı para birimi — `_btx_amount_for_entry`;
+  döviz hesabında tahmin korunur, kur çevirisi yapılmaz).
+- **Eşleşen banka bacağı kanonik kategorisini alır** (`_tag_scheduled_bank_leg`: salary→
+  "Personel", sgk/withholding→"Vergi/SGK"; manuel etiket asla ezilmez) → T-Hesap başlığı doğru.
+- **Orkestratör düzeltmesi:** `run_all_matchers` artık `matched>0 VEYA suggested>0` ise commit
+  eder — eskiden yalnız-öneri üreten koşuların `_upsert_suggestion` kayıtları SAVEPOINT
+  rollback'iyle **sessizce kayboluyordu** (gizli kusur; vendor/check matcher'larını da düzeltir).
+- **`cleanup_stale_suggestions`:** elle-ödendi ama FE'si eşleşmemiş planlı girişin önerisi
+  artık bayat sayılmaz (yalnız FE `is_matched=True` olunca düşer).
+
+**Test:** `tests/test_personel_birlestirme.py` (13 — başlık birleştirme endpoint'i, bordro
+senkron kuralları, matcher otomatik/öneri/attach/kur-koruması, öneri kalıcılığı, stale-cleanup).
+Detay: `docs/modules/nakit-akim.md` + `docs/modules/muhasebe-ik.md`.
+
+---
+
 ## Bugün Vadeli Ödenmemiş → "Vadesi Geçenler" (2026-07-16)
 
 **Kullanıcı isteği:** "su faturası bugün ve henüz ödenmediği için vadesi geçende gösterelim.

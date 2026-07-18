@@ -868,9 +868,18 @@ def cleanup_stale_suggestions(db: Session) -> int:
             row = db.query(VendorTransaction).filter(VendorTransaction.id == tid).first()
             stale = row is None or row.match_number is not None
         elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
+            from app.models.finance_event import FinanceEvent
             from app.models.scheduled import ScheduledEntry
             row = db.query(ScheduledEntry).filter(ScheduledEntry.id == tid).first()
-            stale = row is None or row.is_paid
+            if row is None:
+                stale = True
+            elif row.is_paid:
+                # Elle-ödendi ama bankaya bağlanmamış giriş için öneri CANLI kalır
+                # (attach yolu — çift sayım ancak eşleşince biter, 2026-07-18)
+                fe = (db.query(FinanceEvent)
+                      .filter(FinanceEvent.source_type == t, FinanceEvent.source_id == tid)
+                      .first())
+                stale = fe is not None and fe.is_matched
         # Banka bacağı başka kayda bağlandıysa da bayat
         if not stale:
             b = db.query(BankTransaction).filter(BankTransaction.id == sug.bank_source_id).first()
@@ -1200,6 +1209,159 @@ def _match_contract_installments_to_bank(db: Session) -> dict:
     return {"matched": matched, "total_pending": len(rows)}
 
 
+# ─── Planlı personel gideri ↔ banka (maaş / SGK / stopaj) — 2026-07-18 ───────
+# Gerçek maaş toplu transferleri ("Para Gönder Internet - Mobil ...") kelime taşımaz
+# ve etiketlenmediğinden Faz 1 #11 köprüsü hiç tetiklenmiyordu → planlı bacak açık
+# kalıp banka bacağıyla ÇİFT sayılıyordu (canlı: Mayıs–Temmuz maaşları). Bu matcher
+# planlı personel girişlerini banka kanıtına bağlar; elle "ödendi" işaretlenmiş ama
+# eşleşmemiş girişleri de kapsar (attach yolu — geriye dönük çift-sayım temizliği).
+SCHEDULED_MATCH_TYPES = ("salary", "sgk", "withholding")
+_SCHEDULED_KEYWORDS = {
+    # _normalize sonrası ascii-küçük harf metinde aranır. Genel "vergi" kelimesi
+    # BİLEREK yok — KDV/kurumlar ödemeleri stopaj girişine yanlış bağlanmasın
+    # (tax source_type'ı bu matcher'ın kapsamı dışında, etiketleme köprüsünde kalır).
+    "salary": re.compile(r"maas|personel|ucret|bordro"),
+    "sgk": re.compile(r"sgk|mosip|sosyal guv"),
+    "withholding": re.compile(r"muhtasar|stopaj"),
+}
+# Eşleşen banka bacağına atanan kategori → T-Hesap'ta doğru başlık (salary→Personel;
+# sgk/stopaj→Vergi/SGK — _SCHEDULED_CATEGORY_MAP köprüsüyle aynı yön eşlemesi)
+_SCHEDULED_CANONICAL_CATEGORY = {"salary": "Personel", "sgk": "Vergi/SGK", "withholding": "Vergi/SGK"}
+_TRANSFER_CATEGORY_NAMES = ("Virman", "Döviz Satım", "İade", "Döviz Satışı")
+SCHEDULED_LOOKBACK_DAYS = 90       # geriye dönük temizlik penceresi (ref tarihi)
+SCHEDULED_CAND_WINDOW_DAYS = 15    # aday banka hareketi ± penceresi
+SCHEDULED_MIN_BLIND_AMOUNT = 1_000_000  # kelimesiz (etiketsiz toplu transfer) yolu alt sınırı
+SCHEDULED_KW_SUGGEST_SCORE = 60
+SCHEDULED_BLIND_SUGGEST_SCORE = 50
+
+
+def _tag_scheduled_bank_leg(db: Session, tx: BankTransaction, category_name: str) -> None:
+    """Eşleşen banka bacağını türün kanonik kategorisine etiketle (best-effort).
+
+    Manuel etiket kullanıcı kararıdır → dokunulmaz. Kategori DB'de yoksa (test
+    ortamı) sessiz geçilir — eşleşme kurulmuştur, etiket kozmetiktir.
+    """
+    if tx.tag_source == "manual" and tx.category_id:
+        return
+    cat = db.query(TransactionCategory).filter(TransactionCategory.name == category_name).first()
+    if cat is None or tx.category_id == cat.id:
+        return
+    tx.category_id = cat.id
+    tx.tag_source = "auto"
+    db.flush()
+    from app.utils.auto_tagger import _sync_finance_events
+    _sync_finance_events(db, [tx])
+
+
+def _match_scheduled_to_bank(db: Session) -> dict:
+    """Planlı personel girişlerini (maaş/SGK/stopaj) banka giderleriyle eşleştir.
+
+    Kural tablosu (r = |btx| / giriş tutarı, d = |btx tarihi − referans| gün;
+    referans = ödenmişse paid_date, değilse entry_date):
+    - Anahtar kelime VAR (tip bazlı regex): d ≤ 5 ve 0.75 ≤ r ≤ 1.30 ve TEK aday
+      → OTOMATİK; değilse d ≤ 15 ve 0.5 ≤ r ≤ 1.6 → ÖNERİ (skor 60).
+    - Anahtar kelime YOK (tipik maaş toplu transferi — etiketsiz, ≥ 1M): yalnız
+      ELLE-ÖDENDİ girişlerde d ≤ 2 ve 0.85 ≤ r ≤ 1.15 ve TEK aday → OTOMATİK;
+      diğer durumlar (açık giriş dahil) 0.8 ≤ r ≤ 1.25 → ÖNERİ (skor 50).
+      Açık girişte kelimesiz otomatik YOK — aynı gün benzer tutarlı büyük cari
+      EFT'si riski (öneri panelinden tek tıkla onaylanır).
+    Eşleşen banka bacağı kanonik kategorisini alır → T-Hesap başlığı doğru olur.
+    """
+    from datetime import date as date_cls
+
+    from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
+    from app.models.finance_event import FinanceEvent
+    from app.models.scheduled import ScheduledEntry
+    from app.services.scheduled_service import link_entry_to_bank
+    from app.utils.auto_tagger import _normalize
+
+    today = date_cls.today()
+    window_start = today - timedelta(days=SCHEDULED_LOOKBACK_DAYS)
+
+    entries = (db.query(ScheduledEntry)
+               .filter(ScheduledEntry.source_type.in_(SCHEDULED_MATCH_TYPES))
+               .all())
+    fes = {(f.source_type, f.source_id): f
+           for f in db.query(FinanceEvent)
+           .filter(FinanceEvent.source_type.in_(SCHEDULED_MATCH_TYPES)).all()}
+
+    targets = []  # (entry, ref_tarih)
+    for e in entries:
+        ref = (e.paid_date or e.entry_date) if e.is_paid else e.entry_date
+        if ref is None or ref < window_start or ref > today + timedelta(days=10):
+            continue
+        fe = fes.get((e.source_type, e.id))
+        if e.is_paid and fe is not None and fe.is_matched:
+            continue  # zaten banka kanıtına bağlı
+        targets.append((e, ref))
+    if not targets:
+        return {"matched": 0, "suggested": 0, "total_open": 0}
+
+    # Zaten bir planlı girişe bağlanmış banka hareketleri aday olamaz
+    used = set(r[0] for r in db.query(EventMatch.bank_source_id)
+               .filter(EventMatch.target_source_type.in_(SCHEDULED_MATCH_TYPES),
+                       EventMatch.method != MATCH_METHOD_SUGGESTION).all())
+
+    txs = (db.query(BankTransaction)
+           .filter(BankTransaction.type == "expense",
+                   BankTransaction.date >= window_start - timedelta(days=SCHEDULED_CAND_WINDOW_DAYS))
+           .all())
+    cat_names = {c.id: c.name for c in db.query(TransactionCategory).all()}
+
+    matched, suggested = 0, 0
+    for entry, ref in sorted(targets, key=lambda t: t[1]):
+        amt = float(entry.amount or 0)
+        if amt <= 0:
+            continue
+        kwre = _SCHEDULED_KEYWORDS[entry.source_type]
+        canonical = _SCHEDULED_CANONICAL_CATEGORY[entry.source_type]
+        auto_cands, best = [], None
+        for tx in txs:
+            if tx.id in used:
+                continue
+            d = abs((tx.date - ref).days)
+            if d > SCHEDULED_CAND_WINDOW_DAYS:
+                continue
+            cat_name = cat_names.get(tx.category_id)
+            if cat_name in _TRANSFER_CATEGORY_NAMES:
+                continue  # iç transfer — gerçek gider değil
+            if cat_name is not None and cat_name != canonical and tx.tag_source == "manual":
+                continue  # kullanıcının farklı manuel etiketi — dokunma
+            r = abs(float(tx.amount)) / amt
+            kw = bool(kwre.search(_normalize(tx.description or "")))
+            if kw:
+                if not (0.5 <= r <= 1.6):
+                    continue
+            else:
+                if cat_name is not None:
+                    continue  # kelimesiz yol yalnız etiketsiz toplu transfer
+                if not (0.8 <= r <= 1.25) or abs(float(tx.amount)) < SCHEDULED_MIN_BLIND_AMOUNT:
+                    continue
+            if kw and d <= 5 and 0.75 <= r <= 1.30:
+                auto_cands.append(tx)
+            elif (not kw) and entry.is_paid and d <= 2 and 0.85 <= r <= 1.15:
+                auto_cands.append(tx)
+            rank = (0 if kw else 1, d, abs(r - 1.0))
+            if best is None or rank < best[0]:
+                best = (rank, tx, kw)
+
+        if len(auto_cands) == 1 and link_entry_to_bank(db, entry, auto_cands[0]):
+            used.add(auto_cands[0].id)
+            matched += 1
+            _tag_scheduled_bank_leg(db, auto_cands[0], canonical)
+            logger.info("Planlı %s girişi banka kanıtına bağlandı: entry=%d ↔ btx=%d",
+                        entry.source_type, entry.id, auto_cands[0].id)
+            continue
+        if best is not None:
+            _, tx, kw = best
+            _upsert_suggestion(db, tx.id, entry.source_type, entry.id,
+                               abs(float(tx.amount)), "TRY",
+                               SCHEDULED_KW_SUGGEST_SCORE if kw else SCHEDULED_BLIND_SUGGEST_SCORE)
+            suggested += 1
+
+    return {"matched": matched, "suggested": suggested, "total_open": len(targets)}
+
+
 def run_all_matchers(db) -> dict:
     """4 otomatik eşleştiriciyi SAVEPOINT izolasyonuyla koştur.
 
@@ -1214,14 +1376,19 @@ def run_all_matchers(db) -> dict:
         (_match_advances_to_bank, "Avans-banka", "advances_matched"),
         (_match_contract_installments_to_bank, "Kontrat taksiti-banka", "contract_installments_matched"),
         (_match_vendors_to_bank, "Cari-banka", "vendor_payments_matched"),
+        (_match_scheduled_to_bank, "Planlı personel-banka", "scheduled_matched"),
     ]:
         try:
             nested = db.begin_nested()
             r = match_fn(db)
-            if r["matched"] > 0:
+            # ÖNERİLER de kalıcı olmalı (2026-07-18 düzeltme): eskiden yalnız
+            # r["matched"]>0 commit ediliyordu → sadece öneri üreten koşuların
+            # _upsert_suggestion kayıtları SAVEPOINT rollback'iyle sessizce kayboluyordu.
+            if r["matched"] > 0 or r.get("suggested", 0) > 0:
                 nested.commit()
                 db.commit()
-                results[key] = r["matched"]
+                if r["matched"] > 0:
+                    results[key] = r["matched"]
             else:
                 nested.rollback()
         except Exception as e:  # noqa: BLE001 — adım izolasyonu

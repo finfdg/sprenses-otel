@@ -26,7 +26,7 @@ CARI = "app.routers.finance.cariler.sedna_import"
 CHK = "app.routers.finance.check_import"
 
 ALL_STEP_KEYS = {"cariler", "ibans", "checks", "sales_invoices",
-                 "recurring_sync", "stock", "reservations", "bank_recon"}
+                 "recurring_sync", "salary_sync", "stock", "reservations", "bank_recon"}
 
 FAKE_CARI = [
     {"hesap_kodu": "320.88.01.0001", "hesap_adi": "SYNC CARİ A", "tarih": date(2026, 1, 5),
@@ -120,13 +120,15 @@ def test_run_sync_all_steps_runs_all(db):
          patch("app.services.stock_service.fetch_stock_movements", return_value=[]), \
          patch("app.services.reservation_service.fetch_reservations", return_value=[]), \
          patch("app.utils.sedna_client.fetch_bank_ledger_rows", return_value=[]), \
-         patch("app.utils.sedna_client.fetch_bank_ledger_max_dates", return_value={}):
+         patch("app.utils.sedna_client.fetch_bank_ledger_max_dates", return_value={}), \
+         patch("app.services.salary_sync_service.fetch_personnel_payroll", return_value=[]):
         j = run_sync_all_steps(db, _admin(db), "test")
 
-        assert j["ok_count"] == 8 and j["total"] == 8
+        assert j["ok_count"] == 9 and j["total"] == 9
         by = {s["key"]: s for s in j["steps"]}
         assert by["cariler"]["ok"] and by["ibans"]["ok"] and by["checks"]["ok"] and by["sales_invoices"]["ok"]
         assert by["recurring_sync"]["ok"]  # cari adımından sonra türetilen senkron
+        assert by["salary_sync"]["ok"]      # maaş ↔ Sedna bordro senkronu
         assert by["stock"]["ok"]            # stok içe aktarma adımı
         assert by["reservations"]["ok"]     # önbüro rezervasyon içe aktarma adımı
         assert "hareket" in by["cariler"]["summary"]

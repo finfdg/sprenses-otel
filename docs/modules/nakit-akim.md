@@ -744,3 +744,44 @@ Koşullu taksitler (W2M %70 ciro şartı) `KOŞULLU` etiketiyle ayrışır. Canl
 W2M Şubat–Nisan 800k € vadesi geçmiş/koşullu → "Vadesi Geçen Tahsilatlar"da.
 Test: `tests/test_contract_projection.py`. SPO takvimi: `GET /sales/kontratlar/actions-calendar`
 + KontratlarPanel 90-günlük bant görünümü (grafik overlay'leri ileriki iterasyon).
+
+## Personel Birleştirmesi — Tek Başlık + Otomatik Maaş Güncelleme + Dedup (2026-07-18)
+
+**Kullanıcı isteği:** Personel ödemeleri farklı başlıklar altında dağınıktı ("Maaş", "SGK",
+"Stopaj", "Personel", maaş toplu transferleri "Etiketsiz") → hepsi tek **"Personel"** başlığında;
+maaş tahmini Sedna'daki gerçek bordroyla otomatik güncellensin; planlı + gerçekleşen çift
+görünmesin.
+
+### Ne değişti (kullanıcı gözünden)
+
+1. **Panel T-Hesap'ta tek "Personel" grubu:** planlı maaş/SGK/stopaj kalemleri + banka
+   "Personel" kategorisi aynı başlıkta. (SGK/stopaj **banka ödemeleri** KDV vb. ile birlikte
+   "Vergi/SGK"da kalır — devlete giden ödemeler başlığı; eşleşme kurulunca planlı bacak
+   düştüğünden toplam şişmez.)
+2. **Maaş tahmini kendini günceller:** muhasebe bordroyu Sedna'ya işleyince (335 hesabı aylık
+   tahakkuk), o dönemin ödenmemiş maaş girişi otomatik gerçek tutara çekilir (Sedna senkronu
+   her koşusunda — 2 saatte bir; Topbar "Sedna" butonu da tetikler). Gelecek ayların elle
+   girilmiş mevsimsel tahminlerine dokunulmaz.
+3. **Çift görünüm bitti:** maaş/SGK/stopaj banka ödemeleri planlı girişlerle otomatik
+   eşleştirilir (yeni "Planlı personel-banka" eşleştiricisi). Kesin durumlar otomatik kapanır;
+   emin olunamayanlar **Eşleşme Önerileri** paneline düşer (tek tık Onayla). Elle "ödendi"
+   işaretlenmiş ama bankayla eşleşmemiş eski girişler de kapsanır (geriye dönük temizlik).
+   Eşleşen banka hareketi otomatik "Personel"/"Vergi/SGK" etiketi alır.
+4. **Banka kanıtı tahmini ezer:** bir giriş banka hareketiyle kapanınca girişin tutarı ve
+   ödeme tarihi bankadaki gerçeğe çekilir (yalnız aynı para birimi; döviz hesabında tahmin
+   korunur).
+
+### Teknik özet
+
+| Parça | Dosya |
+|---|---|
+| Başlık birleştirme | `cash_flow/t_account.py` `SOURCE_LABELS` (salary/withholding/sgk → "Personel") |
+| Sedna bordro sorgusu | `utils/sedna_client.py::fetch_personnel_payroll` (335 aylık tahakkuk/ödeme) |
+| Maaş senkron servisi | `services/salary_sync_service.py` (yalnız ödenmemiş + ayı bitmiş dönem; tahakkuk < mevcut tahminin %40'ı → "bordro işlenmemiş", atla) |
+| Senkron adımı | `sedna_sync._STEPS` `salary_sync` (izin `hr.salary` use) + cron `_CRON_STEP_KEYS` |
+| Dedup eşleştirici | `utils/matching_service.py::_match_scheduled_to_bank` (7. matcher; kural tablosu docstring'de) |
+| Ortak bağlama yolu | `services/scheduled_service.py::link_entry_to_bank` (`close_entry_via_bank` + yeni `attach_bank_to_paid_entry`) |
+| Öneri kalıcılık düzeltmesi | `run_all_matchers` artık `suggested>0` koşularını da commit eder (eskiden SAVEPOINT rollback önerileri siliyordu) |
+
+**Test:** `tests/test_personel_birlestirme.py` (13). Geliştirici detayı:
+`backend/app/routers/finance/CLAUDE.md` "Personel Birleştirmesi" bölümü.

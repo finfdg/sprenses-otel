@@ -537,9 +537,11 @@ def accept_match_suggestion(
                                                  score=sug.score, actor_id=current_user.id) is not None
     elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
         from app.models.scheduled import ScheduledEntry
-        from app.services.scheduled_service import close_entry_via_bank
+        from app.services.scheduled_service import link_entry_to_bank
+        # link: açık girişi kapatır; elle-ödendi ama eşleşmemiş girişi de bağlar
+        # (çift-sayım temizliği, 2026-07-18)
         e = db.query(ScheduledEntry).filter(ScheduledEntry.id == tid).first()
-        ok = bool(e) and close_entry_via_bank(db, e, btx)
+        ok = bool(e) and link_entry_to_bank(db, e, btx)
 
     db.delete(sug)  # kabul edildi ya da bayatladı — öneri her durumda düşer
     if not ok:
