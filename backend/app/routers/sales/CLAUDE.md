@@ -35,7 +35,8 @@ modülüne katkı kurallarını içerir.
   gönderilmez ama API'de geri-uyumlu durur. **`advances.rows` genişletmesi (2026-07-19
   akşam):** satırlara `revenue`/`invoiced`/`collected`/`overdue` alanları + blok
   toplamlarına `total_invoiced`/`total_collected` eklendi (compute_receivables'ın
-  `invoiced_tl`/`collected_tl` alanları güncel kurla EUR; kümülatif, yıl filtresiz);
+  `invoiced_tl`/`collected_external_tl` alanları güncel kurla EUR; kümülatif, yıl
+  filtresiz; haricen tahsilat '120-340 VİRMAN' avans-mahsup bacaklarını İÇERMEZ);
   satır seçimi "avansı olan" → "6 kalemden herhangi biri olan" grup. UI karşılığı
   `SalesCashFlowPanel` "Acente Finansal Özet" bar grafiği (`docs/modules/acente-mahsup.md` §5d).
 - **Vade/kickback konfigü `agency_groups`'tadır** (bu modül eklerken 2 kolon eklendi); düzenleme

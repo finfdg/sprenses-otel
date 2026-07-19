@@ -69,7 +69,9 @@ Gece dağıtımı `summary` ile birebir aynı (generate_series).
 - **`advances` genişletmesi (2026-07-19 akşam — "Acente Finansal Özet" grafiği):**
   `advances.rows[]` artık avans alanlarına ek `revenue` (seçili yıl grup cirosu, EUR),
   `invoiced` (kesilen TÜM faturalar, `invoiced_tl`), `collected` (haricen tahsilatlar,
-  `collected_tl` — kasa/banka, mahsup DIŞI) ve `overdue` (grup vadesi geçen) taşır;
+  `collected_external_tl` — kasa/banka; **'120-340 VİRMAN' avans-mahsup bacakları HARİÇ**,
+  yoksa mahsup barıyla çift sayılırdı — ALLTOURS'ta kanıtlandı, `hakedis.md`) ve
+  `overdue` (grup vadesi geçen) taşır;
   blok toplamlarına `total_invoiced`/`total_collected` eklendi. Fatura/tahsilat/avans
   muhasebe KÜMÜLATİFİDİR (yıl filtresi yok, güncel kurla EUR) — ciro ise seçili yıla
   aittir; UI açıklaması bu farkı belirtir. Satır seçimi değişti: yalnız avansı olan

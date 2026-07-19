@@ -173,8 +173,10 @@ def compute_settlement(
     adv_consumed: dict = {gid: 0.0 for gid in gmeta}   # EUR (faturayla mahsup)
     # Muhasebe kümülatifleri (kesilen TÜM faturalar + haricen tahsilatlar) — acente
     # bazlı finans grafiği için; yıl filtresi YOK (güncel durum), güncel kurla EUR.
+    # Haricen tahsilat VİRMAN HARİÇTİR (collected_external_tl): '120-340 VİRMAN'
+    # satırları avans mahsubunun 120 bacağıdır, 'applied' barında zaten görünür.
     inv_eur: dict = {gid: 0.0 for gid in gmeta}        # EUR — kesilen fatura (invoiced_tl)
-    coll_eur: dict = {gid: 0.0 for gid in gmeta}       # EUR — haricen tahsilat (collected_tl)
+    coll_eur: dict = {gid: 0.0 for gid in gmeta}       # EUR — haricen tahsilat (virman hariç)
     # Vadesi geçen alacaklar (GERÇEK, hak ediş vade katmanından — EUR'ya güncel kurla)
     ovd_amount: dict = {gid: 0.0 for gid in gmeta}     # EUR
     ovd_max_days: dict = {gid: 0 for gid in gmeta}
@@ -195,7 +197,7 @@ def compute_settlement(
         adv_received[gid] += _to_eur(f.get("advance_received_tl", 0))
         adv_consumed[gid] += _to_eur(f.get("advance_consumed_tl", 0))
         inv_eur[gid] += _to_eur(f.get("invoiced_tl", 0))
-        coll_eur[gid] += _to_eur(f.get("collected_tl", 0))
+        coll_eur[gid] += _to_eur(f.get("collected_external_tl", 0))
 
         # Vadesi geçen: overdue_tl (gün hassasiyetli gerçek gecikme) → EUR; takvim (red
         # segmenti) için vade AYINA dağıtılır. Geçmiş aya düşen açık vade tanım gereği

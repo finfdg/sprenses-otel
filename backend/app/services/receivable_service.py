@@ -156,19 +156,29 @@ def _advance_by_code(db: Session, firm_names: dict, rates: dict) -> dict:
 def _collections_by_code(db: Session) -> dict:
     """customer_code → tahsilat istatistikleri (satırdaki 'Tahsilat' kolonu için).
 
-    {count, tl (toplam TL karşılığı), by_currency: {birim: native toplam},
-     last_date, last_amount (native), last_currency}
+    {count, tl (toplam TL karşılığı), external_tl (VİRMAN hariç — gerçek kasa/banka),
+     by_currency: {birim: native toplam}, last_date, last_amount (native), last_currency}
+
+    `external_tl` (2026-07-19): Sedna 120 hesabına '120-340 ... VİRMAN' açıklamasıyla
+    işlenen satırlar avans mahsubunun 120 bacağıdır (340 consumed ile birebir aynı para;
+    ALLTOURS'ta kuruşu kuruşuna doğrulandı) — dışarıdan gelen tahsilat DEĞİLDİR.
+    'Haricen tahsilat' tüketicileri (acente finansal özet) bu alanı kullanır; `tl`
+    fatura-kapama/FIFO semantiği için virman DAHİL kalır.
     """
     out: dict = {}
     for c in db.query(SalesCollection).all():
         s = out.setdefault(c.customer_code, {
-            "count": 0, "tl": 0.0, "by_currency": {},
+            "count": 0, "tl": 0.0, "external_tl": 0.0, "by_currency": {},
             "last_date": None, "last_amount": 0.0, "last_currency": "TL", "_last_id": 0,
         })
         cur = (c.currency or "TL").strip() or "TL"
         native = _f(c.amount_currency) or _f(c.amount)
         s["count"] += 1
         s["tl"] = round(s["tl"] + _f(c.amount), 2)
+        # Türkçe İ: upper() 'i'→'I' çevirir ama 'İ' kalır → iki varyant da denetlenir
+        desc_up = (c.description or "").upper()
+        if "VİRMAN" not in desc_up and "VIRMAN" not in desc_up:
+            s["external_tl"] = round(s["external_tl"] + _f(c.amount), 2)
         s["by_currency"][cur] = round(s["by_currency"].get(cur, 0.0) + native, 2)
         # (tarih, id) karşılaştırması: aynı-gün birden çok tahsilatta seçim deterministik
         if s["last_date"] is None or (c.collection_date, c.id) > (s["last_date"], s["_last_id"]):
@@ -308,6 +318,7 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
         # sorusu satırdan okunabilsin — toplam + son tahsilat + eşlenmemiş havuz.
         col = collections.get(code)
         f["collected_tl"] = col["tl"] if col else 0.0
+        f["collected_external_tl"] = col["external_tl"] if col else 0.0
         f["collection_count"] = col["count"] if col else 0
         f["last_collection_date"] = (col["last_date"].isoformat()
                                      if col and col["last_date"] else None)
@@ -408,6 +419,7 @@ def compute_receivables(db: Session, today: Optional[date] = None) -> dict:
 
         # Grup tahsilat toplamları (üyelerden)
         row["collected_tl"] = round(sum(mf["collected_tl"] for mf in member_fs), 2)
+        row["collected_external_tl"] = round(sum(mf["collected_external_tl"] for mf in member_fs), 2)
         row["collection_count"] = sum(mf["collection_count"] for mf in member_fs)
         row["unapplied_tl"] = round(sum(mf["unapplied_tl"] for mf in member_fs), 2)
         merged_unap: dict = {}

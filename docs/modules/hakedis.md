@@ -58,6 +58,13 @@ Açık/Avans/Net/Geciken vardı; Avans'taki "—" tahsilat yok sanılıyordu). E
   (display_currency biriminde tahsilat toplamı), `collection_count`, `last_collection_date/
   amount/currency`, `unapplied_tl` / `unapplied_by_currency`. Grup satırında üye toplamları.
   Özet: `collected_tl`, `unapplied_tl`.
+- **`collected_external_tl` (2026-07-19):** `collected_tl`'in **VİRMAN hariç** alt kümesi.
+  Sedna'da '120-340 ... VİRMAN' açıklamalı 120 alacak satırları avans mahsubunun karşı
+  bacağıdır (ALLTOURS'ta 9 kayıt = 340 consumed ile kuruşu kuruşuna aynı, 1.405.338 €) —
+  dış tahsilat değildir. Hak Ediş "Tahsilat" kolonu ve FIFO fatura kapama `collected_tl`
+  ile (virman DAHİL — fatura gerçekten kapanır) çalışmaya devam eder; Acente Mahsup'un
+  "Haricen Tahsilat" barı `collected_external_tl` kullanır. Tespit anahtar kelime bazlıdır
+  (`VİRMAN`/`VIRMAN`, büyük harfe çevrilerek).
 - **UI:** "Tahsilat" kolonu (yeşil toplam + "son: tarih"; hiç yoksa "—"); satır genişletilince
   fatura listesinin altında **Tahsilatlar** tablosu (tarih · native tutar · TL karşılığı ·
   açıklama, yeniden eskiye) — hiç yoksa "henüz hiç tahsilat kaydı yok" metni.
