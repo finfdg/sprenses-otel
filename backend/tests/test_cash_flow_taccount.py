@@ -725,3 +725,34 @@ class TestTAccountInfoCategory:
         assert body["net_eur"] == -100.0
         # Faaliyet/Finansman mutabakatı korunur (info grubu section netlerine girmez)
         assert round(body["faaliyet_net_eur"] + body["finansman_net_eur"], 2) == body["net_eur"]
+
+    def test_doviz_satisi_visible_but_excluded_from_totals(self, client, auth_headers, db):
+        """'Döviz Satışı' (2026-07-19): iki bacaklı hesaplar arası dönüşüm —
+        Pos Bloke Çözme ile aynı toplam-dışı muamele."""
+        _reset_eur_rates(db)
+        _mk_rate(db, MIN_DATE, 50)  # 1 EUR = 50 TRY
+
+        _mk_fe(db, direction=1, amount=5000, category_name="T-INFO GELİR",
+               description="GERÇEK GELİR")                                    # +100 EUR sayılır
+        _mk_fe(db, direction=1, amount=10000, category_name="Döviz Satışı",
+               description="YKB FX+ DVZ SATIS TL BACAĞI")                     # görünür, sayılmaz
+        _mk_fe(db, direction=-1, amount=10000, category_name="Döviz Satışı",
+               description="YKB FX+ DVZ SATIS EUR BACAĞI")                    # görünür, sayılmaz
+        db.commit()
+
+        body = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers).json()
+
+        # Grup her iki kolonda da GÖRÜNÜR, in_total=False + kendi toplamını taşır
+        grp_in = _group(body, "giris", "Döviz Satışı")
+        assert grp_in is not None and grp_in["in_total"] is False
+        assert grp_in["total_eur"] == 200.0
+        assert any(i["name"] == "YKB FX+ DVZ SATIS TL BACAĞI" for i in grp_in["items"])
+        grp_out = _group(body, "cikis", "Döviz Satışı")
+        assert grp_out is not None and grp_out["in_total"] is False
+
+        # Kolon toplamı / gerçekleşen / net yalnız gerçek geliri içerir
+        assert body["total_in_eur"] == 100.0
+        assert body["realized_in_eur"] == 100.0
+        assert body["total_out_eur"] == 0.0
+        assert body["net_eur"] == 100.0
+        assert round(body["faaliyet_net_eur"] + body["finansman_net_eur"], 2) == body["net_eur"]

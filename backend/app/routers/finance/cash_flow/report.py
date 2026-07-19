@@ -119,7 +119,7 @@ def cash_flow_report_pdf(
         Paragraph("Nakit Akım Raporu", title_style),
         Paragraph(f"Dönem: {range_txt} &nbsp;·&nbsp; Rapor tarihi: {today.strftime('%d.%m.%Y')}", sub_style),
         Paragraph(
-            "Tutarlar EUR karşılığıdır (TCMB kuru); Virman / Döviz Satım / İade / Pos Bloke Çözme hariçtir. "
+            "Tutarlar EUR karşılığıdır (TCMB kuru); Virman / Döviz Satım / İade / Pos Bloke Çözme / Döviz Satışı hariçtir. "
             "Bakiye, gün sonu toplam banka bakiyesi projeksiyonudur.",
             note_style,
         ),

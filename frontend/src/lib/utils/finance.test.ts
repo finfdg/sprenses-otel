@@ -222,6 +222,20 @@ describe('groupByMonth', () => {
 		expect(result[0].total_income).toBe(0);
 		expect(result[0].total_expense).toBe(799); // yalnız gerçek gider (POS ücreti)
 	});
+
+	it("'Döviz Satışı' listede görünür ama toplama dahil olmaz (2026-07-19)", () => {
+		const items = [
+			makeItem({ id: 1, date: '2026-07-16', amount: 1940000, type: 'income', category_name: 'Döviz Satışı' }),
+			makeItem({ id: 2, date: '2026-07-16', amount: 1940000, type: 'expense', category_name: 'Döviz Satışı' }),
+			makeItem({ id: 3, date: '2026-07-16', amount: 5000, type: 'income', category_name: 'Acenta' }),
+		];
+		const result = groupByMonth(items);
+
+		expect(result[0].days[0].incomeItems).toHaveLength(2);
+		expect(result[0].days[0].expenseItems).toHaveLength(1);
+		expect(result[0].total_income).toBe(5000); // yalnız gerçek gelir (acente tahsilatı)
+		expect(result[0].total_expense).toBe(0);
+	});
 });
 
 // ─── getTodayKeys ────────────────────────────────────────────

@@ -317,6 +317,13 @@ altında göster ama toplama dahil etme." Üç parça:
    toplam-dışı kategori eklerken:** `INFO_CATEGORIES` + frontend `NO_TOTAL_CATEGORIES`
    (utils/finance.ts) + `eur_balances` transfer-adı listesi + `matching_service.
    _TRANSFER_CATEGORY_NAMES` dördü birlikte güncellenmeli.
+   **"Döviz Satışı" da eklendi (2026-07-19, kullanıcı isteği):** döviz bozdurma iki
+   bacaklıdır (döviz hesabından çıkış + TRY hesabına giriş) — hesaplar arası dönüşüm,
+   gerçek gelir/gider değil. Dört yer + PDF rapor notu güncellendi
+   (`_TRANSFER_CATEGORY_NAMES`'te zaten vardı). "Döviz Satım" (pair-etiketli iç
+   transfer, T-Hesap'tan tamamen gizli) AYRI kategoridir — karıştırma. Test:
+   `TestTAccountInfoCategory::test_doviz_satisi_visible_but_excluded_from_totals` +
+   `finance.test.ts`.
 3. **Geriye dönük düzeltme:** canlıdaki 8 çift (16 kayıt) taşındı + FE sync; 8 eşsiz ücret
    bacağı yerinde (Haziran "Pos Aidat Gideri" €11.308 → €98; "Pos Bloke Çözme" iki kolonda
    simetrik €19.527, toplamlara dahil değil).

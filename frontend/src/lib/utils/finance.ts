@@ -18,8 +18,9 @@ const TRANSFER_CATEGORIES = new Set(['Virman', 'Döviz Satım', 'İade']);
 
 // Toplam-dışı bilgi kategorileri — kalem listede görünür ama ay/gün toplamına girmez.
 // Backend karşılığı: t_account.INFO_CATEGORIES (POS bloke çözümü = hesaplar arası virman;
-// karşılığı başka banka hesabına geçer, gerçek gelir/gider değildir — 2026-07-18).
-const NO_TOTAL_CATEGORIES = new Set(['Pos Bloke Çözme']);
+// karşılığı başka banka hesabına geçer, gerçek gelir/gider değildir — 2026-07-18.
+// Döviz Satışı = iki bacaklı hesaplar arası dönüşüm — 2026-07-19).
+const NO_TOTAL_CATEGORIES = new Set(['Pos Bloke Çözme', 'Döviz Satışı']);
 
 export function groupByMonth(items: CashFlowItem[]): MonthGroup[] {
 	const groups: Record<string, MonthGroup> = {};

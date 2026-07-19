@@ -52,10 +52,11 @@ def compute_eur_balances(db: Session) -> dict:
     # Dahili transfer / iade kategori ID'leri (gelir/giderden çıkarılacak).
     # "Pos Bloke Çözme" (2026-07-18): POS bloke çözümü hesaplar arası virmandır —
     # iki bacağı da günlük gelir/gider toplamına girmez (bakiye zaten banka
-    # ekstresinden gelir, etkilenmez).
+    # ekstresinden gelir, etkilenmez). "Döviz Satışı" (2026-07-19): iki bacaklı
+    # hesaplar arası dönüşüm — aynı muamele.
     transfer_cat_ids = set()
     for cat in db.query(TransactionCategory).filter(
-        TransactionCategory.name.in_(["Virman", "Döviz Satım", "İade", "Pos Bloke Çözme"])
+        TransactionCategory.name.in_(["Virman", "Döviz Satım", "İade", "Pos Bloke Çözme", "Döviz Satışı"])
     ).all():
         transfer_cat_ids.add(cat.id)
 

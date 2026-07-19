@@ -707,8 +707,14 @@ hesabına virman yapılıyor. Pos Bloke Çözme başlığı altında göster ama
   aday almaz (`_TRANSFER_CATEGORY_NAMES`).
 - **Canlı doğrulama (Haziran):** "Pos Aidat Gideri" €11.308 → **€98** (yalnız gerçek
   ücretler); "Pos Bloke Çözme" GİRİŞ=ÇIKIŞ=€19.527 simetrik, toplamlara dahil değil.
+- **"Döviz Satışı" da toplam-dışı (2026-07-19, kullanıcı isteği):** döviz bozdurma iki
+  bacaklıdır (döviz hesabından çıkış + TRY hesabına giriş — Panel'de GİRİŞ €35.443 /
+  ÇIKIŞ €35.473 simetrikti) — hesaplar arası dönüşüm, gerçek gelir/gider değil.
+  `INFO_CATEGORIES` + `NO_TOTAL_CATEGORIES` + `eur_balances` dışlama listesi + PDF
+  rapor notuna eklendi (`_TRANSFER_CATEGORY_NAMES`'te zaten vardı). "Döviz Satım"
+  (pair-etiketli iç transfer, tamamen gizli) AYRI kategoridir — karıştırma.
 
-Test: `TestTAccountInfoCategory` + `TestPosBlokeTransfers` + `finance.test.ts`.
+Test: `TestTAccountInfoCategory` (Pos Bloke + Döviz Satışı) + `TestPosBlokeTransfers` + `finance.test.ts`.
 
 ## T-Hesap: Acenta / Döviz Satışı Grupları + Banka Amblemi (2026-07-13)
 

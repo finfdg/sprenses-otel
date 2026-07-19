@@ -43,7 +43,10 @@ TRANSFER_CATEGORIES = ("Virman", "Döviz Satım", "İade")
 # Virman'dan farkı: Virman tamamen gizlenir, bunlar bilgi amaçlı listelenir.
 # Frontend `in_total=False` bayrağıyla "toplam dışı" rozeti çizer ve tarih
 # görünümündeki gün toplamlarından hariç tutar (CashFlowTAccount.svelte).
-INFO_CATEGORIES = ("Pos Bloke Çözme",)
+# "Döviz Satışı" (2026-07-19, kullanıcı isteği): döviz bozdurma iki bacaklıdır
+# (EUR hesabından çıkış + TRY hesabına giriş) — hesaplar arası dönüşümdür, gerçek
+# gelir/gider değildir; Pos Bloke Çözme ile aynı toplam-dışı muamele.
+INFO_CATEGORIES = ("Pos Bloke Çözme", "Döviz Satışı")
 
 # Grup başına yanıtta dönecek en fazla kalem (item_count gerçek sayıyı taşır). 500: aylık/haftalık/
 # günlük görünümü tam kapsar (yoğun ay cari ~142); yalnız yıllık gibi uç toplamalar "+N kalem daha"
