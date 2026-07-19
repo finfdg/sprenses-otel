@@ -252,6 +252,66 @@ def test_reservation_years_from_data(client, auth_headers, db):
     assert 2025 in years
 
 
+def test_occupancy_overview_shape_and_split(client, auth_headers, db):
+    """occupancy-overview (basit tasarım Doluluk sekmesi): 12 aylık gerçekleşen/ileri
+    oda-gece kırılımı + chip verileri. Endpoint GERÇEK bugüne göre böldüğünden test,
+    beklenen kovaları aynı kuralla (gece tarihi ≤ bugün → gerçekleşen) kendisi kurar.
+    """
+    from datetime import timedelta
+
+    from app.models.room_type import RoomType
+
+    db.add(RoomType(code="OVSTD", name="Overview Std", total_rooms=10, is_active=True))
+    today = date.today()
+    y = today.year
+    # Geçmiş konaklama (2 gece, 1 oda) + ileri konaklama (2 gece, 2 oda)
+    stays = [
+        (970001, today - timedelta(days=3), today - timedelta(days=1), 1),
+        (970002, today + timedelta(days=10), today + timedelta(days=12), 2),
+    ]
+    expected = {}  # ay → [toplam, gerçekleşen]
+    for rec_id, ci, co, rooms in stays:
+        db.add(Reservation(
+            rec_id=rec_id, agency="OVAG", checkin_date=ci, checkout_date=co,
+            record_date=today, nights=(co - ci).days, rooms=rooms, eur_total=100.0,
+        ))
+        d = ci
+        while d < co:
+            if d.year == y:
+                slot = expected.setdefault(d.month, [0, 0])
+                slot[0] += rooms
+                if d <= today:
+                    slot[1] += rooms
+            d += timedelta(days=1)
+    db.flush()
+
+    res = client.get(f"/api/sales/reservations/occupancy-overview?year={y}", headers=auth_headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["year"] == y
+    assert body["capacity"] >= 10
+    assert len(body["months"]) == 12
+    by_m = {m["month"]: m for m in body["months"]}
+    for month, (total, past) in expected.items():
+        m = by_m[month]
+        assert m["room_nights"] >= total
+        assert m["past_nights"] >= past
+        assert m["future_nights"] >= total - past
+        assert m["room_nights"] == m["past_nights"] + m["future_nights"]
+        assert m["capacity_nights"] > 0
+    assert body["year_room_nights"] == sum(m["room_nights"] for m in body["months"])
+    # Chip alanları: bugün + cari ay her zaman gerçek bugüne göre döner
+    assert body["today"] == today.isoformat()
+    assert body["current_month"]["month"] == today.month
+    assert body["today_rooms"] >= 0
+    assert 0 <= body["today_pct"] <= 200  # overbooking payı — negatif/saçma değer olmasın
+
+
+def test_occupancy_overview_rbac(client, no_perm_user_headers):
+    res = client.get("/api/sales/reservations/occupancy-overview", headers=no_perm_user_headers)
+    assert res.status_code == 403
+
+
 def test_unauthorized_blocked(client, minimal_xls_bytes):
     """Yetkisiz kullanıcı endpoint'lere erişemez."""
     res = client.get("/api/sales/reservations/summary")

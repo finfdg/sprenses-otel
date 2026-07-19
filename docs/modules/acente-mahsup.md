@@ -20,23 +20,50 @@
 | **Onay akışı** | Oda tipi CRUD `check_approval` üzerinden (executor handler anahtarı `sales.acente_mahsup`); projeksiyon/GET'ler muaf |
 | **Para birimi** | EUR |
 
-**Amaç:** Satışın tamamı tek sayfada. **8 sekme:**
+**Amaç:** Satışın tamamı tek sayfada.
+
+> **2026-07-19 BASİT TASARIM (kullanıcı kararı — finfdg GitHub yüklemesi):** Sayfa,
+> repo yedeğine yüklenen "Acente Mahsup ve Nakit Akım.zip" tasarımına göre yeniden
+> kuruldu. Eski 5 projeksiyon sekmesi (Genel Bakış / Rezervasyon & Ciro / Alınan
+> Avanslar / Satış Faturaları / eski Nakit Akım) ve senaryo barı (hedef + açılış nakit)
+> KALDIRILDI; içerikleri 4 yeni tasarım sekmesinde toplandı. Backend endpoint'leri
+> ve `compute_settlement` senaryo parametreleri (year_target/opening_cash) API'de
+> DURUYOR (geri uyumlu) — yalnız UI'dan çağrılmıyor. Alt-çizgili sekme barı + Doluluk
+> chip kartları (mobilde yatay kaydırma + nokta göstergesi) tasarımdan geldi.
 
 | Sekme (`?tab=`) | İçerik | Kaynak bileşen / doküman |
 |---|---|---|
-| Genel Bakış (`ozet`) | Projeksiyon funnel + hedef ilerleme + acente tablosu | bu doküman |
-| Rezervasyonlar (`rezervasyon`) | Eski Otel Rezervasyon sayfasının TAMAMI (XLS yükleme, KPI, doluluk, dağılımlar, acente gruplama) | `ReservationsPanel.svelte` · `otel-rezervasyon.md` |
-| Günlük Hareketler (`hareket`) | Eski Günlük Hareketler sayfası (Sedna canlı gelen/iptal) | `DailyActivityPanel.svelte` · `gunluk-hareketler.md` |
-| Rezervasyon & Ciro (`ciro`) | Acente × Durum kırılımı (drill-down) | bu doküman §5b |
-| Alınan Avanslar (`avans`) | Avans mahsup durumu | bu doküman |
-| Satış Faturaları (`fatura`) | Projeksiyon faturaları | bu doküman |
-| Nakit Akım (`nakit`) | Vadeli tahsilat projeksiyonu + runway | bu doküman |
+| Doluluk (`doluluk`, varsayılan) | Yıllık aylık doluluk barları (gerçekleşen lacivert + ileri çizgili pirinç), ay satırına tıkla → günlük görünüm (masaüstü sütun / mobil satır), bugün kırmızı işaretli; üstte 3 chip (bugün / cari ay / yıl ort.) | `OccupancyPanel.svelte` · bu doküman §5c |
+| Acenteler (`acente`) | Acente Dağılımı — Bireysel / Gruplu (grup satırı → üyeler açılır), pay bazlı bar + toplam | `AgencyDistributionPanel.svelte` |
+| Günlük Hareketler (`hareket`) | Son 14 günün gün kartları (gelen/iptal/net) → tıklayınca Aylık Doluluk Etkisi + hareket listesi (Sedna canlı) | `DailyMovesPanel.svelte` · `gunluk-hareketler.md` |
+| Nakit Akım (`nakit`) | Avans/fatura/mahsup/vadesi-geçen KPI'ları + Tahsilat Takvimi (12 ay + devreden) + Acente Avans & Mahsup + Vadesi Geçen Alacaklar | `SalesCashFlowPanel.svelte` · bu doküman §5d |
+| Rezervasyonlar (`rezervasyon`) | Eski Otel Rezervasyon sayfasının TAMAMI (XLS yükleme, KPI, dağılımlar, acente gruplama) | `ReservationsPanel.svelte` · `otel-rezervasyon.md` |
 | Oda Tipleri (`oda`) | Eski Oda Tipleri CRUD'u | `RoomTypesPanel.svelte` · `oda-tipleri.md` |
+| Kontratlar (`kontrat`) | Kontrat arşivi — AYRI izin (`sales.kontratlar` view ile görünür) | `KontratlarPanel.svelte` · `kontratlar.md` |
 
-Panel sekmeleri (rezervasyon/hareket/oda) **tembel mount** edilir ve ziyaret edilince
-mount **kalır** (`visitedTabs` + `hidden` sınıfı) — sekme değişiminde state/veri korunur,
-tekrar fetch yapılmaz. Projeksiyon gövdesi (senaryo barı + KPI) yalnız projeksiyon
-sekmelerinde görünür.
+Tüm sekmeler **tembel mount** edilir ve ziyaret edilince mount **kalır** (`visitedTabs` +
+`hidden` sınıfı) — sekme değişiminde state/veri korunur, tekrar fetch yapılmaz. `year`
+state'i sayfa düzeyinde TEKtir (tasarım kararı): Doluluk / Acenteler / Nakit Akım
+sekmelerindeki yıl seçicileri aynı değeri paylaşır. "Acente Ayarları" (vade + kickback)
+modalı PageHeader'da korunur — Tahsilat Takvimi'nin vade girdisi buradan düzenlenir.
+
+**§5c Doluluk verisi:** `GET /sales/reservations/occupancy-overview?year=` (yeni,
+2026-07-19) — 12 ayın oda-gece toplamı `past_nights` (gece tarihi ≤ bugün, İstanbul TZ) /
+`future_nights` kırılımıyla + chip alanları (`today_rooms/today_pct`, `current_month`,
+`year_pct`). Günlük görünüm mevcut `daily-occupancy?month=` endpoint'ini kullanır.
+Gece dağıtımı `summary` ile birebir aynı (generate_series).
+
+**§5d Nakit Akım payload ekleri (2026-07-19, `compute_settlement`):**
+- `cashflow.calendar.months[12]`: `{total, collected, overdue, pending, cumulative}` —
+  collected yalnız CARİ AYDAN ÖNCEKİ aylarda (tahsil edildi varsayımı), pending cari+ileri
+  aylarda, `overdue` GERÇEK hak ediş gecikmesi (aşağıda). Kümülatif salt tahsilat koşan
+  toplamı; `calendar.devreden` = `cashflow.tail`. Kırmızı KIRPILMAZ — projeksiyon (coll)
+  ile muhasebe (overdue) ayrı kaynak, kırpmak KPI mutabakatını bozar.
+- `overdue.{total,rows}`: `compute_receivables` grup satırlarının `overdue_tl` değeri
+  güncel kurla EUR'a çevrilir (avanslarla aynı yöntem); satırda `max_days` +
+  `oldest_due_month`. Vade AYINA dağıtım: geçmiş aya düşen açık vade → o ay; artan
+  (cari ay içinde geçen) → cari ay; yıl öncesinden devreden → Ocak. Yalnız
+  `year == bugünün yılı` iken hesaplanır (geçmiş/gelecek yıl seçiminde boş).
 
 **Hak Ediş'ten (finance.hakedis) farkı:** Hak Ediş **gerçek** muhasebe faturalarının
 (120, TL) yaşlandırmasıdır — bugüne kadar kesilmiş fatura + tahsilat. Bu modül ise
@@ -59,12 +86,19 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 **Frontend:**
 - `src/routes/dashboard/satis/acente-mahsup/+page.svelte` — 8 sekmeli birleşik sayfa +
   senaryo girdileri + Acente Ayarları modalı.
+- `src/lib/components/sales/OccupancyPanel.svelte` — Doluluk sekmesi (aylık/günlük görünüm).
+- `src/lib/components/sales/AgencyDistributionPanel.svelte` — Acenteler sekmesi (Bireysel/Gruplu).
+- `src/lib/components/sales/DailyMovesPanel.svelte` — Günlük Hareketler sekmesi (gün kartları;
+  eski `DailyActivityPanel.svelte` 2026-07-19 basit tasarımla SİLİNDİ — git geçmişinde durur).
+- `src/lib/components/sales/SalesCashFlowPanel.svelte` — Nakit Akım sekmesi.
+- `src/lib/utils/salesDesign.ts` — panellerin ortak saf yardımcıları (eurCompact, grup rollup,
+  konaklama-gece yayılımı, çizgili doku) + `salesDesign.test.ts` (16 vitest).
 - `src/lib/components/sales/ReservationsPanel.svelte` — Rezervasyonlar sekmesi (eski otel-rezervasyon sayfası).
-- `src/lib/components/sales/DailyActivityPanel.svelte` — Günlük Hareketler sekmesi.
 - `src/lib/components/sales/RoomTypesPanel.svelte` — Oda Tipleri sekmesi.
 - `src/lib/config/navigation.ts` — Satış grubunda TEK NavItem (`I.scale` ikon).
 
-**Test:** `backend/tests/test_acente_mahsup.py` (RBAC + shape + projeksiyon matematiği).
+**Test:** `backend/tests/test_acente_mahsup.py` (RBAC + shape + projeksiyon matematiği +
+tahsilat takvimi/overdue) · `backend/tests/test_reservations.py::test_occupancy_overview_*`.
 
 ## 3. Veri Kaynakları (gerçek veri + senaryo)
 
@@ -95,7 +129,8 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
-| GET | `/api/sales/acente-mahsup/` | `sales.acente_mahsup` view | Projeksiyon payload'ı. Query: `year`, `year_target` (EUR, boş=gerçek), `opening_cash` (EUR). 60sn TTL cache. |
+| GET | `/api/sales/acente-mahsup/` | `sales.acente_mahsup` view | Projeksiyon payload'ı (+`cashflow.calendar` ve `overdue` blokları, §5d). Query: `year`, `year_target` (EUR, boş=gerçek), `opening_cash` (EUR) — son ikisi 2026-07-19 basit tasarımdan beri UI'dan gönderilmez, API'de geri-uyumlu durur. 60sn TTL cache. |
+| GET | `/api/sales/reservations/occupancy-overview` | `sales.acente_mahsup` view | **Doluluk genel bakışı** (2026-07-19): 12 ayın gerçekleşen/ileri oda-gece kırılımı + bugün/cari ay/yıl chip verileri. Query: `year`. |
 | GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir; **`0`=Diğer** = top-N dışı acenteler), **`agency`** (tek ham acente filtresi), **`top_n`** (kök tabloda tek tek gösterilecek en büyük grup sayısı, varsayılan **7**; kalanı "Diğer"). 60sn TTL cache. `compute_agency_status()`. |
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
@@ -104,8 +139,12 @@ Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 
 ## 5b. Acente × Durum Kırılımı (2026-07-08)
 
-"Rezervasyon & Ciro" sekmesine eklenen ikinci görünüm — projeksiyon **değil**, rezervasyonların
-**anlık PMS durumuna** göre acente bazlı dağılımı. Motor: `agency_settlement_service.compute_agency_status()`.
+> **2026-07-19 not:** Bu kırılımın UI'ı ("Rezervasyon & Ciro" sekmesi) basit tasarımla
+> KALDIRILDI; `agency-status` endpoint'i ve motoru geri-uyumluluk için DURUYOR (başka
+> tüketici bağlanabilir). Acente analizi artık "Acenteler" sekmesindedir.
+
+Rezervasyonların **anlık PMS durumuna** göre acente bazlı dağılımı (projeksiyon **değil**).
+Motor: `agency_settlement_service.compute_agency_status()`.
 
 - **Durum → doğal tarih eşlemesi** (kullanıcı kararı 2026-07-08): PMS `reservations.status` alanı üç
   değer taşır → **`Reservation`** = "Gelen rezervasyon" (giriş/`checkin_date`), **`InHouse`** =
@@ -128,23 +167,25 @@ Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
   düzeyinde toplar (top-N sırası ve "Diğer" drill için gerekli). Payload `filter` aktif seçimi,
   `top_n`, `filter_options` (grup+acente tam evreni) taşır.
 
-## 6. Frontend UI Yapısı
+## 6. Frontend UI Yapısı (2026-07-19 basit tasarım)
 
-- **Tasarım kaynağı:** `scratchpad/tasarimlar/Sprenses Tasarımlar/Acente Mahsup & Nakit Akım.dc.html`.
-- **Acente × Durum kırılımı (Rezervasyon & Ciro sekmesi):** granülerlik `SegmentedControl` (Günlük/
-  Aylık/Yıllık) + `day` modunda ay `select`'i; dönem bazlı **yığılı çubuk** grafik (3 durum rengi) +
-  acente × durum tablosu (tutar + adet). Yükleme yalnız sekme aktifken (`$effect` `activeTab==='ciro'`),
-  granülerlik/ay/yıl/**filtre** değişince yeniden çekilir.
-- **Drill-down etkileşimi:** tablo satırları tıklanabilir (`role=button`+`tabindex`+Enter/Space) —
-  grup satırında `<ChevronRight>` göstergesi. `stTrail` breadcrumb yolunu tutar; `drillRow`/`gotoCrumb`
-  ile ileri/geri. Grup/Diğer satırı yeni kök yol, üye satırı yola eklenir; `stFilter` (''/`g:<id>`/
-  `a:<ad>`) fetch'i sürer. Filtreli görünümde tablo ham-acente bazında, aktif tek acente satırı tıklanamaz.
-- **Bileşenler:** PageHeader, StatCard (KPI), SegmentedControl (5 sekme), MoneyInput (senaryo/kickback),
-  Modal + Button (Acente Ayarları), EmptyState, TableSkeleton. Runway grafiği inline SVG (data-viz).
-- **Tema:** lacivert/altın — `teal-700`=lacivert #1b2b45, `brass`=altın #bd9a45 (tema token eşlemesi).
-  Tüm tutarlar `tabular-nums`.
-- **Senaryo:** Yıl (select) + Yıl Sonu Hedefi + Açılış Nakit (MoneyInput EUR) → değişince debounce ile
-  yeniden yüklenir, localStorage'a yazılır.
+- **Tasarım kaynağı:** repo yedeğindeki `Acente Mahsup ve Nakit Akım.zip` (finfdg,
+  commit `a52a789`) — 4 sekmeli dc.html; renkler tema token'larıyla birebir
+  (`teal-700`=#1b2b45 lacivert, `teal-500`=#56719a bar dolgusu, `brass`=#bd9a45,
+  çizgili ileri-doku `salesDesign.FUTURE_STRIPE`).
+- **Sayfa iskeleti:** PageHeader (+Acente Ayarları) → Doluluk chip'leri (StatCard ×3,
+  yalnız Doluluk sekmesinde; mobilde snap-scroll + nokta göstergesi) → **alt-çizgili sekme
+  barı** (tasarım deseni; SegmentedControl değil) → aktif panel. Sekmeler keep-alive.
+- **Paneller:** her tasarım sekmesi kendi bileşeninde (`OccupancyPanel` /
+  `AgencyDistributionPanel` / `DailyMovesPanel` / `SalesCashFlowPanel`) — kendi fetch'i,
+  `tick` prop'u (sayfadan canlı-yenileme tetiği) ve ortak `year` prop'u ile.
+- **Bileşenler:** PageHeader, StatCard (chip + Nakit KPI), SegmentedControl (Günlük/Aylık,
+  Bireysel/Gruplu), MoneyInput (kickback), Modal + Button (Acente Ayarları), EmptyState,
+  TableSkeleton. Tüm tutarlar `tabular-nums`; kompakt EUR `salesDesign.eurCompact`
+  ("1,23 M €" tasarım biçimi).
+- **Kaldırılan (2026-07-19):** senaryo barı (hedef/açılış nakit + localStorage), funnel,
+  hedef ilerleme çubuğu, runway SVG'si, projeksiyon fatura tablosu, Acente × Durum
+  drill-down UI'ı, eski `DailyActivityPanel`.
 
 ## 7. Audit Log Entegrasyonu
 

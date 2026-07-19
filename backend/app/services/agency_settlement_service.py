@@ -171,6 +171,12 @@ def compute_settlement(
 
     adv_received: dict = {gid: 0.0 for gid in gmeta}   # EUR
     adv_consumed: dict = {gid: 0.0 for gid in gmeta}   # EUR (faturayla mahsup)
+    # Vadesi geçen alacaklar (GERÇEK, hak ediş vade katmanından — EUR'ya güncel kurla)
+    ovd_amount: dict = {gid: 0.0 for gid in gmeta}     # EUR
+    ovd_max_days: dict = {gid: 0 for gid in gmeta}
+    ovd_oldest_month: dict = {gid: None for gid in gmeta}  # 'YYYY-MM' en eski vadesi geçmiş ay
+    ovd_by_month = [0.0] * 12                          # seçili yıl ayına göre vadesi geçen (EUR)
+    cur_key = f"{today.year}-{today.month:02d}"
     rec = compute_receivables(db, today)
     for f in rec.get("firms", []):
         if f.get("is_group") and str(f.get("code", "")).startswith("group-"):
@@ -184,8 +190,40 @@ def compute_settlement(
             gid = _OTHER_ID  # gruba bağlı olmayan muhasebe firması → Diğer
         adv_received[gid] += _to_eur(f.get("advance_received_tl", 0))
         adv_consumed[gid] += _to_eur(f.get("advance_consumed_tl", 0))
+
+        # Vadesi geçen: overdue_tl (gün hassasiyetli gerçek gecikme) → EUR; takvim (red
+        # segmenti) için vade AYINA dağıtılır. Geçmiş aya düşen açık vade tanım gereği
+        # gecikmiştir; artan kısım (cari ay içinde vadesi geçenler) cari aya yazılır —
+        # böylece Σ kırmızı = vadesi geçen KPI toplamı ile birebir uyuşur.
+        ovd_eur = _to_eur(f.get("overdue_tl", 0))
+        if ovd_eur > 0.005 and year == today.year:
+            ovd_amount[gid] += ovd_eur
+            ovd_max_days[gid] = max(ovd_max_days[gid], int(f.get("max_overdue_days", 0) or 0))
+            left = ovd_eur
+            for e in f.get("monthly_due", []):
+                mk = e.get("month") or ""
+                if mk >= cur_key:
+                    continue  # cari/ileri ay — henüz ay bazında gecikmedi
+                part = min(left, _to_eur(e.get("due_tl", 0)))
+                if part <= 0:
+                    continue
+                if ovd_oldest_month[gid] is None or mk < ovd_oldest_month[gid]:
+                    ovd_oldest_month[gid] = mk
+                try:
+                    mky, mkm = int(mk[:4]), int(mk[5:7])
+                except (ValueError, IndexError):
+                    mky, mkm = year, 1
+                mi = (mkm - 1) if mky == year else 0  # yıl öncesinden devreden gecikme → Ocak
+                ovd_by_month[mi] += part
+                left = round(left - part, 2)
+            if left > 0.005:  # cari ay içinde vadesi geçmiş kısım
+                mi = today.month - 1
+                ovd_by_month[mi] += left
+                if ovd_oldest_month[gid] is None:
+                    ovd_oldest_month[gid] = cur_key
     adv_received = {k: round(v, 2) for k, v in adv_received.items()}
     adv_consumed = {k: round(v, 2) for k, v in adv_consumed.items()}
+    ovd_amount = {k: round(v, 2) for k, v in ovd_amount.items()}
 
     # ── Acente tablosu (tab 1) ───────────────────────────────
     agencies = []
@@ -290,6 +328,47 @@ def compute_settlement(
     tail = round(coll[12] + coll[13] + coll[14], 2)
     in_total = round(sum(coll[start_m:12]), 2)
 
+    # ── Tahsilat Takvimi (basit tasarım, 2026-07-19): 12 ayın TAMAMI ─────
+    # Ay çubuğu 3 segment: tahsil edildi (geçmiş ay, lacivert) · vadesi geçen
+    # (GERÇEK hak ediş gecikmesi, kırmızı) · bekleyen/vadeli (cari + ileri ay,
+    # çizgili). Kümülatif salt tahsilat toplamıdır (açılış bakiyesi karışmaz).
+    # Kırmızı kırpılmaz — projeksiyon (coll) ile muhasebe (overdue) ayrı
+    # kaynaklardır; kırpmak Σkırmızı = Vadesi Geçen KPI mutabakatını bozar.
+    cal_months = []
+    cal_cum = 0.0
+    for t in range(12):
+        total_t = round(coll[t], 2)
+        red = round(ovd_by_month[t], 2)
+        is_past = (year < today.year) or (year == today.year and t + 1 < today.month)
+        collected = round(max(0.0, total_t - red), 2) if is_past else 0.0
+        pending = 0.0 if is_past else round(max(0.0, total_t - red), 2)
+        cal_cum = round(cal_cum + total_t, 2)
+        cal_months.append({
+            "month": t + 1,
+            "name": _MONTHS_SHORT[t],
+            "total": total_t,
+            "collected": collected,
+            "overdue": red,
+            "pending": pending,
+            "cumulative": cal_cum,
+        })
+
+    # ── Vadesi Geçen Alacaklar (gerçek, grup bazlı) ──────────
+    overdue_rows = []
+    for gid in gmeta:
+        if ovd_amount[gid] <= 0.005:
+            continue
+        overdue_rows.append({
+            "agency_id": gid,
+            "agency": gmeta[gid]["name"],
+            "color": gmeta[gid]["color"],
+            "amount": ovd_amount[gid],
+            "max_days": ovd_max_days[gid],
+            "oldest_due_month": ovd_oldest_month[gid],
+        })
+    overdue_rows.sort(key=lambda r: -r["amount"])
+    overdue_total = round(sum(r["amount"] for r in overdue_rows), 2)
+
     # Runway grafiği için pencere bakiyeleri (açılış + start_m..Ara)
     chart_balances = [balances[0]] + [balances[t + 1] for t in range(start_m, 12)]
     chart_labels = ["Açılış"] + [_MONTHS_SHORT[t] for t in range(start_m, 12)]
@@ -388,12 +467,17 @@ def compute_settlement(
             "total_net": inv_net_total,
             "rows": invoices,
         },
+        "overdue": {
+            "total": overdue_total,
+            "rows": overdue_rows,
+        },
         "cashflow": {
             "opening": round(opening_cash, 2),
             "closing": balances[12],
             "in_total": in_total,
             "tail": tail,
             "kickback_total": kickback_total,
+            "calendar": {"months": cal_months, "devreden": tail},
             "rows": cf_rows,
             "chart": {
                 "balances": chart_balances,

@@ -328,6 +328,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/sales/reservations/` — Paginated liste (start_date, end_date, agency, nation, room_type, rez_status, search)
 - `GET /api/sales/reservations/summary` — Dashboard KPI + dağılımlar + **doluluk metrikleri** (total_capacity, occupancy_pct, aylık/tip başına doluluk)
 - `GET /api/sales/reservations/daily-occupancy?month=YYYY-MM` — Aylık drill-down: günlük doluluk + check-in/out sayıları (takvim heatmap için)
+- `GET /api/sales/reservations/occupancy-overview?year=` — Doluluk sekmesi genel bakışı (2026-07-19): 12 ayın oda-gece toplamı gerçekleşen/ileri kırılımıyla (`past_nights`/`future_nights`, İstanbul-TZ bugün) + bugün/cari ay/yıl ortalaması chip verileri
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md`
 
 ### Satış — Günlük Hareketler (gelen rezervasyon / iptal akışı)
@@ -373,7 +374,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md` (acente gruplama bölümü)
 
 ### Satış — Acente Mahsup & Nakit Akım (projeksiyon panosu — birleşik satış sayfasının projeksiyon sekmeleri)
-- `GET /api/sales/acente-mahsup/` — Rezervasyon cirosu (EUR, çıkış ayında tanınır) + acente konfigü (vade/kickback) + gerçek avanslar + yıl sonu hedef senaryosu → 5 sekmelik projeksiyon (funnel, acente tablosu, aylık ciro, projeksiyon faturaları, nakit akım). Query: `year`, `year_target` (boş=gerçek), `opening_cash`. Salt-okuma (`sales.acente_mahsup` view), 60sn TTL cache, onaydan muaf. Hak Ediş'ten bağımsız ileri projeksiyon. Detay: `docs/modules/acente-mahsup.md`
+- `GET /api/sales/acente-mahsup/` — Rezervasyon cirosu (EUR, çıkış ayında tanınır) + acente konfigü (vade/kickback) + gerçek avanslar → projeksiyon payload'ı; **2026-07-19 ekleri:** `cashflow.calendar` (Tahsilat Takvimi — 12 ay collected/overdue/pending + kümülatif + devreden) ve `overdue` (grup bazlı GERÇEK vadesi geçen alacaklar, hak ediş gecikmesinden EUR). Query: `year`, `year_target` (boş=gerçek), `opening_cash` — son ikisi artık UI'dan gönderilmez (geri-uyumlu). Salt-okuma (`sales.acente_mahsup` view), 60sn TTL cache, onaydan muaf. Hak Ediş'ten bağımsız ileri projeksiyon. Detay: `docs/modules/acente-mahsup.md`
 
 ### Finans — Banka Talimatları (PDF üretim)
 - `POST /api/finance/bank-instructions/transfer` — EFT/Havale/Transfer PDF'i (kaynak/hedef hesap + tutar)

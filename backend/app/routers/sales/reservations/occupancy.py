@@ -1,9 +1,11 @@
-"""Otel günlük doluluk endpoint'i — aylık bar'ın drill-down'ı."""
+"""Otel günlük doluluk endpoint'leri — yıllık genel bakış + aylık bar'ın drill-down'ı."""
 
 import calendar
 from datetime import date as date_cls
+from datetime import datetime
 from typing import Optional
 
+import pytz
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
@@ -18,6 +20,115 @@ from app.schemas.reservation import DailyOccupancyResponse, DailyOccupancyRow
 from ._helpers import _apply_filters
 
 router = APIRouter()
+
+# Tarih-kritik "bugün" hesapları İstanbul-açık yapılır (sunucu UTC — CLAUDE.md kuralı)
+_TZ_ISTANBUL = pytz.timezone("Europe/Istanbul")
+
+
+def _capacity(db: Session) -> int:
+    """Aktif oda tiplerinin toplam oda sayısı (otelin fiziksel kapasitesi)."""
+    return int(
+        db.query(func.coalesce(func.sum(RoomType.total_rooms), 0))
+        .filter(RoomType.is_active.is_(True))
+        .scalar() or 0
+    )
+
+
+@router.get("/occupancy-overview")
+def occupancy_overview(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("sales.acente_mahsup", "view")),
+):
+    """Doluluk genel bakışı — yeni Doluluk sekmesinin tek-istek veri kaynağı.
+
+    Seçili yılın 12 ayı için oda-gece toplamı, GERÇEKLEŞEN (gece tarihi ≤ bugün)
+    ve İLERİ REZERVASYON (gece tarihi > bugün) kırılımıyla döner; üstteki özet
+    kartları (bugün / cari ay / yıl ortalaması) için her zaman GERÇEK bugüne göre
+    hesaplanan değerler de taşınır. Aylık dağıtım gece bazlıdır (generate_series)
+    — `reservations/summary` ile birebir aynı yöntem.
+    """
+    today = datetime.now(_TZ_ISTANBUL).date()
+    y = year or today.year
+
+    total_capacity = _capacity(db)
+
+    # ── Seçili yılın ayları: oda-gece toplam + gerçekleşen/ileri kırılımı ──
+    month_rows = db.execute(
+        text("""
+            SELECT
+                EXTRACT(MONTH FROM gs)::int AS m,
+                COALESCE(SUM(r.rooms), 0)::int AS room_nights,
+                COALESCE(SUM(CASE WHEN gs::date <= :today THEN r.rooms ELSE 0 END), 0)::int AS past_nights
+            FROM reservations r
+            JOIN LATERAL generate_series(
+                r.checkin_date::timestamp,
+                (r.checkout_date - INTERVAL '1 day')::timestamp,
+                INTERVAL '1 day'
+            ) AS gs ON TRUE
+            WHERE EXTRACT(YEAR FROM gs) = :year
+            GROUP BY m
+        """),
+        {"year": y, "today": today},
+    ).fetchall()
+    by_month = {int(r[0]): (int(r[1] or 0), int(r[2] or 0)) for r in month_rows}
+
+    months = []
+    year_room_nights = 0
+    year_capacity_nights = 0
+    for m in range(1, 13):
+        rn, past = by_month.get(m, (0, 0))
+        cap_nights = total_capacity * calendar.monthrange(y, m)[1]
+        year_room_nights += rn
+        year_capacity_nights += cap_nights
+        months.append({
+            "month": m,
+            "room_nights": rn,
+            "past_nights": past,
+            "future_nights": max(rn - past, 0),
+            "capacity_nights": cap_nights,
+            "occupancy_pct": round(rn / cap_nights * 100, 2) if cap_nights > 0 else 0.0,
+        })
+
+    # ── Özet kartları: bugün + cari ay (seçili yıldan bağımsız, gerçek bugün) ──
+    today_rooms = int(
+        db.query(func.coalesce(func.sum(Reservation.rooms), 0))
+        .filter(Reservation.checkin_date <= today, Reservation.checkout_date > today)
+        .scalar() or 0
+    )
+    cm_row = db.execute(
+        text("""
+            SELECT COALESCE(SUM(r.rooms), 0)::int
+            FROM reservations r
+            JOIN LATERAL generate_series(
+                r.checkin_date::timestamp,
+                (r.checkout_date - INTERVAL '1 day')::timestamp,
+                INTERVAL '1 day'
+            ) AS gs ON TRUE
+            WHERE EXTRACT(YEAR FROM gs) = :ty AND EXTRACT(MONTH FROM gs) = :tm
+        """),
+        {"ty": today.year, "tm": today.month},
+    ).scalar()
+    cm_nights = int(cm_row or 0)
+    cm_cap_nights = total_capacity * calendar.monthrange(today.year, today.month)[1]
+
+    return {
+        "year": y,
+        "today": today.isoformat(),
+        "capacity": total_capacity,
+        "today_rooms": today_rooms,
+        "today_pct": round(today_rooms / total_capacity * 100, 2) if total_capacity > 0 else 0.0,
+        "current_month": {
+            "month": today.month,
+            "room_nights": cm_nights,
+            "capacity_nights": cm_cap_nights,
+            "occupancy_pct": round(cm_nights / cm_cap_nights * 100, 2) if cm_cap_nights > 0 else 0.0,
+        },
+        "months": months,
+        "year_room_nights": year_room_nights,
+        "year_capacity_nights": year_capacity_nights,
+        "year_pct": round(year_room_nights / year_capacity_nights * 100, 2) if year_capacity_nights > 0 else 0.0,
+    }
 
 
 @router.get("/daily-occupancy")
@@ -54,11 +165,7 @@ def daily_occupancy(
     month_end = date_cls(y, m, last_day)
 
     # ── Toplam kapasite (sabit payda) ──────────────────────
-    total_capacity = int(
-        db.query(func.coalesce(func.sum(RoomType.total_rooms), 0))
-        .filter(RoomType.is_active.is_(True))
-        .scalar() or 0
-    )
+    total_capacity = _capacity(db)
 
     # ── Filtre kapsamındaki rez ID'leri (aya değen) ────────
     base_q = _apply_filters(

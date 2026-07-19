@@ -5,8 +5,16 @@
 > ve `sales.room_types` modülleri kaldırıldı (migration `b3c9d5e7f1a2`); bu paketteki TÜM
 > router'lar `require_permission("sales.acente_mahsup", "view"|"use")` kullanır ve
 > `room_types` onayı executor'da `sales.acente_mahsup` anahtarıyla çalışır. Router/endpoint
-> path'leri DEĞİŞMEDİ. UI tek sayfa: `/dashboard/satis/acente-mahsup` (8 sekme; eski üç
-> sayfa `lib/components/sales/{Reservations,DailyActivity,RoomTypes}Panel.svelte` sekmeleri oldu).
+> path'leri DEĞİŞMEDİ. UI tek sayfa: `/dashboard/satis/acente-mahsup`.
+>
+> **2026-07-19 BASİT TASARIM (kullanıcı yüklemesi — repo'daki "Acente Mahsup ve Nakit
+> Akım.zip"):** Sayfa 4 tasarım sekmesi (Doluluk · Acenteler · Günlük Hareketler · Nakit
+> Akım — `lib/components/sales/{Occupancy,AgencyDistribution,DailyMoves,SalesCashFlow}Panel.svelte`)
+> + 3 işlevsel sekme (Rezervasyonlar · Oda Tipleri · Kontratlar) olarak yeniden kuruldu.
+> Eski projeksiyon sekmeleri (Genel Bakış/Ciro/Avanslar/Faturalar) ve senaryo barı UI'dan
+> kalktı; `DailyActivityPanel`+`MonthlyOccupancyChart` silindi. Backend eklemeleri:
+> `occupancy-overview` endpoint'i (occupancy.py) + `compute_settlement`'ta
+> `cashflow.calendar`/`overdue` blokları. Detay: `docs/modules/acente-mahsup.md`.
 
 Router paketleri: `reservations/` (otel rezervasyon + günlük hareketler), `room_types`,
 `agency_groups`, `acente_mahsup` (projeksiyon panosu). Bu dosya satış
@@ -19,7 +27,12 @@ modülüne katkı kurallarını içerir.
 - Motor: `services/agency_settlement_service.compute_settlement()` — rezervasyon cirosu (EUR,
   **çıkış ayında** tanınır) + `agency_groups` konfigü (`term_days`/`kickback_percent`) + gerçek
   avanslar (`receivable_service.compute_receivables` grup satırları, güncel kurla EUR) + yıl sonu
-  hedef senaryosu → 5 sekmelik payload.
+  hedef senaryosu → payload. **2026-07-19 ekleri:** `cashflow.calendar` (12 ayın tamamı —
+  collected/pending cari aya göre, `overdue` = compute_receivables `overdue_tl`+`monthly_due`
+  gerçek gecikmesi güncel kurla EUR; kırmızı KIRPILMAZ ki ΣKırmızı = Vadesi Geçen KPI'sıyla
+  mutabık kalsın) ve `overdue.{total,rows}` (grup bazlı, `max_days` + `oldest_due_month`;
+  yalnız `year == bugünün yılı`). `year_target`/`opening_cash` paramları UI'dan artık
+  gönderilmez ama API'de geri-uyumlu durur.
 - **Vade/kickback konfigü `agency_groups`'tadır** (bu modül eklerken 2 kolon eklendi); düzenleme
   mevcut `PATCH /agency-groups/{id}` (`sales.acente_mahsup` use) ile. Yeni mutasyon endpoint'i
   eklenmedi → ayrı executor handler gerekmez.
@@ -53,7 +66,9 @@ modülüne katkı kurallarını içerir.
 ## Yapı
 
 - `reservations/` paketi: `uploads` (XLS yükleme + RecId upsert + `removal_candidates`),
-  `listing`, `summary` (KPI + doluluk), `occupancy` (günlük drill-down),
+  `listing`, `summary` (KPI + doluluk), `occupancy` (**`occupancy-overview`** — Doluluk
+  sekmesinin yıllık gerçekleşen/ileri kırılımı + chip verileri, İstanbul-TZ "bugün";
+  `daily-occupancy` günlük drill-down),
   `daily_activity` (**Günlük Hareketler** — `sales/__init__.py`'de AYRI prefix
   `/daily-activity` ile bağlanır (izin: `sales.acente_mahsup` view);
   Sedna CANLI gelen/iptal akışı, yerel tablo yok — iptal tarihçesi senkronda silindiğinden

@@ -12,7 +12,7 @@
 |---|---|
 | **Modül kodu** | `sales.acente_mahsup` (eski: `sales.daily_reservations`) |
 | **Üst modül** | Satış (`sales`) |
-| **Frontend** | `/dashboard/satis/acente-mahsup?tab=hareket` (`lib/components/sales/DailyActivityPanel.svelte`) |
+| **Frontend** | `/dashboard/satis/acente-mahsup?tab=hareket` (`lib/components/sales/DailyMovesPanel.svelte` — 2026-07-19 basit tasarım) |
 | **Backend prefix** | `/api/sales/daily-activity` |
 | **İzin kodu** | `sales.acente_mahsup` (tüm endpoint'ler `view`) |
 | **Veri kaynağı** | **Sedna önbüro (canlı)** — yerel tablo YOK |
@@ -51,7 +51,7 @@ kalıbıyla **Sedna'dan canlı sorgular** (model/migration/senkron yok, geçmiş
 | Router | `backend/app/routers/sales/reservations/daily_activity.py` |
 | Router kaydı | `backend/app/routers/sales/__init__.py` (`prefix="/daily-activity"`) |
 | Migration | `backend/alembic/versions/a7c4e2b9d1f3_add_daily_reservations_module.py` (yalnız modül + Admin izni; tablo yok) |
-| Frontend | `frontend/src/lib/components/sales/DailyActivityPanel.svelte` |
+| Frontend | `frontend/src/lib/components/sales/DailyMovesPanel.svelte` (+ `lib/utils/salesDesign.ts` yardımcıları) |
 | Navigasyon | `frontend/src/lib/config/navigation.ts` (sales grubu, calendarDays ikonu) |
 | Test | `backend/tests/test_daily_activity.py` (16 test — fetch mock'lanır) |
 
@@ -76,45 +76,29 @@ sorgu pymssql %-tuzağına karşı parametresiz `format()` ile kurulur (diğer S
 - **Onay akışı kapsam dışı:** modül salt-okunur (yalnız GET) — `check_approval()` gerekmez.
 - **Audit:** GET endpoint'leri audit'lenmez (sistem genel kuralı); mutasyon yok.
 
-## Frontend UI Yapısı
+## Frontend UI Yapısı (2026-07-19 basit tasarım — `DailyMovesPanel.svelte`)
 
-Kanonik liste iskeleti (tasarım sistemi): PageHeader → StatCard×4 → filtre barı → içerik → modal.
+> **2026-07-19:** Eski `DailyActivityPanel.svelte` (StatCard×4 + dönem filtresi + çift tablo +
+> drill-down modal + `MonthlyOccupancyChart`) basit tasarımla KALDIRILDI (git geçmişinde durur).
+> Yerine tasarım zip'indeki **gün kartları** düzeni geldi. Backend endpoint'leri değişmedi.
 
-- **PageHeader** + actions: Yenile (`Button variant="secondary"` + RefreshCw, `loading`)
-- **StatCard'lar:** Gelen Rezervasyon (teal, gece·misafir hint) · İptal (red, ciro + oran hint) ·
-  Net Rezervasyon (blue) · Net Ciro Etkisi (emerald, negatifse red)
-- **Filtre barı:** hızlı dönem chip'leri (Son 7/14/30 Gün, Bu Ay — teal-700 aktif) + custom
-  `start → end` date input (değişince `quick='custom'`); sağda gün + hareket sayısı
-- **Desktop tablo:** iki seviyeli başlık — "Gelen Rezervasyonlar" (teal-50 zemin) 4 kolon
-  (Adet/Gece/Misafir/Ciro €), "İptaller" (red-50) 4 kolon, "Net" 2 kolon. Adet hücreleri
-  tıklanır → drill-down modal. Bugün satırı `bg-teal-50/40` + "Bugün" rozeti. tfoot dönem toplamı.
-- **Mobil (`<md`):** tablo → günlük kartlar (yalnız hareketli günler); Gelen/İptal kutuları tıklanır
-- **Drill-down modal** (`max-w-4xl`): "Gelenler (n)" / "İptaller (m)" sekme toggle'ı; tablo:
-  **# (sıra no, `{#each}` index+1)** · Voucher · Acente (sonradan-iptal rozeti burada) · Ülke · Oda · Pansiyon · Konaklama
-  (giriş→çıkış, gece; iptallerde "Kayıt: … · girişe X gün kala iptal") · Pax · Tutar €
-  (EUR-dışı ham tutar alt satırda) — misafir adı kolonu bilinçli olarak yoktur
-  - **Yapışkan başlık HÜCRE bazlı (2026-07-07):** sticky `tr`'de değil her `th`'de
-    (`sticky top-0 z-10 bg-gray-50 border-b`) — iOS Safari `tr`-sticky'nin arka planını
-    boyamıyordu, kayan satırlar başlığın üzerinden görünüyordu (vardiya-çizelgesi deseni)
-- **Aylık Doluluk Etkisi grafiği** (`MonthlyOccupancyChart.svelte`, modal tablosunun üstünde):
-  Otel Rezervasyon'daki "Aylık Doluluk Dağılımı" tarzı **yatay bar** (photo-2 stili). Her ay için
-  otelin o ayki **mevcut doluluğu** lacivert (`bg-teal-700`) çubukla çizilir; tıklanan günün o aya
-  kattığı **oda-gece** çubuğun **UCUNDA farklı renkle** vurgulanır — gelen = pirinç/altın
-  (`bg-brass`), iptal = kırmızı (`bg-red-500`).
-  - **Taban veri:** `/sales/reservations/summary` (`monthly[]` = `capacity_nights`/`room_nights`/
-    `occupancy_pct` + `kpi.total_capacity`). Modal ilk açılışta **tek sefer** çekilir (`occLoaded`
-    guard), tıklanan güne bağlı değil → yeniden kullanılır. İzin: `sales.hotel_reservation` view —
-    yoksa **403 sessiz** (console.error, toast yok), grafik yalnız bugünün katkısını gösterir
-    (uyarı satırı belirir). `403` dışı hata → toast.
-  - **Bugünün katkısı** `detailItems`'tan istemci tarafında hesaplanır (her gece ilgili ayın
-    kovasına +1 oda-gece). Segment yerleşimi: **gelen** → tip mevcut doluluğun İÇİNDE, ucunda
-    (`navy = occ−today`, `brass = today`); **iptal** → dolulukta olmadığından çubuğun ARDINA
-    (kayıp) eklenir (`navy = occ`, `red = today`, `≤100` kırpılır). Sekme değişince
-    (`mode={detailTab}`) grafik de gelen↔iptal etkisine döner.
-  - Renkler `@theme` token'larından gelir → lacivert/altın tema ile uyumlu. Hover `title`'ı
-    ay bazında mevcut/kapasite oda-gece + bugünün delta'sını (rez adedi dahil) verir.
-- **Durumlar:** loading `TableSkeleton` · Sedna yok / hareket yok `EmptyState` · hata `console.error` + toast
-- Tutar formatı: tabloda `Intl` EUR 0 hane (`tabular-nums`), modalda 2 hane
+- **Kapsam:** sabit **son 14 gün** (`RANGE_DAYS`), en yeni gün üstte; başlıkta
+  "Son 14 gün · X gelen · Y iptal" özeti. Dönem filtresi yok (sadeleştirme — tasarım kararı).
+- **Gün kartı:** tarih `DD.MM Gün` + bugünde pirinç "Bugün" rozeti; sağda net ciro (±€);
+  altta iki kutu — **Gelen** (teal-50) "n rez · €c", **İptal** (red-50; hareket yoksa
+  `opacity-45` + "iptal yok"). Kart tıklanınca açılır (border-brass + gölge).
+- **Açık kart detayı:**
+  - **Aylık Doluluk Etkisi:** konaklama geceleri aylara yayılır (`salesDesign.spreadStayMonths`,
+    1 oda/rezervasyon varsayımı — Sedna satırında oda sayısı yok); taban doluluk
+    `occupancy-overview?year=` (yıl başına 1 fetch, panel içinde cache). Bar: lacivert mevcut
+    (taban − gelen), pirinç gelen katkısı, kırmızı iptal kaybı; sağda %doluluk + `+g −i gece`.
+  - **Hareket listesi:** rozet (Gelen pirinç / İptal kırmızı) + acente + `aralık · gece · kişi`
+    alt satırı + tutar. Aynı gün gelen+iptal kayıt iki satır olur (net 0 — doğru davranış).
+    Misafir adı bilinçli olarak YOK (kişisel veri).
+- **Durumlar:** loading `TableSkeleton` · Sedna yok `EmptyState` (503 mesajı gösterilir) ·
+  hata `console.error` + toast. Canlı yenileme sayfanın `tick` prop'u ile (useLiveRefetch).
+- Not: `MonthlyOccupancyChart.svelte` de tüketicisi kalmadığından silindi (2026-07-19) —
+  eşdeğer görselleştirme `DailyMovesPanel` içindedir.
 
 ## Geliştirme Kuralları
 

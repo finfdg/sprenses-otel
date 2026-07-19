@@ -39,12 +39,17 @@ class TestRBAC:
         r = client.get(f"{API}/?year=2026&opening_cash=1000", headers=auth_headers)
         assert r.status_code == 200, r.text
         body = r.json()
-        for key in ("kpi", "funnel", "agencies", "monthly", "advances", "invoices", "cashflow"):
+        for key in ("kpi", "funnel", "agencies", "monthly", "advances", "invoices",
+                    "cashflow", "overdue"):
             assert key in body, f"eksik blok: {key}"
         assert body["currency"] == "EUR"
         assert len(body["monthly"]) == 12
         for k in ("grand_total", "realized", "forecast", "advance_received", "kickback_total"):
             assert k in body["kpi"]
+        # Basit tasarım (2026-07-19): Tahsilat Takvimi + Vadesi Geçen blokları
+        cal = body["cashflow"]["calendar"]
+        assert len(cal["months"]) == 12 and "devreden" in cal
+        assert set(body["overdue"].keys()) == {"total", "rows"}
 
 
 class TestProjectionMath:
@@ -114,6 +119,40 @@ class TestProjectionMath:
         # fatura toplamı = net + mahsup
         inv = out["invoices"]
         assert abs(inv["total_amount"] - (inv["total_net"] + inv["total_mahsup"])) < 0.05
+
+    def test_collection_calendar(self, db):
+        """Tahsilat Takvimi (basit tasarım): 12 ayın tamamı, tahsil edildi/bekleyen
+        ayrımı cari aya göre; kümülatif = ay toplamlarının koşan toplamı;
+        devreden = cashflow.tail. Test ortamında hak ediş faturası yok → overdue 0
+        ve collected+pending == total birebir sağlanır."""
+        self._seed(db)
+        out = compute_settlement(db, 2026, year_target=None,
+                                 opening_cash=0, today=self.TODAY)
+        cal = out["cashflow"]["calendar"]
+        months = cal["months"]
+        assert [m["month"] for m in months] == list(range(1, 13))
+        cum = 0.0
+        for m in months:
+            if m["month"] < self.TODAY.month:      # geçmiş ay → tahsil edildi varsayımı
+                assert m["pending"] == 0.0
+            else:                                   # cari + ileri ay → bekleyen (vadeli)
+                assert m["collected"] == 0.0
+            assert m["overdue"] == 0.0              # test ortamında gerçek gecikme yok
+            assert abs(m["collected"] + m["pending"] - m["total"]) < 0.01
+            cum = round(cum + m["total"], 2)
+            assert abs(m["cumulative"] - cum) < 0.01
+        assert cal["devreden"] == out["cashflow"]["tail"]
+        # TESTGRP 30 gün vade: Haz çıkışı (1000) → Tem tahsilatı; Eyl (2000) → Eki
+        by_m = {m["month"]: m for m in months}
+        assert by_m[7]["total"] >= 1000
+        assert by_m[10]["total"] >= 2000
+
+    def test_overdue_block_empty_without_invoices(self, db):
+        self._seed(db)
+        out = compute_settlement(db, 2026, year_target=None,
+                                 opening_cash=0, today=self.TODAY)
+        assert out["overdue"]["total"] == 0.0
+        assert out["overdue"]["rows"] == []
 
 
 class TestAgencyStatus:
