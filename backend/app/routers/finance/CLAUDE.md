@@ -62,6 +62,45 @@ Detay: `docs/modules/nakit-akim.md` + `docs/modules/muhasebe-ik.md`.
 
 ---
 
+## Planlı Bacak `is_matched` Bütünlüğü + Kısmi Tutar Koruması (2026-07-19)
+
+2026-07-19 canlı denetimi "banka↔planlı eşleşmede hedef bacak is_matched=False kalıyor →
+t_account çift sayıyor (Haziran ~€94K)" bulgusuyla geldi. Kök analiz (yedek dump'tan
+doğrulandı):
+
+- **Denetimin gösterdiği 4 kayıt (event_match 7/8/10/13) `method='suggestion'` idi** —
+  öneri kuyruğu kaydı EŞLEŞME DEĞİLDİR, finance_events'e bilerek dokunmaz
+  (`matching_service._upsert_suggestion`). Çift sayım "eşleşme bozuk" değil "eşleşme
+  henüz onaylanmadı" durumuydu; 2026-07-19'da öneriler elle gerçek eşleşmeye çevrildi.
+  Denetim okurken `method` sütununa bak: suggestion + iki bacak False = NORMAL.
+  (`method='auto'` vendor_payment hedefi de False kalır — cari kuralı.)
+- **Gerçek kod hatası (aynı belirti sınıfı, düzeltildi):** `upsert_scheduled_entry`
+  sabit `is_matched: False` yazıyordu → gerçek eşleşme SONRASI girişe dokunan HER
+  re-upsert (giriş PATCH'i `apply_entry_update`, öteleme `resync_deferred_event`,
+  tutar düzeltmesi) bayrağı sessizce sıfırlayıp çift sayımı GERİ getiriyordu
+  (event_matches izi durduğundan sürüklenme görünmezdi). **Çözüm:** bayrak artık
+  kalıcı izden türetilir — `event_matches`'te gerçek (method != suggestion) hedef izi
+  varsa True (upsert_check'in `bank_transaction_id` fallback'inin planlı eşleniği).
+  unmatch/invalidate izleri de sildiğinden geri-açılma doğru türer.
+- **Kısmi tutar koruması (`scheduled_service`):** öneri-Onayla yolu r=0.5'e kadar
+  KISMİ adaya izin verir; `close_entry_via_bank`/`attach_bank_to_paid_entry` banka
+  tutarını girişe KOŞULSUZ yazıyordu → ₺2,79M stopaj girişine ₺1M kısmi taksit yazılıp
+  ₺1,79M sessizce kaybolurdu. Artık tutar yalnız **tam-ödeme bandında**
+  (`_is_full_payment`, 0.75 ≤ r ≤ 1.30 — matcher'ın otomatik bandıyla aynı) girişe
+  çekilir; kısmi bacakta planlı toplam korunur (is_matched yine True — banka bacakları
+  tek gerçek). 1-N kısmi planlı eşleşme (tek girişe birden çok banka taksiti) hâlâ
+  otomatik DEĞİL — 2026-07-19'da elle kuruldu (stopaj Mayıs: 4 taksit), gerekirse
+  gelecek faz.
+- **Veri onarım aracı:** `backend/fix_scheduled_match_flags.py` — gerçek izi olup
+  bayrağı False kalmış planlı bacakları raporlar (varsayılan DRY-RUN; `--apply` ile
+  onarır; izsiz FE'ye ve vendor_payment'a dokunmaz). 2026-07-19 dry-run: sürüklenme 0.
+
+Test: `test_personel_birlestirme.py::TestMatchFlagIntegrity` (4 — kısmi öneri accept
+uçtan uca, re-upsert bayrak korunumu [düzeltme öncesi kırmızı doğrulandı], unmatch
+sonrası yeniden açılmama, kısmi/tam bandda tutar davranışı).
+
+---
+
 ## Bugün Vadeli Ödenmemiş → "Vadesi Geçenler" (2026-07-16)
 
 **Kullanıcı isteği:** "su faturası bugün ve henüz ödenmediği için vadesi geçende gösterelim.
