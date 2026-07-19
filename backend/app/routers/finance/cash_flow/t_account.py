@@ -4,6 +4,8 @@ Panel yeniden tasarımındaki T-hesap görünümü için: seçilen dönemdeki
 (gün/hafta/ay/yıl) eşleşmemiş finance_events kayıtları giriş (direction=+1)
 ve çıkış (direction=-1) sütunlarına ayrılır, kaynak/kategori bazında
 gruplanır ve tüm tutarlar o günkü TCMB EUR alış kuruyla EUR'a çevrilir (Sedna defter kuru hizası, 2026-07-11).
+USD kalemler USD/EUR çaprazıyla doğrudan çevrilir (amount × USD alış / EUR alış —
+eur_balances `to_eur` ile aynı; 2026-07-19 öncesi amount_try NULL olduğundan atlanıyorlardı).
 
 Transfer kategorileri (Virman / Döviz Satım / İade) frontend `groupByMonth`
 ile aynı kuralla tamamen hariç tutulur — bunlar hesaplar arası iç hareket
@@ -128,17 +130,19 @@ def _period_range(period: str, offset: int, today: date_cls) -> Tuple[date_cls, 
     return date_cls(year, 1, 1), date_cls(year, 12, 31)
 
 
-def _eur_rate_for(db: Session, dt: date_cls, cache: Dict[date_cls, Optional[float]]) -> Optional[float]:
-    """dt tarihindeki (<= en yakın) TCMB EUR alış kuru; hiç kur yoksa None.
+def _rate_for(db: Session, dt: date_cls, code: str,
+              cache: Dict[Tuple[str, date_cls], Optional[float]]) -> Optional[float]:
+    """dt tarihindeki (<= en yakın) TCMB {code} alış kuru; hiç kur yoksa None.
 
     Tek istekte en çok birkaç yüz farklı tarih olduğundan basit sorgu + dict
     cache yeterli (eur_balances'taki bisect-cache burada gereksiz karmaşıklık).
     """
-    if dt not in cache:
+    key = (code, dt)
+    if key not in cache:
         row = (
             db.query(ExchangeRate.forex_buying, ExchangeRate.unit)
             .filter(
-                ExchangeRate.currency_code == "EUR",
+                ExchangeRate.currency_code == code,
                 ExchangeRate.date <= dt,
                 ExchangeRate.forex_buying.isnot(None),
             )
@@ -146,23 +150,36 @@ def _eur_rate_for(db: Session, dt: date_cls, cache: Dict[date_cls, Optional[floa
             .first()
         )
         if row and row.forex_buying:
-            cache[dt] = float(row.forex_buying) / float(row.unit or 1)
+            cache[key] = float(row.forex_buying) / float(row.unit or 1)
         else:
-            cache[dt] = None
-    return cache[dt]
+            cache[key] = None
+    return cache[key]
 
 
-def _event_eur(db: Session, fe: FinanceEvent, cache: Dict[date_cls, Optional[float]]) -> Optional[float]:
+def _eur_rate_for(db: Session, dt: date_cls, cache: Dict[Tuple[str, date_cls], Optional[float]]) -> Optional[float]:
+    return _rate_for(db, dt, "EUR", cache)
+
+
+def _event_eur(db: Session, fe: FinanceEvent, cache: Dict[Tuple[str, date_cls], Optional[float]]) -> Optional[float]:
     """Kalemi EUR'a çevir; çevrilemiyorsa None (çağıran skipped_no_rate sayar).
 
-    EUR kalem → amount aynen; diğerleri → TRY değeri / o tarihteki EUR kuru.
-    TRY değeri: amount_try, yoksa currency TRY ise amount. Kur ya da TRY
-    değeri bilinemiyorsa kalem 1 TL = 1 EUR gibi saçma bir varsayımla
-    ÇEVRİLMEZ — dışarıda bırakılır.
+    EUR kalem → amount aynen; USD kalem → USD/EUR çaprazı (amount × USD alış /
+    EUR alış — eur_balances `to_eur` ile aynı formül; amount_try'a BAKILMAZ,
+    USD banka satırlarında amount_try dolmuyordu → panel USD'ye kördü, 2026-07-19).
+    Diğerleri → TRY değeri / o tarihteki EUR kuru. TRY değeri: amount_try, yoksa
+    currency TRY ise amount. Kur ya da TRY değeri bilinemiyorsa kalem
+    1 TL = 1 EUR gibi saçma bir varsayımla ÇEVRİLMEZ — dışarıda bırakılır.
     """
     currency = (fe.currency or "TRY").upper()
     if currency == "EUR":
         return float(fe.amount)
+
+    if currency == "USD":
+        usd = _rate_for(db, fe.event_date, "USD", cache)
+        eur = _eur_rate_for(db, fe.event_date, cache)
+        if not usd or not eur:
+            return None
+        return float(fe.amount) * usd / eur
 
     if fe.amount_try is not None:
         try_value = float(fe.amount_try)
@@ -242,7 +259,7 @@ def t_account(
     # is_realized (gerçekleşmiş — ör. banka hareketi) EUR toplamı; kalan = bekleyen (planlı)
     realized = {DIRECTION_INCOME: 0.0, DIRECTION_EXPENSE: 0.0}
     skipped_no_rate = 0
-    rate_cache: Dict[date_cls, Optional[float]] = {}
+    rate_cache: Dict[Tuple[str, date_cls], Optional[float]] = {}
     # Beklemeye alınmış (hold) future-pending kalemler LİSTEDE KALIR (kullanıcı isteği 2026-07-07:
     # "eski yerinde sarı kalsın") ama kolon toplamı / net / bekleyen toplamına GİRMEZ (akım-dışı park).
     # Ayrıca Bekleme Listesi'nde (runway.held) de gösterilir. Çek bekletilemez (HOLDABLE'dan çıkarıldı).

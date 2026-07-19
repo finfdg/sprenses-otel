@@ -682,9 +682,16 @@ class FinanceEventService:
             raise
 
     def update_amount_try(self, db: Session, event_date, rate_try_per_eur: float) -> int:
-        """Belirli tarih için EUR/USD cinsindeki eventlerin amount_try'ını güncelle.
+        """Belirli tarih için YALNIZ EUR cinsindeki eventlerin amount_try'ını güncelle.
 
         rate_try_per_eur: 1 EUR = X TRY
+
+        NOT (2026-07-19): USD burada BİLEREK doldurulmaz — cron yalnız event_date=bugün
+        kayıtlarına dokunduğundan geçmiş tarihli içe aktarılan satırları asla kapsayamaz
+        (canlıda 11 USD FE NULL kaldı, panel USD'ye kördü). Kalıcı çözüm okuma anında:
+        t_account/runway `_event_eur` + eur_balances `to_eur` USD'yi USD/EUR çaprazıyla
+        doğrudan çevirir; amount_try'a ihtiyaç duymaz. Geriye dönük doldurma (listing/
+        aging tüketicileri için): `backend/backfill_usd_amount_try.py`.
         """
         try:
             updated = (

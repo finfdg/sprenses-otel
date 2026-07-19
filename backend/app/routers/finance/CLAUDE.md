@@ -5,6 +5,43 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## USD Kalemler T-Hesap/Runway'de Çapraz Kurla Çevrilir (2026-07-19)
+
+**Canlı bulgu (2026-07-19 DB denetimi):** USD para birimli `finance_events`'lerde `amount_try`
+hiç dolmuyordu (11 kayıt NULL — ör. fe=17811 +1.900 USD 09 Haz, fe=18585 +1.600 USD 30 Haz).
+Kök neden zinciri: `update_amount_try` (finance_event_service) docstring'i "EUR/USD" dese de
+**yalnız EUR** filtreliyor; kur cronu da onu yalnız `event_date = bugün` için çağırıyor →
+geçmiş tarihli içe aktarılan USD banka satırları asla dolmaz. `t_account._event_eur` +
+`runway._event_eur` USD'yi `amount_try` üzerinden çevirmeye çalıştığından USD kalemler
+`skipped_no_rate` ile ATLANIYORDU → panel USD gelir/giderlerine kördü (Haziran ~€3.048 eksik).
+
+**Kalıcı çözüm — okuma anında USD/EUR çaprazı (cron'a bağımlılık YOK):**
+- `t_account._event_eur` + `runway._event_eur`: USD kalem → `amount × USD alış / EUR alış`
+  (o tarihteki <= en yakın TCMB `forex_buying`; `eur_balances.to_eur` ile aynı formül —
+  üç görünüm tutarlı). **USD'de `amount_try`'a bakılmaz** (dolu olsa bile çapraz kazanır —
+  eur_balances'la aynı sayıyı üretmek için deterministik). İki kurdan biri yoksa kalem yine
+  atlanır + `skipped_no_rate` (1:1 varsayımı yapılmaz). USD-dışı diğer dövizler (GBP vb.)
+  eskisi gibi `amount_try` yolundan gider.
+- `t_account._eur_rate_for` para-birimi-parametreli `_rate_for(db, dt, code, cache)`'e
+  genelleştirildi (cache anahtarı `(code, tarih)`); runway `_helpers._get_usd_rate`'i kullanır
+  (zaten vardı, kullanılmıyordu).
+- `update_amount_try` davranışı DEĞİŞMEDİ (yalnız EUR) — docstring gerçeğe çekildi + neden
+  USD doldurmadığı belgelendi. Alternatif (cron'un USD doldurması) REDDEDİLDİ: cron yalnız
+  bugünün kayıtlarına dokunur, geçmiş tarihli import'ları hiç kapsayamaz (11 NULL bunun kanıtı).
+
+**Geriye dönük düzeltme — `backend/backfill_usd_amount_try.py`:** 11 NULL kaydın `amount_try`'ını
+event-tarihli USD alışıyla doldurur (`amount_try` tüketicileri için hijyen: nakit akım liste
+yanıtı, aging toplamı, kur farkı izi — panel için GEREKMEZ, çevrim artık okuma anında).
+Varsayılan **kuru çalışma** (yazmaz); `--apply` ile tek commit. **Kullanıcı onayı olmadan
+canlıya UYGULANMADI** (kuru çalışma doğrulandı: 11 doldurulur, 0 atlanır).
+
+**Test:** `test_cash_flow_taccount.py::TestTAccountUsdConversion` (çapraz çevrim + amount_try'ı
+yok sayma + kursuz-atla) + `test_cash_flow_runway.py::test_usd_pending_converted_via_cross` /
+`test_usd_without_usd_rate_skipped`. Eski "amount_try öncelikli" USD testleri GBP'ye çevrildi
+(o yol USD-dışı dövizler için yaşıyor).
+
+---
+
 ## Personel Birleştirmesi — Tek Başlık + Sedna Bordro Senkronu + Dedup (2026-07-18)
 
 **Kullanıcı isteği:** "Personel ödemeleri farklı başlıklar altında — hepsini Personel başlığı

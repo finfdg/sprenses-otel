@@ -48,17 +48,21 @@ def _mk_fe(db, **overrides):
     return fe
 
 
-def _reset_eur_rates(db):
-    """Deterministik kur testi için mevcut tüm EUR kurlarını temizle (rollback'li)."""
-    db.query(ExchangeRate).filter(ExchangeRate.currency_code == "EUR").delete()
+def _reset_rates(db, code="EUR"):
+    """Deterministik kur testi için mevcut tüm {code} kurlarını temizle (rollback'li)."""
+    db.query(ExchangeRate).filter(ExchangeRate.currency_code == code).delete()
     db.flush()
 
 
-def _mk_rate(db, dt, selling):
+def _reset_eur_rates(db):
+    _reset_rates(db, "EUR")
+
+
+def _mk_rate(db, dt, selling, code="EUR"):
     db.query(ExchangeRate).filter(
-        ExchangeRate.date == dt, ExchangeRate.currency_code == "EUR"
+        ExchangeRate.date == dt, ExchangeRate.currency_code == code
     ).delete()
-    rate = ExchangeRate(date=dt, currency_code="EUR", unit=1, forex_selling=selling, forex_buying=selling)
+    rate = ExchangeRate(date=dt, currency_code=code, unit=1, forex_selling=selling, forex_buying=selling)
     db.add(rate)
     db.flush()
     return rate
@@ -384,7 +388,7 @@ class TestTAccountItemOrdering:
 
 class TestTAccountEurConversion:
     def test_try_amount_divided_by_rate(self, client, auth_headers, db):
-        """53 kur → 5300 TRY = 100 EUR; EUR kalem aynen; amount_try öncelikli."""
+        """53 kur → 5300 TRY = 100 EUR; EUR kalem aynen; TRY-dışı dövizde amount_try."""
         today = date.today()
         _reset_eur_rates(db)
         _mk_rate(db, today - timedelta(days=3), 53)  # <= event_date en yakın kur
@@ -393,9 +397,10 @@ class TestTAccountEurConversion:
                category_name="T-KUR GELİR", description="TRY KALEM")
         _mk_fe(db, direction=1, amount=75, currency="EUR",
                category_name="T-KUR GELİR", description="EUR KALEM")
-        # Döviz kalem: amount_try (106 TL) kur 53'e bölünür → 2 EUR
-        _mk_fe(db, direction=-1, amount=10, currency="USD", amount_try=106,
-               category_name="T-KUR GİDER", description="USD KALEM")
+        # USD-dışı döviz kalem: amount_try (106 TL) kur 53'e bölünür → 2 EUR
+        # (USD çapraz kurla çevrilir — TestTAccountUsdConversion; GBP bu yolu sınar)
+        _mk_fe(db, direction=-1, amount=10, currency="GBP", amount_try=106,
+               category_name="T-KUR GİDER", description="GBP KALEM")
         db.commit()
 
         resp = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers)
@@ -428,6 +433,81 @@ class TestTAccountEurConversion:
         assert _group(body, "cikis", "T-KURSUZ") is None
         all_names = [i["name"] for g in body["giris"] + body["cikis"] for i in g["items"]]
         assert "KURSUZ KALEM" not in all_names
+
+
+class TestTAccountUsdConversion:
+    """USD kalemler USD/EUR çaprazıyla çevrilir (2026-07-19 canlı bulgu regresyonu).
+
+    Canlıda USD banka satırlarının amount_try'ı hiç dolmuyordu (update_amount_try
+    yalnız EUR) → `_event_eur` USD'yi skipped_no_rate ile atlıyor, panel USD
+    gelir/giderlerine kör kalıyordu (fe=17811 +1.900 USD, fe=18585 +1.600 USD).
+    """
+
+    def test_usd_income_converted_via_usd_eur_cross(self, client, auth_headers, db):
+        """+1.900 USD, USD kuru 40 / EUR kuru 50 → 1.900 × 40 / 50 = 1.520 EUR."""
+        today = date.today()
+        _reset_rates(db, "EUR")
+        _reset_rates(db, "USD")
+        _mk_rate(db, today - timedelta(days=3), 50, code="EUR")
+        _mk_rate(db, today - timedelta(days=3), 40, code="USD")
+
+        # amount_try NULL — canlıdaki durumun birebir kopyası (banka kaynaklı, realized)
+        _mk_fe(db, direction=1, amount=1900, currency="USD", amount_try=None,
+               category_name="T-USD GELİR", description="USD SWIFT GELEN")
+        db.commit()
+
+        resp = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+
+        assert body["skipped_no_rate"] == 0
+        grup = _group(body, "giris", "T-USD GELİR")
+        assert grup is not None
+        assert grup["item_count"] == 1
+        assert grup["total_eur"] == 1520.0
+        item = grup["items"][0]
+        assert item["amount_eur"] == 1520.0
+        assert item["amount_native"] == 1900.0
+        assert item["currency"] == "USD"
+        # Gerçekleşmiş USD banka geliri kolon toplamı + gerçekleşen sayaçlarına da girer
+        assert body["total_in_eur"] >= 1520.0
+        assert body["realized_in_eur"] >= 1520.0
+
+    def test_usd_ignores_amount_try_uses_cross(self, client, auth_headers, db):
+        """USD'de amount_try dolu olsa bile çapraz kur kazanır (eur_balances tutarlılığı)."""
+        today = date.today()
+        _reset_rates(db, "EUR")
+        _reset_rates(db, "USD")
+        _mk_rate(db, today - timedelta(days=3), 50, code="EUR")
+        _mk_rate(db, today - timedelta(days=3), 40, code="USD")
+
+        # amount_try kasıtlı SAÇMA (99999) — çapraz kur kullanılırsa sonuç 8 EUR olmalı
+        _mk_fe(db, direction=-1, amount=10, currency="USD", amount_try=99999,
+               category_name="T-USD GİDER", description="USD KOMİSYON")
+        db.commit()
+
+        resp = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers)
+        assert resp.status_code == 200
+        gider = _group(resp.json(), "cikis", "T-USD GİDER")
+        assert gider is not None
+        assert gider["total_eur"] == 8.0  # 10 × 40 / 50 — 99999/50 DEĞİL
+
+    def test_usd_without_usd_rate_skipped_not_assumed(self, client, auth_headers, db):
+        """USD kuru yoksa 1:1 varsayılmaz — kalem atlanır, sayaç artar."""
+        today = date.today()
+        _reset_rates(db, "EUR")
+        _reset_rates(db, "USD")  # USD kuru HİÇ yok
+        _mk_rate(db, today - timedelta(days=3), 50, code="EUR")
+
+        _mk_fe(db, direction=1, amount=500, currency="USD",
+               category_name="T-USD KURSUZ", description="USD KURSUZ KALEM")
+        db.commit()
+
+        resp = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["skipped_no_rate"] >= 1
+        assert _group(body, "giris", "T-USD KURSUZ") is None
 
 
 class TestTAccountPeriods:
