@@ -387,6 +387,19 @@ class FinanceEventService:
 
             event_date = entry.paid_date if entry.paid_date else entry.entry_date
 
+            # is_matched sabit False YAZILMAZ — kalıcı event_matches izinden türetilir
+            # (2026-07-19): eşleşmiş girişe dokunan her re-upsert (giriş PATCH'i, öteleme
+            # resync'i, tutar düzeltmesi) bayrağı sessizce sıfırlayıp banka bacağıyla
+            # çift sayımı geri getiriyordu (upsert_check'in bank_transaction_id
+            # fallback'inin scheduled eşleniği; iz unmatch/invalidate'te silindiğinden
+            # geri açılma da doğru türer). Lazy import: circular import'u kır.
+            from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
+            is_matched = db.query(EventMatch.id).filter(
+                EventMatch.target_source_type == entry.source_type,
+                EventMatch.target_source_id == entry.id,
+                EventMatch.method != MATCH_METHOD_SUGGESTION,
+            ).first() is not None
+
             return self._upsert(db, entry.source_type, entry.id, {
                 "event_date":   event_date,
                 "amount":       abs(float(entry.amount)),
@@ -395,7 +408,7 @@ class FinanceEventService:
                 "description":  desc,
                 "event_status": "paid" if entry.is_paid else "pending",
                 "is_realized":  entry.is_paid,
-                "is_matched":   False,
+                "is_matched":   is_matched,
             })
         except Exception as e:
             logger.error("upsert_scheduled_entry hatası id=%s: %s", entry.id, e)

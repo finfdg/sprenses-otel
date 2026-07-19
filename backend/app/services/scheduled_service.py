@@ -89,6 +89,21 @@ def delete_definition(db: Session, defn: ScheduledDefinition) -> None:
     db.delete(defn)
 
 
+# Banka kanıtının tutarı girişe yalnız TAM-ödeme bandındaysa yazılır (matcher'ın
+# otomatik bandıyla aynı: 0.75 ≤ |btx|/tutar ≤ 1.30). Öneri-Onayla yolu r=0.5'e kadar
+# KISMİ adaya izin verir — kısmi banka bacağı planlı TOPLAMI ezmemeli (2026-07-19:
+# ₺2,79M stopaj girişine ₺1M taksit yazılıp ₺1,79M sessizce kaybolurdu).
+_FULL_PAYMENT_RATIO_MIN = 0.75
+_FULL_PAYMENT_RATIO_MAX = 1.30
+
+
+def _is_full_payment(actual: float, planned: float) -> bool:
+    """Banka tutarı planlı tutarın tam-ödeme bandında mı? (planlı ≤ 0 → tutar bilinmiyor, yaz)."""
+    if planned <= 0:
+        return True
+    return _FULL_PAYMENT_RATIO_MIN <= actual / planned <= _FULL_PAYMENT_RATIO_MAX
+
+
 def _btx_amount_for_entry(db: Session, entry: ScheduledEntry, btx):
     """Banka kanıtının girişe yazılabilir tutarı — yalnız para birimleri aynıysa (TRY↔TRY).
 
@@ -111,11 +126,11 @@ def close_entry_via_bank(db: Session, entry: ScheduledEntry, btx, direction: int
 
     Etiketleme (Vergi/SGK · Personel · Kira) banka bacağına match_number verirken
     scheduled_entry açık kalıyordu → aynı dönemde tahmin + gerçekleşen ÇİFT sayılıyordu.
-    Sıra ÖNEMLİ: önce upsert (FE alanları tazelenir — upsert is_matched=False yazar),
-    SONRA match (is_matched=True + event_matches izi). Yarış-korumalı.
+    Sıra: önce upsert (FE alanları tazelenir; is_matched artık event_matches izinden
+    türetilir — 2026-07-19), SONRA match (is_matched=True + event_matches izi). Yarış-korumalı.
 
     2026-07-18: banka kanıtı girişin TAHMİNİ tutarını da GERÇEK tutara çeker (aynı
-    para birimiyse) — "maaş tahminini otomatik güncelle" isteğinin ödeme bacağı.
+    para birimiyse VE tam-ödeme bandındaysa — kısmi banka bacağı planlı toplamı ezmez).
     """
     from app.utils.finance_event_service import finance_event_svc
 
@@ -127,7 +142,7 @@ def close_entry_via_bank(db: Session, entry: ScheduledEntry, btx, direction: int
     locked.is_paid = True
     locked.paid_date = btx.date
     actual = _btx_amount_for_entry(db, locked, btx)
-    if actual and actual > 0:
+    if actual and actual > 0 and _is_full_payment(actual, float(locked.amount or 0)):
         locked.amount = actual
     db.flush()
     finance_event_svc.upsert_scheduled_entry(db, locked, direction=direction)
@@ -158,7 +173,7 @@ def attach_bank_to_paid_entry(db: Session, entry: ScheduledEntry, btx, direction
         return False  # zaten bir banka kanıtına bağlı
     locked.paid_date = btx.date
     actual = _btx_amount_for_entry(db, locked, btx)
-    if actual and actual > 0:
+    if actual and actual > 0 and _is_full_payment(actual, float(locked.amount or 0)):
         locked.amount = actual
     db.flush()
     finance_event_svc.upsert_scheduled_entry(db, locked, direction=direction)

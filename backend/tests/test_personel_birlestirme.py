@@ -331,3 +331,115 @@ class TestScheduledBankMatcher:
         assert link_entry_to_bank(db, entry, btx) is True
         cleanup_stale_suggestions(db)
         assert _suggestions(db, target_type="salary", target_id=entry.id) == []
+
+
+# ─── 4) Eşleşme bayrağı bütünlüğü (2026-07-19 canlı denetim regresyonu) ──────
+# Canlı bulgu: banka↔planlı eşleşme izi event_matches'te dururken hedef FE
+# is_matched=False kalabiliyordu → t_account iki bacağı da toplayıp geçmiş ay
+# giderlerini ÇİFT sayıyordu (Haziran ~€94K). İki kök: (a) upsert_scheduled_entry
+# sabit False yazıp eşleşme SONRASI re-upsert'te bayrağı sıfırlıyordu; (b) kısmi
+# (r<0.75) banka bacağı öneri-Onayla'da planlı toplamı eziyordu.
+
+class TestMatchFlagIntegrity:
+    def test_partial_suggestion_accept_marks_target_matched(self, client, auth_headers, db):
+        """KISMİ (r=0.5) öneri Onayla → hedef planlı FE is_matched=True + is_realized=True,
+        banka bacağı görünür kalır, planlı TUTAR kısmi banka tutarıyla EZİLMEZ."""
+        acc = _mk_account(db)
+        pay_day = TODAY - timedelta(days=3)
+        defn, entry = _mk_entry(db, source_type="withholding", amount=2_000_000.0,
+                                entry_date=pay_day, is_paid=True, paid_date=pay_day)
+        btx = _mk_btx(db, acc, amount=-1_000_000.0, tx_date=pay_day,
+                      desc="Vergi Tahsilatı G.STOPAJ Tahsilatı Taksit:1")
+        finance_event_svc.upsert_bank_tx(db, btx, acc)
+        sug = EventMatch(
+            bank_source_type="bank", bank_source_id=btx.id,
+            target_source_type="withholding", target_source_id=entry.id,
+            amount=1_000_000.0, currency="TRY",
+            method=MATCH_METHOD_SUGGESTION, score=60,
+        )
+        db.add(sug)
+        db.commit()
+
+        resp = client.post(f"/api/finance/cash-flow/match-suggestions/{sug.id}/accept",
+                           headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+
+        db.expire_all()
+        fe = _fe(db, "withholding", entry.id)
+        assert fe.is_matched is True
+        assert fe.is_realized is True
+        bank_fe = _fe(db, "bank", btx.id)
+        assert bank_fe.is_matched is False  # banka bacağı tek gerçek olarak görünür kalır
+        e = db.get(ScheduledEntry, entry.id)
+        assert float(e.amount) == 2_000_000.0  # kısmi ₺1M planlı ₺2M'yi ezmedi
+        # Kalıcı iz gerçek eşleşme oldu (öneri düştü)
+        assert _suggestions(db, target_type="withholding", target_id=entry.id) == []
+        real = db.query(EventMatch).filter(
+            EventMatch.target_source_type == "withholding",
+            EventMatch.target_source_id == entry.id,
+            EventMatch.method != MATCH_METHOD_SUGGESTION).all()
+        assert len(real) == 1
+
+    def test_reupsert_after_match_preserves_is_matched(self, db):
+        """Eşleşme SONRASI girişe dokunan re-upsert (PATCH/tutar düzeltmesi) bayrağı
+        SIFIRLAMAMALI — eski davranış sabit False yazıp çift sayımı geri getiriyordu."""
+        from app.services.scheduled_service import apply_entry_update
+
+        acc = _mk_account(db)
+        pay_day = TODAY - timedelta(days=2)
+        defn, entry = _mk_entry(db, source_type="sgk", amount=3_000_000.0,
+                                entry_date=pay_day, is_paid=True, paid_date=pay_day)
+        btx = _mk_btx(db, acc, amount=-3_000_000.0, tx_date=pay_day,
+                      desc="SGK MOSİP Tahsilatı PRİM ÖDEMESİ")
+        assert link_entry_to_bank(db, entry, btx) is True
+        assert _fe(db, "sgk", entry.id).is_matched is True
+
+        # Kullanıcı girişin tutarını düzeltir → FE yeniden yazılır
+        apply_entry_update(db, entry, {"amount": 3_516_007.34}, direction=-1)
+        db.flush()
+
+        fe = _fe(db, "sgk", entry.id)
+        assert fe.is_matched is True, "re-upsert eşleşme bayrağını sıfırladı (çift sayım geri döner)"
+        assert float(fe.amount) == 3_516_007.34
+
+    def test_unmatch_then_reupsert_stays_unmatched(self, db):
+        """unmatch izi de sildiğinden sonraki re-upsert bayrağı yeniden AÇMAMALI."""
+        acc = _mk_account(db)
+        pay_day = TODAY - timedelta(days=2)
+        defn, entry = _mk_entry(db, source_type="withholding", amount=1_500_000.0,
+                                entry_date=pay_day, is_paid=True, paid_date=pay_day)
+        btx = _mk_btx(db, acc, amount=-1_500_000.0, tx_date=pay_day,
+                      desc="Vergi Tahsilatı G.STOPAJ Tahsilatı")
+        assert link_entry_to_bank(db, entry, btx) is True
+
+        finance_event_svc.unmatch(db, "withholding", entry.id)
+        finance_event_svc.upsert_scheduled_entry(db, entry, direction=-1)
+        db.flush()
+
+        assert _fe(db, "withholding", entry.id).is_matched is False
+
+    def test_partial_bank_close_keeps_planned_amount(self, db):
+        """AÇIK girişi kısmi banka kanıtıyla kapatmak (close_entry_via_bank) planlı
+        tutarı korur; tam-ödeme bandındaki kanıt ise tutarı gerçeğe çeker."""
+        acc = _mk_account(db)
+        pay_day = TODAY - timedelta(days=1)
+
+        defn1, partial_entry = _mk_entry(db, source_type="withholding", amount=2_000_000.0,
+                                         entry_date=pay_day)
+        btx_partial = _mk_btx(db, acc, amount=-1_000_000.0, tx_date=pay_day,
+                              desc="Vergi Tahsilatı G.STOPAJ Taksit:1")
+        assert close_entry_via_bank(db, partial_entry, btx_partial) is True
+        db.expire_all()
+        e1 = db.get(ScheduledEntry, partial_entry.id)
+        assert float(e1.amount) == 2_000_000.0  # r=0.5 → planlı toplam korunur
+        assert e1.is_paid is True
+        assert _fe(db, "withholding", partial_entry.id).is_matched is True
+
+        defn2, full_entry = _mk_entry(db, source_type="withholding", amount=2_000_000.0,
+                                      entry_date=pay_day)
+        btx_full = _mk_btx(db, acc, amount=-1_900_000.0, tx_date=pay_day,
+                           desc="Vergi Tahsilatı G.STOPAJ Tahsilatı")
+        assert close_entry_via_bank(db, full_entry, btx_full) is True
+        db.expire_all()
+        e2 = db.get(ScheduledEntry, full_entry.id)
+        assert float(e2.amount) == 1_900_000.0  # r=0.95 → gerçeğe çekilir
