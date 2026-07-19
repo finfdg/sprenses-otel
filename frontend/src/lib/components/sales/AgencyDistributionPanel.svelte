@@ -8,7 +8,8 @@
 	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
-	import { Inbox } from 'lucide-svelte';
+	import Button from '$lib/components/Button.svelte';
+	import { Inbox, Settings2 } from 'lucide-svelte';
 	import { eurCompact, rollupAgencyGroups, trInt } from '$lib/utils/salesDesign';
 
 	// ── Props ────────────────────────────────────────────────
@@ -17,11 +18,15 @@
 		yearOpts,
 		onYear,
 		tick = 0,
+		canConfig = false,
+		onSettings,
 	}: {
 		year: number;
 		yearOpts: number[];
 		onYear: (y: number) => void;
 		tick?: number;
+		canConfig?: boolean;
+		onSettings?: () => void;
 	} = $props();
 
 	// ── Sabitler ─────────────────────────────────────────────
@@ -87,6 +92,11 @@
 				{#each yearOpts as y}<option value={y}>{y}</option>{/each}
 			</select>
 			<SegmentedControl options={MODE_OPTS} value={mode} onchange={(v) => (mode = v)} ariaLabel="Görünüm" size="sm" />
+			{#if canConfig && onSettings}
+				<Button variant="secondary" size="sm" onclick={onSettings}>
+					<Settings2 class="h-4 w-4" /> Acente Ayarları
+				</Button>
+			{/if}
 		</div>
 	</div>
 

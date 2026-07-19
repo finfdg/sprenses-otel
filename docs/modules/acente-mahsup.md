@@ -45,7 +45,9 @@ Tüm sekmeler **tembel mount** edilir ve ziyaret edilince mount **kalır** (`vis
 `hidden` sınıfı) — sekme değişiminde state/veri korunur, tekrar fetch yapılmaz. `year`
 state'i sayfa düzeyinde TEKtir (tasarım kararı): Doluluk / Acenteler / Nakit Akım
 sekmelerindeki yıl seçicileri aynı değeri paylaşır. "Acente Ayarları" (vade + kickback)
-modalı PageHeader'da korunur — Tahsilat Takvimi'nin vade girdisi buradan düzenlenir.
+modalının açma butonu **Acente Dağılımı kartının başlık satırındadır** (2026-07-19 —
+PageHeader'dan taşındı; `AgencyDistributionPanel`'e `canConfig` + `onSettings` prop'larıyla
+geçirilir, modal state'i sayfada kalır) — Tahsilat Takvimi'nin vade girdisi buradan düzenlenir.
 
 **§5c Doluluk verisi:** `GET /sales/reservations/occupancy-overview?year=` (yeni,
 2026-07-19) — 12 ayın oda-gece toplamı `past_nights` (gece tarihi ≤ bugün, İstanbul TZ) /
@@ -173,7 +175,8 @@ Motor: `agency_settlement_service.compute_agency_status()`.
   commit `a52a789`) — 4 sekmeli dc.html; renkler tema token'larıyla birebir
   (`teal-700`=#1b2b45 lacivert, `teal-500`=#56719a bar dolgusu, `brass`=#bd9a45,
   çizgili ileri-doku `salesDesign.FUTURE_STRIPE`).
-- **Sayfa iskeleti:** PageHeader (+Acente Ayarları) → Doluluk chip'leri (StatCard ×3,
+- **Sayfa iskeleti:** PageHeader (yalnız başlık — açıklama ve aksiyon yok; Acente Ayarları
+  butonu Acente Dağılımı kartında, 2026-07-19) → Doluluk chip'leri (StatCard ×3,
   yalnız Doluluk sekmesinde; mobilde snap-scroll + nokta göstergesi) → **alt-çizgili sekme
   barı** (tasarım deseni; SegmentedControl değil) → aktif panel. Sekmeler keep-alive.
 - **Paneller:** her tasarım sekmesi kendi bileşeninde (`OccupancyPanel` /

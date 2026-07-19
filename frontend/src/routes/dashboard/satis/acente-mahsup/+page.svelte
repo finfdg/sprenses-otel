@@ -20,7 +20,7 @@
 	import ReservationsPanel from '$lib/components/sales/ReservationsPanel.svelte';
 	import RoomTypesPanel from '$lib/components/sales/RoomTypesPanel.svelte';
 	import KontratlarPanel from '$lib/components/sales/KontratlarPanel.svelte';
-	import { Settings2, Inbox, CalendarCheck2, Gauge, CalendarRange } from 'lucide-svelte';
+	import { Inbox, CalendarCheck2, Gauge, CalendarRange } from 'lucide-svelte';
 	import { MONTHS_FULL_TR, trInt } from '$lib/utils/salesDesign';
 
 	// ── Sabitler ─────────────────────────────────────────────
@@ -201,18 +201,7 @@
 <svelte:head><title>Acente Mahsup & Nakit Akım · Sprenses</title></svelte:head>
 
 <div class="space-y-5">
-	<PageHeader
-		title="Acente Mahsup & Nakit Akım"
-		description="Satış — doluluk, acente dağılımı, günlük hareketler ve satış nakit akımı (EUR)"
-	>
-		{#snippet actions()}
-			{#if canConfig}
-				<Button variant="secondary" onclick={openSettings}>
-					<Settings2 class="h-4 w-4" /> Acente Ayarları
-				</Button>
-			{/if}
-		{/snippet}
-	</PageHeader>
+	<PageHeader title="Acente Mahsup & Nakit Akım" />
 
 	<!-- Doluluk özet kartları (yalnız Doluluk sekmesinde; mobilde yatay kaydırma + nokta) -->
 	{#if activeTab === 'doluluk' && chips.length > 0}
@@ -267,7 +256,7 @@
 	{/if}
 	{#if visitedTabs.has('acente')}
 		<div class={activeTab === 'acente' ? '' : 'hidden'}>
-			<AgencyDistributionPanel {year} yearOpts={YEARS} onYear={setYear} {tick} />
+			<AgencyDistributionPanel {year} yearOpts={YEARS} onYear={setYear} {tick} {canConfig} onSettings={openSettings} />
 		</div>
 	{/if}
 	{#if visitedTabs.has('hareket')}
