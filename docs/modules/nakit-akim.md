@@ -823,3 +823,24 @@ görünmesin.
 
 **Test:** `tests/test_personel_birlestirme.py` (13). Geliştirici detayı:
 `backend/app/routers/finance/CLAUDE.md` "Personel Birleştirmesi" bölümü.
+
+## Ocak Açılış Artefaktı Kapatıldı — Pencere-Öncesi Tohum Bakiyeleri (2026-07-19)
+
+Ay-ay mutabakat denetiminde Ocak 2026 farkı +€167K çıktı: bakiye eğrisi `MIN_DATE=2026-01-01`
+kesimi yüzünden 2026-öncesi 579 ekstre satırını okumuyor, hesaplar 2026'daki İLK satırlarına
+kadar "yok" sayılıyordu (1 Ocak açılışı ~€30,5K görünüyordu; gerçek ~€289K — 13 hesabın
+yıl-sınırı bakiye zinciri 0,00 farkla doğrulandı, Aralık ekstresi yüklemeye gerek kalmadı).
+
+- **Tohumlama:** `compute_eur_balances` her hesabı pencere başında 2026-öncesi son bilinen
+  ekstre bakiyesiyle başlatır. Tohum akım üretmez (Devir gelir değildir — ay gelir/gider
+  toplamları değişmez), yalnız bakiye SEVİYESİNİ düzeltir; hesabın 2026'daki ilk satırı
+  geldiğinde kendi ekstre bakiyesi devralır.
+- **"Son bakiye" sıralama düzeltmesi:** Bankadaki Nakit KPI'sı (`_compute_start_eur`) ve mobil
+  dashboard artık son bakiyeyi `(tarih, id)` sırasına göre seçer — `max(id)` sonradan eklenen
+  eski-tarihli satırı "güncel" sanabiliyordu (canlıda +16,77 TL kalıcı sapma vardı, kapandı).
+- **Sentetik devir satırları:** 2025 verisi hiç olmayan ama önceden var olan 4 hesaba (Ziraat
+  TRY/EUR, Halkbank POS ×2) kanıt-bazlı `[DEVİR]` satırı eklendi (`source='manual'`, tutar 0,
+  yalnız bakiye; FE üretilmez). Gerçek Aralık ekstresi yüklenirse manuel-purge bunları siler.
+
+Test: `tests/test_eur_balances_seed.py` (8). Geliştirici detayı:
+`backend/app/routers/finance/CLAUDE.md` "Pencere-Öncesi Tohum Bakiyeleri" bölümü.

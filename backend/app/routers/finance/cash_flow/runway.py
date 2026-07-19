@@ -21,7 +21,7 @@ from datetime import date as date_cls
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, or_
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -101,21 +101,18 @@ def _compute_start_eur(db: Session) -> float:
     """
     accounts = db.query(BankAccount).all()
 
-    last_tx_sub = (
-        db.query(
-            BankTransaction.account_id,
-            func.max(BankTransaction.id).label("max_id"),
-        )
-        .filter(BankTransaction.balance.isnot(None))
-        .group_by(BankTransaction.account_id)
-        .subquery()
-    )
+    # "Son bakiye" = (date, id) sırasına göre son satır — max(id) DEĞİL (2026-07-19):
+    # sonradan eklenen (backfill/devir) ESKİ tarihli satır tabloda en yüksek id'yi alır;
+    # max(id) o bayat bakiyeyi "güncel" sanırdı (Garanti filtreli PDF tuzağı sınıfı;
+    # canlı hesap 9/10'da 57 id↔tarih çelişkili satır kanıtı). DISTINCT ON (PostgreSQL).
     last_balance_rows = (
         db.query(BankTransaction.account_id, BankTransaction.balance)
-        .join(
-            last_tx_sub,
-            (BankTransaction.account_id == last_tx_sub.c.account_id)
-            & (BankTransaction.id == last_tx_sub.c.max_id),
+        .filter(BankTransaction.balance.isnot(None))
+        .distinct(BankTransaction.account_id)
+        .order_by(
+            BankTransaction.account_id,
+            BankTransaction.date.desc(),
+            BankTransaction.id.desc(),
         )
         .all()
     )

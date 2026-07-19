@@ -182,19 +182,20 @@ def mobile_dashboard_summary(
     # ── Toplam banka bakiyesi ─────────────────────────────
     accounts = db.query(BankAccount).all()
 
-    last_tx_sub = db.query(
-        BankTransaction.account_id,
-        func.max(BankTransaction.id).label("max_id"),
-    ).filter(BankTransaction.balance.isnot(None)).group_by(BankTransaction.account_id).subquery()
-
-    last_balance_rows = db.query(
-        BankTransaction.account_id,
-        BankTransaction.balance,
-    ).join(
-        last_tx_sub,
-        (BankTransaction.account_id == last_tx_sub.c.account_id) &
-        (BankTransaction.id == last_tx_sub.c.max_id),
-    ).all()
+    # Son bakiye = (date, id) son satırı — max(id) değil (backfill'li eski-tarihli satır
+    # en yüksek id'yi alıp bayat bakiyeyi "güncel" gösterirdi; runway._compute_start_eur
+    # ile aynı düzeltme, 2026-07-19).
+    last_balance_rows = (
+        db.query(BankTransaction.account_id, BankTransaction.balance)
+        .filter(BankTransaction.balance.isnot(None))
+        .distinct(BankTransaction.account_id)
+        .order_by(
+            BankTransaction.account_id,
+            BankTransaction.date.desc(),
+            BankTransaction.id.desc(),
+        )
+        .all()
+    )
 
     last_bal = {row.account_id: float(row.balance) for row in last_balance_rows}
     account_currency = {a.id: a.currency for a in accounts}

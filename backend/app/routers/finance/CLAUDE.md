@@ -42,6 +42,41 @@ yok sayma + kursuz-atla) + `test_cash_flow_runway.py::test_usd_pending_converted
 
 ---
 
+## Pencere-Öncesi Tohum Bakiyeleri + (date,id) Son-Bakiye Sıralaması (2026-07-19)
+
+**Canlı bulgu (ay-ay mutabakat denetimi):** Ocak 2026 mutabakat farkı +€167K — `compute_eur_balances`
+`MIN_DATE=2026-01-01` kesimi yüzünden 2026-öncesi 579 ekstre satırını hiç okumuyor, hesaplar
+pencere-içi İLK satırlarına kadar "yok" sayılıyordu (1 Ocak noktasında 28 hesaptan yalnız 1'i
+görünür: ~€30,5K; gerçek 1 Oca açılışı ~€289K — 13 hesabın yıl-sınırı bakiye zinciri 0,00 farkla
+doğrulandı). Aralık ekstresi YÜKLEMEYE GEREK YOKTU — veri DB'de vardı, hesaplama kesiyordu.
+
+**Düzeltme 1 — tohumlama (`eur_balances.py`):** `acc_running_balance` artık pencere-ÖNCESİ son
+bilinen bakiyelerle başlar (`date < MIN_DATE`, `(date,id)` sıralı son satır — **max(id) DEĞİL**,
+backfill satırları id sırasını bozar; canlı hesap 9/10'da 57 id↔tarih çelişkisi). Tohum akım
+üretmez ("Devir gelir değildir" — `monthly.income/expense` DEĞİŞMEZ), yalnız seviye düzeltir;
+hesap kendi pencere-içi ilk satırında ekstre bakiyesini devralır. Tohum GÖSTERİM günü kuruyla
+çevrilir (fonksiyonun her banka-gününde yeniden değerleme konvansiyonu). MIN_DATE ve diğer tüm
+kesimler (çek/kredi/KK/FE) AYNEN durur — pencereyi 2025'e genişletmek bilinçli REDDEDİLDİ
+(2025 verisi kısmi; monthly/listeler/PDF'e 2025 sızardı; sorun akım değil SEVİYE eksikliğiydi).
+
+**Düzeltme 2 — son-bakiye sıralaması (`runway._compute_start_eur` + `listing.py` mobil dashboard):**
+"güncel bakiye" sorguları `max(id)` yerine **`DISTINCT ON (account_id) ... ORDER BY account_id,
+date DESC, id DESC`** kullanır. max(id), sonradan eklenen ESKİ tarihli satırı (devir/backfill)
+"güncel" sanırdı — Garanti filtreli PDF tuzağı sınıfı (canlıda hesap 1'de +16,77 TL kalıcı sapma
+vardı, kapandı). **Yeni "son bakiye" sorgusu yazarken max(id) KULLANMA — (date,id) sırala.**
+
+**Sentetik devir satırları (veri, aynı gün):** 2025 verisi olmayan ama 2026 öncesi de var olan
+hesaplara (Ziraat TRY/EUR + Halkbank POS ×2) kanıt-bazlı devir satırı eklendi — `source='manual'`,
+`amount=0`, `balance=`çıkarsanan devir, açıklama `[DEVİR]` ön ekli, FE üretilmez (para hareketi
+değil). Gerçek Aralık ekstresi yüklenirse `_process_statement` manuel-purge bunları otomatik siler.
+Yeni açılan hesaba devir satırı GEREKMEZ (ilk satırı zaten açılış yatışıdır).
+
+Test: `tests/test_eur_balances_seed.py` (8 — tohum taşıma, (date,id)-değil-max(id), pencere-içi
+devralma, blocked, akım-üretmeme, banka-öncesi planlı gün, gösterim-günü kuru, start_eur backfill
+regresyonu). Detay: `docs/modules/nakit-akim.md`.
+
+---
+
 ## Personel Birleştirmesi — Tek Başlık + Sedna Bordro Senkronu + Dedup (2026-07-18)
 
 **Kullanıcı isteği:** "Personel ödemeleri farklı başlıklar altında — hepsini Personel başlığı
@@ -1646,28 +1681,25 @@ oluşturulan tüm BCH'ler (örn. 448, 451, 395 — manuel onarıldı).
 
 ---
 
-## `mobile_dashboard_summary` — Banka Bakiyesi Sorgusu (N+1 Giderildi)
+## `mobile_dashboard_summary` — Banka Bakiyesi Sorgusu (N+1 Giderildi; 2026-07-19 sıralama düzeltmesi)
 
-`GET /cash-flow/mobile-dashboard` endpoint'indeki banka bakiyesi hesabı artık tek sorguda yapılır.
+`GET /cash-flow/mobile-dashboard` endpoint'indeki banka bakiyesi hesabı tek sorguda yapılır.
 
 **Eski yöntem (N+1):** Her `BankAccount` için ayrı bir `BankTransaction` sorgusu çalıştırılıyordu.
 
-**Yeni yöntem:** Subquery ile her hesabın `max(id)` değeri bulunur, ardından tek `JOIN` ile tüm son bakiyeler tek sorguda alınır:
+**Güncel yöntem (2026-07-19):** `DISTINCT ON` ile her hesabın **(date, id) sırasına göre son**
+bakiyeli satırı tek sorguda alınır — `max(id)` KULLANILMAZ (backfill'li eski-tarihli satır en
+yüksek id'yi alıp bayat bakiyeyi "güncel" gösterirdi; üstteki "Pencere-Öncesi Tohum" bölümüne bkz):
 
 ```python
-last_tx_sub = db.query(
-    BankTransaction.account_id,
-    func.max(BankTransaction.id).label("max_id"),
-).filter(BankTransaction.balance.isnot(None)).group_by(BankTransaction.account_id).subquery()
-
-last_balance_rows = db.query(
-    BankTransaction.account_id,
-    BankTransaction.balance,
-).join(
-    last_tx_sub,
-    (BankTransaction.account_id == last_tx_sub.c.account_id) &
-    (BankTransaction.id == last_tx_sub.c.max_id),
-).all()
+last_balance_rows = (
+    db.query(BankTransaction.account_id, BankTransaction.balance)
+    .filter(BankTransaction.balance.isnot(None))
+    .distinct(BankTransaction.account_id)
+    .order_by(BankTransaction.account_id,
+              BankTransaction.date.desc(), BankTransaction.id.desc())
+    .all()
+)
 ```
 
 TRY para birimli hesapları tespit etmek için `account_currency = {a.id: a.currency for a in accounts}` map'i kullanılır — hesap listesi (accounts) zaten çekilmiş olduğundan ek sorgu gerekmez.

@@ -105,6 +105,24 @@ def compute_eur_balances(db: Session) -> dict:
         if tx.balance is not None:
             acc_daily_balance[tx.account_id][tx.date] = float(tx.balance)
 
+    # Pencere-öncesi tohum bakiyeleri (2026-07-19 — Ocak açılış artefaktı düzeltmesi):
+    # MIN_DATE kesimi hesapları pencere-içi İLK satırlarına kadar "yok" sayıyordu → 1 Ocak
+    # açılışı eksik ölçülüyordu (yalnız 1 hesap görünür, ~€30K; gerçek ~€289K). Her hesap
+    # pencere başında pencere-ÖNCESİ son bilinen ekstre bakiyesiyle tohumlanır. Tohum akım
+    # üretmez ("Devir gelir değildir" — income/expense toplamları değişmez), yalnız seviye
+    # düzeltir. Sıralama (date, id) — max(id) KULLANILMAZ: sonradan eklenen (backfill)
+    # eski-tarihli satırlar id sırasını bozar (canlı hesap 9/10 kanıtı; Garanti filtreli
+    # PDF tuzağı sınıfı). Pencere-içi acc_daily_balance kurulumuyla aynı konvansiyon.
+    pre_rows = (
+        db.query(BankTransaction.account_id, BankTransaction.balance)
+        .filter(BankTransaction.date < MIN_DATE, BankTransaction.balance.isnot(None))
+        .order_by(BankTransaction.date, BankTransaction.id)
+        .all()
+    )
+    seed_balance = {}
+    for r in pre_rows:
+        seed_balance[r.account_id] = float(r.balance)  # (date,id) son satır kazanır
+
     # Bekleyen cari ödemeler — FIFO tutarları finance_events'ten oku
     vendor_fe_payments = (
         db.query(FinanceEvent)
@@ -366,9 +384,19 @@ def compute_eur_balances(db: Session) -> dict:
         eff_check = deferral_map.get(("check", c.id)) or c.due_date
         pending_check_expense_by_date[eff_check] += to_eur(amt, curr, eff_check)
 
-    # Kümülatif bakiye hesapla
-    acc_running_balance = {}
+    # Kümülatif bakiye hesapla — pencere-öncesi tohumlarla başlar (yukarıdaki nota bkz):
+    # tohumlu hesap pencere-içi ilk kendi satırına kadar devir bakiyesiyle toplamda yer alır,
+    # ilk satırı geldiği gün kendi ekstre bakiyesi devralır (süreklilik; sıçrama yok).
+    acc_running_balance = dict(seed_balance)
     last_known_bank_eur = 0
+    if acc_running_balance and all_dates:
+        # İlk banka gününden önceki (planlı-kalem) günler de gerçek devir seviyesini görsün.
+        # Kur = gösterim günü kuru (fonksiyonun her banka-gününde yeniden değerleme konvansiyonu).
+        _seed_dt = all_dates[0]
+        last_known_bank_eur = round(sum(
+            to_eur(bal - acc_blocked.get(acc_id, 0), acc_map[acc_id].currency, _seed_dt)
+            for acc_id, bal in acc_running_balance.items() if acc_id in acc_map
+        ), 2)
     bank_date_set = set(tx.date for tx in txs)
     last_bank_date = max(bank_date_set) if bank_date_set else all_dates[0] if all_dates else None
     cumulative_future_expense = 0
