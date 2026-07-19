@@ -36,7 +36,7 @@
 | Doluluk (`doluluk`, varsayılan) | Yıllık aylık doluluk barları (gerçekleşen lacivert + ileri çizgili pirinç), ay satırına tıkla → günlük görünüm (masaüstü sütun / mobil satır), bugün kırmızı işaretli; üstte 3 chip (bugün / cari ay / yıl ort.) | `OccupancyPanel.svelte` · bu doküman §5c |
 | Acenteler (`acente`) | Acente Dağılımı — Bireysel / Gruplu (grup satırı → üyeler açılır), pay bazlı bar + toplam | `AgencyDistributionPanel.svelte` |
 | Günlük Hareketler (`hareket`) | Son 14 günün gün kartları (gelen/iptal/net) → tıklayınca Aylık Doluluk Etkisi + hareket listesi (Sedna canlı) | `DailyMovesPanel.svelte` · `gunluk-hareketler.md` |
-| Nakit Akım (`nakit`) | Avans/fatura/mahsup/vadesi-geçen KPI'ları + Tahsilat Takvimi (12 ay + devreden) + Acente Avans & Mahsup + Vadesi Geçen Alacaklar | `SalesCashFlowPanel.svelte` · bu doküman §5d |
+| Nakit Akım (`nakit`) | Avans/fatura/mahsup/vadesi-geçen KPI'ları + Tahsilat Takvimi (12 ay + devreden) + Acente Finansal Özet (grup başına 6 kalem bar grafiği) + Vadesi Geçen Alacaklar | `SalesCashFlowPanel.svelte` · bu doküman §5d |
 | Rezervasyonlar (`rezervasyon`) | Eski Otel Rezervasyon sayfasının TAMAMI (XLS yükleme, KPI, dağılımlar, acente gruplama) | `ReservationsPanel.svelte` · `otel-rezervasyon.md` |
 | Oda Tipleri (`oda`) | Eski Oda Tipleri CRUD'u | `RoomTypesPanel.svelte` · `oda-tipleri.md` |
 | Kontratlar (`kontrat`) | Kontrat arşivi — AYRI izin (`sales.kontratlar` view ile görünür) | `KontratlarPanel.svelte` · `kontratlar.md` |
@@ -66,6 +66,19 @@ Gece dağıtımı `summary` ile birebir aynı (generate_series).
   `oldest_due_month`. Vade AYINA dağıtım: geçmiş aya düşen açık vade → o ay; artan
   (cari ay içinde geçen) → cari ay; yıl öncesinden devreden → Ocak. Yalnız
   `year == bugünün yılı` iken hesaplanır (geçmiş/gelecek yıl seçiminde boş).
+- **`advances` genişletmesi (2026-07-19 akşam — "Acente Finansal Özet" grafiği):**
+  `advances.rows[]` artık avans alanlarına ek `revenue` (seçili yıl grup cirosu, EUR),
+  `invoiced` (kesilen TÜM faturalar, `invoiced_tl`), `collected` (haricen tahsilatlar,
+  `collected_tl` — kasa/banka, mahsup DIŞI) ve `overdue` (grup vadesi geçen) taşır;
+  blok toplamlarına `total_invoiced`/`total_collected` eklendi. Fatura/tahsilat/avans
+  muhasebe KÜMÜLATİFİDİR (yıl filtresi yok, güncel kurla EUR) — ciro ise seçili yıla
+  aittir; UI açıklaması bu farkı belirtir. Satır seçimi değişti: yalnız avansı olan
+  değil, 6 kalemden HERHANGİ biri > 0 olan grup listelenir (sıralama: ciro ↓, avans ↓).
+  UI: `SalesCashFlowPanel` "Acente Avans & Mahsup" bölümü **"Acente Finansal Özet"**
+  gruplu bar grafiğine dönüştü — grup başına 6 yatay bar (alınan avans teal-700 ·
+  rezervasyon cirosu teal-500 · kesilen fatura brass · kalan avans borcu amber-500 ·
+  haricen tahsilat emerald-500 · vadesi geçen red-600), tüm acenteler/kalemler ortak
+  ölçekli (global max), sıfır değer "—".
 
 **Hak Ediş'ten (finance.hakedis) farkı:** Hak Ediş **gerçek** muhasebe faturalarının
 (120, TL) yaşlandırmasıdır — bugüne kadar kesilmiş fatura + tahsilat. Bu modül ise

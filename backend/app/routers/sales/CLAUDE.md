@@ -32,7 +32,12 @@ modülüne katkı kurallarını içerir.
   gerçek gecikmesi güncel kurla EUR; kırmızı KIRPILMAZ ki ΣKırmızı = Vadesi Geçen KPI'sıyla
   mutabık kalsın) ve `overdue.{total,rows}` (grup bazlı, `max_days` + `oldest_due_month`;
   yalnız `year == bugünün yılı`). `year_target`/`opening_cash` paramları UI'dan artık
-  gönderilmez ama API'de geri-uyumlu durur.
+  gönderilmez ama API'de geri-uyumlu durur. **`advances.rows` genişletmesi (2026-07-19
+  akşam):** satırlara `revenue`/`invoiced`/`collected`/`overdue` alanları + blok
+  toplamlarına `total_invoiced`/`total_collected` eklendi (compute_receivables'ın
+  `invoiced_tl`/`collected_tl` alanları güncel kurla EUR; kümülatif, yıl filtresiz);
+  satır seçimi "avansı olan" → "6 kalemden herhangi biri olan" grup. UI karşılığı
+  `SalesCashFlowPanel` "Acente Finansal Özet" bar grafiği (`docs/modules/acente-mahsup.md` §5d).
 - **Vade/kickback konfigü `agency_groups`'tadır** (bu modül eklerken 2 kolon eklendi); düzenleme
   mevcut `PATCH /agency-groups/{id}` (`sales.acente_mahsup` use) ile. Yeni mutasyon endpoint'i
   eklenmedi → ayrı executor handler gerekmez.

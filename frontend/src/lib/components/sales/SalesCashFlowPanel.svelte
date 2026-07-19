@@ -24,6 +24,17 @@
 		tick?: number;
 	} = $props();
 
+	// ── Sabitler ─────────────────────────────────────────────
+	// Acente Finansal Özet — grup başına 6 kalem (renkler tema token'ları; kırmızı=risk)
+	const AGENCY_METRICS = [
+		{ key: 'received', label: 'Alınan Avans', cls: 'bg-teal-700' },
+		{ key: 'revenue', label: 'Rezervasyon Cirosu', cls: 'bg-teal-500' },
+		{ key: 'invoiced', label: 'Kesilen Fatura', cls: 'bg-brass' },
+		{ key: 'remaining', label: 'Kalan Avans Borcu', cls: 'bg-amber-500' },
+		{ key: 'collected', label: 'Haricen Tahsilat', cls: 'bg-emerald-500' },
+		{ key: 'overdue', label: 'Vadesi Geçen', cls: 'bg-red-600' },
+	] as const;
+
 	// ── State ────────────────────────────────────────────────
 	let loading = $state(true);
 	let data = $state<any>(null);
@@ -64,6 +75,12 @@
 	});
 	let overdueRows = $derived(data?.overdue?.rows ?? []);
 	let advRows = $derived(data?.advances?.rows ?? []);
+	// Avansı olan grup sayısı (KPI hint'i — advRows artık avanssız grupları da içerir)
+	let advCount = $derived(advRows.filter((r: any) => (r.received || 0) > 0).length);
+	// Tüm acenteler + kalemler arasında ORTAK ölçek (barlar karşılaştırılabilir olsun)
+	let advMax = $derived(
+		Math.max(1, ...advRows.flatMap((r: any) => AGENCY_METRICS.map((m) => r[m.key] || 0)))
+	);
 
 	// ── Veri fonksiyonları ───────────────────────────────────
 	async function load() {
@@ -106,7 +123,7 @@
 	{:else}
 		<!-- KPI kutuları -->
 		<div class="mb-5 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-			<StatCard icon={Wallet} accent="teal" label="Alınan Avans" value={eurCompact(data.kpi.advance_received)} hint="{advRows.length} acente · depozit" />
+			<StatCard icon={Wallet} accent="teal" label="Alınan Avans" value={eurCompact(data.kpi.advance_received)} hint="{advCount} acente · depozit" />
 			<StatCard icon={ReceiptText} accent="teal" label="Kesilen Fatura" value={eurCompact(data.kpi.realized)} hint="yıl projeksiyonu {eurCompact(data.kpi.grand_total)}" />
 			<StatCard icon={Scale} accent="emerald" label="Mahsuplaşma" value={eurCompact(data.kpi.advance_applied)} hint="kalan avans {eurCompact(data.kpi.advance_remaining)}" />
 			<StatCard
@@ -147,32 +164,40 @@
 			Kesilen fatura {eurCompact(data.kpi.realized)} − avans mahsubu {eurCompact(data.kpi.advance_applied)} = net tahsil edilecek tutar, acente vadesine göre (peşin / 30 / 60 gün karması) tahsilat ayına yazılır. Kalan avanslar ({eurCompact(data.kpi.advance_remaining)}) ileri ayların faturalarına mahsup edilecektir.
 		</p>
 
-		<!-- Acente Avans & Mahsup -->
+		<!-- Acente Finansal Özet (avans · ciro · fatura · tahsilat · vadesi geçen) -->
 		<div class="mt-4.5 border-t border-gray-200 pt-3.5">
-			<h3 class="mb-2.5 text-sm font-semibold text-gray-800">Acente Avans &amp; Mahsup</h3>
+			<h3 class="mb-2.5 text-sm font-semibold text-gray-800">Acente Finansal Özet</h3>
 			{#if advRows.length === 0}
-				<p class="text-xs text-gray-500">Kayıtlı acente avansı bulunmuyor.</p>
+				<p class="text-xs text-gray-500">Kayıtlı acente finans verisi bulunmuyor.</p>
 			{:else}
-				<div class="flex flex-col gap-1.5">
+				<div class="flex flex-col gap-3.5">
 					{#each advRows as a (a.agency_id)}
-						<div
-							class="flex items-center gap-3 px-1.5 py-0.5"
-							title="{a.agency} — alınan €{trInt(a.received)} · mahsup €{trInt(a.applied)} · kalan €{trInt(a.remaining)}"
-						>
-							<span class="w-24 shrink-0 truncate text-xs font-medium text-gray-600 sm:w-[170px]">{a.agency}</span>
-							<span class="relative h-4 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
-								<span class="block h-full rounded-full bg-emerald-500" style="width:{Math.max(a.pct, 1).toFixed(1)}%"></span>
-								<span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10.5px] font-semibold tabular-nums whitespace-nowrap text-gray-700">%{Math.round(a.pct)} mahsup</span>
-							</span>
-							<span class="w-[84px] shrink-0 text-right sm:w-[120px]">
-								<span class="block text-xs font-semibold tabular-nums text-teal-700">{eurCompact(a.remaining)}</span>
-								<span class="hidden text-[10.5px] tabular-nums whitespace-nowrap text-gray-500 sm:block">alınan {eurCompact(a.received)}</span>
-							</span>
+						<div>
+							<div class="mb-1 flex items-baseline justify-between gap-2 px-1.5">
+								<span class="min-w-0 truncate text-xs font-semibold text-gray-800">{a.agency}</span>
+								{#if a.received > 0}
+									<span class="shrink-0 text-[10.5px] tabular-nums text-gray-500">avansın %{Math.round(a.pct)}'i mahsup edildi</span>
+								{/if}
+							</div>
+							<div class="flex flex-col gap-[3px]">
+								{#each AGENCY_METRICS as m (m.key)}
+									{@const v = a[m.key] || 0}
+									<div class="flex items-center gap-2 px-1.5" title="{a.agency} — {m.label}: €{trInt(v)}">
+										<span class="w-[96px] shrink-0 text-[10px] leading-tight text-gray-500 sm:w-[136px] sm:text-[10.5px]">{m.label}</span>
+										<span class="h-3 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100">
+											{#if v > 0}
+												<span class="block h-full rounded-full {m.cls}" style="width:{Math.max((v / advMax) * 100, 0.8).toFixed(2)}%"></span>
+											{/if}
+										</span>
+										<span class="w-[64px] shrink-0 text-right text-[10.5px] font-semibold tabular-nums whitespace-nowrap {v > 0 ? (m.key === 'overdue' ? 'text-red-700' : 'text-gray-700') : 'text-gray-500'} sm:w-[84px]">{v > 0 ? eurCompact(v) : '—'}</span>
+									</div>
+								{/each}
+							</div>
 						</div>
 					{/each}
 				</div>
 				<p class="mt-2.5 text-xs leading-relaxed text-gray-500">
-					Yeşil bar avansın faturalarla mahsup edilen kısmıdır; sağdaki tutar mahsup bekleyen kalan avanstır. Mahsup edilen kısım vadesinde tekrar tahsil edilmez.
+					Barlar tüm acenteler ve kalemler arasında ortak ölçeklidir. Rezervasyon cirosu seçili yılın EUR toplamıdır; alınan avans, kesilen fatura ve haricen tahsilat Sedna muhasebesindeki kümülatif durumun güncel kurla EUR karşılığıdır. Haricen tahsilat, faturaların avans mahsubu dışında kasa/banka yoluyla tahsil edilen kısmıdır; kalan avans borcu ileri ayların faturalarına mahsup edilecektir. Vadesi geçen tutar hak ediş vade gecikmesidir.
 				</p>
 			{/if}
 		</div>

@@ -171,6 +171,10 @@ def compute_settlement(
 
     adv_received: dict = {gid: 0.0 for gid in gmeta}   # EUR
     adv_consumed: dict = {gid: 0.0 for gid in gmeta}   # EUR (faturayla mahsup)
+    # Muhasebe kümülatifleri (kesilen TÜM faturalar + haricen tahsilatlar) — acente
+    # bazlı finans grafiği için; yıl filtresi YOK (güncel durum), güncel kurla EUR.
+    inv_eur: dict = {gid: 0.0 for gid in gmeta}        # EUR — kesilen fatura (invoiced_tl)
+    coll_eur: dict = {gid: 0.0 for gid in gmeta}       # EUR — haricen tahsilat (collected_tl)
     # Vadesi geçen alacaklar (GERÇEK, hak ediş vade katmanından — EUR'ya güncel kurla)
     ovd_amount: dict = {gid: 0.0 for gid in gmeta}     # EUR
     ovd_max_days: dict = {gid: 0 for gid in gmeta}
@@ -190,6 +194,8 @@ def compute_settlement(
             gid = _OTHER_ID  # gruba bağlı olmayan muhasebe firması → Diğer
         adv_received[gid] += _to_eur(f.get("advance_received_tl", 0))
         adv_consumed[gid] += _to_eur(f.get("advance_consumed_tl", 0))
+        inv_eur[gid] += _to_eur(f.get("invoiced_tl", 0))
+        coll_eur[gid] += _to_eur(f.get("collected_tl", 0))
 
         # Vadesi geçen: overdue_tl (gün hassasiyetli gerçek gecikme) → EUR; takvim (red
         # segmenti) için vade AYINA dağıtılır. Geçmiş aya düşen açık vade tanım gereği
@@ -223,6 +229,8 @@ def compute_settlement(
                     ovd_oldest_month[gid] = cur_key
     adv_received = {k: round(v, 2) for k, v in adv_received.items()}
     adv_consumed = {k: round(v, 2) for k, v in adv_consumed.items()}
+    inv_eur = {k: round(v, 2) for k, v in inv_eur.items()}
+    coll_eur = {k: round(v, 2) for k, v in coll_eur.items()}
     ovd_amount = {k: round(v, 2) for k, v in ovd_amount.items()}
 
     # ── Acente tablosu (tab 1) ───────────────────────────────
@@ -413,6 +421,32 @@ def compute_settlement(
     inv_mahsup_total = round(sum(x["mahsup"] for x in invoices), 2)
     inv_net_total = round(sum(x["net"] for x in invoices), 2)
 
+    # ── Acente finansal özet satırları (advances.rows, 2026-07-19 genişletme) ──
+    # 6 kalem/grup: alınan avans · rezervasyon cirosu (seçili yıl, EUR) · kesilen
+    # fatura · kalan avans · haricen tahsilat · vadesi geçen. Muhasebe kalemleri
+    # (avans/fatura/tahsilat) kümülatif güncel durumdur, ciro seçili yıla aittir.
+    # Eski davranıştan fark: yalnız avansı olan değil, HERHANGİ bir kalemi olan
+    # grup listelenir (geri-uyumlu alanlar received/applied/remaining/pct korunur).
+    adv_rows = []
+    for gid in gmeta:
+        received = adv_received[gid]
+        row = {
+            "agency_id": gid, "agency": gmeta[gid]["name"], "color": gmeta[gid]["color"],
+            "received": received,
+            "applied": adv_consumed[gid],
+            "remaining": round(max(0.0, received - adv_consumed[gid]), 2),
+            "pct": round(adv_consumed[gid] / received * 100, 0) if received > 0 else 0.0,
+            "revenue": group_year[gid],
+            "invoiced": inv_eur[gid],
+            "collected": coll_eur[gid],
+            "overdue": ovd_amount[gid],
+        }
+        if max(row["received"], row["revenue"], row["invoiced"],
+               row["collected"], row["overdue"]) <= 0.005:
+            continue
+        adv_rows.append(row)
+    adv_rows.sort(key=lambda r: (-r["revenue"], -r["received"]))
+
     return {
         "year": year,
         "currency": "EUR",
@@ -450,16 +484,9 @@ def compute_settlement(
             "total_received": advance_total,
             "total_applied": advance_applied_total,
             "total_remaining": advance_remaining_total,
-            "rows": [
-                {
-                    "agency_id": a["id"], "agency": a["name"], "color": a["color"],
-                    "received": a["advance_received"], "applied": a["advance_applied"],
-                    "remaining": a["advance_remaining"],
-                    "pct": round(a["advance_applied"] / a["advance_received"] * 100, 0)
-                    if a["advance_received"] > 0 else 0.0,
-                }
-                for a in agencies if a["advance_received"] > 0
-            ],
+            "total_invoiced": round(sum(inv_eur.values()), 2),
+            "total_collected": round(sum(coll_eur.values()), 2),
+            "rows": adv_rows,
         },
         "invoices": {
             "total_amount": inv_amount_total,
