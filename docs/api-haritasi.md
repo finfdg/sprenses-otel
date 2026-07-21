@@ -119,6 +119,9 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - Detaylı bilgi: `docs/modules/onay.md`
 
 ### Muhasebe — Vergiler, Düzenli Ödemeler, Kiralar
+> **Para birimi (2026-07-21):** Tanım create/update `currency` alır (`TRY|EUR|USD|GBP` whitelist);
+> değişince tüm girişlere + finance_events'e yayılır. `summary/totals` yanıtına `by_currency`
+> kırılımı eklendi (üst seviye toplamlar birim-karışık ham toplam, geriye-uyum). Detay: `docs/modules/muhasebe-ik.md`.
 - `GET/POST/PATCH/DELETE /api/accounting/taxes/` — Vergi tanım CRUD + giriş üretimi
 - `PATCH /api/accounting/taxes/entries/{id}` — Vergi girişi güncelle (tutar, ödendi)
 - `GET /api/accounting/taxes/summary/totals` — Vergi özeti

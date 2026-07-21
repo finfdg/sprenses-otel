@@ -50,6 +50,15 @@ def apply_definition_update(db: Session, defn: ScheduledDefinition, update_data:
         return changes
     if need_regenerate:
         regenerate_entries(db, defn, direction=direction)
+    if "currency" in changes:
+        # Para birimi tanımın TÜM girişlerine yayılır (girişler tanım biriminde üretilir;
+        # regenerate yalnız ödenmemişleri yeniden kurar, ödenmişler burada güncellenir).
+        # Tutarlar DEĞİŞMEZ — sadece birim etiketi; TRY karşılığı FE/nakit-akım katmanında
+        # kur çevrimiyle hesaplanır.
+        for entry in defn.entries.all():
+            if entry.currency != defn.currency:
+                entry.currency = defn.currency
+            finance_event_svc.upsert_scheduled_entry(db, entry, direction=direction)
     if defn.vendor_id:
         sync_recurring_from_vendors(db)
     return changes

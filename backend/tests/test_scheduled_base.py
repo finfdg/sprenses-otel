@@ -406,6 +406,57 @@ class TestUpdate:
         assert resp.json()["is_active"] is False
         assert len(resp.json()["entries"]) == orig_count
 
+    @pytest.mark.parametrize("prefix,source_type,label,direction", MODULES[:1], ids=MODULE_IDS[:1])
+    def test_update_currency_propagates_to_entries_and_finance_events(
+        self, client, auth_headers, db, prefix, source_type, label, direction,
+    ):
+        """Para birimi değişikliği — tanım + TÜM girişler (ödenmişler dahil) + finance_events
+        yeni birimi almalı; tutarlar değişmemeli (regresyon, 2026-07-21)."""
+        from app.models.finance_event import FinanceEvent
+
+        create_resp = _create_definition(client, auth_headers, prefix, amount=408)
+        defn_id = create_resp.json()["id"]
+        first_entry_id = create_resp.json()["entries"][0]["id"]
+
+        # İlk girişi ödenmiş işaretle — yayılım ödenmiş girişleri de kapsamalı
+        client.patch(
+            f"{prefix}/entries/{first_entry_id}",
+            json={"is_paid": True},
+            headers=auth_headers,
+        )
+
+        resp = client.patch(
+            f"{prefix}/{defn_id}",
+            json={"currency": "EUR"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["currency"] == "EUR"
+        assert len(data["entries"]) == 12
+        for entry in data["entries"]:
+            assert entry["currency"] == "EUR"
+            assert entry["amount"] == 408.0  # tutar birim değişiminden etkilenmez
+            fe = db.query(FinanceEvent).filter(
+                FinanceEvent.source_type == source_type,
+                FinanceEvent.source_id == entry["id"],
+            ).first()
+            assert fe is not None
+            assert fe.currency == "EUR"
+
+    @pytest.mark.parametrize("prefix,source_type,label,direction", MODULES[:1], ids=MODULE_IDS[:1])
+    def test_update_currency_invalid(self, client, auth_headers, prefix, source_type, label, direction):
+        """Whitelist dışı para birimi — 422."""
+        create_resp = _create_definition(client, auth_headers, prefix)
+        defn_id = create_resp.json()["id"]
+
+        resp = client.patch(
+            f"{prefix}/{defn_id}",
+            json={"currency": "XXX"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
 
 # ─── DELETE testleri ────────────────────────────────────────
 

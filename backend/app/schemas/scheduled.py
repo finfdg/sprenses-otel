@@ -11,7 +11,7 @@ class DefinitionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     category: Optional[str] = None
     amount: float = Field(..., gt=0)
-    currency: str = Field(default="TRY", max_length=3)
+    currency: str = Field(default="TRY", pattern="^(TRY|EUR|USD|GBP)$")
     frequency: str = Field(default="monthly", pattern="^(monthly|quarterly|yearly)$")
     payment_day: int = Field(default=1, ge=1, le=28)
     start_month: int = Field(default=1, ge=1, le=12)
@@ -26,6 +26,7 @@ class DefinitionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     category: Optional[str] = None
     amount: Optional[float] = Field(None, gt=0)
+    currency: Optional[str] = Field(None, pattern="^(TRY|EUR|USD|GBP)$")  # değişirse TÜM girişlere yayılır
     frequency: Optional[str] = Field(None, pattern="^(monthly|quarterly|yearly)$")
     payment_day: Optional[int] = Field(None, ge=1, le=28)
     start_month: Optional[int] = Field(None, ge=1, le=12)  # değişirse girişler yeniden üretilir

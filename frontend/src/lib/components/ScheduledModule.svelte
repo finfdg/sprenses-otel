@@ -292,9 +292,21 @@
 		}
 	}
 
-	function fmt(n: number | null | undefined): string {
+	const CUR_SYMBOL: Record<string, string> = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
+
+	function fmt(n: number | null | undefined, currency: string = 'TRY'): string {
 		if (n == null) return '-';
-		return `₺${n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+		const sym = CUR_SYMBOL[currency] || `${currency} `;
+		return `${sym}${n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	}
+
+	// Özet kartı değeri: birden fazla para birimi varsa birim başına ayrı gösterilir
+	// ("₺1.000,00 + €408,00") — karışık birimlerin ham toplamı anlamsızdır.
+	function fmtSummary(field: 'total' | 'paid' | 'pending'): string {
+		const bc: any[] = Array.isArray(summary?.by_currency) ? summary.by_currency : [];
+		const nonZero = bc.filter((b) => Math.abs(b[field] || 0) > 0.005);
+		if (nonZero.length === 0) return fmt(summary?.[field] ?? 0, bc[0]?.currency || 'TRY');
+		return nonZero.map((b) => fmt(b[field], b.currency)).join(' + ');
 	}
 
 	function fmtDate(d: string | null): string {
@@ -587,9 +599,9 @@
 	<!-- Özet kartları -->
 	{#if summary.total}
 		<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-			<StatCard label="Toplam" value={fmt(summary.total)} accent="teal" icon={FileText} hint="{summary.count || 0} giriş" />
-			<StatCard label="Ödenen" value={fmt(summary.paid)} accent="emerald" icon={CircleCheck} hint="{summary.paid_count || 0} giriş" />
-			<StatCard label="Bekleyen" value={fmt(summary.pending)} accent="amber" icon={Clock} hint="{(summary.count || 0) - (summary.paid_count || 0)} giriş" />
+			<StatCard label="Toplam" value={fmtSummary('total')} accent="teal" icon={FileText} hint="{summary.count || 0} giriş" />
+			<StatCard label="Ödenen" value={fmtSummary('paid')} accent="emerald" icon={CircleCheck} hint="{summary.paid_count || 0} giriş" />
+			<StatCard label="Bekleyen" value={fmtSummary('pending')} accent="amber" icon={Clock} hint="{(summary.count || 0) - (summary.paid_count || 0)} giriş" />
 		</div>
 	{/if}
 
@@ -680,7 +692,7 @@
 								{/if}
 							</div>
 							<div class="flex items-center gap-3 mt-1 text-xs {isPendingCreate ? 'text-orange-500' : 'text-gray-500'} flex-wrap">
-								<span>{fmt(defn.amount)} / dönem</span>
+								<span>{fmt(defn.amount, defn.currency)} / dönem</span>
 								{#if !isInactive}
 									<span>{paidCount}/{entries.length} ödendi</span>
 								{/if}
@@ -770,7 +782,7 @@
 												</td>
 												<td class="px-4 py-2.5 text-right">
 													<div class="w-32 ml-auto">
-														<MoneyInput bind:value={entryForm.amount} min={0} placeholder="0,00" class="px-2 py-1 rounded-lg" />
+														<MoneyInput bind:value={entryForm.amount} currency={entry.currency} min={0} placeholder="0,00" class="px-2 py-1 rounded-lg" />
 													</div>
 												</td>
 												<td class="px-4 py-2.5 text-center">
@@ -810,7 +822,7 @@
 														{/if}
 													</div>
 												</td>
-												<td class="px-4 py-2.5 text-right font-medium text-gray-800 whitespace-nowrap">{fmt(entry.amount)}</td>
+												<td class="px-4 py-2.5 text-right font-medium text-gray-800 whitespace-nowrap">{fmt(entry.amount, entry.currency)}</td>
 												<td class="px-4 py-2.5 text-center">
 													{#if pendingInfo}
 														<button
@@ -862,7 +874,7 @@
 								<tfoot>
 									<tr class="border-t-2 border-gray-200 bg-gray-50">
 										<td class="px-4 py-2.5 font-semibold text-gray-700 text-xs">Toplam</td>
-										<td class="px-4 py-2.5 text-right font-bold text-gray-900">{fmt(entries.reduce((s: number, e: any) => s + e.amount, 0))}</td>
+										<td class="px-4 py-2.5 text-right font-bold text-gray-900">{fmt(entries.reduce((s: number, e: any) => s + e.amount, 0), defn.currency)}</td>
 										<td class="px-4 py-2.5"></td>
 										<td class="px-4 py-2.5"></td>
 										<td class="px-4 py-2.5"></td>
@@ -894,7 +906,7 @@
 											<div class="grid grid-cols-2 gap-2">
 												<div>
 													<label for="se-amount-{entry.id}" class="text-[10px] text-gray-500 uppercase font-medium">Tutar</label>
-													<MoneyInput id="se-amount-{entry.id}" bind:value={entryForm.amount} min={0} placeholder="0,00" class="px-2 py-1.5 rounded-lg" />
+													<MoneyInput id="se-amount-{entry.id}" bind:value={entryForm.amount} currency={entry.currency} min={0} placeholder="0,00" class="px-2 py-1.5 rounded-lg" />
 												</div>
 												<div>
 													<label for="se-period-{entry.id}" class="text-[10px] text-gray-500 uppercase font-medium">Dönem</label>
@@ -953,7 +965,7 @@
 													{/if}
 												</div>
 												<div class="flex items-center gap-2 mt-0.5">
-													<span class="text-sm font-bold text-gray-800">{fmt(entry.amount)}</span>
+													<span class="text-sm font-bold text-gray-800">{fmt(entry.amount, entry.currency)}</span>
 													<span class="text-[11px] text-gray-500">• {fmtDate(entry.paid_date || entry.entry_date)}</span>
 												</div>
 												{#if entry.notes}
@@ -986,7 +998,7 @@
 								<!-- Mobile total -->
 								<div class="px-3 py-2.5 bg-gray-50 flex items-center justify-between">
 									<span class="text-xs font-semibold text-gray-600">Toplam</span>
-									<span class="text-sm font-bold text-gray-900">{fmt(entries.reduce((s: number, e: any) => s + e.amount, 0))}</span>
+									<span class="text-sm font-bold text-gray-900">{fmt(entries.reduce((s: number, e: any) => s + e.amount, 0), defn.currency)}</span>
 								</div>
 							</div>
 						</div>
@@ -1032,7 +1044,19 @@
 		<div class="grid grid-cols-2 gap-4">
 			<div>
 				<label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Tutar *</label>
-				<MoneyInput id="amount" bind:value={form.amount} currency={form.currency} min={0} placeholder="0,00" />
+				<div class="flex gap-2">
+					<div class="flex-1 min-w-0">
+						<MoneyInput id="amount" bind:value={form.amount} currency={form.currency} min={0} placeholder="0,00" />
+					</div>
+					<div class="w-20 shrink-0">
+						<Select id="currency" bind:value={form.currency} size="sm" aria-label="Para Birimi">
+							<option value="TRY">TRY</option>
+							<option value="EUR">EUR</option>
+							<option value="USD">USD</option>
+							<option value="GBP">GBP</option>
+						</Select>
+					</div>
+				</div>
 			</div>
 			<div>
 				<label for="frequency" class="block text-sm font-medium text-gray-700 mb-1">Periyot</label>

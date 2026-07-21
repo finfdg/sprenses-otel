@@ -16,7 +16,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from sqlalchemy import desc, func
+from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -392,6 +392,34 @@ def create_scheduled_router(
         count = q.count()
         paid_count = q.filter(ScheduledEntry.is_paid == True).count()  # noqa: E712
 
+        # Para birimi kırılımı — karışık birimli (TRY+EUR) modüllerde üstteki ham toplamlar
+        # anlamsızlaşır; frontend birden fazla birim varsa bu kırılımı gösterir.
+        cur_rows = (
+            q.with_entities(
+                ScheduledEntry.currency,
+                func.sum(ScheduledEntry.amount),
+                func.sum(case((ScheduledEntry.is_paid == True, ScheduledEntry.amount), else_=0)),  # noqa: E712
+                func.count(ScheduledEntry.id),
+                func.sum(case((ScheduledEntry.is_paid == True, 1), else_=0)),  # noqa: E712
+            )
+            .group_by(ScheduledEntry.currency)
+            .all()
+        )
+        by_currency = sorted(
+            (
+                {
+                    "currency": cur or "TRY",
+                    "total": float(t or 0),
+                    "paid": float(p or 0),
+                    "pending": float(t or 0) - float(p or 0),
+                    "count": int(c or 0),
+                    "paid_count": int(pc or 0),
+                }
+                for cur, t, p, c, pc in cur_rows
+            ),
+            key=lambda r: (r["currency"] != "TRY", r["currency"]),  # TRY önce, sonra alfabetik
+        )
+
         return {
             "year": target_year,
             "total": float(total),
@@ -399,6 +427,7 @@ def create_scheduled_router(
             "pending": pending,
             "count": count,
             "paid_count": paid_count,
+            "by_currency": by_currency,
         }
 
     # ─── CARI SENKRON (yalnız vendor-sync etkin modüller, ör. recurring) ──

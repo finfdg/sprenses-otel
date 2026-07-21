@@ -36,7 +36,7 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 | name | VARCHAR(200) | Tanım adı |
 | category | VARCHAR(100) | Vergi türü / Kategori (nullable) |
 | amount | NUMERIC(15,2) | Dönemsel tutar |
-| currency | VARCHAR(3) | Para birimi (TRY) |
+| currency | VARCHAR(3) | Para birimi — `TRY`/`EUR`/`USD`/`GBP` whitelist (varsayılan TRY; bkz. *Para Birimi Desteği*) |
 | frequency | VARCHAR(20) | `monthly`, `quarterly`, `yearly` |
 | payment_day | INTEGER | Ödeme günü (1-28) |
 | start_month | INTEGER | Başlangıç ayı (1-12) |
@@ -58,7 +58,7 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 | period_month | INTEGER | Girişin dönem ayı (1-12) — UI'da "Dönem" kolonu |
 | period_year | INTEGER | Girişin dönem yılı |
 | amount | NUMERIC(15,2) | Tutar (tanımdan kopyalanır, düzenlenebilir) |
-| currency | VARCHAR(3) | |
+| currency | VARCHAR(3) | Tanımdan kopyalanır; tanımın birimi değişince TÜM girişlere yayılır |
 | description | TEXT | Nakit akımda görünen açıklama |
 | is_paid | BOOLEAN | Ödendi mi? |
 | paid_date | DATE | Gerçekleşen ödeme tarihi (varsa nakit akım `event_date` olur) |
@@ -93,6 +93,29 @@ Bu değer `finance_events.direction` kolonuna yazılır ve nakit akımda doğru 
 - `is_realized = is_paid` → Ödenmişler gerçekleşmiş olarak görünür
 - `is_matched = False` → Nakit akımda her zaman görünür
 - Tanım silindiğinde tüm girişlerin finance_event'leri `invalidate()` ile kaldırılır
+
+## Para Birimi Desteği (2026-07-21)
+
+Tanım ve girişler döviz cinsinden tutulabilir (`TRY`/`EUR`/`USD`/`GBP` — Pydantic pattern
+whitelist, hem create hem update). İş kuralları:
+
+- **Tek birim = tanım birimi.** Girişler tanımın biriminde üretilir (`entry_generator`).
+  Tanımın `currency`'si PATCH ile değişince **TÜM girişlere yayılır** (ödenmişler dahil —
+  regenerate yalnız ödenmemişleri yeniden kurar, ödenmişleri `apply_definition_update`
+  içindeki yayılım döngüsü günceller) ve her girişin finance_event'i yeni birimle re-upsert
+  edilir. `currency` `_REGEN_FIELDS`'te DEĞİL (bilinçli): regenerate banka-kanıtıyla düzeltilmiş
+  gerçek tutarları sıfırlardı; birim değişimi tutarlara dokunmaz, yalnız etiketi değiştirir.
+- **TRY karşılığı bu katmanda HESAPLANMAZ** — kur çevrimi finance_events/nakit-akım
+  katmanının işi (`fx_service`); banka eşleştirmede de farklı birimli banka kanıtı girişin
+  tutarını ezmez (`_btx_amount_for_entry` birim eşitliği şartı).
+- **Özet (`GET /summary/totals`) `by_currency` kırılımı döner** — üst seviye `total/paid/pending`
+  ham (birim-karışık) toplamdır ve geriye-uyum için korunur; birden fazla birim varsa frontend
+  kırılımı gösterir ("₺X + €Y", `fmtSummary`). Kart/satır/toplam gösterimleri girişin/tanımın
+  birim sembolünü kullanır (`fmt(n, currency)` — ₺/€/$/£); ScheduledModule tanım formunda
+  MoneyInput yanında birim seçici vardır.
+- Test: `test_scheduled_base.py::TestUpdate::test_update_currency_propagates_to_entries_and_finance_events`
+  (+ whitelist 422 testi). Canlı örnek: "Lojman Kira" ve "2026 Leasing All Risk Sigortası (Trafo)"
+  (recurring) EUR'ya çevrildi (2026-07-21).
 
 ## Cari Senkronu (Düzenli Ödemeler ↔ Cari) — 2026-06-06
 
