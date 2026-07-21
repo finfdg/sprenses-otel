@@ -55,6 +55,17 @@ geçirilir, modal state'i sayfada kalır) — Tahsilat Takvimi'nin vade girdisi 
 `year_pct`). Günlük görünüm mevcut `daily-occupancy?month=` endpoint'ini kullanır.
 Gece dağıtımı `summary` ile birebir aynı (generate_series).
 
+**§5c-ciro + yıl karşılaştırma (2026-07-21):** `occupancy-overview` aylarına
+`eur` / `past_eur` / `future_eur` (gece bazlı orantılı ciro: `eur_total / nights` —
+summary/agency-status ile AYNI dağıtım) ve yanıta `year_eur` eklendi. UI: aylık barların
+üzerinde `N oda-gece · X K/M €` etiketi (mobilde sağ kolonda), günlük görünümde sütun içi
+dikey ciro etiketi (`h ≥ %40` olan barlarda; ileri günlerde koyu, gerçekleşende beyaz metin)
++ tooltip/mobil satırda ciro. **Karşılaştır butonu** (yalnız aylık görünüm, `Button` sm):
+önceki 2 yılın overview'u çekilir (`compareCache` — geçmiş yıl verisi değişmediğinden yıl
+başına 1 fetch), verisi olmayan yıl (`year_room_nights == 0`) gizlenir; her ayın altına
+ince bar — 1. önceki yıl `bg-brass`, 2. `bg-gray-400` (lejant yıl etiketli). Karşılaştırma
+barı tek parça (gerçekleşen/ileri kırılımı ana yıla özgü).
+
 **§5d Nakit Akım payload ekleri (2026-07-19, `compute_settlement`):**
 - `cashflow.calendar.months[12]`: `{total, collected, overdue, pending, cumulative}` —
   collected yalnız CARİ AYDAN ÖNCEKİ aylarda (tahsil edildi varsayımı), pending cari+ileri
@@ -147,7 +158,7 @@ tahsilat takvimi/overdue) · `backend/tests/test_reservations.py::test_occupancy
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/api/sales/acente-mahsup/` | `sales.acente_mahsup` view | Projeksiyon payload'ı (+`cashflow.calendar` ve `overdue` blokları, §5d). Query: `year`, `year_target` (EUR, boş=gerçek), `opening_cash` (EUR) — son ikisi 2026-07-19 basit tasarımdan beri UI'dan gönderilmez, API'de geri-uyumlu durur. 60sn TTL cache. |
-| GET | `/api/sales/reservations/occupancy-overview` | `sales.acente_mahsup` view | **Doluluk genel bakışı** (2026-07-19): 12 ayın gerçekleşen/ileri oda-gece kırılımı + bugün/cari ay/yıl chip verileri. Query: `year`. |
+| GET | `/api/sales/reservations/occupancy-overview` | `sales.acente_mahsup` view | **Doluluk genel bakışı** (2026-07-19): 12 ayın gerçekleşen/ileri oda-gece kırılımı + bugün/cari ay/yıl chip verileri. Query: `year`. 2026-07-21: ay başına `eur/past_eur/future_eur` + `year_eur` (gece bazlı orantılı ciro — bar etiketi + yıl karşılaştırma). |
 | GET | `/api/sales/acente-mahsup/agency-status` | `sales.acente_mahsup` view | **Acente × Durum × Dönem** kırılımı (EUR tutar + rezervasyon adedi). Query: `granularity` (`day`/`month`/`year`, varsayılan `month`), `year` (month/day dönem yılı), `month` (yalnız `day`), **`group_id`** (acente grubu filtresi → üyeleri bireysel gösterir; **`0`=Diğer** = top-N dışı acenteler), **`agency`** (tek ham acente filtresi), **`top_n`** (kök tabloda tek tek gösterilecek en büyük grup sayısı, varsayılan **7**; kalanı "Diğer"). 60sn TTL cache. `compute_agency_status()`. |
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:

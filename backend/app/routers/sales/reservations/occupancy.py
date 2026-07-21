@@ -46,7 +46,10 @@ def occupancy_overview(
     ve İLERİ REZERVASYON (gece tarihi > bugün) kırılımıyla döner; üstteki özet
     kartları (bugün / cari ay / yıl ortalaması) için her zaman GERÇEK bugüne göre
     hesaplanan değerler de taşınır. Aylık dağıtım gece bazlıdır (generate_series)
-    — `reservations/summary` ile birebir aynı yöntem.
+    — `reservations/summary` ile birebir aynı yöntem. Her ay için ayrıca EUR ciro
+    (eur_total gece sayısına bölünerek aylara orantılanır — summary/agency-status
+    ile aynı dağıtım) ve gerçekleşen/ileri ciro kırılımı döner (bar üstü etiket +
+    yıl karşılaştırma görünümünün veri kaynağı).
     """
     today = datetime.now(_TZ_ISTANBUL).date()
     y = year or today.year
@@ -59,7 +62,9 @@ def occupancy_overview(
             SELECT
                 EXTRACT(MONTH FROM gs)::int AS m,
                 COALESCE(SUM(r.rooms), 0)::int AS room_nights,
-                COALESCE(SUM(CASE WHEN gs::date <= :today THEN r.rooms ELSE 0 END), 0)::int AS past_nights
+                COALESCE(SUM(CASE WHEN gs::date <= :today THEN r.rooms ELSE 0 END), 0)::int AS past_nights,
+                COALESCE(SUM(CASE WHEN r.nights > 0 THEN r.eur_total / r.nights ELSE 0 END), 0)::float AS eur,
+                COALESCE(SUM(CASE WHEN r.nights > 0 AND gs::date <= :today THEN r.eur_total / r.nights ELSE 0 END), 0)::float AS past_eur
             FROM reservations r
             JOIN LATERAL generate_series(
                 r.checkin_date::timestamp,
@@ -71,16 +76,21 @@ def occupancy_overview(
         """),
         {"year": y, "today": today},
     ).fetchall()
-    by_month = {int(r[0]): (int(r[1] or 0), int(r[2] or 0)) for r in month_rows}
+    by_month = {
+        int(r[0]): (int(r[1] or 0), int(r[2] or 0), float(r[3] or 0), float(r[4] or 0))
+        for r in month_rows
+    }
 
     months = []
     year_room_nights = 0
     year_capacity_nights = 0
+    year_eur = 0.0
     for m in range(1, 13):
-        rn, past = by_month.get(m, (0, 0))
+        rn, past, eur, past_eur = by_month.get(m, (0, 0, 0.0, 0.0))
         cap_nights = total_capacity * calendar.monthrange(y, m)[1]
         year_room_nights += rn
         year_capacity_nights += cap_nights
+        year_eur += eur
         months.append({
             "month": m,
             "room_nights": rn,
@@ -88,6 +98,9 @@ def occupancy_overview(
             "future_nights": max(rn - past, 0),
             "capacity_nights": cap_nights,
             "occupancy_pct": round(rn / cap_nights * 100, 2) if cap_nights > 0 else 0.0,
+            "eur": round(eur, 2),
+            "past_eur": round(past_eur, 2),
+            "future_eur": round(max(eur - past_eur, 0.0), 2),
         })
 
     # ── Özet kartları: bugün + cari ay (seçili yıldan bağımsız, gerçek bugün) ──
@@ -128,6 +141,7 @@ def occupancy_overview(
         "year_room_nights": year_room_nights,
         "year_capacity_nights": year_capacity_nights,
         "year_pct": round(year_room_nights / year_capacity_nights * 100, 2) if year_capacity_nights > 0 else 0.0,
+        "year_eur": round(year_eur, 2),
     }
 
 

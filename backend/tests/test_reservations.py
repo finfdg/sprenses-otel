@@ -269,19 +269,23 @@ def test_occupancy_overview_shape_and_split(client, auth_headers, db):
         (970001, today - timedelta(days=3), today - timedelta(days=1), 1),
         (970002, today + timedelta(days=10), today + timedelta(days=12), 2),
     ]
-    expected = {}  # ay → [toplam, gerçekleşen]
+    expected = {}  # ay → [toplam, gerçekleşen, eur, gerçekleşen_eur]
     for rec_id, ci, co, rooms in stays:
+        nights = (co - ci).days
         db.add(Reservation(
             rec_id=rec_id, agency="OVAG", checkin_date=ci, checkout_date=co,
-            record_date=today, nights=(co - ci).days, rooms=rooms, eur_total=100.0,
+            record_date=today, nights=nights, rooms=rooms, eur_total=100.0,
         ))
+        per_night_eur = 100.0 / nights  # ciro gece bazlı orantılanır (eur_total / nights)
         d = ci
         while d < co:
             if d.year == y:
-                slot = expected.setdefault(d.month, [0, 0])
+                slot = expected.setdefault(d.month, [0, 0, 0.0, 0.0])
                 slot[0] += rooms
+                slot[2] += per_night_eur
                 if d <= today:
                     slot[1] += rooms
+                    slot[3] += per_night_eur
             d += timedelta(days=1)
     db.flush()
 
@@ -292,14 +296,19 @@ def test_occupancy_overview_shape_and_split(client, auth_headers, db):
     assert body["capacity"] >= 10
     assert len(body["months"]) == 12
     by_m = {m["month"]: m for m in body["months"]}
-    for month, (total, past) in expected.items():
+    for month, (total, past, eur, past_eur) in expected.items():
         m = by_m[month]
         assert m["room_nights"] >= total
         assert m["past_nights"] >= past
         assert m["future_nights"] >= total - past
         assert m["room_nights"] == m["past_nights"] + m["future_nights"]
         assert m["capacity_nights"] > 0
+        # Ciro alanları (bar etiketi + karşılaştırma): gece bazlı orantılı EUR
+        assert m["eur"] >= eur - 0.05
+        assert m["past_eur"] >= past_eur - 0.05
+        assert abs(m["eur"] - (m["past_eur"] + m["future_eur"])) < 0.05
     assert body["year_room_nights"] == sum(m["room_nights"] for m in body["months"])
+    assert abs(body["year_eur"] - sum(m["eur"] for m in body["months"])) < 0.15
     # Chip alanları: bugün + cari ay her zaman gerçek bugüne göre döner
     assert body["today"] == today.isoformat()
     assert body["current_month"]["month"] == today.month

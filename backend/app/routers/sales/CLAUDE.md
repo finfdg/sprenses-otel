@@ -74,6 +74,8 @@ modülüne katkı kurallarını içerir.
 - `reservations/` paketi: `uploads` (XLS yükleme + RecId upsert + `removal_candidates`),
   `listing`, `summary` (KPI + doluluk), `occupancy` (**`occupancy-overview`** — Doluluk
   sekmesinin yıllık gerçekleşen/ileri kırılımı + chip verileri, İstanbul-TZ "bugün";
+  2026-07-21: ay başına `eur/past_eur/future_eur` + `year_eur` gece-bazlı orantılı ciro
+  — bar etiketleri + OccupancyPanel yıl karşılaştırması bu alanları kullanır;
   `daily-occupancy` günlük drill-down),
   `daily_activity` (**Günlük Hareketler** — `sales/__init__.py`'de AYRI prefix
   `/daily-activity` ile bağlanır (izin: `sales.acente_mahsup` view);
