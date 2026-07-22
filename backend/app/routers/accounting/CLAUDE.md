@@ -107,7 +107,13 @@ Sedna girilince/düzeltilince kayıt otomatik kapanır. Tam anlatım: `docs/modu
   eşleşmelerden `fx_differences` tablosunda birikir; FE'ye kalem yazılmaz).
 - `GET /mutabakat/items` artık `entity_type` (`bank|check|vendor_tx`) filtresi alır (`bank` =
   entity_type'ı NULL banka satırları için takma değer — frontend tür filtresi "Banka" seçeneği); yanıt satırında
-  `entity_type`/`entity_id`. Yeni durum **`ReconStatus.SEDNA_DIFF`** (`sedna_diff`): eşleşmiş/
+  `entity_type`/`entity_id`.
+- `GET /mutabakat/items/pdf` (2026-07-22) — uyuşmazlık listesinin PDF raporu. `/items` ile
+  filtre/sıralama **birebir aynı** (`_apply_item_filters` ortak yardımcı — iki uç asla farklı
+  küme görmesin diye tek kaynak); sayfalama yok, `_PDF_MAX_ROWS=1500` tavanı (aşım raporda
+  açıkça yazılır — sessiz kırpma yok). Yatay A4 + `register_turkish_fonts()` (₺ glifi) +
+  `heavy_limiter`; salt-okuma GET → onaydan muaf. Frontend butonu filtre barında,
+  indirme `PdfPreviewModal` üzerinden (iPad Safari blob kuralı). Yeni durum **`ReconStatus.SEDNA_DIFF`** (`sedna_diff`): eşleşmiş/
   KORUNAN yerel çek/cari kaydında Sedna farkı — yerel kayıt otomatik DEĞİŞTİRİLMEZ, importlar
   `report_entity_diff` ile buraya yazar; giderilince `close_stale_entity_diffs` otomatik kapatır.
   `sedna_diff` kritik durum kümesindedir (`_CRITICAL_STATUSES`).

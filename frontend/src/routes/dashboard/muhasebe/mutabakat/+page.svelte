@@ -19,8 +19,9 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
 	import {
-		AlertTriangle, Ban, Check, ChevronDown, CircleCheck, Coins, Eye, Hourglass,
+		AlertTriangle, Ban, Check, ChevronDown, CircleCheck, Coins, Eye, FileDown, Hourglass,
 		Landmark, Link2, Lock, RefreshCw, RotateCcw, Scale, Search, ShieldAlert, Unplug, Users, X,
 	} from 'lucide-svelte';
 
@@ -140,6 +141,8 @@
 	// UI state
 	let activeTab = $state('items');
 	let scanning = $state(false);
+	let pdfModal: PdfPreviewModal | undefined = $state();
+	let pdfLoading = $state(false);
 	let showUnmatched = $state(false);
 	let showCreditUnmatched = $state(false);
 	let lastLoadAt = 0; // WS yankı guard'ı (CashFlowTAccount deseni)
@@ -405,6 +408,33 @@
 			showToast(err?.message && err.message !== 'Bir hata oluştu' ? err.message : SEDNA_DOWN_MSG, 'error');
 		} finally {
 			scanning = false;
+		}
+	}
+
+	// PDF raporu — ekrandaki filtrelerle aynı kayıt kümesi (GET /items/pdf)
+	async function downloadItemsPdf() {
+		if (pdfLoading) return;
+		pdfLoading = true;
+		try {
+			const params = new URLSearchParams();
+			if (statusFilter) params.set('status', statusFilter);
+			if (accountFilter) params.set('account_id', accountFilter);
+			if (entityFilter) params.set('entity_type', entityFilter);
+			if (includeClosed) params.set('include_closed', 'true');
+			if (search.trim()) params.set('q', search.trim());
+			const qs = params.toString();
+
+			const res = await api.fetchRaw(`/accounting/mutabakat/items/pdf${qs ? '?' + qs : ''}`);
+			if (!res.ok) throw new Error('İndirme başarısız');
+			const blob = await res.blob();
+			// iOS Safari blob'u doğrudan indiremiyor (WebKitBlobResource hatası 1) →
+			// paylaşılan önizleme modalında göster (Yazdır/İndir oradan)
+			pdfModal?.open(blob, `sedna-mutabakat-uyusmazliklar-${new Date().toISOString().slice(0, 10)}.pdf`);
+		} catch (err) {
+			console.error('Mutabakat PDF raporu indirilemedi:', err);
+			showToast('PDF raporu indirilemedi', 'error');
+		} finally {
+			pdfLoading = false;
 		}
 	}
 
@@ -755,7 +785,12 @@
 				<input type="checkbox" bind:checked={includeClosed} class="w-4 h-4 accent-teal-700 focus:ring-teal-500" />
 				Kapalıları da göster
 			</label>
-			<span class="text-sm text-gray-500 sm:ml-auto">{total} kayıt</span>
+			<div class="flex items-center gap-2 sm:ml-auto">
+				<span class="text-sm text-gray-500">{total} kayıt</span>
+				<Button size="sm" variant="secondary" onclick={downloadItemsPdf} loading={pdfLoading} disabled={itemsLoading || total === 0} title="Listeyi PDF olarak yazdır/indir">
+					<FileDown size={14} /> PDF
+				</Button>
+			</div>
 		</div>
 
 		<!-- Uyuşmazlık listesi -->
@@ -1686,3 +1721,6 @@
 	danger
 	onConfirm={confirmLockRemove}
 />
+
+<!-- PDF Önizleme (Yazdır/İndir) -->
+<PdfPreviewModal bind:this={pdfModal} />

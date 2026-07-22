@@ -509,6 +509,27 @@ class TestEndpoints:
         r = client.get(f"{API}/items?sort_by=evil_column", headers=auth_headers)
         assert r.status_code == 422
 
+    def test_items_pdf_returns_valid_pdf(self, client, auth_headers, db):
+        acc = _mk_account(db)
+        _mk_item(db, acc, description="PDF rapor test satırı — Türkçe: ğüşıöç ₺")
+        db.commit()
+        r = client.get(f"{API}/items/pdf", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert r.headers["content-type"] == "application/pdf"
+        assert r.content[:4] == b"%PDF"
+        assert "sedna-mutabakat-uyusmazliklar" in r.headers.get("content-disposition", "")
+
+    def test_items_pdf_empty_filter_still_valid_pdf(self, client, auth_headers):
+        # Filtreye uyan kayıt yoksa da geçerli (boş) PDF döner — 500 değil
+        r = client.get(f"{API}/items/pdf?status=direction_flip&q=olmayan-kayit-xyz9",
+                       headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert r.content[:4] == b"%PDF"
+
+    def test_items_pdf_sort_by_whitelist_rejects_unknown(self, client, auth_headers):
+        r = client.get(f"{API}/items/pdf?sort_by=evil_column", headers=auth_headers)
+        assert r.status_code == 422
+
     def test_patch_item_resolve(self, client, auth_headers, db):
         acc = _mk_account(db)
         item = _mk_item(db, acc)

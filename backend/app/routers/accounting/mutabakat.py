@@ -8,18 +8,20 @@ Onay kapsamı: kullanıcı-tetikli kayıt aksiyonları (PATCH) check_approval'l�
 `POST /run` taraması veri mutasyonu değil sınıflandırma olduğundan onaydan MUAF
 (dosya-yükleme istisnası sınıfı — docs/modules/sedna-mutabakat.md).
 """
+import io
 import json
 import math
+from datetime import date as date_cls
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.constants import BroadcastModule, ReconStatus
 from app.database import get_db
 from app.middleware.auth import require_permission
-from app.middleware.rate_limit import get_client_ip
+from app.middleware.rate_limit import get_client_ip, heavy_limiter
 from app.models import BankAccount, SednaBankRecon, SednaReconRun
 from app.models.user import User
 from app.schemas.sedna_recon import (
@@ -44,6 +46,53 @@ _SORT_COLUMNS = {
     "status": SednaBankRecon.status,
     "detected_at": SednaBankRecon.detected_at,
 }
+
+# PDF raporu — frontend STATUS_LABELS/RESOLUTION_LABELS ile birebir aynı etiketler
+_STATUS_LABELS_TR = {
+    ReconStatus.MATCHED: "Mutabık",
+    ReconStatus.SEDNA_PENDING: "Sedna Bekliyor",
+    ReconStatus.SEDNA_MISSING: "Sedna'da Eksik",
+    ReconStatus.SEDNA_EXTRA: "Sedna'da Fazla",
+    ReconStatus.DIRECTION_FLIP: "Yön Ters",
+    ReconStatus.DUPLICATE_SUSPECT: "Mükerrer Şüphesi",
+    ReconStatus.SEDNA_DIFF: "Sedna Sapması",
+    ReconStatus.BALANCE_DIFF: "Bakiye Farkı",
+}
+_RESOLUTION_LABELS_TR = {"manual": "Elle çözüldü", "ignored": "Yoksayıldı", "auto": "Otomatik kapandı"}
+_ENTITY_LABELS_TR = {"bank": "Banka", "check": "Çek", "vendor_tx": "Cari", "vendor_balance": "Cari Bakiye"}
+_CURRENCY_SYMBOLS = {"TRY": "₺", "EUR": "€", "USD": "$", "GBP": "£"}
+_PDF_MAX_ROWS = 1500  # tek PDF'e basılacak azami satır (aşımı raporda açıkça belirtilir)
+
+
+def _apply_item_filters(query, status: Optional[str], account_id: Optional[int],
+                        entity_type: Optional[str], include_closed: bool, q: Optional[str]):
+    """Uyuşmazlık liste filtreleri — /items ve /items/pdf AYNI kümeyi görsün diye ortak."""
+    if not include_closed:
+        query = query.filter(SednaBankRecon.resolved_at.is_(None))
+    if status:
+        query = query.filter(SednaBankRecon.status == status)
+    if account_id:
+        query = query.filter(SednaBankRecon.bank_account_id == account_id)
+    if entity_type == "bank":
+        # Banka satırları entity_type taşımaz (NULL) — 'bank' takma değeri onları seçer
+        query = query.filter(SednaBankRecon.entity_type.is_(None))
+    elif entity_type:
+        query = query.filter(SednaBankRecon.entity_type == entity_type)
+    if q:
+        like = f"%{q.strip()}%"
+        query = query.filter(or_(
+            SednaBankRecon.description.ilike(like),
+            SednaBankRecon.sedna_description.ilike(like),
+        ))
+    return query
+
+
+def _fmt_pdf_amount(value: float, currency: Optional[str]) -> str:
+    """İşaretli, Türkçe binlik/ondalık ayraçlı tutar (ekrandaki fmtAmount ile aynı biçim)."""
+    cur = currency or ""
+    sym = _CURRENCY_SYMBOLS.get(cur, f"{cur} " if cur else "")
+    v = f"{abs(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{'-' if value < 0 else '+'}{sym}{v}"
 
 
 def _item_dict(r: SednaBankRecon, account_name: Optional[str]) -> dict:
@@ -135,24 +184,8 @@ def list_items(
     _: User = Depends(require_permission("accounting.mutabakat", "view")),
 ):
     """Uyuşmazlık listesi (varsayılan: yalnız açık kayıtlar)."""
-    query = db.query(SednaBankRecon)
-    if not include_closed:
-        query = query.filter(SednaBankRecon.resolved_at.is_(None))
-    if status:
-        query = query.filter(SednaBankRecon.status == status)
-    if account_id:
-        query = query.filter(SednaBankRecon.bank_account_id == account_id)
-    if entity_type == "bank":
-        # Banka satırları entity_type taşımaz (NULL) — 'bank' takma değeri onları seçer
-        query = query.filter(SednaBankRecon.entity_type.is_(None))
-    elif entity_type:
-        query = query.filter(SednaBankRecon.entity_type == entity_type)
-    if q:
-        like = f"%{q.strip()}%"
-        query = query.filter(or_(
-            SednaBankRecon.description.ilike(like),
-            SednaBankRecon.sedna_description.ilike(like),
-        ))
+    query = _apply_item_filters(db.query(SednaBankRecon), status, account_id,
+                                entity_type, include_closed, q)
 
     total = query.count()
     col = _SORT_COLUMNS[sort_by]
@@ -167,6 +200,155 @@ def list_items(
         "page_size": page_size,
         "pages": max(1, math.ceil(total / page_size)),
     }
+
+
+@router.get("/items/pdf")
+def items_pdf(
+    status: Optional[str] = Query(default=None, pattern="^[a-z_]+$"),
+    account_id: Optional[int] = None,
+    entity_type: Optional[str] = Query(default=None, pattern="^(bank|check|vendor_tx|vendor_balance)$"),
+    include_closed: bool = False,
+    q: Optional[str] = None,
+    sort_by: str = Query(default="event_date", pattern="^(event_date|amount|status|detected_at)$"),
+    sort_dir: str = Query(default="desc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("accounting.mutabakat", "view")),
+):
+    """Uyuşmazlık listesi PDF raporu — ekrandaki filtrelerle AYNI kayıt kümesi.
+
+    Salt-okuma GET → onaydan muaf. Sayfalama yok: filtreye uyan tüm kayıtlar
+    (_PDF_MAX_ROWS tavanıyla; aşım raporda açıkça yazılır) tek belgeye basılır.
+    """
+    heavy_limiter.check(f"mutabakat-pdf-{current_user.id}")
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
+
+    from app.utils.pdf_fonts import register_turkish_fonts
+
+    query = _apply_item_filters(db.query(SednaBankRecon), status, account_id,
+                                entity_type, include_closed, q)
+    total = query.count()
+    col = _SORT_COLUMNS[sort_by]
+    rows = (
+        query.order_by(col.desc() if sort_dir == "desc" else col.asc(), SednaBankRecon.id.desc())
+        .limit(_PDF_MAX_ROWS)
+        .all()
+    )
+    acc_names = {a.id: a.bank_name for a in db.query(BankAccount).all()}
+
+    base_font, bold_font = register_turkish_fonts()
+    today = date_cls.today()
+
+    # Uygulanan filtrelerin insan-okur özeti (rapor başlığı altına)
+    filter_parts = []
+    if status:
+        filter_parts.append(f"Durum: {_STATUS_LABELS_TR.get(status, status)}")
+    if account_id:
+        filter_parts.append(f"Hesap: {acc_names.get(account_id, f'#{account_id}')}")
+    if entity_type:
+        filter_parts.append(f"Tür: {_ENTITY_LABELS_TR.get(entity_type, entity_type)}")
+    if q and q.strip():
+        filter_parts.append(f"Arama: “{q.strip()}”")
+    filter_parts.append("Kapalılar dahil" if include_closed else "Yalnız açık kayıtlar")
+    filter_txt = " · ".join(filter_parts)
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(
+        output, pagesize=landscape(A4),
+        topMargin=12 * mm, bottomMargin=12 * mm, leftMargin=12 * mm, rightMargin=12 * mm,
+    )
+    title_style = ParagraphStyle("t", fontName=bold_font, fontSize=14, spaceAfter=4)
+    sub_style = ParagraphStyle("s", fontName=base_font, fontSize=9, textColor=colors.grey, spaceAfter=2)
+    note_style = ParagraphStyle("n", fontName=base_font, fontSize=8, textColor=colors.grey, spaceAfter=8)
+    cell_style = ParagraphStyle("c", fontName=base_font, fontSize=7.5, leading=9.5)
+    cell_dim_style = ParagraphStyle("cd", fontName=base_font, fontSize=7, leading=9,
+                                    textColor=colors.HexColor("#6B7280"))
+
+    elems = [
+        Paragraph("Sedna Mutabakat — Uyuşmazlık Listesi", title_style),
+        Paragraph(
+            f"{filter_txt} &nbsp;·&nbsp; {total} kayıt &nbsp;·&nbsp; "
+            f"Rapor tarihi: {today.strftime('%d.%m.%Y')}",
+            sub_style,
+        ),
+        Paragraph("Banka ekstresi ↔ Sedna muhasebe defteri uyuşmazlık takibi — banka verisi esastır.", note_style),
+    ]
+    if total > _PDF_MAX_ROWS:
+        elems.append(Paragraph(
+            f"Uyarı: yalnız ilk {_PDF_MAX_ROWS} kayıt basıldı ({total - _PDF_MAX_ROWS} kayıt "
+            "rapor dışı). Filtreleri daraltarak tam kapsam alabilirsiniz.",
+            ParagraphStyle("w", fontName=bold_font, fontSize=8.5,
+                           textColor=colors.HexColor("#B45309"), spaceAfter=6),
+        ))
+
+    RED = colors.HexColor("#DC2626")
+    GREEN = colors.HexColor("#047857")
+    NAVY = colors.HexColor("#1B2B45")
+
+    if not rows:
+        elems.append(Paragraph("Filtrelere uygun kayıt bulunamadı.", sub_style))
+    else:
+        data = [["Tarih", "Hesap", "Banka Açıklaması", "Tutar", "Sedna", "Sedna Kullanıcı", "Durum"]]
+        amount_colors = []
+        for i, r in enumerate(rows, start=1):
+            sedna_bits = []
+            if r.sedna_voucher:
+                sedna_bits.append(str(r.sedna_voucher))
+            if r.sedna_description:
+                sedna_bits.append(r.sedna_description)
+            status_txt = _STATUS_LABELS_TR.get(r.status, r.status)
+            if r.resolved_at:
+                status_txt += f"<br/>{_RESOLUTION_LABELS_TR.get(r.resolution, r.resolution or '')}"
+            data.append([
+                r.event_date.strftime("%d.%m.%Y") if r.event_date else "—",
+                Paragraph(acc_names.get(r.bank_account_id) or "—", cell_style),
+                Paragraph(r.description or "—", cell_style),
+                _fmt_pdf_amount(float(r.amount or 0), r.currency),
+                Paragraph(" — ".join(sedna_bits) if sedna_bits else "—", cell_style),
+                Paragraph(r.sedna_record_user or "—", cell_dim_style),
+                Paragraph(status_txt, cell_style),
+            ])
+            amount_colors.append((i, RED if float(r.amount or 0) < 0 else GREEN))
+
+        # A4 yatay kullanılabilir genişlik ≈ 273mm
+        table = Table(
+            data,
+            colWidths=[20 * mm, 32 * mm, 78 * mm, 30 * mm, 60 * mm, 25 * mm, 28 * mm],
+            repeatRows=1,
+        )
+        style_cmds = [
+            ("FONTNAME", (0, 0), (-1, 0), bold_font),
+            ("FONTNAME", (0, 1), (-1, -1), base_font),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ("FONTSIZE", (0, 1), (-1, -1), 7.5),
+            ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (3, 0), (3, -1), "RIGHT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9FAFB")]),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.5, NAVY),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ]
+        for row_idx, clr in amount_colors:
+            style_cmds.append(("TEXTCOLOR", (3, row_idx), (3, row_idx), clr))
+        table.setStyle(TableStyle(style_cmds))
+        elems.append(table)
+
+    doc.build(elems)
+    output.seek(0)
+    return Response(
+        content=output.read(),
+        media_type="application/pdf",
+        headers={"Content-Disposition":
+                 f"inline; filename=sedna-mutabakat-uyusmazliklar-{today.isoformat()}.pdf"},
+    )
 
 
 @router.post("/run")
