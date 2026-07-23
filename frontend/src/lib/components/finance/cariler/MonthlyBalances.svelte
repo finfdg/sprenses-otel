@@ -105,12 +105,12 @@
 		});
 	});
 
+	// FIFO modunda yalnız Kalan gösterilir (2026-07-23 kullanıcı geri bildirimi):
+	// ilerki aylarda ödenen tutar zaten kalandan düşer — fatura/kapanan kolonları kaldırıldı.
 	let headers = $derived(
 		mode === 'fifo'
 			? [
 					{ key: 'name' as const, label: 'Cari', right: false, defDir: 'asc' as const },
-					{ key: 'c1' as const, label: 'O Ay Fatura', right: true, defDir: 'desc' as const },
-					{ key: 'c2' as const, label: 'Kapanan (FIFO)', right: true, defDir: 'desc' as const },
 					{ key: 'c3' as const, label: 'Kalan', right: true, defDir: 'desc' as const },
 				]
 			: [
@@ -124,7 +124,7 @@
 	let totalC3 = $derived(mode === 'fifo' ? (totals.remaining ?? 0) : (totals.balance ?? 0));
 	let totalMeta = $derived(
 		mode === 'fifo'
-			? `fatura ${fmt(totals.invoiced ?? 0)} − kapanan ${fmt(totals.closed ?? 0)}`
+			? 'ödemeler en eski faturadan düşüldü'
 			: `borç ${fmt(totals.total_borc ?? 0)} − alacak ${fmt(totals.total_alacak ?? 0)}`
 	);
 
@@ -180,7 +180,7 @@
 		/>
 	{:else}
 		<div class="overflow-x-auto">
-			<table class="w-full text-xs min-w-[720px]">
+			<table class="w-full text-xs {mode === 'fifo' ? 'min-w-[420px]' : 'min-w-[720px]'}">
 				<thead class="bg-gray-50">
 					<tr>
 						{#each headers as h (h.key)}
@@ -201,8 +201,6 @@
 								<div class="font-mono text-[10px] text-gray-500">{r.hesap_kodu}</div>
 							</td>
 							{#if mode === 'fifo'}
-								<td class="px-3 py-2 text-right tabular-nums text-gray-700">{r.invoiced > 0 ? fmt(r.invoiced) : '—'}</td>
-								<td class="px-3 py-2 text-right tabular-nums text-emerald-700">{r.closed > 0 ? fmt(r.closed) : '—'}</td>
 								<td class="px-3 py-2 text-right tabular-nums font-semibold text-brass-dark">{fmt(r.remaining)}</td>
 							{:else}
 								<td class="px-3 py-2 text-right tabular-nums text-emerald-700">{r.total_borc > 0 ? fmt(r.total_borc) : '—'}</td>
