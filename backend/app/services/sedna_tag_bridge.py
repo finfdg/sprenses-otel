@@ -30,9 +30,15 @@ from sqlalchemy.orm import Session
 
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
+from app.models.check import Check
 from app.models.vendor import Vendor
 from app.utils import sedna_client
-from app.utils.auto_tagger import LEASING_CATEGORY, _get_or_create_category, _sync_finance_events
+from app.utils.auto_tagger import (
+    CHECK_PAYMENT_CATEGORY,
+    LEASING_CATEGORY,
+    _get_or_create_category,
+    _sync_finance_events,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +57,10 @@ PREFIX_CATEGORY: Dict[str, str] = {
     "303": LEASING_CATEGORY,  # Uzun Vadeli Kredi Anapara Taksitleri
     "340": "Acenta",         # Alınan Sipariş Avansları (tur operatörü avansları)
     "331": "Temettü",        # Ortaklara Borçlar
+    # Verilen Çekler (2026-07-23 kullanıcı isteği): ödenen çekin banka bacağı
+    # "Çek Ödemesi" başlığına girer; bağlı çek varsa "Cari: <firma>" etiketi de
+    # basılır (btx-özel bilgi → k↔k çaprazlanma riski YOK, exact şartı aranmaz).
+    "103": CHECK_PAYMENT_CATEGORY,
 }
 
 TAG_SOURCE_SEDNA = "sedna"
@@ -160,13 +170,27 @@ def apply_sedna_tag_bridge(
                 # k↔k çaprazlanma riski: fişler farklı kategorilere çıkıyor → dokunma
                 skipped_ambiguous += len(cand_btxs)
                 continue
-            cat = _get_or_create_category(db, cats.pop())
+            cat_name = cats.pop()
+            cat = _get_or_create_category(db, cat_name)
             for btx in cand_btxs:
                 btx.category_id = cat.id
                 btx.tag_source = TAG_SOURCE_SEDNA
+                if cat_name == CHECK_PAYMENT_CATEGORY and not btx.tag_note:
+                    # Cari etiketi BAĞLI çekten gelir (bizim FK'mız, btx-özel) —
+                    # Sedna 103 hesap adı banka çek hesabıdır, cariyi söylemez
+                    names = sorted({
+                        (c.vendor_name or "").strip()
+                        for c in db.query(Check).filter(Check.bank_transaction_id == btx.id).all()
+                        if (c.vendor_name or "").strip()
+                    })
+                    if names:
+                        btx.tag_note = ("Cari: " + ", ".join(names))[:300]
                 tagged.append(btx)
-            # Cari/tag_note yalnız birebir eşleşmede (çaprazlanmış kişi/firma yazılmasın)
-            if g.get("exact") and len(cand_btxs) == 1 and decisions[0][1]:
+            # Cari/tag_note yalnız birebir eşleşmede (çaprazlanmış kişi/firma yazılmasın).
+            # Çek Ödemesi HARİÇ: 103 hesap adı banka çek hesabıdır ("ZİRAAT ÇEK HS") —
+            # not olarak yanıltıcı; cari etiketi yukarıda bağlı çekten yazıldı.
+            if (g.get("exact") and len(cand_btxs) == 1 and decisions[0][1]
+                    and cat_name != CHECK_PAYMENT_CATEGORY):
                 btx, decisive = cand_btxs[0], decisions[0][1]
                 code = decisive.get("code") or ""
                 name = (decisive.get("account_name") or "").strip()

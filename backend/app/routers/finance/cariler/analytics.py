@@ -51,15 +51,17 @@ def get_monthly_balances(
 ):
     """Ay bazlı cari bakiye görünümü (Aylık Bakiye sekmesi).
 
-    mode=fifo  → **FIFO Kalan**: seçilen ayın faturalarından (alacak) FIFO sonrası
-                 kalanı olan cariler. Ödemeler (havale/EFT, çek, kredi kartı) en eski
-                 faturadan düşülür — Ödeme Planı / Vadesi Geçmiş kartıyla AYNI
-                 `calculate_fifo_amounts` kaynağı. Tamamen kapananlar listelenmez.
+    mode=fifo  → **FIFO Kalan**: ay SONUNA KADAR kesilmiş TÜM faturaların (alacak)
+                 bugüne dek ödenmeyen kalanı — önceki aylardan DEVREDEN dahil
+                 (2026-07-23 kullanıcı geri bildirimi: "Ocak'tan devreden tutar her ay
+                 sonunda kalan bakiye üzerinden görünsün"). Ödemeler (havale/EFT, çek,
+                 kredi kartı — sonraki aylardakiler dahil) en eski faturadan düşülür —
+                 Ödeme Planı / Vadesi Geçmiş kartıyla AYNI `calculate_fifo_amounts`
+                 kaynağı. Tamamen kapananlar listelenmez.
     mode=period→ **Dönem Sonu Bakiye**: ay sonu itibarıyla yürüyen bakiye
                  (o tarihe kadarki tüm borç/alacak toplamları). `hide_zero`
                  sıfır bakiyeli carileri gizler (yalnız bu modda anlamlı).
     """
-    month_start = date_type(year, month, 1)
     month_end = date_type(year, month, calendar.monthrange(year, month)[1])
 
     if mode == "fifo":
@@ -72,7 +74,6 @@ def get_monthly_balances(
             )
             .filter(
                 VendorTransaction.alacak > 0,
-                VendorTransaction.date >= month_start,
                 VendorTransaction.date <= month_end,
             )
             .all()

@@ -14,6 +14,7 @@ import pytz
 
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
+from app.models.check import Check, CheckUpload
 from app.models.finance_event import FinanceEvent
 from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
@@ -295,6 +296,50 @@ class TestBridgeEndToEnd:
         db.expire_all()
         assert db.get(BankTransaction, b1.id).tag_note is None
 
+    def test_cek_fisi_tags_cek_odemesi_with_cari_note(self, db):
+        # 103 karşı-hesap → "Çek Ödemesi"; bağlı çek varsa "Cari: <firma>" etiketi
+        # (btx-özel FK bilgisi — Sedna 103 hesap adı banka çek hesabıdır, cari değil)
+        acc = _mapped_account(db)
+        d = TODAY - timedelta(days=2)
+        btx = _mk_btx(db, acc, d, -600000.0,
+                      description="Çekin Takastan Ödenmesi S01240 No'lu Şube")
+        up = CheckUpload(file_name="bridge-test", file_url="x")
+        db.add(up)
+        db.flush()
+        chk = Check(
+            upload_id=up.id, check_no=f"T{uuid4().hex[:6]}", vendor_code="320.01.01.G001",
+            vendor_name="GALAKSİ ORMAN ÜRÜNLERİ", amount_tl=600000.0,
+            amount_currency=600000.0, currency="TL", due_date=d,
+            status="paid", bank_transaction_id=btx.id,
+        )
+        db.add(chk)
+        db.flush()
+        rows = [_sedna_ledger_row(acc.sedna_account_code, d, -600000.0, rec_id=11)]
+        legs = [_leg(110, acc.sedna_account_code, credit=600000.0),
+                _leg(110, "103.01.06.0001", debit=600000.0, name="VAKIFBANK TİCARİ SB")]
+
+        summary = _run(db, rows, legs)
+
+        assert summary["sedna_tagged"] == 1
+        assert _cat_name(db, btx) == "Çek Ödemesi"
+        fresh = db.get(BankTransaction, btx.id)
+        assert fresh.tag_note == "Cari: GALAKSİ ORMAN ÜRÜNLERİ"
+
+    def test_cek_fisi_without_linked_check_no_note(self, db):
+        # Bağlı çek yoksa kategori yine atanır ama cari notu yazılamaz
+        acc = _mapped_account(db)
+        d = TODAY - timedelta(days=2)
+        btx = _mk_btx(db, acc, d, -50000.0, description="Çekin Takastan Ödenmesi")
+        rows = [_sedna_ledger_row(acc.sedna_account_code, d, -50000.0, rec_id=12)]
+        legs = [_leg(120, acc.sedna_account_code, credit=50000.0),
+                _leg(120, "103.01.02.0003", debit=50000.0, name="ZİRAAT ÇEK HS")]
+
+        summary = _run(db, rows, legs)
+
+        assert summary["sedna_tagged"] == 1
+        assert _cat_name(db, btx) == "Çek Ödemesi"
+        assert db.get(BankTransaction, btx.id).tag_note is None
+
     def test_pos_bloke_description_skipped(self, db):
         acc = _mapped_account(db)
         d = TODAY - timedelta(days=2)
@@ -325,7 +370,68 @@ class TestBridgeEndToEnd:
         assert _cat_name(db, btx) is None
 
 
-# ─────────────── D) apply_sedna_tag_bridge (doğrudan) ───────────────
+# ─────────────── D) Çek eşleşmesinde banka bacağı etiketi ───────────────
+
+class TestCheckBankLegTagging:
+    """apply_check_bank_match banka bacağını "Çek Ödemesi" + "Cari: <firma>" etiketler
+    (2026-07-23 kullanıcı isteği — kredi bacağı `_tag_scheduled_bank_leg` deseni).
+    Tüm çek eşleştirme yolları (otomatik, 1-N grup, manuel, öneri-Onayla) bu
+    fonksiyondan geçtiğinden tek test noktası yeterli."""
+
+    @staticmethod
+    def _mk_pending_check(db, btx_amount, vendor_name="AYKIN İNŞAAT"):
+        up = CheckUpload(file_name="bridge-test", file_url="x")
+        db.add(up)
+        db.flush()
+        chk = Check(
+            upload_id=up.id, check_no=f"T{uuid4().hex[:6]}", vendor_code="320.01.01.A001",
+            vendor_name=vendor_name, amount_tl=abs(btx_amount),
+            amount_currency=abs(btx_amount), currency="TL",
+            due_date=TODAY - timedelta(days=1), status="pending",
+        )
+        db.add(chk)
+        db.flush()
+        return chk
+
+    def test_match_tags_bank_leg(self, db):
+        from app.utils.matching_service import apply_check_bank_match
+        acc = _mk_account(db)
+        btx = _mk_btx(db, acc, TODAY - timedelta(days=1), -75000.0,
+                      description="Çekin Takastan Ödenmesi")
+        chk = self._mk_pending_check(db, -75000.0)
+        finance_event_svc.upsert_bank_tx(db, btx, acc)
+        db.flush()
+
+        assert apply_check_bank_match(db, chk, btx) is True
+
+        db.expire_all()
+        assert _cat_name(db, btx) == "Çek Ödemesi"
+        fresh = db.get(BankTransaction, btx.id)
+        assert fresh.tag_source == "auto"
+        assert fresh.tag_note == "Cari: AYKIN İNŞAAT"
+        fe = db.query(FinanceEvent).filter(
+            FinanceEvent.source_type == "bank", FinanceEvent.source_id == btx.id).first()
+        assert fe is not None and fe.category_name == "Çek Ödemesi"
+
+    def test_manual_tag_preserved(self, db):
+        from app.utils.matching_service import apply_check_bank_match
+        acc = _mk_account(db)
+        manual_cat = TransactionCategory(name=f"Elle Kat {uuid4().hex[:6]}", color="gray")
+        db.add(manual_cat)
+        db.flush()
+        btx = _mk_btx(db, acc, TODAY - timedelta(days=1), -33000.0,
+                      category_id=manual_cat.id, tag_source="manual")
+        chk = self._mk_pending_check(db, -33000.0)
+
+        assert apply_check_bank_match(db, chk, btx) is True  # eşleşme kurulur
+
+        db.expire_all()
+        fresh = db.get(BankTransaction, btx.id)
+        assert fresh.category_id == manual_cat.id  # etiket ezilmez
+        assert fresh.tag_source == "manual"
+
+
+# ─────────────── E) apply_sedna_tag_bridge (doğrudan) ───────────────
 
 class TestBridgeDirect:
     def test_empty_groups_noop(self, db):

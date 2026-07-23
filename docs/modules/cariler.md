@@ -459,13 +459,17 @@ hafif `GET /notes?page_size=1` çağrısının `open_total`'ından gelir).
 
 ### Aylık Bakiye sekmesi (YENİ) — `MonthlyBalances.svelte`
 - `GET /cariler/monthly-balances?year&month&mode=fifo|period&hide_zero`
-- **FIFO Kalan** (varsayılan): seçilen ayın faturalarından (alacak) FIFO sonrası kalanı olan
-  cariler — `calculate_fifo_amounts` (Ödeme Planı/Vadesi Geçmiş ile AYNI kaynak). Tamamen
-  kapananlar listelenmez. **Yalnız "Kalan" kolonu gösterilir (2026-07-23 kullanıcı geri
-  bildirimi):** ilerki aylarda yapılan ödemeler kalandan zaten düştüğü için O Ay Fatura /
-  Kapanan kolonları kaldırıldı (canlı doğrulama: ELVİN — May-Tem ödemeleri Nisan'ın
-  865.500'ünü kapatıp 317.000 bıraktı). Backend yanıtı `invoiced`/`closed` alanlarını
-  döndürmeye devam eder (API değişmedi, yalnız gösterim sadeleşti).
+- **FIFO Kalan** (varsayılan): **ay SONUNA KADAR kesilmiş TÜM faturaların** bugüne dek
+  ödenmeyen kalanı — **önceki aylardan DEVREDEN dahil** (2026-07-23 ikinci kullanıcı geri
+  bildirimi, NİLGÜN senaryosu: Ocak faturası ödenmedikçe Nisan/Temmuz ay sonlarında da kalan
+  olarak görünmeli; ilk sürüm yalnız SEÇİLEN AYIN faturalarını gösteriyordu → filtre
+  `date >= ay_başı` kaldırıldı, yalnız `date <= ay_sonu` kaldı). Ödemeler (sonraki
+  aylardakiler dahil) `calculate_fifo_amounts` ile en eski faturadan düşülür (Ödeme
+  Planı/Vadesi Geçmiş ile AYNI kaynak); tamamen kapananlar listelenmez. **Yalnız "Kalan"
+  kolonu gösterilir (aynı gün ilk geri bildirim):** O Ay Fatura / Kapanan kolonları
+  kaldırıldı (canlı doğrulama: ELVİN — May-Tem ödemeleri Nisan'ın 865.500'ünü kapatıp
+  317.000 bıraktı). Backend yanıtı `invoiced`/`closed` alanlarını (artık ay-sonuna-kadar
+  kümülatif) döndürmeye devam eder.
 - **Dönem Sonu Bakiye:** ay sonu itibarıyla yürüyen bakiye (borç/alacak/bakiye) + "Sıfır
   bakiyeleri gizle" toggle'ı.
 - Ay pilleri Ocak→içinde bulunulan ay; kolon başlıkları sıralanır (istemci tarafı); altta

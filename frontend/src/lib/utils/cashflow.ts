@@ -49,6 +49,8 @@ export type CashItem = {
 	source_id?: number | null;
 	/** Hareketin bankası (varsa) — satır başı banka amblemi için. */
 	bank_name?: string | null;
+	/** Etiket notu — "Cari: <firma>" çek-ödemesi rozeti için (yalnız o önekli not çip olur). */
+	tag_note?: string | null;
 };
 
 export type CashRow = {
@@ -63,6 +65,8 @@ export type CashRow = {
 	members: SourceRef[];
 	/** Tekil banka adı; toplu satırda bankalar karışıksa/boşsa null (→ amblem çizilmez). */
 	bank_name: string | null;
+	/** Etiket notu — tekil satırda kalemden taşınır; toplu satırda null (firma bazlı birleşimde anlamsız). */
+	tag_note: string | null;
 };
 
 /** Bir kalemin bekletilebilir kaynak kimliğini döner (yoksa null). */
@@ -88,6 +92,7 @@ export function aggregateRows(items: CashItem[], aggregate: boolean): CashRow[] 
 				count: 1,
 				members: ref ? [ref] : [],
 				bank_name: it.bank_name ?? null,
+				tag_note: it.tag_note ?? null,
 			};
 		});
 	}
@@ -119,6 +124,7 @@ export function aggregateRows(items: CashItem[], aggregate: boolean): CashRow[] 
 			count: r.count,
 			members: r.members,
 			bank_name: r.banks.size === 1 ? [...r.banks][0] : null,
+			tag_note: null,
 		}));
 }
 

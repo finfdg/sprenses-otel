@@ -164,6 +164,14 @@ def is_leasing_description(description: Optional[str]) -> bool:
 POS_BLOKE_CATEGORY = "Pos Bloke Çözme"
 _POS_BLOKE_RE = re.compile(r"pos bloke")
 
+# Ödenen çekin banka bacağının kanonik başlığı (2026-07-23 kullanıcı isteği): çek
+# takas ödemeleri "Çek Ödemesi" başlığında toplanır, yanına "Cari: <firma>" etiketi
+# basılır (ödenen çek aynı zamanda bir cari ödemesidir). Etiketleme
+# `apply_check_bank_match` (eşleşme anında) + Sedna karşı-hesap köprüsü (103 prefix)
+# ile yapılır. vendor_id BİLEREK yazılmaz — cari eşleştiricisine sinyal sızmasın
+# (çift temsil riski); cari bilgisi yalnız görsel etikettir (tag_note).
+CHECK_PAYMENT_CATEGORY = "Çek Ödemesi"
+
 # Kategori adı → regex pattern (normalize edilmiş metin üzerinde çalışır)
 # "Döviz Satışı" kuralı "Kredi/Leasing"den ÖNCE gelmeli: "YapiKrediFX+ Dvz Satis"
 # açıklaması "kredi" desenini de içerir — döviz satışı kredi kullanımı DEĞİLDİR (2026-07-13).
@@ -198,6 +206,7 @@ MANAGED_CATEGORY_COLORS: Dict[str, str] = {
     "Temettü": "purple",
     LEASING_CATEGORY: "orange",  # eski "Kredi" kategorisinin devamı (DB'de rename edildi)
     POS_BLOKE_CATEGORY: "purple",  # hesaplar arası virman sınıfı (Virman ile aynı renk ailesi)
+    CHECK_PAYMENT_CATEGORY: "indigo",  # ödenen çek banka bacağı (canlı DB'de id 252 mevcut)
 }
 
 

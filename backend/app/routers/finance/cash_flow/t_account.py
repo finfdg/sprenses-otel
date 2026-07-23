@@ -333,6 +333,9 @@ def t_account(
                 # Banka amblemi (frontend satır başı rozeti) — banka hareketi / çek
                 # ödeme bankası / kredi taksit bankası; bilinmiyorsa None (rozet çizilmez)
                 "bank_name": fe.bank_name,
+                # Etiket notu — "Cari: <firma>" çek-ödemesi rozeti için (2026-07-23);
+                # frontend yalnız "Cari: " önekli notu çip olarak basar
+                "tag_note": fe.tag_note,
             })
 
     # Tahmini kredi kartı ekstresi rezervi (yüklenmemiş cari ay = kart limiti) — dönemi kapsayan

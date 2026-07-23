@@ -923,6 +923,14 @@ def apply_check_bank_match(db: Session, check: Check, btx: BankTransaction,
     finance_event_svc.match(db, "bank", btx.id, "check", locked.id,
                             method=method, score=score, created_by=actor_id)
     finance_event_svc.upsert_check(db, locked, btx)
+    # Banka bacağı "Çek Ödemesi" başlığı + "Cari: <firma>" etiketi alır (2026-07-23
+    # kullanıcı isteği: ödenen çek aynı zamanda cari ödemesidir — kredi bacağı
+    # deseninin çeke uyarlanması). vendor_id bilerek yazılmaz (auto_tagger nota bkz).
+    from app.utils.auto_tagger import CHECK_PAYMENT_CATEGORY, _get_or_create_category
+    _get_or_create_category(db, CHECK_PAYMENT_CATEGORY)
+    vendor_name = (locked.vendor_name or "").strip()
+    _tag_scheduled_bank_leg(db, btx, CHECK_PAYMENT_CATEGORY,
+                            tag_note=f"Cari: {vendor_name}" if vendor_name else None)
     return True
 
 
@@ -1260,19 +1268,30 @@ SCHEDULED_KW_SUGGEST_SCORE = 60
 SCHEDULED_BLIND_SUGGEST_SCORE = 50
 
 
-def _tag_scheduled_bank_leg(db: Session, tx: BankTransaction, category_name: str) -> None:
+def _tag_scheduled_bank_leg(db: Session, tx: BankTransaction, category_name: str,
+                            tag_note: Optional[str] = None) -> None:
     """Eşleşen banka bacağını türün kanonik kategorisine etiketle (best-effort).
 
     Manuel etiket kullanıcı kararıdır → dokunulmaz. Kategori DB'de yoksa (test
-    ortamı) sessiz geçilir — eşleşme kurulmuştur, etiket kozmetiktir.
+    ortamı) sessiz geçilir — eşleşme kurulmuştur, etiket kozmetiktir. tag_note
+    verilirse ve bacakta not yoksa yazılır (mevcut kullanıcı notu ezilmez —
+    çek bacağında "Cari: <firma>" rozeti, 2026-07-23).
     """
     if tx.tag_source == "manual" and tx.category_id:
         return
     cat = db.query(TransactionCategory).filter(TransactionCategory.name == category_name).first()
-    if cat is None or tx.category_id == cat.id:
+    if cat is None:
         return
-    tx.category_id = cat.id
-    tx.tag_source = "auto"
+    changed = False
+    if tx.category_id != cat.id:
+        tx.category_id = cat.id
+        tx.tag_source = "auto"
+        changed = True
+    if tag_note and not tx.tag_note:
+        tx.tag_note = tag_note[:300]
+        changed = True
+    if not changed:
+        return
     db.flush()
     from app.utils.auto_tagger import _sync_finance_events
     _sync_finance_events(db, [tx])

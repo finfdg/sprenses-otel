@@ -32,7 +32,7 @@
 	import { HOLDABLE_SOURCE_TYPES } from '$lib/constants/finance';
 	import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, PauseCircle } from 'lucide-svelte';
 
-	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; is_held?: boolean; source_type?: string | null; source_id?: number | null; bank_name?: string | null };
+	type TItem = { name: string; date: string; amount_eur: number; amount_native: number; currency: string; is_realized?: boolean; is_held?: boolean; source_type?: string | null; source_id?: number | null; bank_name?: string | null; tag_note?: string | null };
 	// in_total=false → toplam-dışı bilgi grubu (ör. "Pos Bloke Çözme" — hesaplar arası
 	// virman): listede görünür, kolon toplamı/net/gün toplamına GİRMEZ (backend INFO_CATEGORIES)
 	type TGroup = { label: string; total_eur: number; item_count: number; section?: string; items: TItem[]; realized_eur?: number; realized_count?: number; held_eur?: number; held_count?: number; in_total?: boolean };
@@ -47,7 +47,7 @@
 	type DayBucket = { date: string; label: string; items: TItem[]; totalEur: number };
 	// Tarih görünümü: gün → kategori alt-grubu → satır (cari toplu, diğerleri ayrı)
 	// Held (beklemeye alınmış) satırlar sarı gösterilir, toplama katılmaz → ayrı `heldRows`.
-	type DateRow = { name: string; amountLabel: string; amount_eur: number; members: SourceRef[]; bank_name: string | null };
+	type DateRow = { name: string; amountLabel: string; amount_eur: number; members: SourceRef[]; bank_name: string | null; tag_note: string | null };
 	type DateCat = { label: string; rank: number; totalEur: number; inTotal: boolean; rows: DateRow[]; heldRows: DateRow[] };
 	type DateDay = { date: string; label: string; totalEur: number; cats: DateCat[] };
 
@@ -175,7 +175,7 @@
 			catItems.push(it);
 		}
 
-		const toRow = (r: CashRow): DateRow => ({ name: r.name, amountLabel: rowAmountLabel(r), amount_eur: r.amount_eur, members: r.members, bank_name: r.bank_name });
+		const toRow = (r: CashRow): DateRow => ({ name: r.name, amountLabel: rowAmountLabel(r), amount_eur: r.amount_eur, members: r.members, bank_name: r.bank_name, tag_note: r.tag_note });
 		const days: DateDay[] = dayOrder.map((d) => {
 			const day = byDate.get(d)!;
 			const cats: DateCat[] = [...day.catMap.entries()]
@@ -486,7 +486,17 @@
 			{/if}
 		{/snippet}
 
-		{#snippet flowRow(name: string, amountLabel: string, members: SourceRef[], held: boolean, isTip: boolean, holdable: boolean, dense: boolean, bank: string | null)}
+		<!-- "Cari: <firma>" etiket çipi — ödenen çekin banka bacağı Çek Ödemesi başlığında
+		     görünür, yanında hangi carinin çeki olduğu bu çiple belirtilir (2026-07-23).
+		     Yalnız "Cari: " önekli tag_note çip olur; diğer notlar T-Hesap'ta basılmaz. -->
+		{#snippet cariChip(note: string | null)}
+			{#if note?.startsWith('Cari: ')}
+				<span class="shrink-0 max-w-[150px] truncate text-[9px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1 py-0.5"
+					title="Bu çek ödemesi aynı zamanda bir cari ödemesidir — {note.slice(6)}">{note}</span>
+			{/if}
+		{/snippet}
+
+		{#snippet flowRow(name: string, amountLabel: string, members: SourceRef[], held: boolean, isTip: boolean, holdable: boolean, dense: boolean, bank: string | null, note: string | null = null)}
 			{@const hm = holdableMembers(members)}
 			{@const clickable = holdable && hm.length > 0}
 			{@const divPad = dense ? 'pl-7' : 'pl-10'}
@@ -502,6 +512,7 @@
 					<PauseCircle size={14} class="shrink-0 {icon}" />
 					{@render bankMark(bank)}
 					<span class="text-[12px] truncate {txt}">{cleanName(name)}</span>
+					{@render cariChip(note)}
 					{#if held}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0.5">beklemede</span>{/if}
 					{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit yetmiyor</span>{/if}
 					<span class="ml-auto tabular-nums text-[12px] shrink-0 {txt}">{amountLabel}</span>
@@ -510,6 +521,7 @@
 				<div class="flex items-center gap-2 {divPad} pr-2 py-1 {bg} {bg ? 'rounded-md' : ''} {isTip ? '-mx-0.5 px-2.5' : ''}">
 					{@render bankMark(bank)}
 					<span class="text-[12px] truncate {txt}">{cleanName(name)}</span>
+					{@render cariChip(note)}
 					{#if held}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0.5">beklemede</span>{/if}
 					{#if isTip}<span class="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5">⚠ nakit buraya yetmiyor</span>{/if}
 					<span class="ml-auto tabular-nums text-[12px] shrink-0 {txt}">{amountLabel}</span>
@@ -547,10 +559,10 @@
 							{@const agg = AGGREGATE_LABELS.has(g.label)}
 							{@const holdable = !realized && canHold && holdMode}
 							{#each aggregateRows(day.items.filter((it) => !it.is_held), agg) as row, i (i)}
-								{@render flowRow(row.name, rowAmountLabel(row), row.members, false, false, holdable, false, row.bank_name)}
+								{@render flowRow(row.name, rowAmountLabel(row), row.members, false, false, holdable, false, row.bank_name, row.tag_note)}
 							{/each}
 							{#each aggregateRows(day.items.filter((it) => it.is_held), agg) as row, i (`h${i}`)}
-								{@render flowRow(row.name, rowAmountLabel(row), row.members, true, false, holdable, false, row.bank_name)}
+								{@render flowRow(row.name, rowAmountLabel(row), row.members, true, false, holdable, false, row.bank_name, row.tag_note)}
 							{/each}
 						{/each}
 						{#if g.item_count > g.items.length}
@@ -597,11 +609,11 @@
 					</div>
 					{#each cat.rows as row, i (i)}
 						{@const isTip = !!tipping && day.date === tipping.date && cat.label === tipping.catLabel && i === tipping.rowIdx}
-						{@render flowRow(row.name, row.amountLabel, row.members, false, isTip, holdable, true, row.bank_name)}
+						{@render flowRow(row.name, row.amountLabel, row.members, false, isTip, holdable, true, row.bank_name, row.tag_note)}
 					{/each}
 					<!-- Held (beklemeye alınmış) satırlar — sarı, kategori toplamına katılmaz -->
 					{#each cat.heldRows as row, i (`h${i}`)}
-						{@render flowRow(row.name, row.amountLabel, row.members, true, false, holdable, true, row.bank_name)}
+						{@render flowRow(row.name, row.amountLabel, row.members, true, false, holdable, true, row.bank_name, row.tag_note)}
 					{/each}
 				{/each}
 			{/each}

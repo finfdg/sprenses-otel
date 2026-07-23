@@ -50,15 +50,19 @@ def _mk_tx(db, vendor, upload, d, borc=0, alacak=0, due=None, match=None, ttype=
 # ─── Aylık Bakiye ────────────────────────────────────────
 
 def test_monthly_balances_fifo_mode(client, auth_headers, db, upload):
-    """FIFO Kalan: ödemeler en eski faturadan düşülür; tamamen kapanan cari listelenmez."""
+    """FIFO Kalan: ay sonuna kadarki TÜM faturaların bugüne dek ödenmeyen kalanı —
+    önceki aylardan devreden dahil; tamamen kapanan cari listelenmez."""
     today = date.today()
     m1 = today.replace(day=1)
 
     v = _mk_vendor(db, "Aylık FIFO Cari")
+    # DEVREDEN: önceki aydan kalan fatura (ay sonuna kadar kesildi → dahil)
+    _mk_tx(db, v, upload, m1 - timedelta(days=10), alacak=4000, due=today - timedelta(days=3))
     # Bu ayın faturaları: 10000 (erken vade) + 8000 (geç vade)
     _mk_tx(db, v, upload, m1, alacak=10000, due=today + timedelta(days=10))
     _mk_tx(db, v, upload, m1 + timedelta(days=1), alacak=8000, due=today + timedelta(days=20))
-    # Ödeme 12000 → FIFO: ilk fatura tam + ikincinin 2000'i kapanır → kalan 6000
+    # Ödeme 12000 → FIFO: devreden 4000 tam + 10000'lik fatura 8000 kapanır →
+    # kalan = (10000-8000) + 8000 = 10000
     _mk_tx(db, v, upload, m1 + timedelta(days=1), borc=12000)
 
     # Tamamen kapanan cari — listede GÖRÜNMEZ
@@ -75,11 +79,30 @@ def test_monthly_balances_fifo_mode(client, auth_headers, db, upload):
     by_vid = {i["vendor_id"]: i for i in data["items"]}
     assert v.id in by_vid
     row = by_vid[v.id]
-    assert row["invoiced"] == 18000.0
+    assert row["invoiced"] == 22000.0   # devreden 4000 dahil (ay sonuna kadar kümülatif)
     assert row["closed"] == 12000.0
-    assert row["remaining"] == 6000.0
+    assert row["remaining"] == 10000.0
     assert v2.id not in by_vid  # kalan yok → gizli
-    assert data["totals"]["remaining"] == 6000.0
+    assert data["totals"]["remaining"] == 10000.0
+
+
+def test_monthly_balances_fifo_carryover_visible_in_later_months(client, auth_headers, db, upload):
+    """Devreden bakiye, faturasız SONRAKİ ayların görünümünde de kalan olarak durur
+    (NİLGÜN senaryosu: Ocak faturası ödenmedikçe Nisan ay sonunda da görünür)."""
+    today = date.today()
+    if today.month == 1:
+        import pytest as _pytest
+        _pytest.skip("Yılın ilk ayında önceki-ay senaryosu kurulamaz")
+    v = _mk_vendor(db, "Devreden Cari")
+    # Yalnız OCAK faturası, hiç ödeme yok
+    _mk_tx(db, v, upload, date(today.year, 1, 15), alacak=7500, due=date(today.year, 2, 15))
+    db.commit()
+
+    # Faturanın OLMADIĞI güncel ayda da kalan görünür (devreden)
+    r = client.get(f"{C}/monthly-balances?year={today.year}&month={today.month}&mode=fifo",
+                   headers=auth_headers)
+    by_vid = {i["vendor_id"]: i for i in r.json()["items"]}
+    assert v.id in by_vid and by_vid[v.id]["remaining"] == 7500.0
 
 
 def test_monthly_balances_period_mode_and_hide_zero(client, auth_headers, db, upload):

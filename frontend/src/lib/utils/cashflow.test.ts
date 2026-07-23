@@ -67,6 +67,16 @@ describe('aggregateRows — aggregate=false (kredi/çek: her kalem ayrı)', () =
 		const rows = aggregateRows(items, false);
 		expect(rows).toHaveLength(2);
 	});
+
+	it('tag_note tekil satırda taşınır — "Cari: <firma>" çek-ödemesi çipi (2026-07-23)', () => {
+		const items: CashItem[] = [
+			{ ...mk('Çekin Takastan Ödenmesi', 100, 600000), tag_note: 'Cari: GALAKSİ ORMAN' },
+			mk('Notsuz kalem', 50, 2000),
+		];
+		const rows = aggregateRows(items, false);
+		expect(rows[0].tag_note).toBe('Cari: GALAKSİ ORMAN');
+		expect(rows[1].tag_note).toBeNull();
+	});
 });
 
 describe('aggregateRows — aggregate=true (cari: firma bazında toplu)', () => {

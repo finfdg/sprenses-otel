@@ -147,7 +147,7 @@
 			<h2 class="text-base font-semibold text-gray-900">Ay Sonu Bakiyeleri</h2>
 			<p class="text-xs text-gray-500 mt-0.5 max-w-2xl">
 				{mode === 'fifo'
-					? 'Havale / EFT, kredi kartı ve çek ödemeleri FIFO ile en eski faturadan düşülür — seçilen ayın faturalarından kalanı olan firmalar listelenir, tamamen kapananlar gösterilmez.'
+					? 'Ay sonuna kadar kesilen tüm faturaların bugüne dek ödenmeyen kalanı — önceki aylardan devreden dahil. Havale / EFT, kredi kartı ve çek ödemeleri (sonraki aylardakiler de) FIFO ile en eski faturadan düşülür; tamamen kapanan firmalar gösterilmez.'
 					: 'Seçilen ay sonu itibarıyla firma bazında yürüyen bakiye — o tarihe kadarki tüm borç/alacak hareketlerinden hesaplanır.'}
 			</p>
 		</div>
@@ -175,7 +175,7 @@
 			icon={CalendarRange}
 			title={mode === 'fifo' ? 'Kalan bakiye yok' : 'Bakiyeli firma yok'}
 			description={mode === 'fifo'
-				? `${MONTH_NAMES[month - 1]} ${YEAR} faturalarının tamamı kapanmış — kalan bakiye yok.`
+				? `${MONTH_NAMES[month - 1]} ${YEAR} sonuna kadar kesilen faturaların tamamı ödenmiş — kalan bakiye yok.`
 				: 'Bu ay sonu itibarıyla bakiyesi kalan firma yok.'}
 		/>
 	{:else}
@@ -220,7 +220,7 @@
 		<div class="mt-3 flex items-center justify-between gap-3 flex-wrap bg-teal-700 rounded-xl px-4 py-3">
 			<div>
 				<div class="text-[10px] uppercase tracking-wide font-semibold text-teal-100/80">
-					{mode === 'fifo' ? `${MONTH_NAMES[month - 1]} ${YEAR} faturalarından kalan` : `${MONTH_NAMES[month - 1]} ${YEAR} sonu — net bakiye`}
+					{mode === 'fifo' ? `${MONTH_NAMES[month - 1]} ${YEAR} sonu itibarıyla kalan` : `${MONTH_NAMES[month - 1]} ${YEAR} sonu — net bakiye`}
 				</div>
 				<div class="text-[10px] text-teal-100/60 mt-0.5">{totalMeta}</div>
 			</div>
