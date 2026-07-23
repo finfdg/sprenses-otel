@@ -21,9 +21,16 @@ adımı 2 saatte bir koştuğundan fiş kesildikten en geç 2 saat sonra kalem d
 
 - **Harita (yalnız kanıtlı sınıflar):** 335/196→Personel · 320→Cari (exact eşleşmede
   `vendor_id`+`tag_note` da) · 360/361/368/369→Vergi/SGK · 300/303→`LEASING_CATEGORY` ·
-  340→Acenta · 331→Temettü · yalnız-102 fiş→Virman (karşı 102 hesabımız farklı para
-  birimindeyse Döviz Satışı). **770 gibi karışık gider hesapları BİLİNÇLİ dışarıda** —
-  haritasız prefix etiketlenmez (yanlış başlık > etiketsiz).
+  340→Acenta · 331→Temettü · 103→`CHECK_PAYMENT_CATEGORY` ("Çek Ödemesi"; cari notu
+  Sedna'dan değil bağlı `checks` FK'sından) · yalnız-102 fiş→Virman (karşı 102 hesabımız
+  farklı para birimindeyse Döviz Satışı). **770 gibi karışık gider hesapları BİLİNÇLİ
+  dışarıda** — haritasız prefix etiketlenmez (yanlış başlık > etiketsiz).
+- **Çek Ödemesi başlığı + "Cari: <firma>" çipi (2026-07-23, aynı gün):** ödenen çekin
+  banka bacağı `apply_check_bank_match` içinde de "Çek Ödemesi" + `tag_note="Cari: …"`
+  alır (eşleşme anında — köprüyü beklemez); T-Hesap item'ı `tag_note` taşır, frontend
+  yalnız "Cari: " önekli notu indigo çip basar. `vendor_id` bacağa BİLEREK yazılmaz
+  (cari eşleştiricisine sinyal sızması = çift temsil riski). 104 mevcut bacak geriye
+  dönük hizalandı. Detay: `docs/modules/transaction-tags.md` §"Çek Ödemesi Başlığı".
 - **Çaprazlanma koruması:** aynı (tarih, tutar) k↔k grubunda banka↔fiş eşlemesi çaprazlanmış
   olabilir → grup yalnız TÜM fişler AYNI kategoriye çıkıyorsa etiketlenir; kişi/firma bilgisi
   (`tag_note`/`vendor_id`) yalnız birebir (exact) eşleşmede yazılır.

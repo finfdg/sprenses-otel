@@ -342,6 +342,7 @@ adımıyla birlikte koşar (ekstre ne zaman yüklenirse yüklensin, fiş kesildi
 | 300, 303 | Kredi/Leasing | banka kredileri (`LEASING_CATEGORY` sabiti) |
 | 340 | Acenta | tur operatörü avansları |
 | 331 | Temettü | ortaklara borçlar |
+| 103 | Çek Ödemesi | bağlı çek varsa "Cari: <firma>" notu da yazılır (aşağı bkz) |
 | yalnız 102↔102 | Virman / Döviz Satışı | karşı 102 hesabımız FARKLI para birimindeyse Döviz Satışı |
 
 **Temkinlilik kuralları:**
@@ -360,8 +361,39 @@ adımıyla birlikte koşar (ekstre ne zaman yüklenirse yüklensin, fiş kesildi
   (`_match_cc_to_bank`) bunu 'auto' ile aynı sayar (köprü bir KK ödemesini yanlış
   sınıflarsa matcher düzeltebilir). Manuel etiketleme her zaman üzerine yazabilir.
 
-Test: `tests/test_sedna_tag_bridge.py` (15) + `test_banks_cc_match.py::
+Test: `tests/test_sedna_tag_bridge.py` (22) + `test_banks_cc_match.py::
 test_sedna_tagged_expense_still_matches`.
+
+---
+
+## Çek Ödemesi Başlığı + "Cari: <firma>" Etiketi (2026-07-23, kullanıcı isteği)
+
+**Karar:** "Ödenen çek aynı zamanda bir cari ödemesidir — Çek Ödemesi başlığı altında
+gösterip yanına cari ödemesi etiketi basalım." Ödenen çekin banka bacağı
+**"Çek Ödemesi"** kategorisine alınır (`CHECK_PAYMENT_CATEGORY` sabiti, indigo) ve
+`tag_note`'una **"Cari: <firma adı>"** yazılır; Panel T-Hesap satırında bu not indigo
+çip olarak görünür (`CashFlowTAccount.cariChip` — yalnız `"Cari: "` önekli notlar çip
+olur, diğer notlar T-Hesap'ta basılmaz).
+
+**Üç yazma noktası:**
+1. **Eşleşme anında** — `apply_check_bank_match` (tüm yollar: otomatik matcher, 1-N
+   grup, manuel endpoint, öneri-Onayla) `_tag_scheduled_bank_leg(..., tag_note=...)`
+   ile etiketler (kredi bacağı deseninin çeke uyarlanması).
+2. **Sedna köprüsü** — 103 karşı-hesaplı fişler (üstteki harita); cari notu Sedna'dan
+   DEĞİL bizim `checks.bank_transaction_id` FK'mızdan gelir (103 hesap adı bankanın
+   çek hesabıdır, cariyi söylemez; btx-özel bilgi olduğundan k↔k çaprazlanma riski yok).
+3. **Geriye dönük doldurma** — 2026-07-23'te 104 çek-bağlı bacağın tamamı hizalandı
+   (96'sı 18 Tem denetiminde zaten manuel "Çek Ödemesi"ndeydi → yalnız notu eklendi;
+   kategorisi farklı 7'si taşındı + not).
+
+**Kurallar:** manuel kategori ezilmez (yalnız not eklenebilir); mevcut `tag_note`
+korunur; **`vendor_id` BİLEREK yazılmaz** — cari eşleştiricisi (`_match_vendors_to_bank`)
+`btx.vendor_id`'yi sinyal olarak kullanır, çek bacağına cari bağı yazmak açık cari
+FE'lerine yanlış otomatik eşleşme (çift temsil) riski doğurur; cari bilgisi salt
+görsel etikettir. `_tag_scheduled_bank_leg` artık opsiyonel `tag_note` parametresi
+alır (kategori aynıysa bile boş not doldurulur — idempotent re-run).
+
+Test: `test_sedna_tag_bridge.py::TestCheckBankLegTagging` + `test_cek_fisi_tags_cek_odemesi_with_cari_note` + `cashflow.test.ts` tag_note passthrough.
 
 ---
 
