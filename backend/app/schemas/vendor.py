@@ -48,6 +48,9 @@ class VendorResponse(BaseModel):
     bakiye: float
     transaction_count: int
     unmatched_count: int = 0
+    # NET vadesi geçmiş (FIFO) — liste satırı çipleri + "Gecikmiş" sıralaması
+    overdue: float = 0.0
+    overdue_count: int = 0
 
     class Config:
         from_attributes = True
@@ -144,6 +147,9 @@ class VendorTransactionResponse(BaseModel):
     dept_assigned_by_name: Optional[str] = None
     dept_assigned_at: Optional[str] = None
     dept_rejection_note: Optional[str] = None
+    # Fatura (alacak) satırında FIFO sonrası ödenmemiş kalan — durum çipleri için
+    # (None = ödeme satırı; 0 = tamamen kapanmış fatura)
+    fifo_remaining: Optional[float] = None
 
     class Config:
         from_attributes = True

@@ -5,6 +5,40 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Sedna Karşı-Hesap Köprüsü — Etiketsiz Kalemlerin Otomatik Sınıflandırılması (2026-07-23)
+
+**Kullanıcı bulgusu:** Panel T-Hesap "Etiketsiz" grubunda 38 işlem (~€94K) — 20 Tem'deki
+"Para Gönder Diğer <kişi adı>" EFT'leri Sedna'da fişi kesilmiş personel avanslarıydı (28 kalem;
++3 cari, 1 çek takası) ama kelime kural motoru sinyalsiz açıklamayı etiketleyemiyor, 2 saatlik
+mutabakat da eşleşmeyi yalnız durum olarak tutuyordu (karşı-hesap → kategori köprüsü yoktu;
+2026-07-18 karşı-hesap denetimi TEK SEFERLİK elle yapılmıştı).
+
+**Çözüm — `services/sedna_tag_bridge.py` (yeni):** `run_reconciliation` artık `_match_account`'ın
+eşleşen çiftlerini toplar (`match_groups_out` — opsiyonel parametre, bulgu dönüşü değişmedi) ve
+koşu sonunda köprüyü çağırır: ETİKETSİZ banka hareketi, fişinin karşı-hesap bacaklarından
+(`sedna_client.fetch_fiche_counter_legs` — yeni sorgu) kategorize edilir. Cron'un `bank_recon`
+adımı 2 saatte bir koştuğundan fiş kesildikten en geç 2 saat sonra kalem doğru başlığa iner.
+
+- **Harita (yalnız kanıtlı sınıflar):** 335/196→Personel · 320→Cari (exact eşleşmede
+  `vendor_id`+`tag_note` da) · 360/361/368/369→Vergi/SGK · 300/303→`LEASING_CATEGORY` ·
+  340→Acenta · 331→Temettü · yalnız-102 fiş→Virman (karşı 102 hesabımız farklı para
+  birimindeyse Döviz Satışı). **770 gibi karışık gider hesapları BİLİNÇLİ dışarıda** —
+  haritasız prefix etiketlenmez (yanlış başlık > etiketsiz).
+- **Çaprazlanma koruması:** aynı (tarih, tutar) k↔k grubunda banka↔fiş eşlemesi çaprazlanmış
+  olabilir → grup yalnız TÜM fişler AYNI kategoriye çıkıyorsa etiketlenir; kişi/firma bilgisi
+  (`tag_note`/`vendor_id`) yalnız birebir (exact) eşleşmede yazılır.
+- **Sınırlar:** manuel etiket ezilmez (yalnız `category_id IS NULL`); "pos bloke" atlanır;
+  subset (küme-toplamı) eşleşmeleri kapsam dışı; köprü best-effort (hatası/Sedna kopukluğu
+  mutabakatı düşürmez, `db.rollback()` + log). FE senkronu `_sync_finance_events` ile —
+  after_commit sigortası WS yayınını otomatik yapar.
+- **`tag_source='sedna'`** makine etiketidir: `_match_cc_to_bank` yeniden-tarama filtresi
+  `('auto', 'sedna')` kabul eder (köprü bir KK ödemesini yanlış sınıflarsa matcher düzeltir).
+
+Test: `tests/test_sedna_tag_bridge.py` (15) + `test_banks_cc_match.py::test_sedna_tagged_expense_still_matches`.
+Detay: `docs/modules/transaction-tags.md` + `docs/modules/sedna-mutabakat.md`.
+
+---
+
 ## USD Kalemler T-Hesap/Runway'de Çapraz Kurla Çevrilir (2026-07-19)
 
 **Canlı bulgu (2026-07-19 DB denetimi):** USD para birimli `finance_events`'lerde `amount_try`

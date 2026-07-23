@@ -200,6 +200,13 @@ TL hesapta `Debit/Credit`.
   `accounts_skipped` sayacına düşer.
 - Hesap kodları `_safe_codes` ile doğrulanır (yalnız harf/rakam/nokta — SQL gömme güvenliği;
   Sedna leaf'leri harf içerebilir: `340.01.01.L001`).
+- **Karşı-hesap köprüsü (2026-07-23):** `_match_account` eşleşen çiftleri `match_groups_out`
+  parametresiyle dışa verir; koşu sonunda `services/sedna_tag_bridge.apply_sedna_tag_bridge`
+  ETİKETSİZ banka hareketlerini fişin karşı-hesap prefix'inden kategorize eder
+  (335/196→Personel, 320→Cari, 360→Vergi/SGK, 300→Kredi/Leasing, 102↔102→Virman/Döviz
+  Satışı; haritasız prefix atlanır). Best-effort — köprü hatası mutabakat sonucunu düşürmez;
+  özet `sedna_tagged` alanı taşır (senkron modalında "N karşı-hesaptan etiketlendi").
+  Detay: `docs/modules/transaction-tags.md` §"Sedna Karşı-Hesap Köprüsü".
 
 ## Hesap Eşleme (banka hesabı ↔ Sedna 102 leaf)
 

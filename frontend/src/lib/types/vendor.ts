@@ -9,6 +9,9 @@ export interface Vendor {
 	bakiye: number;
 	transaction_count: number;
 	unmatched_count: number;
+	/** NET vadesi geçmiş (FIFO) — liste çipleri + Gecikmiş sıralaması */
+	overdue: number;
+	overdue_count: number;
 }
 
 export interface VendorDetail {
@@ -66,6 +69,37 @@ export interface VendorTransaction {
 	dept_assigned_by_name: string | null;
 	dept_assigned_at: string | null;
 	dept_rejection_note: string | null;
+	/** Fatura satırında FIFO sonrası kalan (null = ödeme satırı; 0 = kapanmış) */
+	fifo_remaining?: number | null;
+}
+
+// ─── Analitik görünümler (Aylık Bakiye / Yıllık Ciro) ───
+
+export interface MonthlyFifoRow {
+	vendor_id: number;
+	hesap_kodu: string;
+	hesap_adi: string;
+	invoiced: number;
+	closed: number;
+	remaining: number;
+}
+
+export interface MonthlyPeriodRow {
+	vendor_id: number;
+	hesap_kodu: string;
+	hesap_adi: string;
+	total_borc: number;
+	total_alacak: number;
+	balance: number;
+}
+
+export interface YearlyTurnoverRow {
+	vendor_id: number;
+	hesap_kodu: string;
+	hesap_adi: string;
+	monthly: number[];
+	invoice_count: number;
+	turnover: number;
 }
 
 export interface VendorUpload {

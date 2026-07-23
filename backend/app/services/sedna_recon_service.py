@@ -172,11 +172,19 @@ def classify_sedna_row(row: dict, account_currency: str) -> Tuple[str, float]:
 # ─── Eşleştirme çekirdeği (saf — test edilebilir) ───────────────────────────
 
 def _match_account(bank_rows: List[dict], sedna_rows: List[dict],
-                   sedna_max_date: Optional[date]) -> List[dict]:
+                   sedna_max_date: Optional[date],
+                   match_groups_out: Optional[List[dict]] = None) -> List[dict]:
     """Tek hesabın açık bulgularını üret. Girdi:
     bank_rows: {id, date, amount, description} (işaretli tutar)
     sedna_rows: {rec_id, owner_id, voucher, fiche_date, amount, remark, record_user, change_date}
     Dönen bulgu: {status, btx_id?, sedna?, amount, event_date, description?, ...}
+
+    match_groups_out verilirse EŞLEŞEN çiftler de dışa yazılır (karşı-hesap köprüsü —
+    `services/sedna_tag_bridge`): {"btxs": [b...], "sednas": [s...], "exact": bool}.
+    exact=True yalnız birebir (1↔1) anahtar eşleşmesi; k↔k gruplarda banka↔fiş eşlemesi
+    çaprazlanmış olabilir (köprü grubu yalnız tek-kategoriye çıkıyorsa kullanır).
+    Küme-toplamı (subset) eşleşmeleri köprüye YAZILMAZ (ücret+BSMV bölünmeleri —
+    kelime kurallarının alanı, v1 bilinçli kapsam dışı).
     """
     b_open = list(bank_rows)
     s_open = list(sedna_rows)
@@ -201,6 +209,11 @@ def _match_account(bank_rows: List[dict], sedna_rows: List[dict],
         slist = s_by_key.pop(key, [])
         n = min(len(blist), len(slist))
         # n adet eşleşti (kayıt üretilmez); artanlar havuzda
+        if n and match_groups_out is not None:
+            match_groups_out.append({
+                "btxs": blist[:n], "sednas": slist[:n],
+                "exact": len(blist) == 1 and len(slist) == 1,
+            })
         b_rest.extend(blist[n:])
         if len(slist) > len(blist) and blist:
             # Sedna adedi fazla + bankada bu anahtar VAR → mükerrer giriş şüphesi
@@ -221,6 +234,10 @@ def _match_account(bank_rows: List[dict], sedna_rows: List[dict],
                     cand = (dd, s)
         if cand:
             s_rest.remove(cand[1])
+            # ±3 gün eşleşmesi: tutar-tekil ama tarih kaymalı → çaprazlanma riski
+            # düşük yine de exact sayılmaz (cari/tag_note ataması yapılmasın)
+            if match_groups_out is not None:
+                match_groups_out.append({"btxs": [b], "sednas": [cand[1]], "exact": False})
         else:
             still_b.append(b)
     b_rest = still_b
@@ -293,6 +310,7 @@ def run_reconciliation(
     triggered_by: Optional[int] = None,
     fetch_rows: Optional[Callable[[List[str], str], List[dict]]] = None,
     fetch_max_dates: Optional[Callable[[List[str]], dict]] = None,
+    fetch_legs: Optional[Callable[[List[int]], List[dict]]] = None,
     notify: bool = True,
 ) -> dict:
     """Mutabakat koşusu. Sedna erişilemezse SednaUnavailable yükselir ve HİÇBİR kayıt
@@ -333,6 +351,7 @@ def run_reconciliation(
 
     now = datetime.now(tz_istanbul)
     new_items: List[SednaBankRecon] = []
+    bridge_groups: List[dict] = []  # karşı-hesap köprüsü girdisi (hesap + eşleşen çiftler)
 
     for acc in accounts:
         sedna_cash = []
@@ -353,7 +372,11 @@ def run_reconciliation(
             .all()
         ]
 
-        findings = _match_account(bank_rows, sedna_cash, max_dates.get(acc.sedna_account_code))
+        match_groups: List[dict] = []
+        findings = _match_account(bank_rows, sedna_cash, max_dates.get(acc.sedna_account_code),
+                                  match_groups_out=match_groups)
+        if match_groups:
+            bridge_groups.append({"account": acc, "groups": match_groups})
         summary["accounts_scanned"] += 1
         summary["matched"] += len(bank_rows) - sum(1 for f in findings if f["btx"])
 
@@ -429,6 +452,19 @@ def run_reconciliation(
     )
     db.add(run)
     db.commit()
+
+    # Karşı-hesap köprüsü: eşleşen ETİKETSİZ banka hareketleri fişin karşı-hesabından
+    # kategorize edilir (335→Personel, 320→Cari, 360→Vergi/SGK...) — kelime kuralının
+    # yakalayamadığı "Para Gönder Diğer <kişi>" sınıfı 2 saatte bir otomatik kapanır.
+    # Best-effort: köprü hatası mutabakat sonucunu ASLA düşürmez (ana commit yukarıda).
+    summary["sedna_tagged"] = 0
+    if bridge_groups:
+        try:
+            from app.services.sedna_tag_bridge import apply_sedna_tag_bridge
+            summary.update(apply_sedna_tag_bridge(db, bridge_groups, fetch_legs=fetch_legs))
+        except Exception as e:  # noqa: BLE001 — köprü izolasyonu
+            db.rollback()
+            logger.error("Sedna karşı-hesap köprüsü hatası: %s", e, exc_info=True)
 
     # Faz C: dönem kilidi (uyarı modu) — kilit-öncesi tarihli YENİ uyuşmazlık ayrı bildirilir
     try:

@@ -19,13 +19,13 @@
 	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
 	import DeptAssignModal from '$lib/components/finance/cariler/DeptAssignModal.svelte';
 	import AddToListModal from '$lib/components/finance/cariler/AddToListModal.svelte';
-	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, TrendingDown, TrendingUp, Scale, Wallet, ChevronDown, Check, X, Calendar, Download, Pencil, Copy, User, StickyNote, ArrowLeft, ExternalLink } from 'lucide-svelte';
+	import MonthlyBalances from '$lib/components/finance/cariler/MonthlyBalances.svelte';
+	import YearlyTurnover from '$lib/components/finance/cariler/YearlyTurnover.svelte';
+	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, Scale, Wallet, Check, X, Calendar, Download, Pencil, Copy, User, StickyNote, ArrowLeft, ExternalLink, RefreshCw, AlertTriangle } from 'lucide-svelte';
 	import Button from '$lib/components/Button.svelte';
 	import StatCard from '$lib/components/StatCard.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
 
 	// Generic onay state
 	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({
@@ -36,7 +36,19 @@
 	}
 
 	// ─── State ──────────────────────────────────────────
-	let activeView = $state<'upload' | 'vendors' | 'notes' | 'schedule' | 'instructions'>('upload');
+	type TopTab = 'upload' | 'vendors' | 'monthly' | 'turnover' | 'notes' | 'schedule' | 'instructions';
+	let activeView = $state<TopTab>('vendors');
+
+	// Üst sekmeler (tasarım: alt-çizgili sekme barı; Notlar rozeti = açık not sayısı)
+	const TOP_TABS: { k: TopTab; label: string }[] = [
+		{ k: 'upload', label: 'Dosya Yükle' },
+		{ k: 'vendors', label: 'Cariler' },
+		{ k: 'monthly', label: 'Aylık Bakiye' },
+		{ k: 'turnover', label: 'Yıllık Ciro' },
+		{ k: 'notes', label: 'Notlar' },
+		{ k: 'schedule', label: 'Ödeme Planı' },
+		{ k: 'instructions', label: 'Ödeme Talimatı' },
+	];
 
 	// Upload
 	let uploading = $state(false);
@@ -60,8 +72,36 @@
 	// Sorting & filtering
 	let sortBy = $state<string | null>('hesap_adi');
 	let sortDir = $state<'asc' | 'desc'>('asc');
-	// Master-detail sol liste filtresi (tasarım çipleri: Tümü / Vadesi Geçmiş / Bakiyeli)
-	let listFilter = $state<'all' | 'overdue' | 'balance'>('all');
+	// Master-detail sol liste filtresi (tasarım çipleri: Tümü / Bakiyeli / Vadesi Geçmiş / Yasaklı)
+	let listFilter = $state<'all' | 'balance' | 'overdue' | 'banned'>('all');
+
+	// Sol liste sıralama pilleri (tasarım: Ad / Bakiye / Borç / Alacak / Gecikmiş)
+	const SORT_PILLS: { key: string; label: string; defDir: 'asc' | 'desc' }[] = [
+		{ key: 'hesap_adi', label: 'Ad', defDir: 'asc' },
+		{ key: 'bakiye', label: 'Bakiye', defDir: 'asc' },
+		{ key: 'total_borc', label: 'Borç', defDir: 'desc' },
+		{ key: 'total_alacak', label: 'Alacak', defDir: 'desc' },
+		{ key: 'overdue', label: 'Gecikmiş', defDir: 'desc' },
+	];
+	const SORT_LABELS: Record<string, string> = { hesap_adi: 'Ad', bakiye: 'Bakiye', total_borc: 'Borç', total_alacak: 'Alacak', overdue: 'Gecikmiş' };
+
+	// Hareket tablosu kolon sıralaması (3 aşamalı: artan → azalan → varsayılan)
+	let vtxSortBy = $state<string | null>(null);
+	let vtxSortDir = $state<'asc' | 'desc'>('desc');
+
+	// Yükleme geçmişi tablo sıralaması
+	let upSortKey = $state<'tarih' | 'yeni'>('tarih');
+	let upSortDir = $state<'asc' | 'desc'>('desc');
+
+	// Sedna kartı + başlık aksiyonları
+	let sednaConfigured = $state(false);
+	let sednaImporting = $state(false);
+	let ibanImporting = $state(false);
+	let sednaSyncAllBusy = $state(false);
+	let lastSyncText = $state<string | null>(null);
+
+	// Ödeme planı sıralaması (tasarım: Tutara göre / Cari adına göre)
+	let planSort = $state<'tutar' | 'ad'>('tutar');
 
 	// Vendor detail
 	let expandedVendor = $state<number | null>(null);
@@ -73,7 +113,12 @@
 	let vtxPages = $state(1);
 
 	// Summary
-	let summary = $state<{ total_borc: number; total_alacak: number; bakiye: number; vendor_count: number; negative_count: number; negative_total: number } | null>(null);
+	let summary = $state<{
+		total_borc: number; total_alacak: number; bakiye: number; vendor_count: number;
+		negative_count: number; negative_total: number; negative_total_eur: number | null;
+		banned_count: number; nonzero_count: number;
+		overdue_total: number; overdue_invoice_count: number; overdue_vendor_count: number;
+	} | null>(null);
 
 	// Vendor detail tabs (tasarım: Hesap Hareketleri / Notlar / Firma Bilgileri)
 	let detailTab = $state<'transactions' | 'notes' | 'contact'>('transactions');
@@ -105,43 +150,89 @@
 	// Payment schedule
 	let schedule = $state<WeeklyPaymentGroup[]>([]);
 	let scheduleLoading = $state(false);
-	let expandedMonths = $state<Record<string, boolean>>({});
-	let expandedWeeks = $state<Record<string, boolean>>({});
 	let eurRate = $state<number>(0);
 
 	const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
-	interface MonthPaymentGroup {
+	// Tasarım (2026-07-23): haftalık gruplar düz listelenir; geçmiş vadeli haftalar tek
+	// "Gecikmiş" grubunda birleşir, grup içinde cari bazında toplanır (N fatura · toplam).
+	interface PlanVendorItem {
+		vendor_id: number;
+		hesap_adi: string;
+		hesap_kodu: string;
+		n: number;
+		due: string; // grup içindeki en erken vade
+		amount: number;
+	}
+	interface PlanGroup {
 		key: string;
 		label: string;
-		weeks: WeeklyPaymentGroup[];
-		total_amount: number;
-		item_count: number;
+		overdue: boolean;
+		thisWeek: boolean;
+		items: PlanVendorItem[];
+		total: number;
 	}
 
-	// Haftalık grupları aylık akordion yapısına dönüştür
-	function buildMonthlySchedule(weeks: WeeklyPaymentGroup[]): MonthPaymentGroup[] {
-		const monthMap: Record<string, MonthPaymentGroup> = {};
-		for (const week of weeks) {
-			const d = new Date(week.friday_date + 'T00:00:00');
-			const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-			if (!monthMap[key]) {
-				monthMap[key] = {
-					key,
-					label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`,
-					weeks: [],
-					total_amount: 0,
-					item_count: 0,
-				};
+	function _aggVendors(items: WeeklyPaymentGroup['items']): Map<number, PlanVendorItem> {
+		const map = new Map<number, PlanVendorItem>();
+		for (const it of items) {
+			const slot = map.get(it.vendor_id);
+			if (slot) {
+				slot.n += 1;
+				slot.amount += it.amount;
+				if (it.payment_due_date < slot.due) slot.due = it.payment_due_date;
+			} else {
+				map.set(it.vendor_id, {
+					vendor_id: it.vendor_id, hesap_adi: it.hesap_adi, hesap_kodu: it.hesap_kodu,
+					n: 1, due: it.payment_due_date, amount: it.amount,
+				});
 			}
-			monthMap[key].weeks.push(week);
-			monthMap[key].total_amount += week.total_amount;
-			monthMap[key].item_count += week.items.length;
 		}
-		return Object.values(monthMap).sort((a, b) => a.key.localeCompare(b.key));
+		return map;
 	}
 
-	let monthlySchedule = $derived(buildMonthlySchedule(schedule));
+	let planGroups = $derived.by<PlanGroup[]>(() => {
+		const todayIso = new Date().toISOString().slice(0, 10);
+		const in7Iso = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+		const overdueItems: WeeklyPaymentGroup['items'] = [];
+		const groups: PlanGroup[] = [];
+		for (const week of schedule) {
+			if (week.friday_date < todayIso) {
+				overdueItems.push(...week.items);
+				continue;
+			}
+			const items = [...(_aggVendors(week.items).values())];
+			groups.push({
+				key: week.friday_date,
+				label: `${formatDate(week.friday_date)} Cuma`,
+				overdue: false,
+				thisWeek: week.friday_date <= in7Iso,
+				items,
+				total: items.reduce((s, i) => s + i.amount, 0),
+			});
+		}
+		if (overdueItems.length > 0) {
+			const items = [...(_aggVendors(overdueItems).values())];
+			groups.unshift({
+				key: 'overdue',
+				label: 'Gecikmiş',
+				overdue: true,
+				thisWeek: false,
+				items,
+				total: items.reduce((s, i) => s + i.amount, 0),
+			});
+		}
+		for (const g of groups) {
+			g.items.sort((a, b) =>
+				planSort === 'tutar'
+					? b.amount - a.amount || a.hesap_adi.localeCompare(b.hesap_adi, 'tr')
+					: a.hesap_adi.localeCompare(b.hesap_adi, 'tr'),
+			);
+		}
+		return groups;
+	});
+
+	let planItemCount = $derived(planGroups.reduce((s, g) => s + g.items.length, 0));
 
 	const canUse = hasPermission('finance.cariler', 'use');
 
@@ -319,11 +410,6 @@
 		return d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 	}
 
-	function formatDateLong(dateStr: string): string {
-		const d = new Date(dateStr);
-		return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' });
-	}
-
 	function formatDateTime(dateStr: string): string {
 		const d = new Date(dateStr);
 		return d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -453,6 +539,7 @@
 			}
 			if (listFilter === 'balance') params.set('hide_zero', 'true');
 			else if (listFilter === 'overdue') params.set('overdue_only', 'true');
+			else if (listFilter === 'banned') params.set('banned_only', 'true');
 			const res = await api.get<any>(`/finance/cariler/vendors?${params}`);
 			vendors = res.items;
 			vendorTotal = res.total;
@@ -464,9 +551,21 @@
 		}
 	}
 
-	// Master-detail: sol liste filtre çipleri (Tümü / Vadesi Geçmiş / Bakiyeli)
-	function setListFilter(f: 'all' | 'overdue' | 'balance') {
+	// Master-detail: sol liste filtre çipleri (Tümü / Bakiyeli / Vadesi Geçmiş / Yasaklı)
+	function setListFilter(f: 'all' | 'balance' | 'overdue' | 'banned') {
 		listFilter = f;
+		vendorPage = 1;
+		loadVendors();
+	}
+
+	// Sıralama pili: aynı pil tekrar tıklanınca yön değişir, yeni pil varsayılan yönle başlar
+	function setListSort(key: string, defDir: 'asc' | 'desc') {
+		if (sortBy === key) {
+			sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+		} else {
+			sortBy = key;
+			sortDir = defDir;
+		}
 		vendorPage = 1;
 		loadVendors();
 	}
@@ -585,6 +684,8 @@
 		}
 		expandedVendor = vendorId;
 		vtxPage = 1;
+		vtxSortBy = null;
+		vtxSortDir = 'desc';
 		detailTab = 'transactions';
 		vendorIbans = [];
 		vendorNotes = [];
@@ -600,22 +701,65 @@
 	async function loadVendorDetail(vendorId: number) {
 		vtxLoading = true;
 		try {
-			const res = await api.get<any>(`/finance/cariler/vendors/${vendorId}?page=${vtxPage}&page_size=50`);
+			const params = new URLSearchParams({ page: String(vtxPage), page_size: '50' });
+			if (vtxSortBy) {
+				params.set('sort_by', vtxSortBy);
+				params.set('sort_dir', vtxSortDir);
+			}
+			const res = await api.get<any>(`/finance/cariler/vendors/${vendorId}?${params}`);
 			vendorDetail = res.vendor;
 			vendorTransactions = res.transactions.items;
 			vtxTotal = res.transactions.total;
 			vtxPages = res.transactions.pages;
-			// İletişim formunu detaydan doldur
+			// İletişim formu + vade taslağını detaydan doldur
 			contactForm = {
 				contact_person: res.vendor.contact_person || '',
 				phone: res.vendor.phone || '',
 				email: res.vendor.email || '',
 			};
+			paymentDaysValue = res.vendor.payment_days;
 		} catch (err) {
 			console.error('Cari detay alınamadı:', err);
 		} finally {
 			vtxLoading = false;
 		}
+	}
+
+	// Hareket tablosu kolon sıralaması — 3 aşama: artan → azalan → varsayılan (tarih DESC).
+	// Tarih kolonu varsayılan olduğundan kendisinde yalnız yön değişir.
+	function cycleTxSort(key: string | null) {
+		if (!key || !expandedVendor) return;
+		if (vtxSortBy !== key) {
+			vtxSortBy = key;
+			vtxSortDir = key === 'date' ? 'desc' : 'asc';
+		} else if (key === 'date') {
+			vtxSortDir = vtxSortDir === 'desc' ? 'asc' : 'desc';
+		} else if (vtxSortDir === 'asc') {
+			vtxSortDir = 'desc';
+		} else {
+			vtxSortBy = null;
+			vtxSortDir = 'desc';
+		}
+		vtxPage = 1;
+		loadVendorDetail(expandedVendor);
+	}
+
+	// Fatura satırı durum çipi (Kapandı / Gecikti / Vade) — backend fifo_remaining'den
+	function invoiceChip(tx: VendorTransaction): { label: string; cls: string } | null {
+		if (tx.fifo_remaining === null || tx.fifo_remaining === undefined) return null;
+		if (tx.fifo_remaining <= 0.005) {
+			return { label: 'Kapandı', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+		}
+		if (!tx.payment_due_date) return null;
+		const todayIso = new Date().toISOString().slice(0, 10);
+		if (tx.payment_due_date < todayIso) {
+			return { label: `Gecikti · ${formatDate(tx.payment_due_date)}`, cls: 'bg-red-50 text-red-700 border-red-200' };
+		}
+		const dd = Math.round((new Date(tx.payment_due_date).getTime() - new Date(todayIso).getTime()) / 864e5);
+		if (dd <= 7) {
+			return { label: `Vade ${formatDate(tx.payment_due_date)} · ${dd}g`, cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+		}
+		return { label: `Vade ${formatDate(tx.payment_due_date)}`, cls: 'bg-gray-50 text-gray-600 border-gray-200' };
 	}
 
 	// ─── Cari Notları ──────────────────────────────────
@@ -832,18 +976,11 @@
 	}
 
 	// ─── Payment Days Edit ─────────────────────────────
-	let editingPaymentDays = $state<number | null>(null);
+	// Tasarım (2026-07-23): vade alanı detay başlığında HER ZAMAN görünür bir sayı
+	// girişidir; değer değişince yanında kaydet (✓) butonu belirir.
 	let paymentDaysValue = $state(90);
 	let savingPaymentDays = $state(false);
-
-	function startEditPaymentDays(vendor: Vendor) {
-		editingPaymentDays = vendor.id;
-		paymentDaysValue = vendor.payment_days;
-	}
-
-	function cancelEditPaymentDays() {
-		editingPaymentDays = null;
-	}
+	let vadeChanged = $derived(vendorDetail !== null && paymentDaysValue !== vendorDetail.payment_days);
 
 	async function savePaymentDays(vendorId: number) {
 		if (paymentDaysValue < 0) {
@@ -859,7 +996,6 @@
 			if (vendorDetail && vendorDetail!.id === vendorId) {
 				vendorDetail.payment_days = paymentDaysValue;
 			}
-			editingPaymentDays = null;
 			showToast('Ödeme vadesi güncellendi', 'success');
 			// Ödeme planı cache'ini sıfırla — yeni vade tarihleri hesaplandı
 			schedule = [];
@@ -927,12 +1063,90 @@
 		}
 	}
 
-	function toggleWeek(fridayDate: string) {
-		expandedWeeks[fridayDate] = !expandedWeeks[fridayDate];
+	// ─── Sedna (Dosya Yükle kartı + başlık aksiyonları) ─
+	async function loadSednaMeta() {
+		try {
+			const st = await api.get<{ configured: boolean }>('/finance/cariler/sedna-status');
+			sednaConfigured = !!st.configured;
+		} catch (err) {
+			console.error('Sedna durumu alınamadı:', err);
+		}
+		try {
+			const ls = await api.get<any>('/finance/sedna/last-sync');
+			lastSyncText = ls.last_cari_sync ? formatDateTime(ls.last_cari_sync) : null;
+		} catch (err) {
+			console.error('Sedna tazeliği alınamadı:', err);
+		}
 	}
 
-	function toggleMonth(monthKey: string) {
-		expandedMonths[monthKey] = !expandedMonths[monthKey];
+	async function runSednaImport() {
+		if (sednaImporting) return;
+		sednaImporting = true;
+		try {
+			const result = await api.post<VendorUploadResult>('/finance/cariler/sedna-import', {});
+			uploadResult = result;
+			selectedRemovalIds = new Set(result.removal_candidates.map(c => c.id));
+			showUploadResult = true;
+			await loadUploads();
+			loadSummary();
+			loadSednaMeta();
+			showToast(`Sedna: ${result.new_transactions} yeni hareket · ${result.skipped_transactions} mükerrer atlandı`, 'success');
+		} catch (err: any) {
+			console.error('Sedna içe aktarma hatası:', err);
+			showToast(err?.message || 'Sedna içe aktarma başarısız — tünel kapalı olabilir', 'error');
+		} finally {
+			sednaImporting = false;
+		}
+	}
+
+	async function runIbanImport() {
+		if (ibanImporting) return;
+		ibanImporting = true;
+		try {
+			const res = await api.post<any>('/finance/cariler/sedna-import-ibans', {});
+			showToast(`Sedna IBAN: ${res.new_ibans} yeni · ${res.updated} güncellendi · ${res.vendors_matched} cari`, 'success');
+		} catch (err: any) {
+			console.error('Sedna IBAN içe aktarma hatası:', err);
+			showToast(err?.message || 'IBAN içe aktarma başarısız — tünel kapalı olabilir', 'error');
+		} finally {
+			ibanImporting = false;
+		}
+	}
+
+	async function runSednaSyncAll() {
+		if (sednaSyncAllBusy) return;
+		sednaSyncAllBusy = true;
+		try {
+			await api.post('/finance/sedna/sync-all', {});
+			showToast('Sedna senkronu arka planda başlatıldı — ilerleme üst bardaki Sedna göstergesinde', 'info');
+		} catch (err: any) {
+			console.error('Sedna senkron başlatılamadı:', err);
+			showToast(err?.message || 'Sedna senkronu başlatılamadı', 'error');
+		} finally {
+			sednaSyncAllBusy = false;
+		}
+	}
+
+	// Yükleme geçmişi sıralaması (Tarih / Yeni kolonları)
+	function cycleUpSort(key: 'tarih' | 'yeni') {
+		if (upSortKey === key) upSortDir = upSortDir === 'asc' ? 'desc' : 'asc';
+		else { upSortKey = key; upSortDir = 'desc'; }
+	}
+	let sortedUploads = $derived.by(() => {
+		const dir = upSortDir === 'asc' ? 1 : -1;
+		return [...uploads].sort((a, b) => {
+			const c = upSortKey === 'tarih'
+				? a.uploaded_at.localeCompare(b.uploaded_at)
+				: a.new_transactions - b.new_transactions;
+			return c * dir;
+		});
+	});
+
+	// Aylık Bakiye / Yıllık Ciro satırından cari detayını aç
+	function openVendorFromAnalytics(vendorId: number) {
+		activeView = 'vendors';
+		if (vendors.length === 0) loadVendors();
+		if (expandedVendor !== vendorId) toggleVendorDetail(vendorId);
 	}
 
 	// ─── Excel İndir ───────────────────────────────────
@@ -964,18 +1178,20 @@
 		}
 	});
 
-	// Toplam ödeme ve kümülatif hesaplama
+	// Toplam ödeme
 	let totalScheduleAmount = $derived(schedule.reduce((sum, g) => sum + g.total_amount, 0));
-	let cumulativeAmounts = $derived(schedule.reduce<number[]>((acc, g, i) => {
-		acc.push((acc[i - 1] || 0) + g.total_amount);
-		return acc;
-	}, []));
 
 	let unsubFinance: (() => void) | null = null;
 
 	onMount(async () => {
 		loadUploads();
 		loadSummary();
+		loadSednaMeta();
+
+		// Notlar sekmesi rozeti — açık not sayısı (hafif çağrı, yalnız open_total için)
+		api.get<any>('/finance/cariler/notes?page=1&page_size=1')
+			.then((r) => { allNotesOpenTotal = r.open_total; })
+			.catch((err) => console.error('Not rozeti alınamadı:', err));
 
 		// URL'den vendor parametresi varsa direkt o cariyi aç
 		const vendorParam = $page.url.searchParams.get('vendor');
@@ -1013,106 +1229,164 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 	<!-- Başlık -->
-	<PageHeader title="Cariler" description="Cari hesap yönetimi ve ödeme planı" />
+	<PageHeader title="Cariler" description="Satıcı carileri, hesap hareketleri ve ödeme planlaması">
+		{#snippet actions()}
+			{#if lastSyncText}
+				<span class="hidden sm:inline text-[11px] text-gray-500 mr-1">Son senkron: <span class="text-emerald-700 font-semibold">{lastSyncText}</span></span>
+			{/if}
+			<Button variant="secondary" onclick={() => downloadExcel('vendors')}>
+				<Download size={15} />
+				Excel'e Aktar
+			</Button>
+			{#if sednaConfigured && canUse}
+				<Button onclick={runSednaSyncAll} loading={sednaSyncAllBusy} disabled={sednaSyncAllBusy}>
+					<RefreshCw size={15} />
+					Sedna Senkron
+				</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
-	<!-- Özet Kartları -->
+	<!-- Özet Kartları (tasarım: Ödenecek Toplam / Genel Bakiye / Vadesi Geçmiş / Cari Sayısı) -->
 	{#if summary}
-		<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-			<StatCard label="Toplam Borç" value={formatCurrency(summary.total_borc)} accent="red" icon={TrendingDown} />
-			<StatCard label="Toplam Alacak" value={formatCurrency(summary.total_alacak)} accent="emerald" icon={TrendingUp} />
+		<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
 			<StatCard
-				label="Net Bakiye"
-				value={formatCurrency(summary.bakiye)}
-				accent={summary.bakiye > 0 ? 'red' : summary.bakiye < 0 ? 'emerald' : 'gray'}
-				icon={Scale}
+				label="Ödenecek Toplam"
+				value={formatCurrency(Math.abs(summary.negative_total))}
+				accent="amber"
+				icon={Wallet}
+				hint={`${summary.negative_count} cari${summary.negative_total_eur ? ` · ≈ €${Math.round(summary.negative_total_eur).toLocaleString('tr-TR')}` : ''}`}
 			/>
-			<StatCard label="Cari Borçları" value={formatCurrency(Math.abs(summary.negative_total))} accent="amber" icon={Wallet} hint={`${summary.negative_count} cari`} />
-			<StatCard label="Cari Sayısı" value={summary.vendor_count} accent="gray" icon={Users} />
+			<StatCard
+				label="Genel Bakiye"
+				value={formatCurrency(summary.bakiye)}
+				accent={summary.bakiye > 0 ? 'red' : 'teal'}
+				icon={Scale}
+				hint={`borç ${formatCurrency(summary.total_borc)} − alacak ${formatCurrency(summary.total_alacak)}`}
+			/>
+			<StatCard
+				label="Vadesi Geçmiş"
+				value={formatCurrency(summary.overdue_total ?? 0)}
+				accent="red"
+				icon={AlertTriangle}
+				hint={`${summary.overdue_invoice_count ?? 0} fatura · net FIFO bazlı`}
+			/>
+			<StatCard
+				label="Cari Sayısı"
+				value={summary.vendor_count}
+				accent="gray"
+				icon={Users}
+				hint={`${summary.banned_count ?? 0} ödeme yasaklısı · ${summary.nonzero_count ?? 0} bakiyeli`}
+			/>
 		</div>
 	{/if}
 
-	<!-- Tab Bar -->
-	<div class="flex items-center justify-between">
-		<SegmentedControl
-			options={[
-				{ value: 'upload', label: 'Dosya Yükle' },
-				{ value: 'vendors', label: 'Cariler' },
-				{ value: 'notes', label: 'Notlar' },
-				{ value: 'schedule', label: 'Ödeme Planı' },
-				{ value: 'instructions', label: 'Ödeme Talimatı' },
-			]}
-			value={activeView}
-			onchange={(v) => (activeView = v as typeof activeView)}
-			ariaLabel="Cari görünümü"
-		/>
-
-		<!-- Excel İndir -->
-		{#if activeView === 'vendors' || activeView === 'schedule'}
-			<Button variant="secondary" onclick={() => downloadExcel(activeView === 'vendors' ? 'vendors' : 'payment-schedule')}>
-				<Download size={16} />
-				Excel İndir
-			</Button>
-		{/if}
+	<!-- Sekme Barı (tasarım: alt-çizgili sekmeler, aktif = altın alt çizgi) -->
+	<div class="flex items-center gap-0.5 border-b border-gray-200 overflow-x-auto">
+		{#each TOP_TABS as t (t.k)}
+			<button
+				onclick={() => (activeView = t.k)}
+				class="whitespace-nowrap inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-semibold border-b-2 -mb-px transition-colors cursor-pointer {activeView === t.k ? 'border-brass text-teal-700' : 'border-transparent text-gray-500 hover:text-teal-700'}"
+			>
+				{t.label}
+				{#if t.k === 'notes' && allNotesOpenTotal > 0}
+					<span class="px-1.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 tabular-nums leading-4">{allNotesOpenTotal}</span>
+				{/if}
+			</button>
+		{/each}
 	</div>
 
 	<!-- ═══ DOSYA YÜKLE ═══ -->
 	{#if activeView === 'upload'}
-		<div class="space-y-6">
+		<div class="space-y-4">
 
-			<!-- Sürükle-Bırak Alan -->
+			<!-- Excel + Sedna kartları yan yana (tasarım) -->
 			{#if canUse}
-				<div class="relative">
-					<LoadingOverlay show={uploading} />
-					<FileDropzone
-						accept=".xls,.xlsx"
-						maxSize={50 * 1024 * 1024}
-						disabled={uploading}
-						label="Cari Excel dosyasını sürükleyin veya tıklayın"
-						hint="Desteklenen formatlar: .xls, .xlsx — maks. 50 MB"
-						onSelect={handleFileSelect}
-						onError={handleDropError}
-					/>
+				<div class="grid grid-cols-1 {sednaConfigured ? 'lg:grid-cols-2' : ''} gap-4">
+					<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+						<div class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-3">Excel Yükle</div>
+						<div class="relative">
+							<LoadingOverlay show={uploading} />
+							<FileDropzone
+								accept=".xls,.xlsx"
+								maxSize={50 * 1024 * 1024}
+								disabled={uploading}
+								label="Cari Excel dosyasını sürükleyin veya tıklayın"
+								hint=".xls / .xlsx — mükerrer işlemler otomatik atlanır"
+								onSelect={handleFileSelect}
+								onError={handleDropError}
+							/>
+						</div>
+					</div>
+					{#if sednaConfigured}
+						<div class="bg-teal-50 rounded-2xl border border-teal-200 shadow-sm p-4 sm:p-5 flex flex-col">
+							<div class="flex items-center justify-between mb-2">
+								<div class="text-[11px] font-semibold uppercase tracking-wide text-teal-600">Sedna'dan İçe Aktar</div>
+								{#if lastSyncText}
+									<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Son: {lastSyncText}</span>
+								{/if}
+							</div>
+							<p class="text-xs text-gray-700 leading-relaxed mb-4">Cari hareketleri Excel'e gerek kalmadan doğrudan muhasebe veritabanından çekilir. Otomatik senkron 09–21 arası 2 saatte bir çalışır; mükerrer kayıtlar otomatik atlanır.</p>
+							<div class="flex items-center gap-2 mt-auto flex-wrap">
+								<Button size="sm" onclick={runSednaImport} loading={sednaImporting} disabled={sednaImporting || ibanImporting}>
+									<RefreshCw size={14} />
+									Sedna'dan İçe Aktar
+								</Button>
+								<Button size="sm" variant="secondary" onclick={runIbanImport} loading={ibanImporting} disabled={sednaImporting || ibanImporting}>
+									<Landmark size={14} />
+									IBAN Çek
+								</Button>
+							</div>
+						</div>
+					{/if}
 				</div>
 			{/if}
 
 			<!-- Yükleme Geçmişi -->
 			{#if uploads.length > 0}
 				<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-					<div class="px-5 py-4 border-b border-gray-100">
-						<h3 class="font-semibold text-gray-900">Yükleme Geçmişi</h3>
+					<div class="px-4 sm:px-5 py-3.5 border-b border-gray-100">
+						<h3 class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Yükleme Geçmişi</h3>
 					</div>
-					<div class="divide-y divide-gray-100">
-						{#each uploads as upload}
-							<div class="px-5 py-4 flex items-center justify-between">
-								<div class="flex-1 min-w-0">
-									<p class="text-sm font-medium text-gray-900 truncate">{upload.file_name}</p>
-									<div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
-										<span>{upload.total_vendors} cari</span>
-										<span class="text-gray-500">|</span>
-										<span class="text-emerald-600">{upload.new_transactions} yeni</span>
-										{#if upload.skipped_transactions > 0}
-											<span class="text-gray-500">|</span>
-											<span class="text-amber-600">{upload.skipped_transactions} mükerrer</span>
+					<div class="overflow-x-auto">
+						<table class="w-full text-xs min-w-[820px]">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-4 py-2 text-left font-medium text-gray-600">Dosya</th>
+									<th class="px-3 py-2 text-left font-medium text-gray-600">
+										<button onclick={() => cycleUpSort('tarih')} class="inline-flex items-center gap-1 cursor-pointer hover:text-teal-700 {upSortKey === 'tarih' ? 'text-teal-700 font-semibold' : ''}" title="Sırala">Tarih <span class="text-[9px] {upSortKey === 'tarih' ? 'opacity-100' : 'opacity-40'}">{upSortKey === 'tarih' ? (upSortDir === 'asc' ? '▲' : '▼') : '↕'}</span></button>
+									</th>
+									<th class="px-3 py-2 text-right font-medium text-gray-600">Cari</th>
+									<th class="px-3 py-2 text-right font-medium text-gray-600">İşlem</th>
+									<th class="px-3 py-2 text-right font-medium text-gray-600">
+										<button onclick={() => cycleUpSort('yeni')} class="inline-flex items-center gap-1 cursor-pointer hover:text-teal-700 {upSortKey === 'yeni' ? 'text-teal-700 font-semibold' : ''}" title="Sırala">Yeni <span class="text-[9px] {upSortKey === 'yeni' ? 'opacity-100' : 'opacity-40'}">{upSortKey === 'yeni' ? (upSortDir === 'asc' ? '▲' : '▼') : '↕'}</span></button>
+									</th>
+									<th class="px-3 py-2 text-right font-medium text-gray-600">Atlanan</th>
+									<th class="px-3 py-2 text-left font-medium text-gray-600">Yükleyen</th>
+									{#if canUse}<th class="px-3 py-2"></th>{/if}
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{#each sortedUploads as upload (upload.id)}
+									<tr class="hover:bg-gray-50">
+										<td class="px-4 py-2.5 font-medium text-gray-900 truncate max-w-[260px]">{upload.file_name}</td>
+										<td class="px-3 py-2.5 tabular-nums text-gray-600 whitespace-nowrap">{formatDateTime(upload.uploaded_at)}</td>
+										<td class="px-3 py-2.5 text-right tabular-nums text-gray-600">{upload.total_vendors}</td>
+										<td class="px-3 py-2.5 text-right tabular-nums text-gray-600">{upload.total_transactions.toLocaleString('tr-TR')}</td>
+										<td class="px-3 py-2.5 text-right tabular-nums font-semibold text-emerald-700">+{upload.new_transactions}</td>
+										<td class="px-3 py-2.5 text-right tabular-nums text-gray-500">{upload.skipped_transactions.toLocaleString('tr-TR')}</td>
+										<td class="px-3 py-2.5 text-gray-500 truncate max-w-[160px]">{upload.uploader_name || '—'}</td>
+										{#if canUse}
+											<td class="px-3 py-2.5 text-center">
+												<button onclick={() => deleteUpload(upload.id)} class="p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50 cursor-pointer" title="Yüklemeyi sil">
+													<Trash2 size={14} />
+												</button>
+											</td>
 										{/if}
-										<span class="text-gray-500">|</span>
-										<span>{formatDateTime(upload.uploaded_at)}</span>
-										{#if upload.uploader_name}
-											<span class="text-gray-500">|</span>
-											<span>{upload.uploader_name}</span>
-										{/if}
-									</div>
-								</div>
-								{#if canUse}
-									<button
-										onclick={() => deleteUpload(upload.id)}
-										class="ml-3 p-2 text-gray-500 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
-										title="Sil"
-									>
-										<Trash2 size={16} />
-									</button>
-								{/if}
-							</div>
-						{/each}
+									</tr>
+								{/each}
+							</tbody>
+						</table>
 					</div>
 				</div>
 			{/if}
@@ -1125,13 +1399,28 @@
 
 			<!-- SOL: cari listesi (master-detail) -->
 			<div class="lg:w-[370px] lg:flex-none flex flex-col bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden {expandedVendor !== null ? 'hidden lg:flex' : 'flex'}">
-				<div class="p-3 sm:p-4 border-b border-gray-100 space-y-3">
-					<Input type="search" icon={Search} bind:value={vendorSearch} oninput={onSearchInput} placeholder="Tedarikçi ara..." />
+				<div class="p-3 sm:p-4 border-b border-gray-100 space-y-2.5">
+					<Input type="search" icon={Search} bind:value={vendorSearch} oninput={onSearchInput} placeholder="Cari adı veya kod ara..." />
 					<div class="flex items-center gap-1.5 flex-wrap">
-						{#each [{ k: 'all', label: 'Tümü' }, { k: 'overdue', label: 'Vadesi Geçmiş' }, { k: 'balance', label: 'Bakiyeli' }] as f (f.k)}
-							<button onclick={() => setListFilter(f.k as any)} class="px-2.5 py-1 rounded-lg text-xs border transition-colors cursor-pointer {listFilter === f.k ? 'bg-teal-700 border-teal-700 text-white font-semibold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}">{f.label}</button>
+						{#each [
+							{ k: 'all', label: 'Tümü', count: summary?.vendor_count },
+							{ k: 'balance', label: 'Bakiyeli', count: summary?.nonzero_count },
+							{ k: 'overdue', label: 'Vadesi Geçmiş', count: summary?.overdue_vendor_count },
+							{ k: 'banned', label: 'Yasaklı', count: summary?.banned_count },
+						] as f (f.k)}
+							<button onclick={() => setListFilter(f.k as any)} class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors cursor-pointer {listFilter === f.k ? 'bg-teal-700 border-teal-700 text-white font-semibold' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}">
+								{f.label}
+								{#if f.count !== undefined && f.count !== null}<span class="tabular-nums text-[10px] opacity-75">{f.count}</span>{/if}
+							</button>
 						{/each}
-						<span class="ml-auto text-xs text-gray-500 tabular-nums">{vendorTotal} cari</span>
+					</div>
+					<div class="flex items-center gap-1.5 flex-wrap">
+						<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mr-0.5">Sırala</span>
+						{#each SORT_PILLS as s (s.key)}
+							<button onclick={() => setListSort(s.key, s.defDir)} title="Tekrar tıklayınca yön değişir" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors cursor-pointer {sortBy === s.key ? 'bg-brass-soft border-brass text-brass-dark' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}">
+								{s.label}{#if sortBy === s.key}<span class="text-[8px]">{sortDir === 'asc' ? '▲' : '▼'}</span>{/if}
+							</button>
+						{/each}
 					</div>
 				</div>
 				<div class="flex-1 overflow-y-auto lg:max-h-[calc(100vh-360px)] p-2">
@@ -1143,21 +1432,40 @@
 						{#each vendors as vendor (vendor.id)}
 							{@const owe = vendor.bakiye < 0}
 							{@const hasUnmatched = vendor.unmatched_count > 0}
+							{@const hasOverdue = (vendor.overdue_count ?? 0) > 0}
+							{@const banned = vendor.status === 'odeme_yasaklisi'}
 							<button data-vendor-id={vendor.id} onclick={() => selectVendor(vendor.id)} class="w-full flex gap-2.5 text-left px-2.5 py-2.5 rounded-xl mb-1 border transition-colors cursor-pointer {expandedVendor === vendor.id ? 'bg-teal-50 border-teal-200' : 'border-transparent hover:bg-gray-50'}">
-								<div class="w-1 self-stretch rounded-full shrink-0 {vendor.status === 'odeme_yasaklisi' ? 'bg-red-400' : hasUnmatched ? 'bg-amber-400' : owe ? 'bg-brass' : 'bg-emerald-300'}"></div>
+								<div class="w-1 self-stretch rounded-full shrink-0 {banned ? 'bg-red-400' : hasOverdue ? 'bg-amber-400' : owe ? 'bg-brass' : 'bg-emerald-300'}"></div>
 								<div class="flex-1 min-w-0">
 									<div class="flex items-baseline justify-between gap-2">
 										<span class="text-[13px] font-semibold text-gray-900 truncate">{vendor.hesap_adi}</span>
-										<span class="tabular-nums text-[13px] font-semibold shrink-0 {owe ? 'text-rose-600' : 'text-emerald-600'}">{formatCurrency(vendor.bakiye)}</span>
+										<span class="tabular-nums text-[13px] font-semibold shrink-0 {owe ? 'text-brass-dark' : vendor.bakiye > 0 ? 'text-emerald-600' : 'text-gray-400'}">{formatCurrency(vendor.bakiye)}</span>
 									</div>
 									<div class="flex items-center justify-between gap-2 mt-1">
 										<span class="font-mono text-[10px] text-gray-500 truncate">{vendor.hesap_kodu}</span>
-										<span class="text-[11px] shrink-0 {vendor.status === 'odeme_yasaklisi' ? 'text-red-600 font-medium' : hasUnmatched ? 'text-amber-600 font-medium' : 'text-gray-500'}">{vendor.status === 'odeme_yasaklisi' ? 'Ödeme yasaklı' : hasUnmatched ? vendor.unmatched_count + ' eşleşmemiş' : 'Vade ' + vendor.payment_days + ' gün'}</span>
+										<span class="flex items-center gap-1 shrink-0">
+											{#if banned}
+												<span class="px-1.5 rounded-full text-[9.5px] font-semibold bg-red-50 text-red-600 border border-red-200 leading-4">Yasaklı</span>
+											{/if}
+											{#if hasOverdue}
+												<span class="px-1.5 rounded-full text-[9.5px] font-semibold bg-red-50 text-red-700 border border-red-200 leading-4 tabular-nums">{vendor.overdue_count} gecikmiş</span>
+											{/if}
+											{#if hasUnmatched}
+												<span class="px-1.5 rounded-full text-[9.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 leading-4 tabular-nums">{vendor.unmatched_count} eşleşmemiş</span>
+											{/if}
+											{#if !banned && !hasOverdue && !hasUnmatched}
+												<span class="px-1.5 rounded-full text-[9.5px] font-semibold bg-gray-50 text-gray-500 border border-gray-200 leading-4 tabular-nums">{vendor.payment_days}g vade</span>
+											{/if}
+										</span>
 									</div>
 								</div>
 							</button>
 						{/each}
 					{/if}
+				</div>
+				<div class="flex items-center justify-between px-4 py-2 border-t border-gray-100 text-[11px] text-gray-500 bg-gray-50/60">
+					<span class="tabular-nums">{vendorTotal} cari</span>
+					<span class="font-semibold text-brass-dark">{SORT_LABELS[sortBy || 'hesap_adi']} {sortDir === 'asc' ? '▲' : '▼'}</span>
 				</div>
 				{#if vendorPages > 1}
 					<div class="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
@@ -1176,19 +1484,37 @@
 						<button onclick={() => selectVendor(null)} class="lg:hidden mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-teal-700 cursor-pointer"><ArrowLeft size={16} /> Cari listesine dön</button>
 						<div class="flex items-start justify-between gap-3 flex-wrap">
 							<div class="min-w-0">
-								<h2 class="text-xl font-semibold text-gray-900 truncate">{vendorDetail.hesap_adi}</h2>
-								<div class="text-xs text-gray-500 mt-1">Cari kodu <span class="font-mono text-gray-700">{vendorDetail.hesap_kodu}</span></div>
+								<div class="flex items-center gap-2 flex-wrap">
+									<h2 class="text-xl font-semibold text-gray-900 truncate">{vendorDetail.hesap_adi}</h2>
+									{#if vendorDetail.status === 'odeme_yasaklisi'}
+										<span class="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-red-50 text-red-600 border border-red-200">Ödeme Yasaklısı</span>
+									{/if}
+									{#if (vendorDetail.overdue_count ?? 0) > 0}
+										<span class="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-red-50 text-red-700 border border-red-200 tabular-nums">{vendorDetail.overdue_count} gecikmiş fatura</span>
+									{/if}
+								</div>
+								<div class="text-xs text-gray-500 mt-1">Cari kodu <span class="font-mono text-gray-700">{vendorDetail.hesap_kodu}</span> · <span class="tabular-nums">{vtxTotal} işlem</span></div>
 							</div>
 							<div class="flex items-center gap-2 flex-wrap">
-								<button onclick={() => { if (canUse) toggleVendorStatus(vendorDetail as any); }} disabled={!canUse || savingStatus} class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border {vendorDetail.status === 'odeme_yasaklisi' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'} {canUse ? 'cursor-pointer' : 'cursor-default'}">{vendorDetail.status === 'odeme_yasaklisi' ? 'Ödeme Yasaklısı' : 'Normal'}</button>
-								{#if editingPaymentDays === vendorDetail!.id}
-									<div class="flex items-center gap-1">
-										<Input type="number" size="sm" fullWidth={false} bind:value={paymentDaysValue} min="0" max="365" onkeydown={(e) => { if (e.key === 'Enter') savePaymentDays(vendorDetail!.id); if (e.key === 'Escape') cancelEditPaymentDays(); }} class="w-16 text-center" />
-										<button onclick={() => savePaymentDays(vendorDetail!.id)} disabled={savingPaymentDays} class="touch-target p-1 text-teal-600 hover:text-teal-800 cursor-pointer" title="Kaydet"><Check size={15} /></button>
-										<button onclick={cancelEditPaymentDays} class="touch-target p-1 text-gray-500 hover:text-red-600 cursor-pointer" title="İptal"><X size={15} /></button>
+								{#if canUse}
+									<div class="inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+										<Calendar size={13} class="text-gray-500" />
+										<span class="text-[11px] font-semibold text-gray-600">Vade</span>
+										<input type="number" min="0" max="365" bind:value={paymentDaysValue} onkeydown={(e) => { if (e.key === 'Enter' && vadeChanged) savePaymentDays(vendorDetail!.id); }} class="w-14 text-center border border-gray-300 rounded-md px-1.5 py-0.5 text-xs tabular-nums text-gray-900 bg-white outline-none focus:ring-2 focus:ring-teal-500" aria-label="Ödeme vadesi (gün)" />
+										<span class="text-[11px] text-gray-500">gün</span>
+										{#if vadeChanged}
+											<button onclick={() => savePaymentDays(vendorDetail!.id)} disabled={savingPaymentDays} class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-teal-700 text-white hover:bg-teal-800 cursor-pointer" title="Vadeyi kaydet — tüm vade tarihleri yeniden hesaplanır" aria-label="Vadeyi kaydet">
+												{#if savingPaymentDays}<Loader2 size={13} class="animate-spin" />{:else}<Check size={13} />{/if}
+											</button>
+										{/if}
 									</div>
+									<button onclick={() => openAddToList(vendorDetail as any)} class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brass-soft text-brass-dark border border-brass hover:bg-brass-light/40 transition-colors cursor-pointer">
+										<Plus size={13} />
+										Talimata Ekle
+									</button>
+									<button onclick={() => toggleVendorStatus(vendorDetail as any)} disabled={savingStatus} class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer {vendorDetail.status === 'odeme_yasaklisi' ? 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-white border-red-200 text-red-600 hover:bg-red-50'}">{vendorDetail.status === 'odeme_yasaklisi' ? 'Yasağı Kaldır' : 'Ödeme Yasağı'}</button>
 								{:else}
-									<button onclick={() => { if (canUse) startEditPaymentDays(vendorDetail as any); }} class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border {vendorDetail.payment_days !== 90 ? (vendorDetail.payment_days < 90 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-amber-50 border-amber-200 text-amber-700') : 'bg-gray-50 border-gray-200 text-gray-600'} {canUse ? 'cursor-pointer' : 'cursor-default'}"><Calendar size={13} /> Vade {vendorDetail.payment_days} gün</button>
+									<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border bg-gray-50 border-gray-200 text-gray-600"><Calendar size={13} /> Vade {vendorDetail.payment_days} gün</span>
 								{/if}
 							</div>
 						</div>
@@ -1359,16 +1685,28 @@
 												<table class="w-full text-xs">
 													<thead class="bg-gray-50">
 														<tr>
-															<th class="px-3 py-2 text-left font-medium text-gray-500">Tarih</th>
-															<th class="px-3 py-2 text-left font-medium text-gray-500">Evrak No</th>
-															<th class="px-3 py-2 text-left font-medium text-gray-500">İşlem Tipi</th>
-															<th class="px-3 py-2 text-left font-medium text-gray-500">Açıklama</th>
-															<th class="px-3 py-2 text-right font-medium text-gray-500">Borç</th>
-															<th class="px-3 py-2 text-right font-medium text-gray-500">Alacak</th>
-															<th class="px-3 py-2 text-right font-medium text-gray-500">Bakiye</th>
+															{#each [
+																{ key: 'date', label: 'Tarih', right: false },
+																{ key: 'evrak_no', label: 'Evrak No', right: false },
+																{ key: 'transaction_type', label: 'İşlem', right: false },
+																{ key: null, label: 'Açıklama', right: false },
+																{ key: 'borc', label: 'Borç', right: true },
+																{ key: 'alacak', label: 'Alacak', right: true },
+																{ key: 'bakiye', label: 'Bakiye', right: true },
+															] as h (h.label)}
+																<th class="px-3 py-2 font-medium text-gray-500 {h.right ? 'text-right' : 'text-left'}">
+																	{#if h.key}
+																		<button onclick={() => cycleTxSort(h.key)} title="Sırala: artan → azalan → varsayılan" class="inline-flex items-center gap-1 cursor-pointer hover:text-teal-700 {vtxSortBy === h.key ? 'text-teal-700 font-semibold' : ''}">
+																			{h.label}
+																			<span class="text-[9px] {vtxSortBy === h.key ? 'opacity-100' : 'opacity-40'}">{vtxSortBy === h.key ? (vtxSortDir === 'asc' ? '▲' : '▼') : '↕'}</span>
+																		</button>
+																	{:else}
+																		{h.label}
+																	{/if}
+																</th>
+															{/each}
 															<th class="px-3 py-2 text-center font-medium text-gray-500">Eşleşme</th>
 															<th class="px-3 py-2 text-center font-medium text-gray-500">Departman</th>
-															<th class="px-3 py-2 text-right font-medium text-gray-500">Ödeme Tarihi</th>
 														</tr>
 													</thead>
 													<tbody class="divide-y divide-gray-100">
@@ -1377,7 +1715,13 @@
 															<tr class="{isUnmatched ? 'bg-amber-100/50 hover:bg-amber-100' : 'hover:bg-gray-50'}">
 																<td class="px-3 py-2 text-gray-600 whitespace-nowrap">{formatDate(tx.date)}</td>
 																<td class="px-3 py-2 text-gray-600">{tx.evrak_no || '-'}</td>
-																<td class="px-3 py-2 text-gray-600">{tx.transaction_type || '-'}</td>
+																<td class="px-3 py-2 text-gray-600">
+																	{tx.transaction_type || '-'}
+																	{#if invoiceChip(tx)}
+																		{@const chip = invoiceChip(tx)}
+																		<div class="mt-0.5"><span class="inline-flex px-1.5 rounded-full text-[9px] font-semibold border leading-4 whitespace-nowrap {chip!.cls}">{chip!.label}</span></div>
+																	{/if}
+																</td>
 																<td class="px-3 py-2 text-gray-600 max-w-[200px] truncate">{tx.description || '-'}</td>
 																<td class="px-3 py-2 text-right {tx.borc > 0 ? 'text-rose-600' : 'text-gray-500'}">
 																	{tx.borc > 0 ? formatCurrency(tx.borc) : '-'}
@@ -1491,15 +1835,6 @@
 																			<Plus size={12} />
 																			Ata
 																		</button>
-																	{:else}
-																		<span class="text-gray-500">-</span>
-																	{/if}
-																</td>
-																<td class="px-3 py-2 text-right">
-																	{#if tx.payment_due_date}
-																		<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-																			{formatDate(tx.payment_due_date)}
-																		</span>
 																	{:else}
 																		<span class="text-gray-500">-</span>
 																	{/if}
@@ -1673,6 +2008,16 @@
 		</div>
 	{/if}
 
+	<!-- ═══ AYLIK BAKİYE ═══ -->
+	{#if activeView === 'monthly'}
+		<MonthlyBalances onOpenVendor={openVendorFromAnalytics} />
+	{/if}
+
+	<!-- ═══ YILLIK CİRO ═══ -->
+	{#if activeView === 'turnover'}
+		<YearlyTurnover onOpenVendor={openVendorFromAnalytics} />
+	{/if}
+
 	<!-- ═══ NOTLAR (toplu firma notları kartı) ═══ -->
 	{#if activeView === 'notes'}
 		<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1743,136 +2088,62 @@
 
 	<!-- ═══ ÖDEME PLANI ═══ -->
 	{#if activeView === 'schedule'}
-		<div class="space-y-4">
+		<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5">
+			<div class="flex items-start justify-between gap-3 flex-wrap mb-2">
+				<div>
+					<h2 class="text-base font-semibold text-gray-900">Haftalık Ödeme Planı</h2>
+					<p class="text-xs text-gray-500 mt-0.5 max-w-2xl">FIFO net borç bazlı — ödemeler en eski faturalardan düşülür, Cuma günlerine gruplanır. Yasaklı cariler plana dahil edilmez.</p>
+				</div>
+				<div class="flex items-center gap-1.5 flex-wrap">
+					<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Sırala</span>
+					{#each [{ k: 'tutar', label: 'Tutara göre' }, { k: 'ad', label: 'Cari adına göre' }] as p (p.k)}
+						<button onclick={() => (planSort = p.k as any)} class="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors cursor-pointer {planSort === p.k ? 'bg-brass-soft border-brass text-brass-dark' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}">{p.label}</button>
+					{/each}
+					<Button size="sm" variant="secondary" onclick={() => downloadExcel('payment-schedule')}>
+						<Download size={13} />
+						Excel
+					</Button>
+				</div>
+			</div>
+
 			{#if scheduleLoading}
 				<TableSkeleton rows={6} columns={4} />
 			{:else if schedule.length === 0}
-				<div class="text-center py-12 text-gray-500">
-					<p class="text-sm">Henüz ödeme planı bulunmuyor</p>
-					<p class="text-xs mt-1">Fatura içeren cari verileri yükleyerek ödeme planı oluşturabilirsiniz</p>
-				</div>
+				<EmptyState icon={Calendar} title="Ödeme planı yok" description="Fatura içeren cari verileri yükleyerek ödeme planı oluşturabilirsiniz." />
 			{:else}
-				<!-- Özet Kart -->
-				<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-					<div class="flex items-center justify-between">
-						<div>
-							<p class="text-sm text-gray-500">Toplam Planlanan Ödeme</p>
-							<p class="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(totalScheduleAmount)}</p>
-							{#if eurRate > 0}
-								<p class="text-sm text-blue-600 mt-0.5">{formatEur(totalScheduleAmount)}</p>
-							{/if}
+				{#each planGroups as g (g.key)}
+					<div class="mt-3">
+						<div class="flex items-center justify-between gap-2 rounded-xl px-3.5 py-2 border {g.overdue ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}">
+							<div class="flex items-center gap-2 flex-wrap">
+								<span class="text-[12.5px] font-semibold {g.overdue ? 'text-red-700' : 'text-teal-700'}">{g.label}</span>
+								{#if g.thisWeek}
+									<span class="px-1.5 rounded-full text-[9.5px] font-semibold bg-brass-soft text-brass-dark border border-brass leading-4">Bu hafta</span>
+								{/if}
+								<span class="text-[10.5px] text-gray-500 tabular-nums">{g.items.length} cari</span>
+							</div>
+							<span class="tabular-nums text-[12.5px] font-semibold {g.overdue ? 'text-red-700' : 'text-teal-700'}">
+								{formatCurrency(g.total)}{#if eurRate > 0}<span class="ml-1.5 text-[10px] font-normal text-blue-600">{formatEur(g.total)}</span>{/if}
+							</span>
 						</div>
-						<div class="text-right">
-							<p class="text-sm text-gray-500">{monthlySchedule.length} ay · {schedule.length} hafta</p>
-							<p class="text-sm text-gray-500 mt-1">{schedule.reduce((s, g) => s + g.items.length, 0)} fatura</p>
+						<div class="divide-y divide-gray-100">
+							{#each g.items as i (i.vendor_id)}
+								<button onclick={() => openVendorFromAnalytics(i.vendor_id)} class="w-full grid grid-cols-[minmax(160px,1fr)_84px_110px_130px] items-center gap-2 px-3.5 py-2 text-left hover:bg-gray-50 cursor-pointer" title="Cari detayını aç">
+									<span class="min-w-0"><span class="text-xs font-semibold text-gray-900">{i.hesap_adi}</span> <span class="font-mono text-[10px] text-gray-400 ml-1">{i.hesap_kodu}</span></span>
+									<span class="text-[11px] text-gray-500 tabular-nums">{i.n} fatura</span>
+									<span class="text-[11px] text-gray-600 tabular-nums">{g.overdue ? 'vadesi geçti' : formatDate(i.due)}</span>
+									<span class="text-right tabular-nums text-xs font-semibold text-gray-900">{formatCurrency(i.amount)}</span>
+								</button>
+							{/each}
 						</div>
 					</div>
-				</div>
+				{/each}
 
-				<!-- Aylık Akordion -->
-				<div class="space-y-3">
-					{#each monthlySchedule as month}
-						<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-							<!-- Ay Başlığı -->
-							<button
-								onclick={() => toggleMonth(month.key)}
-								class="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
-							>
-								<div class="flex items-center gap-4">
-									<div class="flex items-center justify-center w-10 h-10 rounded-xl bg-orange-50 text-orange-600">
-										<Calendar size={20} />
-									</div>
-									<div class="text-left">
-										<p class="text-sm font-semibold text-gray-900">{month.label}</p>
-										<p class="text-xs text-gray-500 mt-0.5">{month.weeks.length} hafta · {month.item_count} fatura</p>
-									</div>
-								</div>
-								<div class="flex items-center gap-6">
-									<div class="text-right">
-										<p class="text-sm font-bold text-orange-600">{formatCurrency(month.total_amount)}</p>
-										{#if eurRate > 0}
-											<p class="text-[10px] text-blue-500">{formatEur(month.total_amount)}</p>
-										{/if}
-									</div>
-									<ChevronDown size={16} class="text-gray-500 transition-transform {expandedMonths[month.key] ? 'rotate-180' : ''}" />
-								</div>
-							</button>
-
-							<!-- Haftalık Gruplar (ay açıldığında) -->
-							{#if expandedMonths[month.key]}
-								<div class="border-t border-gray-100 px-3 py-3 space-y-2 bg-gray-50/50">
-									{#each month.weeks as week}
-										<div class="bg-white rounded-xl border border-gray-100 overflow-hidden">
-											<!-- Hafta Başlığı -->
-											<button
-												onclick={() => toggleWeek(week.friday_date)}
-												class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer"
-											>
-												<div class="flex items-center gap-3">
-													<div class="flex items-center justify-center w-8 h-8 rounded-lg bg-teal-50 text-teal-600">
-														<Calendar size={16} />
-													</div>
-													<div class="text-left">
-														<p class="text-xs font-semibold text-gray-900">{formatDateLong(week.friday_date)}</p>
-														<p class="text-[10px] text-gray-500">{week.items.length} fatura</p>
-													</div>
-												</div>
-												<div class="flex items-center gap-4">
-													<p class="text-xs font-bold text-gray-900">{formatCurrency(week.total_amount)}</p>
-													{#if eurRate > 0}
-														<p class="text-[10px] text-blue-500">{formatEur(week.total_amount)}</p>
-													{/if}
-													<ChevronDown size={14} class="text-gray-500 transition-transform {expandedWeeks[week.friday_date] ? 'rotate-180' : ''}" />
-												</div>
-											</button>
-
-											<!-- Fatura Detayları -->
-											{#if expandedWeeks[week.friday_date]}
-												<div class="border-t border-gray-100">
-													<table class="w-full text-xs">
-														<thead class="bg-gray-50">
-															<tr>
-																<th class="px-4 py-2 text-left font-medium text-gray-500">Cari</th>
-																<th class="px-3 py-2 text-left font-medium text-gray-500">Evrak No</th>
-																<th class="px-3 py-2 text-left font-medium text-gray-500">İşlem Tipi</th>
-																<th class="px-3 py-2 text-left font-medium text-gray-500">Fatura Tarihi</th>
-																<th class="px-3 py-2 text-right font-medium text-gray-500">Tutar</th>
-															</tr>
-														</thead>
-														<tbody class="divide-y divide-gray-100">
-															{#each week.items as item}
-																<tr class="hover:bg-gray-50">
-																	<td class="px-4 py-2.5">
-																		<p class="font-medium text-gray-900">{item.hesap_adi}</p>
-																		<p class="text-[10px] text-gray-500 font-mono">{item.hesap_kodu}</p>
-																	</td>
-																	<td class="px-3 py-2.5 text-gray-600">{item.evrak_no || '-'}</td>
-																	<td class="px-3 py-2.5 text-gray-600">{item.transaction_type || '-'}</td>
-																	<td class="px-3 py-2.5 text-gray-600">{formatDate(item.invoice_date)}</td>
-																	<td class="px-3 py-2.5 text-right font-medium text-gray-900">{formatCurrency(item.amount)}</td>
-																</tr>
-															{/each}
-														</tbody>
-														<tfoot class="bg-gray-50">
-															<tr>
-																<td colspan="4" class="px-4 py-2.5 text-right font-semibold text-gray-700">Haftalık Toplam</td>
-																<td class="px-3 py-2.5 text-right">
-																	<p class="font-bold text-gray-900">{formatCurrency(week.total_amount)}</p>
-																	{#if eurRate > 0}
-																		<p class="text-[10px] text-blue-500">{formatEur(week.total_amount)}</p>
-																	{/if}
-																</td>
-															</tr>
-														</tfoot>
-													</table>
-												</div>
-											{/if}
-										</div>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/each}
+				<div class="mt-4 flex items-center justify-between gap-3 flex-wrap bg-teal-700 rounded-xl px-4 py-3">
+					<div>
+						<div class="text-[10px] uppercase tracking-wide font-semibold text-teal-100/80">Toplam Planlanan Ödeme</div>
+						<div class="text-[10px] text-teal-100/60 mt-0.5">{planGroups.length} grup · {planItemCount} cari kalemi · yasaklılar hariç{#if eurRate > 0} · {formatEur(totalScheduleAmount)}{/if}</div>
+					</div>
+					<div class="tabular-nums text-lg font-bold text-brass-light">{formatCurrency(totalScheduleAmount)}</div>
 				</div>
 			{/if}
 		</div>

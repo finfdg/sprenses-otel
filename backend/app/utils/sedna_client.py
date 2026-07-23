@@ -763,6 +763,36 @@ def fetch_bank_ledger_max_dates(codes: List[str]) -> dict:
     return {r["code"]: r["max_date"] for r in rows}
 
 
+def fetch_fiche_counter_legs(owner_ids: List[int]) -> List[dict]:
+    """Fişlerin (AccountingOwner.RecId) TÜM muhasebe bacaklarını çek — karşı-hesap köprüsü.
+
+    Mutabakatta eşleşen banka hareketinin fişindeki 102-dışı bacaklar (335 personel,
+    320 cari, 360 vergi...) hareketin niteliğini verir (`services/sedna_tag_bridge`).
+    Anahtarlar: owner_id, code, debit, credit, account_name. owner_id'ler int'e zorlanır
+    (injection imkânsız); 500'lük parçalarla tek bağlantıda çekilir.
+    """
+    ids = sorted({int(i) for i in owner_ids if i})
+    if not ids:
+        return []
+    rows: List[dict] = []
+    conn = _connect(timeout=60, context="mutabakat-karsi-hesap")
+    try:
+        cur = conn.cursor(as_dict=True)
+        for i in range(0, len(ids), 500):
+            ids_sql = ", ".join(str(x) for x in ids[i:i + 500])
+            cur.execute(
+                "SELECT t.AccOwnerId AS owner_id, t.AccountingCode AS code, "
+                "t.Debit AS debit, t.Credit AS credit, COALESCE(a.Remark, '') AS account_name "
+                "FROM AccountingTrans t LEFT JOIN Accounting a ON a.Code = t.AccountingCode "
+                f"WHERE t.AccOwnerId IN ({ids_sql}) AND ISNULL(t.Deleted, 0) = 0"
+            )
+            rows.extend(cur.fetchall())
+    finally:
+        conn.close()
+    logger.info("Sedna karşı-hesap bacakları: %d satır (%d fiş)", len(rows), len(ids))
+    return rows
+
+
 def fetch_bank_fx_valuation(codes: List[str], year: int, month: int) -> dict:
     """Aylık değerleme raporu için hesap başına Sedna bakiyeleri (ay sonuna kadar).
 

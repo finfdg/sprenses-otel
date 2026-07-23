@@ -184,11 +184,14 @@ def _match_cc_to_bank(db: Session) -> dict:
     # gider POS gibi genel bir kelime kuralına düşünce salt-NULL filtre onu bu matcher'dan
     # kalıcı saklıyordu (canlı: ₺1,9M QNB kart ödemesi POS etiketiyle eşleşemedi,
     # 2026-07-14). Manuel etiket kullanıcı kararıdır → dokunulmaz; KK kategorisindeki
-    # auto etiket zaten eşleşmiş ödemedir → yeniden taranıp paid_amount mükerrer artmasın.
+    # otomatik etiket zaten eşleşmiş ödemedir → yeniden taranıp paid_amount mükerrer
+    # artmasın. 'sedna' (karşı-hesap köprüsü, 2026-07-23) da makine etiketidir — 'auto'
+    # ile aynı muamele (köprü bir KK ödemesini yanlış sınıflarsa matcher düzeltebilsin).
     if kk_cat:
         tag_filter = or_(
             BankTransaction.category_id.is_(None),
-            and_(BankTransaction.tag_source == "auto", BankTransaction.category_id != kk_cat.id),
+            and_(BankTransaction.tag_source.in_(("auto", "sedna")),
+                 BankTransaction.category_id != kk_cat.id),
         )
     else:
         tag_filter = BankTransaction.category_id.is_(None)

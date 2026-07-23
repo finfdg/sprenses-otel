@@ -145,6 +145,8 @@ def _summarize(key: str, d: dict) -> str:
         extra = ""
         if d.get("balance_diffs") is not None:
             extra = f" · {d.get('balance_diffs', 0)} cari bakiye farkı"
+        if d.get("sedna_tagged"):
+            extra += f" · {d['sedna_tagged']} karşı-hesaptan etiketlendi"
         return (f"{d.get('accounts_scanned', 0)} hesap · {d.get('new', 0)} yeni uyuşmazlık · "
                 f"{d.get('auto_closed', 0)} otomatik kapandı · {d.get('open', 0)} açık{extra}")
     return "Tamamlandı"

@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from .analytics import router as analytics_router
 from .bank_accounts import router as bank_accounts_router
 from .matching import router as matching_router
 from .notes import router as notes_router
@@ -18,3 +19,4 @@ router.include_router(matching_router)
 router.include_router(sedna_import_router)
 router.include_router(bank_accounts_router)
 router.include_router(notes_router)
+router.include_router(analytics_router)

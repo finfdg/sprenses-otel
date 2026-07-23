@@ -346,6 +346,16 @@ class TestAutoTaggedRescan:
         db.expire_all()
         assert db.get(CreditCardStatement, stmt.id).is_paid is True
 
+    def test_sedna_tagged_expense_still_matches(self, db):
+        # Sedna karşı-hesap köprüsü (2026-07-23) etiketi de makine etiketidir — köprü
+        # bir KK ödemesini yanlış sınıflarsa matcher yine görebilmeli ('auto' kuralı)
+        pos = self._get_or_create_cat(db, "POS")
+        prod, stmt, btx = self._setup(db, amount=75000.0, toplam_borc=75000.0,
+                                      category=pos, tag_source="sedna")
+        assert _match_cc_to_bank(db)["matched"] == 1
+        db.expire_all()
+        assert db.get(CreditCardStatement, stmt.id).is_paid is True
+
     def test_manual_tagged_expense_not_touched(self, db):
         # Manuel etiket kullanıcı kararı → matcher dokunmaz
         cari = self._get_or_create_cat(db, "Cari")

@@ -316,6 +316,55 @@ DB'de de çalışır; unique(name) yarışı SAVEPOINT'le emilir).
 
 ---
 
+## Sedna Karşı-Hesap Köprüsü — `tag_source='sedna'` (2026-07-23)
+
+**Sorun:** "Para Gönder Diğer <kişi adı>" gibi sinyalsiz açıklamalar (personel avansı
+EFT'leri, kişi adları cari listesinde olmayan ödemeler) kelime kural motorunun hiçbir
+desenine düşmediğinden Panel T-Hesap'ta "Etiketsiz"te kalıyordu — oysa muhasebe bu
+ödemelerin fişini Sedna'da çoktan kesmişti (canlı 2026-07-20: 28 personel avansı,
+3 cari ödemesi Etiketsiz'te; kullanıcı bulgusu 2026-07-23).
+
+**Çözüm — `app/services/sedna_tag_bridge.py`:** Banka↔Sedna mutabakatı
+(`sedna_recon_service.run_reconciliation`) bir banka hareketini Sedna fişiyle
+eşlediğinde, fişin **karşı-hesap bacakları** (`sedna_client.fetch_fiche_counter_legs`)
+okunur ve ETİKETSİZ hareket hesap prefix'inden kategorize edilir. 2026-07-18 ELLE
+yapılan karşı-hesap denetiminin kalıcı otomasyonudur; 2 saatlik cron'un `bank_recon`
+adımıyla birlikte koşar (ekstre ne zaman yüklenirse yüklensin, fiş kesildikten en geç
+2 saat sonra kalem doğru başlığa iner).
+
+**Prefix → kategori haritası (`PREFIX_CATEGORY` — yalnız kanıtlı sınıflar):**
+
+| Prefix | Kategori | Not |
+|---|---|---|
+| 335, 196 | Personel | Personele borçlar + personel avansları |
+| 320 | Cari | exact eşleşmede `vendor_id` + `tag_note` da atanır |
+| 360, 361, 368, 369 | Vergi/SGK | vergi/SGK/taksitlendirme yükümlülükleri |
+| 300, 303 | Kredi/Leasing | banka kredileri (`LEASING_CATEGORY` sabiti) |
+| 340 | Acenta | tur operatörü avansları |
+| 331 | Temettü | ortaklara borçlar |
+| yalnız 102↔102 | Virman / Döviz Satışı | karşı 102 hesabımız FARKLI para birimindeyse Döviz Satışı |
+
+**Temkinlilik kuralları:**
+- Karar bacağı = fişin 102-dışı bacaklarından |tutar|ı en büyük olanı; prefix haritada
+  yoksa kalem **etiketlenmez** (770 gibi karışık gider hesapları bilinçli dışarıda —
+  2026-07-18 denetiminde de o sınıf kullanıcı kararına bırakılmıştı).
+- k↔k eşleşme (aynı gün aynı tutar birden çok kalem) banka↔fiş eşlemesini
+  ÇAPRAZLAYABİLİR → grup yalnız TÜM fişler AYNI kategoriye çıkıyorsa etiketlenir;
+  `vendor_id`/`tag_note` (kişi/firma adı) yalnız birebir (exact) eşleşmede yazılır.
+- Manuel/mevcut etiket ASLA ezilmez (yalnız `category_id IS NULL`); "pos bloke"
+  açıklamaları atlanır (`_tag_pos_bloke_transfers` alanı). Küme-toplamı (subset)
+  eşleşmeleri köprüye girmez (ücret+BSMV bölünmeleri — kelime kurallarının alanı).
+- Köprü **best-effort**: hatası mutabakat koşusunu asla düşürmez; Sedna kopuksa
+  sessizce atlanır. FE senkronu `_sync_finance_events` ile (T-Hesap başlığı anında).
+- `tag_source='sedna'` **makine etiketidir** — CC matcher yeniden-tarama filtresi
+  (`_match_cc_to_bank`) bunu 'auto' ile aynı sayar (köprü bir KK ödemesini yanlış
+  sınıflarsa matcher düzeltebilir). Manuel etiketleme her zaman üzerine yazabilir.
+
+Test: `tests/test_sedna_tag_bridge.py` (15) + `test_banks_cc_match.py::
+test_sedna_tagged_expense_still_matches`.
+
+---
+
 ## Audit Log Entegrasyonu
 
 | entity_type | Kaydedilen eylem |
@@ -328,7 +377,7 @@ DB'de de çalışır; unique(name) yarışı SAVEPOINT'le emilir).
 ## Geliştirme Kuralları
 
 1. **Hiyerarşi:** Maksimum 2 seviye kategori hiyerarşisi (üst + alt)
-2. **Etiket kaynağı:** `tag_source` alanı her zaman set edilmeli (`manual`/`auto`/`vendor`)
+2. **Etiket kaynağı:** `tag_source` alanı her zaman set edilmeli (`manual`/`auto`/`vendor`/`sedna` — `sedna` = karşı-hesap köprüsü, makine etiketi sayılır)
 3. **Toplu işlem:** 1000+ işlemde toplu etiketleme endpoint'i kullanılmalı
 4. **WS broadcast:** Etiketleme sonrası `broadcast_finance_update(background_tasks, "banks", "tag")` tetiklenir
 5. **Renk kodu:** Kategoriler için HEX renk kodu zorunludur (frontend badge gösterimi için)
