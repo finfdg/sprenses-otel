@@ -88,9 +88,11 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/finance/cariler/uploads` — Yükleme geçmişi
 - `DELETE /api/finance/cariler/uploads/{id}` — Yükleme sil
 - `POST /api/finance/cariler/transactions/bulk-delete` — Toplu işlem silme (kaynakta olmayan kayıtlar için; korumalı kayıtlar atlanır)
-- `GET /api/finance/cariler/vendors` — Cari listesi (paginated, arama)
-- `GET /api/finance/cariler/vendors` — Cari listesi (paginated, arama, `sort_by`/`sort_dir`, `hide_zero`, **`overdue_only`** = yalnız vadesi geçmiş eşleşmemiş faturalı cariler — master-detail "Vadesi Geçmiş" çipi)
-- `GET /api/finance/cariler/vendors/{id}` — Cari detay + işlemler (+ `contact_person/phone/email` + özet metrikler `overdue`/`overdue_count`/`last_payment_amount`/`last_payment_date`)
+- `GET /api/finance/cariler/vendors` — Cari listesi (paginated, arama, `sort_by`/`sort_dir` — whitelist `hesap_adi|total_borc|total_alacak|bakiye|overdue` (**`overdue`** = net FIFO gecikmiş, Python-tarafı sıralanır), `hide_zero`, **`overdue_only`**, **`banned_only`**; satırlarda `overdue`/`overdue_count` alanları — 2026-07-23 yeniden tasarım çipleri)
+- `GET /api/finance/cariler/vendors/summary` — Cari özet (+ 2026-07-23: `overdue_total`/`overdue_invoice_count`/`overdue_vendor_count` (net FIFO) + `nonzero_count` — üst kartlar ve filtre çipi sayaçları)
+- `GET /api/finance/cariler/vendors/{id}` — Cari detay + işlemler (+ `contact_person/phone/email` + özet metrikler `overdue`/`overdue_count`/`last_payment_amount`/`last_payment_date`; 2026-07-23: `sort_by`/`sort_dir` kolon sıralaması — whitelist `date|evrak_no|transaction_type|borc|alacak|bakiye`, bakiye = kümülatif pencere kolonu; fatura satırlarında `fifo_remaining`)
+- `GET /api/finance/cariler/monthly-balances?year&month&mode=fifo|period&hide_zero` — **Aylık Bakiye sekmesi** (2026-07-23): `fifo` = seçilen ayın faturalarından FIFO sonrası kalanı olanlar (invoiced/closed/remaining); `period` = ay sonu yürüyen bakiye. Sayfalama yok (≈cari sayısı satır), sıralama frontend'de. view yeterli, onaydan muaf
+- `GET /api/finance/cariler/yearly-turnover?year` — **Yıllık Ciro sekmesi** (2026-07-23): firma bazında yıl içi fatura hacmi (devir/açılış hariç), 12 aylık dağılım + fatura sayısı + toplam. view yeterli, onaydan muaf
 - `PATCH /api/finance/cariler/vendors/{id}/contact` — **Firma iletişim** (yetkili/telefon/e-posta) güncelle. Finansal etkisi yok → **onaydan muaf** (use + audit + broadcast)
 - `GET/POST /api/finance/cariler/vendors/{id}/notes` · `PATCH/DELETE /api/finance/cariler/vendors/{id}/notes/{note_id}` — **Cari notları** (görüşme/takip; ekle/düzenle/sil/`done` toggle). Onaydan muaf; use + audit (`vendor_note`) + broadcast
 - `GET /api/finance/cariler/notes` — **Toplu firma notları** (tüm cariler tek listede, vendor join'li `vendor_name`/`vendor_code`; `done` + `search` filtreleri, paginated + `open_total`). Cariler sayfası "Notlar" sekmesi kartını besler; view yeterli

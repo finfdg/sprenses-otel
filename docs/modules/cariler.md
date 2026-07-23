@@ -92,9 +92,11 @@
 | GET | `/cariler/sedna-status` | view | Sedna içe aktarma etkin mi (`{configured}`) |
 | GET | `/cariler/uploads` | view | Yükleme geçmişi |
 | DELETE | `/cariler/uploads/{id}` | use | Yükleme sil (CASCADE) |
-| GET | `/cariler/vendors` | view | Cari listesi (paginated, arama) |
-| GET | `/cariler/vendors/summary` | view | Cari özet bilgileri |
-| GET | `/cariler/vendors/{id}` | view | Cari detay + işlemler |
+| GET | `/cariler/vendors` | view | Cari listesi (paginated, arama; `sort_by` whitelist'ine **`overdue`** dahil, `banned_only` filtresi; satırlarda `overdue`/`overdue_count`) |
+| GET | `/cariler/vendors/summary` | view | Cari özet bilgileri (+ `overdue_total`/`overdue_invoice_count`/`overdue_vendor_count`/`nonzero_count`) |
+| GET | `/cariler/vendors/{id}` | view | Cari detay + işlemler (`sort_by` kolon sıralaması; fatura satırlarında `fifo_remaining`) |
+| GET | `/cariler/monthly-balances` | view | **Aylık Bakiye** — `mode=fifo` (FIFO Kalan) / `mode=period` (Dönem Sonu) |
+| GET | `/cariler/yearly-turnover` | view | **Yıllık Ciro** — yıl içi fatura hacmi, aylık dağılım (devir hariç) |
 | GET | `/cariler/vendors/{id}/bank-transactions` | view | Cariye ait banka işlemleri |
 | PATCH | `/cariler/vendors/{id}/payment-days` | use | Vade günü güncelle (tüm alacaklar yeniden hesaplanır) |
 | PATCH | `/cariler/vendors/{id}/status` | use | Firma durumu güncelle (normal / ödeme yasaklısı) |
@@ -410,3 +412,96 @@ Tüm carilerin notlarını tek listede izleyen kart; Cariler sayfası üst sekme
   gerektirdiğinden cari detayındaki Notlar sekmesinden yapılır.
 - **Test:** `tests/test_vendor_notes.py` — `test_all_notes_*` (5: vendor bilgisi+sıra,
   done filtresi, metin/firma/kod araması, sayfalama, view-yeterli/401).
+
+---
+
+## Cariler Yeniden Tasarımı v2 — 7 Sekme + Analitik Görünümler (2026-07-23)
+
+Kullanıcının GitHub'a yüklediği **"Cariler modülü yeniden tasarımı.zip"** (commit `11475ef`,
+`Cariler Yeniden Tasarim.dc.html` + mobil varyant) uygulandı. Sayfa düzeni tasarıma birebir
+taşındı (tasarım-uygula-düzeni-dönüştür dersi): SegmentedControl yerine **alt-çizgili sekme barı**
+(aktif sekme altın alt çizgi), 7 sekme: **Dosya Yükle / Cariler / Aylık Bakiye / Yıllık Ciro /
+Notlar / Ödeme Planı / Ödeme Talimatı** (Notlar sekmesinde açık-not rozeti; sayı sayfa açılışında
+hafif `GET /notes?page_size=1` çağrısının `open_total`'ından gelir).
+
+### Başlık + üst kartlar
+- **PageHeader actions:** "Son senkron: <tarih>" (GET `/finance/sedna/last-sync` →
+  `last_cari_sync`) + **Excel'e Aktar** (mevcut vendors export) + **Sedna Senkron** (primary —
+  `POST /finance/sedna/sync-all`'u arka planda başlatır; ilerleme Topbar'daki merkezi Sedna
+  göstergesinde akar. Yalnız `sedna-status.configured` + use yetkisi varsa görünür).
+- **4 üst kart (StatCard):** Ödenecek Toplam (amber; negative_total + cari sayısı + ≈EUR) ·
+  Genel Bakiye (borç−alacak ipucu) · Vadesi Geçmiş (kırmızı; **net FIFO** `overdue_total` +
+  fatura sayısı) · Cari Sayısı (yasaklı + bakiyeli ipucu). Eski 5-kart düzeni kaldırıldı.
+
+### Cariler sekmesi (master-detail korunarak genişletildi)
+- **Filtre çipleri sayaçlı:** Tümü / Bakiyeli / Vadesi Geçmiş / **Yasaklı (YENİ)** — sayaçlar
+  summary'den (`vendor_count`/`nonzero_count`/`overdue_vendor_count`/`banned_count`); Yasaklı çipi
+  `?banned_only=true`.
+- **Sıralama pilleri:** Ad / Bakiye / Borç / Alacak / **Gecikmiş (YENİ)** — aynı pile tekrar
+  tıklayınca yön değişir. `sort_by=overdue` backend whitelist'ine eklendi; gecikmiş tutar SQL
+  kolonu olmadığından (FIFO türevi) o sıralamada satırlar Python'da sıralanıp sayfalanır
+  (~300 cari, maliyet ihmal edilebilir). Liste altbilgisi: "N cari · <sıralama> ▲/▼".
+- **Satır çipleri:** Yasaklı (kırmızı) / N gecikmiş (kırmızı) / N eşleşmemiş (amber) / yoksa
+  "Ng vade" (gri). Negatif bakiye rengi tasarım gereği **brass-dark** (ödenecek = altın),
+  pozitif emerald. Liste yanıtındaki yeni `overdue`/`overdue_count` alanları kullanılır
+  (listede her istekte tek `calculate_overdue_by_vendor` çağrısı).
+- **Detay başlığı:** ad yanında Ödeme Yasaklısı + N gecikmiş fatura rozetleri; **vade artık
+  her zaman görünür sayı girişi** (değer değişince yanında ✓ kaydet butonu belirir — eski
+  tıkla-düzenle kaldırıldı); **Talimata Ekle** (brass buton → mevcut AddToListModal);
+  **Ödeme Yasağı / Yasağı Kaldır** butonu (ConfirmDialog'lu mevcut akış).
+- **Hareket tablosu:** Tarih/Evrak No/İşlem/Borç/Alacak/Bakiye başlıkları **3 aşamalı
+  sıralanır** (artan → azalan → varsayılan[tarih DESC]); backend `GET /vendors/{id}` yeni
+  `sort_by`/`sort_dir` parametreleri (whitelist; `bakiye` = kümülatif pencere kolonu üzerinden
+  ORDER BY — sayfalar arasında da doğru). "Ödeme Tarihi" kolonu kaldırıldı; yerine İşlem
+  hücresinde **durum çipi**: `fifo_remaining` (yeni alan) 0 → "Kapandı" (yeşil), kalan var +
+  vade geçti → "Gecikti · tarih" (kırmızı), vadeye ≤7 gün → "Vade tarih · Ng" (amber), uzak →
+  "Vade tarih" (gri). Eşleşme/Departman kolonları ve aksiyonları AYNEN korundu.
+
+### Aylık Bakiye sekmesi (YENİ) — `MonthlyBalances.svelte`
+- `GET /cariler/monthly-balances?year&month&mode=fifo|period&hide_zero`
+- **FIFO Kalan** (varsayılan): seçilen ayın faturalarından (alacak) FIFO sonrası kalanı olan
+  cariler — `calculate_fifo_amounts` (Ödeme Planı/Vadesi Geçmiş ile AYNI kaynak). Kolonlar:
+  O Ay Fatura / Kapanan (FIFO) / Kalan. Tamamen kapananlar listelenmez.
+- **Dönem Sonu Bakiye:** ay sonu itibarıyla yürüyen bakiye (borç/alacak/bakiye) + "Sıfır
+  bakiyeleri gizle" toggle'ı.
+- Ay pilleri Ocak→içinde bulunulan ay; kolon başlıkları sıralanır (istemci tarafı); altta
+  lacivert toplam bandı (altın tutar). Satıra tıkla → Cariler sekmesinde o cari açılır.
+  WS `finance_updated` ile canlı tazelenir.
+
+### Yıllık Ciro sekmesi (YENİ) — `YearlyTurnover.svelte`
+- `GET /cariler/yearly-turnover?year` — firma bazında yıl içi fatura (alacak) hacmi;
+  **devir/açılış hariç** (`match_number=-1` veya işlem tipi devir/açılış).
+- Kolonlar: Cari / Aylık Dağılım (mini çubuklar — **altın çubuk firmanın zirve ayı**, diğerleri
+  teal-300) / Fatura sayısı / Pay (%; brass ilerleme çubuğu) / Yıllık Ciro. Başlıkta lacivert
+  Toplam Ciro kartı. Sıralama istemci tarafı; satıra tıkla → cari detayı.
+
+### Ödeme Planı sekmesi (yeniden düzenlendi)
+- Aylık akordiyon + hafta-içi fatura tabloları kaldırıldı → tasarımdaki **düz Cuma grupları**:
+  geçmiş vadeli haftalar tek **"Gecikmiş"** grubunda (kırmızı bant) birleşir; her grupta cari
+  bazında toplanmış satırlar (N fatura · en erken vade · toplam), önümüzdeki 7 gün içindeki
+  gruba "Bu hafta" rozeti. **Sıralama pilleri:** Tutara göre / Cari adına göre. Grup toplamının
+  yanında EUR karşılığı; altta lacivert "Toplam Planlanan Ödeme" bandı. Excel butonu bu
+  bölümün başlığında. Satıra tıklayınca cari detayı açılır. Veri kaynağı DEĞİŞMEDİ
+  (`GET /payment-schedule` haftalık grupları; gruplama/birleştirme frontend'de).
+
+### Dosya Yükle sekmesi (yeniden düzenlendi)
+- İki kart yan yana: **Excel Yükle** (FileDropzone) + **Sedna'dan İçe Aktar** kartı
+  (yalnız `sedna-status.configured`): açıklama + "Son: <tarih>" rozeti + **Sedna'dan İçe
+  Aktar** (`POST /cariler/sedna-import` — sonuç Excel ile aynı UploadResultModal) + **IBAN
+  Çek** (`POST /cariler/sedna-import-ibans` — sonuç toast). Not: Topbar'daki merkezi Sedna
+  butonu tüm adımları koşar; bu kart yalnız cari-hedefli tekil import içindir (tasarım gereği
+  sayfaya geri geldi — api-haritası "sayfa-içi buton eklenmez" genel kuralının bilinçli
+  istisnası, tekil endpoint'ler zaten korunuyordu).
+- **Yükleme geçmişi tabloya çevrildi:** Dosya/Tarih/Cari/İşlem/Yeni/Atlanan/Yükleyen kolonları;
+  Tarih ve Yeni başlıkları sıralanır (istemci tarafı); silme ikonu satır sonunda.
+
+### Backend değişiklikleri (özet)
+- `cariler/analytics.py` (YENİ): `GET /monthly-balances` + `GET /yearly-turnover` — salt-okuma,
+  view yeterli, onaydan muaf (mutasyon yok → executor handler gerekmez), sayfalama yok.
+- `vendors.py`: summary'ye `overdue_total`/`overdue_invoice_count`/`overdue_vendor_count`/
+  `nonzero_count`; listeye `sort_by=overdue` + `banned_only` + satır `overdue`/`overdue_count`;
+  detaya `sort_by`/`sort_dir` + fatura satırlarına `fifo_remaining`.
+- Şemalar: `VendorResponse.overdue/overdue_count`, `VendorTransactionResponse.fifo_remaining`.
+- **Test:** `tests/test_cariler_analytics.py` (10 — FIFO/dönem modları, ciro devir-hariç,
+  izinler, overdue sıralaması + satır alanları, banned_only, summary alanları, detay sıralaması
+  + fifo_remaining, geçersiz sort_by 422).

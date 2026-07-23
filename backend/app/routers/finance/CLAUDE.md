@@ -873,6 +873,29 @@ t_account **listede-kalır-toplam-dışı** + kolon-toplamı-değişmez + realiz
 
 ---
 
+## Cariler Yeniden Tasarımı v2 — Analitik Sekmeler + Gecikmiş Sıralaması (2026-07-23)
+
+Kullanıcının GitHub'a yüklediği tasarım paketi ("Cariler modülü yeniden tasarımı.zip",
+commit `11475ef`) uygulandı — tam anlatım `docs/modules/cariler.md` "v2" bölümü. Finans
+katmanını ilgilendiren backend değişiklikleri:
+
+- **`cariler/analytics.py` (YENİ router):** `GET /monthly-balances` (mode=`fifo` → seçilen
+  ayın faturalarından FIFO sonrası kalan — `calculate_fifo_amounts` ile AYNI kaynak;
+  mode=`period` → ay sonu yürüyen bakiye + hide_zero) ve `GET /yearly-turnover` (yıl içi
+  fatura hacmi, devir/açılış hariç, aylık dağılım). Salt-okuma GET → onaydan muaf, view
+  yeterli, sayfalama yok (satır sayısı ≈ cari sayısı; sıralama frontend'de).
+- **`vendors.py`:** summary + `overdue_total`/`overdue_invoice_count`/`overdue_vendor_count`/
+  `nonzero_count` (negatif-toplam alt sorgusu tek gruplu sorguya sadeleşti); listede
+  `sort_by=overdue` (FIFO türevi olduğundan o modda satırlar Python'da sıralanıp sayfalanır)
+  + `banned_only` filtresi + satır başına `overdue`/`overdue_count` (istek başına tek
+  `calculate_overdue_by_vendor` çağrısı); detayda `sort_by`/`sort_dir` kolon sıralaması
+  (whitelist `date|evrak_no|transaction_type|borc|alacak|bakiye`; bakiye = kümülatif pencere
+  kolonu ORDER BY'ı — sayfalar arası doğru) + fatura satırlarında `fifo_remaining`
+  (frontend "Kapandı/Gecikti/Vade" çipleri).
+- **Test:** `tests/test_cariler_analytics.py` (10).
+
+---
+
 ## Cariler Yeniden Tasarımı — Notlar + Firma Bilgileri + Nakit Akım Faaliyet/Finansman (2026-07-04, YENİ)
 
 "Sprenses Tasarımlar" (GitHub) tasarım klasörünün uygulanması. İki parça:
