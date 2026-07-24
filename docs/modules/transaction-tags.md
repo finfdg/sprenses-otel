@@ -346,9 +346,13 @@ adımıyla birlikte koşar (ekstre ne zaman yüklenirse yüklensin, fiş kesildi
 | yalnız 102↔102 | Virman / Döviz Satışı | karşı 102 hesabımız FARKLI para birimindeyse Döviz Satışı |
 
 **Temkinlilik kuralları:**
-- Karar bacağı = fişin 102-dışı bacaklarından |tutar|ı en büyük olanı; prefix haritada
-  yoksa kalem **etiketlenmez** (770 gibi karışık gider hesapları bilinçli dışarıda —
-  2026-07-18 denetiminde de o sınıf kullanıcı kararına bırakılmıştı).
+- Karar bacağı = fişin **tüm non-own bacaklarından** (102 VEYA non-102) |tutar|ı en büyük
+  olanı. 102 ise → Virman/Döviz Satışı; mapped prefix ise → kategori; haritasız (770 gibi)
+  ise kalem **etiketlenmez**. **Küçük 770 komisyon/vergi bacakları büyük 102-virman /
+  320-cari bacağını GÖLGELEMEZ** (canlı: ₺1,5M YK→VakıfBank virmanı + ₺37 EFT komisyonu →
+  eskiden komisyon 770 karar bacağı olup kalem atlanıyordu; oysa iç transfer Virman'dır ve
+  nakit akım toplamından düşer). 770 gibi karışık gider hesapları haritada bilinçli yok
+  (2026-07-18 denetiminde o sınıf kullanıcı kararına bırakılmıştı).
 - k↔k eşleşme (aynı gün aynı tutar birden çok kalem) banka↔fiş eşlemesini
   ÇAPRAZLAYABİLİR → grup yalnız TÜM fişler AYNI kategoriye çıkıyorsa etiketlenir;
   `vendor_id`/`tag_note` (kişi/firma adı) yalnız birebir (exact) eşleşmede yazılır.

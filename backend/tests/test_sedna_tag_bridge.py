@@ -148,6 +148,30 @@ class TestDecideCategory:
                                  {"102.01.01.0001": "TRY"})
         assert cat == "Döviz Satışı"
 
+    def test_virman_with_small_commission_leg(self):
+        # Canlı: ₺1,5M YK→VakıfBank virmanı + ₺37 EFT komisyonu (770). Küçük 770
+        # bacağı büyük 102 transferi GÖLGELEMEMELİ → Virman (770'e düşüp atlanmaz)
+        legs = [
+            _leg(10, "102.01.13.0001", debit=1500000.0, name="VAKIFBANK MANAVGAT"),
+            _leg(10, "770.07.01.0002", debit=37.0, name="BANKA MASRAFLARI"),
+            _leg(10, "770.07.01.0002", debit=1.85, name="BANKA MASRAFLARI"),
+            _leg(10, "102.01.02.0002", credit=1500000.0, name="YAPI KREDİ SİDE"),
+            _leg(10, "102.01.02.0002", credit=37.0, name="YAPI KREDİ SİDE"),
+            _leg(10, "102.01.02.0002", credit=1.85, name="YAPI KREDİ SİDE"),
+        ]
+        cat, dec = decide_category(legs, "102.01.02.0002", "TRY", {})
+        assert cat == "Virman"
+        assert dec["code"] == "102.01.13.0001"
+
+    def test_vendor_with_small_commission_leg(self):
+        # Cari ödeme + minik komisyon: büyük 320 bacağı kazanır (770 gölgelemez)
+        legs = [_leg(10, "102.01.01.0001", credit=178915.0),
+                _leg(10, "320.01.01.T021", debit=178878.0, name="TAÇ KERESTE"),
+                _leg(10, "770.07.01.0002", debit=37.0, name="BANKA MASRAFLARI")]
+        cat, dec = decide_category(legs, "102.01.01.0001", "TRY", {})
+        assert cat == "Cari"
+        assert dec["code"] == "320.01.01.T021"
+
     def test_own_leg_excluded_empty_fise_none(self):
         legs = [_leg(10, "102.01.01.0001", credit=100.0)]
         assert decide_category(legs, "102.01.01.0001", "TRY", {}) == (None, None)

@@ -85,22 +85,27 @@ def decide_category(
     Sedna 102 kodu (kendi bacağımız karar dışı). mapped_currencies: bizim eşlenmiş
     hesaplarımız {sedna_code: currency} (banka↔banka fişinde döviz satışı ayrımı).
     Haritalanamayan fiş → (None, None): kalem etiketlenmez.
+
+    Karar bacağı = |tutar|ı EN BÜYÜK non-own bacak (102 VEYA non-102). Küçük 770
+    komisyon/vergi bacakları büyük 102-virman / 320-cari bacağını GÖLGELEMEZ (canlı:
+    ₺1,5M YK→VakıfBank virmanı yanında ₺37 EFT komisyonu 770'de → transfer 770'e
+    düşüp "haritasız" atlanıyordu; oysa iç transfer Virman'dır ve nakit akımdan düşer).
     """
     others = [l for l in legs if (l.get("code") or "") != (own_code or "")]
-    non_bank = [l for l in others if not (l.get("code") or "").startswith("102")]
-    if non_bank:
-        decisive = max(non_bank, key=lambda l: abs(_f(l.get("debit")) - _f(l.get("credit"))))
-        prefix = (decisive.get("code") or "").split(".")[0]
-        cat = PREFIX_CATEGORY.get(prefix)
-        return (cat, decisive) if cat else (None, None)
-    bank_others = [l for l in others if (l.get("code") or "").startswith("102")]
-    if not bank_others:
+    if not others:
         return None, None
-    for l in bank_others:
-        cur = mapped_currencies.get(l.get("code") or "")
+    decisive = max(others, key=lambda l: abs(_f(l.get("debit")) - _f(l.get("credit"))))
+    code = decisive.get("code") or ""
+    if code.startswith("102"):
+        # Hesaplar arası transfer: karşı 102 hesabımız FARKLI para birimindeyse döviz
+        # bozma (Döviz Satışı), aynıysa Virman. İkisi de TRANSFER_CATEGORIES → nakit
+        # akım toplamından düşer (iç transfer gerçek gider/gelir değildir).
+        cur = mapped_currencies.get(code)
         if cur and cur != (account_currency or "TRY"):
-            return "Döviz Satışı", l
-    return "Virman", bank_others[0]
+            return "Döviz Satışı", decisive
+        return "Virman", decisive
+    cat = PREFIX_CATEGORY.get(code.split(".")[0])
+    return (cat, decisive) if cat else (None, None)
 
 
 def apply_sedna_tag_bridge(

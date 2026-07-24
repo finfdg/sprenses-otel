@@ -34,6 +34,9 @@ adımı 2 saatte bir koştuğundan fiş kesildikten en geç 2 saat sonra kalem d
 - **Çaprazlanma koruması:** aynı (tarih, tutar) k↔k grubunda banka↔fiş eşlemesi çaprazlanmış
   olabilir → grup yalnız TÜM fişler AYNI kategoriye çıkıyorsa etiketlenir; kişi/firma bilgisi
   (`tag_note`/`vendor_id`) yalnız birebir (exact) eşleşmede yazılır.
+- **Karar bacağı = EN BÜYÜK non-own bacak** (102 veya non-102) — küçük 770 komisyon/vergi
+  bacağı büyük 102-virman / 320-cari bacağını gölgelemez (canlı ₺1,5M YK→VakıfBank virmanı
+  + ₺37 komisyon → doğru Virman, eskiden 770'e düşüp atlanıyordu).
 - **Sınırlar:** manuel etiket ezilmez (yalnız `category_id IS NULL`); "pos bloke" atlanır;
   subset (küme-toplamı) eşleşmeleri kapsam dışı; köprü best-effort (hatası/Sedna kopukluğu
   mutabakatı düşürmez, `db.rollback()` + log). FE senkronu `_sync_finance_events` ile —
