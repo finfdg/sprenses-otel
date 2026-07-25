@@ -1,4 +1,12 @@
-"""Yedekleme — git/GitHub yedek durumu izleme, manuel yedek (commit+push), geri yükleme.
+"""Yedekleme — git/GitHub kod yedeği + VERİ yedeği (DB · uploads · off-site) izleme.
+
+İki ayrı yedek vardır ve karıştırılmamalıdır: git yedeği KODU, `scripts/db-backup.sh`
+VERİYİ yedekler. Bu router ikisini de gösterir — veri yedeğinin durumu `db-backup.sh`
+tarafından yazılan durum dosyasından (JSON) okunur.
+
+Veri yedeği neden BURADA görünmeli (denetim DR-002): off-site yedek yokluğu iki denetim
+boyunca (v3 → v4) açık kaldı çünkü hiçbir ekranda görünmüyordu — yalnız journald'a
+bakan biri fark edebilirdi, kimse bakmadı. Görünmeyen eksik kapanmaz.
 
 Sunucu modülüyle aynı desende (subprocess + whitelist + audit). DB tablosu yoktur;
 veri kaynağı git'in kendisidir. Tüm git komutları list-arg ile çağrılır (shell
@@ -7,10 +15,13 @@ commit'in dosyaları çalışma ağacına getirilip YENİ bir commit olarak kayd
 geçmiş asla yeniden yazılmaz, force-push yapılmaz, hiçbir şey kaybolmaz.
 """
 
+import glob
+import json
 import logging
 import os
 import subprocess
 from datetime import datetime
+from typing import Optional
 
 import pytz
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -39,6 +50,31 @@ GIT_ENV = {
 }
 
 US = "\x1f"  # unit separator — git --format alan ayırıcısı
+
+# ─── Veri yedeği (scripts/db-backup.sh) ──────────────────────────────────────
+DEFAULT_DB_BACKUP_DIR = "/var/backups/sprenses-db"
+DEFAULT_UPLOADS_BACKUP_DIR = "/var/backups/sprenses-uploads"
+
+# Günlük iş 03:00'te koşar; 30 saat = bir koşum kaçtıysa bile pay bırakır
+# (health-thresholds.py ile AYNI eşik — iki yerde farklı eşik kafa karıştırır).
+BACKUP_STALE_HOURS = 30
+
+
+# Yollar ÇAĞRI ANINDA ortamdan okunur, import anında DEĞİL: testler geçici dizin
+# verebilsin (import zamanı sabitlense monkeypatch'in etkisi olmazdı) ve operatör
+# servisi yeniden başlatmadan yol değiştirebilsin.
+def _db_backup_dir() -> str:
+    return os.environ.get("SPRENSES_BACKUP_DIR", DEFAULT_DB_BACKUP_DIR)
+
+
+def _uploads_backup_dir() -> str:
+    return os.environ.get("SPRENSES_UPLOADS_DIR", DEFAULT_UPLOADS_BACKUP_DIR)
+
+
+def _backup_state_file() -> str:
+    return os.environ.get(
+        "SPRENSES_BACKUP_STATE", os.path.join(_db_backup_dir(), "backup-state.json")
+    )
 
 router = APIRouter()
 
@@ -119,6 +155,116 @@ def get_backup_status(
         "in_sync": ahead == 0 and pending == 0,
         "remote_url": remote_url,
         "history": commits,
+        "fetched_at": datetime.now(TZ).isoformat(),
+    }
+
+
+def _age_hours(ts: Optional[float]) -> Optional[float]:
+    """Verilen epoch zamanının kaç saat önce olduğu (yoksa None)."""
+    if ts is None:
+        return None
+    return round((datetime.now().timestamp() - ts) / 3600, 1)
+
+
+def _newest_mtime(pattern: str) -> Optional[float]:
+    """Desene uyan en yeni dosyanın/dizinin mtime'ı (yoksa None)."""
+    matches = glob.glob(pattern)
+    if not matches:
+        return None
+    try:
+        return max(os.path.getmtime(m) for m in matches)
+    except OSError:
+        return None
+
+
+def _read_backup_state() -> dict:
+    """db-backup.sh'ın yazdığı durum dosyası — okunamazsa boş sözlük."""
+    path = _backup_state_file()
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as e:
+        logger.error("Yedek durum dosyası okunamadı (%s): %s", path, e)
+        return {}
+
+
+@router.get("/backup/data-status")
+def get_data_backup_status(
+    _: User = Depends(require_permission("system.backup", "view")),
+):
+    """VERİ yedeği durumu — DB dump'ı, uploads snapshot'ı ve off-site (S3) kopyası.
+
+    Git yedeği (yukarıdaki /backup/status) yalnız KODU kapsar. Bu uç, felaket
+    kurtarmanın gerçekten mümkün olup olmadığını gösterir: yerel yedek taze mi,
+    dosyalar yedekleniyor mu, ve kopyanın BAŞKA BİR YERDE (off-site) örneği var mı.
+    """
+    state = _read_backup_state()
+    offsite = state.get("offsite") or {}
+    db_dir, uploads_dir = _db_backup_dir(), _uploads_backup_dir()
+
+    # Dosya sisteminden ölç (durum dosyası kaybolsa da gerçeği söylesin)
+    db_mtime = _newest_mtime(os.path.join(db_dir, "sprenses-*.dump"))
+    db_count = len(glob.glob(os.path.join(db_dir, "sprenses-*.dump")))
+    snap_mtime = _newest_mtime(os.path.join(uploads_dir, "*", ""))
+    snap_count = len([p for p in glob.glob(os.path.join(uploads_dir, "*"))
+                      if os.path.isdir(p)])
+
+    db_age = _age_hours(db_mtime)
+    offsite_configured = bool(offsite.get("configured"))
+    offsite_last_ok = offsite.get("last_ok") or None
+
+    offsite_age = None
+    if offsite_last_ok:
+        try:
+            offsite_age = _age_hours(datetime.fromisoformat(offsite_last_ok).timestamp())
+        except ValueError:
+            offsite_age = None
+
+    # Tek cümlelik özet — ekranda kırmızı/yeşil kararını FE'nin yeniden türetmesine gerek yok
+    if not offsite_configured:
+        offsite_level, offsite_message = "critical", (
+            "Off-site yedek YOK — tüm kopyalar tek diskte. Sunucu/disk kaybında "
+            "veri geri getirilemez (denetim DR-002)."
+        )
+    elif not offsite.get("ok"):
+        offsite_level, offsite_message = "critical", (
+            "Off-site yedek BAŞARISIZ: " + (offsite.get("error") or "bilinmeyen hata")
+        )
+    elif offsite_age is not None and offsite_age > BACKUP_STALE_HOURS:
+        offsite_level, offsite_message = "warning", (
+            "Off-site kopya {:.0f} saatlik — günlük yedek çalışmıyor olabilir.".format(offsite_age)
+        )
+    else:
+        offsite_level, offsite_message = "ok", "Off-site kopya güncel."
+
+    return {
+        "db": {
+            "count": db_count,
+            "age_hours": db_age,
+            "stale": db_age is None or db_age > BACKUP_STALE_HOURS,
+            "last_file": os.path.basename((state.get("db") or {}).get("file") or ""),
+            "bytes": (state.get("db") or {}).get("bytes") or 0,
+        },
+        "uploads": {
+            "snapshots": snap_count,
+            "age_hours": _age_hours(snap_mtime),
+            "files": (state.get("uploads") or {}).get("files") or 0,
+        },
+        "offsite": {
+            "configured": offsite_configured,
+            "ok": bool(offsite.get("ok")),
+            "target": offsite.get("target") or "",
+            "last_ok": offsite_last_ok,
+            "age_hours": offsite_age,
+            "error": offsite.get("error") or "",
+            "level": offsite_level,
+            "message": offsite_message,
+        },
+        "last_run": state.get("ts"),
+        "stale_threshold_hours": BACKUP_STALE_HOURS,
         "fetched_at": datetime.now(TZ).isoformat(),
     }
 

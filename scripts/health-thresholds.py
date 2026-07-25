@@ -16,6 +16,7 @@ Kullanım:
     scripts/health-thresholds.py             # ihlal varsa alarm üretir
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -117,11 +118,58 @@ def check_backup_freshness():
     return None
 
 
+def check_offsite_backup():
+    """Off-site (S3) kopya var mı ve taze mi — denetim DR-002.
+
+    NEDEN EŞİK: DR-002 iki denetim boyunca (v3 → v4, ~2 ay) açık kaldı. Sebebi teknik
+    değildi — kodu hazırdı; kimse hatırlatmadığı için yapılmadı. Yapılmayan bir işi
+    "açık bulgu" listesinde tutmak yetmiyor; sistemin kendisi düzenli olarak
+    "hâlâ tek diskteyiz" demeli. Kurulduğu an bu ihlal kendiliğinden susar.
+
+    Yalnız "yapılandırılmış mı"ya bakmak yetmez: yapılandırılıp SESSİZCE başarısız olan
+    off-site, hiç olmayandan daha tehlikelidir (yedek var sanılır) → son BAŞARILI
+    yükleme zamanı da kontrol edilir.
+    """
+    state_file = os.environ.get("SPRENSES_BACKUP_STATE",
+                                os.path.join(BACKUP_DIR, "backup-state.json"))
+    try:
+        with open(state_file, "r", encoding="utf-8") as fh:
+            state = json.load(fh)
+    except FileNotFoundError:
+        return (f"Yedek durum dosyası yok ({state_file}) — günlük yedek bu sürümle hiç "
+                f"koşmamış olabilir; off-site durumu bilinmiyor.")
+    except (OSError, ValueError) as e:
+        return f"Yedek durum dosyası okunamadı: {e}"
+
+    offsite = state.get("offsite") or {}
+    if not offsite.get("configured"):
+        return ("Off-site yedek YOK — DB, uploads ve yedeklerin kendisi aynı diskte. "
+                "Sunucu/disk kaybında veri geri getirilemez (denetim DR-002). "
+                "Kurulum: scripts/provision-offsite-backup.sh")
+    if not offsite.get("ok"):
+        return (f"Off-site yedek BAŞARISIZ: {offsite.get('error') or 'bilinmeyen hata'} "
+                f"(hedef: {offsite.get('target') or '?'})")
+
+    last_ok = offsite.get("last_ok")
+    if not last_ok:
+        return "Off-site yapılandırılmış ama hiç başarılı yükleme kaydı yok."
+    try:
+        age_h = (datetime.now().astimezone()
+                 - datetime.fromisoformat(last_ok)).total_seconds() / 3600
+    except ValueError:
+        return f"Off-site son başarı zamanı çözümlenemedi: {last_ok}"
+    if age_h > BACKUP_MAX_HOURS:
+        return (f"Off-site kopya {age_h:.0f} saatlik (eşik {BACKUP_MAX_HOURS} sa) — "
+                f"günlük yükleme çalışmıyor olabilir.")
+    return None
+
+
 CHECKS = [
     ("disk", check_disk),
     ("döviz kuru", check_exchange_rate),
     ("TLS sertifikası", check_tls),
     ("yedek tazeliği", check_backup_freshness),
+    ("off-site yedek", check_offsite_backup),
 ]
 
 

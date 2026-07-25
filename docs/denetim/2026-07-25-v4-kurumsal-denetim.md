@@ -380,10 +380,41 @@ Risk    : Kritik — tek birim/instance kaybı, yanlış DROP veya ransomware ü
           0600'e çek (efor: M)
 Kapanış : Günlük DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve S3'ten restore en az
           bir kez uçtan uca doğrulandı.
-Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
-          R3 notu: kod tarafı HAZIR (db-backup.sh DB+uploads'ı S3'e gönderiyor,
-          enable-offsite-backup.sh + runbook duruyor). Eksik olan yalnız AWS'de bir
-          kerelik provizyon (bucket + IAM role → EC2). Sunucudan yapılamaz.
+Durum   : ◐ KOD TARAFI KAPANDI, AWS PROVİZYONU BEKLİYOR (R4 · 2026-07-25)
+          | 2. göz: ✔ ONAYLANDI (Kritik)
+
+          YAPILAN (R4) — bulgunun neden İKİ denetim boyunca açık kaldığı da giderildi:
+          · scripts/provision-offsite-backup.sh (YENİ) — bucket+versioning+SSE+public-block
+            +TLS-policy+lifecycle+IAM role/instance-profile TEK KOMUTTA, idempotent.
+            "12 komutluk elle runbook" = yapılmayan runbook idi; artık iki komut.
+          · FARKLI BÖLGE ZORLANIYOR — _offsite-lib.sh:offsite_assert_cross_region;
+            aynı bölgedeki bucket REDDEDİLİR (SPRENSES_ALLOW_SAME_REGION=1 ile bilinçli
+            kabul mümkün ama uyarı basar). Kapanış kriterinin bu yarısı artık kodda.
+          · SESSİZLİK KAPANDI — off-site hatası artık exit!=0 (eskiden "UYARI"+exit 0)
+            → systemd OnFailure alarmı (error_logs CRITICAL + e-posta). Bu, bulgunun
+            v3→v4 fark edilmeden yaşamasını sağlayan mekanizmanın ta kendisiydi.
+          · GÖRÜNÜRLÜK — backup-state.json + GET /api/system/backup/data-status +
+            Sistem▸Yedekleme'de "Veri Yedeği" paneli (off-site YOKSA kırmızı kart +
+            kurulum komutu) + health-thresholds.py "off-site yedek" eşiği (günde 2 kez
+            ihlal bildirir; kurulunca kendiliğinden susar).
+          · GERİ YÜKLEME YOLU DOĞRULANIYOR — db-restore.sh --offsite (indir→bütünlük→
+            geçici DB→satır say→S3'ten 5 belge checksum). enable betiği yazdığını GERİ
+            OKUR: yalnız PutObject veren policy'de yükleme yeşil görünüp restore ölürdü.
+          · uploads off-site'a `aws s3 sync` ile TAM AYNA (günlük 285 MB tar.gz değil;
+            --delete YOK → kaynakta silinen off-site'ta kalır).
+          · TEST — backend/tests/test_backup_offsite.py, 17 test, sahte aws CLI
+            (tests/fixtures/fake_aws.py) ile yükleme→listeleme→indirme→içerik eşitliği.
+            Düzeltmeler geri alınarak 4 testin KIRMIZIYA döndüğü fiilen doğrulandı.
+
+          KALAN (kullanıcı aksiyonu — sunucudan YAPILAMAZ): AWS hesabında bir kerelik
+          provizyon. `aws sts get-caller-identity` → "Unable to locate credentials";
+          IMDS'te iam/security-credentials → 404 (role yok). Kimlik olmadan bucket/IAM
+          oluşturulamaz. Kullanıcı şunu çalıştırınca bulgu TAM kapanır:
+              aws configure && scripts/provision-offsite-backup.sh <bucket> eu-west-1
+              rm -rf ~/.aws
+              scripts/enable-offsite-backup.sh s3://<bucket>/sprenses
+              scripts/db-restore.sh --offsite        # kapanış kanıtı
+          Detay: docs/modules/yedekleme.md → "Off-site (S3) — DR-002"
 ```
 
 ### 🟠 YÜKSEK (8 — kök nedene göre birleştirilmiş)
