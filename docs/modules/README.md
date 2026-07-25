@@ -41,6 +41,7 @@
 | Yedekleme | `yedekleme.md` |
 | E-posta Bildirim (SMTP) | `eposta-bildirim.md` |
 | Sistem — Dokümanlar | `sistem-dokumanlar.md` |
+| Sistem — Denetim Takip | `denetim-takip.md` |
 | Devam Takip (PDKS) | `devam-takip.md` |
 | Vardiyalar (Shift) | `vardiyalar.md` |
 | Satış Faturaları | `satis-faturalari.md` |

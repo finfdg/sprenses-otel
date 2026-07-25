@@ -450,9 +450,26 @@ def process(db, finding, cfg, trigger: str) -> None:
             return
 
         # Merge + deploy
-        before_sha = _git(["rev-parse", "master"])
+        # Geri alma güvenliği: master checkout'unun GERÇEKTEN master'da ve TEMİZ
+        # olduğunu doğrula. Aksi halde `reset --hard` başkasının işini silebilir.
+        current_branch = _git(["rev-parse", "--abbrev-ref", "HEAD"])
+        if current_branch != "master":
+            result["status"] = "basarili"
+            extra = (f"Otomatik deploy atlandı: çalışma ağacı '{current_branch}' "
+                     f"dalında — branch {branch} incelemede")
+            logger.warning(extra)
+            return
+        if _git(["status", "--porcelain"], check=False):
+            result["status"] = "basarili"
+            extra = (f"Otomatik deploy atlandı: canlı çalışma ağacında kaydedilmemiş "
+                     f"değişiklik var — branch {branch} incelemede")
+            logger.warning(extra)
+            return
+
+        before_sha = _git(["rev-parse", "HEAD"])
         _git(["merge", "--no-ff", "-m",
               f"Denetim {finding.code} otomatik düzeltmesi (koşu #{run.id})", branch])
+        after_sha = _git(["rev-parse", "HEAD"])
         try:
             steps = _deploy(changed)
             if not _health_ok():
@@ -464,15 +481,26 @@ def process(db, finding, cfg, trigger: str) -> None:
         except Exception as deploy_err:
             logger.error("Deploy başarısız: %s", deploy_err)
             if cfg.auto_rollback:
-                _git(["reset", "--hard", before_sha], check=False)
-                subprocess.run(
-                    ["sudo", "systemctl", "restart", "sprenses-api.service"],
-                    check=False, timeout=120,
-                )
-                result["rolled_back"] = True
-                result["status"] = "geri_alindi"
-                result["error"] = f"Deploy başarısız, geri alındı: {deploy_err}"
-                extra = "Sağlık kontrolü başarısız → master geri alındı"
+                # Yalnız KENDİ oluşturduğumuz merge commit'i HEAD'deyse geri sar —
+                # arada başka bir commit düştüyse reset onu da silerdi.
+                head_now = _git(["rev-parse", "HEAD"], check=False)
+                if head_now == after_sha:
+                    _git(["reset", "--hard", before_sha], check=False)
+                    subprocess.run(
+                        ["sudo", "systemctl", "restart", "sprenses-api.service"],
+                        check=False, timeout=120,
+                    )
+                    result["rolled_back"] = True
+                    result["status"] = "geri_alindi"
+                    result["error"] = f"Deploy başarısız, geri alındı: {deploy_err}"
+                    extra = "Sağlık kontrolü başarısız → master geri alındı"
+                else:
+                    result["status"] = "basarisiz"
+                    result["error"] = (
+                        f"Deploy başarısız ve GERİ ALINAMADI (HEAD değişmiş): {deploy_err}"
+                    )
+                    extra = "ELLE MÜDAHALE GEREKLİ — master geri alınamadı"
+                    logger.error(extra)
             else:
                 result["status"] = "basarisiz"
                 result["error"] = str(deploy_err)
