@@ -20,6 +20,24 @@ PYTHONPATH=. python tests/ci/seed_admin.py         # admin kullanıcısı
 Sonra `python -m pytest tests/` çalışır. `conftest.py` her testi bir SAVEPOINT
 içinde çalıştırıp sonunda rollback yaptığı için DB kalıcı olarak kirlenmez.
 
+## Kalite kapıları (bloklayıcı)
+
+`ci.yml` üç işi paralel koşar: `lint`, `backend`, `frontend`. Kalite kapıları
+(hata durumunda iş KIRMIZI):
+
+- **Backend lint** (`lint` işi) — `ruff check . --select E9,F63,F7,F82` (kritik
+  gerçek-hata kapısı: sözdizimi / geçersiz karşılaştırma / yanlış yerde break /
+  tanımsız ad). Kaynak: QUAL-001.
+- **Frontend tip** (`lint` işi) — `svelte-kit sync` → `npm run check`
+  (`svelte-check --threshold error`). Kaynak: QUAL-001 / CICD-013.
+- **Kapsam eşiği** (`backend` işi) — pytest `--cov-fail-under=60`; satır kapsamı
+  %60 altına düşerse CI kırmızı. Kaynak: CICD-013.
+
+Bu kapıların CI'dan sessizce kaldırılması ya da yutulması (`continue-on-error`,
+`|| true`) iki regresyon testiyle engellenir: `tests/test_ci_lint_gate.py` ve
+`tests/test_ci_cicd013_quality_gate.py`. **Not:** Kapılar yapılandırıldı ama
+GitHub Actions repo düzeyinde KAPALI olduğundan henüz canlı koşmuyor (CICD-010).
+
 ## Dosyalar
 
 | Dosya | İçerik | Nasıl üretildi |
