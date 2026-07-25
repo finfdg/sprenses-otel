@@ -53,11 +53,17 @@ def _resolve_recipients(db) -> list:
     from app.middleware.auth import user_can
     from app.models.user import User
 
-    out = []
+    # TEKİLLEŞTİR: e-posta artık benzersiz DEĞİL (migration e8f2b6d4a9c3 — ortak/rol posta
+    # kutusuna izin verildi). Aynı adresi taşıyan iki hesap varsa aynı kutuya iki özdeş
+    # alarm giderdi. Sıra korunur (dict.fromkeys), karşılaştırma küçük harf + trim'li.
+    seen = {}
     for u in db.query(User).filter(User.is_active == True).all():  # noqa: E712
-        if u.email and (user_can(db, u, "system.server") or user_can(db, u, "system.error_logs")):
-            out.append(u.email)
-    return out
+        if not u.email:
+            continue
+        if user_can(db, u, "system.server") or user_can(db, u, "system.error_logs"):
+            key = u.email.strip().lower()
+            seen.setdefault(key, u.email.strip())
+    return list(seen.values())
 
 
 def _mask(addr: str) -> str:

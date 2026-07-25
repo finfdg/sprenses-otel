@@ -198,14 +198,32 @@ class TestCreateUser:
         })
         assert response.status_code == 409
 
-    def test_create_user_duplicate_email(self, client, auth_headers, test_managed_user, test_role):
-        """Aynı e-posta 409 dönmeli."""
+    def test_create_user_shared_email_allowed(self, client, auth_headers, test_managed_user, test_role):
+        """Aynı e-posta İZİNLİ — ortak/rol posta kutusu (2026-07-25 kullanıcı kararı).
+
+        Eskiden 409 dönerdi. Ortak kutu (ör. finans@) birden çok hesapta kullanılabilsin
+        diye UNIQUE index düşürüldü (migration e8f2b6d4a9c3). Güvenlik etkisi yok: giriş
+        `username` ile yapılır, e-posta teyit token'ı `user_id`'ye bağlıdır.
+        """
         response = client.post("/api/system/users/", headers=auth_headers, json={
             "username": "unique_user_xyz",
-            "email": "managed@sprenses.com",
+            "email": "managed@sprenses.com",   # test_managed_user ile AYNI adres
+            "password": "secure123",
+            "first_name": "Ortak",
+            "last_name": "Kutu",
+            "role_id": test_role.id,
+        })
+        assert response.status_code in (200, 201), response.text
+        assert response.json()["email"] == "managed@sprenses.com"
+
+    def test_create_user_duplicate_username_still_409(self, client, auth_headers, test_managed_user, test_role):
+        """Kullanıcı adı benzersizliği KORUNUR — e-posta gevşetmesi onu kapsamaz."""
+        response = client.post("/api/system/users/", headers=auth_headers, json={
+            "username": test_managed_user.username,
+            "email": "bambaska@sprenses.com",
             "password": "secure123",
             "first_name": "Çakışan",
-            "last_name": "Email",
+            "last_name": "Kullanıcı",
             "role_id": test_role.id,
         })
         assert response.status_code == 409
@@ -308,9 +326,12 @@ class TestUpdateUser:
         )
         assert response.status_code == 409
 
-    def test_update_user_duplicate_email(self, client, auth_headers, test_managed_user):
-        """Mevcut e-postaya güncelleme 409 dönmeli."""
-        # Admin'in e-postasını bul
+    def test_update_user_shared_email_allowed(self, client, auth_headers, test_managed_user):
+        """Mevcut bir e-postaya güncelleme İZİNLİ — iki hesap aynı kutuyu paylaşabilir.
+
+        Canlı gerekçe: alarm e-postalarının tek bir ortak kutuya düşmesi isteniyor
+        (admin + Finans Müdürü → finans@…). Eskiden 409 dönerdi.
+        """
         admin_resp = client.get("/api/auth/me", headers=auth_headers)
         admin_email = admin_resp.json()["email"]
         if not admin_email:
@@ -321,7 +342,11 @@ class TestUpdateUser:
             headers=auth_headers,
             json={"email": admin_email},
         )
-        assert response.status_code == 409
+        assert response.status_code == 200, response.text
+
+        # İKİ hesap da aynı adresi taşımalı (paylaşım gerçekten kuruldu mu)
+        me = client.get("/api/auth/me", headers=auth_headers).json()
+        assert me["email"] == admin_email
 
     def test_update_user_not_found(self, client, auth_headers):
         """Olmayan kullanıcı 404 dönmeli."""

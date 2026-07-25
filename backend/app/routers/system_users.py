@@ -99,10 +99,11 @@ def create_user(
     existing = db.query(User).filter(User.username == data.username).first()
     if existing:
         raise HTTPException(status_code=409, detail="Bu kullanıcı adı zaten kayıtlı")
-    if data.email:
-        existing_email = db.query(User).filter(User.email == data.email).first()
-        if existing_email:
-            raise HTTPException(status_code=409, detail="Bu e-posta zaten kayıtlı")
+    # E-POSTA BENZERSİZLİĞİ YOK (2026-07-25, kullanıcı kararı): ortak/rol posta kutusu
+    # birden çok hesapta kullanılabilir (ör. finans@ hem admin hem Finans Müdürü'nde →
+    # alarm e-postaları tek kutuya düşer). Migration e8f2b6d4a9c3 UNIQUE index'i düşürdü.
+    # Giriş `username` ile yapıldığı ve teyit token'ı `user_id`'ye bağlı olduğu için
+    # güvenlik etkisi yok. Kullanıcı adı benzersizliği AYNEN korunur (yukarıda).
     # Verify role exists
     role = db.query(Role).filter(Role.id == data.role_id).first()
     if not role:
@@ -151,11 +152,9 @@ def update_user(
         existing = db.query(User).filter(User.username == update_data["username"]).first()
         if existing:
             raise HTTPException(status_code=409, detail="Bu kullanıcı adı zaten kayıtlı")
-    # Check email uniqueness
-    if "email" in update_data and update_data["email"] and update_data["email"] != user.email:
-        existing = db.query(User).filter(User.email == update_data["email"]).first()
-        if existing:
-            raise HTTPException(status_code=409, detail="Bu e-posta zaten kayıtlı")
+    # E-posta benzersizliği BİLEREK kontrol edilmez — ortak/rol posta kutusuna izin verilir
+    # (2026-07-25 kullanıcı kararı; migration e8f2b6d4a9c3). Gerekçe yukarıdaki create
+    # endpoint'inde. Kullanıcı adı benzersizliği korunur.
     _flags = system_service.apply_user_update(db, user, update_data)
 
     client_ip = get_client_ip(request)

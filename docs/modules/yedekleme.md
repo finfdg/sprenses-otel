@@ -76,9 +76,31 @@ sessizce çöktü ve fark edilmedi.
 - **Uçtan uca doğrulandı (2026-07-25):** bilerek başarısız bir birim (`/bin/false`) tetiklendi →
   systemd alarmı otomatik çalıştırdı → `error_logs` kaydı düştü → e-posta gönderildi.
 
-> **⚠️ Açık bulgu:** iki alıcıdan **`admin@sprenses.com` teslim edilemiyor** — SMTP sunucusu
-> `550 5.1.1 Recipient address rejected: User unknown in virtual mailbox table` döndürüyor.
-> Alarm fiilen tek kişiye ulaşıyor. Adres düzeltilmeli veya o hesabın e-postası güncellenmeli.
+- **Alıcı tekilleştirme:** e-posta artık benzersiz değil (aşağıya bkz) → aynı adresi taşıyan
+  iki hesap tek e-posta üretir (küçük harf + trim'li karşılaştırma).
+
+> **✔ Çözüldü (2026-07-25):** İlk kurulumda `admin@sprenses.com` teslim edilemiyordu
+> (`550 5.1.1 User unknown in virtual mailbox table`) — alarmın yarısı ölüydü. Kullanıcı
+> kararıyla `admin` hesabının e-postası da `finans@sideprenseshotel.com` yapıldı; bunun için
+> `users.email` UNIQUE kısıtı kaldırıldı (migration `e8f2b6d4a9c3`). Artık her iki alarm
+> alıcısı da çalışan tek bir ortak kutuya işaret ediyor.
+
+### `users.email` neden UNIQUE değil (2026-07-25 kullanıcı kararı)
+
+Ortak/rol posta kutusunun birden çok hesapta kullanılabilmesi için UNIQUE index düşürüldü
+(index arama için korundu). **Kaldırmak güvenli:**
+
+| Bağımlılık | Durum |
+|---|---|
+| Giriş (login) | `username` ile — e-postayla kimlik doğrulama **yok** |
+| E-posta teyidi | Token `user_id`'ye bağlı; `auth.verify_email` kullanıcıyı **id ile** bulur |
+| Uygulama kontrolleri | `system_users.py`'deki iki "zaten kayıtlı" kontrolü kaldırıldı |
+| **Kullanıcı adı** | Benzersizliği **AYNEN korunur** |
+
+Testler yeni davranışı sabitliyor: `test_create_user_shared_email_allowed`,
+`test_update_user_shared_email_allowed`, `test_create_user_duplicate_username_still_409`.
+Geri alma (`downgrade`) mükerrer e-posta varsa **bilerek başarısız olur** — sessizce veri
+silmektense migration'ın patlaması doğrudur.
 
 ### Off-site (S3) Etkinleştirme Runbook (eu-north-1)
 

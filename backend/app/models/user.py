@@ -17,7 +17,12 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # UNIQUE DEĞİL (2026-07-25, kullanıcı kararı): ortak/rol posta kutusu birden çok
+    # hesapta kullanılabilsin (ör. finans@ hem admin hem Finans Müdürü hesabında → alarm
+    # e-postaları aynı kutuya düşer). Kaldırmak güvenli: giriş `username` ile yapılır ve
+    # e-posta teyit token'ı `user_id`'ye bağlıdır (auth.verify_email kullanıcıyı id ile
+    # bulur, e-postayla ARAMAZ). Index arama/performans için korunur.
+    email: Mapped[str] = mapped_column(String(255), index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
