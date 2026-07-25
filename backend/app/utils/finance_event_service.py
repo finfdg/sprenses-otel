@@ -140,6 +140,21 @@ class FinanceEventService:
         fields.setdefault("created_at", now)
         fields["updated_at"] = now
 
+        # ─── TRY kalemlerde amount_try = amount (2026-07 denetimi, FIN-001) ──────
+        # Hiçbir upsert_* metodu `amount_try` YAZMIYORDU → `ON CONFLICT DO UPDATE SET`
+        # bu kolona hiç dokunmuyor, kolonun tek yazıcısı `update_amount_try` ise yalnız
+        # EUR + bugün satırlarını günceller. Sonuç: cari FIFO kırpması / KK kısmi ödemesi
+        # `amount`'ı küçültünce `amount_try` ESKİ TAM TUTARDA DONUYORDU. Okuyucular
+        # (t_account/runway/aging) amount_try'ı amount'a tercih ettiğinden bayat değer
+        # rapora hayalet yükümlülük yazıyordu (canlıda 11 kayıt / ₺2,4M sapma; 6'sı açık
+        # → panelde ₺696.190,94 olmayan borç).
+        # TRY'de amount ZATEN TL karşılığıdır → her upsert'te türetip senkron tutuyoruz.
+        # Döviz kalemlere DOKUNMUYORUZ: onların TL karşılığı kur gerektirir; okuma anındaki
+        # çevrim (t_account/runway `_event_eur`, eur_balances `to_eur`) o işi zaten yapar.
+        if "amount_try" not in fields and fields.get("amount") is not None:
+            if (fields.get("currency") or "TRY").upper() in ("TRY", "TL"):
+                fields["amount_try"] = fields["amount"]
+
         update_fields = {k: v for k, v in fields.items()
                          if k not in ("source_type", "source_id", "created_at")}
 

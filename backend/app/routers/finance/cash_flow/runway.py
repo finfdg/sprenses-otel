@@ -170,10 +170,14 @@ def _event_eur(
             return None
         return float(fe.amount) * usd_rate / eur_rate
 
-    if fe.amount_try is not None:
-        try_value = float(fe.amount_try)
-    elif currency in ("TRY", "TL"):
+    # TRY kalemde `amount` TANIMI GEREĞİ TL karşılığıdır → amount_try'a BAKILMAZ (FIN-001).
+    # Sıra bilerek böyle: eskiden amount_try önce geliyordu ve bayat bir değer (kısmi
+    # ödeme sonrası küçülmemiş tutar) gerçek tutarı eziyordu. Yazıcı tarafı da artık
+    # senkron tutuyor (`finance_event_service._upsert`) — bu, ikinci savunma katmanı.
+    if currency in ("TRY", "TL"):
         try_value = float(fe.amount)
+    elif fe.amount_try is not None:
+        try_value = float(fe.amount_try)  # USD-dışı döviz (GBP vb.) için TL karşılığı
     else:
         return None  # döviz kalem, TRY karşılığı bilinmiyor
 
