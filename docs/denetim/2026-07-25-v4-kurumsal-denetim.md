@@ -13,7 +13,40 @@
 | **Örnekleme** | Kritik yollar (finans, auth, DR, sunucu, arka plan işleri) **%100** derin okuma + **canlı DB doğrulaması**; kalan boyutlar hedefli örneklem + kanıt (`dosya:satır`). |
 | **Önceki denetim referansı** | 2026-07-05 **v3** (62/100 ağırlıklı · 59/100 aritmetik, 3 Kritik) · 2026-06-21 v2 (72/100) · 2026-07-01 tam modül denetimi (156 bulgu) |
 | **Kalite süreci** | 204 bulgu üretildi. Her Kritik/Yüksek bulgu bağımsız 2. gözle çürütülmeye çalışıldı → **61 bulgunun risk seviyesi düşürüldü**, yalnız 2'si Kritik'te teyit edildi. Ana denetçi ayrıca 6 headline bulguyu canlı sistemde bizzat doğruladı (aşağıda ✔ ile işaretli). |
-| **Revizyon** | **R1 · 2026-07-25 04:35** — denetim sonrası ilk düzeltme turu. 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 Yüksek · JOBS döviz cron'u). Bulgu metinleri **değiştirilmedi**; yalnız `Durum` alanları güncellendi + aşağıya Kapanış Kaydı eklendi. Denetim anının fotoğrafı korunur. |
+| **Revizyon** | **R1 · 2026-07-25 04:35** — 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 · JOBS döviz cron'u).<br>**R2 · 2026-07-25 05:15** — ARCH-001 kapatıldı **ve bu raporun bir bulgusundaki yanlış canlı-sapma iddiası düzeltildi** (bkz. R2 Kapanış Kaydı). Bulgu metinleri **silinmedi**; durumlar güncellendi, hatalı iddia üstü çizilerek gerekçesiyle bırakıldı — denetim anının fotoğrafı ve hatanın izi birlikte korunur. |
+
+---
+
+## Kapanış Kaydı — R2 (2026-07-25) · ARCH-001 + bir denetim hatasının düzeltilmesi
+
+**ARCH-001 KAPATILDI.** `match_credit_payment` artık ortak uygulayıcıyı çağırıyor —
+kredi eşleştirmesinin üç giriş noktası (otomatik matcher · öneri-Onayla · manuel uç) tek
+davranışta birleşti. Yeni: `tests/test_credit_match_principal.py` (5 test). Düzeltme geri
+alınarak kanıtlandı: tek tur **+₺8.000** (tam anapara), üç tur **+₺24.000** (birikim),
+çift eşleştirme 409 yerine 200.
+
+### ⚠️ Bu turda kendi denetim bulgumuzda bir hata bulundu
+
+| | |
+|---|---|
+| **Yanlış iddia** | "Canlıda Halk Leasing #446'da **₺22.963,23 sapma**, doğrudan atfedilebilen manuel taksit ₺14.835,60" |
+| **Gerçek** | #446 **tutarlı**: `remaining_amount` 67.748,34 = `total_amount` 86.041,56 − ödenen anapara 18.293,22 (kuruşu kuruşuna) — ve ödenen anaparaya manuel eşleşen taksitin 14.835,60'ı **dahil** |
+| **Hatanın kökü** | Denetim ajanı sapmayı `remaining_amount − Σ(ödenmemiş anapara)` ile hesapladı. Bu değişmez bu veri modelinde geçerli değil: `total_amount` (86.041,56) ≠ Σ(tüm anapara) (63.078,33) ve fark **tam olarak 22.963,23** — yani "sapma" ürünün kurulum özelliğiydi, bug'ın izi değil |
+| **Neden yakalanmadı** | 2. göz **kod asimetrisini** doğruladı (gerçek) ama ana denetçi bunu **canlı sapma** iddiasına genişletirken değişmezi doğrulamadı |
+
+**Canlı etki — yeniden ölçüldü:** Bu uçtan 33 eşleşme geçmiş (hepsi 2026-07-19).
+Ayırt edici: `method='manual' AND score IS NULL` → hatalı uç; öneri-Onayla yolu `score`
+yazar. Bu 33'ün yalnız **6'sında `principal` doluydu** (gerisi BCH, `principal` NULL →
+düşüm zaten yapılmaz) ve etkilenen üç ürünün (#10 · #13 · #446) `remaining_amount`'ı
+**bugün tutarlı** (#13: 320.000−320.000 = 0 ✔). O günkü elle banka-eşitleme çalışmasında
+rakamlar düzeltilmiş görünüyor.
+
+> **Sonuç:** Kusur **gerçek ve kanıtlı** (testler tur başına tam +anapara birikimi
+> gösteriyor), ama **kalıcı canlı para sapması üretmedi**. Düzeltme geleceğe dönüktür.
+> Veri onarımı **yapılMADI** — onarılacak sapma yok. Ayrıca ürün tiplerinde
+> `remaining_amount` farklı anlam taşıdığından (kredi kartında **limit**, taksitli/leasingde
+> **anapara bakiyesi**) global bir "sapma taraması" anlamlı değildir; bu, ileride benzer
+> bir iddia kurulurken hatırlanmalı.
 
 ---
 
@@ -216,7 +249,7 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 | **SEC-001**<br>(=CICD-011<br>=DOC-001) | **Depo PUBLIC + Stop hook her tur otomatik push ediyor** — CLAUDE.md:444'te varsayılan yönetici şifresi, test fixture'larında checksum-geçerli gerçek IBAN'lar, `docs/denetim/` altında kapanmamış zafiyetleri `dosya:satır` ile listeleyen 6 rapor. GitHub secret-scanning/push-protection da kapalı. | ✔ *ana denetçi:* `gh repo view` → `"visibility":"PUBLIC"`; `.claude/settings.json` Stop hook `git push origin master` | **S**\* | RISK_DUSUR → Yüksek |
 | ~~**FIN-001**~~ ✔ | *(bkz. Kritik — 2. göz bu seviyede değerlendirdi)* — **KAPATILDI R1** | canlı DB | S | RISK_DUSUR → Yüksek |
 | ~~**DB-001**~~ ✔ | **5 tablo alembic metadata'sının dışında** — `check.py` (checks, check_uploads), `ai_usage.py`, `ai_conversation.py` (ai_conversations, ai_messages) ne `models/__init__.py`'de ne `alembic/env.py`'de import ediliyor. Bir sonraki `alembic revision --autogenerate` bu beş tablo için **DROP TABLE** üretir — `checks` çekirdek finans tablosu. **→ KAPATILDI R1:** modeller kayda eklendi, autogenerate DROP önerisi 5→0, bekçi testi eklendi. | ✔ *ana denetçi:* `__init__` taraması → eksik: `check`, `ai_usage`, `ai_conversation`; `alembic/env.py`'de bu modüllerin import'u yok | **S** | RISK_DUSUR → Yüksek |
-| **ARCH-001** | **Manuel kredi eşleştirme ortak `apply_credit_bank_match` uygulayıcısını atlıyor** — taksiti `is_paid` yapar ama anaparayı düşmez; geri alma ise koşulsuz iade eder → `remaining_amount` her eşleştir/geri-al turunda şişer. Kilit ve `is_paid` guard'ı da yok (çift eşleştirme mümkün). | ✔ *ana denetçi:* matching.py:222-225 (anapara satırı yok) vs matching_service.py:950-951 (düşüyor); matching.py:675-676 (koşulsuz iade). Canlıda 33 manuel kredi eşleşmesi; taksit planı olan tek üründe (Halk Leasing #446) **₺22.963,23 sapma**, doğrudan atfedilebilen manuel taksit ₺14.835,60 | **S** | RISK_DUSUR → Yüksek |
+| ~~**ARCH-001**~~ ✔ | **Manuel kredi eşleştirme ortak `apply_credit_bank_match` uygulayıcısını atlıyor** — taksiti `is_paid` yapar ama anaparayı düşmez; geri alma ise koşulsuz iade eder → `remaining_amount` her eşleştir/geri-al turunda şişer. Kilit ve `is_paid` guard'ı da yok (çift eşleştirme mümkün). **→ KAPATILDI R2** | ✔ *ana denetçi:* matching.py:222-225 (anapara satırı yok) vs matching_service.py:950-951 (düşüyor); matching.py:675-676 (koşulsuz iade). <br>⚠️ **DÜZELTME (R2):** bu satırdaki "*canlıda Halk Leasing #446'da ₺22.963,23 sapma*" iddiası **YANLIŞTI** — aşağıya bkz. | **S** | RISK_DUSUR → Yüksek |
 
 \* SEC-001'in "S" eforu deponun private yapılmasıdır (2 dakika). Sızmış sırların rotasyonu ayrıca M efordur.
 
@@ -283,14 +316,14 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 | 3 | **FIN-001** | `UPDATE finance_events SET amount_try=amount WHERE currency='TRY'` + `_upsert`'e alan ekle | **1-2 sa** | Panel/runway/aging'den **₺696.190,94 hayalet** silinir | ✔ **R1** |
 | 4 | **DB-001** | `check`, `ai_usage`, `ai_conversation`'ı `models/__init__.py` + `alembic/env.py`'ye ekle | **10 dk** | Bir sonraki autogenerate'in `DROP TABLE checks` üretmesi engellenir | ✔ **R1** |
 | 5 | **JOBS (döviz)** | `amount_try` adımındaki `Multiple rows were found` hatasını düzelt | **1 sa** | 2 aydır yarım çalışan kur güncellemesi tamamlanır | ✔ **R1** |
-| 6 | **ARCH-001** | `match_credit_payment`'ı `apply_credit_bank_match`'e bağla + canlı `remaining_amount` onarımı | **2-3 sa** | Kredi kalan borcu sapması durur | ⬜ Açık |
+| 6 | **ARCH-001** | `match_credit_payment`'ı `apply_credit_bank_match`'e bağla ~~+ canlı `remaining_amount` onarımı~~ | **2-3 sa** | Kredi kalan borcu sapması durur (canlı onarım GEREKMEDİ — bkz. R2) | ✔ **R2** |
 | 7 | **DR-003** | 6 systemd unit'ine `OnFailure=` + basit e-posta/push alarm servisi | **1 sa** | Sessiz yedek/cron çökmesi biter | ⬜ Açık |
 | 8 | **DR-001** | `db-backup.sh`'e uploads tar'ı ekle | **30 dk** | 284 MB mali belge yedeğe girer | ⬜ Açık |
 | 9 | **SEC-007/008** | `UserUpdate` parola min-uzunluk + zayıf `SECRET_KEY`'de başlatmayı durdur | **20 dk** | Parola politikası tutarlı hâle gelir | ⬜ Açık |
 
 **Toplam ≈ 1 iş günü** → 2 Kritik'in biri tamamen, diğeri kısmen kapanır; 8 Yüksek'in 5'i kapanır.
 
-> **R1 ilerleme (2026-07-25):** 3/9 kapandı (madde 3-4-5) → 1 Kritik + 2 Yüksek. Kalan 6'nın
+> **R1+R2 ilerleme (2026-07-25):** 4/9 kapandı (madde 3-4-5-6) → 1 Kritik + 3 Yüksek. Kalan 6'nın
 > **ikisi kod işi değil**: SEC-001 ve CICD-010 GitHub depo ayarıdır, yalnız depo sahibi
 > yapabilir — ve ikisi de listenin en yüksek etkili maddeleridir (toplam süre 17 dakika).
 
@@ -482,7 +515,7 @@ Gerçek banka PDF örnekleri (4 banka KK ekstresi), TCMB XML varyantları (tatil
 | **DR-002** | DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve **S3'ten restore bir kez uçtan uca** yapılmış | ⬜ Açık |
 | **CICD-010** | `actions/permissions` → `enabled:true` **ve** en son `ci.yml` koşusunun conclusion'ı `success` | ⬜ Açık |
 | **SEC-001** | `gh repo view` → `"visibility":"PRIVATE"` **ve** public dönemde görünmüş kimlik bilgileri döndürülmüş | ⬜ Açık |
-| **ARCH-001** | Router `apply_credit_bank_match` çağırıyor + eşleştir/geri-al turu sonrası `remaining_amount` değişmiyor (test) + canlı sapma 0 | ⬜ Açık |
+| **ARCH-001** | Router `apply_credit_bank_match` çağırıyor + eşleştir/geri-al turu sonrası `remaining_amount` değişmiyor (test) + canlı sapma 0 | ✔ **R2** — router çağırıyor ✔ · 5 test yeşil (geri alınca kırmızı) ✔ · canlı sapma zaten yoktu (iddia düzeltildi) |
 | **DR-003** | Bir test hatası kasten tetiklendiğinde alarm kanalından bildirim geliyor | ⬜ Açık |
 
 ---

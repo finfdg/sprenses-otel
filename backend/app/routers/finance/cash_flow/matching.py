@@ -218,25 +218,50 @@ def match_credit_payment(
 
     product = db.query(CreditProduct).filter(CreditProduct.id == payment.credit_product_id).first()
 
-    try:
-        # Taksiti ödenmiş olarak işaretle
-        payment.is_paid = True
-        payment.paid_date = btx.date
-        payment.bank_transaction_id = btx.id
+    product_name = product.name if product else "?"
 
-        # Banka işlemini etiketle ("Kredi" kategorisi 2026-07-18'de "Kredi/Leasing"e çevrildi)
+    # ─── Uygulama TEK KAYNAKTA: apply_credit_bank_match (ARCH-001, 2026-07 denetimi) ───
+    # Bu uç eskiden alanları ELLE set ediyordu ve ortak uygulayıcının İKİ işini atlıyordu:
+    #   (a) anapara düşümü — `product.remaining_amount -= payment.principal`
+    #   (b) yarış koruması — `is_paid=False AND bank_transaction_id IS NULL` + FOR UPDATE
+    # Geri alma yolu (unmatch_credit_payment) ise anaparayı KOŞULSUZ iade ettiğinden
+    # asimetri oluşuyordu: manuel eşleştir → anapara düşmez, geri al → anapara eklenir
+    # → `remaining_amount` her turda kalıcı olarak ŞİŞİYORDU. Guard yokluğu ayrıca aynı
+    # taksitin iki kez eşleştirilmesine izin veriyordu.
+    #
+    # CANLI ETKİ NOTU (2026-07-25 doğrulaması): bu uçtan 33 eşleşme geçmiş (hepsi
+    # 2026-07-19; `event_matches.method='manual' AND score IS NULL` — öneri-Onayla yolu
+    # score yazdığından ayırt edilebiliyor). Bunların yalnız 6'sında `principal` doluydu
+    # (gerisi BCH, principal NULL → düşüm zaten yapılmaz) ve etkilenen ürünlerin
+    # (#10/#13/#446) `remaining_amount`'ı BUGÜN TUTARLI — o günkü elle banka-eşitleme
+    # çalışmasında rakamlar düzeltilmiş görünüyor. Yani kusur GERÇEK ve kanıtlıdır
+    # (bkz. tests/test_credit_match_principal.py — tur başına tam +anapara birikimi),
+    # ama kalıcı canlı sapma ÜRETMEDİ. Düzeltme geleceğe dönüktür.
+    # Otomatik matcher (matching_service:747) ve öneri-Onayla (bu dosya:529) zaten bu
+    # fonksiyonu çağırıyordu — üç giriş noktası artık tek davranışta.
+    try:
+        ok = apply_credit_bank_match(db, payment, product, btx,
+                                     method="manual", actor_id=current_user.id)
+        if not ok:
+            raise HTTPException(
+                status_code=409,
+                detail="Bu taksit zaten eşleşmiş veya eşzamanlı bir işlem tarafından kilitlendi — önce eşleşmeyi geri alın",
+            )
+
+        # FE'yi ödenmiş durumla tazele (event_status='paid', is_realized=True).
+        # SIRA GÜVENLİ: upsert `is_matched`'ı `bank_transaction_id`'den türetir ve apply
+        # bunu az önce doldurdu → apply'ın kurduğu eşleşme bayrağı sıfırlanmaz.
+        finance_event_svc.upsert_credit_payment(db, payment, product)
+
+        # Manuel yola özgü etiketleme: kullanıcı bilinçli eşleştirdi → tag_source='manual'
+        # (apply içindeki _tag_scheduled_bank_leg 'auto' yazar; manuel karar onu ezer —
+        # ürün adı notu ve ödeme yöntemi de yalnız bu yolda anlamlıdır).
         from app.utils.auto_tagger import LEASING_CATEGORY, _get_or_create_category
         kredi_cat = _get_or_create_category(db, LEASING_CATEGORY)
         btx.category_id = kredi_cat.id if kredi_cat else None
         btx.tag_source = "manual"
         btx.payment_method = product.type if product else "kredi"
-
-        product_name = product.name if product else "?"
         btx.tag_note = product_name
-
-        # finance_events senkronizasyonu — kredi taksitini güncelle ve eşleştir
-        finance_event_svc.upsert_credit_payment(db, payment, product)
-        finance_event_svc.match(db, SOURCE_BANK, btx.id, SOURCE_CREDIT, payment.id)
 
         # Banka tarafı etiket sync
         finance_event_svc.sync_tag(
@@ -258,6 +283,10 @@ def match_credit_payment(
             ip_address=get_client_ip(request),
         )
         db.commit()
+    except HTTPException:
+        # 409 (yarış/zaten-eşleşmiş) generic 500'e dönüşmesin — anlamlı kodu koru.
+        db.rollback()
+        raise
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Kredi eşleştirme sırasında hata oluştu")
