@@ -3,7 +3,7 @@
 ## Genel Bakış
 
 Sprenses finans modülü, otelin tüm para hareketlerini tek bir yerden izlemeyi sağlar.
-Altı alt modül bulunur:
+Yedi alt modül bulunur:
 
 | Modül | Kod | Açıklama |
 |---|---|---|
@@ -12,8 +12,8 @@ Altı alt modül bulunur:
 | Cariler | `finance.cariler` | Tedarikçi borç takibi |
 | Çekler | `finance.checks` | Verilen/alınan çek takibi |
 | Krediler | `finance.krediler` | Banka kredileri ve kredi kartları |
-| Avanslar | `finance.advances` | Personel avans takibi |
-| Döviz | `finance.exchange_rates` | TCMB günlük kur takibi |
+| Avanslar | `finance.avanslar` | Personel avans takibi |
+| Döviz | `finance.doviz` | TCMB günlük kur takibi |
 
 ---
 

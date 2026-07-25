@@ -657,7 +657,7 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 | "1220+ test (pytest), ~%66 satır kapsamı" | 1.917 test, %77 kapsam | ◐ Bayat (iyi yönde) |
 | "Tablolar (85)" | 52 model dosyası, 5'i registry dışında — sayım doğrulanamıyor | ◐ Şüpheli |
 | `docs/api-haritasi.md` | Canlı API yüzeyinin **%24'ü katalogda yok** (AI + VakıfBank modülleri hiç yok, 1 path yanlış) | ▼ Drift |
-| `docs/modules/finans-mimarisi.md` izin kodları | `finance.advances` / `finance.exchange_rates` — **gerçek kodlar farklı** (`finance.avanslar` / `finance.doviz`) | ▼ Yanlış |
+| ~~`docs/modules/finans-mimarisi.md` izin kodları~~ | `finance.advances` / `finance.exchange_rates` — gerçek kodlar `finance.avanslar` / `finance.doviz` | ✔ **KAPandı (DOC-D05, 2026-07-25)** — doküman modül tablosu gerçek kodlarla düzeltildi; regresyon testi `tests/test_doc_finans_mimarisi_permission_codes.py` dokümandaki her izin kodunun `modules` tablosunda var olmasını zorunlu kılar (canlı DB'ye karşı ölçülür). |
 | `finans-mimarisi.md:302,315` "haftalık push çalışıyor" | `cron_weekly_push.py` **hiç zamanlanmamış** | ▼ Yanlış |
 | `.env.example` | 58 config ayarından **9'u belgeli**; fiilen kullanılan 2 anahtar eksik | ▼ Eksik |
 | v3-sonrası altyapı iddiaları (swap/earlyoom/TZ/ssh-audit/sedna-timer) | Hepsi kurulu ve çalışıyor | ✔ **Doğru** |
