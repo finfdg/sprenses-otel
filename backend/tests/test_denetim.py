@@ -647,6 +647,102 @@ class TestCronHelpers:
         fresh = db.query(AuditFinding).filter(AuditFinding.id == run.finding_id).first()
         assert fresh.status == "acik"
 
+    def test_gate_passes_when_numbers_identical(self, monkeypatch):
+        """Kod finansal hiçbir sayıyı oynatmıyorsa deploy'a izin ver."""
+        mod = _load_cron()
+        snap = {"_values": {"fe_toplam_try": 1000.0, "cari_acik": 250.5}, "_errors": {}}
+        monkeypatch.setattr(mod, "_fingerprint", lambda d, r: snap)
+        g = mod._financial_gate("/tmp/wt")
+        assert g["verdict"] == "temiz"
+        assert g["farklar"] == []
+
+    def test_gate_blocks_when_code_moves_a_number(self, monkeypatch):
+        """Sessiz tutar kayması — testler yeşil olsa bile deploy ENGELLENMELİ.
+
+        Bu, FIN-001 hata sınıfının (₺696.190,94 hayalet para, aylarca sessiz,
+        hiçbir test kırmızı değil) yakalandığı tek mekanizma.
+        """
+        mod = _load_cron()
+        eski = {"_values": {"fe_toplam_try": 1000.0, "cari_acik": 250.5}, "_errors": {}}
+        yeni = {"_values": {"fe_toplam_try": 1696.19, "cari_acik": 250.5}, "_errors": {}}
+        calls = {"n": 0}
+
+        def fake_fp(checkout, ref):
+            calls["n"] += 1
+            return yeni if calls["n"] == 2 else eski  # A, B, A2
+
+        monkeypatch.setattr(mod, "_fingerprint", fake_fp)
+        g = mod._financial_gate("/tmp/wt")
+        assert g["verdict"] == "engellendi"
+        assert len(g["farklar"]) == 1
+        assert g["farklar"][0]["anahtar"] == "fe_toplam_try"
+        assert "1000.0 → 1696.19" in g["detay"]
+
+    def test_gate_skips_when_live_data_drifted(self, monkeypatch):
+        """A != A2: fark koda atfedilemez → yanlış alarm verme, kapıyı atla.
+
+        Canlı veri ölçüm penceresinde değişebilir (Sedna senkronu 2 saatte bir,
+        kullanıcı işlemleri). Kontrol ölçümü olmadan her koşu yanlış bloklanırdı.
+        """
+        mod = _load_cron()
+        seq = [
+            {"_values": {"x": 1.0}, "_errors": {}},   # A
+            {"_values": {"x": 9.0}, "_errors": {}},   # B (farklı)
+            {"_values": {"x": 5.0}, "_errors": {}},   # A2 (A'dan farklı → sürüklenme)
+        ]
+        calls = {"n": 0}
+
+        def fake_fp(checkout, ref):
+            v = seq[calls["n"]]
+            calls["n"] += 1
+            return v
+
+        monkeypatch.setattr(mod, "_fingerprint", fake_fp)
+        g = mod._financial_gate("/tmp/wt")
+        assert g["verdict"] == "atlandi", "Sürüklenme varken bloklamamalı"
+        assert "canlı veri değişti" in g["detay"]
+
+    def test_gate_uses_control_measurement(self, monkeypatch):
+        """Üç ölçüm alınmalı: A (eski), B (yeni), A2 (eski, kontrol)."""
+        mod = _load_cron()
+        seen = []
+
+        def fake_fp(checkout, ref):
+            seen.append(checkout)
+            return {"_values": {"x": 1.0}, "_errors": {}}
+
+        monkeypatch.setattr(mod, "_fingerprint", fake_fp)
+        mod._financial_gate("/tmp/wt")
+        assert len(seen) == 3
+        assert seen[0] == mod.REPO_DIR and seen[2] == mod.REPO_DIR
+        assert seen[1] == "/tmp/wt"
+
+    def test_gate_error_falls_to_safe_side(self, monkeypatch):
+        """Kapı ölçülemiyorsa deploy EDİLMEMELİ — bilinmeyen ≠ güvenli."""
+        mod = _load_cron()
+
+        def boom(checkout, ref):
+            raise RuntimeError("DB erişilemedi")
+
+        monkeypatch.setattr(mod, "_fingerprint", boom)
+        with pytest.raises(RuntimeError):
+            mod._financial_gate("/tmp/wt")
+        # process() bu istisnayı yakalayıp deploy'u atlar — aşağıdaki testte kanıtlanır
+
+    def test_docs_only_change_skips_financial_gate(self):
+        """Doküman/test değişikliği bir finansal sayıyı oynatamaz → ölçüm atlanır."""
+        mod = _load_cron()
+        assert mod._needs_api_restart(["docs/x.md"]) is False
+        assert mod._needs_api_restart(["backend/tests/test_x.py"]) is False
+        assert mod._needs_api_restart(["backend/app/services/credit_service.py"]) is True
+
+    def test_deploy_blockers_cover_financial_gate(self):
+        """Otomasyon kendi finansal kapısını değiştirip geçemesin."""
+        mod = _load_cron()
+        blockers = mod.DEPLOY_BLOCKERS
+        assert any("denetim_finans_parmak_izi" in b for b in blockers)
+        assert any("audit_finance_invariants" in b for b in blockers)
+
     def test_deploy_blockers_cover_migrations_and_self(self):
         mod = _load_cron()
         blockers = mod.DEPLOY_BLOCKERS

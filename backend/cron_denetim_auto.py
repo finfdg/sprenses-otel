@@ -61,11 +61,17 @@ CLAUDE_BIN = "/usr/bin/claude"
 DEPLOY_BLOCKERS = (
     "backend/alembic/versions/",
     "backend/cron_denetim_auto.py",
+    # Finansal kapının kendisi — otomasyon kendi kapısını değiştirip geçemez
+    "backend/denetim_finans_parmak_izi.py",
+    "backend/app/services/audit_finance_invariants.py",
     "scripts/systemd/",
     ".env",
     ".claude/settings.json",
     "scripts/claude-guard-secrets.sh",
 )
+
+# Üç ölçüm alınacağı için tek ölçüm makul sürede bitmeli
+FINGERPRINT_TIMEOUT_SEC = 300
 
 
 # ─── Ön koşullar ─────────────────────────────────────────────
@@ -299,6 +305,77 @@ def _health_ok(attempts: int = 20, delay_sec: int = 3) -> bool:
     return False
 
 
+def _fingerprint(checkout_dir: str, ref_date: str) -> dict:
+    """Bir checkout'un KODUYLA finansal parmak izini ölç (salt-okunur).
+
+    Ölçüm o checkout'un `app` paketini kullanır — worktree izolasyonu doğrulandı
+    (pytest ile aynı mekanizma: cwd tabanlı sys.path yerleşimi).
+    """
+    py = os.path.join(checkout_dir, "backend", "venv", "bin", "python")
+    script = os.path.join(checkout_dir, "backend", "denetim_finans_parmak_izi.py")
+    env = dict(os.environ, TZ="Europe/Istanbul")
+    env["DENETIM_PARMAK_IZI_REF_DATE"] = ref_date
+    res = subprocess.run(
+        [py, script], cwd=os.path.join(checkout_dir, "backend"),
+        capture_output=True, text=True, timeout=FINGERPRINT_TIMEOUT_SEC, env=env,
+    )
+    if res.returncode != 0 or not res.stdout.strip():
+        raise RuntimeError(
+            f"parmak izi ölçülemedi ({checkout_dir}): "
+            f"{(res.stderr or res.stdout or '')[-500:]}"
+        )
+    return json.loads(res.stdout)
+
+
+def _financial_gate(worktree: str) -> dict:
+    """Kod, canlı finansal sayılardan birini oynatıyor mu?
+
+    A  = eski kod · B = yeni kod · A2 = eski kod (KONTROL)
+    A != A2  → ölçüm penceresinde canlı veri değişti (Sedna senkronu, kullanıcı işlemi)
+               → farkı koda ATFEDEMEYİZ, kapı atlanır (bloklamaz).
+    B != A   → farkı üreten şey kodun kendisi → DEPLOY EDİLMEZ.
+
+    Dönüş: {"verdict": "temiz"|"engellendi"|"atlandi", "detay": str, "farklar": [...]}
+    """
+    ref_date = datetime.now(svc.tz_istanbul).date().isoformat()
+
+    a = _fingerprint(REPO_DIR, ref_date)
+    b = _fingerprint(worktree, ref_date)
+    a2 = _fingerprint(REPO_DIR, ref_date)
+
+    av, bv, a2v = a["_values"], b["_values"], a2["_values"]
+
+    drift = [k for k in av if av.get(k) != a2v.get(k)]
+    if drift:
+        return {
+            "verdict": "atlandi",
+            "detay": ("Ölçüm penceresinde canlı veri değişti "
+                      f"({', '.join(drift[:4])}) — fark koda atfedilemez, kapı atlandı"),
+            "farklar": [],
+        }
+
+    diffs = []
+    for k in sorted(set(av) | set(bv)):
+        if av.get(k) != bv.get(k):
+            diffs.append({"anahtar": k, "eski": av.get(k), "yeni": bv.get(k)})
+
+    if diffs:
+        ozet = "; ".join(
+            f"{d['anahtar']}: {d['eski']} → {d['yeni']}" for d in diffs[:5]
+        )
+        return {
+            "verdict": "engellendi",
+            "detay": f"Kod {len(diffs)} finansal değeri değiştiriyor — {ozet}",
+            "farklar": diffs,
+        }
+
+    return {
+        "verdict": "temiz",
+        "detay": f"{len(av)} finansal değişmez aynı kaldı",
+        "farklar": [],
+    }
+
+
 def _needs_api_restart(changed_files: list) -> bool:
     """Yalnız çalışan uygulamayı etkileyen backend değişikliği restart gerektirir.
 
@@ -496,6 +573,35 @@ def process(db, finding, cfg, trigger: str) -> None:
             result["status"] = "basarili"
             extra = f"Otomatik deploy kapalı — branch {branch} incelemede"
             return
+
+        # ── FİNANSAL KAPI ────────────────────────────────────────
+        # Testler ve /api/health yalnız ÇÖKMEYİ yakalar; kodun bir finansal sayıyı
+        # sessizce yanlış hesaplamaya başlamasını göremezler (FIN-001 sınıfı).
+        # Yalnız çalışan uygulamayı etkileyen değişikliklerde ölçülür — doküman/test
+        # değişikliği bir sayıyı oynatamaz.
+        if _needs_api_restart(changed):
+            logger.info("Finansal parmak izi ölçülüyor (3 ölçüm)...")
+            try:
+                gate = _financial_gate(worktree)
+            except Exception as gate_err:
+                # Kapı ölçülemiyorsa GÜVENLİ TARAFA DÜŞ: deploy etme.
+                result["status"] = "basarili"
+                extra = (f"Finansal kapı ölçülemedi ({gate_err}) — "
+                         f"deploy edilmedi, branch {branch} incelemede")
+                logger.error(extra)
+                return
+
+            result["log_excerpt"] = (
+                (result.get("log_excerpt") or "") + "\n\n[finansal kapı] " + gate["detay"]
+            )
+            logger.info("Finansal kapı: %s — %s", gate["verdict"], gate["detay"])
+
+            if gate["verdict"] == "engellendi":
+                result["status"] = "basarili"
+                result["error"] = gate["detay"]
+                extra = (f"FİNANSAL KAPI ENGELLEDİ — {gate['detay']}. "
+                         f"branch {branch} incelemede")
+                return
 
         # Merge + deploy
         # Geri alma güvenliği: master checkout'unun GERÇEKTEN master'da ve TEMİZ
