@@ -227,6 +227,10 @@ class AuditAutomationConfig(Base):
     interval_hours: Mapped[int] = mapped_column(Integer, default=5)
     model: Mapped[str] = mapped_column(String(40), default="opus")
     max_attempts: Mapped[int] = mapped_column(Integer, default=2)
+    # Bir tetiklemede ardışık kaç bulgu işlensin (1 = zincirleme kapalı).
+    # Kuyrukta iş varken timer'ın bir sonraki tikini boş beklememek için; ama
+    # gözetimsiz koşu sayısını sınırlar (maliyet + canlıya art arda deploy).
+    max_chain_runs: Mapped[int] = mapped_column(Integer, default=3)
     max_budget_usd: Mapped[float] = mapped_column(Numeric(6, 2), default=8.00)
     timeout_min: Mapped[int] = mapped_column(Integer, default=45)
     # Test yeşilse master'a merge + deploy (kullanıcı kararı 2026-07-25)

@@ -58,6 +58,7 @@ class AutomationConfigUpdate(BaseModel):
     interval_hours: Optional[int] = Field(None, ge=1, le=24)
     model: Optional[str] = Field(None, pattern="^(opus|sonnet|haiku|fable)$")
     max_attempts: Optional[int] = Field(None, ge=1, le=5)
+    max_chain_runs: Optional[int] = Field(None, ge=1, le=10)
     max_budget_usd: Optional[float] = Field(None, ge=0.5, le=50)
     timeout_min: Optional[int] = Field(None, ge=5, le=180)
     auto_deploy: Optional[bool] = None

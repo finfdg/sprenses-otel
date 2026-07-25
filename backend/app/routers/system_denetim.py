@@ -364,6 +364,7 @@ def get_config(
         "interval_hours": cfg.interval_hours,
         "model": cfg.model,
         "max_attempts": cfg.max_attempts,
+        "max_chain_runs": cfg.max_chain_runs,
         "max_budget_usd": float(cfg.max_budget_usd),
         "timeout_min": cfg.timeout_min,
         "auto_deploy": cfg.auto_deploy,

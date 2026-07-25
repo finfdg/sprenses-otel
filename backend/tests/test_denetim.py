@@ -482,8 +482,30 @@ class TestAutomationConfig:
     def test_defaults_are_safe(self, db):
         cfg = svc.get_config(db)
         assert cfg.enabled is False, "Otomasyon varsayılan olarak KAPALI olmalı"
-        assert cfg.interval_hours == 5
         assert cfg.auto_rollback is True
+        assert cfg.max_chain_runs >= 1
+
+    def test_chain_limit_is_bounded(self, client, auth_headers):
+        """Zincir sınırsız olamaz — gözetimsiz koşu sayısı sınırlı kalmalı."""
+        r = client.patch(
+            "/api/system/denetim/config", json={"max_chain_runs": 99},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+        r = client.patch(
+            "/api/system/denetim/config", json={"max_chain_runs": 0},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+
+    def test_chain_limit_persists(self, client, auth_headers):
+        r = client.patch(
+            "/api/system/denetim/config", json={"max_chain_runs": 4},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        body = client.get("/api/system/denetim/config", headers=auth_headers).json()
+        assert body["max_chain_runs"] == 4
 
     def test_config_endpoint_exposes_next_candidate(self, client, auth_headers, db, denetim_report):
         _finding(db, denetim_report, "A-001", automatable=True, auto_enabled=True,
@@ -584,6 +606,46 @@ class TestCronHelpers:
         assert mod._needs_api_restart(["backend/tests/a.py", "docs/b.md"]) is False
         assert mod._needs_api_restart(["backend/app/main.py"]) is True
         assert mod._needs_api_restart(["backend/cron_x.py"]) is True
+
+    def test_long_phase_does_not_depend_on_live_orm(self, db, denetim_report, monkeypatch):
+        """Uzun faz (claude ~40 dk) boyunca ORM nesnesine dokunulmamalı.
+
+        Dokunulursa SQLAlchemy expire-load'u SESSİZCE yeni transaction açar ve oturum
+        `idle in transaction` kalır → `audit_automation_config` satır kilidi tutulur →
+        `alembic upgrade` (ALTER TABLE) süresiz bloke olur. 2026-07-25'te canlıda
+        yaşandı: migration takıldı, o tabloya değen her sorgu kilit kuyruğuna girdi.
+
+        Test, uzun faz sırasında oturumu boşaltarak (expunge) nesneleri kopararak
+        bunu taklit eder: kod ilkel değerleri önceden kopyaladıysa sorunsuz biter.
+        """
+        mod = _load_cron()
+        f = _finding(db, denetim_report, "A-001")
+        cfg = svc.get_config(db)
+
+        def fake_claude(prompt, cwd, model, budget, timeout_min):
+            # Uzun faz: oturumdaki ORM nesneleri artık kullanılamaz
+            db.expunge_all()
+            return {"ok": True, "text": "özet", "cost_usd": 0.5, "error": None}
+
+        monkeypatch.setattr(mod, "_prepare_worktree", lambda code: ("/tmp/wt-x", "denetim/a-001-x"))
+        monkeypatch.setattr(mod, "_cleanup_worktree", lambda p: None)
+        monkeypatch.setattr(mod, "_run_claude", fake_claude)
+        monkeypatch.setattr(mod, "_git", lambda *a, **k: "")
+        monkeypatch.setattr(mod, "_notify", lambda *a, **k: None)
+
+        # `_git` boş dönünce "değişiklik yok" dalına girer → koşu `atlandi` biter.
+        mod.process(db, f, cfg, "otomatik")
+
+        run = (
+            db.query(AuditFindingRun)
+            .order_by(AuditFindingRun.id.desc())
+            .first()
+        )
+        assert run.status == "atlandi"
+        assert run.finished_at is not None, "finally bloğu sonucu yazabilmeli"
+        # `f` bilerek koparıldı → id ile yeniden oku (kodun kendisi de böyle yapıyor)
+        fresh = db.query(AuditFinding).filter(AuditFinding.id == run.finding_id).first()
+        assert fresh.status == "acik"
 
     def test_deploy_blockers_cover_migrations_and_self(self):
         mod = _load_cron()

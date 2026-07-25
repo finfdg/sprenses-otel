@@ -42,6 +42,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.database import SessionLocal  # noqa: E402
+from app.models.audit_tracker import AuditFinding, AuditFindingRun  # noqa: E402
 from app.services import audit_tracker_service as svc  # noqa: E402
 
 logging.basicConfig(
@@ -391,19 +392,37 @@ def process(db, finding, cfg, trigger: str) -> None:
 
     run = svc.start_run(db, finding, trigger, cfg.model)
     db.commit()
-    logger.info("Koşu #%d başladı — %s (%s/%s)", run.id, finding.code, finding.risk, finding.effort)
+
+    # ── UZUN FAZ ÖNCESİ: açık transaction BIRAKMA ──────────────
+    # SQLAlchemy commit sonrası nesne alanlarını expire eder; `finding.code` gibi bir
+    # alana dokunmak SESSİZCE yeni bir transaction açar ve claude ~40 dk koşarken
+    # oturum `idle in transaction` kalır. Sonucu: `audit_automation_config` üzerinde
+    # satır kilidi tutulur → `alembic upgrade` (ALTER TABLE) süresiz bloke olur ve
+    # o tabloya değen HER sorgu kilit kuyruğuna girer. 2026-07-25'te canlıda yaşandı.
+    # Çözüm: gereken her şeyi ilkel değere kopyala, transaction'ı kapat, uzun fazda
+    # ORM nesnesine HİÇ dokunma; sonunda id ile yeniden oku.
+    run_id = run.id
+    finding_id = finding.id
+    code = finding.code
+    risk, effort = finding.risk, finding.effort
+    model, budget = cfg.model, float(cfg.max_budget_usd)
+    timeout_min, auto_deploy = cfg.timeout_min, cfg.auto_deploy
+    auto_rollback, title = cfg.auto_rollback, finding.title
+    db.rollback()  # expire-load'un açtığı transaction'ı kapat
+
+    logger.info("Koşu #%d başladı — %s (%s/%s)", run_id, code, risk, effort)
 
     worktree = branch = None
     result = {"status": "basarisiz"}
     extra = ""
 
     try:
-        worktree, branch = _prepare_worktree(finding.code)
+        worktree, branch = _prepare_worktree(code)
         result["branch"] = branch
         logger.info("Worktree: %s (branch %s)", worktree, branch)
 
         claude_out = _run_claude(
-            prompt, worktree, cfg.model, float(cfg.max_budget_usd), cfg.timeout_min,
+            prompt, worktree, model, budget, timeout_min,
         )
         result["cost_usd"] = claude_out.get("cost_usd")
         result["summary"] = (claude_out.get("text") or "")[:20000]
@@ -441,8 +460,8 @@ def process(db, finding, cfg, trigger: str) -> None:
         _git(["add", "-A"], cwd=worktree)
         _git([
             "commit", "-q", "-m",
-            f"Denetim {finding.code}: {finding.title[:100]}\n\n"
-            f"Otomatik düzeltme (koşu #{run.id}). Risk={finding.risk} Efor={finding.effort}",
+            f"Denetim {code}: {title[:100]}\n\n"
+            f"Otomatik düzeltme (koşu #{run_id}). Risk={risk} Efor={effort}",
         ], cwd=worktree)
         result["commit_sha"] = _git(["rev-parse", "HEAD"], cwd=worktree)
 
@@ -473,7 +492,7 @@ def process(db, finding, cfg, trigger: str) -> None:
             )
             logger.warning(extra)
             return
-        if not cfg.auto_deploy:
+        if not auto_deploy:
             result["status"] = "basarili"
             extra = f"Otomatik deploy kapalı — branch {branch} incelemede"
             return
@@ -497,7 +516,7 @@ def process(db, finding, cfg, trigger: str) -> None:
 
         before_sha = _git(["rev-parse", "HEAD"])
         _git(["merge", "--no-ff", "-m",
-              f"Denetim {finding.code} otomatik düzeltmesi (koşu #{run.id})", branch])
+              f"Denetim {code} otomatik düzeltmesi (koşu #{run_id})", branch])
         after_sha = _git(["rev-parse", "HEAD"])
         try:
             steps = _deploy(changed)
@@ -509,7 +528,7 @@ def process(db, finding, cfg, trigger: str) -> None:
             logger.info("Canlıya alındı — %s", extra)
         except Exception as deploy_err:
             logger.error("Deploy başarısız: %s", deploy_err)
-            if cfg.auto_rollback:
+            if auto_rollback:
                 # Yalnız KENDİ oluşturduğumuz merge commit'i HEAD'deyse geri sar —
                 # arada başka bir commit düştüyse reset onu da silerdi.
                 head_now = _git(["rev-parse", "HEAD"], check=False)
@@ -540,10 +559,16 @@ def process(db, finding, cfg, trigger: str) -> None:
         result["error"] = str(e)[:4000]
         _log_error_row(
             "cron:denetim-otomasyon",
-            f"{finding.code} koşusu hata verdi: {e}",
+            f"{code} koşusu hata verdi: {e}",
             (result.get("log_excerpt") or "") + "\n" + (result.get("summary") or ""),
         )
     finally:
+        # Uzun faz boyunca oturumda açık transaction YOKTU → nesneler bayat olabilir.
+        # id ile yeniden oku; ORM kimliğine güvenme.
+        db.rollback()
+        run = db.query(AuditFindingRun).filter(AuditFindingRun.id == run_id).first()
+        finding = db.query(AuditFinding).filter(AuditFinding.id == finding_id).first()
+        cfg = svc.get_config(db)
         svc.finish_run(db, run, result)
         cfg.last_run_at = datetime.now(svc.tz_istanbul)
         db.commit()
@@ -553,7 +578,7 @@ def process(db, finding, cfg, trigger: str) -> None:
         # Başarısız koşularda branch İNCELEME İÇİN KALIR; worktree dizini temizlenir
         if worktree:
             _cleanup_worktree(worktree)
-        logger.info("Koşu #%d bitti — durum=%s", run.id, run.status)
+        logger.info("Koşu #%d bitti — durum=%s", run_id, run.status)
 
 
 def main() -> int:
@@ -624,7 +649,52 @@ def main() -> int:
             )
             return 0
 
-        process(db, finding, cfg, args.trigger)
+        # ── Zincir: kuyrukta iş varken bir sonraki tiki boş bekleme ──
+        # Belirli bir bulgu istendiyse (--finding) zincirleme YAPILMAZ.
+        chain_limit = 1 if args.finding else max(1, cfg.max_chain_runs or 1)
+        done = 0
+        while True:
+            process(db, finding, cfg, args.trigger)
+            done += 1
+
+            if done >= chain_limit:
+                if chain_limit > 1:
+                    logger.info("Zincir sınırına ulaşıldı (%d koşu) — çıkılıyor", done)
+                break
+
+            # Her halkada BAŞTAN doğrula: kullanıcı arada anahtarı kapatmış,
+            # bellek düşmüş veya bir koşu başarısız olmuş olabilir.
+            db.expire_all()
+            cfg = svc.get_config(db)
+            if not cfg.enabled and args.trigger != "elle":
+                logger.info("Otomasyon arada kapatıldı — zincir durduruldu")
+                break
+
+            last = (
+                db.query(AuditFindingRun)
+                .order_by(AuditFindingRun.id.desc())
+                .first()
+            )
+            if last and last.status != "basarili":
+                logger.warning(
+                    "Son koşu '%s' — zincir durduruldu (art arda hata riski)",
+                    last.status,
+                )
+                break
+
+            headroom = _memory_headroom_mb()
+            if headroom < cfg.min_free_mb:
+                logger.warning(
+                    "Bellek %d MB < %d MB — zincir durduruldu", headroom, cfg.min_free_mb,
+                )
+                break
+
+            finding = svc.next_automation_candidate(db, report, cfg.max_attempts)
+            if not finding:
+                logger.info("Kuyruk boşaldı — zincir tamamlandı (%d koşu)", done)
+                break
+            logger.info("Zincir devam ediyor → %s (%d/%d)", finding.code, done + 1, chain_limit)
+
         return 0
     finally:
         db.close()

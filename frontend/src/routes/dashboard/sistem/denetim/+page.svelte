@@ -246,9 +246,9 @@
 		try {
 			const payload: any = {};
 			for (const k of [
-				'enabled', 'interval_hours', 'model', 'max_attempts', 'max_budget_usd',
-				'timeout_min', 'auto_deploy', 'auto_rollback', 'min_free_mb',
-				'notify_inapp', 'notify_email'
+				'enabled', 'interval_hours', 'model', 'max_attempts', 'max_chain_runs',
+				'max_budget_usd', 'timeout_min', 'auto_deploy', 'auto_rollback',
+				'min_free_mb', 'notify_inapp', 'notify_email'
 			]) {
 				if (configForm[k] !== undefined && configForm[k] !== config[k]) {
 					payload[k] = configForm[k];
@@ -867,6 +867,23 @@
 						bind:value={configForm.max_attempts}
 						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
 					/>
+				</div>
+				<div>
+					<label for="cf-chain" class="block text-xs font-medium text-gray-500 mb-1">
+						Ardışık koşu (tetikleme başına)
+					</label>
+					<input
+						id="cf-chain"
+						type="number"
+						min="1"
+						max="10"
+						bind:value={configForm.max_chain_runs}
+						class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+					/>
+					<p class="text-[11px] text-gray-500 mt-1">
+						Bir koşu bitince kuyrukta madde varsa hemen sıradakine geçer.
+						1 = zincirleme kapalı (bir sonraki zamanlayıcı tikini bekler).
+					</p>
 				</div>
 				<div>
 					<label for="cf-timeout" class="block text-xs font-medium text-gray-500 mb-1">
