@@ -24,6 +24,9 @@ from app.models.sedna_recon import SednaBankRecon, SednaReconRun
 from app.models.bank_transaction import BankTransaction
 from app.models.budget import Budget, BudgetCategory
 from app.models.cash_flow import CashFlow
+from app.models.check import Check, CheckUpload
+from app.models.ai_conversation import AiConversation, AiMessage
+from app.models.ai_usage import AiUsage
 from app.models.conversation import Conversation, ConversationMember
 from app.models.credit_card_statement import CreditCardStatement, CreditCardTransaction
 from app.models.credit_product import CreditPayment, CreditProduct
@@ -77,6 +80,8 @@ __all__ = [
     "Notification",
     "CreditProduct", "CreditPayment",
     "CreditCardStatement", "CreditCardTransaction",
+    "Check", "CheckUpload",
+    "AiConversation", "AiMessage", "AiUsage",
     "Advance",
     "FinanceEvent",
     "CashFlowHold",

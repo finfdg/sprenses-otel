@@ -190,6 +190,11 @@ def update_amount_try_for_date(db, target_date):
             db.query(ExchangeRate.forex_selling)
             .filter(ExchangeRate.currency_code == "EUR", ExchangeRate.date <= target_date)
             .order_by(ExchangeRate.date.desc())
+            # limit(1) ŞART: filtre `date <= target_date` olduğundan sorgu geçmişteki TÜM
+            # EUR satırlarını döner (canlıda 1301). `.scalar()` en fazla bir satır kabul
+            # eder → "Multiple rows were found when exactly one was required" fırlatır ve
+            # fonksiyon amount_try'ı HİÇ güncellemeden except'e düşerdi (2026-07 denetimi).
+            .limit(1)
             .scalar()
         )
         if eur_rate:
