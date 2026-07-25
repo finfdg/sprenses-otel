@@ -1,0 +1,232 @@
+[
+ {
+  "no": 1,
+  "name": "Mimari & Modülerlik",
+  "score_v3": 7,
+  "score_v4": 6.5,
+  "score_current": 6.5,
+  "score_target": 8,
+  "reason": "Katmanlama olgunlaştı (router→router kapandı) ama ortak-uygulayıcı kuralı para yolunda delik (ARCH-001)",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 2,
+  "name": "Kod Kalitesi",
+  "score_v3": 7,
+  "score_v4": 6.5,
+  "score_current": 6.5,
+  "score_target": 7.5,
+  "reason": "Lint/tip hiçbir kapıda yok; FIFO mantığı üç kopya",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 3,
+  "name": "Güvenlik (OWASP)",
+  "score_v3": 7.5,
+  "score_v4": 5.5,
+  "score_current": 5.5,
+  "score_target": 8,
+  "reason": "Depo PUBLIC (yeni tespit) + IDOR devam + CVE taraması yok",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 4,
+  "name": "Performans",
+  "score_v3": 7,
+  "score_v4": 6.5,
+  "score_current": 6.5,
+  "score_target": 7.5,
+  "reason": "Temel sağlam; ölçüm/görünürlük sıfır",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 5,
+  "name": "Stabilite",
+  "score_v3": 7,
+  "score_v4": 6,
+  "score_current": 6,
+  "score_target": 7.5,
+  "reason": "Optimistik kilit yok; senkron kilidi yok; event-loop blokajı",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 6,
+  "name": "Veritabanı",
+  "score_v3": 7,
+  "score_v4": 5.5,
+  "score_current": 6,
+  "score_target": 7.5,
+  "reason": "5 tablo alembic metadata dışında (DROP riski) + 23 indeks sürüklenmesi",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 7,
+  "name": "API",
+  "score_v3": 6,
+  "score_v4": 5.5,
+  "score_current": 5.5,
+  "score_target": 7,
+  "reason": "443 uçtan 401'i tipsiz; onay 202'si frontend'de işlenmiyor",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 8,
+  "name": "Frontend & Mobil",
+  "score_v3": 7,
+  "score_v4": 6.5,
+  "score_current": 6.5,
+  "score_target": 7.5,
+  "reason": "UI sapmalarının çoğu kapandı; rota testi hâlâ sıfır",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 9,
+  "name": "Test Kapsamı",
+  "score_v3": 7,
+  "score_v4": 6.5,
+  "score_current": 6.5,
+  "score_target": 8,
+  "reason": "Kapsam ölçümü geldi (%77) ama para yollarında %14-20 delik",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 10,
+  "name": "Test Süreçleri",
+  "score_v3": 7,
+  "score_v4": 5.5,
+  "score_current": 5.5,
+  "score_target": 7.5,
+  "reason": "CI hiç koşmadı; suite zamana bağlı, gece kırmızı",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 11,
+  "name": "CI/CD",
+  "score_v3": 4,
+  "score_v4": 3,
+  "score_current": 3,
+  "score_target": 7,
+  "reason": "Actions repo düzeyinde KAPALI — v3'ün varsaydığı gate hiç var olmamış",
+  "layer": "operasyon"
+ },
+ {
+  "no": 12,
+  "name": "Loglama",
+  "score_v3": 5,
+  "score_v4": 5.5,
+  "score_current": 5.5,
+  "score_target": 7,
+  "reason": "Audit geniş; error_logs'a hiçbir logger.error düşmüyor",
+  "layer": "operasyon"
+ },
+ {
+  "no": 13,
+  "name": "Dokümantasyon",
+  "score_v3": 7,
+  "score_v4": 6,
+  "score_current": 6,
+  "score_target": 7.5,
+  "reason": "İçerik zengin ama drift ölçülmüyor + PUBLIC ifşa kanalı",
+  "layer": "operasyon"
+ },
+ {
+  "no": 14,
+  "name": "Ölçeklenebilirlik",
+  "score_v3": 5,
+  "score_v4": 4.5,
+  "score_current": 4.5,
+  "score_target": 6,
+  "reason": "15 kalemlik süreç-içi durum → çok-worker yapısal olarak imkânsız",
+  "layer": "operasyon"
+ },
+ {
+  "no": 15,
+  "name": "Teknik Borç / Bus factor",
+  "score_v3": 5,
+  "score_v4": 4.5,
+  "score_current": 4.5,
+  "score_target": 6.5,
+  "reason": "Bus factor hâlâ 1; runbook yok; 1.493 satır ölü entegrasyon",
+  "layer": "operasyon"
+ },
+ {
+  "no": 16,
+  "name": "Yedekleme & DR",
+  "score_v3": 5,
+  "score_v4": 4.5,
+  "score_current": 4.5,
+  "score_target": 8,
+  "reason": "DB yedeği sağlam; uploads + off-site + konfig hâlâ yok, hacim 3× arttı",
+  "layer": "operasyon"
+ },
+ {
+  "no": 17,
+  "name": "Gözlemlenebilirlik",
+  "score_v3": 3.5,
+  "score_v4": 4,
+  "score_current": 4,
+  "score_target": 7,
+  "reason": "health ucu sahte; alarm kanalı yok; ama ai-digest bir kanal örneği kurdu",
+  "layer": "operasyon"
+ },
+ {
+  "no": 18,
+  "name": "KVKK / Gizlilik",
+  "score_v3": 3.5,
+  "score_v4": 4,
+  "score_current": 4,
+  "score_target": 6,
+  "reason": "Envanter bu raporla çıkarıldı; retention/rıza/yurt-dışı dayanağı hâlâ yok",
+  "layer": "operasyon"
+ },
+ {
+  "no": 19,
+  "name": "3rd-Party Dayanıklılık",
+  "score_v3": 4,
+  "score_v4": 5.5,
+  "score_current": 5.5,
+  "score_target": 7,
+  "reason": "Sedna arka plana alındı + dedup/idempotency olgun; retry/CB hâlâ yok",
+  "layer": "operasyon"
+ },
+ {
+  "no": 20,
+  "name": "Finansal Doğruluk",
+  "score_v3": 7,
+  "score_v4": 6,
+  "score_current": 6.5,
+  "score_target": 8.5,
+  "reason": "Çekirdek sağlam ama canlıda ₺696K hayalet + dönem kilidi bloklamıyor",
+  "layer": "cekirdek"
+ },
+ {
+  "no": 21,
+  "name": "Arka Plan İşleri",
+  "score_v3": 6,
+  "score_v4": 5.5,
+  "score_current": 6,
+  "score_target": 7.5,
+  "reason": "Envanter/Persistent iyi; döviz cron'u 2 aydır sessizce yarım",
+  "layer": "operasyon"
+ },
+ {
+  "no": 22,
+  "name": "Sunucu & Ortam",
+  "score_v3": 6,
+  "score_v4": 6.5,
+  "score_current": 6.5,
+  "score_target": 8,
+  "reason": "TLS ✔, swap/earlyoom ✔, TZ drop-in ✔; alarm ve IaC yok",
+  "layer": "operasyon"
+ },
+ {
+  "no": 23,
+  "name": "Zaman & Türkçe",
+  "score_v3": 5,
+  "score_v4": 7,
+  "score_current": 7,
+  "score_target": 8,
+  "reason": "TZ drop-in kuruldu, en büyük sınıf kapandı; collation ve 3 unit açık",
+  "layer": "operasyon"
+ }
+]

@@ -155,6 +155,7 @@ export const NAV_GROUPS: NavGroup[] = [
 			{ code: 'system.roles', label: 'Roller', href: '/dashboard/sistem/roller', icon: [I.check] },
 			{ code: 'system.modules', label: 'Modüller', href: '/dashboard/sistem/moduller', icon: [I.cube] },
 			{ code: 'system.audit_logs', label: 'Audit Logları', href: '/dashboard/sistem/audit-loglar', icon: [I.clipboard] },
+			{ code: 'system.denetim', label: 'Denetim Takip', href: '/dashboard/sistem/denetim', icon: [I.docCheck] },
 			{ code: 'system.error_logs', label: 'Hata Logları', href: '/dashboard/sistem/hata-loglar', icon: [I.warning] },
 			{ code: 'system.approval', label: 'Onay Akışı', href: '/dashboard/sistem/onay-akisi', icon: [I.badgeCheck] },
 			{ code: 'system.server', label: 'Sunucu', href: '/dashboard/sistem/sunucu', icon: [I.server] },

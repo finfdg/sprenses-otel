@@ -1,0 +1,17 @@
+[Unit]
+Description=Sprenses Denetim Otomasyonu (açık bir denetim bulgusunu Claude Code ile düzeltir)
+After=network.target postgresql.service sprenses-api.service
+# Başarısızlıkta alarm (DR-003 deseni)
+OnFailure=sprenses-alert@%n.service
+
+[Service]
+Type=oneshot
+User=ec2-user
+Environment=TZ=Europe/Istanbul
+Environment=HOME=/home/ec2-user
+WorkingDirectory=/home/ec2-user/otel/backend
+ExecStart=/home/ec2-user/otel/backend/venv/bin/python cron_denetim_auto.py
+# Bir koşu: claude (en çok timeout_min) + test takımı (~14 dk) + deploy
+TimeoutStartSec=5400
+StandardOutput=journal
+StandardError=journal

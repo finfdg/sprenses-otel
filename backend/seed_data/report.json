@@ -1,0 +1,11 @@
+{
+  "key": "2026-07-25-v4",
+  "title": "Sprenses ERP — v4 Kurumsal Kod Denetimi",
+  "report_date": "2026-07-25",
+  "doc_path": "docs/denetim/2026-07-25-v4-kurumsal-denetim.md",
+  "baseline_score": 55.0,
+  "target_score": 72.0,
+  "notes": "23 boyut · 86 ajan · 204 bulgu üretildi, 61'i çekişmeli 2. gözle düşürüldü. R1-R5 revizyonlarında FIN-001, DB-001, ARCH-001, DR-003 ve döviz cron'u kapatıldı.",
+  "dimensions_file": "v4_dimensions.json",
+  "findings_file": "v4_findings.json"
+}
