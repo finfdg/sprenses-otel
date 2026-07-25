@@ -563,9 +563,9 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 | İş | Ne yapar | Zamanlama (Istanbul) | Process TZ | Son başarılı | Overlap | Persistent | Alarm |
 |---|---|---|:--:|---|:--:|:--:|:--:|
 | `sprenses-db-backup` | pg_dump -Fc + bütünlük + 30 rotasyon | Günlük 03:00 | ⚠ UTC | 24 Tem ✔ | yok (risk düşük) | ✔ | ❌ |
-| `sprenses-sedna-sync` | 6 adım: cari/IBAN/çek/düzenli/maaş/banka mutabakat | 09-21 arası 2 saatte bir :15 | ✔ Istanbul | 24 Tem 21:15, 6/6 ✔ | ❌ (UI `sync-all` ile çakışır) | ✔ | ❌ + **hata olsa da exit 0** |
-| `sprenses-sales-sync` | Satış faturası + tahsilat + avans + acente köprüsü | 08-22 arası 2 saatte bir :15 | ⚠ UTC | 24 Tem 22:15 ✔ | ❌ | ✔ | ❌ + exit 0 |
-| `sprenses-exchange-rates` | TCMB günlük+saatlik kur → `exchange_rates` → `amount_try` | Hafta içi 10:00-16:15, 28 koşu/gün | ⚠ UTC | ~~`amount_try` adımı 2 aydır HER koşuda çöküyor~~ → ✔ **R1'de düzeltildi** | yok | ✔ | ❌ (WARNING'e düşürülmüş, exit 0) |
+| `sprenses-sedna-sync` | 6 adım: cari/IBAN/çek/düzenli/maaş/banka mutabakat | 09-21 arası 2 saatte bir :15 | ✔ Istanbul | 24 Tem 21:15, 6/6 ✔ | ❌ (UI `sync-all` ile çakışır) | ✔ | ✔ **JOBS-002: adım hatası→exit 2→OnFailure** |
+| `sprenses-sales-sync` | Satış faturası + tahsilat + avans + acente köprüsü | 08-22 arası 2 saatte bir :15 | ⚠ UTC | 24 Tem 22:15 ✔ | ❌ | ✔ | ✔ **JOBS-002: 503 dışı hata→exit 2→OnFailure** |
+| `sprenses-exchange-rates` | TCMB günlük+saatlik kur → `exchange_rates` → `amount_try` | Hafta içi 10:00-16:15, 28 koşu/gün | ⚠ UTC | ~~`amount_try` adımı 2 aydır HER koşuda çöküyor~~ → ✔ **R1'de düzeltildi** | yok | ✔ | ✔ **JOBS-002: çekim/amount_try hatası→exit 2→OnFailure** |
 | `sprenses-ai-digest` | 7 günlük yaklaşan ödeme özeti (in-app + push) | Günlük 08:00 | ✔ Istanbul | 24 Tem, 8 kullanıcı ✔ | gerekmiyor | ✔ | ❌ (dolaylı) |
 | `ssh-key-audit` (.timer+.path) | Tünel anahtarlarını `command=`+`permitopen=` ile sertleştirir | Günlük + dosya değişiminde | — | 24 Tem ✔ | idempotent | ✔ | ❌ |
 | `cron_weekly_push.py` | Haftalık push bildirimi | **ZAMANLANMAMIŞ** — unit yok, cron paketi kurulu değil | — | Hiç | — | — | ❌ + doküman çalıştığını iddia ediyor |
@@ -578,6 +578,16 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 > eklendi, uyarı bitti. **Ama alarm boşluğu KAPANMADI:** iş hâlâ hata durumunda `exit 0`
 > dönüyor ve `OnFailure=` yok — yani bir sonraki sessiz çökme yine aylarca fark edilmez.
 > Bu satırın "Alarm ❌" sütunu bilerek kırmızı bırakıldı (DR-003 / JOBS-002 açık).
+>
+> **JOBS-002 KAPATILDI (2026-07-25):** Üç cron'un çıkış-kodu sözleşmesi düzeltildi
+> (`backend/cron_exit_codes.py`: EXIT_OK=0 / EXIT_FATAL=1 / EXIT_PARTIAL=2). Artık bir adım
+> GERÇEKTEN hata verirse (tünel-kapalı HTTP 503 hariç) `main()` **exit 2** döner → systemd
+> birimi `failed` → DR-003 drop-in'indeki `OnFailure=sprenses-alert@` tetiklenir
+> (error_logs CRITICAL + izinli kullanıcılara e-posta). Bilerek bozulmuş adımla uçtan uca
+> ölçüldü: çıkış kodu **2**, alarm alıcısı dry-run'da sedna birimini çözdü. Regresyon:
+> `backend/tests/test_cron_exit_codes.py` (16 test); düzeltme geri alınınca broken-step
+> testleri kırmızıya döner. **Not:** exit 2, `sales-sync`'in eskiden 503 DIŞI tüm HTTP
+> hatalarında da `exit 0` döndüğü ikinci bir sessizliği de kapatır.
 
 ---
 

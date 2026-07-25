@@ -128,6 +128,12 @@ python cron_fetch_exchange_rates.py --bulk
 python cron_fetch_exchange_rates.py
 ```
 
+**Çıkış-kodu sözleşmesi (denetim JOBS-002):** cron `main()` artık `cron_exit_codes.py`
+sözleşmesini kullanır — TCMB çekimi veya `amount_try`/bildirim adımı çökerse **exit 2**
+döner (eskiden `sys.exit(1)`; else-bloğundaki `amount_try` hatası ise sessiz kalabiliyordu).
+systemd birimi `failed` olur → `OnFailure=sprenses-alert@` alarmı (error_logs CRITICAL +
+e-posta). Aynı sözleşme `sprenses-sedna-sync` ve `sprenses-sales-sync` için de geçerlidir.
+
 ## Geliştirme Kuralları
 
 1. Kullanıcı tarafından veri girişi **yoktur** — tüm veri TCMB'den çekilir

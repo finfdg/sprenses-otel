@@ -7,7 +7,9 @@ kullanıcısıyla çağrılır — fatura/tahsilat upsert + 340 avans tazeleme +
 PMS acente→120 köprüsü. Systemd timer: sprenses-sales-sync.timer
 (hafta içi/sonu 08:00-22:00 arası 2 saatte bir, Europe/Istanbul).
 
-Tünel/Sedna kapalıysa uyarı loglar ve 0 ile çıkar (timer'ı düşürmez).
+Tünel/Sedna kapalıysa (HTTP 503) uyarı loglar ve 0 ile çıkar (timer'ı düşürmez).
+Gerçek bir hata (diğer HTTP / beklenmeyen) olursa çıkış kodu 2 → birim 'failed' →
+OnFailure alarmı (denetim JOBS-002). Çıkış-kodu sözleşmesi: cron_exit_codes.py.
 """
 import logging
 import os
@@ -26,26 +28,33 @@ def main() -> int:
     from app.models.user import User
     from app.routers.finance.sales_invoices import run_sales_invoice_import
 
+    from cron_exit_codes import EXIT_OK, EXIT_PARTIAL, exit_code_for_steps
+
     db = SessionLocal()
     try:
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
             logger.error("admin kullanıcısı bulunamadı — senkron atlandı.")
-            return 1
+            return exit_code_for_steps(started=False, failed_steps=0)
         result = run_sales_invoice_import(db, admin, ip="cron")
         logger.info(
             "Satış senkronu tamam: %s yeni fatura, %s yeni tahsilat, %s avans hesabı",
             result.get("invoices_new"), result.get("collections_new"),
             result.get("advance_accounts"),
         )
-        return 0
+        return EXIT_OK
     except HTTPException as e:
-        # 503 = tünel kapalı / Sedna erişilemez — beklenen durum, timer'ı düşürme
-        logger.warning("Satış senkronu yapılamadı (HTTP %s): %s", e.status_code, e.detail)
-        return 0
+        db.rollback()
+        if e.status_code == 503:
+            # 503 = tünel kapalı / Sedna erişilemez — beklenen durum, timer'ı düşürme
+            logger.warning("Satış senkronu atlandı (tünel kapalı): %s", e.detail)
+            return EXIT_OK
+        # Diğer HTTP hataları GERÇEK başarısızlık — birim 'failed' → alarm (JOBS-002)
+        logger.error("Satış senkronu başarısız (HTTP %s): %s", e.status_code, e.detail)
+        return EXIT_PARTIAL
     except Exception:
         logger.exception("Satış senkronu beklenmeyen hata")
-        return 1
+        return EXIT_PARTIAL
     finally:
         db.close()
 

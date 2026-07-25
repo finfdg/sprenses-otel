@@ -231,7 +231,9 @@ def notify_finance_update():
         logger.warning("[broadcast] Bildirim hatası (devam ediliyor): %s", e)
 
 
-def main():
+def main() -> int:
+    from cron_exit_codes import EXIT_OK, EXIT_PARTIAL
+
     parser = argparse.ArgumentParser(description="TCMB döviz kurlarını çek")
     parser.add_argument("--bulk", action="store_true", help="2023-01-01'den bugüne toplu çekme")
     args = parser.parse_args()
@@ -316,17 +318,25 @@ def main():
                             logger.info("[%s] %d kur taşındı (%s'den)", today, carried, prev[0])
 
     except Exception as e:
+        # Kur çekme/işleme adımı GERÇEKTEN çöktü — birim 'failed' → OnFailure alarmı (JOBS-002)
         logger.error("HATA: %s", e, exc_info=True)
         db.rollback()
-        sys.exit(1)
+        return EXIT_PARTIAL
     else:
-        # Başarıyla tamamlandı — amount_try güncelle + online kullanıcıları bildir
+        # Başarıyla tamamlandı — amount_try güncelle + online kullanıcıları bildir.
+        # Bu adımlar da SESSIZCE çökmesin: hata olursa non-zero dön (JOBS-002).
         from datetime import date as _date
-        update_amount_try_for_date(db, _date.today())
-        notify_finance_update()
+        try:
+            update_amount_try_for_date(db, _date.today())
+            notify_finance_update()
+        except Exception as e:  # noqa: BLE001
+            logger.error("amount_try/bildirim adımı başarısız: %s", e, exc_info=True)
+            db.rollback()
+            return EXIT_PARTIAL
+        return EXIT_OK
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
