@@ -52,9 +52,10 @@ değildi.
   önceki snapshot'a link'lenemez → dedup çöker, 30 snapshot yeniden 7,5 GB olur). Ayrıcalıksız
   süreç `0700` dizinden içeri giremediği için koruma seviyesi dump'larla aynıdır.
 
-> **DR-001 durumu:** yerel günlük yedek + restore tatbikatı ✔ · off-site **kod tarafı hazır ve
-> testli**, AWS provizyonu bekliyor (aşağıdaki DR-002 bölümü). Off-site kurulduğu anda uploads
-> da otomatik aynalanır — `db-backup.sh` aynı koşumda `aws s3 sync` ile gönderir.
+> **DR-001 durumu: ✔ KAPANDI (2026-07-25).** Yerel günlük yedek + restore tatbikatı ✔ ve
+> off-site de **canlı**: 2060 belge `s3://sprenses-dr-2026/sprenses/uploads/` altına aynalandı,
+> tatbikatta 5 belge S3'ten indirilip kaynakla checksum-özdeş çıktı. Tek disk kaybında artık
+> hem DB hem belgeler farklı bölgeden geri getirilebilir.
 
 ## Zamanlanmış İş Başarısızlık Alarmı — 2026-07-25 (denetim DR-003 / JOBS-002)
 
@@ -105,10 +106,16 @@ silmektense migration'ın patlaması doğrudur.
 
 ## Off-site (S3) — 2026-07-25 (denetim DR-002)
 
-> **DURUM: kurulum bekliyor.** Kod yolu tamamen hazır, otomatik ve **testlidir**; eksik olan
-> tek şey AWS'de bir kerelik provizyon — bunun için AWS hesabı kimliği gerekir ve sunucuda
-> yoktur (`aws sts get-caller-identity` → *Unable to locate credentials*, IAM role yok).
-> Aşağıdaki **iki komut** çalıştırıldığı an bulgu kapanır.
+> **DURUM: CANLI (2026-07-25).** Off-site yedek kuruldu ve çalışıyor:
+> `s3://sprenses-dr-2026/sprenses` — bucket **eu-west-1**, sunucu **eu-north-1** (farklı bölge ✔).
+> Günlük DB dump'ı + 2060 belge otomatik gidiyor; S3'ten uçtan uca restore tatbikatı **gerçek
+> üretim verisiyle geçti**. EC2 artık `SprensesBackupRole` IAM rolüyle çalışır — sunucuda
+> uzun ömürlü AWS anahtarı yoktur.
+>
+> **Açık tek kalem:** ilk provizyonun ürettiği IAM policy'sinde `s3:GetBucketLocation` yanlış
+> ifadedeydi (aşağıdaki "Canlı kurulumda yakalanan hata"). Kod düzeltildi; **canlı policy'nin
+> güncellenmesi için `provision-offsite-backup.sh` bir kez daha çalıştırılmalı.** O yapılana
+> kadar günlük yedek sorunsuz çalışır, yalnız `--offsite` tatbikatı (doğru şekilde) reddeder.
 
 ### Neden bu bulgu iki denetim boyunca (v3 → v4) açık kaldı
 
@@ -198,6 +205,24 @@ karşılaştırma**.
 
 **Son başarılı off-site zamanı koşumlar arası taşınır**: üst üste başarısız koşumlarda bile
 "en son ne zaman gerçekten off-site'a çıktık" bilgisi kaybolmaz — DR'da sorulacak ilk soru odur.
+
+### Canlı kurulumda yakalanan hata — `s3:GetBucketLocation` (2026-07-25)
+
+İlk gerçek provizyondan sonra farklı-bölge bekçisi `bucket=us-east-1` dedi; oysa bucket
+`eu-west-1`'de oluşturulmuştu. İki ayrı kusur üst üste binmişti:
+
+1. **IAM policy:** `s3:GetBucketLocation`, `s3:ListBucket` ile aynı **`s3:prefix` koşullu**
+   ifadeye konmuştu. Bu eylem `s3:prefix` bağlam anahtarını **desteklemez** → koşul asla
+   sağlanmaz → `AccessDenied`. Düzeltme: ayrı, koşulsuz bir ifadeye taşındı.
+2. **Sessiz geri düşüş:** `offsite_bucket_region` komut hatasını yutup "us-east-1"
+   varsayıyordu. Yani bekçi, bucket **eu-north-1'de olsa bile** "farklı bölge ✔" derdi —
+   kural fiilen ölüydü ve kapanış kriteri yanlış yere sağlanmış görünüyordu.
+   Düzeltme: okuma başarısızsa fonksiyon **1 döner**, bekçi **reddeder** ve eksik izni
+   adıyla söyler.
+
+Ders: bir bekçinin "geçti" demesi, bekçinin çalıştığı anlamına gelmez. Doğrulayamadığı
+durumu **geçirmek yerine reddetmelidir** — aksi hâlde hiç yazılmamış olmasıyla aynıdır.
+Regresyon: `test_unreadable_bucket_region_is_rejected_not_assumed`.
 
 ### Testler
 

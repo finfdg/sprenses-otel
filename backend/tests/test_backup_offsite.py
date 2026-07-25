@@ -270,6 +270,27 @@ class TestCrossRegionGuard:
         assert r.returncode == 0, r.stderr
         assert "farklı-bölge OK" in r.stdout
 
+    def test_unreadable_bucket_region_is_rejected_not_assumed(self, backup_env):
+        """REGRESYON: bucket bölgesi OKUNAMIYORSA bekçi reddeder — varsayım yapmaz.
+
+        2026-07-25 canlı kurulumda yaşandı: IAM policy'si s3:GetBucketLocation'ı
+        `s3:prefix` koşullu ifadenin içine koyduğu için (bu eylem o bağlam anahtarını
+        DESTEKLEMEZ) çağrı AccessDenied aldı. Eski kod hatayı yutup "us-east-1"
+        varsayıyordu → eu-west-1'deki bucket için "farklı bölge ✔" dedi. Bucket
+        eu-north-1'de olsaydı da AYNI ŞEYİ diyecekti: bekçi fiilen ölüydü ve
+        kapanış kriteri yanlış yere "sağlandı" görünüyordu.
+        """
+        e = dict(backup_env)
+        e["FAKE_S3_LOCATION_DENIED"] = "1"
+        e["SPRENSES_INSTANCE_REGION"] = "eu-north-1"
+        r = subprocess.run(
+            ["bash", "-c",
+             '. "%s/_offsite-lib.sh"; offsite_assert_cross_region s3://kova/sprenses' % SCRIPTS],
+            env=e, capture_output=True, text=True)
+        assert r.returncode != 0, "bölge okunamıyorsa sessizce GEÇİRME:\n" + r.stdout
+        assert "DOĞRULANAMADI" in r.stderr
+        assert "GetBucketLocation" in r.stderr, "mesaj eksik izni adıyla söylemeli"
+
     def test_same_region_allowed_with_explicit_override(self, backup_env):
         """Bilinçli kabul mümkün ama SESSİZ değil — uyarı basılır."""
         e = dict(backup_env)

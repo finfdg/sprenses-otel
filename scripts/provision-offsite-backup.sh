@@ -158,6 +158,11 @@ EOF
 # MİNİMAL yetki: yalnız bu bucket'ın bu prefix'i. Get+List RESTORE için ŞART —
 # yalnız Put verilirse yükleme her gün yeşil görünür ama felaket anında geri
 # dönülemez (db-restore.sh --offsite bunu tatbikatla yakalar).
+#
+# s3:GetBucketLocation NEDEN AYRI İFADEDE (2026-07-25 canlıda yakalandı): bu eylem
+# `s3:prefix` bağlam anahtarını DESTEKLEMEZ. ListBucket ile aynı koşullu ifadeye
+# konursa koşul asla sağlanmaz → AccessDenied → farklı-bölge bekçisi bucket bölgesini
+# okuyamaz. İlk kurulumda tam bu oldu ve bekçi sessizce "us-east-1" varsayıp geçirdi.
 echo "7) IAM policy + role..."
 POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/${POLICY_NAME}"
 POLICY_DOC="$(cat <<EOF
@@ -168,9 +173,11 @@ POLICY_DOC="$(cat <<EOF
      "Resource": "arn:aws:s3:::$BUCKET/$PREFIX/*"},
     {"Sid": "OkuGeriYukle", "Effect": "Allow", "Action": ["s3:GetObject"],
      "Resource": "arn:aws:s3:::$BUCKET/$PREFIX/*"},
-    {"Sid": "Listele", "Effect": "Allow", "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+    {"Sid": "Listele", "Effect": "Allow", "Action": ["s3:ListBucket"],
      "Resource": "arn:aws:s3:::$BUCKET",
-     "Condition": {"StringLike": {"s3:prefix": ["$PREFIX/*", "$PREFIX"]}}}
+     "Condition": {"StringLike": {"s3:prefix": ["$PREFIX/*", "$PREFIX"]}}},
+    {"Sid": "BolgeOku", "Effect": "Allow", "Action": ["s3:GetBucketLocation"],
+     "Resource": "arn:aws:s3:::$BUCKET"}
   ]
 }
 EOF

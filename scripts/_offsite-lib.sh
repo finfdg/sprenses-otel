@@ -49,9 +49,18 @@ offsite_instance_region() {
 }
 
 # Bucket'ın bölgesi. us-east-1 tarihsel olarak "None"/boş döner → normalize edilir.
+#
+# BAŞARISIZLIK ≠ us-east-1 (2026-07-25 canlıda yakalandı): ilk sürüm komut hata verse de
+# çıktıyı boş kabul edip "us-east-1" diyordu. Canlı kurulumda IAM policy'si
+# s3:GetBucketLocation'ı reddediyordu (aşağıya bkz) → bekçi, eu-west-1'deki bucket'ı
+# "us-east-1" sanıp "farklı bölge ✔" dedi. Bucket gerçekten eu-north-1'de olsaydı da
+# AYNI ŞEYİ derdi; yani kural fiilen ölüydü ve bunu kimse fark etmezdi.
+# Artık: komut başarısızsa **1 döner** (BİLİNMİYOR) ve çağıran bunu ayırt etmek zorundadır.
 offsite_bucket_region() {
     local bucket="${1:?bucket gerekli}" loc
-    loc="$(aws s3api get-bucket-location --bucket "$bucket" --output text 2>/dev/null || true)"
+    if ! loc="$(aws s3api get-bucket-location --bucket "$bucket" --output text 2>/dev/null)"; then
+        return 1
+    fi
     case "$loc" in None|null|"") loc="us-east-1" ;; esac
     printf '%s' "$loc"
 }
@@ -66,7 +75,16 @@ offsite_assert_cross_region() {
     local uri="${1:?s3 uri gerekli}" bucket inst buck
     bucket="$(offsite_bucket_of "$uri")"
     inst="$(offsite_instance_region)"
-    buck="$(offsite_bucket_region "$bucket")"
+
+    # Bölge OKUNAMIYORSA kural doğrulanamaz → sessizce geçirme, REDDET.
+    # (Geçirmek, bekçiyi hiç yazmamakla aynı şeydir — canlıda tam bunu yaşadık.)
+    if ! buck="$(offsite_bucket_region "$bucket")"; then
+        echo "HATA: '$bucket' bucket'ının bölgesi okunamadı → farklı-bölge kuralı DOĞRULANAMADI." >&2
+        echo "      En olası sebep: IAM policy'sinde s3:GetBucketLocation izni yok (veya" >&2
+        echo "      s3:prefix koşulunun içine konmuş — bu eylem o bağlam anahtarını desteklemez)." >&2
+        echo "      Düzeltme: scripts/provision-offsite-backup.sh'ı tekrar çalıştırın (idempotent)." >&2
+        return 1
+    fi
 
     if [ -z "$inst" ]; then
         echo "UYARI: bu makinenin bölgesi tespit edilemedi — farklı-bölge kuralı doğrulanamadı (bucket: $buck)" >&2

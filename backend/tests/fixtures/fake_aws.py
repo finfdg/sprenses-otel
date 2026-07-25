@@ -21,6 +21,9 @@ Ortam:
     FAKE_S3_REGION    — get-bucket-location yanıtı (varsayılan eu-west-1)
     FAKE_S3_FAIL      — bu alt dize hedef URI'de geçerse komut BAŞARISIZ olur
                         (sessiz-hata regresyonu için: yükleme çökünce iş de çökmeli)
+    FAKE_S3_LOCATION_DENIED=1 — get-bucket-location AccessDenied verir. Canlıda
+                        yaşanan IAM hatasını taklit eder: bölge okunamayınca
+                        farklı-bölge bekçisi SESSİZCE geçmemeli, REDDETMELİ.
 """
 
 import os
@@ -136,6 +139,11 @@ def main():
         return 0
     if argv[0] == "s3api":
         if "get-bucket-location" in argv:
+            if os.environ.get("FAKE_S3_LOCATION_DENIED") == "1":
+                sys.stderr.write(
+                    "An error occurred (AccessDenied) when calling the "
+                    "GetBucketLocation operation\n")
+                return 254
             print(REGION)
             return 0
         return 0
