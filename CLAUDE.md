@@ -380,7 +380,7 @@ TEMPLATE:
 ### Sürüm Kontrolü ve CI
 
 - **Git:** Proje `master` branch'inde versiyon kontrolü altındadır. `.gitignore` hassas/üretilen her şeyi hariç tutar (`.env`, `venv`, `node_modules`, `build`, `.svelte-kit`, loglar, `uploads/`, `.claude/settings.local.json`). `.env` **asla** commit edilmez — şablon: `backend/.env.example`.
-- **CI:** `.github/workflows/ci.yml` her push/PR'da backend (pytest) + frontend (vitest) çalıştırır. Postgres service container + `tests/ci/` bootstrap ile sıfırdan test DB kurulur.
+- **CI (yapılandırıldı, HENÜZ ETKİN DEĞİL — 2026-07-25):** `.github/workflows/ci.yml`, push/PR'da backend (pytest) + frontend (vitest) çalıştıracak şekilde **yapılandırılmıştır** (Postgres service container + `tests/ci/` bootstrap ile sıfırdan test DB). **ANCAK deponun GitHub Actions'ı şu an KAPALI** (repo ayarı `actions/permissions → enabled:false` → bugüne dek **0 koşu**); bu yüzden CI **fiilen çalışmıyor**. Actions açıldığında bu ifade "her push/PR'da çalışır" olarak güncellenmeli. (Depo public → private yapılıp Actions'ın açılması bekleniyor — bkz. `docs/denetim/2026-07-25-v4-kurumsal-denetim.md`.)
 - **Test DB bootstrap (`backend/tests/ci/`):** Şema doğrudan migration zincirinden kurulur — `alembic upgrade head` (zincir prod ile birebir) → `reset_data.sql` (migration'ın eklediği veriyi temizle) → `02_seed.sql` (RBAC referans verisi) → `seed_admin.py` (admin kullanıcısı). Ayrı şema dump'ı (`01_schema.sql`) artık yok. Yerelde: `scripts/setup-test-db.sh`. Detay ve migration-zinciri doğrulaması: `backend/tests/ci/README.md`.
 
 ### Claude Code Ajan Akışları (`.claude/`)
