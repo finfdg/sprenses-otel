@@ -36,6 +36,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -270,21 +271,49 @@ def _run_tests(worktree: str) -> dict:
     }
 
 
-def _health_ok() -> bool:
-    try:
-        res = subprocess.run(
-            ["curl", "-fsS", "-m", "10", "-o", "/dev/null", "-w", "%{http_code}", HEALTH_URL],
-            capture_output=True, text=True, timeout=20,
-        )
-        return res.stdout.strip() == "200"
-    except Exception:
-        return False
+def _health_ok(attempts: int = 20, delay_sec: int = 3) -> bool:
+    """`/api/health` 200 dönene kadar dene (açılış payı ile).
+
+    `systemctl restart` systemd birim başlatılınca döner ama uvicorn'un dinlemeye
+    başlaması birkaç saniye daha sürer. Tek seferlik kontrol bu boşlukta HER ZAMAN
+    başarısız olur ve sağlıklı bir deploy'u geri aldırır — 2026-07-25'te canlıda
+    yaşandı (DOC-D01 koşusu: 2007 test yeşil, deploy iyi, yine de geri alındı).
+    """
+    for i in range(attempts):
+        try:
+            res = subprocess.run(
+                ["curl", "-fsS", "-m", "5", "-o", "/dev/null", "-w", "%{http_code}",
+                 HEALTH_URL],
+                capture_output=True, text=True, timeout=10,
+            )
+            if res.stdout.strip() == "200":
+                if i:
+                    logger.info("Sağlık kontrolü %d. denemede geçti", i + 1)
+                return True
+        except Exception:
+            pass
+        if i < attempts - 1:
+            time.sleep(delay_sec)
+    logger.error("Sağlık kontrolü %d denemede 200 döndürmedi", attempts)
+    return False
+
+
+def _needs_api_restart(changed_files: list) -> bool:
+    """Yalnız çalışan uygulamayı etkileyen backend değişikliği restart gerektirir.
+
+    `backend/tests/` altındaki dosyalar üretim sürecine yüklenmez → gereksiz restart
+    (ve gereksiz kesinti riski) doğurmasın.
+    """
+    return any(
+        f.startswith("backend/") and not f.startswith("backend/tests/")
+        for f in changed_files
+    )
 
 
 def _deploy(changed_files: list) -> list:
     """Değişen dosyalara göre gereken deploy adımlarını koş; yapılanları döndür."""
     steps = []
-    if any(f.startswith("backend/") for f in changed_files):
+    if _needs_api_restart(changed_files):
         subprocess.run(
             ["sudo", "systemctl", "restart", "sprenses-api.service"],
             check=True, timeout=120,

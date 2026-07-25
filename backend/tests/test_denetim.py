@@ -512,20 +512,26 @@ class TestAutomationConfig:
 
 # ─── Otomasyon script'i — saf yardımcılar ────────────────────
 
+def _load_cron():
+    """`cron_denetim_auto.py`'yi modül olarak yükle (paket içinde değil)."""
+    import importlib.util
+    import os
+
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "cron_denetim_auto.py",
+    )
+    spec = importlib.util.spec_from_file_location("cron_denetim_auto_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 class TestCronHelpers:
     """Script'in sır-sızıntısı bekçisi: PreToolUse guard'ı devre dışıyken tek koruma."""
 
     def test_secret_paths_are_blocked(self):
-        import importlib.util
-        import os
-
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "cron_denetim_auto.py",
-        )
-        spec = importlib.util.spec_from_file_location("cron_denetim_auto", path)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _load_cron()
 
         for bad in ("backend/.env", ".env.production", "keys/server.pem",
                     "certs/tls.key", "app/aws_credentials.json"):
@@ -534,18 +540,53 @@ class TestCronHelpers:
                    "frontend/src/lib/api.ts"):
             assert not mod._looks_secret(ok), f"{ok} engellenmemeliydi"
 
-    def test_deploy_blockers_cover_migrations_and_self(self):
-        import importlib.util
-        import os
+    def test_health_check_retries_before_declaring_failure(self, monkeypatch):
+        """Sağlık kontrolü açılış payı tanımalı.
 
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "cron_denetim_auto.py",
+        `systemctl restart` birim başlayınca döner ama uvicorn birkaç saniye sonra
+        dinlemeye başlar. Tek seferlik kontrol sağlıklı bir deploy'u geri aldırır —
+        2026-07-25 canlı olayı (DOC-D01: 2007 test yeşil, deploy iyi, yine geri alındı).
+        """
+        import subprocess as sp
+
+        mod = _load_cron()
+        calls = {"n": 0}
+
+        def fake_run(cmd, **kw):
+            calls["n"] += 1
+            # İlk 3 deneme bağlantı reddi, 4.'sü 200
+            if calls["n"] < 4:
+                raise sp.SubprocessError("connection refused")
+            return sp.CompletedProcess(cmd, 0, stdout="200", stderr="")
+
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        monkeypatch.setattr(mod.time, "sleep", lambda s: None)
+
+        assert mod._health_ok() is True
+        assert calls["n"] == 4, "Yeniden denemeden vazgeçmemeli"
+
+    def test_health_check_eventually_gives_up(self, monkeypatch):
+        """Gerçekten bozuk bir deploy'da sonsuza dek beklemesin — geri alma çalışsın."""
+        import subprocess as sp
+
+        mod = _load_cron()
+        monkeypatch.setattr(
+            mod.subprocess, "run",
+            lambda cmd, **kw: sp.CompletedProcess(cmd, 0, stdout="502", stderr=""),
         )
-        spec = importlib.util.spec_from_file_location("cron_denetim_auto2", path)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        monkeypatch.setattr(mod.time, "sleep", lambda s: None)
+        assert mod._health_ok(attempts=3) is False
 
+    def test_test_only_change_does_not_restart_api(self):
+        """Yalnız test dosyası değiştiyse üretim süreci gereksiz yere yeniden başlatılmaz."""
+        mod = _load_cron()
+        assert mod._needs_api_restart(["backend/tests/test_x.py"]) is False
+        assert mod._needs_api_restart(["backend/tests/a.py", "docs/b.md"]) is False
+        assert mod._needs_api_restart(["backend/app/main.py"]) is True
+        assert mod._needs_api_restart(["backend/cron_x.py"]) is True
+
+    def test_deploy_blockers_cover_migrations_and_self(self):
+        mod = _load_cron()
         blockers = mod.DEPLOY_BLOCKERS
         assert any("alembic/versions" in b for b in blockers), \
             "Migration içeren değişiklik gözetimsiz deploy edilmemeli"
