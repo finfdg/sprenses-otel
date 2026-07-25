@@ -18,6 +18,67 @@ Otomatik günlük PostgreSQL yedeği. **Bu modülden (UI) bağımsız**, altyap�
   - `scripts/db-restore.sh <dump> sprenses` → **ÜRETİME** geri yükler (elle `EVET` onayı; `--clean --if-exists`, owner=sprenses md5 ile).
 - **Off-site (OPSİYONEL, henüz pasif):** `SPRENSES_BACKUP_S3=s3://bucket/prefix` set edilirse `aws s3 cp --sse AES256` ile yüklenir. **Şu an kapalı** — EC2'de IAM role / aws credential YOK. Tam felaket-kurtarma (instance/disk kaybı) için S3 bucket + IAM role kurulup bu değişken servise (`/etc/systemd/system/sprenses-db-backup.service` `Environment=`) eklenmeli. Yerel yedek; yanlış DROP/DELETE, app bug ve veri bozulmasına karşı korur ama tek-disk kaybına karşı KORUMAZ → off-site tamamlanmalı.
 - **Not:** `archive_mode=off` (PITR yok); küçük DB (~44 MB) için günlük tam-dump yeterli. PITR/RDS orta-vade.
+- **İzinler (2026-07-25, denetim DR-002):** script `umask 077` ile çalışır, dump'lar `0600`, dizin `0700`. Öncesinde `0644`/`0755` idi → tüm finans+KVKK verisi ayrıcalıksız her sürece okunabilirdi.
+
+## Yüklenen Dosya Yedeği (uploads/) — 2026-07-25 (denetim DR-001)
+
+DB geri yüklense bile bu dosyalar olmadan her `file_url` **dangling** kalır: banka ekstreleri,
+cari Excel'leri, çek/rezervasyon/kontrat PDF'leri = geri getirilemez mali belge. Denetim
+2026-07-05'te bunu Kritik işaretledi; hacim 91 MB → **285 MB**'a çıktı ve hâlâ hiçbir yedekte
+değildi.
+
+- **Kaynak:** `backend/uploads/` (285 MB · 1969 dosya) → **`/var/backups/sprenses-uploads/<ts>/`**
+- **Yöntem — hardlink snapshot** (`rsync -a --delete --link-dest=<önceki>`): değişmeyen dosya
+  ek yer kaplamaz. **Ölçüldü:** iki snapshot toplam **285 MB** (570 değil), örnek dosyada
+  `links=2`. 30 snapshot ≈ tek kopya + günlük değişimler.
+  - **Neden tar.gz DEĞİL:** içeriğin çoğu zaten sıkıştırılmış (1259 xls · 411 pdf · 113 jpg) →
+    tar.gz ~250 MB ve 30 günlük tam kopya ≈ **7,5 GB** olurdu (30 GB diskte kabul edilemez).
+  - **Ek fayda:** her snapshot TAM bir dizin gibi görünür → restore = doğrudan kopyala,
+    çıkarma adımı yok.
+- **Bütünlük:** kaynak ↔ snapshot dosya sayısı karşılaştırılır; uyuşmazlıkta uyarı.
+- **Atomiklik:** `.tmp`'ye yazılır, başarılıysa `mv` → yarım snapshot tarih adını almaz.
+- **Rotasyon:** `SPRENSES_UPLOADS_KEEP` (varsayılan 30).
+- **Kapatma:** `SPRENSES_SKIP_UPLOADS=1` (yalnız DB yedeği).
+- **Restore tatbikatı (2026-07-25 yapıldı):** 5 rastgele mali belge kaynak↔snapshot
+  **checksum-özdeş**; PDF `%PDF-` imzasıyla açılıyor.
+- **Disk bekçisi:** boş alan `SPRENSES_MIN_FREE_MB` (varsayılan 2000) altındaysa yedek
+  **alınmaz ve hata verir** — disk dolması PostgreSQL'i durdurur; yedek işi koruduğu sistemi
+  öldürmemeli.
+- **Off-site:** `SPRENSES_BACKUP_S3` set ise snapshot `uploads-<ts>.tgz` olarak S3'e gider
+  (dizin senkronu dosya başına istek = pahalı), yükleme sonrası yerel tar silinir.
+- **İzin modeli:** koruma **dizin seviyesinde** — `/var/backups/sprenses-uploads` `0700`.
+  Snapshot içindeki dosyalar kaynak izinlerini korur (`rsync -a`), bazıları dünya-okunur;
+  **bilinçli tercih**: `--chmod` ile izin değiştirmek hardlink'i bozar (izni farklı dosya
+  önceki snapshot'a link'lenemez → dedup çöker, 30 snapshot yeniden 7,5 GB olur). Ayrıcalıksız
+  süreç `0700` dizinden içeri giremediği için koruma seviyesi dump'larla aynıdır.
+
+> **DR-001 durumu:** yerel günlük yedek + restore tatbikatı ✔ · **off-site ✗** (DR-002'ye bağlı).
+> Tek disk kaybında hâlâ her şey gider — off-site tamamlanmadan bu bulgu TAM kapanmaz.
+
+## Zamanlanmış İş Başarısızlık Alarmı — 2026-07-25 (denetim DR-003 / JOBS-002)
+
+Hiçbir işte `OnFailure=` yoktu; bir iş çökerse yalnız journald'a düşüyor, kimse haber almıyordu.
+Denetim bunu canlıda somut buldu: döviz cron'unun `amount_try` adımı **2 ay boyunca her koşuda**
+sessizce çöktü ve fark edilmedi.
+
+- **Script:** `scripts/systemd-failure-alert.py` — başarısız birimin son 40 log satırını toplar →
+  (1) `error_logs`'a **CRITICAL** kayıt (Sistem ▸ Hata Logları ekranında görünür),
+  (2) sistem izinli aktif kullanıcılara e-posta.
+- **Alıcı seçimi İZNE dayanır** (`system.server` veya `system.error_logs` view), rol ADINA değil.
+  *İlk sürüm `u.role.name == "Admin"` bakıyordu; ilişkinin gerçek adı `role_rel` olduğundan
+  `getattr` sessizce `None` dönüyor ve alarm HİÇ e-posta göndermiyordu — kapatmaya çalıştığı
+  sessiz-hata sınıfının aynısı. Test sırasında yakalandı.*
+- **Şablon birim:** `scripts/systemd/sprenses-alert@.service` → `/etc/systemd/system/`
+- **Bağlantı:** `scripts/systemd/dropins/*-onfailure.conf` (5 iş: db-backup · exchange-rates ·
+  sedna-sync · sales-sync · ai-digest). Kurulum: `scripts/systemd/dropins/README.md`.
+- **Kuru çalışma:** `scripts/systemd-failure-alert.py <birim> --dry-run` — yazmaz/göndermez,
+  alıcı çözümlemesini gösterir.
+- **Uçtan uca doğrulandı (2026-07-25):** bilerek başarısız bir birim (`/bin/false`) tetiklendi →
+  systemd alarmı otomatik çalıştırdı → `error_logs` kaydı düştü → e-posta gönderildi.
+
+> **⚠️ Açık bulgu:** iki alıcıdan **`admin@sprenses.com` teslim edilemiyor** — SMTP sunucusu
+> `550 5.1.1 Recipient address rejected: User unknown in virtual mailbox table` döndürüyor.
+> Alarm fiilen tek kişiye ulaşıyor. Adres düzeltilmeli veya o hesabın e-postası güncellenmeli.
 
 ### Off-site (S3) Etkinleştirme Runbook (eu-north-1)
 

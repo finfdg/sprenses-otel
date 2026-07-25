@@ -13,7 +13,61 @@
 | **Örnekleme** | Kritik yollar (finans, auth, DR, sunucu, arka plan işleri) **%100** derin okuma + **canlı DB doğrulaması**; kalan boyutlar hedefli örneklem + kanıt (`dosya:satır`). |
 | **Önceki denetim referansı** | 2026-07-05 **v3** (62/100 ağırlıklı · 59/100 aritmetik, 3 Kritik) · 2026-06-21 v2 (72/100) · 2026-07-01 tam modül denetimi (156 bulgu) |
 | **Kalite süreci** | 204 bulgu üretildi. Her Kritik/Yüksek bulgu bağımsız 2. gözle çürütülmeye çalışıldı → **61 bulgunun risk seviyesi düşürüldü**, yalnız 2'si Kritik'te teyit edildi. Ana denetçi ayrıca 6 headline bulguyu canlı sistemde bizzat doğruladı (aşağıda ✔ ile işaretli). |
-| **Revizyon** | **R1 · 2026-07-25 04:35** — 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 · JOBS döviz cron'u).<br>**R2 · 2026-07-25 05:15** — ARCH-001 kapatıldı **ve bu raporun bir bulgusundaki yanlış canlı-sapma iddiası düzeltildi** (bkz. R2 Kapanış Kaydı). Bulgu metinleri **silinmedi**; durumlar güncellendi, hatalı iddia üstü çizilerek gerekçesiyle bırakıldı — denetim anının fotoğrafı ve hatanın izi birlikte korunur. |
+| **Revizyon** | **R1 · 2026-07-25 04:35** — 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 · JOBS döviz cron'u).<br>**R2 · 2026-07-25 05:15** — ARCH-001 kapatıldı **ve bu raporun bir bulgusundaki yanlış canlı-sapma iddiası düzeltildi** (bkz. R2 Kapanış Kaydı).<br>**R3 · 2026-07-25 05:35** — DR ailesi: DR-001 büyük ölçüde kapandı (uploads yedekte + tatbikat), DR-003 kapatıldı (alarm kanalı canlı), DR-002 AWS provizyonuna bağlı açık. Bulgu metinleri **silinmedi**; durumlar güncellendi, hatalı iddia üstü çizilerek gerekçesiyle bırakıldı — denetim anının fotoğrafı ve hatanın izi birlikte korunur. |
+
+---
+
+## Kapanış Kaydı — R3 (2026-07-25) · DR ailesi
+
+| ID | Risk | Durum | Ölçülen sonuç |
+|---|:--:|:--:|---|
+| **DR-001** uploads yedeksiz | 🔴 Kritik | ◐ **Büyük ölçüde kapandı** | Günlük hardlink snapshot ✔ · restore tatbikatı ✔ · **off-site ✗** (DR-002'ye bağlı) |
+| **DR-003** yedek başarısızlık alarmı yok | 🟠 → Orta | ✔ **KAPATILDI** | 5 işe `OnFailure=` bağlandı; bilerek başarısız birimle uçtan uca doğrulandı |
+| **DR-002** off-site yok + tek EBS | 🔴 Kritik | ⬜ **AÇIK — bende değil** | AWS tarafında tıkalı: IMDS boş, IAM role yok, `aws sts` kimliksiz |
+
+### DR-001 — uploads artık yedekte
+
+`scripts/db-backup.sh` genişletildi: `backend/uploads/` (285 MB · 1969 dosya) →
+`/var/backups/sprenses-uploads/<ts>/` **hardlink snapshot** (`rsync --link-dest`).
+
+- **Neden tar.gz değil:** içerik zaten sıkıştırılmış (1259 xls · 411 pdf · 113 jpg) → 30 günlük
+  tam kopya ≈ **7,5 GB** olurdu (30 GB diskte kabul edilemez). Hardlink'te değişmeyen dosya yer
+  kaplamaz. **Ölçüldü:** iki snapshot toplam **285 MB** (570 değil), `links=2`.
+- **Restore tatbikatı:** 5 rastgele mali belge kaynak↔snapshot checksum-özdeş; PDF `%PDF-`
+  imzasıyla açılıyor.
+- **Yan kazanç (DR-002'nin bir parçası):** `umask 077` + dump'lar `0600`, dizinler `0700`.
+  Öncesi `0644`/`0755` idi — tüm finans+KVKK verisi ayrıcalıksız her sürece okunabilirdi.
+- **Disk bekçisi:** boş alan < 2000 MB ise yedek alınmaz ve hata verir (dolu disk PostgreSQL'i
+  durdurur — yedek işi koruduğu sistemi öldürmemeli).
+
+### DR-003 — alarm kanalı kuruldu ve gerçekten çalıştı
+
+`scripts/systemd-failure-alert.py` + `sprenses-alert@.service` şablonu; 5 işe drop-in ile
+bağlandı (db-backup · exchange-rates · sedna-sync · sales-sync · ai-digest). `/etc` git'te
+olmadığından (DEBT-003) drop-in'ler `scripts/systemd/dropins/` altında kurulum README'siyle
+saklanıyor.
+
+**Uçtan uca kanıt:** `/bin/false` çalıştıran geçici bir birim tetiklendi → systemd alarmı
+otomatik başlattı → `error_logs`'a CRITICAL kayıt düştü → e-posta gönderildi.
+
+> **Bu turda ikinci bir sessiz-hata yakalandı — alarmın kendisinde.** İlk sürüm alıcıları
+> `u.role.name == "Admin"` ile seçiyordu; ilişkinin gerçek adı **`role_rel`** olduğundan
+> `getattr(u, "role", None)` sessizce `None` dönüyor ve alarm **hiç e-posta göndermiyordu**.
+> Tam da kapatmaya çalıştığı hata sınıfı. Alıcı seçimi izne bağlandı (`system.server` /
+> `system.error_logs`), rol adına değil.
+
+> **⚠️ Yeni açık bulgu:** iki alıcıdan **`admin@sprenses.com` teslim edilemiyor** —
+> `550 5.1.1 Recipient address rejected: User unknown in virtual mailbox table`. Alarm fiilen
+> **tek kişiye** ulaşıyor (`finans@…`). Bu, alarm kanalının yarısının ölü olması demektir;
+> adres düzeltilmeli. *(Kullanıcı kararı — dokunulmadı.)*
+
+### DR-002 neden kapanamadı
+
+Off-site altyapısı **kod tarafında hazır**: `db-backup.sh` DB'yi ve uploads'ı
+`SPRENSES_BACKUP_S3` set edilir edilmez S3'e gönderiyor; `scripts/enable-offsite-backup.sh`
+ve `docs/modules/yedekleme.md`'deki runbook duruyor (değişiklik gerekmedi). Eksik olan tek şey
+**AWS hesabında bir kerelik provizyon**: S3 bucket + minimal IAM policy + role'ün EC2'ye
+eklenmesi. Bu, sunucudan yapılamaz (kimlik yok) — hesap sahibinin işidir.
 
 ---
 
@@ -221,7 +275,10 @@ Risk    : Kritik — geri getirilemez mali belge kaybı. DB restore edilse bile 
           + off-site) VEYA EBS snapshot; restore tatbikatına dosya-varlık kontrolü ekle (efor: M)
 Kapanış : uploads/ günlük yedeğe giriyor, off-site kopyalanıyor ve tatbikat örnek bir dosyayı
           açarak doğruluyor.
-Durum   : Açık — v3'ten devam (20 gün) | 2. göz: ✔ ONAYLANDI
+Durum   : ◐ BÜYÜK ÖLÇÜDE KAPANDI (R3 · 2026-07-25) — uploads artık günlük hardlink
+          snapshot'ta (/var/backups/sprenses-uploads), restore tatbikatı yapıldı
+          (5 belge checksum-özdeş, PDF açılıyor). OFF-SITE HÂLÂ YOK → tek disk
+          kaybında kayıp sürüyor; tam kapanış DR-002'ye bağlı. | 2. göz: ✔ ONAYLANDI
 ```
 
 ```
@@ -239,6 +296,9 @@ Risk    : Kritik — tek birim/instance kaybı, yanlış DROP veya ransomware ü
 Kapanış : Günlük DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve S3'ten restore en az
           bir kez uçtan uca doğrulandı.
 Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
+          R3 notu: kod tarafı HAZIR (db-backup.sh DB+uploads'ı S3'e gönderiyor,
+          enable-offsite-backup.sh + runbook duruyor). Eksik olan yalnız AWS'de bir
+          kerelik provizyon (bucket + IAM role → EC2). Sunucudan yapılamaz.
 ```
 
 ### 🟠 YÜKSEK (8 — kök nedene göre birleştirilmiş)
@@ -317,13 +377,13 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 | 4 | **DB-001** | `check`, `ai_usage`, `ai_conversation`'ı `models/__init__.py` + `alembic/env.py`'ye ekle | **10 dk** | Bir sonraki autogenerate'in `DROP TABLE checks` üretmesi engellenir | ✔ **R1** |
 | 5 | **JOBS (döviz)** | `amount_try` adımındaki `Multiple rows were found` hatasını düzelt | **1 sa** | 2 aydır yarım çalışan kur güncellemesi tamamlanır | ✔ **R1** |
 | 6 | **ARCH-001** | `match_credit_payment`'ı `apply_credit_bank_match`'e bağla ~~+ canlı `remaining_amount` onarımı~~ | **2-3 sa** | Kredi kalan borcu sapması durur (canlı onarım GEREKMEDİ — bkz. R2) | ✔ **R2** |
-| 7 | **DR-003** | 6 systemd unit'ine `OnFailure=` + basit e-posta/push alarm servisi | **1 sa** | Sessiz yedek/cron çökmesi biter | ⬜ Açık |
-| 8 | **DR-001** | `db-backup.sh`'e uploads tar'ı ekle | **30 dk** | 284 MB mali belge yedeğe girer | ⬜ Açık |
+| 7 | **DR-003** | 6 systemd unit'ine `OnFailure=` + basit e-posta/push alarm servisi | **1 sa** | Sessiz yedek/cron çökmesi biter | ✔ **R3** (5 iş) |
+| 8 | **DR-001** | `db-backup.sh`'e uploads ~~tar'ı~~ **hardlink snapshot'ı** ekle | **30 dk** | 285 MB mali belge yedeğe girer | ✔ **R3** |
 | 9 | **SEC-007/008** | `UserUpdate` parola min-uzunluk + zayıf `SECRET_KEY`'de başlatmayı durdur | **20 dk** | Parola politikası tutarlı hâle gelir | ⬜ Açık |
 
 **Toplam ≈ 1 iş günü** → 2 Kritik'in biri tamamen, diğeri kısmen kapanır; 8 Yüksek'in 5'i kapanır.
 
-> **R1+R2 ilerleme (2026-07-25):** 4/9 kapandı (madde 3-4-5-6) → 1 Kritik + 3 Yüksek. Kalan 6'nın
+> **R1+R2+R3 ilerleme (2026-07-25):** 6/9 kapandı (madde 3-4-5-6-7-8) → 1 Kritik tam + 1 Kritik kısmi + 4 Yüksek. Kalan 6'nın
 > **ikisi kod işi değil**: SEC-001 ve CICD-010 GitHub depo ayarıdır, yalnız depo sahibi
 > yapabilir — ve ikisi de listenin en yüksek etkili maddeleridir (toplam süre 17 dakika).
 
@@ -511,12 +571,12 @@ Gerçek banka PDF örnekleri (4 banka KK ekstresi), TCMB XML varyantları (tatil
 | **FIN-001** | `SELECT count(*) ... WHERE currency='TRY' AND abs(amount_try-amount)>0.01` = **0** + upsert regresyon testi yeşil | ✔ **R1** — ölçüm 0, 7 test yeşil |
 | **DB-001** | `alembic revision --autogenerate` boş diff üretiyor (hiçbir `DROP TABLE` yok) + metadata bütünlük testi yeşil | ✔ **R1** — DROP 5→0, 2 test yeşil |
 | **JOBS (döviz)** | `journalctl -u sprenses-exchange-rates` son 10 koşuda `[amount_try]` uyarısı yok | ✔ **R1** — uyarı yok, sorgu yan-yana kanıtlandı |
-| **DR-001** | uploads/ günlük yedekte, off-site kopyada ve tatbikatta bir dosya açılarak doğrulanmış | ⬜ Açık |
+| **DR-001** | uploads/ günlük yedekte, off-site kopyada ve tatbikatta bir dosya açılarak doğrulanmış | ◐ **R3** — günlük yedek ✔ · tatbikat ✔ · off-site ✗ |
 | **DR-002** | DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve **S3'ten restore bir kez uçtan uca** yapılmış | ⬜ Açık |
 | **CICD-010** | `actions/permissions` → `enabled:true` **ve** en son `ci.yml` koşusunun conclusion'ı `success` | ⬜ Açık |
 | **SEC-001** | `gh repo view` → `"visibility":"PRIVATE"` **ve** public dönemde görünmüş kimlik bilgileri döndürülmüş | ⬜ Açık |
 | **ARCH-001** | Router `apply_credit_bank_match` çağırıyor + eşleştir/geri-al turu sonrası `remaining_amount` değişmiyor (test) + canlı sapma 0 | ✔ **R2** — router çağırıyor ✔ · 5 test yeşil (geri alınca kırmızı) ✔ · canlı sapma zaten yoktu (iddia düzeltildi) |
-| **DR-003** | Bir test hatası kasten tetiklendiğinde alarm kanalından bildirim geliyor | ⬜ Açık |
+| **DR-003** | Bir test hatası kasten tetiklendiğinde alarm kanalından bildirim geliyor | ✔ **R3** — tetiklendi, error_logs + e-posta geldi |
 
 ---
 

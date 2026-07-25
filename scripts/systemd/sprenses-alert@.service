@@ -1,0 +1,20 @@
+# Zamanlanmış iş başarısızlık alarmı (denetim DR-003 / JOBS-002).
+#
+# Kullanım: alarm istenen her birime şu satır eklenir (drop-in ile, ana unit'e dokunmadan):
+#   [Unit]
+#   OnFailure=sprenses-alert@%n.service
+#
+# %n → başarısız birimin tam adı; şablona %i olarak geçer.
+# Kurulum:
+#   sudo cp scripts/systemd/sprenses-alert@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+[Unit]
+Description=Sprenses zamanlanmış iş başarısızlık alarmı (%i)
+
+[Service]
+Type=oneshot
+User=ec2-user
+Environment=TZ=Europe/Istanbul
+ExecStart=/home/ec2-user/otel/backend/venv/bin/python /home/ec2-user/otel/scripts/systemd-failure-alert.py %i
+StandardOutput=journal
+StandardError=journal
