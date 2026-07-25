@@ -1,0 +1,13 @@
+[Unit]
+Description=Sprenses eşik kontrolü — günde 2 kez
+
+[Timer]
+# 08:00 ve 20:00 Istanbul — sabah mesai başında ve akşam kapanışta.
+# Sık koşmanın anlamı yok: eşiklerin hiçbiri dakikalar içinde değişmez (disk, kur yaşı,
+# TLS günü, yedek yaşı). Günde 2 kez, en kötü ihtimalle 12 saatlik gecikme demek —
+# TLS için 21 günlük pay, yedek için 30 saatlik pay bunu fazlasıyla karşılar.
+OnCalendar=*-*-* 08,20:00:00 Europe/Istanbul
+Persistent=true
+
+[Install]
+WantedBy=timers.target

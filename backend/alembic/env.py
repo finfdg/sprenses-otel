@@ -26,6 +26,13 @@ from app.models.vendor import Vendor  # noqa: F401
 from app.models.vendor_upload import VendorUpload  # noqa: F401
 from app.models.vendor_transaction import VendorTransaction  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
+from app.models.audit_tracker import (  # noqa: F401
+    AuditAutomationConfig,
+    AuditDimension,
+    AuditFinding,
+    AuditFindingRun,
+    AuditReport,
+)
 
 config = context.config
 if config.config_file_name is not None:

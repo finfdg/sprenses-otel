@@ -1,0 +1,16 @@
+# Sessiz arıza eşik kontrolü (denetim OBS-001 / SRV-001).
+# Kurulum:
+#   sudo cp scripts/systemd/sprenses-health-thresholds.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now sprenses-health-thresholds.timer
+[Unit]
+Description=Sprenses sessiz arıza eşik kontrolü (disk / kur / TLS / yedek)
+
+[Service]
+Type=oneshot
+User=ec2-user
+Environment=TZ=Europe/Istanbul
+ExecStart=/home/ec2-user/otel/backend/venv/bin/python /home/ec2-user/otel/scripts/health-thresholds.py
+StandardOutput=journal
+StandardError=journal
+# NOT: OnFailure BİLEREK yok — script ihlalde de 0 döner ve alarmı KENDİ gönderir.
+# OnFailure eklemek çift alarm üretirdi.

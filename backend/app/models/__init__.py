@@ -57,6 +57,13 @@ from app.models.stock import StockDepot, StockMovement, StockProduct
 from app.models.transaction_category import TransactionCategory
 from app.models.payment_instruction import PaymentInstructionItem, PaymentInstructionList
 from app.models.attendance_setting import AttendanceSetting
+from app.models.audit_tracker import (
+    AuditAutomationConfig,
+    AuditDimension,
+    AuditFinding,
+    AuditFindingRun,
+    AuditReport,
+)
 from app.models.personnel import AttendanceLog, Personnel
 from app.models.shift import ShiftDefinition
 from app.models.shift_assignment import ShiftAssignment
@@ -105,4 +112,6 @@ __all__ = [
     "PaymentInstructionList", "PaymentInstructionItem",
     "AttendanceSetting", "ShiftDefinition", "ShiftAssignment",
     "StockDepot", "StockProduct", "StockMovement",
+    "AuditReport", "AuditDimension", "AuditFinding",
+    "AuditFindingRun", "AuditAutomationConfig",
 ]

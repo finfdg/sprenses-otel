@@ -264,6 +264,33 @@ def _handle_system_roles(db, action_type, entity_id, payload, actor_id):
             system_service.delete_role(db, role)
 
 
+def _handle_system_denetim(db, action_type, entity_id, payload, actor_id):
+    # Router (system_denetim.py) ile ORTAK tek kaynak: app/services/audit_tracker_service.
+    # `update_config` router'daki /config ucunun onay dalıdır — entity_id=1 (tek satır).
+    from app.models.audit_tracker import AuditFinding
+    from app.services import audit_tracker_service as svc
+
+    if action_type == "update_config":
+        cfg = svc.get_config(db)
+        svc.apply_config_update(db, cfg, payload)
+        return
+
+    if action_type == "create":
+        report = svc.get_active_report(db)
+        if not report:
+            raise ValueError("Aktif denetim raporu bulunamadı")
+        svc.create_finding(db, payload, report.id, actor_id)
+    elif action_type == "update":
+        f = db.query(AuditFinding).filter(AuditFinding.id == entity_id).first()
+        if not f:
+            raise ValueError(f"Bulgu bulunamadı: {entity_id}")
+        svc.apply_finding_update(db, f, payload, actor_id)
+    elif action_type == "delete":
+        f = db.query(AuditFinding).filter(AuditFinding.id == entity_id).first()
+        if f:
+            svc.delete_finding(db, f)
+
+
 def _handle_system_modules(db, action_type, entity_id, payload, actor_id):
     # Router (system_modules.py) ile ORTAK tek kaynak: app/services/system_service.
     # delete HARD + alt-modül guard (eskiden SOFT'tu); cache invalidate service içinde.
@@ -758,6 +785,7 @@ _HANDLERS = {
     "system.users": _handle_system_users,
     "system.roles": _handle_system_roles,
     "system.modules": _handle_system_modules,
+    "system.denetim": _handle_system_denetim,
     # Finans — özel mantıklı handler'lar (açık)
     "finance.krediler": _handle_finance_krediler,
     "finance.departmanlar": _handle_finance_departmanlar,  # butce target=department yeniden kullanır
