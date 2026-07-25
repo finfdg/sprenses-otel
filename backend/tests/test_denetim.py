@@ -736,6 +736,39 @@ class TestCronHelpers:
         assert mod._needs_api_restart(["backend/tests/test_x.py"]) is False
         assert mod._needs_api_restart(["backend/app/services/credit_service.py"]) is True
 
+    def test_invariants_include_unwindowed_full_sweep(self):
+        """En az bir değişmez TÜM finance_events'i tarih/para-birimi SÜZMEDEN taramalı.
+
+        2026-07-25 kapı doğrulaması: FIN-001 kasten geri alındı (amount_try tekrar
+        öne çekildi) ve kapı "temiz" dedi — sapan iki TRY kaydı Haziran ve Ağustos'ta
+        olduğu için T-Hesap'ın Temmuz penceresine düşmüyordu; `fx_event_eur_cevrim` de
+        TRY'yi bilerek dışlıyordu. Pencereli değişmezler tek başına YETMEZ.
+
+        Tam tarama eklenince aynı hata yakalandı: TRY 29.435.343,35 → 29.438.847,78.
+        """
+        from app.services import audit_finance_invariants as inv
+        import inspect
+
+        keys = {i["key"] for i in inv.INVARIANTS}
+        assert "fe_event_eur_tam_tarama" in keys, \
+            "Penceresiz tam tarama değişmezi kaldırılmamalı"
+
+        src = inspect.getsource(inv._inv_fe_event_eur_tam_tarama)
+        assert "event_date" not in src, "Tam tarama tarih süzmemeli"
+        assert "notin_" not in src, "Tam tarama para birimi dışlamamalı"
+        assert "_event_eur" in src, "Gerçek çevrim kod yolunu çağırmalı"
+
+    def test_invariant_registry_is_sane(self):
+        """Kayıt tablosu tutarlı olmalı — anahtarlar benzersiz, fonksiyonlar çağrılabilir."""
+        from app.services import audit_finance_invariants as inv
+
+        keys = [i["key"] for i in inv.INVARIANTS]
+        assert len(keys) == len(set(keys)), "Yinelenen değişmez anahtarı var"
+        assert len(keys) >= 30, "Değişmez kümesi beklenmedik şekilde küçüldü"
+        for i in inv.INVARIANTS:
+            assert callable(i["fn"])
+            assert i["onem"] in ("kritik", "yuksek", "orta")
+
     def test_deploy_blockers_cover_financial_gate(self):
         """Otomasyon kendi finansal kapısını değiştirip geçemesin."""
         mod = _load_cron()

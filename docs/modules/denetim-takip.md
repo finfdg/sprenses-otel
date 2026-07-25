@@ -207,6 +207,48 @@ testler yeşil?  →  master'a merge  →  deploy  →  /api/health
 audit_finding_runs kaydı + bildirim (izinli kullanıcılara)
 ```
 
+### Finansal kapı — sessiz tutar kaymasına karşı
+
+Test takımı ve `/api/health` yalnız **çökmeyi** yakalar. Kodun bir finansal sayıyı
+sessizce yanlış hesaplamaya başlamasını göremezler — FIN-001'in ₺696.190,94 hayalet
+parası aylarca hiçbir testi kırmızıya döndürmeden yaşadı.
+
+Kapı, aynı veritabanı üzerinde **eski kodla** ve **yeni kodla** ölçüm alır:
+
+```
+A  = eski kod (master checkout)
+B  = yeni kod (worktree)
+A2 = eski kod, tekrar          ← KONTROL
+```
+
+| Durum | Karar |
+|---|---|
+| `A ≠ A2` | Ölçüm penceresinde canlı veri değişti (Sedna senkronu, kullanıcı işlemi) → fark koda **atfedilemez**, kapı atlanır |
+| `A = A2` ve `B ≠ A` | Farkı üreten şey **kodun kendisi** → **deploy edilmez**, `inceleme`ye düşer |
+| Kapı hata verir | Deploy edilmez — bilinmeyen ≠ güvenli |
+
+- **41 değişmez** ölçülür (`app/services/audit_finance_invariants.py`): T-Hesap, runway,
+  yaşlananlar, `finance_events` defteri, cari FIFO, kredi/çek, satış faturaları, avans,
+  kur çevrimi, mutabakat. Ölçüm ~13 sn; koşu başına 3 ölçüm ≈ 40 sn.
+- **Salt-okunur:** `SET TRANSACTION READ ONLY` + rollback. Denetimin API-003 bulgusuna
+  göre bazı okuma yolları (cari payment-schedule) okurken `finance_events`'e yazıyor —
+  bu tasarım o yazmayı üretime ulaşmadan reddeder.
+- **Kapı kendini korur:** parmak izi script'i ve değişmez modülü `DEPLOY_BLOCKERS`'ta.
+- Doküman/test değişikliğinde ölçüm atlanır (bir sayıyı oynatamaz).
+
+#### Pencereli değişmezler TEK BAŞINA yetmez — 2026-07-25 dersi
+
+Kapı doğrulanırken FIN-001 kasten geri alındı (`amount_try` tekrar öne çekildi) ve kapı
+**"temiz" dedi**. Sebep: sapan iki TRY kaydı Haziran ve Ağustos'taydı, T-Hesap'ın Temmuz
+penceresine düşmüyordu; `fx_event_eur_cevrim` de TRY'yi bilerek dışlıyordu.
+
+Çözüm: `fe_event_eur_tam_tarama` — `_event_eur`'u **tarih ve para birimi süzmeden** tüm
+4.748 kayıt üzerinde tarar. Eklenince aynı hata yakalandı: TRY 29.435.343,35 →
+29.438.847,78 (€3.504,43 sapma), deploy engellendi.
+
+**Kural:** rapor/pencere bazlı değişmez eklemek yetmez; en az bir penceresiz tam tarama
+korunmalı (`tests/test_denetim.py::test_invariants_include_unwindowed_full_sweep` bunu zorlar).
+
 ### Otomatik deploy'dan muaf değişiklikler — bilinçli
 
 | Desen | Neden |
