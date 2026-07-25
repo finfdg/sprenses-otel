@@ -1,0 +1,423 @@
+# Sprenses ERP — v4 Kurumsal Kod Denetimi
+
+## §0 — Denetim Kimliği ve Kapsam
+
+| Alan | Değer |
+|---|---|
+| **Denetim tarihi** | 2026-07-24 / 25 |
+| **Denetçi** | Claude Opus 5 — çok-ajanlı orkestrasyon: **23 bağımsız boyut denetçisi + 63 çekişmeli 2. göz doğrulayıcı** (toplam 86 ajan, 2.142 araç çağrısı, 8,56 M token) |
+| **Denetlenen sürüm** | git `41e7552` · branch `master` · çalışma ağacı **temiz** |
+| **Şablon** | Kurumsal Kod Denetim Şablonu **v3** (23 boyut, 18 çıktı) |
+| **Kapsam** | `backend/` (FastAPI, 268 py / 54.702 LOC / 101 migration / 52 model) + `frontend/` (SvelteKit, 118 svelte + 66 ts) + altyapı (EC2/systemd/nginx/yedek/TLS) + `docs/` + canlı üretim veritabanı (salt-okuma) |
+| **Bilinçli hariç** | Kod yazımı/onarım (salt-okunur denetim). Uyuyan banka entegrasyonları (QNB/Garanti/YKB) yalnız dayanıklılık boyutunda değerlendirildi. |
+| **Örnekleme** | Kritik yollar (finans, auth, DR, sunucu, arka plan işleri) **%100** derin okuma + **canlı DB doğrulaması**; kalan boyutlar hedefli örneklem + kanıt (`dosya:satır`). |
+| **Önceki denetim referansı** | 2026-07-05 **v3** (62/100 ağırlıklı · 59/100 aritmetik, 3 Kritik) · 2026-06-21 v2 (72/100) · 2026-07-01 tam modül denetimi (156 bulgu) |
+| **Kalite süreci** | 204 bulgu üretildi. Her Kritik/Yüksek bulgu bağımsız 2. gözle çürütülmeye çalışıldı → **61 bulgunun risk seviyesi düşürüldü**, yalnız 2'si Kritik'te teyit edildi. Ana denetçi ayrıca 6 headline bulguyu canlı sistemde bizzat doğruladı (aşağıda ✔ ile işaretli). |
+
+---
+
+## Yönetici Özeti
+
+**Genel Not: 55 / 100** (aritmetik ortalama 5,52 × 10). Karşılaştırılabilir v3 değeri **59/100** idi.
+
+> **Notun düşmesi ürün regresyonu değil, üç şeyin toplamıdır:** (a) bu denetim v3'ün göremediği **iki yapısal gerçeği** ortaya çıkardı — CI'ın hiç çalışmamış olması ve deponun herkese açık olması; (b) canlı veritabanı sorgulanarak **yönetim raporlarında görünen gerçek bir para sapması** bulundu; (c) v3'ün Kritik'lerinden ikisi (uploads yedeği, off-site) 20 gündür kapatılmadı ve risk büyüdü (uploads 91 MB → **284 MB**).
+
+**Bimodal profil devam ediyor, ama ayrışma derinleşti:**
+
+- **Çekirdek ürün katmanı** (boyut 1-10, 20) ort. **≈ 6,1** — v3'te 7,1'di. Düşüşün nedeni ürünün bozulması değil, ilk kez yapılan **canlı-veri doğrulamasının** kod okumasıyla görünmeyen sapmaları açığa çıkarması (FIN-001, ARCH-001, DB-001).
+- **Operasyon/uyum katmanı** (boyut 11-19, 21-23) ort. **≈ 4,9** — v3'te 4,7'ydi; TLS ve TZ düzeltmeleriyle bir miktar iyileşti, CI gerçeğiyle geri düştü.
+
+**Kapatılan v3 Kritik'i (1/3):** `SRV-001` TLS otomatik yenileme — `certbot-renew.timer` artık **enabled + active**, sertifika 16 Eki 2026'ya kadar geçerli. ✔ *canlıda doğrulandı*
+
+**En büyük tek risk:** Sistemin **doğruluk güvencesi katmanı yok**. 1.917 test yazılmış ama bir kez bile otomatik koşmamış; 453 commit'in tamamı denetimsiz `master`'a gitmiş; para hesaplarındaki sapmalar (FIN-001'de ₺696.190,94) hiçbir alarm üretmeden aylarca yaşayabiliyor ve fiilen yaşadı. Bu bir kod kalitesi sorunu değil, **süreç sorunudur** — ve düzeltmesi bir günden kısadır.
+
+**İyi haber:** Nihai 2 Kritik + 8 Yüksek bulgunun **7'si "S" eforlu**. İlk haftada kapatılabilecek işin etkisi orantısız derecede yüksek (bkz. Çıktı 15 — Hızlı Kazanımlar).
+
+---
+
+## Çıktı 16 — Skor Panosu (23 boyut · v3 → v4 → 90 gün hedef)
+
+| # | Boyut | v3 (07-05) | **v4 (şimdi)** | 90g hedef | Değişimin nedeni |
+|---|---|:--:|:--:|:--:|---|
+| 1 | Mimari & Modülerlik | 7 | **6,5** | 8 | Katmanlama olgunlaştı (router→router kapandı) ama ortak-uygulayıcı kuralı para yolunda delik (ARCH-001) |
+| 2 | Kod Kalitesi | 7 | **6,5** | 7,5 | Lint/tip hiçbir kapıda yok; FIFO mantığı üç kopya |
+| 3 | Güvenlik (OWASP) | 7,5 | **5,5** | 8 | **Depo PUBLIC** (yeni tespit) + IDOR devam + CVE taraması yok |
+| 4 | Performans | 7 | **6,5** | 7,5 | Temel sağlam; ölçüm/görünürlük sıfır |
+| 5 | Stabilite | 7 | **6** | 7,5 | Optimistik kilit yok; senkron kilidi yok; event-loop blokajı |
+| 6 | Veritabanı | 7 | **5,5** | 7,5 | **5 tablo alembic metadata dışında** (DROP riski) + 23 indeks sürüklenmesi |
+| 7 | API | 6 | **5,5** | 7 | 443 uçtan 401'i tipsiz; onay 202'si frontend'de işlenmiyor |
+| 8 | Frontend & Mobil | 7 | **6,5** | 7,5 | UI sapmalarının çoğu kapandı; rota testi hâlâ sıfır |
+| 9 | Test Kapsamı | 7 | **6,5** | 8 | Kapsam ölçümü geldi (%77) ama para yollarında %14-20 delik |
+| 10 | Test Süreçleri | 7 | **5,5** | 7,5 | **CI hiç koşmadı**; suite zamana bağlı, gece kırmızı |
+| 11 | CI/CD | 4 | **3** | 7 | **Actions repo düzeyinde KAPALI** — v3'ün varsaydığı gate hiç var olmamış |
+| 12 | Loglama | 5 | **5,5** | 7 | Audit geniş; error_logs'a hiçbir logger.error düşmüyor |
+| 13 | Dokümantasyon | 7 | **6** | 7,5 | İçerik zengin ama drift ölçülmüyor + PUBLIC ifşa kanalı |
+| 14 | Ölçeklenebilirlik | 5 | **4,5** | 6 | 15 kalemlik süreç-içi durum → çok-worker yapısal olarak imkânsız |
+| 15 | Teknik Borç / Bus factor | 5 | **4,5** | 6,5 | Bus factor hâlâ 1; runbook yok; 1.493 satır ölü entegrasyon |
+| 16 | Yedekleme & DR | 5 | **4,5** | 8 | DB yedeği sağlam; **uploads + off-site + konfig hâlâ yok**, hacim 3× arttı |
+| 17 | Gözlemlenebilirlik | 3,5 | **4** | 7 | health ucu sahte; alarm kanalı yok; ama ai-digest bir kanal örneği kurdu |
+| 18 | KVKK / Gizlilik | 3,5 | **4** | 6 | Envanter bu raporla çıkarıldı; retention/rıza/yurt-dışı dayanağı hâlâ yok |
+| 19 | 3rd-Party Dayanıklılık | 4 | **5,5** | 7 | Sedna arka plana alındı + dedup/idempotency olgun; retry/CB hâlâ yok |
+| 20 | Finansal Doğruluk | 7 | **6** | 8,5 | Çekirdek sağlam ama **canlıda ₺696K hayalet** + dönem kilidi bloklamıyor |
+| 21 | Arka Plan İşleri | 6 | **5,5** | 7,5 | Envanter/Persistent iyi; **döviz cron'u 2 aydır sessizce yarım** |
+| 22 | Sunucu & Ortam | 6 | **6,5** | 8 | TLS ✔, swap/earlyoom ✔, TZ drop-in ✔; alarm ve IaC yok |
+| 23 | Zaman & Türkçe | 5 | **7** | 8 | TZ drop-in kuruldu, en büyük sınıf kapandı; collation ve 3 unit açık |
+
+> **Katmanlı okuma:** Çekirdek (1-10, 20) ort. **6,1** · Operasyon/uyum (11-19, 21-23) ort. **4,9**. v3'teki 2,4 puanlık uçurum 1,2'ye indi — ama yakınsama yukarı değil, **aşağı doğru** oldu.
+
+---
+
+## Çıktı 6+8 — Kritik ve Yüksek Bulgular (çekişmeli doğrulanmış)
+
+> **Doğrulama disiplini:** İlk taramada 10 Kritik + 53 Yüksek işaretlendi. Bağımsız 2. göz **61 bulgunun riskini düşürdü**. Aşağıdakiler doğrulamadan geçenlerdir.
+
+### 🔴 KRİTİK (3)
+
+```
+[FIN-001] finance_events.amount_try hiç tazelenmiyor — yönetim raporlarında ₺696.190,94 hayalet yükümlülük
+Dosya   : backend/app/utils/finance_event_service.py:118-170 (_upsert)
+          backend/app/routers/finance/cash_flow/t_account.py:187 · runway.py:173 · aging.py:59-61
+Kanıt   : Hiçbir upsert_* metodu alan sözlüğüne `amount_try` KOYMAZ → `ON CONFLICT DO UPDATE SET`
+          bu kolona hiç dokunmaz. Kolonun tek yazıcısı `update_amount_try` (:697-725) yalnız
+          currency='EUR' VE event_date=bugün satırlarını günceller. Okuyucular ise amount_try'ı
+          amount'a TERCİH eder (TRY kontrolünden ÖNCE). Cari FIFO kırpması / KK kısmi ödemesi
+          `amount`'ı küçültünce `amount_try` eski tam tutarda donar.
+          ✔ ANA DENETÇİ CANLI DOĞRULAMASI (2026-07-24, üretim DB):
+            · TRY kaleminde bayat amount_try: 11 kayıt, toplam sapma ₺2.426.887,85
+            · Bunlardan hâlâ AÇIK (is_matched=false AND is_realized=false): 6 kayıt → ₺696.190,94
+            · Örnek: fe#1205 amount=178,58 ama amount_try=57.600,00 (322×);
+                     fe#1401 amount=0,02 / amount_try=21.169,60
+            · EUR kalemlerin %74'ünde (634/855) amount_try NULL → aging'de € yüz değeri TRY sanılıyor
+Risk    : Kritik — şablon ölçütü "para hatası". Panel T-Hesap Cetveli, Nakit Koruma (runway) ve
+          Yaşlananlar raporu bugün var olmayan ₺696.190,94'ü gösteriyor; yönetici bu sayıyla
+          nakit planlıyor. Sapma sessiz (log/hata üretmez) ve her kısmi ödemede büyüyor.
+Çözüm   : (1) `_upsert` alan sözlüğüne amount_try'ı dahil et (TRY → amount, döviz → ledger_rate
+          ile hesapla veya açıkça None); (2) okuyucularda öncelik sırasını düzelt — TRY dalı önce;
+          (3) tek seferlik onarım: UPDATE finance_events SET amount_try=amount WHERE currency='TRY'
+          (efor: S)
+Kapanış : SELECT count(*) FROM finance_events WHERE currency='TRY' AND amount_try IS NOT NULL
+          AND abs(amount_try-amount)>0.01  →  0 ; ve "büyük tutarla upsert → küçük tutarla yeniden
+          upsert → amount_try==amount" regresyon testi yeşil.
+Durum   : Açık | 2. göz: Yüksek önerdi (gerekçe: defter bozulmuyor, hata okuma yolunda)
+          → ANA DENETÇİ KRİTİK'TE TUTTU: canlı DB'de yönetim raporuna yansıyan gerçek para
+            sapması ölçüldü ve şablon "para hatası"nı açıkça Kritik sayıyor.
+```
+
+```
+[DR-001] uploads/ (284 MB · 1904 iş belgesi) hiçbir yedekte değil — v3'ten beri AÇIK, hacim 3× arttı
+Dosya   : scripts/db-backup.sh (yalnız pg_dump) · .gitignore (uploads git-dışı)
+Kanıt   : ✔ ANA DENETÇİ DOĞRULAMASI: `ls /var/backups/` → yalnız `sprenses-db`.
+          `du -sh backend/uploads` → 284 MB / 1904 dosya (v3'te 91 MB / 1448 dosya).
+          İçerik: banka ekstreleri, cari Excel'leri, çek/rezervasyon PDF'leri — DB'deki
+          file_url kayıtları bu dosyalara işaret ediyor.
+Risk    : Kritik — geri getirilemez mali belge kaybı. DB restore edilse bile her file_url dangling.
+Çözüm   : db-backup.sh'e `tar czf uploads-<ts>.tgz backend/uploads` ekle (aynı rotasyon + bütünlük
+          + off-site) VEYA EBS snapshot; restore tatbikatına dosya-varlık kontrolü ekle (efor: M)
+Kapanış : uploads/ günlük yedeğe giriyor, off-site kopyalanıyor ve tatbikat örnek bir dosyayı
+          açarak doğruluyor.
+Durum   : Açık — v3'ten devam (20 gün) | 2. göz: ✔ ONAYLANDI
+```
+
+```
+[DR-002] Off-site yedek yok + tek EBS — DB, uploads ve yedeklerin kendisi aynı diskte
+Dosya   : scripts/db-backup.sh:51-57 (S3 bloğu yalnız SPRENSES_BACKUP_S3 set ise çalışır)
+Kanıt   : ✔ ANA DENETÇİ DOĞRULAMASI: `aws sts get-caller-identity` → "Unable to locate credentials"
+          (IAM role yok, S3 bloğu hiç çalışmıyor). `df -h /` → tek nvme0n1p1 30G; altında
+          /var/lib/pgsql (DB) + backend/uploads + /var/backups/sprenses-db (yedeklerin kendisi).
+          Ek olarak dump'lar 0644 ve dizin 0755 → ayrıcalıksız her süreç tüm finans+PII DB'sini
+          okuyabiliyor; şifreleme yok.
+Risk    : Kritik — tek birim/instance kaybı, yanlış DROP veya ransomware üç kopyayı BİRDEN götürür.
+Çözüm   : docs/modules/yedekleme.md runbook'unu uygula — farklı bölgede S3 (versioning + SSE +
+          public-block) + minimal IAM role; en az DB dump + uploads off-site; dump izinlerini
+          0600'e çek (efor: M)
+Kapanış : Günlük DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve S3'ten restore en az
+          bir kez uçtan uca doğrulandı.
+Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
+```
+
+### 🟠 YÜKSEK (8 — kök nedene göre birleştirilmiş)
+
+| ID | Başlık | Kanıt | Efor | Doğrulama |
+|---|---|---|:--:|:--:|
+| **CICD-010**<br>(=TSTP-001<br>=DEBT-001) | **CI 2026-06-02'den beri hiç çalışmadı** — GitHub Actions depo düzeyinde KAPALI; 451 commit test edilmeden master'a gitti. 1.917 testlik takım ve `--cov-fail-under=60` eşiği fiilen dekoratif. | ✔ *ana denetçi:* `actions/permissions` → `{"enabled":false}`; `ci.yml/runs` → `total_count: 0` | **S** | RISK_DUSUR → Yüksek |
+| **SEC-001**<br>(=CICD-011<br>=DOC-001) | **Depo PUBLIC + Stop hook her tur otomatik push ediyor** — CLAUDE.md:444'te varsayılan yönetici şifresi, test fixture'larında checksum-geçerli gerçek IBAN'lar, `docs/denetim/` altında kapanmamış zafiyetleri `dosya:satır` ile listeleyen 6 rapor. GitHub secret-scanning/push-protection da kapalı. | ✔ *ana denetçi:* `gh repo view` → `"visibility":"PUBLIC"`; `.claude/settings.json` Stop hook `git push origin master` | **S**\* | RISK_DUSUR → Yüksek |
+| **FIN-001** | *(bkz. Kritik — 2. göz bu seviyede değerlendirdi)* | canlı DB | S | RISK_DUSUR → Yüksek |
+| **DB-001** | **5 tablo alembic metadata'sının dışında** — `check.py` (checks, check_uploads), `ai_usage.py`, `ai_conversation.py` (ai_conversations, ai_messages) ne `models/__init__.py`'de ne `alembic/env.py`'de import ediliyor. Bir sonraki `alembic revision --autogenerate` bu beş tablo için **DROP TABLE** üretir — `checks` çekirdek finans tablosu. | ✔ *ana denetçi:* `__init__` taraması → eksik: `check`, `ai_usage`, `ai_conversation`; `alembic/env.py`'de bu modüllerin import'u yok | **S** | RISK_DUSUR → Yüksek |
+| **ARCH-001** | **Manuel kredi eşleştirme ortak `apply_credit_bank_match` uygulayıcısını atlıyor** — taksiti `is_paid` yapar ama anaparayı düşmez; geri alma ise koşulsuz iade eder → `remaining_amount` her eşleştir/geri-al turunda şişer. Kilit ve `is_paid` guard'ı da yok (çift eşleştirme mümkün). | ✔ *ana denetçi:* matching.py:222-225 (anapara satırı yok) vs matching_service.py:950-951 (düşüyor); matching.py:675-676 (koşulsuz iade). Canlıda 33 manuel kredi eşleşmesi; taksit planı olan tek üründe (Halk Leasing #446) **₺22.963,23 sapma**, doğrudan atfedilebilen manuel taksit ₺14.835,60 | **S** | RISK_DUSUR → Yüksek |
+
+\* SEC-001'in "S" eforu deponun private yapılmasıdır (2 dakika). Sızmış sırların rotasyonu ayrıca M efordur.
+
+> **Tek kök neden, tek bulgu:** `CICD-010 = TSTP-001 = DEBT-001` (Actions kapalı) ve `SEC-001 = CICD-011 = DOC-001` (PUBLIC depo) üç ayrı boyutta bağımsız olarak bulundu; burada birer kez sayıldı. Bağımsız üç ajanın aynı kökü bulması bulgunun gücünü artırır, sayısını değil.
+
+### ⤵️ Doğrulamada düşürülen/çürütülen bulgular (rigor kanıtı)
+
+2. göz **61 bulgunun** riskini düşürdü. Öne çıkanlar:
+
+- **SEC-002** "API süreci NOPASSWD sudo ile keyfi komut çalıştırıyor" Yüksek→**Orta**. ✔ *Ana denetçi de doğruladı:* `backend/app/routers/system_server.py:167` endpoint'i `require_permission("system.server","use")` + `ALLOWED_SERVICES` whitelist'i ile korunuyor. Gerçek bulgu daha dar: `ec2-user` sudoers'ta `(ALL) NOPASSWD: ALL` taşıyor — endpoint değil, **host sertleştirmesi** sorunu.
+- **CICD-012** "CI merge gate değil" Yüksek→**Düşük** (tek geliştiricili depoda branch protection'ın marjinal faydası; asıl sorun CICD-010).
+- **FIN-002** (aging para birimi karıştırması) Yüksek→**Orta**: mekanizma kesin ama bugün pencerede döviz kalem yok — zamanlama belirsiz, etki henüz gerçekleşmemiş.
+- **FIN-003/FIN-004**, **STAB-001..004**, **DB-002/003**, **API-001**, **FE-001/002**, **TSTC-001..003**, **OBS-001..004**, **JOBS-001..003**, **DR-003..005**, **SRV-001..003**, **PRIV-001/002**, **INT-001** → tamamı Yüksek→**Orta**.
+- **OBS-003** (error_logs geçmişinin audit'siz silinmesi) Yüksek→**Düşük**; **DOC-004** Yüksek→**Düşük**.
+
+---
+
+## Çıktı 14 — Delta Raporu (v3 → v4)
+
+| v3 Bulgu | v3 Risk | Durum | Kanıt |
+|---|:--:|:--:|---|
+| **SRV-001** TLS otomatik yenileme kapalı | 🔴 Kritik | ✔ **KAPATILDI** | `certbot-renew.timer` enabled+active; sertifika 16 Eki 2026 |
+| **DR-001** uploads yedeksiz | 🔴 Kritik | ▼ **KÖTÜLEŞTİ** | Hâlâ yedeksiz; 91 MB → **284 MB** (+212%) |
+| **DR-002** off-site yok + tek EBS | 🔴 Kritik | ● Devam | `aws sts` → kimlik yok; S3 bloğu hiç çalışmıyor |
+| **CICD-002** CI merge-gate değil | 🟠 Yüksek | ▼ **KÖTÜLEŞTİ** | Gerçek daha kötü: CI **hiç çalışmamış** (0 koşu) |
+| **CICD-001** APM/alerting yok | 🟠 Yüksek | ● Devam | requirements.txt'te Sentry/OTel yok; alarm kanalı yok |
+| **DR-003** yedek OnFailure alarmı yok | 🟠 Yüksek | ● Devam | systemd unit'lerinde `OnFailure=` yok |
+| **JOBS-001** arka plan iş görünürlüğü yok | 🟠 Yüksek | ▼ **KÖTÜLEŞTİ** | Somutlaştı: döviz cron'unun `amount_try` adımı **2 aydır her koşuda** sessizce çöküyor |
+| **SECA-001** files.py IDOR | 🟠 Yüksek | ● Devam | `serve_file` hâlâ yalnız auth doğruluyor, modül izni/kaynak sahipliği değil |
+| **FIN-002** dönem kilidi yok | 🟠 Yüksek | ◐ Kısmen | Altyapı geldi (`finance_period_locks` + `period_lock_service` + onay dalı) ama servis **UYARI modunda**, hiçbir mutasyonu bloklamıyor |
+| **FIN-003** rezervasyon döviz yeniden değerleme | 🟠 Yüksek | ● Devam | `reservation_service.py` her senkronda güncel kurla yeniden değerliyor |
+| **DB-002** sales tx_hash UNIQUE yok | 🟠 Yüksek | ◐ Kısmen | UNIQUE hâlâ yok; dedup uygulama belleğinde |
+| **TEST-001** parser'lar testsiz | 🟠 Yüksek | ◐ Kısmen | `bank_parser` test edildi ✔; `cc_statement_parser` **%10 kapsamda** (4 banka, 643 satır) |
+| **DOCS-001** bus factor = 1 | 🟠 Yüksek | ● Devam | 436/453 commit tek yazar; README/CODEOWNERS/onboarding yok |
+| **DOCS-002** runbook yok | 🟠 Yüksek | ◐ Kısmen | `docs/modules/sunucu.md` + `yedekleme.md` kısmi kapsıyor; olay/gece-arıza runbook'u yok |
+| **PERF-001** async-blocking | Orta | ◐ Kısmen | Sedna arka plana alındı ✔; yükleme/onay uçları hâlâ event-loop'ta |
+| **I18N-001** naive datetime / process TZ | Orta | ◐ Kısmen | **TZ drop-in kuruldu ✔** (api+frontend); ama 5 cron unit'inin **3'ünde TZ ayarsız** (UTC) |
+| **DB-001/I18N-002** C.UTF-8 collation | Orta | ● Devam | `datcollate=C.UTF-8`; Ç/Ö/Ş/İ ile başlayan kayıtlar Z'den sonra sıralanıyor |
+| **API-004** Idempotency-Key yok | Düşük | ● Devam | Kritik mutasyon POST'larında yok |
+| **FIN-001** para katmanı float | Düşük | ● Devam — **indirim geçerli** | Her op sonrası `round(...,2)` + DB kolonları NUMERIC(15,2) (`models/`'de 0 adet `Float`) → birikimli drift yok |
+| UI: native `confirm()` · focus-ring sapması · `type="number"` para · paylaşılan bileşende teal-600 | Orta | ✔ **KAPATILDI** | 2026-06/07 UI çalışmaları; koddan doğrulandı |
+| v3-sonrası altyapı iddiaları (4GB swap, earlyoom, deploy bellek bekçisi, TZ drop-in, ssh-key-audit, sedna-sync timer) | — | ✔ **DOĞRULANDI** | CLAUDE.md iddiaları gerçekle örtüşüyor — hepsi kurulu ve çalışıyor |
+
+**▲ Yeni (v3'te hiç görülmemiş):** CICD-010 (Actions kapalı) · SEC-001 (PUBLIC depo) · FIN-001 (amount_try hayalet) · DB-001 (5 tablo metadata dışında) · ARCH-001 (manuel kredi eşleştirme) · JOBS döviz cron'u sessiz çökme.
+
+---
+
+## Çıktı 1 — Risk Matrisi (olasılık × etki)
+
+| | **Etki: Yüksek** | **Etki: Orta** | **Etki: Düşük** |
+|---|---|---|---|
+| **Olasılık: Yüksek** | 🔴 **FIN-001** (zaten gerçekleşti) · 🟠 CICD-010 · SEC-001 · JOBS-001 (2 aydır çöküyor) | 🟠 ARCH-001 · FIN-006 (dönem kilidi) · LOG-001 | FIN-009 · I18N-005 |
+| **Olasılık: Orta** | 🔴 **DR-001** · **DR-002** · 🟠 DB-001 | 🟠 SECA-001/PRIV-003 (IDOR) · FIN-002/003/004 · STAB-003/004 · DB-002/003 · OBS-001/002 | API-006/007 · FE-007/008 |
+| **Olasılık: Düşük** | 🟠 INT-003 (VakıfBank sandbox→prod) | SCALE-002 · DEBT-002 (bus factor) · PRIV-001 (yurt-dışı aktarım) · INT-006 (yıl devri) | SEC-007/008 · INT-010 |
+
+---
+
+## Çıktı 15 — Hızlı Kazanımlar (efor ≤ 1 gün × etki Yüksek/Kritik)
+
+| Sıra | ID | İş | Süre | Kazanç |
+|:--:|---|---|:--:|---|
+| 1 | **SEC-001** | Depoyu **private** yap (GitHub → Settings → Danger Zone) | **2 dk** | Canlı finansal sistemin saldırı haritası ve gerçek IBAN'lar kamuya kapanır |
+| 2 | **CICD-010** | GitHub Actions'ı **etkinleştir** + boş commit ile ilk koşuyu yeşile al | **15 dk** | 1.917 test ilk kez koruyucu hâle gelir |
+| 3 | **FIN-001** | `UPDATE finance_events SET amount_try=amount WHERE currency='TRY'` + `_upsert`'e alan ekle | **1-2 sa** | Panel/runway/aging'den **₺696.190,94 hayalet** silinir |
+| 4 | **DB-001** | `check`, `ai_usage`, `ai_conversation`'ı `models/__init__.py` + `alembic/env.py`'ye ekle | **10 dk** | Bir sonraki autogenerate'in `DROP TABLE checks` üretmesi engellenir |
+| 5 | **JOBS (döviz)** | `amount_try` adımındaki `Multiple rows were found` hatasını düzelt | **1 sa** | 2 aydır yarım çalışan kur güncellemesi tamamlanır |
+| 6 | **ARCH-001** | `match_credit_payment`'ı `apply_credit_bank_match`'e bağla + canlı `remaining_amount` onarımı | **2-3 sa** | Kredi kalan borcu sapması durur |
+| 7 | **DR-003** | 6 systemd unit'ine `OnFailure=` + basit e-posta/push alarm servisi | **1 sa** | Sessiz yedek/cron çökmesi biter |
+| 8 | **DR-001** | `db-backup.sh`'e uploads tar'ı ekle | **30 dk** | 284 MB mali belge yedeğe girer |
+| 9 | **SEC-007/008** | `UserUpdate` parola min-uzunluk + zayıf `SECRET_KEY`'de başlatmayı durdur | **20 dk** | Parola politikası tutarlı hâle gelir |
+
+**Toplam ≈ 1 iş günü** → 2 Kritik'in biri tamamen, diğeri kısmen kapanır; 8 Yüksek'in 5'i kapanır.
+
+---
+
+## Çıktı 9 — 30 / 60 / 90 Günlük Plan
+
+### İlk 30 gün — "Güvenceyi kur"
+1. **Hızlı Kazanımlar 1-9'un tamamı** (yukarıda, ~1 gün).
+2. **DR-002 off-site**: IAM role + farklı bölgede S3 (versioning + SSE + public-block); DB + uploads günlük yükleme; dump izinleri 0600.
+3. **Restore tatbikatı**: `db-restore.sh`'i koş, satır sayısı + uploads dosya varlığı doğrula, sonucu `docs/` altına tarihli yaz. **RPO/RTO'yu yazılı tanımla.**
+4. **Sızmış sırların rotasyonu** (SEC-001 devamı): depo public kaldığı sürece görünmüş olan her şey — admin şifresi, varsa API anahtarları — döndürülür.
+5. **CI'yı gate'e çevir**: Actions açıldıktan sonra `svelte-check`'i CI'ya ekle (yerelde 0 hata → bedava kazanç).
+
+### 31-60 gün — "Görünürlüğü kur"
+6. **Alerting katmanı**: mevcut SMTP + push altyapısını operasyonel alarma bağla — `OnFailure=`, disk %80 eşiği, kur bayatlığı (>24 sa), TLS bitişine 21 gün.
+7. **`/api/health`'i gerçek yap** (DB + Sedna tüneli kontrolü) ve nginx/deploy doğrulamasına bağla.
+8. **Frontend hata yakalama**: `hooks.client.ts` + `+error.svelte` → backend `error_logs`; `logger.error` çağrılarını da `error_logs`'a köprüle (LOG-001).
+9. **Dönem kilidini bloklayıcı yap** (FIN-006) — en azından kapalı aya yazan mutasyonlarda uyarı + audit.
+10. **`cc_statement_parser` testleri** (4 banka × gerçek örnek PDF) — TEST-001'in kalan yarısı.
+
+### 61-90 gün — "Sürdürülebilir kıl"
+11. **Bus factor**: README + CODEOWNERS + sıfırdan-kurulum runbook'u; `/etc`'deki 17 elle-yapılmış konfigi repoya al (IaC'nin ilk adımı).
+12. **KVKK paketi**: bu rapordaki envanteri temel alarak retention politikası + otomatik imha; Anthropic yurt-dışı aktarımı için aydınlatma/dayanak.
+13. **Optimistik kilit** (STAB-004) — en azından finans kayıtlarında `version` kolonu.
+14. **Collation** (I18N-003/DB-006): ICU ile Türkçe sıralama; ~10 endpoint etkilenir.
+15. **Ölü kod temizliği**: Amadeus (kapanmış sağlayıcı) + 1.493 satır uyuyan entegrasyon yüzeyi.
+
+---
+
+## Çıktı 17 — Arka Plan İşleri Envanteri
+
+| İş | Ne yapar | Zamanlama (Istanbul) | Process TZ | Son başarılı | Overlap | Persistent | Alarm |
+|---|---|---|:--:|---|:--:|:--:|:--:|
+| `sprenses-db-backup` | pg_dump -Fc + bütünlük + 30 rotasyon | Günlük 03:00 | ⚠ UTC | 24 Tem ✔ | yok (risk düşük) | ✔ | ❌ |
+| `sprenses-sedna-sync` | 6 adım: cari/IBAN/çek/düzenli/maaş/banka mutabakat | 09-21 arası 2 saatte bir :15 | ✔ Istanbul | 24 Tem 21:15, 6/6 ✔ | ❌ (UI `sync-all` ile çakışır) | ✔ | ❌ + **hata olsa da exit 0** |
+| `sprenses-sales-sync` | Satış faturası + tahsilat + avans + acente köprüsü | 08-22 arası 2 saatte bir :15 | ⚠ UTC | 24 Tem 22:15 ✔ | ❌ | ✔ | ❌ + exit 0 |
+| `sprenses-exchange-rates` | TCMB günlük+saatlik kur → `exchange_rates` → `amount_try` | Hafta içi 10:00-16:15, 28 koşu/gün | ⚠ UTC | Kur ✔ ama **`amount_try` adımı 2 aydır HER koşuda çöküyor** | yok | ✔ | ❌ (WARNING'e düşürülmüş, exit 0) |
+| `sprenses-ai-digest` | 7 günlük yaklaşan ödeme özeti (in-app + push) | Günlük 08:00 | ✔ Istanbul | 24 Tem, 8 kullanıcı ✔ | gerekmiyor | ✔ | ❌ (dolaylı) |
+| `ssh-key-audit` (.timer+.path) | Tünel anahtarlarını `command=`+`permitopen=` ile sertleştirir | Günlük + dosya değişiminde | — | 24 Tem ✔ | idempotent | ✔ | ❌ |
+| `cron_weekly_push.py` | Haftalık push bildirimi | **ZAMANLANMAMIŞ** — unit yok, cron paketi kurulu değil | — | Hiç | — | — | ❌ + doküman çalıştığını iddia ediyor |
+| YKB/QNB/Garanti ekstre cron'ları | Banka API'lerinden hareket çekme | Zamanlanmamış — **bilinçli** (kimlikler .env'de yok) | — | — | — | — | *bulgu değil* |
+
+**Öne çıkan:** Kur cron'u her koşuda `WARNING [amount_try] Güncelleme hatası: Multiple rows were found when exactly one was required` yazıyor, çıkış kodu 0 dönüyor, systemd "başarılı" sayıyor. ✔ *ana denetçi journalctl ile doğruladı.* Bu, FIN-001'in ikinci bacağıdır.
+
+---
+
+## Çıktı 13 — Üçüncü-Parti Entegrasyon Dayanıklılık Matrisi
+
+| Servis | Durum | Timeout | Retry | Circuit-breaker | Degradation | Idempotency | Test |
+|---|---|:--:|:--:|:--:|---|:--:|:--:|
+| **Sedna SQL Server** | AKTİF | 10 sn login / 60-180 sn sorgu | ❌ | ❌ | ✔ Graceful (503, diğer adımlar sürer) | ✔ (rec_id + tx_hash) | kısmi |
+| **TCMB kur** | AKTİF | 15 sn | ❌ (3 kademeli kaynak fallback var) | ❌ | ✔ carry-forward | ✔ (tarih+ccy upsert) | ❌ **hiç** |
+| **Anthropic Claude** | AKTİF | ❌ açık tanım yok (SDK: 600 sn read) | SDK varsayılanı 2 | ❌ | ✔ 503/502 | onay akışına giriyor | kısmi |
+| **SMTP** | AKTİF | 20 sn | ❌ | ❌ | ⚠ **sessiz** — False döner, kullanıcı bilmez | ❌ | — |
+| **Web Push (VAPID)** | AKTİF | 10 sn | ❌ | ◐ (abonelik pasifleştirme) | ✔ arka plan | ✔ | — |
+| **VakıfBank** | ⚠ **SANDBOX kimliğiyle üretime yazma yolu açık** | 20 sn | ❌ | ❌ | ✔ 503 | ✔ tx_hash | ✔ 19 test |
+| QNB / Garanti / YKB | Uykuda (kimlik yok) | 60/60/30 sn | ❌ | ❌ | ✔ | ✔ | ✔ 8/8/4 test |
+| **Amadeus** | ☠ **ÖLÜ** — sağlayıcı 17.07.2026'da kapandı, kod duruyor | 15 sn | ❌ | ❌ | ⚠ mock veriye düşüyor | — | ❌ |
+
+**Genel desen:** Timeout disiplini iyi, **retry ve circuit-breaker hiçbir entegrasyonda yok**, idempotency olgun. Kritik boşluk: TCMB ayrıştırıcısının hiç testi olmaması (kur = tüm EUR/TRY dönüşümlerinin tek kaynağı) ve bayatlık alarmının bulunmaması.
+
+---
+
+## Çıktı 11 — KVKK / Kişisel Veri Envanteri
+
+| Tablo | PII alanları | Tür | Kayıt | Saklama süresi |
+|---|---|---|---:|---|
+| `reservations` | guests, nation, voucher | Misafir ad-soyad, uyruk | 18.411 | **TANIMSIZ** |
+| `audit_logs` | user_id, ip_address, details | IP + davranış izi | 25.038 | **TANIMSIZ** (hiç silinmemiş, en eski 24 Şub) |
+| `personnel` | full_name, employee_code, title, access_token | Çalışan kimlik + cihaz token'ı | 230 | **TANIMSIZ** |
+| `attendance_logs` | personnel_id, punched_at | Çalışma davranışı izleme | 16 | **TANIMSIZ** (İş mevzuatı 5 yıl önerir) |
+| `messages` | content, file_url | **Haberleşme gizliliği (Anayasa m.22)** | 157 | **TANIMSIZ** — soft-delete, içerik kalıcı |
+| `dividend_shareholders/payments` | name, gross/stopaj/net | Gerçek kişi geliri — yüksek hassasiyet | 12 ortak | **TANIMSIZ** (vergi mevzuatı 5-10 yıl) |
+| `vendor_bank_accounts` + `finance_events.iban` | iban, hesap_adi | Kişisel finansal veri | 268 | **TANIMSIZ** |
+| `push_subscriptions` | endpoint, p256dh, user_agent | Cihaz parmak izi | 259 | **TANIMSIZ** (pasifler temizlenmiyor) |
+| `notifications` | title, body | Finansal tutar/cari adı içerir | 1.962 | **TANIMSIZ** |
+| `ai_conversations/messages/usage` | content, cost_usd | **YURT DIŞI AKTARIM (Anthropic)** | 1 konuşma | **TANIMSIZ** |
+| `users` | email, hashed_password (bcrypt ✔) | Kimlik + auth sırrı | 10 | Hesap ömrü (CASCADE ✔) |
+| `error_logs` | ip_address, path, traceback | IP + istek yolu | 0 (boş) | **TANIMSIZ** |
+
+**Boşluklar:** ① Hiçbir tabloda **retention/otomatik imha yok**. ② Aydınlatma metni ve **açık rıza kaydı sistemde hiç yok** (özellikle `personnel` için kritik). ③ **Anthropic'e yurt dışı aktarımın KVKK Md.9 dayanağı yok** — `ai_service.py` cari adı/finansal veri gönderiyor. ④ Veri ihlali müdahale süreci (72 saat) yazılı değil. ⑤ Hassas veri **okuma/dışa aktarma** audit'e girmiyor (yalnız yazma). ⑥ Yedekler şifresiz ve 0644. ⑦ Misafir (ilgili kişi) silme talebi karşılanamıyor — veri serbest metin.
+
+**Güçlü yön:** Veri minimizasyonu fiilen uygulanmış — `personnel.phone` %0 dolu, `vendors.contact_person/phone/email` %0 dolu; biyometrik veri yerine cihaz token'ı kullanılmış.
+
+---
+
+## Çıktı 12 — Felaket Kurtarma (DR) Raporu
+
+| Soru | Cevap |
+|---|---|
+| Otomatik DB yedeği var mı? | ✔ Günlük 03:00, `pg_dump -Fc`, bütünlük doğrulamalı, 30 rotasyon, kesintisiz |
+| Yedek izleniyor mu? | ❌ `OnFailure=` yok — sessiz kesinti haftalarca fark edilmez |
+| Kapsam tam mı? | ❌ DB ✔ · **uploads ❌** (284 MB) · **.env ❌** · **TLS anahtarları ❌** · **17 systemd/nginx konfigi ❌** |
+| Off-site? | ❌ Yok — IAM role yok, S3 bloğu hiç çalışmadı |
+| Şifreli mi? | ❌ Düz `pg_dump`, dosya izni 0644 |
+| RPO / RTO | ❌ Tanımsız |
+| Restore tatbikatı | ◐ `db-restore.sh` var, **tek seferlik**, periyodik değil, kayıt tutulmuyor |
+| PITR / WAL arşivleme | ❌ Yok — gün-içi kayıp kaçınılmaz (en fazla 24 sa) |
+| SPOF | 🔴 Tek EC2 · tek EBS · tek DB — DB + uploads + yedekler **aynı diskte** |
+
+**Ransomware / yanlış DROP / disk kaybı senaryosu bugün:** Yedekler de gittiği için **kurtarma yok**. Yalnız git deposundaki kod kalır (DB verisi ve 1904 mali belge kalıcı kayıp).
+
+---
+
+## Çıktı 5 — Dokümantasyon Drift Raporu
+
+| İddia (CLAUDE.md / docs) | Gerçek | Durum |
+|---|---|:--:|
+| "CI her push/PR'da pytest + vitest çalıştırır" | **0 koşu**, Actions kapalı | ▼ Yanlış |
+| "1220+ test (pytest), ~%66 satır kapsamı" | 1.917 test, %77 kapsam | ◐ Bayat (iyi yönde) |
+| "Tablolar (85)" | 52 model dosyası, 5'i registry dışında — sayım doğrulanamıyor | ◐ Şüpheli |
+| `docs/api-haritasi.md` | Canlı API yüzeyinin **%24'ü katalogda yok** (AI + VakıfBank modülleri hiç yok, 1 path yanlış) | ▼ Drift |
+| `docs/modules/finans-mimarisi.md` izin kodları | `finance.advances` / `finance.exchange_rates` — **gerçek kodlar farklı** (`finance.avanslar` / `finance.doviz`) | ▼ Yanlış |
+| `finans-mimarisi.md:302,315` "haftalık push çalışıyor" | `cron_weekly_push.py` **hiç zamanlanmamış** | ▼ Yanlış |
+| `.env.example` | 58 config ayarından **9'u belgeli**; fiilen kullanılan 2 anahtar eksik | ▼ Eksik |
+| v3-sonrası altyapı iddiaları (swap/earlyoom/TZ/ssh-audit/sedna-timer) | Hepsi kurulu ve çalışıyor | ✔ **Doğru** |
+| systemd TZ drop-in "process TZ'si zorlanır" | api + frontend ✔; **5 cron unit'inin 3'ünde TZ ayarsız** | ◐ Kısmen |
+
+**Drift otomatik ölçülmüyor** — CI'da kod↔doküman tutarlılık testi yok (DOC-003).
+
+---
+
+## Çıktı 2 — Eksik Test Senaryoları
+
+1. `cc_statement_parser` — 4 banka × gerçek örnek PDF (şu an **%10 kapsam**, 643 satır)
+2. TCMB ayrıştırıcısı — XML şeması değişimi, boş yanıt, carry-forward davranışı (**hiç test yok**)
+3. `finance_events.amount_try` tazeleme — büyük→küçük upsert regresyonu (FIN-001 kapanış testi)
+4. Manuel kredi eşleştir→geri al turu — `remaining_amount` değişmemeli (ARCH-001)
+5. Kısmi eşleşme kabulü — planlı yükümlülüğün tamamı silinmemeli (FIN-003)
+6. Alembic metadata bütünlüğü — "her `__tablename__` `Base.metadata`'da mı" AST/runtime testi (DB-001)
+7. Finansal uç durumlar: kuruş yuvarlama (ROUND_HALF_UP vs banker's), ay sonu 28/29/30/31, yıl geçişi, çok-para-birimli FIFO
+8. WebSocket uçtan uca — polling yasağının dayandığı tek mekanizma, **hiç test edilmiyor**
+9. Türkçe normalizasyon — `İSTANBUL` ↔ `istanbul` eşleşmesi (cari eşleştirme = para yolu)
+10. Gün sınırı / TZ — "bugünkü tahsilatlar" İstanbul gece yarısında doğru mu
+11. Rota/sayfa testleri + E2E (Playwright) — 38.570 satırlık frontend sayfa katmanı **sıfır testli**
+12. `ai.asistan` 8 HTTP endpoint'i — izin geçidi doğrulanmayan tek modül
+
+## Çıktı 3 — Eksik Test Kullanıcıları / Roller
+
+Non-admin izin-matrisi fixture'ları var ✔ ancak: `system.error_logs`'a **yalnız Admin** sahip (tek kullanıcı) → çok-rollü hata görünürlüğü test edilemiyor; `ai.asistan` için rol fixture'ı yok.
+
+## Çıktı 4 — Eksik Mock Veri Setleri
+
+Gerçek banka PDF örnekleri (4 banka KK ekstresi), TCMB XML varyantları (tatil/eksik kur/şema değişimi), Sedna şema-değişimi senaryosu. **Açık ağ engeli (network guard) yok** — dış API izolasyonu "her test patch'lemeyi hatırladığı için" çalışıyor (kırılgan).
+
+## Çıktı 7 — Performans İyileştirme Listesi
+
+1. `GET /finance/cariler/payment-schedule` her okumada tüm cari FIFO'sunu yeniden hesaplıyor **ve `finance_events`'e yazıyor** (salt-görme izniyle mutasyon — API-003)
+2. Yükleme/onay `async def` uçları ağır senkron işi event-loop'ta koşuyor → tek worker'da tüm API donuyor
+3. PG slow-query kapalı, `pg_stat_statements` kurulu değil → **sıfır gecikme görünürlüğü**
+4. Onay bekleyenler listesinde N+1 + Python'da sayfalama
+5. Satış FIFO motoru her cache-miss'te tüm fatura+tahsilat tablolarını belleğe alıyor
+6. Threadpool (40) > DB havuzu (35) → yoğunlukta `pool_timeout` 500'leri
+7. Çekler sayfası 500 kayıt tek istekte çekiyor, grup toplamları kırpılmış veriden hesaplanıyor
+8. Krediler sayfası kart ekstrelerini sıralı (waterfall) çekiyor
+
+---
+
+## Çıktı 10 — Genel Proje Notu
+
+| | Değer |
+|---|---|
+| **v4 genel not** | **55 / 100** (aritmetik ortalama 5,52) |
+| Karşılaştırılabilir v3 | 59 / 100 |
+| Çekirdek ürün katmanı (1-10, 20) | **6,1** / 10 |
+| Operasyon/uyum katmanı (11-19, 21-23) | **4,9** / 10 |
+| **90 gün hedefi** | **72 / 100** (plandaki hedef skorların ortalaması) |
+| Hızlı Kazanımlar uygulanırsa (1 gün) | ≈ **61 / 100** |
+
+**Neden 55:** Ürün katmanı gerçekten iyi — katmanlı mimari zorlanıyor (AST bekçileri), onay/dual-write ortak-service deseni olgun, RBAC + HttpOnly cookie disiplini sağlam, tasarım sistemi tutarlı, finansal çekirdek (idempotent `finance_events`, para-birimi-ayrık FIFO, NUMERIC(15,2)) doğru kurulmuş. Notu çeken şey **bu iyi ürünün etrafında güvence katmanının olmaması**: test var ama koşmuyor, yedek var ama eksik, log var ama alarm yok, doküman var ama doğrulanmıyor. Sonuç bu denetimde somutlaştı — 2 ay boyunca sessizce çöken bir cron ve yönetim raporlarında duran 696 bin TL.
+
+---
+
+## Çıktı 18 — Kapanış Kriterleri
+
+| ID | Kapanmış sayılır ki… |
+|---|---|
+| **FIN-001** | `SELECT count(*) ... WHERE currency='TRY' AND abs(amount_try-amount)>0.01` = **0** + upsert regresyon testi yeşil |
+| **DR-001** | uploads/ günlük yedekte, off-site kopyada ve tatbikatta bir dosya açılarak doğrulanmış |
+| **DR-002** | DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve **S3'ten restore bir kez uçtan uca** yapılmış |
+| **CICD-010** | `actions/permissions` → `enabled:true` **ve** en son `ci.yml` koşusunun conclusion'ı `success` |
+| **SEC-001** | `gh repo view` → `"visibility":"PRIVATE"` **ve** public dönemde görünmüş kimlik bilgileri döndürülmüş |
+| **DB-001** | `alembic revision --autogenerate` boş diff üretiyor (hiçbir `DROP TABLE` yok) + metadata bütünlük testi yeşil |
+| **ARCH-001** | Router `apply_credit_bank_match` çağırıyor + eşleştir/geri-al turu sonrası `remaining_amount` değişmiyor (test) + canlı sapma 0 |
+| **JOBS (döviz)** | `journalctl -u sprenses-exchange-rates` son 10 koşuda `[amount_try]` uyarısı yok |
+| **DR-003** | Bir test hatası kasten tetiklendiğinde alarm kanalından bildirim geliyor |
+
+---
+
+## Ek — Boyut Bazlı Güçlü Yönler (kanıtlı)
+
+Denetim yalnız sorun listelemez; şunlar **koddan doğrulandı** ve korunmalıdır:
+
+- **Paketler-arası `router→router` import'u tamamen kapalı** ve `services/` hiç router import etmiyor — tek yön korunuyor (`grep -rn "from app.routers" backend/app/services/` → 0 sonuç).
+- **Onay/dual-write ortak-service deseni**: 16 executor handler'ının neredeyse tamamı router ile aynı `services/*_service.py` fonksiyonunu çağırıyor; `tests/test_approval_system.py:1647` AST testi handler kapsamını statik zorluyor.
+- **Fabrika deseni**: 7 planlı gelir/gider modülü tek router fabrikası + tek executor closure'ı + tek frontend bileşeniyle üretiliyor.
+- **Para tipi disiplini**: `models/`'de **0 adet `Float`** — tüm para kolonları `NUMERIC(15,2)`; her operasyon sonrası `round(...,2)` → v3'ün float endişesi geçerli olarak Düşük'te kaldı.
+- **Dedup/idempotency**: Sedna içe aktarmalarında `rec_id` partial unique + `tx_hash` + upsert deseni olgun.
+- **Deploy scripti olaydan öğrenmiş**: `flock` tekilleştirme + build öncesi RAM/swap headroom bekçisi (2026-07-06 ve 07-18 olaylarının doğrudan ürünü).
+- **Gizli bilgi hijyeni**: depoda izlenen tek ortam/anahtar dosyası yok; `PreToolUse` bekçisi zorla-ekleme (force-add) yolunu kapatıyor — *bu denetim sırasında bekçi fiilen tetiklendi ve çalıştığı doğrulandı.*
+- **CLAUDE.md'nin altyapı iddiaları doğru çıktı** — swap/earlyoom/TZ drop-in/ssh-key-audit/sedna-timer hepsi kurulu (iddia ≠ gerçek kontrolü geçildi).
+- **UI tasarım sistemi**: v3'te açık olan native `confirm()`, focus-ring sapması, para girişinde `type="number"`, paylaşılan bileşende `teal-600` sapmalarının tamamı kapatılmış.
+
+---
+
+*Denetim yöntemi: 23 bağımsız boyut denetçisi paralel çalıştı; her Kritik/Yüksek bulgu, bulguyu çürütmekle görevlendirilmiş bağımsız bir 2. göz tarafından koddan/sistemden yeniden incelendi (61 düşürme). Ana denetçi 6 headline bulguyu canlı üretim sisteminde ayrıca bizzat doğruladı (✔ işaretli). Ham ajan çıktıları: `wf_95109cbd-55f` ve `wf_75846a1f-8b4` transcript dizinleri.*
