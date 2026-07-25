@@ -18,6 +18,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    # QUAL-001 (v4 denetim, Boyut 2): lint/tip kapısı. Hata durumunda job KIRMIZI.
+    name: Lint & tip (ruff + svelte-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Backend: ruff (kritik hata kapısı) ---
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: ruff'ı yükle (sürüm sabit — yerel = CI)
+        run: pip install ruff==0.8.6
+
+      - name: ruff — kritik hata kuralları (bloklayıcı)
+        working-directory: backend
+        # BİLEREK DAR küme: yalnız gerçek-hata sınıfları → bugün 0 ihlal, yani
+        # kapı YEŞİL açılır ve yeni bir gerçek hatada (sözdizimi/tanımsız ad/
+        # geçersiz karşılaştırma) anında KIRMIZI olur. Stil kuralları (I/F401 vb.)
+        # backend/ruff.toml'da yerel-danışma olarak tam açık; temizlendikçe bu
+        # bloklayıcı listeye taşınır (kademeli sıkılaştırma).
+        # E9=sözdizimi · F63=geçersiz karşılaştırma/assert tuzağı · F7=yanlış
+        # yerde break/return · F82=tanımsız ad.
+        run: ruff check . --select E9,F63,F7,F82
+
+      # --- Frontend: svelte-check (tip denetimi) ---
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Node bağımlılıklarını yükle
+        working-directory: frontend
+        run: npm ci
+
+      - name: svelte-kit sync (tip üretimi — svelte-check ön koşulu)
+        working-directory: frontend
+        # .svelte-kit/tsconfig.json'u üretir; olmadan svelte-check "cannot read
+        # file" ile ölür (bloklayıcı kapıda yanlış-kırmızı olurdu).
+        run: npx svelte-kit sync
+
+      - name: svelte-check (tip denetimi — bloklayıcı, threshold=error)
+        working-directory: frontend
+        run: npm run check
+
   backend:
     name: Backend (pytest)
     runs-on: ubuntu-latest
