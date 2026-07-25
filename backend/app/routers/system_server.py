@@ -15,6 +15,8 @@ from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
+from app.schemas.server import DiskCleanupRequest
+from app.services import disk_cleanup_service
 from app.utils.audit import log_action
 
 logger = logging.getLogger(__name__)
