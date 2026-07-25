@@ -643,7 +643,7 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 
 | İddia (CLAUDE.md / docs) | Gerçek | Durum |
 |---|---|:--:|
-| "CI her push/PR'da pytest + vitest çalıştırır" | **0 koşu**, Actions kapalı | ▼ Yanlış |
+| ~~"CI her push/PR'da pytest + vitest çalıştırır"~~ | **0 koşu**, Actions kapalı | ✔ **KAPandı (DOC-D01, 2026-07-25)** — CLAUDE.md ifadesi düzeltildi: "yapılandırıldı ama Actions KAPALI → fiilen çalışmıyor"; regresyon testi `tests/test_doc_ci_drift.py` (Actions açılana kadar 'kapalı' uyarısını zorunlu kılar). Actions açılınca ifade güncellenmeli. |
 | "1220+ test (pytest), ~%66 satır kapsamı" | 1.917 test, %77 kapsam | ◐ Bayat (iyi yönde) |
 | "Tablolar (85)" | 52 model dosyası, 5'i registry dışında — sayım doğrulanamıyor | ◐ Şüpheli |
 | `docs/api-haritasi.md` | Canlı API yüzeyinin **%24'ü katalogda yok** (AI + VakıfBank modülleri hiç yok, 1 path yanlış) | ▼ Drift |
