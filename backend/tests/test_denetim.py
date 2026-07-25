@@ -252,6 +252,38 @@ class TestRunOutcome:
         db.refresh(f)
         assert f.status == "acik"
 
+    def test_stale_run_is_reaped(self, db, denetim_report):
+        """Süreç öldürülünce koşu sonsuza dek 'calisiyor' kalmamalı.
+
+        2026-07-25 canlı olayı: UI'dan başlatılan koşu API'nin cgroup'undaydı,
+        `systemctl restart sprenses-api` onu öldürdü, `finish_run` hiç çalışmadı.
+        """
+        from datetime import timedelta
+
+        f = _finding(db, denetim_report, "A-001")
+        run = svc.start_run(db, f, "elle", "opus")
+        assert run.status == "calisiyor" and f.status == "devam"
+
+        # Süreç öldü: koşu eskidi ama kimse kapatmadı
+        run.started_at = svc.datetime.now(svc.tz_istanbul) - timedelta(minutes=180)
+        db.flush()
+
+        assert svc.reap_stale_runs(db) == 1
+        db.refresh(run)
+        db.refresh(f)
+        assert run.status == "basarisiz"
+        assert run.finished_at is not None
+        assert "yarıda kesildi" in run.error
+        assert f.status == "acik", "Bulgu tekrar denenebilir duruma dönmeli"
+
+    def test_reaper_does_not_touch_fresh_runs(self, db, denetim_report):
+        """Gerçekten koşan bir işi öldürmüş gibi işaretleme."""
+        f = _finding(db, denetim_report, "A-001")
+        run = svc.start_run(db, f, "otomatik", "opus")
+        assert svc.reap_stale_runs(db) == 0
+        db.refresh(run)
+        assert run.status == "calisiyor"
+
     def test_attempt_counter_increments(self, db, denetim_report):
         f = _finding(db, denetim_report, "A-001")
         svc.start_run(db, f, "otomatik", "opus")
@@ -351,6 +383,38 @@ class TestFindingsApi:
         assert r.status_code == 200
         after = client.get("/api/system/denetim/scoreboard", headers=auth_headers).json()
         assert after["current_score"] > before["current_score"]
+
+    def test_manual_run_uses_isolated_cgroup(self, client, auth_headers, db, denetim_report,
+                                             monkeypatch):
+        """Elle koşu KENDİ systemd birimiyle başlatılmalı — API'nin cgroup'unda değil.
+
+        Aksi halde `systemctl restart sprenses-api` koşuyu ortasından öldürür
+        (2026-07-25 canlı olayı). Bu test çağrılan komutu yakalar.
+        """
+        import subprocess as sp
+
+        from app.routers import system_denetim
+
+        captured = {}
+
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            return sp.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(system_denetim.subprocess, "run", fake_run)
+
+        f = _finding(db, denetim_report, "A-001", automatable=True)
+        db.commit()
+        r = client.post(
+            f"/api/system/denetim/findings/{f.id}/run", json={}, headers=auth_headers,
+        )
+        assert r.status_code == 200
+
+        cmd = captured["cmd"]
+        assert "systemd-run" in cmd, "Koşu kendi cgroup'unda başlatılmalı"
+        assert "--collect" in cmd
+        assert any(str(a).startswith("sprenses-denetim-manual-") for a in cmd)
+        assert "--finding" in cmd and "A-001" in cmd
 
     def test_manual_run_rejected_for_non_automatable(self, client, auth_headers, db, denetim_report):
         f = _finding(db, denetim_report, "SEC-001", automatable=False)

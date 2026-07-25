@@ -6,16 +6,26 @@
 # Elle uygulanan runbook = yapılmayan runbook. Burada tek komuta indiriliyor ve
 # idempotent: yarıda kalırsa yeniden çalıştırılabilir.
 #
-# KULLANIM (AWS admin kimliğiyle, BİR KEZ — sunucudan ya da kendi bilgisayarınızdan):
-#     scripts/provision-offsite-backup.sh <benzersiz-bucket-adı> [hedef-bölge]
+# KULLANIM (AWS admin kimliğiyle, BİR KEZ):
+#     scripts/provision-offsite-backup.sh <benzersiz-bucket-adı> [hedef-bölge] [instance-id]
 #
-#   ör: scripts/provision-offsite-backup.sh sprenses-dr-2026 eu-west-1
+#   ör (sunucuda):  scripts/provision-offsite-backup.sh sprenses-dr-2026 eu-west-1
+#   ör (dizüstünde): scripts/provision-offsite-backup.sh sprenses-dr-2026 eu-west-1 i-0cf25a70e992feaa5
 #
-# Sunucuda IAM role YOKSA önce geçici admin kimliği gerekir:
-#     aws configure          # AWS hesabınızdan admin access key
-#     scripts/provision-offsite-backup.sh ...
-#     rm -rf ~/.aws          # !!! admin anahtarını sunucuda BIRAKMAYIN
-#   (Sunucu bundan sonra IAM role ile çalışır — anahtar dosyası gerekmez.)
+# İKİ YOL — ikisi de aynı sonucu verir:
+#
+#   A) SUNUCUDA (aws CLI zaten kurulu):
+#        aws configure          # AWS hesabınızdan admin access key
+#        scripts/provision-offsite-backup.sh sprenses-dr-2026 eu-west-1
+#        rm -rf ~/.aws          # !!! admin anahtarını sunucuda BIRAKMAYIN
+#
+#   B) KENDİ BİLGİSAYARINIZDA (admin anahtarı üretim sunucusuna hiç girmez — tercih edilir):
+#        brew install awscli && aws configure
+#        scripts/provision-offsite-backup.sh sprenses-dr-2026 eu-west-1 <instance-id>
+#      Instance-id verilirse IAM profili EC2'ye buradan bağlanır; verilmezse ve script
+#      EC2 dışındaysa bağlama komutu ekrana yazılır (elle çalıştırılır).
+#
+# Her iki yolda da sunucu bundan sonra IAM role ile çalışır — anahtar dosyası gerekmez.
 #
 # NE KURAR (hepsi idempotent):
 #   1. S3 bucket — EC2'den FARKLI bölgede (bölgesel arıza iki kopyayı birden götürmesin)
@@ -196,13 +206,16 @@ if ! aws iam get-instance-profile --instance-profile-name "$ROLE_NAME" >/dev/nul
 fi
 
 # ─── 8) Instance'a ekle ──────────────────────────────────────────────────────
-TOKEN="$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
-         -H "X-aws-ec2-metadata-token-ttl-seconds: 60" --max-time 2 2>/dev/null || true)"
-INSTANCE_ID=""
-if [ -n "$TOKEN" ]; then
-    INSTANCE_ID="$(curl -s --max-time 2 -H "X-aws-ec2-metadata-token: $TOKEN" \
-                   http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || true)"
-    case "$INSTANCE_ID" in *'<'*|*' '*) INSTANCE_ID="" ;; esac
+# Instance-id: 3. argümandan (dizüstünden koşarken) ya da IMDS'ten (sunucuda koşarken).
+INSTANCE_ID="${3:-${SPRENSES_EC2_INSTANCE_ID:-}}"
+if [ -z "$INSTANCE_ID" ]; then
+    TOKEN="$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+             -H "X-aws-ec2-metadata-token-ttl-seconds: 60" --max-time 2 2>/dev/null || true)"
+    if [ -n "$TOKEN" ]; then
+        INSTANCE_ID="$(curl -s --max-time 2 -H "X-aws-ec2-metadata-token: $TOKEN" \
+                       http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || true)"
+        case "$INSTANCE_ID" in *'<'*|*' '*) INSTANCE_ID="" ;; esac
+    fi
 fi
 
 if [ -n "$INSTANCE_ID" ]; then
@@ -224,7 +237,10 @@ else
 fi
 
 echo ""
-echo "✅ Provizyon tamam. SUNUCUDA sırasıyla:"
-echo "   rm -rf ~/.aws                                   # admin anahtarını bırakmayın"
+echo "✅ Provizyon tamam. Şimdi SUNUCUDA (ec2-user, /home/ec2-user/otel):"
+if [ -n "$INSTANCE_ID" ]; then
+    echo "   # IAM kimliğinin metadata'ya yayılması için ~30 sn bekleyin"
+fi
+echo "   rm -rf ~/.aws                                   # bu makinede admin anahtarı bırakmayın"
 echo "   scripts/enable-offsite-backup.sh s3://$BUCKET/$PREFIX"
 echo "   scripts/db-restore.sh --offsite                 # DR tatbikatı (kapanış kanıtı)"

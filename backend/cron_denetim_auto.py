@@ -542,6 +542,10 @@ def main() -> int:
     db = SessionLocal()
     try:
         cfg = svc.get_config(db)
+        # Kilit bizde → başka koşan süreç YOK; asılı kalmış `calisiyor` satırları ölüdür.
+        reaped = svc.reap_stale_runs(db)
+        if reaped:
+            logger.warning("%d yarıda kesilmiş koşu kapatıldı", reaped)
         db.commit()
 
         if not cfg.enabled and args.trigger != "elle":

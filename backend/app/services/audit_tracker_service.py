@@ -407,6 +407,47 @@ def next_automation_candidate(db: Session, report: AuditReport, max_attempts: in
     return candidates[0]
 
 
+def reap_stale_runs(db: Session, max_age_min: int = 120) -> int:
+    """Yarıda kesilmiş koşuları kapat; kaç tanesini kapattığını döndür.
+
+    Bir koşu süreci SIGKILL alırsa (systemd cgroup temizliği, earlyoom, makine
+    yeniden başlatma) `finish_run` ÇALIŞMAZ → koşu satırı sonsuza dek `calisiyor`,
+    bulgu sonsuza dek `devam` görünür. Bu, kullanıcıya "hâlâ çalışıyor" yalanı söyler.
+    Cron her koşunun BAŞINDA bunu çağırır: kilit alınmışsa gerçekten koşan tek bir
+    süreç vardır, dolayısıyla eski `calisiyor` satırları kesin olarak ölüdür.
+
+    2026-07-25: canlıda yaşandı — UI'dan başlatılan JOBS-002 koşusu API'nin
+    cgroup'unda koştuğu için `systemctl restart sprenses-api` onu öldürdü.
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now(tz_istanbul) - timedelta(minutes=max_age_min)
+    stale = (
+        db.query(AuditFindingRun)
+        .filter(
+            AuditFindingRun.status == "calisiyor",
+            AuditFindingRun.started_at < cutoff,
+        )
+        .all()
+    )
+    for run in stale:
+        run.status = "basarisiz"
+        run.finished_at = datetime.now(tz_istanbul)
+        run.error = (
+            "Koşu yarıda kesildi (süreç öldürüldü — servis yeniden başlatma, "
+            "bellek koruması veya makine kapanması). Sonuç kaydedilemedi."
+        )
+        finding = (
+            db.query(AuditFinding).filter(AuditFinding.id == run.finding_id).first()
+        )
+        if finding and finding.status == "devam":
+            finding.status = "acik"
+            finding.last_run_status = "basarisiz"
+    if stale:
+        db.flush()
+    return len(stale)
+
+
 def start_run(db: Session, finding: AuditFinding, trigger: str, model: str) -> AuditFindingRun:
     """Koşu kaydını aç ve bulguyu 'devam' durumuna al."""
     run = AuditFindingRun(

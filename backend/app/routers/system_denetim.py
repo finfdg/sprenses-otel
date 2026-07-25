@@ -9,6 +9,7 @@ Mutasyon uçları onay akışından (`check_approval`) ve audit'ten geçer.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 from typing import Optional
@@ -437,14 +438,34 @@ def trigger_run(
     )
     db.commit()
 
-    subprocess.Popen(  # noqa: S603 — sabit script yolu, kullanıcı girdisi yok
-        [sys.executable, _CRON_SCRIPT, "--finding", f.code, "--trigger", "elle"],
-        cwd=_BACKEND_DIR,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    return {"detail": f"{f.code} için otomasyon başlatıldı", "code": f.code}
+    # KENDİ cgroup'unda başlat — `subprocess.Popen(start_new_session=True)` YETMEZ:
+    # oturumu ayırır ama süreç API'nin cgroup'unda kalır ve systemd'nin varsayılan
+    # KillMode=control-group davranışı yüzünden `systemctl restart sprenses-api`
+    # koşuyu ortasından öldürür (2026-07-25'te canlıda yaşandı: JOBS-002 koşusu
+    # başka bir oturumun API restart'ıyla 37 dakikalık çalışmanın ardından uçtu).
+    unit = f"sprenses-denetim-manual-{re.sub(r'[^a-z0-9]+', '-', f.code.lower())}"
+    try:
+        subprocess.run(  # noqa: S603 — sabit yollar; f.code regex ile temizlendi
+            [
+                "sudo", "-n", "systemd-run", "--collect", "--unit", unit,
+                "--uid=ec2-user",
+                "--setenv=TZ=Europe/Istanbul",
+                "--setenv=HOME=/home/ec2-user",
+                "--working-directory", _BACKEND_DIR,
+                sys.executable, _CRON_SCRIPT,
+                "--finding", f.code, "--trigger", "elle",
+            ],
+            check=True, capture_output=True, text=True, timeout=30,
+        )
+    except subprocess.CalledProcessError as e:
+        detail = (e.stderr or "").strip()[:200]
+        if "already exists" in detail:
+            raise HTTPException(status_code=409, detail="Bu bulgu için bir koşu zaten sürüyor")
+        raise HTTPException(status_code=503, detail=f"Otomasyon başlatılamadı: {detail}")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=503, detail="Otomasyon başlatılamadı (zaman aşımı)")
+
+    return {"detail": f"{f.code} için otomasyon başlatıldı", "code": f.code, "unit": unit}
 
 
 @router.get("/runs")
