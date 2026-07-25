@@ -77,6 +77,14 @@ _error_handler.setLevel(logging.ERROR)
 _error_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT))
 _root.addHandler(_error_handler)
 
+# error_logs tablosu köprüsü — ERROR ve üstü her log kaydı "Hata Logları" UI'ında
+# görünsün (LOG-001, 2026-07-25). Öncesinde yalnız global exception handler ve
+# sedna_sync yazıyordu; 100+ logger.error çağrısı DB'ye hiç düşmüyordu.
+from app.utils.db_log_handler import DBLogHandler  # noqa: E402
+
+_db_log_handler = DBLogHandler()
+_root.addHandler(_db_log_handler)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Sprenses Hotel Management API", version="1.0.0")
@@ -140,7 +148,13 @@ app.add_middleware(GZipMiddleware, minimum_size=1024)
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback as tb_module
-    logger.error("Beklenmeyen hata: %s %s — %s", request.method, request.url.path, exc, exc_info=True)
+    # _skip_db_log: DBLogHandler bu kaydı atlasın — aşağıda zaten zengin request
+    # bağlamıyla (method/path/user_id/ip) ErrorLog yazılıyor; çift kayıt olmasın.
+    logger.error(
+        "Beklenmeyen hata: %s %s — %s",
+        request.method, request.url.path, exc,
+        exc_info=True, extra={"_skip_db_log": True},
+    )
 
     # Hata logunu veritabanına kaydet
     try:
