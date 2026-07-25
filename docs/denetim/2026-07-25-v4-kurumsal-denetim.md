@@ -13,7 +13,44 @@
 | **Örnekleme** | Kritik yollar (finans, auth, DR, sunucu, arka plan işleri) **%100** derin okuma + **canlı DB doğrulaması**; kalan boyutlar hedefli örneklem + kanıt (`dosya:satır`). |
 | **Önceki denetim referansı** | 2026-07-05 **v3** (62/100 ağırlıklı · 59/100 aritmetik, 3 Kritik) · 2026-06-21 v2 (72/100) · 2026-07-01 tam modül denetimi (156 bulgu) |
 | **Kalite süreci** | 204 bulgu üretildi. Her Kritik/Yüksek bulgu bağımsız 2. gözle çürütülmeye çalışıldı → **61 bulgunun risk seviyesi düşürüldü**, yalnız 2'si Kritik'te teyit edildi. Ana denetçi ayrıca 6 headline bulguyu canlı sistemde bizzat doğruladı (aşağıda ✔ ile işaretli). |
-| **Revizyon** | **R1 · 2026-07-25 04:35** — 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 · JOBS döviz cron'u).<br>**R2 · 2026-07-25 05:15** — ARCH-001 kapatıldı **ve bu raporun bir bulgusundaki yanlış canlı-sapma iddiası düzeltildi** (bkz. R2 Kapanış Kaydı).<br>**R3 · 2026-07-25 05:35** — DR ailesi: DR-001 büyük ölçüde kapandı (uploads yedekte + tatbikat), DR-003 kapatıldı (alarm kanalı canlı), DR-002 AWS provizyonuna bağlı açık.<br>**R4 · 2026-07-25 10:05** — CICD-010'un **ön koşulları** açıldı: sıfırdan bootstrap'ı engelleyen 3 kusur (migration FK sırası · seed'in 14 modül geride olması · 7 bayat modül yaması) düzeltildi. Taze DB'de 1927 test yeşil. Bulgu kapanmadı — Actions'ı açmak hâlâ depo sahibinde. Bulgu metinleri **silinmedi**; durumlar güncellendi, hatalı iddia üstü çizilerek gerekçesiyle bırakıldı — denetim anının fotoğrafı ve hatanın izi birlikte korunur. |
+| **Revizyon** | **R1 · 2026-07-25 04:35** — 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 · JOBS döviz cron'u).<br>**R2 · 2026-07-25 05:15** — ARCH-001 kapatıldı **ve bu raporun bir bulgusundaki yanlış canlı-sapma iddiası düzeltildi** (bkz. R2 Kapanış Kaydı).<br>**R3 · 2026-07-25 05:35** — DR ailesi: DR-001 büyük ölçüde kapandı (uploads yedekte + tatbikat), DR-003 kapatıldı (alarm kanalı canlı), DR-002 AWS provizyonuna bağlı açık.<br>**R5 · 2026-07-25 10:30** — İLK GERÇEK RESTORE TATBİKATI koşuldu (`docs/denetim/2026-07-25-restore-tatbikati.md`): başarılı, ama **R3'teki izin sertleştirmesinin felaket kurtarmayı sessizce kırdığını yakaladı**. RPO/RTO ilk kez tanımlandı.<br>**R4 · 2026-07-25 10:05** — CICD-010'un **ön koşulları** açıldı: sıfırdan bootstrap'ı engelleyen 3 kusur (migration FK sırası · seed'in 14 modül geride olması · 7 bayat modül yaması) düzeltildi. Taze DB'de 1927 test yeşil. Bulgu kapanmadı — Actions'ı açmak hâlâ depo sahibinde. Bulgu metinleri **silinmedi**; durumlar güncellendi, hatalı iddia üstü çizilerek gerekçesiyle bırakıldı — denetim anının fotoğrafı ve hatanın izi birlikte korunur. |
+
+---
+
+## Kapanış Kaydı — R5 (2026-07-25) · İlk gerçek restore tatbikatı
+
+Tam kayıt: **[`docs/denetim/2026-07-25-restore-tatbikati.md`](2026-07-25-restore-tatbikati.md)**
+
+**Sonuç ✔ başarılı:** DB satır sayıları üretimle birebir (users/roles/modules/finance_events/
+vendor_transactions/checks/credit_products/reservations tam eşleşme; `audit_logs` 25.048→25.047
+= dump anından beri +1, beklenen). uploads snapshot'ından rastgele 5 mali belge **5/5 md5-özdeş**.
+Süre: DB 4,3 sn + uploads 2,4 sn.
+
+### Tatbikatın yakaladığı kusur — kendi sertleştirmemiz kurtarmayı kırmıştı
+
+İlk koşu `pg_restore: could not open input file … Permission denied` ile **öldü**. Sebep:
+R3'te yedekler sertleştirildi (dosya `0600`, dizin `0700`, sahip `ec2-user` — DR-002 gereği
+doğru bir adım), ama tatbikat `sudo -u postgres` ile koşuyor ve **`postgres` o dosyayı
+okuyamıyor**. Yani felaket kurtarma sessizce kırılmıştı; gerçek bir felakette anlaşılacaktı.
+
+Düzeltme: dump geçici bir kopyaya sahnelenip oradan yükleniyor (`mktemp -d` + `trap`);
+**kaynak yedeğin izinleri değişmiyor**. Üretime geri yükleme yolu `ec2-user` olarak koştuğu
+için etkilenmiyordu.
+
+Ayrıca: `could not change directory` gürültüsü giderildi ve **uploads doğrulaması tatbikata
+eklendi** (önceden yalnız DB test ediliyordu — oysa dosyasız DB işe yaramaz).
+
+### RPO / RTO — ilk kez tanımlandı (denetimde "TANIMSIZ" idi)
+
+| Ölçüt | Değer |
+|---|---|
+| **RPO** | **≤ 24 saat** — günlük tek yedek, PITR/WAL yok |
+| **RTO** (aynı makine) | **≤ 30 dk** — ölçülen teknik süre 7 sn; kalanı insan müdahalesi |
+| **RTO** (makine kaybı) | **BELİRSİZ, ≥ 1 gün** — off-site yok (DR-002), rebuild runbook'u yok |
+
+> **Ders:** Sertleştirme ve kurtarılabilirlik birbirini sessizce bozabilir. Bu tatbikat
+> olmasaydı, yedeklerin okunamadığını ancak gerçek bir felakette öğrenirdik. **Yedek
+> izinlerine/script'ine her dokunuşta tatbikat tekrar koşulmalı.**
 
 ---
 
@@ -534,8 +571,8 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 | Kapsam tam mı? | ❌ DB ✔ · **uploads ❌** (284 MB) · **.env ❌** · **TLS anahtarları ❌** · **17 systemd/nginx konfigi ❌** |
 | Off-site? | ❌ Yok — IAM role yok, S3 bloğu hiç çalışmadı |
 | Şifreli mi? | ❌ Düz `pg_dump`, dosya izni 0644 |
-| RPO / RTO | ❌ Tanımsız |
-| Restore tatbikatı | ◐ `db-restore.sh` var, **tek seferlik**, periyodik değil, kayıt tutulmuyor |
+| RPO / RTO | ✔ **R5'te tanımlandı** — RPO ≤ 24 sa · RTO ≤ 30 dk (aynı makine) · makine kaybında **BELİRSİZ** (off-site yok) |
+| Restore tatbikatı | ✔ **R5** — koşuldu ve KAYIT ALTINA ALINDI; DB satır sayıları üretimle birebir, uploads örneklemi 5/5 md5-özdeş. Sonraki vade 2026-10-25 |
 | PITR / WAL arşivleme | ❌ Yok — gün-içi kayıp kaçınılmaz (en fazla 24 sa) |
 | SPOF | 🔴 Tek EC2 · tek EBS · tek DB — DB + uploads + yedekler **aynı diskte** |
 
