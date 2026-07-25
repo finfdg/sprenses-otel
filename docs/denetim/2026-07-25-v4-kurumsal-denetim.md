@@ -289,7 +289,7 @@ Onarılan satır yedeği     : scratchpad/fin001-onceki-degerler.csv (11 satır,
 | 14 | Ölçeklenebilirlik | 5 | **4,5** | 6 | 15 kalemlik süreç-içi durum → çok-worker yapısal olarak imkânsız |
 | 15 | Teknik Borç / Bus factor | 5 | **4,5** | 6,5 | Bus factor hâlâ 1; runbook yok; 1.493 satır ölü entegrasyon |
 | 16 | Yedekleme & DR | 5 | **4,5** | 8 | DB yedeği sağlam; **uploads + off-site + konfig hâlâ yok**, hacim 3× arttı |
-| 17 | Gözlemlenebilirlik | 3,5 | **4** | 7 | health ucu sahte; alarm kanalı yok; ama ai-digest bir kanal örneği kurdu |
+| 17 | Gözlemlenebilirlik | 3,5 | **4** | 7 | ~~health ucu sahte~~ → ✔ **OBS-002 KAPANDI**; alarm kanalı yok; ama ai-digest bir kanal örneği kurdu |
 | 18 | KVKK / Gizlilik | 3,5 | **4** | 6 | Envanter bu raporla çıkarıldı; retention/rıza/yurt-dışı dayanağı hâlâ yok |
 | 19 | 3rd-Party Dayanıklılık | 4 | **5,5** | 7 | Sedna arka plana alındı + dedup/idempotency olgun; retry/CB hâlâ yok |
 | 20 | Finansal Doğruluk | 7 | **6** | 8,5 | Çekirdek sağlam ama **canlıda ₺696K hayalet** + dönem kilidi bloklamıyor |
@@ -544,7 +544,7 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 
 ### 31-60 gün — "Görünürlüğü kur"
 6. **Alerting katmanı**: mevcut SMTP + push altyapısını operasyonel alarma bağla — `OnFailure=`, disk %80 eşiği, kur bayatlığı (>24 sa), TLS bitişine 21 gün.
-7. **`/api/health`'i gerçek yap** (DB + Sedna tüneli kontrolü) ve nginx/deploy doğrulamasına bağla.
+7. ~~**`/api/health`'i gerçek yap** (DB + Sedna tüneli kontrolü) ve nginx/deploy doğrulamasına bağla.~~ → **OBS-002 KAPANDI (2026-07-25):** `app/routers/health.py` gerçek kontrol yapıyor — DB SERT bağımlılık (`SELECT 1` patlarsa **HTTP 503**), Sedna tüneli YUMUŞAK (TCP-connect probe; kapalıysa yalnız raporlanır, 503 üretmez, çünkü LAN makinesi akşamları kapalı olabilir). Ayrı `GET /api/health/live` yalnız süreç canlılığı (bağımlılık kontrolü yok). Deploy doğrulaması buna bağlı: `cron_denetim_auto._health_ok` + `.claude/commands/deploy.md` `/api/health` 200 bekliyor → DB düşükse deploy geri alınır. Regresyon: `tests/test_health.py` (5 test; fix geri alınınca 503 testi kırmızıya döner — fiilen doğrulandı). Kapanış ölçümü: DB kapalıyken `/api/health` = **503** (manuel doğrulandı).
 8. **Frontend hata yakalama**: `hooks.client.ts` + `+error.svelte` → backend `error_logs`; ~~`logger.error` çağrılarını da `error_logs`'a köprüle (LOG-001).~~ → **Backend köprüsü KAPANDI (2026-07-25): `app/utils/db_log_handler.py` `DBLogHandler` root logger'a bağlı, ERROR+ her log kaydı `error_logs`'a düşer; regresyon `tests/test_db_log_handler.py`. Frontend köprüsü hâlâ açık.**
 9. **Dönem kilidini bloklayıcı yap** (FIN-006) — en azından kapalı aya yazan mutasyonlarda uyarı + audit.
 10. **`cc_statement_parser` testleri** (4 banka × gerçek örnek PDF) — TEST-001'in kalan yarısı.
