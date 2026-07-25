@@ -98,11 +98,15 @@ class TestFileService:
         assert resp.status_code == 401
 
     def test_file_not_found(self, client, auth_headers):
-        """Var olmayan dosya — 404."""
+        """Tanınmayan dizin öneki — deny-by-default 403 (SECA-001 IDOR koruması).
+
+        serve_file yalnız auth değil dosyanın modül iznini de arar; kök seviyedeki
+        (modülsüz) bir yol hiçbir modüle eşlenmediği için var olsa da olmasa da 403
+        döner — dosya varlığı sızdırılmaz."""
         resp = client.get("/uploads/nonexistent-file-12345.jpg", headers=auth_headers)
-        assert resp.status_code in (401, 404)
+        assert resp.status_code == 403
 
     def test_nested_path_not_found(self, client, auth_headers):
-        """Geçerli alt dizin yolu — 404 (dosya yok)."""
+        """Tanınmayan alt dizin öneki — deny-by-default 403 (SECA-001)."""
         resp = client.get("/uploads/subdir/nonexistent.jpg", headers=auth_headers)
-        assert resp.status_code in (401, 404)
+        assert resp.status_code == 403
