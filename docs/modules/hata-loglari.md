@@ -13,6 +13,7 @@
 | Router | `backend/app/routers/error_logs.py` |
 | Model | `backend/app/models/error_log.py` |
 | Middleware | `backend/app/main.py` — global exception handler ErrorLog'a yazar |
+| Log köprüsü | `backend/app/utils/db_log_handler.py` — `DBLogHandler` (root logger'a bağlı) |
 | Frontend | `frontend/src/routes/dashboard/sistem/hata-loglar/+page.svelte` |
 
 ## Veri Modeli
@@ -43,6 +44,25 @@
 2. `ErrorLog` tablosuna kayıt eklenir (details JSON)
 3. Kullanıcıya **generic** `{"detail": "Sunucu hatası oluştu"}` döner (iç bilgi sızmaz)
 4. 500 status code
+
+## Logging Katmanı Köprüsü — `DBLogHandler` (LOG-001, 2026-07-25)
+Global exception handler yalnızca FastAPI'ye **ulaşan beklenmeyen** exception'ları
+yakalar. Kod içindeki 100+ `logger.error/exception/critical` çağrısı (izole edilmiş
+try/except'ler, arka plan cron'ları, servis katmanı) global handler'a hiç ulaşmadan
+yalnızca journald + dosya loguna düşüyor, "Hata Logları" UI'ında **görünmüyordu** —
+log ile kayıt katmanı kopuktu.
+
+**Çözüm:** `app/utils/db_log_handler.py` içindeki `DBLogHandler`, `main.py`'de root
+logger'a eklenir. ERROR ve üstü her log kaydı `error_logs`'a yazılır.
+- **Re-entrancy koruması:** thread-local bayrak → DB yazımı sırasında oluşan ERROR
+  logu sonsuz özyineleme yapmaz; başarısızlıkta yalnızca stderr'e yazılır.
+- **Ayrı session:** her yazım taze `SessionLocal()` (çağıranın transaction'ını
+  kirletmez, rollback'ten etkilenmez); best-effort — patlarsa uygulamayı düşürmez.
+- **Çift kayıt önleme:** `extra={"_skip_db_log": True}` ile loglanan kayıtlar atlanır;
+  global exception handler bu bayrağı kullanır (zaten zengin bağlamla ErrorLog yazar).
+- **Test kirlenmesi önleme:** prod yolu (SessionLocal) pytest sırasında yazmaz;
+  testler kendi transaction'larına bağlı `session_factory` enjekte eder.
+- Regresyon testleri: `backend/tests/test_db_log_handler.py`.
 
 ## Geliştirme Kuralları
 - **Sensitive data asla loglanmamalı:** `password`, `token`, `secret` alanları request_body'den maskelenir

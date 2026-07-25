@@ -284,7 +284,7 @@ Onarılan satır yedeği     : scratchpad/fin001-onceki-degerler.csv (11 satır,
 | 9 | Test Kapsamı | 7 | **6,5** | 8 | Kapsam ölçümü geldi (%77) ama para yollarında %14-20 delik |
 | 10 | Test Süreçleri | 7 | **5,5** | 7,5 | **CI hiç koşmadı**; suite zamana bağlı, gece kırmızı |
 | 11 | CI/CD | 4 | **3** | 7 | **Actions repo düzeyinde KAPALI** — v3'ün varsaydığı gate hiç var olmamış |
-| 12 | Loglama | 5 | **5,5** | 7 | Audit geniş; error_logs'a hiçbir logger.error düşmüyor |
+| 12 | Loglama | 5 | **5,5** | 7 | Audit geniş; ~~error_logs'a hiçbir logger.error düşmüyor~~ → **LOG-001 KAPANDI (2026-07-25): DBLogHandler root logger'a bağlandı, ERROR+ log → error_logs** |
 | 13 | Dokümantasyon | 7 | **6** | 7,5 | İçerik zengin ama drift ölçülmüyor + PUBLIC ifşa kanalı |
 | 14 | Ölçeklenebilirlik | 5 | **4,5** | 6 | 15 kalemlik süreç-içi durum → çok-worker yapısal olarak imkânsız |
 | 15 | Teknik Borç / Bus factor | 5 | **4,5** | 6,5 | Bus factor hâlâ 1; runbook yok; 1.493 satır ölü entegrasyon |
@@ -545,7 +545,7 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 ### 31-60 gün — "Görünürlüğü kur"
 6. **Alerting katmanı**: mevcut SMTP + push altyapısını operasyonel alarma bağla — `OnFailure=`, disk %80 eşiği, kur bayatlığı (>24 sa), TLS bitişine 21 gün.
 7. **`/api/health`'i gerçek yap** (DB + Sedna tüneli kontrolü) ve nginx/deploy doğrulamasına bağla.
-8. **Frontend hata yakalama**: `hooks.client.ts` + `+error.svelte` → backend `error_logs`; `logger.error` çağrılarını da `error_logs`'a köprüle (LOG-001).
+8. **Frontend hata yakalama**: `hooks.client.ts` + `+error.svelte` → backend `error_logs`; ~~`logger.error` çağrılarını da `error_logs`'a köprüle (LOG-001).~~ → **Backend köprüsü KAPANDI (2026-07-25): `app/utils/db_log_handler.py` `DBLogHandler` root logger'a bağlı, ERROR+ her log kaydı `error_logs`'a düşer; regresyon `tests/test_db_log_handler.py`. Frontend köprüsü hâlâ açık.**
 9. **Dönem kilidini bloklayıcı yap** (FIN-006) — en azından kapalı aya yazan mutasyonlarda uyarı + audit.
 10. **`cc_statement_parser` testleri** (4 banka × gerçek örnek PDF) — TEST-001'in kalan yarısı.
 
