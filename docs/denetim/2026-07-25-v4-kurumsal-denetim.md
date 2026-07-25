@@ -274,7 +274,7 @@ Onarılan satır yedeği     : scratchpad/fin001-onceki-degerler.csv (11 satır,
 | # | Boyut | v3 (07-05) | **v4 (şimdi)** | 90g hedef | Değişimin nedeni |
 |---|---|:--:|:--:|:--:|---|
 | 1 | Mimari & Modülerlik | 7 | **6,5** | 8 | Katmanlama olgunlaştı (router→router kapandı) ama ortak-uygulayıcı kuralı para yolunda delik (ARCH-001) |
-| 2 | Kod Kalitesi | 7 | **6,5** | 7,5 | Lint/tip hiçbir kapıda yok; FIFO mantığı üç kopya |
+| 2 | Kod Kalitesi | 7 | **6,5** | 7,5 | ~~Lint/tip hiçbir kapıda yok~~ → **QUAL-001 KAPANDI: CI'da bloklayıcı ruff (kritik hata kapısı) + svelte-check işi eklendi** (Actions açılınca canlı koşar); FIFO mantığı üç kopya |
 | 3 | Güvenlik (OWASP) | 7,5 | **5,5** | 8 | **Depo PUBLIC** (yeni tespit) + IDOR devam + CVE taraması yok |
 | 4 | Performans | 7 | **6,5** | 7,5 | Temel sağlam; ölçüm/görünürlük sıfır |
 | 5 | Stabilite | 7 | **6** | 7,5 | Optimistik kilit yok; senkron kilidi yok; event-loop blokajı |
@@ -540,7 +540,7 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 2. **DR-002 off-site**: IAM role + farklı bölgede S3 (versioning + SSE + public-block); DB + uploads günlük yükleme; dump izinleri 0600.
 3. **Restore tatbikatı**: `db-restore.sh`'i koş, satır sayısı + uploads dosya varlığı doğrula, sonucu `docs/` altına tarihli yaz. **RPO/RTO'yu yazılı tanımla.**
 4. **Sızmış sırların rotasyonu** (SEC-001 devamı): depo public kaldığı sürece görünmüş olan her şey — admin şifresi, varsa API anahtarları — döndürülür.
-5. **CI'yı gate'e çevir**: Actions açıldıktan sonra `svelte-check`'i CI'ya ekle (yerelde 0 hata → bedava kazanç).
+5. ~~**CI'yı gate'e çevir**: Actions açıldıktan sonra `svelte-check`'i CI'ya ekle (yerelde 0 hata → bedava kazanç).~~ → **QUAL-001 KAPANDI (2026-07-25):** `.github/workflows/ci.yml`'a bloklayıcı **lint & tip** işi eklendi — backend `ruff check --select E9,F63,F7,F82` (kritik hata kapısı: sözdizimi/tanımsız ad/geçersiz karşılaştırma; bugün 0 ihlal → kapı yeşil açılır, yeni gerçek hatada kırmızı) + frontend `svelte-kit sync` → `svelte-check` (yerelde 0 hata). Ruff'ın tam kural seti (`backend/ruff.toml`: E/F/W/I) yerel-danışma olarak açık kalır; kademeli sıkılaştırma için stil ihlalleri temizlendikçe bloklayıcı listeye taşınır. Regresyon: `backend/tests/test_ci_lint_gate.py` (4 test; lint işi geri alınınca 3 test kırmızıya döner — fiilen doğrulandı). Kapanış ölçümü: `ruff check . --select E9,F63,F7,F82` = temiz (exit 0); tanımsız ad ekleyince exit 1 (F821); `npm run check` = 0 ERRORS. **Not:** Kapı yapılandırıldı ama Actions KAPALI olduğundan henüz canlı koşmuyor (CICD-010'a bağımlı).
 
 ### 31-60 gün — "Görünürlüğü kur"
 6. **Alerting katmanı**: mevcut SMTP + push altyapısını operasyonel alarma bağla — `OnFailure=`, disk %80 eşiği, kur bayatlığı (>24 sa), TLS bitişine 21 gün.
