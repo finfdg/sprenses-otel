@@ -112,10 +112,10 @@ silmektense migration'ın patlaması doğrudur.
 > üretim verisiyle geçti**. EC2 artık `SprensesBackupRole` IAM rolüyle çalışır — sunucuda
 > uzun ömürlü AWS anahtarı yoktur.
 >
-> **Açık tek kalem:** ilk provizyonun ürettiği IAM policy'sinde `s3:GetBucketLocation` yanlış
-> ifadedeydi (aşağıdaki "Canlı kurulumda yakalanan hata"). Kod düzeltildi; **canlı policy'nin
-> güncellenmesi için `provision-offsite-backup.sh` bir kez daha çalıştırılmalı.** O yapılana
-> kadar günlük yedek sorunsuz çalışır, yalnız `--offsite` tatbikatı (doğru şekilde) reddeder.
+> İlk provizyondaki IAM policy hatası (`s3:GetBucketLocation`) da düzeltildi ve canlıya
+> uygulandı — bekçi artık bucket bölgesini gerçekten okuyor
+> (`farklı-bölge OK: sunucu=eu-north-1 bucket=eu-west-1`). Denetim **DR-002 ve DR-001
+> kapandı**; ölçüm kayıtları: `docs/denetim/2026-07-25-offsite-tatbikati.md`.
 
 ### Neden bu bulgu iki denetim boyunca (v3 → v4) açık kaldı
 

@@ -360,10 +360,12 @@ Risk    : Kritik — geri getirilemez mali belge kaybı. DB restore edilse bile 
           + off-site) VEYA EBS snapshot; restore tatbikatına dosya-varlık kontrolü ekle (efor: M)
 Kapanış : uploads/ günlük yedeğe giriyor, off-site kopyalanıyor ve tatbikat örnek bir dosyayı
           açarak doğruluyor.
-Durum   : ◐ BÜYÜK ÖLÇÜDE KAPANDI (R3 · 2026-07-25) — uploads artık günlük hardlink
-          snapshot'ta (/var/backups/sprenses-uploads), restore tatbikatı yapıldı
-          (5 belge checksum-özdeş, PDF açılıyor). OFF-SITE HÂLÂ YOK → tek disk
-          kaybında kayıp sürüyor; tam kapanış DR-002'ye bağlı. | 2. göz: ✔ ONAYLANDI
+Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — uploads günlük hardlink snapshot'ta
+          (/var/backups/sprenses-uploads) VE off-site'ta: 2060 belge
+          s3://sprenses-dr-2026/sprenses/uploads/ altına aynalanıyor (eu-west-1).
+          Tatbikatta 5 belge S3'TEN İNDİRİLİP kaynakla checksum-özdeş çıktı.
+          "Tam kapanış DR-002'ye bağlı" koşulu DR-002 kapandığı için sağlandı.
+          | 2. göz: ✔ ONAYLANDI
 ```
 
 ```
@@ -380,8 +382,34 @@ Risk    : Kritik — tek birim/instance kaybı, yanlış DROP veya ransomware ü
           0600'e çek (efor: M)
 Kapanış : Günlük DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve S3'ten restore en az
           bir kez uçtan uca doğrulandı.
-Durum   : ◐ KOD TARAFI KAPANDI, AWS PROVİZYONU BEKLİYOR (R4 · 2026-07-25)
+Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri ölçüldü.
           | 2. göz: ✔ ONAYLANDI (Kritik)
+
+          CANLI KANIT (2026-07-25 12:24):
+          · s3://sprenses-dr-2026/sprenses — bucket eu-west-1, sunucu eu-north-1
+            (`aws s3api get-bucket-location` → eu-west-1; bekçi: "farklı-bölge OK")
+          · systemd koşusu: Result=success ExecMainStatus=0 →
+            "off-site DB OK: .../db/sprenses-20260725-122428.dump" +
+            "off-site uploads OK: .../uploads/ (2060 dosya aynalandı)"
+          · S3 içeriği: 2 dump + 2060 belge
+          · S3'TEN RESTORE (uçtan uca, GERÇEK üretim verisi): reservations 18411,
+            finance_events 4737, audit_logs 25057, vendor_transactions 3306 →
+            "OFF-SITE TATBİKATI GEÇTİ"; S3'ten indirilen 5 belge kaynakla checksum-özdeş
+          · EC2 artık SprensesBackupRole ile çalışıyor; ~/.aws YOK (uzun ömürlü anahtar yok)
+          · health-thresholds: "off-site yedek → ok" (ihlal kendiliğinden düştü)
+
+          İLK PROVİZYONDA YAKALANAN VE DÜZELTİLEN HATA (bu turun asıl dersi):
+          Bekçi "bucket=us-east-1" dedi, oysa bucket eu-west-1'deydi. İki kusur üst üste:
+          (a) IAM policy'sinde s3:GetBucketLocation, s3:prefix KOŞULLU ifadenin içindeydi —
+              bu eylem o bağlam anahtarını desteklemez → AccessDenied;
+          (b) offsite_bucket_region hatayı yutup "us-east-1" varsayıyordu → bucket
+              eu-north-1'de OLSAYDI BİLE "farklı bölge ✔" derdi; bekçi fiilen ölüydü ve
+              kapanış kriteri YANLIŞ YERE sağlanmış görünüyordu.
+          Düzeltme: policy'de ayrı koşulsuz ifade + bölge okunamıyorsa bekçi REDDEDER
+          (eksik izni adıyla söyler). Regresyon:
+          test_unreadable_bucket_region_is_rejected_not_assumed (geri alınca kırmızı).
+          Ders: bir bekçinin "geçti" demesi çalıştığı anlamına gelmez — doğrulayamadığı
+          durumu geçirirse hiç yazılmamış olmasıyla aynıdır.
 
           YAPILAN (R4) — bulgunun neden İKİ denetim boyunca açık kaldığı da giderildi:
           · scripts/provision-offsite-backup.sh (YENİ) — bucket+versioning+SSE+public-block
