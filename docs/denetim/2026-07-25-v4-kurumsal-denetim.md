@@ -482,7 +482,7 @@ Durum   : ✔ KAPATILDI (R4 · 2026-07-25) — off-site CANLI, kapanış kriteri
 | **CICD-001** APM/alerting yok | 🟠 Yüksek | ● Devam | requirements.txt'te Sentry/OTel yok; alarm kanalı yok |
 | **DR-003** yedek OnFailure alarmı yok | 🟠 Yüksek | ● Devam | systemd unit'lerinde `OnFailure=` yok |
 | **JOBS-001** arka plan iş görünürlüğü yok | 🟠 Yüksek | ▼ **KÖTÜLEŞTİ** | Somutlaştı: döviz cron'unun `amount_try` adımı **2 aydır her koşuda** sessizce çöküyor |
-| **SECA-001** files.py IDOR | 🟠 Yüksek | ● Devam | `serve_file` hâlâ yalnız auth doğruluyor, modül izni/kaynak sahipliği değil |
+| **SECA-001** files.py IDOR | 🟠 Yüksek | ✅ **KAPANDI** | `serve_file` artık dizin-öneki→modül eşlemesiyle `user_can(view)` arıyor (cc_statements→finance.krediler); mesaj ekleri için konuşma üyeliği (kaynak sahipliği) doğrulanıyor; tanınmayan önek deny-by-default 403; `get_db`'ye geçildi. `test_files_idor.py` 5 test (geri-al→3 kırmızı) |
 | **FIN-002** dönem kilidi yok | 🟠 Yüksek | ◐ Kısmen | Altyapı geldi (`finance_period_locks` + `period_lock_service` + onay dalı) ama servis **UYARI modunda**, hiçbir mutasyonu bloklamıyor |
 | **FIN-003** rezervasyon döviz yeniden değerleme | 🟠 Yüksek | ● Devam | `reservation_service.py` her senkronda güncel kurla yeniden değerliyor |
 | **DB-002** sales tx_hash UNIQUE yok | 🟠 Yüksek | ◐ Kısmen | UNIQUE hâlâ yok; dedup uygulama belleğinde |

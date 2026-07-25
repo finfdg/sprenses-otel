@@ -48,6 +48,11 @@
 | `user_online` / `user_offline` | WS connect/disconnect | İlgili kullanıcılar |
 | `connected` | İlk bağlantı | Başlangıç verisi (online kullanıcılar) — ek HTTP gerekmez |
 
+## Dosya Ekleri & Erişim Güvenliği (IDOR)
+- Mesaj ekleri `save_upload` ile `backend/uploads/YYYY/MM/uuid.ext` altına yazılır; `Message.file_url` = `/uploads/2026/02/uuid.ext`.
+- **Sunum:** `backend/app/routers/files.py` → `GET /uploads/{path}` (`serve_file`). Kimlik doğrulama TEK BAŞINA yeterli değildir.
+- **IDOR koruması (SECA-001, 2026-07-25):** `serve_file` dizin-önekini modüle eşler ve o modülün `user_can(view)` iznini arar. Mesaj ekleri (yıl-önekli `YYYY/MM/`) için ayrıca **konuşma üyeliği** doğrulanır — dosyayı referanslayan mesajın konuşmasına üye olmayan kullanıcı `messaging` izni olsa bile **403** alır. Tanınmayan dizin öneki **deny-by-default 403**. Test: `backend/tests/test_files_idor.py`.
+
 ## Mesaj Düzenleme & Silme Kuralları
 - **Düzenleme:** Yalnızca gönderen düzenleyebilir, `is_edited=true` ve `edited_at` set edilir, UI "düzenlendi" rozeti gösterir
 - **Silme:** Soft delete (`is_deleted=true`) — içerik DB'de korunur, UI'da "Bu mesaj silindi" gösterilir (audit + geri alma için)

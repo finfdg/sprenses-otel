@@ -4,11 +4,16 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from jose import JWTError
 
-from app.database import SessionLocal
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.middleware.auth import user_can
+from app.models.conversation import ConversationMember
+from app.models.message import Message
 from app.models.user import User
 from app.utils.security import decode_access_token
 
@@ -18,6 +23,13 @@ router = APIRouter()
 
 # Yükleme dizini — file_upload.py ile aynı konum
 _uploads_dir = Path(__file__).resolve().parent.parent.parent / "uploads"
+
+# Dizin öneki → modül eşlemesi. serve_file yalnız kimlik değil, dosyanın ait olduğu
+# modülün görüntüleme iznini de arar (IDOR koruması). Buraya eklenmemiş önekler
+# deny-by-default reddedilir; yeni bir modül dosya sunmaya başlarsa buraya eklenir.
+_PREFIX_MODULE = {
+    "cc_statements": "finance.krediler",
+}
 
 # MIME type eşlemesi
 _EXT_MIME = {
@@ -70,8 +82,46 @@ def _authenticate_from_request(request: Request) -> Optional[int]:
         return None
 
 
+def _authorize_file_access(db: Session, user: User, file_path: str) -> bool:
+    """Dosyanın ait olduğu modülün görüntüleme iznini ve kaynak sahipliğini doğrula.
+
+    Kimlik doğrulaması yeterli değildir (IDOR): dosya hangi modüle aitse o modülün
+    view izni aranır. Mesaj ekleri için ayrıca konuşma üyeliği (kaynak sahipliği)
+    kontrol edilir. Tanınmayan dizin öneki deny-by-default reddedilir → yol tahminiyle
+    başka modülün dosyasına erişim kapatılır.
+    """
+    parts = Path(file_path).parts
+    if not parts:
+        return False
+    prefix = parts[0]
+
+    # Bilinen modül dizinleri (ör. cc_statements → finance.krediler)
+    module_code = _PREFIX_MODULE.get(prefix)
+    if module_code is not None:
+        return user_can(db, user, module_code, "view")
+
+    # Mesaj ekleri: /uploads/YYYY/MM/uuid.ext → messaging modülü + konuşma üyeliği
+    if prefix.isdigit() and len(prefix) == 4:
+        if not user_can(db, user, "messaging", "view"):
+            return False
+        file_url = "/uploads/" + file_path
+        member = (
+            db.query(ConversationMember.id)
+            .join(Message, Message.conversation_id == ConversationMember.conversation_id)
+            .filter(
+                Message.file_url == file_url,
+                ConversationMember.user_id == user.id,
+            )
+            .first()
+        )
+        return member is not None
+
+    # Tanınmayan önek → deny-by-default
+    return False
+
+
 @router.get("/uploads/{file_path:path}")
-def serve_file(file_path: str, request: Request):
+def serve_file(file_path: str, request: Request, db: Session = Depends(get_db)):
     """
     Dosya sunma endpoint'i. Kimlik doğrulama gerektirir.
     Tarayıcılar <img> ve <video> tag'ları için cookie gönderir,
@@ -88,24 +138,27 @@ def serve_file(file_path: str, request: Request):
     user_id, session_id = auth_result
 
     # Kullanıcının aktif olduğunu ve oturumunun geçerli olduğunu doğrula
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(
-            User.id == user_id, User.is_active == True
-        ).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Kullanıcı bulunamadı",
-            )
-        # Tek oturum kontrolü: çıkış yapmış veya başka cihazdan giriş yapılmış olabilir
-        if user.active_session_id is None or session_id != user.active_session_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Oturumunuz sonlandırılmış",
-            )
-    finally:
-        db.close()
+    user = db.query(User).filter(
+        User.id == user_id, User.is_active == True
+    ).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Kullanıcı bulunamadı",
+        )
+    # Tek oturum kontrolü: çıkış yapmış veya başka cihazdan giriş yapılmış olabilir
+    if user.active_session_id is None or session_id != user.active_session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Oturumunuz sonlandırılmış",
+        )
+
+    # Yetkilendirme: kimlik yeterli değil — dosyanın modül izni + kaynak sahipliği (IDOR)
+    if not _authorize_file_access(db, user, file_path):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bu dosyaya erişim yetkiniz yok",
+        )
 
     # Path traversal koruması
     try:
