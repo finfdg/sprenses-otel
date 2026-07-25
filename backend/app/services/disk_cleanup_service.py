@@ -39,7 +39,9 @@ JOURNAL_DIR = "/var/log/journal"
 DNF_CACHE_DIR = "/var/cache/dnf"
 DNF_TMP_GLOB = "/var/tmp/dnf-*"
 BACKUP_DIR = "/var/backups"
-NPM_CACHE_DIRS = [os.path.join(_HOME, ".npm", "_cacache"), os.path.join(_HOME, ".npm", "_npx")]
+# Yalnız `_cacache` (saf indirme önbelleği). `_npx` BİLEREK hariç: MCP sunucuları oradan
+# çalışır → her gün silmek her oturumda gereksiz yeniden indirme (ve ağ arızasında kırılma) demek.
+NPM_CACHE_DIRS = [os.path.join(_HOME, ".npm", "_cacache")]
 ROOT_NPM_DIR = "/root/.npm"
 PIP_CACHE_DIR = os.path.join(_HOME, ".cache", "pip")
 PLAYWRIGHT_DIR = os.path.join(_HOME, ".cache", "ms-playwright")
@@ -69,7 +71,7 @@ CATEGORIES: List[Dict[str, Any]] = [
     {
         "key": "npm_cache",
         "label": "npm Önbelleği",
-        "path": "~/.npm · /root/.npm",
+        "path": "~/.npm/_cacache · /root/.npm",
         "cleanable": True,
         "description": "Paket indirme önbelleği. Silinince ilk kurulumda yeniden indirilir.",
     },

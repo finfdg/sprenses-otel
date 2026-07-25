@@ -11,6 +11,9 @@
 | Katman | Dosya |
 |---|---|
 | Router | `backend/app/routers/system_server.py` |
+| Servis | `backend/app/services/disk_cleanup_service.py` (disk dökümü + temizlik) |
+| Şema | `backend/app/schemas/server.py` |
+| Cron | `backend/cron_disk_cleanup.py` (`sprenses-disk-cleanup.timer`) |
 | Frontend | `frontend/src/routes/dashboard/sistem/sunucu/+page.svelte` |
 | Test | `backend/tests/test_system_server.py` |
 
@@ -20,23 +23,110 @@
 | GET | `/api/system/server/info` | view | CPU/RAM/disk metrikleri + servis durumları |
 | POST | `/api/system/server/services/{service_name}/restart` | use | Whitelist'li servisi yeniden başlat |
 | GET | `/api/system/server/services/{service_name}/logs` | view | Servis journald logları (son N satır) |
+| GET | `/api/system/server/disk` | view | Disk kullanımının kategori bazlı dökümü + temizlenebilir alan |
+| POST | `/api/system/server/disk/cleanup` | use | Önbellek/eski log temizliği (`{keys?: [...]}`, boş → tümü) |
 
 ## Frontend UI Yapısı
 - Tasarım sistemi: `PageHeader` + `StatCard` (CPU/RAM/disk) + servis durum listesi.
+- **Disk kartı tıklanabilir** → disk döküm modalı (doluluk çubuğu + temizlenebilir/korunan kategori
+  tabloları + "Şimdi Temizle"). Kart, `StatCard`'ın `onclick` prop'uyla `<button>` olarak render edilir
+  (`href` prop'unun `<a>` karşılığı — tek kaynak korunur, sayfaya elle kart yazılmaz).
 - **Polling istisnası:** Sistem metrikleri WS ile taşınmaz → 30 sn'lik `setInterval` ile `GET /server/info`
   fetch edilir. Sayfa kapanınca timer durur (`onDestroy`). Bu, CLAUDE.md "Polling yasak" kuralının
   **bilinçli sınırlı istisnasıdır** (başka sayfalarda polling yapılamaz).
+- **Disk dökümü otomatik yenilemeye DAHİL DEĞİL:** `du` ile ölçüldüğünden `/server/info`'ya göre
+  pahalıdır → yalnız modal açılınca ve temizlik sonrasında çağrılır.
 
 ## Audit Log Entegrasyonu
 - `entity_type`: `server_service` — `action`: restart (servis yeniden başlatma kaydedilir)
+- `entity_type`: `server_disk` — `action`: cleanup (elle temizlikte kullanıcı, otomatik temizlikte
+  `admin` adına, `ip_address="cron"` ile yazılır → Audit Loglar sayfasında ikisi de görünür)
 
 ## Geliştirme Kuralları
 - **Servis whitelist:** Yalnız izin verilen servis adları (`sprenses-api`, `sprenses-frontend`, `nginx`,
   `postgresql` vb.) restart/log alabilir — keyfi servis adı reddedilir (komut enjeksiyonu/kapsam koruması).
 - **sudo NOPASSWD:** `systemctl restart/status/logs` için `ec2-user`'a dar kapsamlı NOPASSWD sudoers kuralı
   gerekir; aksi halde restart endpoint'i çalışmaz.
-- **Onay akışı istisnası:** Servis restart operasyonel/anlık bir bakım eylemidir; `check_approval`'dan
-  geçmez (audit ile izlenir) — bilinçli muafiyet.
+- **Onay akışı istisnası:** Servis restart ve disk temizliği operasyonel/anlık bakım eylemleridir;
+  `check_approval`'dan geçmez (audit ile izlenir) — bilinçli muafiyet. İkisi de veri mutasyonu değil,
+  sunucu bakımıdır; onay kuyruğunda beklemeleri disk dolarken zarar verir.
+
+## Disk Dökümü ve Düzenli Temizlik (2026-07-25)
+
+**Sorun:** Disk %45'e ulaşmıştı ve büyümenin nereden geldiği görünmüyordu; Disk kartı yalnız yüzde
+gösteriyordu. Ölçümde şişkinliğin **tamamı yeniden üretilebilir veriden** geldiği çıktı: journald
+1,2 GB (tavansız), npm/pip/dnf önbellekleri ~600 MB, 14 günden eski döndürülmüş uygulama logları,
+eski Claude CLI sürümleri.
+
+### Mimari — tek servis, iki tetikleyici
+
+`disk_cleanup_service.scan_disk()` / `run_cleanup()` **hem** UI'daki "Şimdi Temizle" butonu (`POST
+/server/disk/cleanup`) **hem** günlük timer (`cron_disk_cleanup.py`) tarafından çağrılır. CLAUDE.md'nin
+ortak-service deseni: elle ve otomatik temizlik arasında davranış sapması **yapısal olarak** imkânsız.
+
+### Kategoriler
+
+| Anahtar | Kapsam | Politika |
+|---|---|---|
+| `journal` | `/var/log/journal` | `journalctl --vacuum-size=200M` — son 200 MB tutulur |
+| `npm_cache` | `~/.npm/_cacache` + `/root/.npm` | tamamı silinir (npm şeffafça yeniden doldurur) |
+| `pip_cache` | `~/.cache/pip` | tamamı silinir |
+| `dnf_cache` | `/var/cache/dnf` + `/var/tmp/dnf-*` | `dnf clean all` + artık geçici dizinler |
+| `app_logs` | `backend/logs/*.log.N` | **14 günden eski** arşivler; güncel log dosyası korunur |
+| `claude_cli` | `~/.claude/remote/ccd-cli` | en yeni **2** sürüm tutulur, eskileri silinir (~250 MB/sürüm) |
+| **Korunan** | uploads · /var/backups · venv+node_modules · worktrees · playwright · claude projects | `cleanable=False` — **hiçbir koşulda silinmez**, yalnız boyutu raporlanır |
+
+**`~/.npm/_npx` BİLEREK hariç:** MCP sunucuları (playwright, postgres) oradan çalışır → her gün
+silmek her oturumda gereksiz yeniden indirme ve ağ arızasında kırılma demektir. `_cacache` yeterli.
+
+### Güvenlik ve güvenceler
+
+- **Yol enjeksiyonu yok:** tüm yollar modül sabiti; dışarıdan yol gelmez. Seçim yalnız whitelist'li
+  `key` ile yapılır; korunan/tanımsız anahtar → **400**.
+- **Test güvencesi** (`test_system_server.py`): `uploads`/`backups`/`deps`/`claude_sessions` temizliğe
+  gönderilirse 400 döner; `run_cleanup()` whitelist dışı anahtar için `_clean` çağırmaz; `_clean()`
+  korunan anahtarla çağrılsa bile hiçbir silme komutu üretmez. Müşteri dosyalarının bir API çağrısıyla
+  silinememesi bu modülün en önemli güvencesi — regresyonu bu testlerde yakalanır.
+- **Ölçüm `du -s -x --block-size=1`** (apparent size değil gerçek blok kullanımı) → raporlanan
+  "temizlenebilir" değeri gerçekten kazanılacak boş alandır. `use_sudo` yolunda `os.path.exists()`
+  ön kontrolü **yapılmaz**: `/root` ec2-user'a kapalıdır, `exists()` False döner ve boyut sessizce
+  0 görünürdü (ilk yazımda bu hataya düşüldü — `/root/.npm`'in 155 MB'ı görünmüyordu).
+
+### Zamanlama — `sprenses-disk-cleanup.timer`
+
+| Alan | Değer |
+|---|---|
+| Unit | `scripts/systemd/sprenses-disk-cleanup.{service,timer}` → `/etc/systemd/system/` |
+| Zamanlama | `OnCalendar=*-*-* 04:30:00 Europe/Istanbul` + `Persistent=true` |
+| Neden 04:30 | DB yedeği 03:00'te alınır → temizlik ondan sonra, mesai başlamadan önce |
+
+Unit dosyaları repoda **var** (sedna-sync'in aksine) → sunucu yeniden kurulumunda:
+```bash
+sudo cp /home/ec2-user/otel/scripts/systemd/sprenses-disk-cleanup.* /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now sprenses-disk-cleanup.timer
+```
+
+### journald tavanı — yeniden büyümeyi engeller (git'te DEĞİL)
+
+Temizlik journald'i **kırpar** ama tekrar 1,2 GB'a büyümesini engellemez. Kalıcı tavan:
+```bash
+sudo mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nSystemMaxUse=200M\n' | sudo tee /etc/systemd/journald.conf.d/99-sprenses-size.conf
+sudo systemctl restart systemd-journald
+```
+**DİKKAT — `/etc/` altında, repoda yedeklenmez** (TZ drop-in'leri gibi): sunucu yeniden kurulursa
+tekrar oluşturulmalı, yoksa journal sınırsız büyür. Doğrulama: `journalctl --disk-usage` ≤ 200 MB.
+
+### İlk uygulama sonucu (2026-07-25)
+
+journald tavanı 980 MB + temizlik 1.165 MB = **~2,1 GB** serbest; disk **%45 → %37,6**
+(16,6 GB → 18,7 GB boş). En büyük kalemler: npm önbelleği 482 MB, dnf 288 MB, Claude CLI eski
+sürümü 253 MB, pip 121 MB, eski uygulama logları 20 MB.
+
+**Kalıcı temizlenmeyen büyük kalemler** (bilinçli, modalda "Korunan" olarak görünür): Playwright
+tarayıcıları ~645 MB, bağımlılıklar (venv + node_modules) ~471 MB, yedekler ~407 MB, Claude oturum
+geçmişi ~353 MB, worktree'ler ~147 MB. Worktree'ler biriktiğinde elle:
+`git worktree remove <yol>` (bitmiş Claude oturumlarının çalışma kopyaları).
 
 ## Sunucu Seviyesi Bellek Koruması — Donma Önleme (2026-07-06)
 

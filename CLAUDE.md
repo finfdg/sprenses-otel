@@ -282,6 +282,7 @@ TEMPLATE:
 │   │   │   ├── budget_service.py           # Bütçe kategori + kompozit-anahtar upsert (çift-bütçe drift'i kapatıldı)
 │   │   │   ├── room_type_service.py        # Oda tipi CRUD (delete rezervasyon-guard)
 │   │   │   ├── cc_projection_service.py     # Kredi kartı ekstresi projeksiyonu (nakit akım; okuma-anında, cari ay=limit/ileri ay=0)
+│   │   │   ├── disk_cleanup_service.py       # Disk döküm + temizlik (UI butonu + günlük timer ORTAK; korunan kategoriler asla silinmez)
 │   │   │   ├── dividend_service.py           # Kâr payı dağıtımı üretim (Decimal) + net/stopaj FE roll-up (router + onay executor ORTAK)
 │   │   │   └── hr_service.py               # Devam/vardiya/çizelge CRUD (typed↔ISO-string coercion)
 │   │   └── websocket/
@@ -362,6 +363,7 @@ TEMPLATE:
 | SvelteKit (Frontend) | 3000 | `sprenses-frontend.service` |
 | PostgreSQL | 5432 | `postgresql.service` |
 | Nginx | 443/80 | `nginx.service` |
+| Günlük disk temizliği | — | `sprenses-disk-cleanup.timer` (2026-07-25; her gün 04:30 Europe/Istanbul — `backend/cron_disk_cleanup.py` yalnız yeniden üretilebilir veriyi siler: journald 200 MB tavanı, npm/pip/dnf önbelleği, 14 günden eski döndürülmüş loglar, eski Claude CLI sürümleri. **Müşteri dosyaları/yedekler/bağımlılıklar `cleanable=False` — hiçbir koşulda silinmez.** Unit'ler `scripts/systemd/`'de git'te VAR; journald tavanı `/etc/systemd/journald.conf.d/` altında git'te DEĞİL. Detay: `docs/modules/sunucu.md`) |
 | Sedna cari/çek/mutabakat senkronu | — | `sprenses-sedna-sync.timer` (2026-07-12; 09–21 arası 2 saatte bir :15, Europe/Istanbul — `backend/cron_sedna_sync.py` çekirdek adımları admin'le koşar; sales-sync ile 1 saat faz farklı, EC2 bellek koruması. **Unit dosyaları `/etc/systemd/system/`'de — git'te DEĞİL**, sunucu yeniden kurulumunda tekrar oluşturulmalı. Detay: `docs/modules/sunucu.md`) |
 
 ### Deploy Akışı — Zorunlu

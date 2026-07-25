@@ -310,6 +310,8 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/system/server/info` — Sunucu durumu (CPU/RAM/disk/servisler/DB boyutu)
 - `POST /api/system/server/services/{name}/restart` — Servisi yeniden başlat (whitelist + sudo NOPASSWD)
 - `GET /api/system/server/services/{name}/logs?lines=N` — Servis journalctl logu (son N satır)
+- `GET /api/system/server/disk` — Disk kullanımının kategori bazlı dökümü + temizlenebilir alan (`du` ile ölçüm; Disk kartına tıklanınca çağrılır, 30 sn'lik otomatik yenilemeye dahil DEĞİL)
+- `POST /api/system/server/disk/cleanup` — Önbellek/eski log temizliği; body `{keys?: [...]}` (boş → tüm temizlenebilirler). İzin: `system.server` use; whitelist dışı veya **korunan** kategori (uploads/backups/deps/…) → 400. Detay: `docs/modules/sunucu.md`
 - `GET /api/system/backup/status` — Git/GitHub yedek durumu (son commit, bekleyen değişiklik, senkron, geçmiş)
 - `POST /api/system/backup/run` — Manuel yedek (commit + GitHub push)
 - `POST /api/system/backup/restore` — Seçilen commit'e güvenli geri yükleme (ileri-commit, force-push yok). Detay: `docs/modules/yedekleme.md`
