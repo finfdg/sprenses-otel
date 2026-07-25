@@ -7,7 +7,10 @@ timer'ında: sprenses-sales-sync; stok/rezervasyon Topbar butonuyla.) Systemd:
 sprenses-sedna-sync.timer — 09-21 arası 2 saatte bir (sales-sync ile 1 saat faz
 farklı; EC2 bellek koruması: ağır işler eşzamanlı tetiklenmez).
 
-Tünel/Sedna kapalıysa uyarı loglar ve 0 ile çıkar (timer'ı düşürmez).
+Tünel/Sedna kapalıysa (HTTP 503) uyarı loglar ve 0 ile çıkar (timer'ı düşürmez).
+Ancak bir adım GERÇEKTEN hata verirse çıkış kodu 2 (EXIT_PARTIAL) olur → systemd
+birimi 'failed' → OnFailure alarmı tetiklenir (denetim JOBS-002). Çıkış-kodu
+sözleşmesi: cron_exit_codes.py.
 """
 import logging
 import os
@@ -29,16 +32,19 @@ def main() -> int:
     from app.routers.finance import sedna_sync as ss
     from app.utils.sedna_client import sedna_configured
 
+    from cron_exit_codes import EXIT_OK, exit_code_for_steps
+
     if not sedna_configured():
         logger.warning("Sedna yapılandırılmamış (SEDNA_PASSWORD boş) — senkron atlandı.")
-        return 0
+        return EXIT_OK
 
     db = SessionLocal()
     try:
         admin = db.query(User).filter(User.username == "admin").first()
         if not admin:
             logger.error("admin kullanıcısı bulunamadı — senkron atlandı.")
-            return 1
+            return exit_code_for_steps(started=False, failed_steps=0)
+        failed = 0  # tünel-kapalı (HTTP 503) dışı adım hataları — JOBS-002 çıkış kodu
         for st in ss._STEPS:
             if st["key"] not in _CRON_STEP_KEYS:
                 continue
@@ -51,14 +57,19 @@ def main() -> int:
             except HTTPException as e:
                 db.rollback()
                 if e.status_code == 503:
+                    # Tünel kapalı — iyi huylu, timer'ı düşürme (exit 0)
                     logger.warning("%s atlandı (tünel kapalı): %s", st["label"], e.detail)
                 else:
                     logger.warning("%s başarısız (HTTP %s): %s", st["label"], e.status_code, e.detail)
+                    failed += 1
             except Exception as e:  # noqa: BLE001 — adım izolasyonu
                 db.rollback()
                 logger.error("%s hatası: %s", st["label"], e, exc_info=True)
+                failed += 1
         _maybe_notify_aging(db)
-        return 0
+        if failed:
+            logger.error("Sedna senkronu: %d adım başarısız — birim 'failed' işaretleniyor.", failed)
+        return exit_code_for_steps(started=True, failed_steps=failed)
     finally:
         db.close()
 
