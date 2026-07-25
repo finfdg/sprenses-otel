@@ -24,6 +24,7 @@
 		accent = 'teal',
 		hint = undefined,
 		href = undefined,
+		onclick = undefined,
 		delta = undefined,
 		deltaText = undefined,
 		deltaLabel = undefined,
@@ -37,6 +38,8 @@
 		hint?: string;
 		/** Verilirse kart tıklanabilir bağlantı (<a>) olur — hover affordance + cursor. */
 		href?: string;
+		/** Verilirse kart tıklanabilir <button> olur (detay modalı açmak için). `href` ile birlikte kullanılmaz. */
+		onclick?: (e: MouseEvent) => void;
 		/** İşaretli değişim (YoY/dönem karşılaştırma). İşareti ok yönünü + rengi belirler. null/undefined → rozet gizli. */
 		delta?: number | null;
 		/** Rozette gösterilecek metin (ör. "+%12,5", "+8 puan"). Yoksa delta sayısı kullanılır. TR format çağırandan gelir. */
@@ -82,10 +85,13 @@
 	let deltaColor = $derived(deltaGood ? 'text-emerald-700' : deltaBad ? 'text-red-600' : 'text-gray-500');
 </script>
 
+<!-- href → <a>, onclick → <button> (metni sola hizala; buton varsayılanı ortalar), aksi halde <div>. -->
 <svelte:element
-	this={href ? 'a' : 'div'}
+	this={href ? 'a' : onclick ? 'button' : 'div'}
 	href={href}
-	class="block bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm {href ? 'hover:border-teal-300 hover:shadow-md transition-all cursor-pointer' : ''} {extraClass}"
+	{onclick}
+	{...onclick && !href ? { type: 'button' } : {}}
+	class="block w-full text-left bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm {href || onclick ? 'hover:border-teal-300 hover:shadow-md transition-all cursor-pointer' : ''} {extraClass}"
 >
 	<!-- Üst satır: etiket (en fazla 2 satır) + ikon. Değer ALT satırda tam genişlikte → uzun
 	     para tutarları ikonla yarışmaz, taşmaz. -->

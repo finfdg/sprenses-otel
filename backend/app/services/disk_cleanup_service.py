@@ -146,7 +146,7 @@ CATEGORIES: List[Dict[str, Any]] = [
     },
 ]
 
-_CLEANABLE_KEYS = [c["key"] for c in CATEGORIES if c["cleanable"]]
+CLEANABLE_KEYS = [c["key"] for c in CATEGORIES if c["cleanable"]]
 
 
 # ─── Ölçüm yardımcıları ───────────────────────────────────────────────────────
@@ -157,8 +157,11 @@ def _dir_bytes(path: str, use_sudo: bool = False) -> int:
 
     `du` bazı alt dizinleri okuyamazsa 1 ile çıkar ama toplamı yine yazar → stdout
     ayrıştırılabiliyorsa returncode'a bakmadan kabul edilir.
+
+    `use_sudo` yolunda `os.path.exists()` ile ÖN KONTROL YAPILMAZ: /root gibi dizinler
+    ec2-user'a kapalıdır → `exists()` False döner ve boyut sessizce 0 görünürdü.
     """
-    if not os.path.exists(path):
+    if not use_sudo and not os.path.exists(path):
         return 0
     cmd = ["du", "-s", "-x", "--block-size=1", path]
     if use_sudo:
@@ -290,8 +293,8 @@ def _clean(key: str) -> None:
     elif key == "npm_cache":
         for path in NPM_CACHE_DIRS:
             _rmtree(path)
-        if os.path.isdir(ROOT_NPM_DIR):
-            _run(["sudo", "-n", "rm", "-rf", ROOT_NPM_DIR])
+        # /root ec2-user'a kapalı → isdir() ön kontrolü yapılmaz; `rm -rf` yoksa da 0 döner.
+        _run(["sudo", "-n", "rm", "-rf", ROOT_NPM_DIR])
 
     elif key == "pip_cache":
         _rmtree(PIP_CACHE_DIR)
@@ -356,7 +359,7 @@ def scan_disk() -> Dict[str, Any]:
         "categories": categories,
         "other_bytes": other_bytes,
         "total_cleanable_bytes": sum(c["cleanable_bytes"] for c in categories),
-        "cleanable_keys": list(_CLEANABLE_KEYS),
+        "cleanable_keys": list(CLEANABLE_KEYS),
         "scanned_at": datetime.now().isoformat(),
     }
 
@@ -367,7 +370,7 @@ def run_cleanup(keys: Optional[List[str]] = None) -> Dict[str, Any]:
     Her kategori için önce/sonra ölçüm yapılır → raporlanan `freed_bytes` gerçek kazançtır.
     Whitelist dışı key sessizce atlanmaz — çağıran doğrulamalıdır (router 400 döner).
     """
-    selected = [k for k in (keys or _CLEANABLE_KEYS) if k in _CLEANABLE_KEYS]
+    selected = [k for k in (keys or CLEANABLE_KEYS) if k in CLEANABLE_KEYS]
 
     free_before = shutil.disk_usage("/").free
     results = []

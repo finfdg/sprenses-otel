@@ -1,0 +1,12 @@
+[Unit]
+Description=Sprenses Günlük Disk Temizliği (önbellek + eski loglar)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=ec2-user
+Environment=TZ=Europe/Istanbul
+WorkingDirectory=/home/ec2-user/otel/backend
+ExecStart=/home/ec2-user/otel/backend/venv/bin/python cron_disk_cleanup.py
+StandardOutput=journal
+StandardError=journal

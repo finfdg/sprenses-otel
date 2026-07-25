@@ -266,3 +266,159 @@ def test_logs_propagates_subprocess_failure(client, auth_headers):
         )
         assert res.status_code == 500
         assert "permission" in res.json()["detail"].lower()
+
+
+# ─── /server/disk — Döküm ────────────────────────────────
+
+
+def test_disk_detail_requires_auth(client):
+    """Disk dökümü kimliksiz erişime kapalı."""
+    res = client.get("/api/system/server/disk")
+    assert res.status_code in (401, 403)
+
+
+def test_disk_cleanup_requires_auth(client):
+    """Temizlik endpoint'i kimliksiz erişime kapalı."""
+    res = client.post("/api/system/server/disk/cleanup", json={})
+    assert res.status_code in (401, 403)
+
+
+def test_disk_detail_returns_breakdown_shape(client, auth_headers):
+    """Disk dökümü filesystem + kategori listesi + temizlenebilir toplamı döner."""
+    res = client.get("/api/system/server/disk", headers=auth_headers)
+    assert res.status_code == 200, res.text
+    data = res.json()
+
+    for key in ("filesystem", "categories", "other_bytes", "total_cleanable_bytes",
+                "cleanable_keys", "scanned_at"):
+        assert key in data, f"disk response'ta '{key}' yok"
+
+    for k in ("mount", "total_bytes", "used_bytes", "free_bytes", "percent"):
+        assert k in data["filesystem"]
+
+    assert len(data["categories"]) > 0
+    for cat in data["categories"]:
+        for k in ("key", "label", "path", "description", "cleanable",
+                  "size_bytes", "cleanable_bytes"):
+            assert k in cat, f"kategori '{cat.get('key')}' içinde '{k}' yok"
+        assert isinstance(cat["cleanable"], bool)
+        # Korunan kategori asla temizlenebilir alan bildirmemeli
+        if not cat["cleanable"]:
+            assert cat["cleanable_bytes"] == 0
+
+
+def test_disk_detail_total_matches_categories(client, auth_headers):
+    """total_cleanable_bytes kategori toplamıyla tutarlı olmalı."""
+    res = client.get("/api/system/server/disk", headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_cleanable_bytes"] == sum(c["cleanable_bytes"] for c in data["categories"])
+
+
+# ─── /server/disk/cleanup — Güvenlik ─────────────────────
+
+
+def test_cleanup_rejects_unknown_key(client, auth_headers):
+    """Tanımsız kategori anahtarı 400 dönmeli — gerçek temizlik yapılmaz."""
+    res = client.post(
+        "/api/system/server/disk/cleanup",
+        json={"keys": ["../../etc"]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+    assert "temizlenemeyecek" in res.json()["detail"].lower()
+
+
+def test_cleanup_rejects_protected_categories(client, auth_headers):
+    """KRİTİK: uploads/backups gibi korunan kategoriler temizlenmeye çalışılırsa 400.
+
+    Müşteri dosyalarının ve yedeklerin bir API çağrısıyla silinememesi bu modülün
+    en önemli güvencesi — regresyonu burada yakalanır.
+    """
+    for protected in ("uploads", "backups", "deps", "claude_sessions"):
+        res = client.post(
+            "/api/system/server/disk/cleanup",
+            json={"keys": [protected]},
+            headers=auth_headers,
+        )
+        assert res.status_code == 400, f"'{protected}' temizliğe kabul edildi!"
+
+
+def test_cleanup_calls_service_and_audits(client, auth_headers, db):
+    """Temizlik servisi çağrılır ve audit log yazılır (gerçek silme yapılmaz)."""
+    from app.models.audit_log import AuditLog
+
+    fake_result = {
+        "cleaned_keys": ["pip_cache"],
+        "results": [{"key": "pip_cache", "freed_bytes": 1024 * 1024, "size_after_bytes": 0}],
+        "freed_bytes": 1024 * 1024,
+        "disk_free_before_bytes": 100,
+        "disk_free_after_bytes": 200,
+        "filesystem": {"mount": "/", "total_bytes": 1, "used_bytes": 1, "free_bytes": 0, "percent": 1.0},
+    }
+    with patch(
+        "app.routers.system_server.disk_cleanup_service.run_cleanup",
+        return_value=fake_result,
+    ) as mock_clean:
+        res = client.post(
+            "/api/system/server/disk/cleanup",
+            json={"keys": ["pip_cache"]},
+            headers=auth_headers,
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["freed_bytes"] == 1024 * 1024
+        mock_clean.assert_called_once_with(["pip_cache"])
+
+    log = (
+        db.query(AuditLog)
+        .filter(AuditLog.entity_type == "server_disk", AuditLog.action == "cleanup")
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
+    assert log is not None, "disk temizliği audit log'a yazılmadı"
+    assert "pip_cache" in (log.details or "")
+
+
+# ─── disk_cleanup_service — Servis katmanı güvenceleri ────
+
+
+def test_service_protected_keys_are_not_cleanable():
+    """Servis whitelist'i yalnız yeniden üretilebilir kategorileri içermeli."""
+    from app.services import disk_cleanup_service as svc
+
+    for protected in ("uploads", "backups", "deps", "worktrees", "playwright", "claude_sessions"):
+        assert protected not in svc.CLEANABLE_KEYS, f"'{protected}' temizlenebilir işaretlenmiş!"
+
+
+def test_service_run_cleanup_filters_non_whitelisted_keys():
+    """run_cleanup whitelist dışı anahtarı hiçbir koşulda temizlemez."""
+    from app.services import disk_cleanup_service as svc
+
+    with patch.object(svc, "_clean") as mock_clean:
+        result = svc.run_cleanup(["uploads", "backups", "bilinmeyen"])
+
+    mock_clean.assert_not_called()
+    assert result["cleaned_keys"] == []
+    assert result["freed_bytes"] == 0
+
+
+def test_service_cleanup_only_touches_selected_key():
+    """Seçilen anahtar dışındaki kategoriler için _clean çağrılmaz."""
+    from app.services import disk_cleanup_service as svc
+
+    with patch.object(svc, "_clean") as mock_clean:
+        svc.run_cleanup(["pip_cache"])
+
+    assert [c.args[0] for c in mock_clean.call_args_list] == ["pip_cache"]
+
+
+def test_service_clean_ignores_protected_key():
+    """_clean korunan bir anahtarla çağrılsa bile hiçbir silme komutu üretmez."""
+    from app.services import disk_cleanup_service as svc
+
+    with patch.object(svc, "_run") as mock_run, patch.object(svc, "_rmtree") as mock_rmtree:
+        for protected in ("uploads", "backups", "deps", "worktrees", "playwright", "claude_sessions"):
+            svc._clean(protected)
+
+    mock_run.assert_not_called()
+    mock_rmtree.assert_not_called()

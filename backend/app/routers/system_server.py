@@ -237,3 +237,47 @@ def get_service_logs(
         "lines": lines,
         "log": result.stdout,
     }
+
+
+@router.get("/server/disk")
+def get_disk_detail(
+    current_user: User = Depends(require_permission("system.server", "view")),
+):
+    """Disk kullanımının kategori bazlı dökümü + temizlenebilir alan.
+
+    Sunucu sayfasındaki Disk kartına tıklanınca çağrılır. Ölçüm `du` ile yapıldığından
+    `/server/info`'ya göre yavaştır → ayrı endpoint (30 sn'lik otomatik yenilemeye girmez).
+    """
+    return disk_cleanup_service.scan_disk()
+
+
+@router.post("/server/disk/cleanup")
+def cleanup_disk(
+    data: DiskCleanupRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("system.server", "use")),
+):
+    """Seçilen (veya tüm) temizlenebilir kategorileri siler — yalnız yeniden üretilebilir veriler."""
+    if data.keys is not None:
+        unknown = [k for k in data.keys if k not in disk_cleanup_service.CLEANABLE_KEYS]
+        if unknown:
+            raise HTTPException(
+                status_code=400,
+                detail="Temizlenemeyecek kategori: {}".format(", ".join(unknown)),
+            )
+
+    result = disk_cleanup_service.run_cleanup(data.keys)
+
+    log_action(
+        db, current_user.id, "cleanup", "server_disk",
+        entity_id=0,
+        details="Disk temizliği: {} — {:.1f} MB serbest bırakıldı".format(
+            ", ".join(result["cleaned_keys"]) or "—",
+            result["freed_bytes"] / 1024 / 1024,
+        ),
+        ip_address=get_client_ip(request),
+    )
+    db.commit()
+
+    return result

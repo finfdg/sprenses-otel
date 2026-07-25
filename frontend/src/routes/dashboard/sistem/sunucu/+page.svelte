@@ -11,7 +11,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Select from '$lib/components/Select.svelte';
-	import { RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock, Mail } from 'lucide-svelte';
+	import { RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock, Mail, Trash2, Info } from 'lucide-svelte';
 
 	interface ServiceInfo {
 		name: string;
@@ -29,6 +29,25 @@
 		services: ServiceInfo[];
 		storage: { db_size_mb: number | null; uploads_mb: number; logs_mb: number };
 		fetched_at: string;
+	}
+
+	interface DiskCategory {
+		key: string;
+		label: string;
+		path: string;
+		description: string;
+		cleanable: boolean;
+		size_bytes: number;
+		cleanable_bytes: number;
+	}
+
+	interface DiskDetail {
+		filesystem: { mount: string; total_bytes: number; used_bytes: number; free_bytes: number; percent: number };
+		categories: DiskCategory[];
+		other_bytes: number;
+		total_cleanable_bytes: number;
+		cleanable_keys: string[];
+		scanned_at: string;
 	}
 
 	const REFRESH_MS = 30000;
@@ -57,6 +76,24 @@
 	let logModal = $state<{ show: boolean; service: string; content: string; loading: boolean }>({
 		show: false, service: '', content: '', loading: false,
 	});
+
+	// Disk detay modalı (Disk kartına tıklanınca) — `du` ile ölçüldüğü için ayrı endpoint,
+	// 30 sn'lik otomatik yenilemeye dahil DEĞİL.
+	let diskModal = $state<{ show: boolean; loading: boolean; cleaning: boolean; data: DiskDetail | null }>({
+		show: false, loading: false, cleaning: false, data: null,
+	});
+	let confirmCleanup = $state(false);
+
+	let diskCleanableCats = $derived(
+		(diskModal.data?.categories ?? [])
+			.filter((c) => c.cleanable)
+			.sort((a, b) => b.cleanable_bytes - a.cleanable_bytes),
+	);
+	let diskKeepCats = $derived(
+		(diskModal.data?.categories ?? [])
+			.filter((c) => !c.cleanable)
+			.sort((a, b) => b.size_bytes - a.size_bytes),
+	);
 
 	// SMTP deneme e-postası
 	interface TestRecipient { id: number; name: string; email: string }
@@ -103,6 +140,13 @@
 		return `${Math.round(mb)} MB`;
 	}
 
+	function fmtBytes(b: number): string {
+		if (b >= 1024 ** 3) return `${(b / 1024 ** 3).toFixed(1)} GB`;
+		if (b >= 1024 ** 2) return `${(b / 1024 ** 2).toFixed(0)} MB`;
+		if (b >= 1024) return `${(b / 1024).toFixed(0)} KB`;
+		return `${b} B`;
+	}
+
 	function percentAccent(p: number): 'red' | 'amber' | 'teal' {
 		if (p >= 90) return 'red';
 		if (p >= 75) return 'amber';
@@ -121,6 +165,35 @@
 		} finally {
 			refreshing = false;
 			loading = false;
+		}
+	}
+
+	async function openDiskDetail() {
+		diskModal = { ...diskModal, show: true, loading: true };
+		try {
+			const data = await api.get<DiskDetail>('/system/server/disk');
+			diskModal = { ...diskModal, data, loading: false };
+		} catch (e: any) {
+			console.error('Disk detayı alınamadı:', e);
+			showToast(e?.message || 'Disk detayı alınamadı', 'error');
+			diskModal = { ...diskModal, loading: false };
+		}
+	}
+
+	async function doCleanup() {
+		confirmCleanup = false;
+		diskModal = { ...diskModal, cleaning: true };
+		try {
+			const res = await api.post<{ freed_bytes: number }>('/system/server/disk/cleanup', {});
+			showToast(`Temizlik tamamlandı — ${fmtBytes(res.freed_bytes)} serbest bırakıldı`, 'success');
+			// Hem modal dökümünü hem üstteki Disk kartını tazele
+			const data = await api.get<DiskDetail>('/system/server/disk');
+			diskModal = { ...diskModal, data, cleaning: false };
+			loadInfo();
+		} catch (e: any) {
+			console.error('Disk temizliği başarısız:', e);
+			showToast(e?.message || 'Disk temizliği başarısız', 'error');
+			diskModal = { ...diskModal, cleaning: false };
 		}
 	}
 
@@ -222,7 +295,8 @@
 					value="{info.disk.percent.toFixed(0)}%"
 					icon={HardDrive}
 					accent={percentAccent(info.disk.percent)}
-					hint="{info.disk.used_gb} GB / {info.disk.total_gb} GB · {info.disk.free_gb} GB boş"
+					hint="{info.disk.used_gb} GB / {info.disk.total_gb} GB · {info.disk.free_gb} GB boş — detay için tıklayın"
+					onclick={openDiskDetail}
 				/>
 				<StatCard
 					label="Uptime"
@@ -362,6 +436,135 @@
 	confirmText="Yeniden Başlat"
 	danger={true}
 	onConfirm={doRestart}
+/>
+
+<!-- Disk detay modalı -->
+<Modal
+	bind:show={diskModal.show}
+	title="Disk Kullanımı — Döküm ve Temizlik"
+	maxWidth="max-w-3xl"
+	onclose={() => (diskModal = { ...diskModal, show: false })}
+>
+	{#if diskModal.loading && !diskModal.data}
+		<TableSkeleton rows={8} columns={3} />
+	{:else if diskModal.data}
+		{@const fs = diskModal.data.filesystem}
+		<div class="space-y-5">
+			<!-- Doluluk çubuğu -->
+			<div>
+				<div class="flex items-baseline justify-between text-sm">
+					<span class="font-medium text-gray-800">{fs.mount} bölümü</span>
+					<span class="text-gray-600 tabular-nums">
+						{fmtBytes(fs.used_bytes)} / {fmtBytes(fs.total_bytes)} · {fmtBytes(fs.free_bytes)} boş
+					</span>
+				</div>
+				<div class="mt-2 h-3 w-full rounded-full bg-gray-100 overflow-hidden">
+					<div
+						class="h-full rounded-full {fs.percent >= 90 ? 'bg-red-600' : fs.percent >= 75 ? 'bg-amber-500' : 'bg-teal-700'}"
+						style="width: {Math.min(100, fs.percent)}%"
+					></div>
+				</div>
+				<div class="mt-1 text-xs text-gray-500">%{fs.percent.toFixed(1)} dolu</div>
+			</div>
+
+			<!-- Temizlenebilir özet + aksiyon -->
+			<div class="rounded-xl border border-gray-200 bg-gray-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+				<div class="flex-1 min-w-0">
+					<div class="text-sm font-medium text-gray-800">
+						Şu anda temizlenebilir: <span class="tabular-nums">{fmtBytes(diskModal.data.total_cleanable_bytes)}</span>
+					</div>
+					<p class="text-xs text-gray-500 mt-1">
+						Yalnızca yeniden üretilebilen veriler (önbellek + eski loglar) silinir. Müşteri dosyaları,
+						yedekler ve bağımlılıklar korunur. Bu temizlik her gün 04:30'da otomatik de çalışır.
+					</p>
+				</div>
+				{#if canUse}
+					<Button
+						variant="danger"
+						onclick={() => (confirmCleanup = true)}
+						loading={diskModal.cleaning}
+						disabled={diskModal.data.total_cleanable_bytes === 0}
+						class="shrink-0"
+					>
+						<Trash2 size={16} /> Şimdi Temizle
+					</Button>
+				{/if}
+			</div>
+
+			<!-- Temizlenebilir kategoriler -->
+			<div>
+				<h3 class="text-sm font-semibold text-gray-800 mb-2">Temizlenebilir</h3>
+				<div class="overflow-x-auto border border-gray-200 rounded-xl">
+					<table class="w-full text-sm">
+						<thead class="bg-gray-50 text-xs text-gray-600 uppercase tracking-wider">
+							<tr>
+								<th class="text-left px-4 py-2">Kategori</th>
+								<th class="text-right px-4 py-2">Toplam</th>
+								<th class="text-right px-4 py-2">Temizlenebilir</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each diskCleanableCats as cat (cat.key)}
+								<tr class="border-t border-gray-100">
+									<td class="px-4 py-2.5">
+										<div class="font-medium text-gray-800">{cat.label}</div>
+										<div class="text-xs text-gray-500">{cat.description}</div>
+									</td>
+									<td class="px-4 py-2.5 text-right text-gray-700 tabular-nums whitespace-nowrap">{fmtBytes(cat.size_bytes)}</td>
+									<td class="px-4 py-2.5 text-right tabular-nums whitespace-nowrap {cat.cleanable_bytes > 0 ? 'font-semibold text-teal-700' : 'text-gray-400'}">
+										{cat.cleanable_bytes > 0 ? fmtBytes(cat.cleanable_bytes) : '—'}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<!-- Korunan kategoriler -->
+			<div>
+				<h3 class="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
+					<Info class="w-4 h-4 text-gray-500" /> Korunan (silinmez)
+				</h3>
+				<div class="overflow-x-auto border border-gray-200 rounded-xl">
+					<table class="w-full text-sm">
+						<tbody>
+							{#each diskKeepCats as cat (cat.key)}
+								<tr class="border-b border-gray-100 last:border-b-0">
+									<td class="px-4 py-2.5">
+										<div class="font-medium text-gray-800">{cat.label}</div>
+										<div class="text-xs text-gray-500">{cat.description}</div>
+									</td>
+									<td class="px-4 py-2.5 text-right text-gray-700 tabular-nums whitespace-nowrap">{fmtBytes(cat.size_bytes)}</td>
+								</tr>
+							{/each}
+							<tr class="border-t border-gray-100 bg-gray-50">
+								<td class="px-4 py-2.5">
+									<div class="font-medium text-gray-800">Diğer</div>
+									<div class="text-xs text-gray-500">İşletim sistemi, kurulu paketler ve ölçülmeyen dizinler.</div>
+								</td>
+								<td class="px-4 py-2.5 text-right text-gray-700 tabular-nums whitespace-nowrap">{fmtBytes(diskModal.data.other_bytes)}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<p class="text-xs text-gray-500">
+				Ölçüm: {new Date(diskModal.data.scanned_at).toLocaleString('tr-TR')}
+			</p>
+		</div>
+	{/if}
+</Modal>
+
+<!-- Temizlik onay diyalogu -->
+<ConfirmDialog
+	bind:show={confirmCleanup}
+	title="Diski Temizle"
+	message="Önbellek dosyaları ve eski loglar silinecek ({diskModal.data ? fmtBytes(diskModal.data.total_cleanable_bytes) : '—'}). Müşteri dosyaları, yedekler ve bağımlılıklar etkilenmez. Devam edilsin mi?"
+	confirmText="Temizle"
+	danger={true}
+	onConfirm={doCleanup}
 />
 
 <!-- Log modal -->
