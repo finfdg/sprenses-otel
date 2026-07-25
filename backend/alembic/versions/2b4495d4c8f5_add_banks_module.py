@@ -3,6 +3,20 @@
 Revision ID: 2b4495d4c8f5
 Revises: b6a51d72e1ce
 Create Date: 2026-03-09 12:22:49.845164
+
+NOT — GERÇEK IBAN'LAR KALDIRILDI (2026-07-25, public depo):
+Bu migration başlangıçta şirketin GERÇEK banka hesap numaralarını içeriyordu. Depo public
+olduğundan yer tutucularla (TR0000...) değiştirildi. Etkiler:
+  - ÜRETİM: migration çoktan uygulandı, gerçek hesaplar `bank_accounts` tablosunda DURUYOR.
+    Bu dosya artık yalnız tarihsel kayıttır; yeniden çalıştırılmaz.
+  - CI / test DB: sıfırdan kurulumda yer tutucu IBAN'lar yazılır — testlerin hiçbiri bu
+    değerlere bağlı değil (doğrulandı).
+  - FELAKET KURTARMA: sıfırdan kurulumda gerçek hesaplar migration'dan DEĞİL, DB yedeğinden
+    (`scripts/db-restore.sh`) gelir. Yedeksiz kurulumda hesaplar elle girilmelidir.
+  - downgrade(): artık yer tutucu IBAN'ları siler → üretimde fiilen no-op. Bu bilinçli ve
+    daha güvenli: bu migration'ın üretimde geri alınması zaten banka hesabı + hareketlerini
+    silmek demekti.
+UYARI: git GEÇMİŞİ hâlâ eski değerleri içerir — bu değişiklik yalnız güncel hâli temizler.
 """
 from typing import Sequence, Union
 
@@ -87,9 +101,9 @@ def upgrade() -> None:
     # 4. Varsayılan Ziraat hesapları
     op.execute(
         "INSERT INTO bank_accounts (bank_name, iban, currency, created_by) VALUES "
-        "('Ziraat Bankası', 'TR530001001977594481885009', 'TRY', "
+        "('Ziraat Bankası', 'TR000000000000000000000601', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('Ziraat Bankası', 'TR800001001977594481885008', 'EUR', "
+        "('Ziraat Bankası', 'TR000000000000000000000602', 'EUR', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1))"
     )
 

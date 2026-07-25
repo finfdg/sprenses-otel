@@ -3,6 +3,20 @@
 Revision ID: 8d04499a53d5
 Revises: 2b4495d4c8f5
 Create Date: 2026-03-09 14:13:58.822192
+
+NOT — GERÇEK IBAN'LAR KALDIRILDI (2026-07-25, public depo):
+Bu migration başlangıçta şirketin GERÇEK banka hesap numaralarını içeriyordu. Depo public
+olduğundan yer tutucularla (TR0000...) değiştirildi. Etkiler:
+  - ÜRETİM: migration çoktan uygulandı, gerçek hesaplar `bank_accounts` tablosunda DURUYOR.
+    Bu dosya artık yalnız tarihsel kayıttır; yeniden çalıştırılmaz.
+  - CI / test DB: sıfırdan kurulumda yer tutucu IBAN'lar yazılır — testlerin hiçbiri bu
+    değerlere bağlı değil (doğrulandı).
+  - FELAKET KURTARMA: sıfırdan kurulumda gerçek hesaplar migration'dan DEĞİL, DB yedeğinden
+    (`scripts/db-restore.sh`) gelir. Yedeksiz kurulumda hesaplar elle girilmelidir.
+  - downgrade(): artık yer tutucu IBAN'ları siler → üretimde fiilen no-op. Bu bilinçli ve
+    daha güvenli: bu migration'ın üretimde geri alınması zaten banka hesabı + hareketlerini
+    silmek demekti.
+UYARI: git GEÇMİŞİ hâlâ eski değerleri içerir — bu değişiklik yalnız güncel hâli temizler.
 """
 from typing import Sequence, Union
 
@@ -19,64 +33,64 @@ def upgrade() -> None:
     # Yapı Kredi — 3 hesap
     op.execute(
         "INSERT INTO bank_accounts (bank_name, iban, currency, created_by) VALUES "
-        "('Yapı Kredi', 'TR260006701000000072821701', 'TRY', "
+        "('Yapı Kredi', 'TR000000000000000000000101', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('Yapı Kredi', 'TR210006701000000065488591', 'EUR', "
+        "('Yapı Kredi', 'TR000000000000000000000102', 'EUR', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('Yapı Kredi', 'TR950006701000000065408689', 'TRY', "
+        "('Yapı Kredi', 'TR000000000000000000000103', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1))"
     )
 
     # TEB — 3 hesap
     op.execute(
         "INSERT INTO bank_accounts (bank_name, iban, currency, created_by) VALUES "
-        "('TEB', 'TR520003200000000048909295', 'EUR', "
+        "('TEB', 'TR000000000000000000000201', 'EUR', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('TEB', 'TR410003200010700000015817', 'TRY', "
+        "('TEB', 'TR000000000000000000000202', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('TEB', 'TR540003200000000031666442', 'TRY', "
+        "('TEB', 'TR000000000000000000000203', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1))"
     )
 
     # VakıfBank — 2 hesap
     op.execute(
         "INSERT INTO bank_accounts (bank_name, iban, currency, created_by) VALUES "
-        "('VakıfBank', 'TR140001500158007301152442', 'TRY', "
+        "('VakıfBank', 'TR000000000000000000000301', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('VakıfBank', 'TR540001500158048017640765', 'EUR', "
+        "('VakıfBank', 'TR000000000000000000000302', 'EUR', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1))"
     )
 
     # Garanti BBVA — 3 hesap
     op.execute(
         "INSERT INTO bank_accounts (bank_name, iban, currency, created_by) VALUES "
-        "('Garanti BBVA', 'TR870006200011500006297372', 'TRY', "
+        "('Garanti BBVA', 'TR000000000000000000000401', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('Garanti BBVA', 'TR030006200011500009075800', 'USD', "
+        "('Garanti BBVA', 'TR000000000000000000000402', 'USD', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('Garanti BBVA', 'TR660006200011500009075539', 'EUR', "
+        "('Garanti BBVA', 'TR000000000000000000000403', 'EUR', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1))"
     )
 
     # Halkbank — 3 hesap
     op.execute(
         "INSERT INTO bank_accounts (bank_name, iban, currency, created_by) VALUES "
-        "('Halkbank', 'TR230001200137600010100011', 'TRY', "
+        "('Halkbank', 'TR000000000000000000000501', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('Halkbank', 'TR670001200137600010102420', 'TRY', "
+        "('Halkbank', 'TR000000000000000000000502', 'TRY', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1)), "
-        "('Halkbank', 'TR210001200137600058100012', 'EUR', "
+        "('Halkbank', 'TR000000000000000000000503', 'EUR', "
         "(SELECT id FROM users WHERE username = 'admin' LIMIT 1))"
     )
 
 
 def downgrade() -> None:
     ibans = (
-        "'TR260006701000000072821701','TR210006701000000065488591','TR950006701000000065408689',"
-        "'TR520003200000000048909295','TR410003200010700000015817','TR540003200000000031666442',"
-        "'TR140001500158007301152442','TR540001500158048017640765',"
-        "'TR870006200011500006297372','TR030006200011500009075800','TR660006200011500009075539',"
-        "'TR230001200137600010100011','TR670001200137600010102420','TR210001200137600058100012'"
+        "'TR000000000000000000000101','TR000000000000000000000102','TR000000000000000000000103',"
+        "'TR000000000000000000000201','TR000000000000000000000202','TR000000000000000000000203',"
+        "'TR000000000000000000000301','TR000000000000000000000302',"
+        "'TR000000000000000000000401','TR000000000000000000000402','TR000000000000000000000403',"
+        "'TR000000000000000000000501','TR000000000000000000000502','TR000000000000000000000503'"
     )
     op.execute(
         f"DELETE FROM bank_transactions WHERE account_id IN "

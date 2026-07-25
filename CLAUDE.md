@@ -440,8 +440,14 @@ Tüm endpoint kataloğu (method · path · izin · iş-kuralı notları) **[`doc
 
 ## Giriş Bilgileri
 
-- **E-posta:** admin@sprenses.com
-- **Şifre:** admin123
+- **Kullanıcı adı:** `admin` (giriş `username` ile yapılır, e-posta ile DEĞİL)
+- **Şifre:** bu dosyada **tutulmaz** — depo public'tir.
+
+> **Kural:** Çalışan hiçbir kimlik bilgisi (şifre, token, anahtar) bu depoya yazılmaz.
+> Buradaki eski `admin123` kaydı 2026-07-25'te kaldırıldı; o şifre zaten geçersizdi
+> (canlıda doğrulandı) ama belgelenmiş olması kötü pratikti. Test/CI ortamı kendi
+> şifresini `TEST_ADMIN_PASSWORD` ortam değişkeninden alır (varsayılanı yalnız yerel
+> test DB'si için geçerlidir, üretimle ilgisi yoktur).
 
 ## Ortam Değişkenleri (.env)
 
