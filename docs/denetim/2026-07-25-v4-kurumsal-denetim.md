@@ -13,6 +13,62 @@
 | **Örnekleme** | Kritik yollar (finans, auth, DR, sunucu, arka plan işleri) **%100** derin okuma + **canlı DB doğrulaması**; kalan boyutlar hedefli örneklem + kanıt (`dosya:satır`). |
 | **Önceki denetim referansı** | 2026-07-05 **v3** (62/100 ağırlıklı · 59/100 aritmetik, 3 Kritik) · 2026-06-21 v2 (72/100) · 2026-07-01 tam modül denetimi (156 bulgu) |
 | **Kalite süreci** | 204 bulgu üretildi. Her Kritik/Yüksek bulgu bağımsız 2. gözle çürütülmeye çalışıldı → **61 bulgunun risk seviyesi düşürüldü**, yalnız 2'si Kritik'te teyit edildi. Ana denetçi ayrıca 6 headline bulguyu canlı sistemde bizzat doğruladı (aşağıda ✔ ile işaretli). |
+| **Revizyon** | **R1 · 2026-07-25 04:35** — denetim sonrası ilk düzeltme turu. 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 Yüksek · JOBS döviz cron'u). Bulgu metinleri **değiştirilmedi**; yalnız `Durum` alanları güncellendi + aşağıya Kapanış Kaydı eklendi. Denetim anının fotoğrafı korunur. |
+
+---
+
+## Kapanış Kaydı — R1 (2026-07-25)
+
+Denetimden sonraki ilk düzeltme turu. Her kapanış, raporun kendi **Kapanış Kriteri**yle
+(Çıktı 18) ölçüldü; kriter sağlanmadan hiçbir madde kapalı sayılmadı.
+
+| ID | Risk | Kapanış kriteri | Ölçülen sonuç |
+|---|:--:|---|---|
+| **FIN-001** | 🔴 Kritik | `SELECT count(*) … currency='TRY' AND abs(amount_try-amount)>0.01` = 0 + regresyon testi | **0** ✔ · açık kalemlerde hayalet tutar **₺696.190,94 → ₺0** ✔ · `tests/test_amount_try_integrity.py` 7 test yeşil ✔ |
+| **DB-001** | 🟠 Yüksek | autogenerate boş diff (hiçbir `DROP TABLE` yok) + metadata bütünlük testi | `compare_metadata` → `DROP TABLE` önerisi **5 → 0** ✔ · `tests/test_model_registry.py` 2 test yeşil ✔ |
+| **JOBS (döviz)** | 🟠 Yüksek | `journalctl -u sprenses-exchange-rates` son koşularda `[amount_try]` uyarısı yok | Cron elle koşturuldu → uyarı **yok** ✔ · sorgu yan-yana kanıtlandı: `limit(1)` ile geçiyor, `limit(1)` olmadan hâlâ `MultipleResultsFound` ✔ |
+
+### Yapılan değişiklikler
+
+| Dosya | Değişiklik |
+|---|---|
+| `app/utils/finance_event_service.py` | `_upsert` TRY kalemlerde `amount_try = amount` türetir (**merkezî yazıcı** — 9 `upsert_*` yolunun tamamını kapsar) |
+| `app/routers/finance/cash_flow/t_account.py` | `_event_eur` TRY dalı `amount_try` kontrolünden **öne alındı** (savunma katmanı) |
+| `app/routers/finance/cash_flow/runway.py` | aynı düzeltme |
+| `app/models/__init__.py` | `Check`/`CheckUpload`/`AiConversation`/`AiMessage`/`AiUsage` kayda eklendi → 5 tablo metadata'ya girdi |
+| `cron_fetch_exchange_rates.py` | `.scalar()` çağrısına `.limit(1)` — sorgu canlıda **1301 satır** dönüyordu |
+| `tests/test_amount_try_integrity.py` | **YENİ** — 7 test (yazıcı · okuyucu · GBP yolu korunumu · kapanış kriteri) |
+| `tests/test_model_registry.py` | **YENİ** — 2 test, alembic'in dar import yüzeyini **alt süreçte** taklit eder |
+| `fix_stale_amount_try.py` | **YENİ** — canlı veri onarım script'i (varsayılan kuru çalışma, `--apply` ile yazar, kendi doğrulamasını yapar) |
+
+### Doğrulama disiplini — iki sahte-yeşil test yakalandı
+
+Yazılan testlerin gerçekten regresyon yakaladığı, düzeltme **geri alınarak** kanıtlandı.
+İlk yazımda iki test hiçbir şey kanıtlamıyordu; ikisi de yeniden yazıldı:
+
+1. **`test_model_registry`** — pytest süreci `conftest.py` üzerinden FastAPI uygulamasını
+   yüklüyor, router'lar model modüllerini dolaylı import ettiğinden metadata "yanlışlıkla tam"
+   görünüyordu → import kaldırılsa bile test yeşil kalıyordu. Çözüm: kontrol **ayrı bir alt
+   süreçte**, alembic'in gördüğü daraltılmış import yüzeyinde koşar.
+2. **`TestAmountTryReaders`** — test DB'sinde EUR kuru olmadığından `_event_eur` `None`
+   dönüyor, test erken çıkıyordu. Çözüm: fixture gerçek bir kur tohumlar; düzeltme geri
+   alınınca beklenen €4,46 yerine **€1440** üretiliyor (bug'ın tam 322 katlık büyüklüğü).
+
+### Canlı doğrulama (üretim DB'si)
+
+```
+Bayat TRY kaydı           : 11 → 0
+Açık kalemlerde hayalet   : ₺696.190,94 → ₺0
+Örnek fe#1205             : amount=178,58 / amount_try=57.600,00 → 178,58 / 178,58
+Onarılan satır yedeği     : scratchpad/fin001-onceki-degerler.csv (11 satır, öncesi)
+```
+
+**Test takımı:** 1921 geçti · 5 atlandı · **0 hata** (12 dk 37 sn).
+**Deploy:** `sprenses-api` restart → **active** · `/api/health` **HTTP 200** · açılış logları temiz.
+
+> **Not — 5 atlanan test bulgu TSTC-005'i doğruluyor:** "ay sonuna çok yakın", 3× "test verisi
+> yok", "gerçek XLS bulunamadı". Bunlar veri/takvim koşuluna bağlı sessiz atlamalardır ve CI
+> açıldığında da koşmayacaklardır — ayrı bir kalem olarak açık kalır.
 
 ---
 
@@ -30,6 +86,12 @@
 **Kapatılan v3 Kritik'i (1/3):** `SRV-001` TLS otomatik yenileme — `certbot-renew.timer` artık **enabled + active**, sertifika 16 Eki 2026'ya kadar geçerli. ✔ *canlıda doğrulandı*
 
 **En büyük tek risk:** Sistemin **doğruluk güvencesi katmanı yok**. 1.917 test yazılmış ama bir kez bile otomatik koşmamış; 453 commit'in tamamı denetimsiz `master`'a gitmiş; para hesaplarındaki sapmalar (FIN-001'de ₺696.190,94) hiçbir alarm üretmeden aylarca yaşayabiliyor ve fiilen yaşadı. Bu bir kod kalitesi sorunu değil, **süreç sorunudur** — ve düzeltmesi bir günden kısadır.
+
+> **R1 güncellemesi (2026-07-25):** FIN-001'in kendisi kapatıldı (₺696.190,94 → ₺0) ama
+> **teşhis eden mekanizma hâlâ yok**: bu sapmayı bulan şey bir alarm değil, elle yapılan bir
+> denetimdi. Aynı sınıftan bir sonraki hata yine aylarca sessiz kalır. CICD-010 (CI kapalı)
+> ve OBS-001 (alarm kanalı yok) açık kaldığı sürece "en büyük tek risk" değerlendirmesi
+> **aynen geçerlidir**.
 
 **İyi haber:** Nihai 2 Kritik + 8 Yüksek bulgunun **7'si "S" eforlu**. İlk haftada kapatılabilecek işin etkisi orantısız derecede yüksek (bkz. Çıktı 15 — Hızlı Kazanımlar).
 
@@ -65,6 +127,14 @@
 
 > **Katmanlı okuma:** Çekirdek (1-10, 20) ort. **6,1** · Operasyon/uyum (11-19, 21-23) ort. **4,9**. v3'teki 2,4 puanlık uçurum 1,2'ye indi — ama yakınsama yukarı değil, **aşağı doğru** oldu.
 
+> **R1 sonrası skorlar (2026-07-25):** Yukarıdaki tablo **denetim anının** fotoğrafıdır ve
+> öyle bırakılmıştır. R1 düzeltmeleri üç boyutu etkiler: **6 Veritabanı 5,5 → 6** (DROP riski
+> kalktı, indeks sürüklenmesi duruyor) · **20 Finansal Doğruluk 6 → 6,5** (hayalet para
+> kapandı, dönem kilidi/FX/tx_hash açık) · **21 Arka Plan İşleri 5,5 → 6** (döviz çökmesi
+> bitti, alarm boşluğu duruyor). Genel not **55 → 55,5**. Nottaki hareketin küçük olması
+> tesadüf değil: kapatılan üç madde de *sonuç*tu; notu asıl çeken *nedenler* — CI'ın hiç
+> koşmaması, alarm kanalının olmaması, off-site yedeğin bulunmaması — aynen duruyor.
+
 ---
 
 ## Çıktı 6+8 — Kritik ve Yüksek Bulgular (çekişmeli doğrulanmış)
@@ -98,7 +168,10 @@ Risk    : Kritik — şablon ölçütü "para hatası". Panel T-Hesap Cetveli, N
 Kapanış : SELECT count(*) FROM finance_events WHERE currency='TRY' AND amount_try IS NOT NULL
           AND abs(amount_try-amount)>0.01  →  0 ; ve "büyük tutarla upsert → küçük tutarla yeniden
           upsert → amount_try==amount" regresyon testi yeşil.
-Durum   : Açık | 2. göz: Yüksek önerdi (gerekçe: defter bozulmuyor, hata okuma yolunda)
+Durum   : ✔ KAPATILDI (R1 · 2026-07-25) — bayat TRY kaydı 11→0, hayalet ₺696.190,94→₺0.
+          Yazıcı (_upsert) + okuyucu (t_account/runway) düzeltmesi canlıda; 7 regresyon
+          testi, düzeltme geri alınarak kırmızıya döndürülüp kanıtlandı. Bkz. Kapanış Kaydı.
+          2. göz Yüksek önermişti (gerekçe: defter bozulmuyor, hata okuma yolunda)
           → ANA DENETÇİ KRİTİK'TE TUTTU: canlı DB'de yönetim raporuna yansıyan gerçek para
             sapması ölçüldü ve şablon "para hatası"nı açıkça Kritik sayıyor.
 ```
@@ -141,8 +214,8 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 |---|---|---|:--:|:--:|
 | **CICD-010**<br>(=TSTP-001<br>=DEBT-001) | **CI 2026-06-02'den beri hiç çalışmadı** — GitHub Actions depo düzeyinde KAPALI; 451 commit test edilmeden master'a gitti. 1.917 testlik takım ve `--cov-fail-under=60` eşiği fiilen dekoratif. | ✔ *ana denetçi:* `actions/permissions` → `{"enabled":false}`; `ci.yml/runs` → `total_count: 0` | **S** | RISK_DUSUR → Yüksek |
 | **SEC-001**<br>(=CICD-011<br>=DOC-001) | **Depo PUBLIC + Stop hook her tur otomatik push ediyor** — CLAUDE.md:444'te varsayılan yönetici şifresi, test fixture'larında checksum-geçerli gerçek IBAN'lar, `docs/denetim/` altında kapanmamış zafiyetleri `dosya:satır` ile listeleyen 6 rapor. GitHub secret-scanning/push-protection da kapalı. | ✔ *ana denetçi:* `gh repo view` → `"visibility":"PUBLIC"`; `.claude/settings.json` Stop hook `git push origin master` | **S**\* | RISK_DUSUR → Yüksek |
-| **FIN-001** | *(bkz. Kritik — 2. göz bu seviyede değerlendirdi)* | canlı DB | S | RISK_DUSUR → Yüksek |
-| **DB-001** | **5 tablo alembic metadata'sının dışında** — `check.py` (checks, check_uploads), `ai_usage.py`, `ai_conversation.py` (ai_conversations, ai_messages) ne `models/__init__.py`'de ne `alembic/env.py`'de import ediliyor. Bir sonraki `alembic revision --autogenerate` bu beş tablo için **DROP TABLE** üretir — `checks` çekirdek finans tablosu. | ✔ *ana denetçi:* `__init__` taraması → eksik: `check`, `ai_usage`, `ai_conversation`; `alembic/env.py`'de bu modüllerin import'u yok | **S** | RISK_DUSUR → Yüksek |
+| ~~**FIN-001**~~ ✔ | *(bkz. Kritik — 2. göz bu seviyede değerlendirdi)* — **KAPATILDI R1** | canlı DB | S | RISK_DUSUR → Yüksek |
+| ~~**DB-001**~~ ✔ | **5 tablo alembic metadata'sının dışında** — `check.py` (checks, check_uploads), `ai_usage.py`, `ai_conversation.py` (ai_conversations, ai_messages) ne `models/__init__.py`'de ne `alembic/env.py`'de import ediliyor. Bir sonraki `alembic revision --autogenerate` bu beş tablo için **DROP TABLE** üretir — `checks` çekirdek finans tablosu. **→ KAPATILDI R1:** modeller kayda eklendi, autogenerate DROP önerisi 5→0, bekçi testi eklendi. | ✔ *ana denetçi:* `__init__` taraması → eksik: `check`, `ai_usage`, `ai_conversation`; `alembic/env.py`'de bu modüllerin import'u yok | **S** | RISK_DUSUR → Yüksek |
 | **ARCH-001** | **Manuel kredi eşleştirme ortak `apply_credit_bank_match` uygulayıcısını atlıyor** — taksiti `is_paid` yapar ama anaparayı düşmez; geri alma ise koşulsuz iade eder → `remaining_amount` her eşleştir/geri-al turunda şişer. Kilit ve `is_paid` guard'ı da yok (çift eşleştirme mümkün). | ✔ *ana denetçi:* matching.py:222-225 (anapara satırı yok) vs matching_service.py:950-951 (düşüyor); matching.py:675-676 (koşulsuz iade). Canlıda 33 manuel kredi eşleşmesi; taksit planı olan tek üründe (Halk Leasing #446) **₺22.963,23 sapma**, doğrudan atfedilebilen manuel taksit ₺14.835,60 | **S** | RISK_DUSUR → Yüksek |
 
 \* SEC-001'in "S" eforu deponun private yapılmasıdır (2 dakika). Sızmış sırların rotasyonu ayrıca M efordur.
@@ -203,19 +276,23 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 
 ## Çıktı 15 — Hızlı Kazanımlar (efor ≤ 1 gün × etki Yüksek/Kritik)
 
-| Sıra | ID | İş | Süre | Kazanç |
-|:--:|---|---|:--:|---|
-| 1 | **SEC-001** | Depoyu **private** yap (GitHub → Settings → Danger Zone) | **2 dk** | Canlı finansal sistemin saldırı haritası ve gerçek IBAN'lar kamuya kapanır |
-| 2 | **CICD-010** | GitHub Actions'ı **etkinleştir** + boş commit ile ilk koşuyu yeşile al | **15 dk** | 1.917 test ilk kez koruyucu hâle gelir |
-| 3 | **FIN-001** | `UPDATE finance_events SET amount_try=amount WHERE currency='TRY'` + `_upsert`'e alan ekle | **1-2 sa** | Panel/runway/aging'den **₺696.190,94 hayalet** silinir |
-| 4 | **DB-001** | `check`, `ai_usage`, `ai_conversation`'ı `models/__init__.py` + `alembic/env.py`'ye ekle | **10 dk** | Bir sonraki autogenerate'in `DROP TABLE checks` üretmesi engellenir |
-| 5 | **JOBS (döviz)** | `amount_try` adımındaki `Multiple rows were found` hatasını düzelt | **1 sa** | 2 aydır yarım çalışan kur güncellemesi tamamlanır |
-| 6 | **ARCH-001** | `match_credit_payment`'ı `apply_credit_bank_match`'e bağla + canlı `remaining_amount` onarımı | **2-3 sa** | Kredi kalan borcu sapması durur |
-| 7 | **DR-003** | 6 systemd unit'ine `OnFailure=` + basit e-posta/push alarm servisi | **1 sa** | Sessiz yedek/cron çökmesi biter |
-| 8 | **DR-001** | `db-backup.sh`'e uploads tar'ı ekle | **30 dk** | 284 MB mali belge yedeğe girer |
-| 9 | **SEC-007/008** | `UserUpdate` parola min-uzunluk + zayıf `SECRET_KEY`'de başlatmayı durdur | **20 dk** | Parola politikası tutarlı hâle gelir |
+| Sıra | ID | İş | Süre | Kazanç | Durum |
+|:--:|---|---|:--:|---|:--:|
+| 1 | **SEC-001** | Depoyu **private** yap (GitHub → Settings → Danger Zone) | **2 dk** | Canlı finansal sistemin saldırı haritası ve gerçek IBAN'lar kamuya kapanır | ⬜ Açık — *depo sahibinin yapması gerekir* |
+| 2 | **CICD-010** | GitHub Actions'ı **etkinleştir** + boş commit ile ilk koşuyu yeşile al | **15 dk** | 1.917 test ilk kez koruyucu hâle gelir | ⬜ Açık — *depo sahibinin yapması gerekir* |
+| 3 | **FIN-001** | `UPDATE finance_events SET amount_try=amount WHERE currency='TRY'` + `_upsert`'e alan ekle | **1-2 sa** | Panel/runway/aging'den **₺696.190,94 hayalet** silinir | ✔ **R1** |
+| 4 | **DB-001** | `check`, `ai_usage`, `ai_conversation`'ı `models/__init__.py` + `alembic/env.py`'ye ekle | **10 dk** | Bir sonraki autogenerate'in `DROP TABLE checks` üretmesi engellenir | ✔ **R1** |
+| 5 | **JOBS (döviz)** | `amount_try` adımındaki `Multiple rows were found` hatasını düzelt | **1 sa** | 2 aydır yarım çalışan kur güncellemesi tamamlanır | ✔ **R1** |
+| 6 | **ARCH-001** | `match_credit_payment`'ı `apply_credit_bank_match`'e bağla + canlı `remaining_amount` onarımı | **2-3 sa** | Kredi kalan borcu sapması durur | ⬜ Açık |
+| 7 | **DR-003** | 6 systemd unit'ine `OnFailure=` + basit e-posta/push alarm servisi | **1 sa** | Sessiz yedek/cron çökmesi biter | ⬜ Açık |
+| 8 | **DR-001** | `db-backup.sh`'e uploads tar'ı ekle | **30 dk** | 284 MB mali belge yedeğe girer | ⬜ Açık |
+| 9 | **SEC-007/008** | `UserUpdate` parola min-uzunluk + zayıf `SECRET_KEY`'de başlatmayı durdur | **20 dk** | Parola politikası tutarlı hâle gelir | ⬜ Açık |
 
 **Toplam ≈ 1 iş günü** → 2 Kritik'in biri tamamen, diğeri kısmen kapanır; 8 Yüksek'in 5'i kapanır.
+
+> **R1 ilerleme (2026-07-25):** 3/9 kapandı (madde 3-4-5) → 1 Kritik + 2 Yüksek. Kalan 6'nın
+> **ikisi kod işi değil**: SEC-001 ve CICD-010 GitHub depo ayarıdır, yalnız depo sahibi
+> yapabilir — ve ikisi de listenin en yüksek etkili maddeleridir (toplam süre 17 dakika).
 
 ---
 
@@ -251,13 +328,19 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 | `sprenses-db-backup` | pg_dump -Fc + bütünlük + 30 rotasyon | Günlük 03:00 | ⚠ UTC | 24 Tem ✔ | yok (risk düşük) | ✔ | ❌ |
 | `sprenses-sedna-sync` | 6 adım: cari/IBAN/çek/düzenli/maaş/banka mutabakat | 09-21 arası 2 saatte bir :15 | ✔ Istanbul | 24 Tem 21:15, 6/6 ✔ | ❌ (UI `sync-all` ile çakışır) | ✔ | ❌ + **hata olsa da exit 0** |
 | `sprenses-sales-sync` | Satış faturası + tahsilat + avans + acente köprüsü | 08-22 arası 2 saatte bir :15 | ⚠ UTC | 24 Tem 22:15 ✔ | ❌ | ✔ | ❌ + exit 0 |
-| `sprenses-exchange-rates` | TCMB günlük+saatlik kur → `exchange_rates` → `amount_try` | Hafta içi 10:00-16:15, 28 koşu/gün | ⚠ UTC | Kur ✔ ama **`amount_try` adımı 2 aydır HER koşuda çöküyor** | yok | ✔ | ❌ (WARNING'e düşürülmüş, exit 0) |
+| `sprenses-exchange-rates` | TCMB günlük+saatlik kur → `exchange_rates` → `amount_try` | Hafta içi 10:00-16:15, 28 koşu/gün | ⚠ UTC | ~~`amount_try` adımı 2 aydır HER koşuda çöküyor~~ → ✔ **R1'de düzeltildi** | yok | ✔ | ❌ (WARNING'e düşürülmüş, exit 0) |
 | `sprenses-ai-digest` | 7 günlük yaklaşan ödeme özeti (in-app + push) | Günlük 08:00 | ✔ Istanbul | 24 Tem, 8 kullanıcı ✔ | gerekmiyor | ✔ | ❌ (dolaylı) |
 | `ssh-key-audit` (.timer+.path) | Tünel anahtarlarını `command=`+`permitopen=` ile sertleştirir | Günlük + dosya değişiminde | — | 24 Tem ✔ | idempotent | ✔ | ❌ |
 | `cron_weekly_push.py` | Haftalık push bildirimi | **ZAMANLANMAMIŞ** — unit yok, cron paketi kurulu değil | — | Hiç | — | — | ❌ + doküman çalıştığını iddia ediyor |
 | YKB/QNB/Garanti ekstre cron'ları | Banka API'lerinden hareket çekme | Zamanlanmamış — **bilinçli** (kimlikler .env'de yok) | — | — | — | — | *bulgu değil* |
 
 **Öne çıkan:** Kur cron'u her koşuda `WARNING [amount_try] Güncelleme hatası: Multiple rows were found when exactly one was required` yazıyor, çıkış kodu 0 dönüyor, systemd "başarılı" sayıyor. ✔ *ana denetçi journalctl ile doğruladı.* Bu, FIN-001'in ikinci bacağıdır.
+
+> **R1 (2026-07-25):** Kök neden `.scalar()`'ın çok satır dönen bir sorguda çağrılmasıydı —
+> filtre `date <= target_date` olduğundan canlıda **1301 EUR satırı** dönüyordu. `.limit(1)`
+> eklendi, uyarı bitti. **Ama alarm boşluğu KAPANMADI:** iş hâlâ hata durumunda `exit 0`
+> dönüyor ve `OnFailure=` yok — yani bir sonraki sessiz çökme yine aylarca fark edilmez.
+> Bu satırın "Alarm ❌" sütunu bilerek kırmızı bırakıldı (DR-003 / JOBS-002 açık).
 
 ---
 
@@ -390,17 +473,17 @@ Gerçek banka PDF örnekleri (4 banka KK ekstresi), TCMB XML varyantları (tatil
 
 ## Çıktı 18 — Kapanış Kriterleri
 
-| ID | Kapanmış sayılır ki… |
-|---|---|
-| **FIN-001** | `SELECT count(*) ... WHERE currency='TRY' AND abs(amount_try-amount)>0.01` = **0** + upsert regresyon testi yeşil |
-| **DR-001** | uploads/ günlük yedekte, off-site kopyada ve tatbikatta bir dosya açılarak doğrulanmış |
-| **DR-002** | DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve **S3'ten restore bir kez uçtan uca** yapılmış |
-| **CICD-010** | `actions/permissions` → `enabled:true` **ve** en son `ci.yml` koşusunun conclusion'ı `success` |
-| **SEC-001** | `gh repo view` → `"visibility":"PRIVATE"` **ve** public dönemde görünmüş kimlik bilgileri döndürülmüş |
-| **DB-001** | `alembic revision --autogenerate` boş diff üretiyor (hiçbir `DROP TABLE` yok) + metadata bütünlük testi yeşil |
-| **ARCH-001** | Router `apply_credit_bank_match` çağırıyor + eşleştir/geri-al turu sonrası `remaining_amount` değişmiyor (test) + canlı sapma 0 |
-| **JOBS (döviz)** | `journalctl -u sprenses-exchange-rates` son 10 koşuda `[amount_try]` uyarısı yok |
-| **DR-003** | Bir test hatası kasten tetiklendiğinde alarm kanalından bildirim geliyor |
+| ID | Kapanmış sayılır ki… | Durum |
+|---|---|:--:|
+| **FIN-001** | `SELECT count(*) ... WHERE currency='TRY' AND abs(amount_try-amount)>0.01` = **0** + upsert regresyon testi yeşil | ✔ **R1** — ölçüm 0, 7 test yeşil |
+| **DB-001** | `alembic revision --autogenerate` boş diff üretiyor (hiçbir `DROP TABLE` yok) + metadata bütünlük testi yeşil | ✔ **R1** — DROP 5→0, 2 test yeşil |
+| **JOBS (döviz)** | `journalctl -u sprenses-exchange-rates` son 10 koşuda `[amount_try]` uyarısı yok | ✔ **R1** — uyarı yok, sorgu yan-yana kanıtlandı |
+| **DR-001** | uploads/ günlük yedekte, off-site kopyada ve tatbikatta bir dosya açılarak doğrulanmış | ⬜ Açık |
+| **DR-002** | DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve **S3'ten restore bir kez uçtan uca** yapılmış | ⬜ Açık |
+| **CICD-010** | `actions/permissions` → `enabled:true` **ve** en son `ci.yml` koşusunun conclusion'ı `success` | ⬜ Açık |
+| **SEC-001** | `gh repo view` → `"visibility":"PRIVATE"` **ve** public dönemde görünmüş kimlik bilgileri döndürülmüş | ⬜ Açık |
+| **ARCH-001** | Router `apply_credit_bank_match` çağırıyor + eşleştir/geri-al turu sonrası `remaining_amount` değişmiyor (test) + canlı sapma 0 | ⬜ Açık |
+| **DR-003** | Bir test hatası kasten tetiklendiğinde alarm kanalından bildirim geliyor | ⬜ Açık |
 
 ---
 
