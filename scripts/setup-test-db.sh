@@ -55,4 +55,7 @@ echo "==> 5/5 Admin kullanıcısı seed ediliyor..."
 DATABASE_URL="$TEST_DATABASE_URL" PYTHONPATH=. python tests/ci/seed_admin.py
 
 echo "==> Tamam. Testleri çalıştırmak için:"
-echo "    cd backend && DATABASE_URL=\"$TEST_DATABASE_URL\" python -m pytest tests/ -q"
+# ŞİFRE BASMA: satır 36'daki maskeleme burada unutulmuştu → script çıktısı DB şifresini
+# düz metin gösteriyordu. CI logları (depo public) ve terminal geçmişi bunu saklar.
+echo "    cd backend && DATABASE_URL=\"\$(grep '^DATABASE_URL' .env | cut -d= -f2- | sed 's|/[^/]*\$|/sprenses_test|')\" \\"
+echo "      python -m pytest tests/ -q"

@@ -223,14 +223,16 @@ def upgrade() -> None:
     # (id=925 — mevcut max 921; çakışmaz. Diğer roller Roller sayfasından.)
     op.execute("""
         INSERT INTO modules (id, name, code, description, icon, parent_id, sort_order, is_active, created_at)
-        VALUES (925, 'Kontratlar', 'sales.kontratlar',
-                'Acente kontrat arşivi — sezon, ödeme planı, aksiyon/SPO, kontenjan, kesinti',
-                'file-text', 896, 5, true, now())
+        SELECT 925, 'Kontratlar', 'sales.kontratlar',
+               'Acente kontrat arşivi — sezon, ödeme planı, aksiyon/SPO, kontenjan, kesinti',
+               'file-text', 896, 5, true, now()
+        WHERE EXISTS (SELECT 1 FROM modules WHERE id = 896)
         ON CONFLICT (id) DO NOTHING
     """)
     op.execute("""
         INSERT INTO role_module_permissions (role_id, module_id, can_view, can_use)
-        SELECT r.id, 925, true, true FROM roles r WHERE r.name = 'Admin'
+        SELECT r.id, 925, true, true FROM roles r
+        WHERE r.name = 'Admin' AND EXISTS (SELECT 1 FROM modules WHERE id = 925)
         ON CONFLICT DO NOTHING
     """)
 
