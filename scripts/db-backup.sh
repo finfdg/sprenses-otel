@@ -112,8 +112,13 @@ if [ "${SPRENSES_SKIP_UPLOADS:-0}" != "1" ] && [ -d "$UPLOADS_SRC" ]; then
             echo "UYARI: uploads snapshot dosya sayısı uyuşmuyor (kaynak $SRC_N / snapshot $SNAP_N)" >&2
         fi
 
-        # Rotasyon
-        ls -1dt "$UPLOADS_BACKUP_DIR"/*/ 2>/dev/null | tail -n +"$((UPLOADS_KEEP + 1))" \
+        # Rotasyon — ADA göre sırala, mtime'a DEĞİL.
+        # `ls -dt` (mtime) BURADA ÇALIŞMAZ: `rsync -a` dizin zaman damgalarını KAYNAKTAN
+        # kopyalar → tüm snapshot dizinleri aynı mtime'ı alır (canlıda dördü de
+        # 2026-07-17 10:30:22 çıktı) ve sıralama anlamsızlaşır; rotasyon EN YENİYİ
+        # silebilirdi. Dizin adı YYYYMMDD-HHMMSS olduğundan sözlüksel sıralama = zaman
+        # sıralaması. `sort -r` ile en yeniden eskiye, ilk KEEP tanesi korunur.
+        ls -1d "$UPLOADS_BACKUP_DIR"/*/ 2>/dev/null | sort -r | tail -n +"$((UPLOADS_KEEP + 1))" \
             | xargs -r rm -rf
 
         echo "uploads snapshot OK: $SNAP ($SNAP_N dosya) — toplam $(ls -1d "$UPLOADS_BACKUP_DIR"/*/ 2>/dev/null | wc -l) snapshot, dizin $(du -sh "$UPLOADS_BACKUP_DIR" | cut -f1)"
