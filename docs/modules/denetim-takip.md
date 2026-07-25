@@ -45,7 +45,7 @@ taşıyıcı, her otomasyon koşusu denetlenebilir bir kayıt.
 | Dosya | İçerik |
 |---|---|
 | `scripts/systemd/sprenses-denetim-auto.service` | oneshot birim (`TZ=Europe/Istanbul`, `OnFailure=` alarmı) |
-| `scripts/systemd/sprenses-denetim-auto.timer` | `OnCalendar=*-*-* 00/5:40:00 Europe/Istanbul` |
+| `scripts/systemd/sprenses-denetim-auto.timer` | `OnCalendar=*-*-* 00/2:40:00 Europe/Istanbul` (2 saatte bir, günde 12 koşu) |
 
 > **Unit dosyaları git'te VAR ama `/etc/systemd/system/` git'te DEĞİL** — sunucu yeniden
 > kurulursa `scripts/systemd/` içindekiler tekrar kopyalanmalıdır.
@@ -184,7 +184,7 @@ Bileşenler: `ListPage`, `StatCard`, `StatusBadge`, `SegmentedControl`, `Button`
 
 ---
 
-## 7. Otomasyon — 5 Saatlik Koşu
+## 7. Otomasyon — Periyodik Koşu (2 saatte bir)
 
 ### Akış
 

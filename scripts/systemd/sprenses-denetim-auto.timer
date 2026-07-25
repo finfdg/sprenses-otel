@@ -1,12 +1,14 @@
 [Unit]
-Description=Sprenses denetim otomasyonu zamanlayıcı (5 saatte bir, Istanbul)
+Description=Sprenses denetim otomasyonu zamanlayıcı (2 saatte bir, Istanbul)
 
 [Timer]
-# 5 saatte bir: 00:40, 05:40, 10:40, 15:40, 20:40 (Europe/Istanbul).
-# 24 saat 5'e tam bölünmediğinden gün sonundaki boşluk 4 saattir — kabul edilir.
+# 2 saatte bir :40 → 00:40, 02:40, … 22:40 (Europe/Istanbul). Günde 12 koşu.
+# 24 saat 2'ye tam bölündüğü için aralık HER ZAMAN 2 saattir (5 saatlik ayarda
+# gün sonunda 4 saatlik bir boşluk oluşuyordu).
 # Dakika :40 seçildi: Sedna (:15) ve satış senkronu (:15) çalışırken başlamasın;
 # eşzamanlı iş EC2'de 4 GB RAM'i zorlar (docs/modules/sunucu.md, 2026-07-06/18 olayları).
-OnCalendar=*-*-* 00/5:40:00 Europe/Istanbul
+# Bir koşu ~45 dk sürebilir; kilit sayesinde çakışan tetikleme ATLANIR (kuyruğa alınmaz).
+OnCalendar=*-*-* 00/2:40:00 Europe/Istanbul
 # Sunucu kapalıyken kaçan koşu açılışta telafi edilir
 Persistent=true
 # Diğer timer'larla aynı saniyede tetiklenmesin
