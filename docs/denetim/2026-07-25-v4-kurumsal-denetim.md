@@ -13,7 +13,55 @@
 | **Örnekleme** | Kritik yollar (finans, auth, DR, sunucu, arka plan işleri) **%100** derin okuma + **canlı DB doğrulaması**; kalan boyutlar hedefli örneklem + kanıt (`dosya:satır`). |
 | **Önceki denetim referansı** | 2026-07-05 **v3** (62/100 ağırlıklı · 59/100 aritmetik, 3 Kritik) · 2026-06-21 v2 (72/100) · 2026-07-01 tam modül denetimi (156 bulgu) |
 | **Kalite süreci** | 204 bulgu üretildi. Her Kritik/Yüksek bulgu bağımsız 2. gözle çürütülmeye çalışıldı → **61 bulgunun risk seviyesi düşürüldü**, yalnız 2'si Kritik'te teyit edildi. Ana denetçi ayrıca 6 headline bulguyu canlı sistemde bizzat doğruladı (aşağıda ✔ ile işaretli). |
-| **Revizyon** | **R1 · 2026-07-25 04:35** — 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 · JOBS döviz cron'u).<br>**R2 · 2026-07-25 05:15** — ARCH-001 kapatıldı **ve bu raporun bir bulgusundaki yanlış canlı-sapma iddiası düzeltildi** (bkz. R2 Kapanış Kaydı).<br>**R3 · 2026-07-25 05:35** — DR ailesi: DR-001 büyük ölçüde kapandı (uploads yedekte + tatbikat), DR-003 kapatıldı (alarm kanalı canlı), DR-002 AWS provizyonuna bağlı açık. Bulgu metinleri **silinmedi**; durumlar güncellendi, hatalı iddia üstü çizilerek gerekçesiyle bırakıldı — denetim anının fotoğrafı ve hatanın izi birlikte korunur. |
+| **Revizyon** | **R1 · 2026-07-25 04:35** — 3 bulgu kapatıldı (FIN-001 Kritik · DB-001 · JOBS döviz cron'u).<br>**R2 · 2026-07-25 05:15** — ARCH-001 kapatıldı **ve bu raporun bir bulgusundaki yanlış canlı-sapma iddiası düzeltildi** (bkz. R2 Kapanış Kaydı).<br>**R3 · 2026-07-25 05:35** — DR ailesi: DR-001 büyük ölçüde kapandı (uploads yedekte + tatbikat), DR-003 kapatıldı (alarm kanalı canlı), DR-002 AWS provizyonuna bağlı açık.<br>**R4 · 2026-07-25 10:05** — CICD-010'un **ön koşulları** açıldı: sıfırdan bootstrap'ı engelleyen 3 kusur (migration FK sırası · seed'in 14 modül geride olması · 7 bayat modül yaması) düzeltildi. Taze DB'de 1927 test yeşil. Bulgu kapanmadı — Actions'ı açmak hâlâ depo sahibinde. Bulgu metinleri **silinmedi**; durumlar güncellendi, hatalı iddia üstü çizilerek gerekçesiyle bırakıldı — denetim anının fotoğrafı ve hatanın izi birlikte korunur. |
+
+---
+
+## Kapanış Kaydı — R4 (2026-07-25) · CI'ın önündeki gizli engeller
+
+Bu tur bir bulgu kapatmadı; **CICD-010'un ön koşullarını** açtı. Rapor "Actions'ı aç, 15 dk"
+diyordu — **yanlıştı**. CI açılsaydı ilk adımda ölürdü. Üç ayrı engel vardı ve üçü de tam olarak
+*CI hiç çalışmadığı için* birikmişti.
+
+| # | Engel | Belirti | Düzeltme |
+|:--:|---|---|---|
+| 1 | **Migration FK sırası** | `alembic upgrade head` sıfırdan çöküyordu: `b7d2f4a8c1e6` modül 925'i (`sales.kontratlar`) `parent_id=896`'ya bağlıyor, ama 896 (`Satış`) `02_seed.sql`'de ve migration'dan SONRA yükleniyor | Modül + izin insert'leri `WHERE EXISTS (parent)` ile koşullu yapıldı; üretimde (896 varken) aynen çalışır, taze kurulumda atlanır |
+| 2 | **Seed sürüklenmesi** | `02_seed.sql` üretimden **14 modül geride**: `finance.sales_invoices` · tüm `stok.*` · `ai.*` · `accounting.mutabakat` · `finance.hakedis` · `system.docs`. `reset_data.sql` TÜM tabloları TRUNCATE ettiğinden seed tek kaynak → eksik modül test DB'sinde HİÇ oluşmuyor → admin izin alamıyor → **17 test kırmızı** | modules + role_module_permissions blokları üretimden yeniden üretildi (50 modül / 356 izin) |
+| 3 | **Bayat modül yamaları** | COPY bloğundan sonra elle eklenmiş 7 "idempotent" INSERT vardı ve id'leri üretimden kaymıştı (`system.docs` seed=914/üretim=915 · `stok.*` seed=904-908/üretim=905-909). `ON CONFLICT (id)` farklı id'yi yakalamıyor, `ix_modules_code` UNIQUE patlıyordu | 7 yama kaldırıldı; yerine "yama ekleme, bloğu üretimden yeniden üret" kuralı yazıldı |
+
+### Sonuç — CI artık açılabilir
+
+```
+Sıfırdan bootstrap : 5/5 adım temiz (alembic → reset_data → 02_seed → seed_admin)
+Test DB            : 50 modül (üretimle birebir), izinsiz Sedna adımı yok
+Tam takım          : 1927 geçti · 5 atlandı · 0 HATA (13:59)
+```
+
+**Öncesi:** aynı takım aynı taze DB'de **17 hata** veriyordu (8 `test_sales_invoices` + 3
+`test_sedna_sync` + 6 diğer). Artımlı büyütülmüş DB'de yeşil görünüyordu — sürüklenmeyi
+gizleyen tam da buydu.
+
+CI **birebir aynı dört adımı ve aynı dosyaları** çalıştırıyor
+(`.github/workflows/ci.yml` → `reset_data.sql` · `02_seed.sql` · `seed_admin.py`) → yerel
+doğrulama CI'a transfer eder.
+
+### Yol üstünde bulunan iki ek kusur
+
+- **`setup-test-db.sh` DB şifresini düz metin basıyordu** (son satırdaki "testleri şöyle
+  çalıştır" ipucunda; satır 36'daki maskeleme orada unutulmuş). Depo public olduğundan CI
+  logları bunu kalıcı yayımlardı. Kapatıldı.
+- **Yedek rotasyonunda sıralama hatası (R3'te eklediğim kodda):** rotasyon `ls -1dt` ile
+  **mtime**'a göre sıralıyordu, ama `rsync -a` dizin zaman damgalarını kaynaktan kopyalıyor →
+  canlıda dört snapshot da aynı mtime'a sahipti (`2026-07-17 10:30:22`). Sıralama anlamsız,
+  yani 31. günde **en yeni snapshot silinebilirdi**. Ad sıralamasına çevrildi
+  (`YYYYMMDD-HHMMSS` sözlüksel = kronolojik) ve `KEEP=2` ile gerçek rotasyon testiyle
+  doğrulandı (en yeni 2 kaldı, hardlink'ler sağ çıktı). `KEEP=30` olduğu için zarar vermemişti.
+
+> **Ders — bu turun asıl bulgusu:** Üç engelin hiçbiri kod hatası değildi; üçü de
+> *doğrulanmamış varsayım*du. "Testler geçiyor" ifadesi, **hangi DB'de** geçtiği sorulmadığı
+> sürece anlamsız: artımlı büyütülmüş bir test DB'si, seed'in üretimden 14 modül geride
+> olduğunu 14 modül boyunca gizledi. CICD-010'un maliyeti "15 dakika" değil, "bir günün
+> yarısı + üç gizli kusur"du — ve bu maliyeti üreten şey bulgunun kendisiydi.
 
 ---
 
@@ -372,7 +420,7 @@ Durum   : Açık — v3'ten devam | 2. göz: ✔ ONAYLANDI (Kritik)
 | Sıra | ID | İş | Süre | Kazanç | Durum |
 |:--:|---|---|:--:|---|:--:|
 | 1 | **SEC-001** | Depoyu **private** yap (GitHub → Settings → Danger Zone) | **2 dk** | Canlı finansal sistemin saldırı haritası ve gerçek IBAN'lar kamuya kapanır | ⬜ Açık — *depo sahibinin yapması gerekir* |
-| 2 | **CICD-010** | GitHub Actions'ı **etkinleştir** + boş commit ile ilk koşuyu yeşile al | **15 dk** | 1.917 test ilk kez koruyucu hâle gelir | ⬜ Açık — *depo sahibinin yapması gerekir* |
+| 2 | **CICD-010** | GitHub Actions'ı **etkinleştir** + boş commit ile ilk koşuyu yeşile al | ~~15 dk~~ **15 dk** (ön koşullar R4'te açıldı — öncesinde CI ilk adımda ölüyordu) | 1.927 test ilk kez koruyucu hâle gelir | ⬜ Açık — *depo sahibinin yapması gerekir* |
 | 3 | **FIN-001** | `UPDATE finance_events SET amount_try=amount WHERE currency='TRY'` + `_upsert`'e alan ekle | **1-2 sa** | Panel/runway/aging'den **₺696.190,94 hayalet** silinir | ✔ **R1** |
 | 4 | **DB-001** | `check`, `ai_usage`, `ai_conversation`'ı `models/__init__.py` + `alembic/env.py`'ye ekle | **10 dk** | Bir sonraki autogenerate'in `DROP TABLE checks` üretmesi engellenir | ✔ **R1** |
 | 5 | **JOBS (döviz)** | `amount_try` adımındaki `Multiple rows were found` hatasını düzelt | **1 sa** | 2 aydır yarım çalışan kur güncellemesi tamamlanır | ✔ **R1** |
@@ -573,7 +621,7 @@ Gerçek banka PDF örnekleri (4 banka KK ekstresi), TCMB XML varyantları (tatil
 | **JOBS (döviz)** | `journalctl -u sprenses-exchange-rates` son 10 koşuda `[amount_try]` uyarısı yok | ✔ **R1** — uyarı yok, sorgu yan-yana kanıtlandı |
 | **DR-001** | uploads/ günlük yedekte, off-site kopyada ve tatbikatta bir dosya açılarak doğrulanmış | ◐ **R3** — günlük yedek ✔ · tatbikat ✔ · off-site ✗ |
 | **DR-002** | DB+uploads farklı bölgedeki S3'e otomatik yükleniyor ve **S3'ten restore bir kez uçtan uca** yapılmış | ⬜ Açık |
-| **CICD-010** | `actions/permissions` → `enabled:true` **ve** en son `ci.yml` koşusunun conclusion'ı `success` | ⬜ Açık |
+| **CICD-010** | `actions/permissions` → `enabled:true` **ve** en son `ci.yml` koşusunun conclusion'ı `success` | ⬜ Açık — **ön koşullar R4'te kapatıldı** (bootstrap 5/5, taze DB'de 1927 test yeşil); kalan adım depo ayarı |
 | **SEC-001** | `gh repo view` → `"visibility":"PRIVATE"` **ve** public dönemde görünmüş kimlik bilgileri döndürülmüş | ⬜ Açık |
 | **ARCH-001** | Router `apply_credit_bank_match` çağırıyor + eşleştir/geri-al turu sonrası `remaining_amount` değişmiyor (test) + canlı sapma 0 | ✔ **R2** — router çağırıyor ✔ · 5 test yeşil (geri alınca kırmızı) ✔ · canlı sapma zaten yoktu (iddia düzeltildi) |
 | **DR-003** | Bir test hatası kasten tetiklendiğinde alarm kanalından bildirim geliyor | ✔ **R3** — tetiklendi, error_logs + e-posta geldi |
