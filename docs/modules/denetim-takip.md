@@ -313,8 +313,14 @@ hatasının tekrarını engeller. Kanal: uygulama içi bildirim + push + e-posta
 3. **Seed otomasyon kuyruğuna madde eklemez.** `auto_enabled` daima `False` başlar —
    istenmeyen otonom koşu olmasın. Kuyruğa alma kullanıcı kararıdır.
 4. **`automatable=False` maddeler otomasyona verilmez.** GitHub depo ayarı (SEC-001,
-   CICD-010), AWS provizyonu (DR-002), e-posta adresi düzeltmesi gibi repo dışı işler
-   bu bayrakla ayrılır; API 400 döner.
+   CICD-010), GitHub **hesap** faturalandırması (CICD-010b), AWS provizyonu (DR-002),
+   e-posta adresi düzeltmesi gibi repo dışı işler bu bayrakla ayrılır; API 400 döner.
+   **Ders (2026-07-26, CICD-010):** repo-dışı bir madde elle yapıldığında altından
+   *başka* bir repo-dışı engel çıkabilir. CICD-010 "Actions'ı aç" sanılıyordu; ayar
+   açıldı, koşu tetiklendi, ama işler **hesap faturalandırma kilidi** yüzünden hiç
+   başlamadı. Bu durumda bulgu **kapalı değil `kismen`** işaretlenir ve kalan engel
+   **yeni bir bulgu kodu** (`CICD-010b`) olarak seed JSON'una eklenir — kapanış
+   kriteri yarısı sağlandı diye tamamı kapalı sayılmaz.
 5. **Yeni denetim raporu eklerken** yeni `audit_reports` satırı aç, eskisini
    `is_active=False` yap. Eski bulgular ve koşu geçmişi silinmez — tarihsel iz korunur.
 6. **Prompt tek kaynaktır.** Kullanıcının kopyaladığı metin ile otomasyonun çalıştırdığı

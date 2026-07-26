@@ -35,8 +35,14 @@ içinde çalıştırıp sonunda rollback yaptığı için DB kalıcı olarak kir
 
 Bu kapıların CI'dan sessizce kaldırılması ya da yutulması (`continue-on-error`,
 `|| true`) iki regresyon testiyle engellenir: `tests/test_ci_lint_gate.py` ve
-`tests/test_ci_cicd013_quality_gate.py`. **Not:** Kapılar yapılandırıldı ama
-GitHub Actions repo düzeyinde KAPALI olduğundan henüz canlı koşmuyor (CICD-010).
+`tests/test_ci_cicd013_quality_gate.py`. **Not (2026-07-26 güncellemesi):** Actions
+depo düzeyinde **açıldı** (CICD-010) ve `ci.yml` her push'ta artık tetikleniyor —
+ama işler hâlâ başlamıyor: GitHub **hesabı faturalandırma kilidinde**
+(*"job was not started because your account is locked due to a billing issue"*,
+alt-bulgu **CICD-010b**). Yani kapılar hâlâ canlı koşmuyor; kilit çözülene kadar
+tek gerçek koruma yerel `/test` koşusu ve bu regresyon testleridir. Actions'ın
+kapatılması / tetikleyicinin kaldırılması ayrıca
+`tests/test_ci_cicd010_actions_enabled.py` ile yakalanır.
 
 ## Dosyalar
 

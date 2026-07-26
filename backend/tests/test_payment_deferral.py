@@ -333,6 +333,14 @@ class TestRunwayOverdue:
 
     def test_deferred_item_flagged(self, client, auth_headers, db):
         _mk_rate(db, MIN_DATE, 50)
+        # Runway penceresi AY İÇİ'dir (runway.py: month_start..month_end). Ötelenen
+        # tarih ay sonunu aşarsa kalem `outs`'a hiç düşmez ve test takvim yüzünden
+        # kırmızı olur (ayın son 6 gününde her ay tekrarlar — 2026-07-26'da yakalandı).
+        # Kardeş testlerdeki (satır 269/305) ay-sınırı koruması burada eksikti.
+        _last_day = calendar.monthrange(date.today().year, date.today().month)[1]
+        _month_end = date(date.today().year, date.today().month, _last_day)
+        if date.today() + timedelta(days=6) > _month_end:
+            pytest.skip("ay sonuna çok yakın — ay-içi öteleme penceresi kurulamıyor")
         natural = date.today() + timedelta(days=3)
         product, payment = _mk_credit_payment(db, due_date=natural)
         # öteleme uygula + FE yaz (event_date ertelenmiş olur)

@@ -8,6 +8,16 @@ KAPALI (`actions/permissions` → `{"enabled": false}`, `ci.yml/runs` → 0 koş
 Kapanış kriteri: `actions/permissions` → `enabled: true` **ve** en son `ci.yml`
 koşusunun conclusion'ı `success`.
 
+**Kısmi kapanış (2026-07-26) — ikinci, denetimde görülmemiş engel:** Actions
+etkinleştirildi ve `ci.yml` her push'ta artık gerçekten **tetikleniyor** (ilk koşu:
+run 30187332124). Ancak işler başlamıyor; GitHub şu annotation'ı döndürüyor:
+*"The job was not started because your account is locked due to a billing issue."*
+Bu **hesap düzeyinde** bir kilittir (depo ayarı değil) — depo public olduğu için
+Actions dakikaları ücretsiz olmasına rağmen kilit tüm işleri engeller. Yalnız hesap
+sahibi çözebilir: GitHub → Settings → Billing. Bu yüzden aşağıda "en son koşu
+`success`" iddiasında bulunan bir test **yoktur** — olsaydı takımda kalıcı kırmızı
+bırakır ve düzeltilmiş gibi görünen sahte bir kapanış üretirdi.
+
 Bu dosya iki katmanlı koruma kurar — çünkü bulgunun kökü iki farklı yerde geri
 gelebilir:
 
@@ -141,6 +151,11 @@ def test_ci_workflow_has_at_least_one_run():
 
     Actions açık olsa bile hiç koşu yoksa kapı fiilen dekoratiftir — denetimde
     ölçülen `total_count: 0` durumu. Bu test o durumu yakalar.
+
+    Kapsam sınırı (bilerek): bu test koşunun **tetiklendiğini** doğrular, işlerin
+    yeşil bittiğini DEĞİL. Hesap faturalandırma kilidi çözülene kadar işler hiç
+    başlamıyor (bkz. modül docstring'i); "son koşu success" iddiası bugün kalıcı
+    kırmızı olurdu. O bacak denetim raporunda açık kalem olarak izlenir.
     """
     workflows = _gh_json("repos/:owner/:repo/actions/workflows")
     ci = next(
