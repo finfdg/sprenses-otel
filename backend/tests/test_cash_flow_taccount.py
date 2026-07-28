@@ -21,6 +21,22 @@ URL = "/api/finance/cash-flow/t-account"
 _SEQ = itertools.count(987001)
 
 
+def _future_in_month(days: int) -> date:
+    """Bugünden `days` gün sonrası — ama içinde bulunulan AYI aşmaz.
+
+    `period=monthly&offset=0` cari ayı gösterir; sabit `today + 5 gün` ayın son
+    günlerinde ertesi aya taşıyor ve bekleyen kalem cetvelden düşüyordu → test AYDA
+    ~5 GÜN kırmızıya dönüyordu (2026-07-28'de yakalandı — kod hatası DEĞİL, testin
+    tarih varsayımı). Ayın son gününde gelecek-tarihli kalem kurulamaz → atlanır.
+    """
+    today = date.today()
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    month_end = date(today.year, today.month, last_day)
+    if today >= month_end:
+        pytest.skip("ayın son günü — ay içinde gelecek tarihli kalem kurulamıyor")
+    return min(today + timedelta(days=days), month_end)
+
+
 @pytest.fixture(autouse=True)
 def _reset_heavy_limiter():
     """taccount_limiter conftest'te sıfırlanmıyor — dosya içi testler 429'a düşmesin."""
@@ -191,7 +207,7 @@ class TestTAccountGrouping:
                category_name="Kredi/Leasing",
                description="T-TEST QNB LEASING ÖDEMESİ")           # banka bacağı (gerçekleşen)
         _mk_fe(db, source_type="credit", direction=-1, amount=2500,
-               is_realized=False, event_date=date.today() + timedelta(days=5),
+               is_realized=False, event_date=_future_in_month(5),
                description="T-TEST KREDİ TAKSİTİ 5/12")            # planlı taksit (bekleyen)
         db.commit()
 

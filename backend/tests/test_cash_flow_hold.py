@@ -32,6 +32,23 @@ TACCOUNT_URL = "/api/finance/cash-flow/t-account"
 _SEQ = itertools.count(986001)
 
 
+def _future_in_month(days: int) -> date:
+    """Bugünden `days` gün sonrası — ama içinde bulunulan AYI aşmaz.
+
+    runway ve t-account pencereleri `event_date <= ay_sonu` ile sınırlıdır
+    (`runway.py` month_end). Sabit `today + 4/5 gün` ayın son günlerinde ertesi aya
+    taşıyor, kalem pencerenin dışında kalıyor ve test AYDA ~4 GÜN kırmızıya dönüyordu
+    (2026-07-28'de yakalandı — kod hatası DEĞİL, testin tarih varsayımı). Ayın son
+    gününde gelecek-tarihli kalem kurulamaz → o gün testler atlanır.
+    """
+    today = date.today()
+    last_day = calendar.monthrange(today.year, today.month)[1]
+    month_end = date(today.year, today.month, last_day)
+    if today >= month_end:
+        pytest.skip("ayın son günü — ay içinde gelecek tarihli kalem kurulamıyor")
+    return min(today + timedelta(days=days), month_end)
+
+
 @pytest.fixture(autouse=True)
 def _reset_limiters():
     heavy_limiter._requests.clear()
@@ -204,7 +221,7 @@ class TestHoldEndpointBehavior:
 class TestRunwayHeld:
     def test_held_future_moves_to_held_list(self, client, auth_headers, db):
         _mk_rate(db, MIN_DATE, 50)
-        fe = _mk_fe(db, event_date=date.today() + timedelta(days=4), amount=5000,
+        fe = _mk_fe(db, event_date=_future_in_month(4), amount=5000,
                     source_type="credit", description="RW BEKLEMEDE")
         hold_service.apply_hold(db, "credit", fe.source_id, user_id=None)
         db.commit()
@@ -219,7 +236,7 @@ class TestRunwayHeld:
 
     def test_unheld_future_stays_in_outs(self, client, auth_headers, db):
         _mk_rate(db, MIN_DATE, 50)
-        _mk_fe(db, event_date=date.today() + timedelta(days=5), amount=5000,
+        _mk_fe(db, event_date=_future_in_month(5), amount=5000,
                source_type="credit", description="RW NORMAL")
         db.commit()
         heavy_limiter._requests.clear()
