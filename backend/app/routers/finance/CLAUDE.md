@@ -40,7 +40,16 @@ biriminde TUTARI yazmıyordu ama **eşleşmenin kendisi serbestti** — asıl bo
 alanı kullanılır (varsa banka bacağı onunla etiketlenir, yoksa etiketleme atlanır — eşleşme
 yine kurulur). Manuel etiket asla ezilmez.
 
-**5) `SCHEDULED_TARGET_TYPES` (yeni ortak sabit):** öneri paneli zenginleştirmesi
+**5) `synced_from_cari` ayları KAPSAM DIŞI (kuru çalışmada yakalandı):** cari gerçek
+faturasından senkronlanan ayın otoritesi `recurring_vendor_sync`'tir — o akış ödenen ayda
+finance_event'i **bilerek siler** (nakit akımı cari/banka bacağı temsil eder, çift sayım
+önlenir). Eşleştirici oradan bağlarsa `upsert_scheduled_entry` FE'yi **geri yaratır**, banka
+kanıtı girişin tutarını cari faturasınınkinden banka bacağınınkine çeker, sonraki senkron
+ikisini de geri alır → **her koşuda ping-pong**. İlk kuru çalışma tam bunu gösterdi (CK
+Akdeniz elektrik faturaları, Mayıs+Haziran: entry#7390/#7391 — tutarı ₺1.404.820,40'tan
+₺1.378.310,00'a çekecekti). Guard eklendikten sonra kuru çalışma **0 eşleşme** verdi.
+
+**6) `SCHEDULED_TARGET_TYPES` (yeni ortak sabit):** öneri paneli zenginleştirmesi
 (`GET /cash-flow/match-suggestions`), **"Onayla"** yolu (`accept_match_suggestion`) ve
 bayat-öneri temizliği (`cleanup_stale_suggestions`) artık bu kümeyi çözümler — üç yerde
 tekrarlanan `("tax", "sgk", "withholding", "salary", "rent_expense")` literali kalktı.
@@ -53,10 +62,11 @@ etiketleme köprüsü/eski kayıtlar bu tipleri taşıyabilir.
 paid_date=27.07, `event_matches` izi method='auto') → planlı bacak `is_matched=True` ile
 toplamdan düştü, banka bacağı tek gerçek çıkış olarak kaldı.
 
-**Test:** `tests/test_recurring_bank_matching.py` (14 — kök/ek toleransı, genel-adlı tanım
+**Test:** `tests/test_recurring_bank_matching.py` (15 — kök/ek toleransı, genel-adlı tanım
 aday üretmez, canlı vakanın otomatik kapanması, tanım-kategorisiyle bacak etiketleme, iki
 aday→öneri, **TRY hareket EUR girişe aday olamaz**, TL≡TRY, öneri para birimi, personel
-TRY yolu etkilenmedi, kör yol recurring'e kapalı, "Onayla" + öneri listesi recurring'i tanır).
+TRY yolu etkilenmedi, kör yol recurring'e kapalı, **cari-senkronlu ay hiç eşleşmez + FE geri
+yaratılmaz**, "Onayla" + öneri listesi recurring'i tanır).
 
 ---
 

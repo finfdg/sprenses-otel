@@ -1511,6 +1511,13 @@ def _match_scheduled_to_bank(db: Session) -> dict:
 
     targets = []  # (entry, ref_tarih)
     for e in entries:
+        if e.synced_from_cari:
+            # Cari gerçek faturasından senkronlanan ay — otoritesi `recurring_vendor_sync`.
+            # O akış ödenen ayda finance_event'i BİLEREK siler (nakit akımı cari/banka bacağı
+            # temsil eder). Buradan bağlamak FE'yi geri yaratır, tutarı banka bacağına çeker ve
+            # bir sonraki senkron ikisini de geri alır → her koşuda ping-pong (2026-07-28
+            # kuru çalışmasında canlıda yakalandı: CK Akdeniz elektrik faturaları).
+            continue
         ref = (e.paid_date or e.entry_date) if e.is_paid else e.entry_date
         if ref is None or ref < window_start or ref > today + timedelta(days=10):
             continue

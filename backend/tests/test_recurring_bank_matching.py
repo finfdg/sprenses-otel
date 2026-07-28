@@ -55,7 +55,8 @@ def _mk_btx(db, acc, *, amount, tx_date=None, desc="DÜZENLİ TEST HAREKETİ"):
 
 
 def _mk_entry(db, *, name, amount, entry_date=None, currency="EUR",
-              source_type="recurring", category=None, is_paid=False, paid_date=None):
+              source_type="recurring", category=None, is_paid=False, paid_date=None,
+              synced_from_cari=False):
     entry_date = entry_date or TODAY
     defn = ScheduledDefinition(
         source_type=source_type, name=name, category=category,
@@ -68,7 +69,7 @@ def _mk_entry(db, *, name, amount, entry_date=None, currency="EUR",
         definition_id=defn.id, source_type=source_type, entry_date=entry_date,
         period_year=entry_date.year, period_month=entry_date.month, amount=amount,
         currency=currency, description=f"[Düzenli Ödeme] {name}",
-        is_paid=is_paid, paid_date=paid_date,
+        is_paid=is_paid, paid_date=paid_date, synced_from_cari=synced_from_cari,
     )
     db.add(entry)
     db.flush()
@@ -272,7 +273,33 @@ class TestRecurringBlindPathClosed:
         assert r["matched"] == 0 and r["suggested"] == 0
 
 
-# ─── 5) Öneri "Onayla" yolu recurring'i tanır ────────────────────────────────
+# ─── 5) Cari-senkronlu aylar kapsam dışı ─────────────────────────────────────
+
+class TestSyncedFromCariExcluded:
+    def test_cari_synced_entry_never_matched(self, db):
+        """`synced_from_cari` ayın otoritesi `recurring_vendor_sync`'tir: o akış ödenen ayın
+        finance_event'ini BİLEREK siler (nakit akımı cari/banka bacağı temsil eder). Buradan
+        bağlamak FE'yi geri yaratır + tutarı banka bacağına çeker, sonraki senkron ikisini de
+        geri alır → her koşuda ping-pong. Canlı kuru çalışmada yakalandı (CK Akdeniz elektrik)."""
+        acc = _mk_account(db, currency="TRY")
+        defn, entry = _mk_entry(db, name="2026 Elektrik", category="Fatura",
+                                amount=1_404_820.40, currency="TRY",
+                                is_paid=True, paid_date=TODAY, synced_from_cari=True)
+        # Cari senkronunun yaptığı gibi FE'yi kaldır (ödenen ay)
+        finance_event_svc.invalidate(db, "recurring", entry.id)
+        _mk_btx(db, acc, amount=-1_378_310.00, tx_date=TODAY,
+                desc="CLK Akdeniz Elektrik Tahsilatı Hesap Numarası:9126051491")
+        db.commit()
+
+        r = _match_scheduled_to_bank(db)
+        assert r["matched"] == 0 and r["suggested"] == 0
+        db.expire_all()
+        e = db.get(ScheduledEntry, entry.id)
+        assert float(e.amount) == 1_404_820.40  # cari faturasının tutarı korundu
+        assert _fe(db, "recurring", entry.id) is None  # FE geri yaratılmadı
+
+
+# ─── 6) Öneri "Onayla" yolu recurring'i tanır ────────────────────────────────
 
 class TestAcceptRecurringSuggestion:
     def test_accept_closes_recurring_entry(self, client, auth_headers, db):

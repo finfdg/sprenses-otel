@@ -853,8 +853,11 @@ Panel'de açık kaldı.
   bir banka hareketi "aynı tutar" sanılıp eşleşebiliyordu; artık banka hesabının para birimi
   kalemin para birimiyle aynı değilse aday bile olmaz. Bu kural **tüm** planlı kalem
   türleri için geçerlidir.
+- **Cari faturasından beslenen aylar (elektrik, su vb.) kapsam dışı.** Onların tutarı ve
+  ödeme durumu zaten carideki gerçek faturadan geliyor; eşleştirici oraya karışsaydı tutar
+  her senkronda ileri geri oynardı.
 
-**Test:** `tests/test_recurring_bank_matching.py` (14). Geliştirici detayı:
+**Test:** `tests/test_recurring_bank_matching.py` (15). Geliştirici detayı:
 `backend/app/routers/finance/CLAUDE.md` "Düzenli Ödeme (recurring) ↔ Banka Eşleştirmesi"
 bölümü.
 
