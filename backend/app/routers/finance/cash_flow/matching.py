@@ -26,6 +26,7 @@ from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.sync_vendor_fifo import sync_vendor_finance_events
 from app.utils.matching_service import (
+    SCHEDULED_TARGET_TYPES,
     apply_advance_bank_match,
     apply_check_bank_match,
     apply_credit_bank_match,
@@ -500,7 +501,7 @@ def list_match_suggestions(
                 ven = db.query(Vendor).filter(Vendor.id == v.vendor_id).first()
                 target_desc = f"Cari · {ven.hesap_adi if ven else v.vendor_id}"
                 target_date = v.payment_due_date or v.date
-        elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
+        elif t in SCHEDULED_TARGET_TYPES:
             from app.models.scheduled import ScheduledEntry
             e = db.query(ScheduledEntry).filter(ScheduledEntry.id == tid).first()
             if e:
@@ -565,7 +566,7 @@ def accept_match_suggestion(
         v = db.query(VendorTransaction).filter(VendorTransaction.id == tid).first()
         ok = bool(v) and apply_vendor_bank_match(db, v, btx, method="manual",
                                                  score=sug.score, actor_id=current_user.id) is not None
-    elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
+    elif t in SCHEDULED_TARGET_TYPES:
         from app.models.scheduled import ScheduledEntry
         from app.services.scheduled_service import link_entry_to_bank
         # link: açık girişi kapatır; elle-ödendi ama eşleşmemiş girişi de bağlar

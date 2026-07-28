@@ -38,6 +38,15 @@ CHECK_AUTO_MIN = 20
 CHECK_SUGGEST_MIN = 8
 CREDIT_AUTO_MIN = 40
 CREDIT_SUGGEST_MIN = 20
+# Geniş-bant kredi ÖNERİ penceresi (2026-07-28). Otomatik yol tutarı BİREBİR (kuruş)
+# ve tarihi ±3 gün arar; geç ödenen veya gecikme faizi/komisyon yüzünden kuruşu tutmayan
+# taksit hiçbir adaya ulaşamadığından öneri kuyruğuna BİLE düşmüyordu — sessizce
+# "Vadesi Geçenler"de kalıyordu (canlı: Eximbank EUR Kredi 2 taksit #1, vade 20.07,
+# banka 24.07 ₺/€136.703,65 vs plan €136.437,50 → elle eşleştirildi). Bu bant YALNIZ
+# öneri üretir; otomatik eşleşme davranışı DEĞİŞMEDİ (skor tavanı CREDIT_AUTO_MIN-2).
+CREDIT_SUGGEST_WINDOW_DAYS = 15
+CREDIT_SUGGEST_RATIO_MIN = 0.85
+CREDIT_SUGGEST_RATIO_MAX = 1.15
 ADVANCE_AUTO_MIN = 20
 ADVANCE_SUGGEST_MIN = 8
 VENDOR_AUTO_MIN = 80          # cari kapatma FIFO'yu değiştirir → en temkinli alan
@@ -350,7 +359,7 @@ def _match_checks_to_bank(db: Session) -> dict:
         .all()
     )
     if not pending_checks:
-        return {"matched": 0, "total_pending": 0}
+        return {"matched": 0, "suggested": 0, "total_pending": 0}
 
     # Eşleşmemiş banka gider işlemleri (çekle eşleşmemiş olanlar)
     already_matched_ids = set(
@@ -373,6 +382,7 @@ def _match_checks_to_bank(db: Session) -> dict:
             btx_by_amount[round(abs(float(tx.amount)), 2)].append(tx)
 
     matched_count = 0
+    suggested_count = 0
     used_btx_ids = set()
 
     for check in pending_checks:
@@ -424,6 +434,7 @@ def _match_checks_to_bank(db: Session) -> dict:
             _upsert_suggestion(db, best_match.id, "check", check.id,
                                amt_cur if check.currency != "TL" else amt_tl,
                                "TRY" if check.currency == "TL" else check.currency, best_score)
+            suggested_count += 1
             continue
 
         # Çapraz-para önerisi (Faz 1 #13): döviz çek TL hesaptan GÜNCEL kurla ödenmiş
@@ -447,6 +458,7 @@ def _match_checks_to_bank(db: Session) -> dict:
                     fx_best, fx_diff = tx, delta
             if fx_best is not None:
                 _upsert_suggestion(db, fx_best.id, "check", check.id, amt_cur, check.currency, 40)
+                suggested_count += 1
 
     # 1-N otomatik grup (Faz 1 #12): tek EFT ile birden çok çek ödenmesi — aynı cariye
     # ait, vadesi ±2 gün içindeki bekleyen çeklerin TOPLAMI bir banka giderine ±0.02
@@ -494,6 +506,7 @@ def _match_checks_to_bank(db: Session) -> dict:
 
     return {
         "matched": matched_count,
+        "suggested": suggested_count,
         "total_pending": len(pending_checks),
     }
 
@@ -533,7 +546,7 @@ def _match_advances_to_bank(db: Session) -> dict:
         .all()
     )
     if not pending:
-        return {"matched": 0, "total_pending": 0}
+        return {"matched": 0, "suggested": 0, "total_pending": 0}
 
     # Başka avansla zaten eşleşmiş banka işlemleri aday olamaz
     already_matched = set(
@@ -575,9 +588,10 @@ def _match_advances_to_bank(db: Session) -> dict:
         btx_index[(acc.currency, key_amount)].append(tx)
 
     if not btx_index:
-        return {"matched": 0, "total_pending": len(pending)}
+        return {"matched": 0, "suggested": 0, "total_pending": len(pending)}
 
     matched_count = 0
+    suggested_count = 0
     used_btx_ids = set()
 
     # Beklenen tarihi eski olan önce eşleşsin (aynı tutarlı iki avansta determinizm)
@@ -619,6 +633,7 @@ def _match_advances_to_bank(db: Session) -> dict:
         if not best_match or best_score < ADVANCE_SUGGEST_MIN:
             continue
         if best_score < ADVANCE_AUTO_MIN:
+            suggested_count += 1
             _upsert_suggestion(db, best_match.id, "advance", adv.id,
                                float(adv.amount), adv.currency, best_score)
             continue
@@ -633,10 +648,59 @@ def _match_advances_to_bank(db: Session) -> dict:
             f"{abs(float(best_match.amount)):,.2f}", adv.currency,
         )
 
-    return {"matched": matched_count, "total_pending": len(pending)}
+    return {"matched": matched_count, "suggested": suggested_count, "total_pending": len(pending)}
 
 
 # ─── Kredi ↔ Banka Eşleştirme ────────────────────────────
+
+
+def _suggest_loose_credit_match(db: Session, payment, product, amt: float,
+                                candidates, used_btx_ids: set, already_matched: set) -> bool:
+    """Otomatik eşleşemeyen taksit için geniş-bant ÖNERİ üret (2026-07-28).
+
+    Otomatik yolun iki sert kapısı (tutar birebir + tarih ±3 gün) geç ödenen ya da
+    gecikme faizi/komisyon yüzünden kuruşu tutmayan taksitleri hiçbir adaya
+    ulaştırmıyordu → öneri kuyruğuna bile düşmeden "Vadesi Geçenler"de kalıyorlardı.
+
+    Bant BİLEREK dar tutuldu (yanlış-pozitif öneri gürültüsü de bir maliyettir):
+    aynı banka + aynı para birimi + vade ±15 gün + tutar oranı 0.85–1.15. Skor tavanı
+    `CREDIT_AUTO_MIN - 2` → bu yol yapısal olarak ASLA otomatik eşleşme kuramaz;
+    kararı kullanıcı "Eşleşme Önerileri" panelinden verir.
+
+    `candidates`: bu ürün için önceden süzülmüş (tx, acc) listesi.
+    """
+    best = None
+    best_score = 0
+    for tx, acc in candidates:
+        if tx.id in used_btx_ids or tx.id in already_matched:
+            continue
+
+        date_diff = abs((tx.date - payment.due_date).days)
+        if date_diff > CREDIT_SUGGEST_WINDOW_DAYS:
+            continue
+
+        ratio = abs(float(tx.amount)) / amt
+        if not (CREDIT_SUGGEST_RATIO_MIN <= ratio <= CREDIT_SUGGEST_RATIO_MAX):
+            continue
+
+        drift = abs(1.0 - ratio)
+        score = CREDIT_SUGGEST_MIN
+        score += 10 if drift <= 0.01 else (6 if drift <= 0.05 else 2)
+        score += 8 if date_diff <= 3 else (5 if date_diff <= 7 else 2)
+        score = min(score, CREDIT_AUTO_MIN - 2)
+
+        if score > best_score:
+            best_score = score
+            best = tx
+
+    if best is None:
+        return False
+
+    _upsert_suggestion(db, best.id, "credit", payment.id, amt,
+                       product.currency or "TRY", best_score)
+    logger.info("Kredi geniş-bant önerisi: taksit=%d ↔ banka=%d (skor %d)",
+                payment.id, best.id, best_score)
+    return True
 
 
 def _match_credits_to_bank(db: Session) -> dict:
@@ -660,7 +724,7 @@ def _match_credits_to_bank(db: Session) -> dict:
         .all()
     )
     if not unpaid:
-        return {"matched": 0, "total_unpaid": 0}
+        return {"matched": 0, "suggested": 0, "total_unpaid": 0}
 
     # Kredi ürün bilgilerini cache'le
     product_cache = {}
@@ -700,7 +764,33 @@ def _match_credits_to_bank(db: Session) -> dict:
             daily_bank_totals[key]["total"] += abs(float(tx.amount))
             daily_bank_totals[key]["txs"].append((tx, acc))
 
+    # Geniş-bant öneri adayları: ürün başına (banka adı + para birimi) süzülmüş liste.
+    # Ürün başına cache — 185 açık taksit × 2.3K gider satırını taksit başına yeniden
+    # taramak yerine 32 aktif ürün için bir kez süzülür.
+    loose_candidate_cache: dict = {}
+
+    def _loose_candidates(product):
+        cached = loose_candidate_cache.get(product.id)
+        if cached is not None:
+            return cached
+        prod_currency = product.currency or "TRY"
+        prod_bank = (product.bank_name or "").lower()
+        rows = []
+        for tx, acc in bank_expenses:
+            if (acc.currency or "TRY") != prod_currency:
+                continue
+            # Banka adı ürüne bağlıysa eşleşmeli (kredinin taksiti başka bankadan
+            # ödenmez); ürün bankasızsa para birimi + tarih + tutar bandı ile yetinilir.
+            if prod_bank and acc.bank_name:
+                acc_bank = acc.bank_name.lower()
+                if prod_bank not in acc_bank and acc_bank not in prod_bank:
+                    continue
+            rows.append((tx, acc))
+        loose_candidate_cache[product.id] = rows
+        return rows
+
     matched_count = 0
+    suggested_count = 0
     used_btx_ids = set()
 
     for payment in unpaid:
@@ -709,6 +799,9 @@ def _match_credits_to_bank(db: Session) -> dict:
             continue
 
         amt = round(float(payment.amount), 2)
+        if amt <= 0:
+            continue
+        suggested = False
 
         # 1. Önce tek işlem eşleşmesi dene
         candidates = btx_by_amount.get(amt, [])
@@ -751,10 +844,13 @@ def _match_credits_to_bank(db: Session) -> dict:
         if best_match and best_score >= CREDIT_SUGGEST_MIN:
             _upsert_suggestion(db, best_match.id, "credit", payment.id, amt,
                                product.currency or "TRY", best_score)
+            suggested = True
+            suggested_count += 1
             # öneri sonrası grup denemesi de yapılır (aşağıda) — birebir aday zayıftı
 
         # 2. Tek işlem eşleşmedi → aynı gün toplamıyla dene (faiz+vergi ayrı satır)
         prod_currency = product.currency or "TRY"
+        group_matched = False
         for date_offset in range(4):  # ±3 gün
             for sign in [0, 1, -1]:
                 check_date = payment.due_date + timedelta(days=date_offset * sign) if sign else payment.due_date
@@ -794,6 +890,7 @@ def _match_credits_to_bank(db: Session) -> dict:
                         locked_pay.paid_date = check_date
                         locked_pay.bank_transaction_id = first_tx.id
                         matched_count += 1
+                        group_matched = True
                         if locked_pay.principal and product:
                             product.remaining_amount = max(0, float(product.remaining_amount) - float(locked_pay.principal))
                         for tx in group_txs:
@@ -818,10 +915,20 @@ def _match_credits_to_bank(db: Session) -> dict:
                 continue
             break
 
-    if matched_count > 0:
+        # 3. Ne otomatik eşleşti ne de birebir-aday önerisi çıktı → geniş-bant öneri
+        # (geç ödenmiş / gecikme faizi yüzünden kuruşu tutmayan taksit sessizce
+        # "Vadesi Geçenler"de kalmasın — 2026-07-28).
+        if not group_matched and not suggested:
+            if _suggest_loose_credit_match(db, payment, product, amt,
+                                           _loose_candidates(product),
+                                           used_btx_ids, already_matched):
+                suggested_count += 1
+
+    if matched_count > 0 or suggested_count > 0:
         db.flush()
 
-    return {"matched": matched_count, "total_unpaid": len(unpaid)}
+    return {"matched": matched_count, "suggested": suggested_count,
+            "total_unpaid": len(unpaid)}
 
 
 # ─── Öneri kuyruğu (Faz 1 #9 — event_matches method='suggestion') ───────────
@@ -877,7 +984,7 @@ def cleanup_stale_suggestions(db: Session) -> int:
         elif t == "vendor_payment":
             row = db.query(VendorTransaction).filter(VendorTransaction.id == tid).first()
             stale = row is None or row.match_number is not None
-        elif t in ("tax", "sgk", "withholding", "salary", "rent_expense"):
+        elif t in SCHEDULED_TARGET_TYPES:
             from app.models.finance_event import FinanceEvent
             from app.models.scheduled import ScheduledEntry
             row = db.query(ScheduledEntry).filter(ScheduledEntry.id == tid).first()
@@ -1242,23 +1349,40 @@ def _match_contract_installments_to_bank(db: Session) -> dict:
     return {"matched": matched, "total_pending": len(rows)}
 
 
-# ─── Planlı personel gideri ↔ banka (maaş / SGK / stopaj) — 2026-07-18 ───────
+# ─── Planlı gider ↔ banka (maaş / SGK / stopaj / düzenli ödeme) — 2026-07-18 ─
 # Gerçek maaş toplu transferleri ("Para Gönder Internet - Mobil ...") kelime taşımaz
 # ve etiketlenmediğinden Faz 1 #11 köprüsü hiç tetiklenmiyordu → planlı bacak açık
 # kalıp banka bacağıyla ÇİFT sayılıyordu (canlı: Mayıs–Temmuz maaşları). Bu matcher
-# planlı personel girişlerini banka kanıtına bağlar; elle "ödendi" işaretlenmiş ama
+# planlı girişleri banka kanıtına bağlar; elle "ödendi" işaretlenmiş ama
 # eşleşmemiş girişleri de kapsar (attach yolu — geriye dönük çift-sayım temizliği).
-SCHEDULED_MATCH_TYPES = ("salary", "sgk", "withholding")
+#
+# 2026-07-28: `recurring` (Düzenli Ödemeler) kapsama alındı. Kapsam dışı olduğu
+# sürece her düzenli ödeme kaleminin banka bacağı ELLE bağlanmak zorundaydı; canlı
+# bulgu: Temmuz 2026 Leasing All Risk Sigortası (€684,38) planlı 28.07 + banka 27.07
+# olarak ÇİFT sayılıyordu. Düzenli ödemelerin ortak bir anahtar kelimesi olmadığından
+# regex tanım ADINDAN türetilir (`_recurring_keyword_re`) ve kelimesiz ("kör") yol
+# bu tipe KAPALIDIR — bkz. SCHEDULED_BLIND_TYPES.
+SCHEDULED_MATCH_TYPES = ("salary", "sgk", "withholding", "recurring")
+# Kelimesiz kör eşleştirme YALNIZ personel tiplerinde: o yol "etiketsiz ≥1M toplu
+# transfer" sezgisine dayanır (maaş bordrosu). Düzenli ödemeler küçük ve çok sayıda
+# olduğundan kör bant onlarda yanlış-pozitif üretir → kelime zorunlu.
+SCHEDULED_BLIND_TYPES = ("salary", "sgk", "withholding")
+# Planlı gider hedef tipleri — öneri paneli, bayat-öneri temizliği ve "Onayla" yolu
+# bu kümeyi çözümler. SCHEDULED_MATCH_TYPES'tan geniştir: eşleştirici tax/rent_expense
+# önerisi ÜRETMEZ ama etiketleme köprüsü/eski kayıtlar bu tipleri taşıyabilir.
+SCHEDULED_TARGET_TYPES = ("tax", "sgk", "withholding", "salary", "rent_expense", "recurring")
 _SCHEDULED_KEYWORDS = {
     # _normalize sonrası ascii-küçük harf metinde aranır. Genel "vergi" kelimesi
     # BİLEREK yok — KDV/kurumlar ödemeleri stopaj girişine yanlış bağlanmasın
     # (tax source_type'ı bu matcher'ın kapsamı dışında, etiketleme köprüsünde kalır).
+    # "recurring" burada YOK — tanım adından türetilir (_recurring_keyword_re).
     "salary": re.compile(r"maas|personel|ucret|bordro"),
     "sgk": re.compile(r"sgk|mosip|sosyal guv"),
     "withholding": re.compile(r"muhtasar|stopaj"),
 }
 # Eşleşen banka bacağına atanan kategori → T-Hesap'ta doğru başlık (salary→Personel;
-# sgk/stopaj→Vergi/SGK — _SCHEDULED_CATEGORY_MAP köprüsüyle aynı yön eşlemesi)
+# sgk/stopaj→Vergi/SGK — _SCHEDULED_CATEGORY_MAP köprüsüyle aynı yön eşlemesi).
+# recurring'in tek kanonik kategorisi YOK → tanımın kendi `category` alanı kullanılır.
 _SCHEDULED_CANONICAL_CATEGORY = {"salary": "Personel", "sgk": "Vergi/SGK", "withholding": "Vergi/SGK"}
 _TRANSFER_CATEGORY_NAMES = ("Virman", "Döviz Satım", "İade", "Döviz Satışı", "Pos Bloke Çözme")
 SCHEDULED_LOOKBACK_DAYS = 90       # geriye dönük temizlik penceresi (ref tarihi)
@@ -1266,6 +1390,53 @@ SCHEDULED_CAND_WINDOW_DAYS = 15    # aday banka hareketi ± penceresi
 SCHEDULED_MIN_BLIND_AMOUNT = 1_000_000  # kelimesiz (etiketsiz toplu transfer) yolu alt sınırı
 SCHEDULED_KW_SUGGEST_SCORE = 60
 SCHEDULED_BLIND_SUGGEST_SCORE = 50
+
+# Düzenli ödeme tanım adından anahtar kelime üretirken atılan genel sözcükler —
+# bunlar hemen her tanımda geçer, ayırt edici değildir (banka açıklamasında da bol).
+_RECURRING_NAME_STOPWORDS = {
+    "duzenli", "odeme", "odemesi", "odemeler", "gider", "gideri", "fatura", "faturasi",
+    "aylik", "yillik", "tutar", "tutari", "bedel", "bedeli", "toplam", "genel",
+    "ocak", "subat", "mart", "nisan", "mayis", "haziran", "temmuz", "agustos",
+    "eylul", "ekim", "kasim", "aralik",
+}
+# Kök uzunluğu: Türkçe ekler ("sigorta" vs "sigortası") tam token eşleşmesini
+# bozuyor → token 6 karaktere kırpılır ("sigortasi" → "sigort", banka açıklamasındaki
+# "sigorta" içinde bulunur). En az 5 karakterlik kök zorunlu; "risk"/"kdv"/"su" gibi
+# kısa tokenlar rastgele metinde çok kolay eşleştiğinden elenir.
+_RECURRING_STEM_LEN = 6
+_RECURRING_MIN_STEM = 5
+
+
+def _norm_currency(code: Optional[str]) -> str:
+    """Para birimi kodunu karşılaştırılabilir hale getir (boş → TRY, 'TL' → 'TRY')."""
+    cur = (code or "TRY").upper()
+    return "TRY" if cur == "TL" else cur
+
+
+def _recurring_keyword_re(*parts: Optional[str]):
+    """Düzenli ödeme tanım adı/kategorisinden anahtar kelime regex'i üret.
+
+    Düzenli ödemelerin (sigorta, leasing, abonelik, bakım…) ortak sabit bir kelimesi
+    yoktur; ayırt edici kelime tanımın KENDİ adındadır. Ad ASCII'ye foldlanır, genel
+    sözcükler ve sayılar atılır, kalan tokenlar 6 karaktere kırpılarak alternatif
+    regex'e dönüştürülür (Türkçe ek toleransı: "Sigortası" → "sigort").
+
+    Ayırt edici token kalmazsa None döner → o giriş kelimesiz sayılır ve
+    `recurring` kör yola kapalı olduğundan hiç aday üretmez (sessiz-güvenli).
+    """
+    from app.utils.auto_tagger import _normalize
+
+    stems = set()
+    for part in parts:
+        for tok in re.split(r"[^a-z0-9]+", _normalize(part or "")):
+            if not tok or tok.isdigit() or tok in _RECURRING_NAME_STOPWORDS:
+                continue
+            stem = tok[:_RECURRING_STEM_LEN]
+            if len(stem) >= _RECURRING_MIN_STEM:
+                stems.add(stem)
+    if not stems:
+        return None
+    return re.compile("|".join(re.escape(s) for s in sorted(stems)))
 
 
 def _tag_scheduled_bank_leg(db: Session, tx: BankTransaction, category_name: str,
@@ -1298,24 +1469,30 @@ def _tag_scheduled_bank_leg(db: Session, tx: BankTransaction, category_name: str
 
 
 def _match_scheduled_to_bank(db: Session) -> dict:
-    """Planlı personel girişlerini (maaş/SGK/stopaj) banka giderleriyle eşleştir.
+    """Planlı girişleri (maaş/SGK/stopaj/düzenli ödeme) banka giderleriyle eşleştir.
 
     Kural tablosu (r = |btx| / giriş tutarı, d = |btx tarihi − referans| gün;
     referans = ödenmişse paid_date, değilse entry_date):
-    - Anahtar kelime VAR (tip bazlı regex): d ≤ 5 ve 0.75 ≤ r ≤ 1.30 ve TEK aday
-      → OTOMATİK; değilse d ≤ 15 ve 0.5 ≤ r ≤ 1.6 → ÖNERİ (skor 60).
+    - **Para birimi kapısı (ÖN KOŞUL):** banka hesabının para birimi girişinkiyle
+      AYNI olmalı. Aksi halde r bir oran değil kur çarpanıdır — €684 giriş ile
+      ₺684 hareket r=1.0 verip yanlış eşleşir (2026-07-28).
+    - Anahtar kelime VAR (personelde tip bazlı sabit regex, düzenli ödemede tanım
+      adından türetilen regex): d ≤ 5 ve 0.75 ≤ r ≤ 1.30 ve TEK aday → OTOMATİK;
+      değilse d ≤ 15 ve 0.5 ≤ r ≤ 1.6 → ÖNERİ (skor 60).
     - Anahtar kelime YOK (tipik maaş toplu transferi — etiketsiz, ≥ 1M): yalnız
       ELLE-ÖDENDİ girişlerde d ≤ 2 ve 0.85 ≤ r ≤ 1.15 ve TEK aday → OTOMATİK;
       diğer durumlar (açık giriş dahil) 0.8 ≤ r ≤ 1.25 → ÖNERİ (skor 50).
       Açık girişte kelimesiz otomatik YOK — aynı gün benzer tutarlı büyük cari
-      EFT'si riski (öneri panelinden tek tıkla onaylanır).
-    Eşleşen banka bacağı kanonik kategorisini alır → T-Hesap başlığı doğru olur.
+      EFT'si riski (öneri panelinden tek tıkla onaylanır). Bu kelimesiz yol
+      SCHEDULED_BLIND_TYPES ile sınırlıdır → `recurring` girmez.
+    Eşleşen banka bacağı kanonik kategorisini alır → T-Hesap başlığı doğru olur
+    (recurring'de kanonik kategori tanımın `category` alanıdır; boşsa etiketlenmez).
     """
     from datetime import date as date_cls
 
     from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
     from app.models.finance_event import FinanceEvent
-    from app.models.scheduled import ScheduledEntry
+    from app.models.scheduled import ScheduledDefinition, ScheduledEntry
     from app.services.scheduled_service import link_entry_to_bank
     from app.utils.auto_tagger import _normalize
 
@@ -1328,6 +1505,9 @@ def _match_scheduled_to_bank(db: Session) -> dict:
     fes = {(f.source_type, f.source_id): f
            for f in db.query(FinanceEvent)
            .filter(FinanceEvent.source_type.in_(SCHEDULED_MATCH_TYPES)).all()}
+    # recurring girişlerin anahtar kelimesi + kanonik kategorisi tanımdan gelir
+    defns = {d.id: d for d in db.query(ScheduledDefinition)
+             .filter(ScheduledDefinition.source_type == "recurring").all()}
 
     targets = []  # (entry, ref_tarih)
     for e in entries:
@@ -1351,32 +1531,49 @@ def _match_scheduled_to_bank(db: Session) -> dict:
                    BankTransaction.date >= window_start - timedelta(days=SCHEDULED_CAND_WINDOW_DAYS))
            .all())
     cat_names = {c.id: c.name for c in db.query(TransactionCategory).all()}
+    # Banka hareketinin para birimi HESABINDAN gelir (hareket kendi başına taşımaz)
+    acc_currency = {a.id: _norm_currency(a.currency) for a in db.query(BankAccount).all()}
 
     matched, suggested = 0, 0
     for entry, ref in sorted(targets, key=lambda t: t[1]):
         amt = float(entry.amount or 0)
         if amt <= 0:
             continue
-        kwre = _SCHEDULED_KEYWORDS[entry.source_type]
-        canonical = _SCHEDULED_CANONICAL_CATEGORY[entry.source_type]
+        entry_cur = _norm_currency(entry.currency)
+        defn = defns.get(entry.definition_id)
+        if entry.source_type == "recurring":
+            kwre = _recurring_keyword_re(defn.name if defn else None,
+                                         defn.category if defn else None)
+            canonical = (defn.category if defn else None) or None
+        else:
+            kwre = _SCHEDULED_KEYWORDS[entry.source_type]
+            canonical = _SCHEDULED_CANONICAL_CATEGORY[entry.source_type]
+        blind_ok = entry.source_type in SCHEDULED_BLIND_TYPES
+        if kwre is None and not blind_ok:
+            continue  # ayırt edici kelime yok + kör yol kapalı → aday üretme
         auto_cands, best = [], None
         for tx in txs:
             if tx.id in used:
                 continue
+            if acc_currency.get(tx.account_id, "TRY") != entry_cur:
+                continue  # farklı para birimi → oran karşılaştırması anlamsız
             d = abs((tx.date - ref).days)
             if d > SCHEDULED_CAND_WINDOW_DAYS:
                 continue
             cat_name = cat_names.get(tx.category_id)
             if cat_name in _TRANSFER_CATEGORY_NAMES:
                 continue  # iç transfer — gerçek gider değil
-            if cat_name is not None and cat_name != canonical and tx.tag_source == "manual":
+            if canonical and cat_name is not None and cat_name != canonical \
+                    and tx.tag_source == "manual":
                 continue  # kullanıcının farklı manuel etiketi — dokunma
             r = abs(float(tx.amount)) / amt
-            kw = bool(kwre.search(_normalize(tx.description or "")))
+            kw = bool(kwre.search(_normalize(tx.description or ""))) if kwre else False
             if kw:
                 if not (0.5 <= r <= 1.6):
                     continue
             else:
+                if not blind_ok:
+                    continue  # kelimesiz kör yol bu tipe kapalı (ör. recurring)
                 if cat_name is not None:
                     continue  # kelimesiz yol yalnız etiketsiz toplu transfer
                 if not (0.8 <= r <= 1.25) or abs(float(tx.amount)) < SCHEDULED_MIN_BLIND_AMOUNT:
@@ -1392,14 +1589,15 @@ def _match_scheduled_to_bank(db: Session) -> dict:
         if len(auto_cands) == 1 and link_entry_to_bank(db, entry, auto_cands[0]):
             used.add(auto_cands[0].id)
             matched += 1
-            _tag_scheduled_bank_leg(db, auto_cands[0], canonical)
+            if canonical:
+                _tag_scheduled_bank_leg(db, auto_cands[0], canonical)
             logger.info("Planlı %s girişi banka kanıtına bağlandı: entry=%d ↔ btx=%d",
                         entry.source_type, entry.id, auto_cands[0].id)
             continue
         if best is not None:
             _, tx, kw = best
             _upsert_suggestion(db, tx.id, entry.source_type, entry.id,
-                               abs(float(tx.amount)), "TRY",
+                               abs(float(tx.amount)), entry_cur,
                                SCHEDULED_KW_SUGGEST_SCORE if kw else SCHEDULED_BLIND_SUGGEST_SCORE)
             suggested += 1
 

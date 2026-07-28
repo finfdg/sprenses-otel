@@ -5,6 +5,123 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Düzenli Ödeme (recurring) ↔ Banka Eşleştirmesi + Para Birimi Kapısı (2026-07-28)
+
+**Canlı bulgu:** "Temmuz 2026 — 2026 Leasing All Risk Sigortası (Trafo)" (€684,38) 27.07'de
+VakıfBank EUR hesabından ödendi (btx#6430, "…FİNANSAL KİRALAMA SİGORTA ÖDEMESİ…") ama planlı
+kalem 28.07 vadesiyle açık kaldı → Panel'de **hem** bekleyen çıkış **hem** gerçekleşen banka
+çıkışı sayıldı. Kök neden: `_match_scheduled_to_bank` yalnız `salary`/`sgk`/`withholding`
+tiplerini kapsıyordu; `recurring` hiç aday üretmiyor, öneri paneline bile düşmüyordu →
+**her Düzenli Ödeme kaleminin banka bacağı ELLE bağlanmak zorundaydı**.
+
+**1) `recurring` kapsama alındı — anahtar kelime TANIM ADINDAN türetilir.** Personel
+tiplerinin sabit regex'i (`maas|personel|…`) vardır; düzenli ödemelerin (sigorta, leasing,
+abonelik, bakım…) ortak kelimesi YOKTUR — ayırt edici kelime tanımın kendi adındadır.
+`_recurring_keyword_re(defn.name, defn.category)`: ad ASCII'ye foldlanır, genel sözcükler
+(`_RECURRING_NAME_STOPWORDS` — "duzenli/odeme/fatura/aylik" + ay adları) ve sayılar atılır,
+kalan tokenlar **6 karaktere kırpılır** (Türkçe ek toleransı: "Sigortası" → `sigort`, banka
+açıklamasındaki "SİGORTA" içinde bulunur), **≥5 karakterlik** kökler alternatif regex'e
+girer ("risk"/"kdv"/"su" gibi kolay eşleşenler elenir). Ayırt edici token kalmazsa `None`
+döner → giriş **hiç aday üretmez** (sessiz-güvenli).
+
+**2) Kelimesiz ("kör") yol recurring'e KAPALI — `SCHEDULED_BLIND_TYPES`.** Kör bant
+"etiketsiz ≥1M toplu transfer = maaş bordrosu" sezgisine dayanır; düzenli ödemeler küçük ve
+çok sayıda olduğundan orada yanlış-pozitif üretir. Personel tiplerinde davranış **birebir
+aynı** kaldı.
+
+**3) PARA BİRİMİ KAPISI (tüm tipler için, ön koşul):** aday banka hareketinin **hesap** para
+birimi girişinkiyle aynı olmalı (`_norm_currency`, `TL`→`TRY`). Kapı olmadan `r = |btx| /
+giriş tutarı` bir oran değil **kur çarpanıdır**: €684,38 giriş ile ₺684,38 hareket `r=1.0`
+verip otomatik eşleşirdi. `scheduled_service._btx_amount_for_entry` zaten farklı para
+biriminde TUTARI yazmıyordu ama **eşleşmenin kendisi serbestti** — asıl boşluk buydu.
+Öneri kaydının para birimi de artık sabit `"TRY"` değil girişin para birimi.
+
+**4) Kanonik kategori:** recurring'in tek kanonik kategorisi yok → tanımın kendi `category`
+alanı kullanılır (varsa banka bacağı onunla etiketlenir, yoksa etiketleme atlanır — eşleşme
+yine kurulur). Manuel etiket asla ezilmez.
+
+**5) `SCHEDULED_TARGET_TYPES` (yeni ortak sabit):** öneri paneli zenginleştirmesi
+(`GET /cash-flow/match-suggestions`), **"Onayla"** yolu (`accept_match_suggestion`) ve
+bayat-öneri temizliği (`cleanup_stale_suggestions`) artık bu kümeyi çözümler — üç yerde
+tekrarlanan `("tax", "sgk", "withholding", "salary", "rent_expense")` literali kalktı.
+**Tuzak:** literal iki dosyada FARKLI girintideydi; recurring'i eklerken biri atlanınca
+"Onayla" sessizce **409 "Hedef bu arada eşleşmiş/kapanmış"** dönüyordu (testte yakalandı).
+`SCHEDULED_MATCH_TYPES`'tan geniştir: eşleştirici tax/rent_expense önerisi ÜRETMEZ ama
+etiketleme köprüsü/eski kayıtlar bu tipleri taşıyabilir.
+
+**Canlı veri:** entry#7575 `link_entry_to_bank` ile btx#6430'a bağlandı (is_paid=True,
+paid_date=27.07, `event_matches` izi method='auto') → planlı bacak `is_matched=True` ile
+toplamdan düştü, banka bacağı tek gerçek çıkış olarak kaldı.
+
+**Test:** `tests/test_recurring_bank_matching.py` (14 — kök/ek toleransı, genel-adlı tanım
+aday üretmez, canlı vakanın otomatik kapanması, tanım-kategorisiyle bacak etiketleme, iki
+aday→öneri, **TRY hareket EUR girişe aday olamaz**, TL≡TRY, öneri para birimi, personel
+TRY yolu etkilenmedi, kör yol recurring'e kapalı, "Onayla" + öneri listesi recurring'i tanır).
+
+---
+
+## Kredi Taksiti — Geniş-Bant Öneri + Kayıp Öneri Düzeltmesi (2026-07-28)
+
+**Canlı bulgu:** "Eximbank EUR Kredi 2 (375K) — Taksit #1" (vade 20.07, plan €136.437,50)
+24.07'de €136.703,65 ile ödendi (+€127,44 aynı gün iade) ama Panel'de "Vadesi Geçenler"de
+kaldı. `_match_credits_to_bank` **iki sert kapıdan** geçemiyordu:
+1. **Tutar birebir:** adaylar `btx_by_amount[round(amt,2)]` tutar-anahtarlı index'ten
+   geliyor → tutar kuruşu kuruşuna tutmuyorsa **hiç aday yok** (skor bile hesaplanmaz).
+2. **Tarih ±3 gün:** `date_diff > 3` → `continue`. Grup (aynı-gün toplamı) yolu da aynı
+   pencereyi kullanır.
+
+Sonuç: geç ödenen veya gecikme faizi/komisyon yüzünden kuruşu tutmayan taksit **öneri
+kuyruğuna bile düşmeden** sessizce açık kalıyordu → elle eşleştirme zorunluydu.
+
+### Düzeltme 1 — 3. aşama: geniş-bant ÖNERİ (`_suggest_loose_credit_match`)
+
+Otomatik eşleşme ve grup denemesi başarısızsa, taksit için **yalnız öneri** üreten üçüncü
+bir aşama koşar. Bant **bilerek dar** (yanlış-pozitif öneri de bir maliyettir):
+
+| Koşul | Değer |
+|---|---|
+| Banka adı | ürününkiyle eşleşmeli (ürün bankasızsa serbest) |
+| Para birimi | birebir aynı (çapraz-para bu yolda **yok**) |
+| Tarih | vade ±`CREDIT_SUGGEST_WINDOW_DAYS` (15) gün |
+| Tutar oranı | `CREDIT_SUGGEST_RATIO_MIN..MAX` = **0,85 – 1,15** |
+| Skor | `CREDIT_SUGGEST_MIN`(20) + tutar yakınlığı + tarih yakınlığı, **tavan `CREDIT_AUTO_MIN - 2`** |
+
+**Skor tavanı yapısaldır:** bu yol `_upsert_suggestion`'ı doğrudan çağırır ve skoru asla
+`CREDIT_AUTO_MIN`'e ulaşamaz → **geniş bant hiçbir koşulda otomatik eşleşme kuramaz**;
+kararı kullanıcı "Eşleşme Önerileri" panelinden verir. **Otomatik eşleşme davranışı
+DEĞİŞMEDİ** (birebir tutar + ±3 gün kapıları aynen duruyor).
+
+Performans: aday listesi **ürün başına** (banka + para birimi) süzülüp cache'lenir
+(`_loose_candidates`) — 185 açık taksit × 2,3K gider satırı taksit başına yeniden
+taranmaz, 32 aktif ürün için bir kez süzülür.
+
+**Kapsam dışı (bilinçli):** geniş bantta **grup (N-1) denemesi yok** — faiz+vergi ayrı
+satır durumu yalnız otomatik yolun ±3 gün / ±0,02 penceresinde aranır. Canlı vakada tek
+satır (6406) zaten bant içindeydi; grup-geniş-bant kombinatoriği yanlış-pozitif riskini
+belirgin artırır.
+
+### Düzeltme 2 — kaybolan öneriler (`suggested` dönüş anahtarı)
+
+`run_all_matchers` **`matched > 0 VEYA r.get("suggested", 0) > 0`** ise commit eder
+(2026-07-18 düzeltmesi). **AMA** kredi/çek/avans matcher'larının hiçbiri `suggested`
+anahtarını **döndürmüyordu** → yalnız-öneri üreten koşularda koşul False kalıyor,
+`_upsert_suggestion` kayıtları `nested.rollback()` ile **sessizce siliniyordu**. Yani
+2026-07-18'de kapatıldığı belgelenen kusur bu üç matcher'a fiilen hiç ulaşmamıştı.
+
+Üçü de artık `suggested` döndürür (erken dönüşler dahil — sözleşme tutarlı).
+`_match_cc_to_bank` ve `_match_contract_installments_to_bank` öneri üretmediğinden
+dokunulmadı.
+
+> **Kural:** `_upsert_suggestion` çağıran HER matcher dönüş sözleşmesinde `suggested`
+> sayacını taşımak **zorundadır** — yoksa ürettiği öneriler orkestratörde geri alınır.
+
+**Test:** `tests/test_credit_loose_suggestion.py` (11 — canlı senaryo, bant sınırları
+[tutar/tarih/banka/para birimi], asla-otomatik-eşleşmez, otomatik davranış regresyonu,
+kullanılmış hareket yeniden önerilmez, üç matcher'ın `suggested` sözleşmesi). Fix geri
+alındığında 5 test kırmızı, 6 koruma testi yeşil kalır (fixin fazla genişlemediğinin kanıtı).
+
+---
+
 ## Sedna Karşı-Hesap Köprüsü — Etiketsiz Kalemlerin Otomatik Sınıflandırılması (2026-07-23)
 
 **Kullanıcı bulgusu:** Panel T-Hesap "Etiketsiz" grubunda 38 işlem (~€94K) — 20 Tem'deki

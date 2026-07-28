@@ -830,6 +830,34 @@ görünmesin.
 **Test:** `tests/test_personel_birlestirme.py` (13). Geliştirici detayı:
 `backend/app/routers/finance/CLAUDE.md` "Personel Birleştirmesi" bölümü.
 
+### Düzenli Ödemeler de kapsama alındı + para birimi kapısı (2026-07-28)
+
+Yukarıdaki eşleştirici başlangıçta yalnız **maaş/SGK/stopaj** kalemlerini kapsıyordu.
+**Düzenli Ödemeler (recurring) hariçti** → her düzenli ödeme kaleminin banka bacağı elle
+bağlanmak zorundaydı, bağlanmayınca aynı ödeme hem "bekleyen" hem "gerçekleşen" olarak
+iki kez görünüyordu. Canlı örnek: *Temmuz 2026 — 2026 Leasing All Risk Sigortası (Trafo)*
+€684,38; 27 Temmuz'da VakıfBank EUR hesabından ödendi ama planlı kalem 28 Temmuz vadesiyle
+Panel'de açık kaldı.
+
+**Kullanıcı gözünden ne değişti:**
+- Düzenli ödemeler de artık banka hareketiyle **otomatik kapanır**. Eşleşme, kalemin
+  **tanım adındaki** ayırt edici kelimeden kurulur (ör. "…Leasing All Risk **Sigortası**…"
+  ↔ banka açıklamasındaki "…**SİGORTA** ÖDEMESİ…"). Emin olunamayan durumlar
+  **Eşleşme Önerileri** paneline düşer (tek tık Onayla).
+- **Adı ayırt edici olmayan** tanımlar (ör. yalnız "Aylık Ödeme") otomatik eşleşmez —
+  bilinçli: yanlış kalemi kapatmaktansa elle bağlanması yeğlenir.
+- Düzenli ödemelerde **kelimesiz eşleştirme yapılmaz.** Maaşta kullanılan "etiketsiz büyük
+  toplu transfer" sezgisi, küçük ve çok sayıda olan düzenli ödemelerde yanlış eşleşme
+  üretirdi.
+- **Farklı para birimi artık asla eşleşmez.** Önceden €684,38'lik bir kalem ile ₺684,38'lik
+  bir banka hareketi "aynı tutar" sanılıp eşleşebiliyordu; artık banka hesabının para birimi
+  kalemin para birimiyle aynı değilse aday bile olmaz. Bu kural **tüm** planlı kalem
+  türleri için geçerlidir.
+
+**Test:** `tests/test_recurring_bank_matching.py` (14). Geliştirici detayı:
+`backend/app/routers/finance/CLAUDE.md` "Düzenli Ödeme (recurring) ↔ Banka Eşleştirmesi"
+bölümü.
+
 ## Ocak Açılış Artefaktı Kapatıldı — Pencere-Öncesi Tohum Bakiyeleri (2026-07-19)
 
 Ay-ay mutabakat denetiminde Ocak 2026 farkı +€167K çıktı: bakiye eğrisi `MIN_DATE=2026-01-01`
@@ -850,3 +878,39 @@ yıl-sınırı bakiye zinciri 0,00 farkla doğrulandı, Aralık ekstresi yüklem
 
 Test: `tests/test_eur_balances_seed.py` (8). Geliştirici detayı:
 `backend/app/routers/finance/CLAUDE.md` "Pencere-Öncesi Tohum Bakiyeleri" bölümü.
+
+---
+
+## Geç/Küsuratlı Kredi Taksiti Artık Öneri Kuyruğuna Düşer (2026-07-28)
+
+**Kullanıcı bulgusu:** "Eximbank EUR Kredi 2 (375K) — Taksit #1" (vade 20.07, plan
+€136.437,50) 24 Temmuz'da bankadan ödendiği hâlde Panel'de **Vadesi Geçenler**'de
+görünmeye devam etti. Banka hareketi sistemde vardı (Türk Eximbank EUR hesabı:
+−€136.703,65 ödeme + €127,44 aynı gün iade) ama taksitle **eşleşmemişti**.
+
+**Neden:** Otomatik eşleştirici kredi taksitini yalnız **tutar kuruşu kuruşuna aynı**
+ve **vade ±3 gün** ise banka hareketiyle bağlar. Bu ödeme ikisini de kaçırıyordu
+(4 gün geç + gecikme faizi/komisyon yüzünden ~€139 fazla) → aday listesine hiç
+giremediğinden **öneri olarak bile sunulmuyordu**.
+
+**Artık ne oluyor:** Otomatik eşleşme kurulamayan taksit için sistem daha geniş bir
+bantta arama yapar ve bulduğunu **Eşleşme Önerileri** paneline düşürür:
+
+- aynı banka + aynı para birimi
+- vade ±15 gün
+- tutar, plan tutarının **%85–%115**'i arasında
+
+Bu yol **hiçbir zaman kendi başına eşleştirme yapmaz** — yalnız öneri sunar, onayı siz
+verirsiniz. Böylece geç ödenen ya da faiz/komisyon yüzünden tutarı tutmayan taksitler
+sessizce "vadesi geçmiş" görünmek yerine önünüze gelir.
+
+**Yan düzeltme (aynı gün):** Kredi, çek ve avans eşleştiricilerinin ürettiği öneriler,
+o koşuda hiç kesin eşleşme çıkmadıysa **kaydedilmeden geri alınıyordu** (teknik: matcher
+öneri sayısını orkestratöre bildirmiyordu). Üçü de artık bildiriyor → öneriler kalıcı.
+
+**Bu vaka nasıl kapatıldı:** taksit #1, 6406 + 6407 banka satırlarıyla grup olarak elle
+eşleştirildi (ortak eşleşme no #508); **plan tutarı korundu** (kullanıcı kararı), aradaki
+~€139 fark banka bacağında gerçek gider olarak duruyor.
+
+Geliştirici detayı: `backend/app/routers/finance/CLAUDE.md` "Kredi Taksiti — Geniş-Bant
+Öneri" bölümü. Test: `tests/test_credit_loose_suggestion.py` (11).
