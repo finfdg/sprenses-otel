@@ -465,6 +465,23 @@ class TestAgencyTagging:
         auto_tag_transactions(db, [btx.id])
         assert _cat_of(db, btx) != AGENCY_CATEGORY
 
+    def test_generic_seyahat_acentasi_tokens_do_not_attribute_name(self, client, db):
+        """Jenerik 'SEYAHAT ACENTASI' açıklaması, adında aynı jenerik kelimeler geçen
+        acenteye AD atfetmemeli (canlı 2026-07-31: €1.965,60 AKDEM ödemesi 'PGST'
+        görünüyordu — PGST adındaki 'seyahat'+'acentası' token'ları eşleşmişti).
+        Kategori ipucuyla yine Acenta olur ama görünen ad çözülmeden kalır."""
+        acc = _mk_account(db, currency="EUR")
+        _mk_collection(
+            db, code="120.01.01.P003",
+            name="PGST ANTALYA TURİZM SEYAHAT ACENTASI TAŞ. VE TİC. LTD.ŞTİ.",
+            col_date=TODAY - timedelta(days=2), amount_tl=500000.00,
+            currency="EUR", amount_currency=9999.00,  # tutar eşleşmesi bilerek YOK
+        )
+        btx = _mk_btx(db, acc, amount=1965.60, desc="Diğer Diğer SEYAHAT ACENTASI/310726/330848")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == AGENCY_CATEGORY  # ipucu kategoriyi korur
+        assert btx.tag_note != "PGST"  # jenerik token'larla ad atfı yok
+
     def test_desc_hint_seyahat_acent(self, client, db):
         acc = _mk_account(db, currency="EUR")
         btx = _mk_btx(db, acc, amount=15000, desc="Diğer Diğer SEYAHAT ACENT/100726/950767")

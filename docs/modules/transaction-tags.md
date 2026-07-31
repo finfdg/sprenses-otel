@@ -316,6 +316,13 @@ Guard'lar (çok-ajanlı inceleme + canlı dry-run sonrası sertleştirildi, 2026
 - **Jenerik kelimeler token olamaz** (`_AGENCY_TOKEN_SKIP`: işletmeciliği/otel/hotels/group/
   turkiye/bankasi/vodafone…) ve ≥2-token kuralı **aynı acentenin** kümesinden sağlanmalı
   (çapraz-acente kombinasyon eşleşme sayılmaz).
+  - **"seyahat/acenta/acente/acentası/acentesi/acent" de skip listesinde (2026-07-31):**
+    YK'nın jenerik "Diğer Diğer SEYAHAT ACENTASI/<tarih>/<ref>" açıklaması, adında aynı
+    iki sektör kelimesi geçen PGST'ye AD atfetti (€1.965,60 AKDEM ödemesi panelde "PGST"
+    göründü — kategori doğruydu, ad yanlıştı). Sektör kelimeleri hangi acente olduğunu
+    söylemez → token havuzuna girmez; ad çözülemiyorsa çözülmesin (yanlış ad > adsız),
+    Sedna tutar eşleşmesi varsa doğru ad yine gelir. Kategori tespiti (ipucu) etkilenmez.
+    Regresyon: `test_generic_seyahat_acentasi_tokens_do_not_attribute_name`.
 - Bireysel misafir tahsilatları (120.26.*) **bilinçli hariç** (acenta değildir).
 
 Düzeltme davranışı: yanlış otomatik etiket **başka bir kategoriye manuel taşınırsa kalıcıdır**

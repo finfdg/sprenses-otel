@@ -449,6 +449,12 @@ _AGENCY_TOKEN_SKIP = {
     "online", "global", "turkiye", "bankasi", "banka", "garanti", "vodafone",
     "telekom", "telekomuni", "iletisim", "mobil", "distance", "frankfurt",
     "turkey", "kongre", "organizasyon", "yatirim", "yatirimlari",
+    # Sektör kelimeleri hangi acente olduğunu SÖYLEMEZ (2026-07-31 canlı bulgu):
+    # YK'nın jenerik "SEYAHAT ACENTASI/<tarih>/<ref>" açıklaması, adında aynı iki
+    # jenerik kelime geçen PGST'ye ad atfetti (€1.965,60 AKDEM ödemesi "PGST"
+    # göründü). Bu kelimeler token havuzuna girmez — ad çözülemiyorsa çözülmesin
+    # (yanlış ad > adsız); kategori tespiti (_AGENCY_DESC_HINT) etkilenmez.
+    "seyahat", "acenta", "acente", "acentasi", "acentesi", "acent",
 }
 
 
