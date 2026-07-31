@@ -176,6 +176,24 @@ class TestVirmanRule:
         auto_tag_transactions(db, [btx.id])
         assert _cat_of(db, btx) == "Virman"
 
+    def test_yk_para_gonder_own_account_suffix_tagged_virman(self, client, db):
+        """YK kendi-hesaplar-arası transferde karşı hesap numarası eklenir:
+        'Para Gönder Diğer ŞİRKETİ-96746785' → Virman (2026-07-31 canlı bulgu)."""
+        self._ensure_virman(db)
+        acc = _mk_account(db, bank_name="Yapı Kredi", currency="EUR")
+        btx = _mk_btx(db, acc, amount=70000.00, desc="Para Gönder Diğer ŞİRKETİ-96746785")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Virman"
+
+    def test_yk_para_gonder_without_account_suffix_not_virman(self, client, db):
+        """Sayısız çıplak form Virman tetiklemez — 'ŞİRKETİ - CARİ ÖDEME' varyantı
+        gerçek cari ödemesidir (canlı 2026-06-01)."""
+        self._ensure_virman(db)
+        acc = _mk_account(db, bank_name="Yapı Kredi", currency="EUR")
+        btx = _mk_btx(db, acc, amount=-254834.78, desc="Para Gönder Diğer ŞİRKETİ - CARİ ÖDEME")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Virman"
+
     def test_yk_diger_diger_external_beneficiary_not_virman(self, client, db):
         """Çıplak 'Diğer Diğer' Virman tetiklemez — YK bu öneki her işlem tipinde
         kullanır (300+ kayıt, 15+ kategori); yalnız ': MURAT' alıcısı iç transferdir."""

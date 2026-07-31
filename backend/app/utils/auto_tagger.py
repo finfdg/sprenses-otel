@@ -196,7 +196,12 @@ AUTO_TAG_RULES: List[Tuple[str, str]] = [
     # - "diger diger.*: murat": YK GİDEN bacağı "Diğer Diğer <ref> : MURAT A TU" —
     #   alıcı kendi şirketimiz (tarihçede 3/3 Virman). Çıplak "diger diger" kural
     #   OLAMAZ: YK bu öneki her işlem tipinde kullanıyor (300+ kayıt, 15+ kategori).
-    ("Virman", r"virman|havale|eft |transfer|bankasina yapil|amir: murat|diger diger.*: murat"),
+    # - "para gonder diger sirketi-\d": YK kendi-hesaplar-arası transferde karşı
+    #   hesabın NUMARASINI ekler ("Para Gönder Diğer ŞİRKETİ-96746785" = 785 EUR
+    #   hesabı bacağı; tarihçede 5/5 transfer sınıfı). SAYISIZ çıplak form kural
+    #   DEĞİL: "ŞİRKETİ - CARİ ÖDEME" varyantı gerçek cari ödemesi (2026-06-01).
+    ("Virman", r"virman|havale|eft |transfer|bankasina yapil|amir: murat"
+               r"|diger diger.*: murat|para gonder diger sirketi-\d"),
     # "bankamiz doviz alis": Halkbank döviz bozdurmayı BANKA perspektifinden yazar —
     # "YP TL BANKAMIZ DÖVİZ ALIŞ" (banka alır = müşteri satar). "doviz sat" kalıbına
     # uymadığından etiketsiz kalıyordu (2026-07-31 canlı bulgu — €8.775 + TL bacağı).

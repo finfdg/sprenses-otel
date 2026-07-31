@@ -169,6 +169,10 @@ desenlerin geçmişte yakalayacağı etiketsiz kayıt yalnız o günkü 3 işlem
 - **`diger diger.*: murat`** — YK GİDEN bacağı "Diğer Diğer <ref> : MURAT A TU"
   formatında; alıcı kendi şirketimiz (tarihçede 3/3 Virman). Çıplak "diger diger"
   kural OLAMAZ: YK bu öneki her işlem tipinde kullanır (300+ kayıt, 15+ kategori).
+- **`para gonder diger sirketi-\d`** — YK kendi-hesaplar-arası transferde karşı
+  hesabın NUMARASINI ekler ("Para Gönder Diğer ŞİRKETİ-96746785" = 785 EUR hesabı
+  bacağı; tarihçede 5/5 transfer sınıfı). SAYISIZ çıplak form kural DEĞİL:
+  "ŞİRKETİ - CARİ ÖDEME" varyantı gerçek cari ödemesi (canlı 2026-06-01).
 
 Regresyon: `test_auto_tagger.py::TestVirmanRule` (5 test — üç pozitif desen +
 acente-SWIFT ve harici-alıcı negatifleri).
