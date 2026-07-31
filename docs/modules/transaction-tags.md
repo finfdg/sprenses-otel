@@ -148,6 +148,31 @@ döviz bozdurma geliri/gideri T-Hesap'ta başlık olarak izlenir).
   (Döviz Satışı toplam-dışıdır). Regresyon: `test_auto_tagger.py::TestFxSaleRule::
   test_halkbank_bank_perspective_fx_sale_matches` + `test_halkbank_fx_sale_try_leg_also_tagged`.
 
+### Virman Kuralı — Bankalar Arası Kendi-Hesap Transfer Desenleri (2026-07-31)
+
+Temel Virman kuralı `virman|havale|eft |transfer` idi; bankalar arası kendi-hesap
+transferlerinin üç bacağı bu kelimeleri taşımadığından "Etiketsiz" kalıp Panel
+T-Hesap toplamlarını şişiriyordu (Virman `t_account.TRANSFER_CATEGORIES`'te —
+tamamen gizlenir). Eklenen üç desen (hepsi tarihçeye karşı doğrulandı — yeni
+desenlerin geçmişte yakalayacağı etiketsiz kayıt yalnız o günkü 3 işlemdi):
+
+- **`bankasina yapil`** — Halkbank GELEN bacağı açıklamayı ~81 karakterde kırpar:
+  "MURAT-A ... 'DAN HALK BANKASINA YAPIL" ("YAPILAN TRANSFER"in kuyruğu kesik) →
+  "transfer" deseni kaçıyordu (₺100.000 FAST girişi). Küçük ücret bacakları
+  güvende: `_tag_bank_fees` kelime kurallarından önce koşar.
+- **`amir: murat`** — Vakıf SWIFT girişinde gönderen (Amir) kendi şirketimiz
+  (MURAT-A TURİZM) ise iç transferdir (YK→Vakıf €12.000). Acente SWIFT'leri
+  "Amir: <acente/factoring>" taşır — eşleşmez (tarihçede 9 Acenta kaydı +
+  Santander Factoring/World 2 Meet €400.000 vakası doğrulandı). **"lehtar: murat"
+  bilerek kural değil:** her gelen SWIFT'te lehtar zaten biziz — acente
+  tahsilatını Virman'a gömerdi.
+- **`diger diger.*: murat`** — YK GİDEN bacağı "Diğer Diğer <ref> : MURAT A TU"
+  formatında; alıcı kendi şirketimiz (tarihçede 3/3 Virman). Çıplak "diger diger"
+  kural OLAMAZ: YK bu öneki her işlem tipinde kullanır (300+ kayıt, 15+ kategori).
+
+Regresyon: `test_auto_tagger.py::TestVirmanRule` (5 test — üç pozitif desen +
+acente-SWIFT ve harici-alıcı negatifleri).
+
 ### POS Bloke Çözümü — "Pos Bloke Çözme" Çift-Bacak Tespiti (2026-07-18, kullanıcı isteği)
 
 Halkbank POS bloke çözümü ("UBLK/1376/... /POS BLOKE ÇÖZÜM") parayı **bloke POS

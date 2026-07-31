@@ -183,7 +183,20 @@ AUTO_TAG_RULES: List[Tuple[str, str]] = [
     # Temettü Virman'dan ÖNCE: "HAVALE Temettü ..." / "EFT ... ORTAKLARA ÖDENEN ..."
     # açıklamaları havale/eft ile Virman'a düşüyordu (Sedna 331 denetimi, 2026-07-18)
     ("Temettü", r"temettu|ortaklara odenen"),
-    ("Virman", r"virman|havale|eft |transfer"),
+    # Virman ek desenleri (2026-07-31 canlı bulgu — bankalar arası kendi-hesap transferleri):
+    # - "bankasina yapil": Halkbank GELEN bacağı açıklamayı ~81 karakterde KIRPAR —
+    #   "... 'DAN HALK BANKASINA YAPIL" ("YAPILAN TRANSFER"in kuyruğu kesik) → "transfer"
+    #   deseni kaçıyordu (₺100.000 FAST girişi). Küçük ücret bacakları güvende:
+    #   _tag_bank_fees kelime kurallarından ÖNCE koşar.
+    # - "amir: murat": Vakıf SWIFT girişinde gönderen (Amir) kendi şirketimizse
+    #   (MURAT-A TURİZM) iç transferdir (YK→Vakıf €12.000). Acente SWIFT'leri
+    #   "Amir: <acente/factoring>" taşır — eşleşmez (tarihçede 9 Acenta + Santander/W2M
+    #   €400.000 vakası doğrulandı). "lehtar: murat" BİLEREK kural DEĞİL: her gelen
+    #   SWIFT'te lehtar zaten biziz — acente tahsilatını Virman'a gömerdi.
+    # - "diger diger.*: murat": YK GİDEN bacağı "Diğer Diğer <ref> : MURAT A TU" —
+    #   alıcı kendi şirketimiz (tarihçede 3/3 Virman). Çıplak "diger diger" kural
+    #   OLAMAZ: YK bu öneki her işlem tipinde kullanıyor (300+ kayıt, 15+ kategori).
+    ("Virman", r"virman|havale|eft |transfer|bankasina yapil|amir: murat|diger diger.*: murat"),
     # "bankamiz doviz alis": Halkbank döviz bozdurmayı BANKA perspektifinden yazar —
     # "YP TL BANKAMIZ DÖVİZ ALIŞ" (banka alır = müşteri satar). "doviz sat" kalıbına
     # uymadığından etiketsiz kalıyordu (2026-07-31 canlı bulgu — €8.775 + TL bacağı).

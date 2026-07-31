@@ -121,6 +121,71 @@ class TestFxSaleRule:
         assert c1.id == c2.id
 
 
+class TestVirmanRule:
+    """Bankalar arası kendi-hesap transfer desenleri (2026-07-31 canlı bulgu)."""
+
+    def _ensure_virman(self, db):
+        cat = db.query(TransactionCategory).filter(TransactionCategory.name == "Virman").first()
+        if cat is None:
+            cat = TransactionCategory(name="Virman", color="purple")
+            db.add(cat)
+            db.flush()
+        return cat
+
+    def test_halkbank_truncated_incoming_transfer_tagged_virman(self, client, db):
+        """Halkbank gelen bacağı açıklamayı kırpar: '... HALK BANKASINA YAPIL'
+        ('YAPILAN TRANSFER'in kuyruğu kesik) — yine de Virman olmalı."""
+        self._ensure_virman(db)
+        acc = _mk_account(db, bank_name="Halkbank")
+        btx = _mk_btx(db, acc, amount=100000.00,
+                      desc="MURAT-A TURİZM TİCARET SANAYİ VE İNŞAAT ANONİM ŞİRKETİ 'DAN HALK BANKASINA YAPIL")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Virman"
+        assert btx.tag_source == "auto"
+
+    def test_vakif_swift_own_company_amir_tagged_virman(self, client, db):
+        """Vakıf SWIFT girişinde Amir (gönderen) kendi şirketimizse iç transferdir."""
+        self._ensure_virman(db)
+        acc = _mk_account(db, bank_name="VakıfBank", currency="EUR")
+        btx = _mk_btx(db, acc, amount=12000.00,
+                      desc="Swift şubeden para yatırma Ref: H01607316140361 Valör: 31.07.2026 "
+                           "Lehtar: MURAT A TUR. TIC. SAN. VE INS. A.S. "
+                           "Amir: MURAT-A TURIZM TICARET SANAYI VE. Şube para yatırma işlemi")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Virman"
+
+    def test_vakif_swift_agency_amir_not_virman(self, client, db):
+        """Amir bir acente/factoring ise Virman OLMAZ — gerçek tahsilattır
+        (canlı vaka: Santander Factoring / World 2 Meet €400.000). Lehtar'daki
+        şirket adı kural tetiklememeli (her gelen SWIFT'te lehtar biziz)."""
+        self._ensure_virman(db)
+        acc = _mk_account(db, bank_name="VakıfBank", currency="EUR")
+        btx = _mk_btx(db, acc, amount=400000.00,
+                      desc="Swift şubeden para yatırma Ref: 03EB251230781683 "
+                           "Lehtar: MURAT- A TUR. TIC. VE INS. A.S "
+                           "Amir: SANTANDER FACTORING Y CONFIRMING S.. "
+                           "Şube para yatırma işlemi ABONO FACTURAS WORLD 2 MEET SLU")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Virman"
+
+    def test_yk_diger_diger_own_company_beneficiary_tagged_virman(self, client, db):
+        """YK giden bacağı 'Diğer Diğer <ref> : MURAT A TU' — alıcı kendi şirketimiz."""
+        self._ensure_virman(db)
+        acc = _mk_account(db, bank_name="Yapı Kredi", currency="EUR")
+        btx = _mk_btx(db, acc, amount=-12000.00, desc="Diğer Diğer 1342P621DC : MURAT A TU")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Virman"
+
+    def test_yk_diger_diger_external_beneficiary_not_virman(self, client, db):
+        """Çıplak 'Diğer Diğer' Virman tetiklemez — YK bu öneki her işlem tipinde
+        kullanır (300+ kayıt, 15+ kategori); yalnız ': MURAT' alıcısı iç transferdir."""
+        self._ensure_virman(db)
+        acc = _mk_account(db, bank_name="Yapı Kredi", currency="EUR")
+        btx = _mk_btx(db, acc, amount=-9500.00, desc="Diğer Diğer 1342P9999X : ACME TEDARİK LTD")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Virman"
+
+
 def _ensure_category(db, name, color="gray"):
     cat = db.query(TransactionCategory).filter(TransactionCategory.name == name).first()
     if cat is None:
