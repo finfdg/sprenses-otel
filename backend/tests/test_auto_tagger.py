@@ -87,6 +87,22 @@ class TestFxSaleRule:
         auto_tag_transactions(db, [btx.id])
         assert _cat_of(db, btx) == "Döviz Satışı"
 
+    def test_halkbank_bank_perspective_fx_sale_matches(self, client, db):
+        """Halkbank döviz bozdurmayı BANKA perspektifinden yazar: 'YP TL BANKAMIZ DÖVİZ
+        ALIŞ' (banka alır = müşteri satar) — Döviz Satışı olmalı (2026-07-31 canlı bulgu)."""
+        acc = _mk_account(db, bank_name="Halkbank", currency="EUR")
+        btx = _mk_btx(db, acc, amount=-8775.00, desc="YP TL BANKAMIZ DÖVİZ ALIŞ")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Döviz Satışı"
+        assert btx.tag_source == "auto"
+
+    def test_halkbank_fx_sale_try_leg_also_tagged(self, client, db):
+        """Aynı açıklamalı TL bacağı (gelir) da Döviz Satışı başlığında toplanır."""
+        acc = _mk_account(db, bank_name="Halkbank", currency="TRY")
+        btx = _mk_btx(db, acc, amount=473762.25, desc="YP TL BANKAMIZ DÖVİZ ALIŞ")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Döviz Satışı"
+
     def test_real_credit_still_tagged_kredi(self, client, db):
         """Gerçek kredi hareketi Kredi kalır (regresyon)."""
         _get_or_create_category(db, "Döviz Satışı")  # yönetilen kategori varken bile

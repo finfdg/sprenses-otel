@@ -131,14 +131,22 @@ Bu sayede nakit akım raporunda kategori bazlı gruplama yapılabilir.
 2. **Ödeme yöntemi:** EFT/Havale transferleri vs. POS ödemeleri ayrımı
 3. **Cari eşleştirme:** Açıklamadaki cari kodu/adı `vendors` tablosunda aranır
 
-### Döviz Satışı Kuralı (2026-07-13)
+### Döviz Satışı Kuralı (2026-07-13, genişletme 2026-07-31)
 
-`AUTO_TAG_RULES`'ta **"Döviz Satışı"** kuralı (`dvz sat|doviz sat`) **"Kredi" kuralından ÖNCE**
-gelir — "Döviz Internet - Mobil **YapiKredi**FX+ Dvz Satis" açıklaması "kredi" desenini de
-içerdiğinden döviz satışları yanlışlıkla Kredi etiketleniyordu (canlı bug; Panel T-Hesap'ta
-"Kredi" gelir grubu olarak görünüyordu). Mevcut **"Döviz Satım"** kategorisiyle karıştırma:
-Döviz Satım = çift-bacak iç transfer (T-Hesap/nakit akımdan HARİÇ), **Döviz Satışı = görünür
-kategori** (kullanıcı kararı — döviz bozdurma geliri/gideri T-Hesap'ta başlık olarak izlenir).
+`AUTO_TAG_RULES`'ta **"Döviz Satışı"** kuralı (`dvz sat|doviz sat|bankamiz doviz alis`)
+**"Kredi" kuralından ÖNCE** gelir — "Döviz Internet - Mobil **YapiKredi**FX+ Dvz Satis"
+açıklaması "kredi" desenini de içerdiğinden döviz satışları yanlışlıkla Kredi
+etiketleniyordu (canlı bug; Panel T-Hesap'ta "Kredi" gelir grubu olarak görünüyordu).
+Mevcut **"Döviz Satım"** kategorisiyle karıştırma: Döviz Satım = çift-bacak iç transfer
+(T-Hesap/nakit akımdan HARİÇ), **Döviz Satışı = görünür kategori** (kullanıcı kararı —
+döviz bozdurma geliri/gideri T-Hesap'ta başlık olarak izlenir).
+
+- **`bankamiz doviz alis` deseni (2026-07-31 canlı bulgu):** Halkbank döviz bozdurmayı
+  **banka perspektifinden** yazar — "YP TL BANKAMIZ **DÖVİZ ALIŞ**" (banka alır = müşteri
+  satar). "doviz sat" kalıbına uymadığından €8.775'lik satış + ₺473.762 TL bacağı
+  etiketsiz kalıp Panel'de "Etiketsiz" grubuna ve giriş/çıkış toplamına dahil olmuştu
+  (Döviz Satışı toplam-dışıdır). Regresyon: `test_auto_tagger.py::TestFxSaleRule::
+  test_halkbank_bank_perspective_fx_sale_matches` + `test_halkbank_fx_sale_try_leg_also_tagged`.
 
 ### POS Bloke Çözümü — "Pos Bloke Çözme" Çift-Bacak Tespiti (2026-07-18, kullanıcı isteği)
 

@@ -184,7 +184,10 @@ AUTO_TAG_RULES: List[Tuple[str, str]] = [
     # açıklamaları havale/eft ile Virman'a düşüyordu (Sedna 331 denetimi, 2026-07-18)
     ("Temettü", r"temettu|ortaklara odenen"),
     ("Virman", r"virman|havale|eft |transfer"),
-    ("Döviz Satışı", r"dvz sat|doviz sat"),
+    # "bankamiz doviz alis": Halkbank döviz bozdurmayı BANKA perspektifinden yazar —
+    # "YP TL BANKAMIZ DÖVİZ ALIŞ" (banka alır = müşteri satar). "doviz sat" kalıbına
+    # uymadığından etiketsiz kalıyordu (2026-07-31 canlı bulgu — €8.775 + TL bacağı).
+    ("Döviz Satışı", r"dvz sat|doviz sat|bankamiz doviz alis"),
     ("POS", r"pos |kkiv|kart "),
     # Spesifik vergi deseni Kredi/Leasing'den ÖNCE: "Vergi Tahsilatı ... Taksit:1 ..."
     # banka formatı "taksit" ile Kredi'ye düşüyordu (35 kayıt/₺8,6M — Sedna denetimi,
