@@ -244,6 +244,7 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
         # atanmış) kayıt DEĞİŞTİRİLMEZ — Uyuşmayan Veriler'e 'Sedna sapması' yazılır
         # ve yeni-hash'li satırın mükerrer insert'i engellenir.
         updated_count = 0
+        merged_count = 0
         diff_ids: set = set()
         if parsed_by_recid:
             from app.services.sedna_recon_service import report_entity_diff
@@ -286,6 +287,51 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
                     )
                     diff_ids.add(row.id)
                     existing.add((vendor.id, tx.tx_hash))  # mükerrer insert engeli
+                    continue
+                # Hash çakışması: Sedna düzeltmesi sonrası yeni hash aynı caride BAŞKA bir
+                # yerel satırla aynı içeriğe denk geliyor. Tipik: aynı gerçek işlem hem eski
+                # Excel yüklemesinden (doğru tutar) hem Sedna'dan (yanlış tutar) mükerrer
+                # yaşıyordu; muhasebeci Sedna'yı düzeltince ikisi aynı hash'e çakıştı ve
+                # UPDATE flush'u uq_vendor_tx_hash ihlaliyle TÜM importu düşürüyordu
+                # (canlı hata 2026-07-31, rec_id 885 / CK AKDENİZ evrak 128).
+                dup = (
+                    db.query(VendorTransaction)
+                    .filter(VendorTransaction.vendor_id == vendor.id,
+                            VendorTransaction.tx_hash == tx.tx_hash,
+                            VendorTransaction.id != row.id)
+                    .first()
+                )
+                if dup is not None:
+                    if dup.sedna_rec_id is None:
+                        # Mükerrer birleşti: içeriği zaten doğru olan dup kalır (eşleşmişse
+                        # eşleşmesiyle birlikte); bayat satır silinir, RecId kimliği dup'a taşınır.
+                        rid = row.sedna_rec_id
+                        finance_event_svc.invalidate(db, "vendor_payment", row.id)
+                        logger.warning(
+                            "Sedna düzeltmesi mevcut satırla birleşti: bayat id=%s silindi, "
+                            "RecId %s → id=%s damgalandı (cari %s evrak %s)",
+                            row.id, rid, dup.id, tx.hesap_kodu, tx.evrak_no)
+                        db.delete(row)
+                        db.flush()  # partial-unique: önce eski damga düşsün, sonra dup damgalanır
+                        dup.sedna_rec_id = rid
+                        merged_count += 1
+                    else:
+                        # dup'un KENDİ farklı RecId'i var → iki ayrı Sedna kaydı aynı hash
+                        # içeriğine düşüyor (hash şeması ayıramaz) — dokunma, sapma raporla.
+                        report_entity_diff(
+                            db, "vendor_tx", row.id,
+                            amount=float(tx.alacak or tx.borc or 0), currency="TRY",
+                            event_date=tx.date or row.date,
+                            description=(f"Yerel: {row.date} borç {row.borc} alacak {row.alacak} "
+                                         f"evrak {row.evrak_no or '-'}"),
+                            sedna_description=(f"Sedna düzeltmesi mevcut satırla (id={dup.id}, "
+                                               f"RecId {dup.sedna_rec_id}) hash çakışması üretiyor: "
+                                               f"{tx.date} borç {tx.borc} alacak {tx.alacak} "
+                                               f"evrak {tx.evrak_no or '-'}"),
+                            sedna_rec_id=row.sedna_rec_id,
+                        )
+                        diff_ids.add(row.id)
+                    existing.add((vendor.id, tx.tx_hash))
                     continue
                 # Korunmayan satır → Sedna otorite: alanları güncelle + FE tazele
                 if vendor_changed:
@@ -462,14 +508,19 @@ def run_cari_import(db: Session, current_user: User, ip=None) -> dict:
 
         # Pozitif kanıtlı bayatları (Sinyal A: Sedna Deleted=1 · Sinyal B: evrak tutar düzeltmesi)
         # otomatik sil; kanıtsızlar (hard-delete/elle) manuel silme-adayı olarak kalır.
+        # Bu koşuda sapma raporlanan satırlar süpürülmez (insan kararına bırakıldı —
+        # ör. hash çakışması: RecId'i hâlâ aktif olan satırı Sinyal B silmemeli).
         swept_ids = _sweep_stale_vendor_txns(
-            db, [c.id for c in removal_candidates], vendor_map, parsed, deleted_rows)
+            db, [c.id for c in removal_candidates if c.id not in diff_ids],
+            vendor_map, parsed, deleted_rows)
         if swept_ids:
             removal_candidates = [c for c in removal_candidates if c.id not in swept_ids]
 
         details = f"Sedna içe aktarma: {new_count} yeni, {skipped} mükerrer"
         if updated_count:
             details += f", {updated_count} rec_id-güncellendi"
+        if merged_count:
+            details += f", {merged_count} mükerrer-birleşti"
         if recid_deleted_count:
             details += f", {recid_deleted_count} rec_id-silinmiş temizlendi"
         if diff_ids:

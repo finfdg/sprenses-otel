@@ -266,6 +266,97 @@ def test_sedna_import_duplicate_recid_rows_insert_without_crash(client, auth_hea
     assert len([x for x in rows if x.sedna_rec_id == 966077]) == 1, "rec_id yalnız BİR satırda damgalı olmalı"
 
 
+# --- Hash çakışması (2026-07-31 canlı hata regresyonu: rec_id 885 / CK AKDENİZ) ---
+
+def test_sedna_import_hash_collision_merges_into_existing_row(client, auth_headers, db):
+    """Sedna düzeltmesi mevcut (Excel-kaynaklı, rec_id'siz) satırla aynı hash'e çakışırsa:
+    bayat Sedna satırı SİLİNMELİ, RecId kimliği mevcut satıra damgalanmalı, importu
+    UniqueViolation düşürmemeli. Canlı: Excel'den 1.140,00 (eşleşmiş) + Sedna'dan
+    1.149,90 mükerrer yaşıyordu; Sedna 1.140,00'a düzeltilince UPDATE uq_vendor_tx_hash'i
+    patlatıp TÜM cari adımını düşürüyordu."""
+    from app.models.vendor import Vendor
+    from app.models.vendor_transaction import VendorTransaction
+    from app.models.vendor_upload import VendorUpload
+    from app.utils.vendor_parser import compute_vendor_tx_hash
+
+    code, evrak, tarih = "320.77.06.H001", "128", date(2026, 1, 22)
+
+    # 1) Sedna importu: yanlış tutarlı satır (rec_id'li) gelir
+    r1 = _import(client, auth_headers, [_srow(code, "HASH ÇAKIŞMA CARİ", evrak, 1149.90, 977885, tarih=tarih)])
+    assert r1.status_code == 200, r1.text
+    v = db.query(Vendor).filter(Vendor.hesap_kodu == code).first()
+    stale = db.query(VendorTransaction).filter(VendorTransaction.sedna_rec_id == 977885).one()
+
+    # 2) Aynı gerçek işlemin Excel kopyası: DOĞRU tutar + bankayla eşleşmiş (korunan)
+    up = db.query(VendorUpload).order_by(VendorUpload.id.desc()).first()
+    excel_row = VendorTransaction(
+        vendor_id=v.id, upload_id=up.id, date=tarih, evrak_no=evrak,
+        description="CK ÖDEME (excel)", borc=0, alacak=1140.0, bakiye=0,
+        tx_hash=compute_vendor_tx_hash(code, tarih, evrak, 0.0, 1140.0),
+        match_number=987321,
+    )
+    db.add(excel_row); db.commit()
+    excel_id = excel_row.id
+
+    # 3) Sedna'da tutar 1.140,00'a düzeltildi → re-import (eskiden 500 UniqueViolation)
+    r2 = _import(client, auth_headers, [_srow(code, "HASH ÇAKIŞMA CARİ", evrak, 1140.0, 977885, tarih=tarih)])
+    assert r2.status_code == 200, r2.text
+
+    db.expire_all()
+    rows = db.query(VendorTransaction).filter(VendorTransaction.vendor_id == v.id).all()
+    assert len(rows) == 1, f"bayat mükerrer silinip TEK satır kalmalı: {[(x.id, float(x.alacak)) for x in rows]}"
+    kept = rows[0]
+    assert kept.id == excel_id, "eşleşmiş (korunan) Excel satırı kalmalı, Sedna kopyası silinmeli"
+    assert kept.id != stale.id
+    assert kept.sedna_rec_id == 977885, "RecId kimliği kalan satıra damgalanmalı"
+    assert kept.match_number == 987321, "banka eşleşmesi korunmalı"
+    assert float(kept.alacak) == 1140.0
+
+    # 4) İdempotent: sonraki koşu değişiklik üretmez
+    r3 = _import(client, auth_headers, [_srow(code, "HASH ÇAKIŞMA CARİ", evrak, 1140.0, 977885, tarih=tarih)])
+    assert r3.status_code == 200, r3.text
+    db.expire_all()
+    assert db.query(VendorTransaction).filter(VendorTransaction.vendor_id == v.id).count() == 1
+
+
+def test_sedna_import_hash_collision_with_foreign_recid_reports_diff(client, auth_headers, db):
+    """Çakışan satırın KENDİ farklı RecId'i varsa (iki ayrı Sedna kaydı aynı hash içeriğine
+    düşüyor — hash şeması ayıramaz): hiçbir satır silinmez/güncellenmez, sapma (sedna_diff)
+    raporlanır, import düşmez."""
+    from app.models import SednaBankRecon
+    from app.models.vendor import Vendor
+    from app.models.vendor_transaction import VendorTransaction
+
+    code, evrak, tarih = "320.77.07.H002", "555", date(2026, 3, 10)
+
+    # İki ayrı Sedna kaydı, farklı tutarlar → iki yerel satır
+    r1 = _import(client, auth_headers, [
+        _srow(code, "ÇİFT REC CARİ", evrak, 100.0, 988111, tarih=tarih),
+        _srow(code, "ÇİFT REC CARİ", evrak, 200.0, 988222, tarih=tarih),
+    ])
+    assert r1.status_code == 200, r1.text
+    v = db.query(Vendor).filter(Vendor.hesap_kodu == code).first()
+    row_222 = db.query(VendorTransaction).filter(VendorTransaction.sedna_rec_id == 988222).one()
+    row_222_id = row_222.id
+
+    # Sedna'da 988222'nin tutarı 100'e düzeltildi → hash'i 988111'in satırıyla çakışır
+    r2 = _import(client, auth_headers, [
+        _srow(code, "ÇİFT REC CARİ", evrak, 100.0, 988111, tarih=tarih),
+        _srow(code, "ÇİFT REC CARİ", evrak, 100.0, 988222, tarih=tarih),
+    ])
+    assert r2.status_code == 200, r2.text
+
+    db.expire_all()
+    rows = db.query(VendorTransaction).filter(VendorTransaction.vendor_id == v.id).all()
+    assert len(rows) == 2, "iki satır da yerinde kalmalı (silme/birleştirme YOK)"
+    assert {x.sedna_rec_id for x in rows} == {988111, 988222}
+    diff = db.query(SednaBankRecon).filter(
+        SednaBankRecon.entity_type == "vendor_tx",
+        SednaBankRecon.entity_id == row_222_id).one()
+    assert diff.resolved_at is None
+    assert "hash çakışması" in (diff.sedna_description or "")
+
+
 # --- Sedna IBAN içe aktarma (dbo.Bank → vendor_bank_accounts) ---
 
 FAKE_IBAN_ROWS = [

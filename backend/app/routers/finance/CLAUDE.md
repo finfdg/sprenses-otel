@@ -396,6 +396,40 @@ kırılıyordu).
 
 ---
 
+## Cari Sedna Import — Hash Çakışması Birleştirmesi (2026-07-31)
+
+**Canlı hata (aynı belirti sınıfı, yeni varyant):** "Cari hareketleri: İçe aktarma sırasında
+veritabanı hatası oluştu" — bu kez `uq_vendor_tx_hash` (vendor_id, tx_hash) ihlali. Aynı
+gerçek işlem yerelde MÜKERRERDİ: Excel'den doğru tutarla (2132: 1.140,00, bankayla eşleşmiş
+match #82) + Sedna'dan yanlış tutarla (11041: 1.149,90, RecId 885). Tutarlar farklıyken
+hash'ler de farklıydı → dedup hiç yakalamadı. Muhasebeci Sedna'yı 1.140,00'a düzeltince Faz B
+güncelleme geçişi 11041'in hash'ini yeniden hesapladı, yeni hash 2132'ninkiyle birebir çakıştı
+→ UPDATE flush'u UniqueViolation ile **TÜM cari adımını düşürüyordu**. İki düzeltme
+(`cariler/sedna_import.py` Faz B güncelleme geçişi):
+
+- **Mükerrer birleştirme:** korunmasız satırın yeni hash'i aynı caride BAŞKA bir satırla
+  çakışıyorsa ve o satır **rec_id'siz** ise → içeriği zaten doğru olan mevcut satır kalır
+  (eşleşmesi/match_number'ı korunur), bayat satır FE-invalidate + silinir, **RecId kimliği
+  kalan satıra damgalanır** (önce delete+flush, sonra damga — partial-unique sırası).
+  Sonraki Sedna düzeltmeleri artık damgalı satırı bulur.
+- **Yabancı-RecId çakışması:** çakışan satırın KENDİ farklı RecId'i varsa iki ayrı Sedna
+  kaydı aynı hash içeriğine düşüyor demektir (hash şeması ayıramaz) → hiçbir satıra
+  dokunulmaz, `sedna_diff` sapması raporlanır. Ayrıca **bu koşuda sapma raporlanan satırlar
+  Sinyal B süpürmesinden hariç tutulur** (`diff_ids` filtresi) — RecId'i hâlâ aktif olan
+  satırı otomatik süpürme silmemeli; insan kararına kalır.
+
+**Canlı vaka notu:** düzeltme deploy edildiğinde muhasebeci Sedna düzeltmesini GERİ almıştı
+(rec 885 yine 1.149,90) → senkron hatasız ama mükerrer yerinde duruyor. Banka kanıtı 1.140,00
+(Garanti btx 3494) — doğru tutar 2132'ninki. **11041 elle SİLİNMEZ** (Sedna aktifte 1.149,90'ı
+tuttuğu sürece insert geçişi geri getirir); kalıcı çözüm muhasebecinin Sedna'da rec 885'i
+1.140,00'a düzeltmesi — o an ilk senkron otomatik birleştirir (bu kod yolu testli).
+
+**Test:** `test_cariler_sedna.py::test_sedna_import_hash_collision_merges_into_existing_row`
+(canlı senaryo + idempotans) + `test_sedna_import_hash_collision_with_foreign_recid_reports_diff`.
+Fix geri alınınca ikisi de 500/UniqueViolation ile kırmızı (doğrulandı).
+
+---
+
 ## Cari Sedna Import — Cari Değişimi + RecId-Silinme + Senkron Hata Görünürlüğü (2026-07-13)
 
 **Canlı hata:** "Sedna verilerini çek" → "Cari hareketleri: İçe aktarma sırasında veritabanı
