@@ -244,11 +244,16 @@
 												<span class="min-w-0 flex-1">
 													<span class="block truncate text-xs font-medium text-gray-800">{v.agency || '(acente yok)'}</span>
 													<span class="block text-[10.5px] tabular-nums whitespace-nowrap text-gray-500">
-														{stayRangeLabel(v.checkin_date, v.checkout_date)} · {v.nights} gece · {v.pax} kişi
+														{stayRangeLabel(v.checkin_date, v.checkout_date)} · {v.nights} gece · {v.paid_pax ?? v.pax} ücretli{#if v.free_pax > 0}&nbsp;+ {v.free_pax} ücretsiz{/if}
 													</span>
 												</span>
-												<span class="shrink-0 text-xs font-semibold tabular-nums {v._cancelled ? 'text-red-700' : 'text-teal-700'}">
-													{v._cancelled ? '−' : ''}€{trInt(v.eur)}
+												<span class="shrink-0 text-right">
+													<span class="block text-xs font-semibold tabular-nums {v._cancelled ? 'text-red-700' : 'text-teal-700'}">
+														{v._cancelled ? '−' : ''}€{trInt(v.eur)}
+													</span>
+													{#if v.eur_per_paid_night != null}
+														<span class="block text-[10px] tabular-nums text-gray-500">€{trInt(v.eur_per_paid_night)} kişi/gece</span>
+													{/if}
 												</span>
 											</div>
 										{/each}

@@ -74,7 +74,12 @@ def _fetch_rows(db: Session, sd: date, ed: date) -> list:
         co = r["checkout_date"]
         nights = (co - ci).days if ci and co else 0
         # pax tanımı summary.py ile aynı: yetişkin + ücretli çocuk + ücretsiz çocuk (bebek hariç)
-        pax = int(r["adult"] or 0) + int(r["child_paid"] or 0) + int(r["child_free"] or 0)
+        adult = int(r["adult"] or 0)
+        child_paid = int(r["child_paid"] or 0)
+        child_free = int(r["child_free"] or 0)
+        pax = adult + child_paid + child_free
+        paid_pax = adult + child_paid       # ücretli kişi (bebek pax dışı, ücretsiz çocuk hariç)
+        free_pax = child_free               # ücretsiz kişi (pax tanımına dahil olan kısım)
         cur_code = ((r.get("currency") or "EUR").strip().upper()) or "EUR"
         amount = float(r["room_price"] or 0)
         if factors:
@@ -92,10 +97,16 @@ def _fetch_rows(db: Session, sd: date, ed: date) -> list:
             "checkin_date": ci.isoformat() if ci else None,
             "checkout_date": co.isoformat() if co else None,
             "nights": nights,
-            "adult": int(r["adult"] or 0),
-            "child": int(r["child_paid"] or 0) + int(r["child_free"] or 0),
+            "adult": adult,
+            "child": child_paid + child_free,
             "baby": int(r["baby"] or 0),
             "pax": pax,
+            "paid_pax": paid_pax,
+            "free_pax": free_pax,
+            # kişi başı gecelik: EUR / (gece × ücretli kişi) — payda 0 ise None
+            "eur_per_paid_night": (
+                round(eur / (nights * paid_pax), 2) if nights > 0 and paid_pax > 0 else None
+            ),
             "amount": round(amount, 2),
             "currency": cur_code,
             "eur": eur,

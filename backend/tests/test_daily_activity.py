@@ -141,6 +141,28 @@ def test_details_new(client, auth_headers):
     assert by_voucher["V1"]["nights"] == 7 and by_voucher["V1"]["pax"] == 3
 
 
+def test_details_paid_free_pax_and_per_night(client, auth_headers):
+    """Ücretli/ücretsiz kişi ayrımı + kişi başı gecelik fiyat (EUR / (gece × ücretli))."""
+    rows = [
+        # 2 yetişkin + 1 ücretli çocuk + 1 ücretsiz çocuk, 7 gece, 700 EUR
+        _row(11, date(2026, 6, 9), child_free=1),
+        # ücretli kişi yok → per-night None (sıfıra bölme yok)
+        _row(12, date(2026, 6, 9), adult=0, child_paid=0, child_free=2, voucher="V0"),
+    ]
+    with patch(f"{TARGET}.sedna_configured", return_value=True), \
+         patch(f"{TARGET}.fetch_reservation_activity", return_value=rows), \
+         patch(f"{TARGET}._currency_to_eur_factors", return_value=FACTORS):
+        j = client.get(f"{PREFIX}/details?activity_date=2026-06-09&type=new",
+                       headers=auth_headers).json()
+    by_voucher = {i["voucher"]: i for i in j["items"]}
+    v1 = by_voucher["V1"]
+    assert v1["paid_pax"] == 3 and v1["free_pax"] == 1 and v1["pax"] == 4
+    assert v1["eur_per_paid_night"] == round(700.0 / (7 * 3), 2)  # 33.33
+    v0 = by_voucher["V0"]
+    assert v0["paid_pax"] == 0 and v0["free_pax"] == 2
+    assert v0["eur_per_paid_night"] is None
+
+
 def test_details_no_guest_names(client, auth_headers):
     """Misafir adı (kişisel veri) yanıtta YER ALMAZ — bilinçli tasarım kararı."""
     j = _get(client, auth_headers, "/details?activity_date=2026-06-09&type=new").json()

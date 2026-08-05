@@ -42,6 +42,9 @@ kalıbıyla **Sedna'dan canlı sorgular** (model/migration/senkron yok, geçmiş
   **aynı katsayılar** (`_currency_to_eur_factors`: son TCMB forex_selling). Kur yoksa yalnız
   EUR tutarlar alınır, TL/USD 0'lanır.
 - pax tanımı `summary.py` ile aynı: yetişkin + ücretli çocuk + ücretsiz çocuk (**bebek hariç**).
+- **Ücretli/ücretsiz ayrımı (2026-08-05):** detay satırlarında `paid_pax` = yetişkin + ücretli
+  çocuk, `free_pax` = ücretsiz çocuk (pax tanımına giren kısım; bebek yine dışarıda) ve
+  `eur_per_paid_night` = EUR / (gece × ücretli kişi) — payda 0 ise `null` (sıfıra bölme yok).
 
 ## Dosya Haritası
 
@@ -53,7 +56,7 @@ kalıbıyla **Sedna'dan canlı sorgular** (model/migration/senkron yok, geçmiş
 | Migration | `backend/alembic/versions/a7c4e2b9d1f3_add_daily_reservations_module.py` (yalnız modül + Admin izni; tablo yok) |
 | Frontend | `frontend/src/lib/components/sales/DailyMovesPanel.svelte` (+ `lib/utils/salesDesign.ts` yardımcıları) |
 | Navigasyon | `frontend/src/lib/config/navigation.ts` (sales grubu, calendarDays ikonu) |
-| Test | `backend/tests/test_daily_activity.py` (16 test — fetch mock'lanır) |
+| Test | `backend/tests/test_daily_activity.py` (18 test — fetch mock'lanır) |
 
 ## Veritabanı Şeması
 
@@ -67,7 +70,7 @@ sorgu pymssql %-tuzağına karşı parametresiz `format()` ile kurulur (diğer S
 | Method | Path | İzin | Açıklama |
 |---|---|---|---|
 | GET | `/api/sales/daily-activity/summary?start_date&end_date` | view | Gün gün gelen/iptal özeti (count, nights, pax, eur) + dönem toplamları + `cancel_rate`. Hareketsiz günler 0'larla döner, en yeni gün üstte. Aralık ≤ 92 gün. |
-| GET | `/api/sales/daily-activity/details?activity_date&type=new\|cancelled` | view | Drill-down: günün rezervasyon satırları (misafir adı YOK — bkz. kişisel veri kararı). `new`'de `is_cancelled` sonradan-iptal işareti; `cancelled`'da `record_date` ile "girişe X gün kala iptal" hesaplanabilir. |
+| GET | `/api/sales/daily-activity/details?activity_date&type=new\|cancelled` | view | Drill-down: günün rezervasyon satırları (misafir adı YOK — bkz. kişisel veri kararı). Satırlar `paid_pax`/`free_pax`/`eur_per_paid_night` taşır (2026-08-05). `new`'de `is_cancelled` sonradan-iptal işareti; `cancelled`'da `record_date` ile "girişe X gün kala iptal" hesaplanabilir. |
 | GET | `/api/sales/daily-activity/status` | login | `{configured}` — Sedna etkin mi (sayfa gösterimi) |
 
 - Tünel kapalı / `SEDNA_PASSWORD` boş → **503** (frontend EmptyState gösterir).
@@ -92,9 +95,11 @@ sorgu pymssql %-tuzağına karşı parametresiz `format()` ile kurulur (diğer S
     1 oda/rezervasyon varsayımı — Sedna satırında oda sayısı yok); taban doluluk
     `occupancy-overview?year=` (yıl başına 1 fetch, panel içinde cache). Bar: lacivert mevcut
     (taban − gelen), pirinç gelen katkısı, kırmızı iptal kaybı; sağda %doluluk + `+g −i gece`.
-  - **Hareket listesi:** rozet (Gelen pirinç / İptal kırmızı) + acente + `aralık · gece · kişi`
-    alt satırı + tutar. Aynı gün gelen+iptal kayıt iki satır olur (net 0 — doğru davranış).
-    Misafir adı bilinçli olarak YOK (kişisel veri).
+  - **Hareket listesi:** rozet (Gelen pirinç / İptal kırmızı) + acente + `aralık · gece ·
+    N ücretli [+ M ücretsiz]` alt satırı (2026-08-05: "kişi" yerine ücretli/ücretsiz ayrımı;
+    ücretsiz 0 ise gizlenir) + tutar; tutarın altında `€X kişi/gece` (backend
+    `eur_per_paid_night`, `null` ise gizlenir). Aynı gün gelen+iptal kayıt iki satır olur
+    (net 0 — doğru davranış). Misafir adı bilinçli olarak YOK (kişisel veri).
 - **Durumlar:** loading `TableSkeleton` · Sedna yok `EmptyState` (503 mesajı gösterilir) ·
   hata `console.error` + toast. Canlı yenileme sayfanın `tick` prop'u ile (useLiveRefetch).
 - Not: `MonthlyOccupancyChart.svelte` de tüketicisi kalmadığından silindi (2026-07-19) —
