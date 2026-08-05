@@ -134,9 +134,10 @@ export const NAV_GROUPS: NavGroup[] = [
 	{
 		key: 'sales', label: 'Satış', prefix: '/dashboard/satis', icon: [I.cart],
 		items: [
-			// 2026-07-09: Otel Rezervasyon, Günlük Hareketler ve Oda Tipleri modülleri
-			// bu tek modülün sekmeleri altında birleştirildi (izin: sales.acente_mahsup).
+			// Satış ekranları aynı RBAC iznini paylaşır (sales.acente_mahsup); acente finans
+			// sayfası avans/tahsilat/hak edişleri ay × acente matrisi olarak ayrıca sunar.
 			{ code: 'sales.acente_mahsup', altCodes: ['sales.kontratlar'], label: 'Acente Mahsup & Nakit Akım', href: '/dashboard/satis/acente-mahsup', icon: [I.scale] },
+			{ code: 'sales.acente_mahsup', label: 'Acente Finansal Takip', href: '/dashboard/satis/acente-finans', icon: [I.chart] },
 		],
 	},
 	{

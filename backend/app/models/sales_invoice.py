@@ -65,6 +65,35 @@ class SalesAdvance(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class SalesAdvanceTransaction(Base):
+    """Sedna 340 alınan-avans hareketi — aylık acente finans raporunun detay kaynağı.
+
+    ``SalesAdvance`` güncel hesap bakiyesini özetler; bu tablo hareket tarihini koruyarak
+    alınan avans ve fatura mahsubunun ay bazında raporlanmasını sağlar. Sedna ``RecId``
+    kalıcı kimliktir; senkron sırasında kaynak tablonun salt-okunur aynası yenilenir.
+    """
+    __tablename__ = "sales_advance_transactions"
+    __table_args__ = (
+        Index("ix_sales_adv_tx_sedna_rec_id", "sedna_rec_id", unique=True),
+        Index("ix_sales_adv_tx_date", "transaction_date"),
+        Index("ix_sales_adv_tx_code", "code"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sedna_rec_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    code: Mapped[str] = mapped_column(String(50))
+    name: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    transaction_date: Mapped[date_type] = mapped_column(Date)
+    document_no: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    currency: Mapped[str] = mapped_column(String(5), server_default="TL")
+    received: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
+    consumed: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
+    received_tl: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
+    consumed_tl: Mapped[float] = mapped_column(Numeric(15, 2), server_default="0")
+    description: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class SalesCollection(Base):
     """120 tahsilat (Alacak hareketi) — faturalardan FIFO ile düşülür. Dedup: tx_hash."""
     __tablename__ = "sales_collections"

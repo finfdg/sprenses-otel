@@ -13,6 +13,7 @@ import pytz
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -21,27 +22,26 @@ from app.models.sales_invoice import (
     STATUS_PAID,
     STATUS_PARTIAL,
     SalesAdvance,
+    SalesAdvanceTransaction,
     SalesCollection,
     SalesInvoice,
 )
 from app.models.user import User
-from app.utils.audit import log_action
-from app.constants import BroadcastModule
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.sedna_client import (
-    SednaUnavailable,
-    fetch_advance_accounts,
-    fetch_sales_invoices,
-    sedna_configured,
-)
-
-
 from app.services.sales_invoice_service import (
     _EPS,
     _compute_cached,
     _f,
     _invalidate_compute_cache,
     _merged_advances,
+)
+from app.utils.audit import log_action
+from app.utils.finance_broadcast import broadcast_finance_update
+from app.utils.sedna_client import (
+    SednaUnavailable,
+    fetch_advance_accounts,
+    fetch_advance_transactions,
+    fetch_sales_invoices,
+    sedna_configured,
 )
 
 logger = logging.getLogger(__name__)
@@ -268,6 +268,7 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
 
     # 340 'Alınan Avanslar' özetini tazele (truncate + reload) — acente avanslarının asıl defteri
     adv_count = 0
+    adv_tx_count = 0
     try:
         accounts = fetch_advance_accounts()
         db.query(SalesAdvance).delete()
@@ -282,6 +283,35 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
     except Exception as e:
         db.rollback()
         logger.warning("340 avans özeti tazelenemedi: %s", e)
+
+    # 340 hareket detayı: aylık acente finans raporu için salt-okunur snapshot.
+    # Kaynak başarıyla çekilmeden mevcut snapshot silinmez; tünel kesintisi raporu boşaltmaz.
+    try:
+        transactions = fetch_advance_transactions()
+        db.query(SalesAdvanceTransaction).delete()
+        for a in transactions:
+            rec_id = a.get("rec_id")
+            tx_date = a.get("transaction_date")
+            if rec_id is None or tx_date is None:
+                continue
+            db.add(SalesAdvanceTransaction(
+                sedna_rec_id=int(rec_id),
+                code=(a.get("code") or "")[:50],
+                name=(a.get("name") or None),
+                transaction_date=tx_date,
+                document_no=(a.get("document_no") or None),
+                currency=(a.get("currency") or "TL").strip() or "TL",
+                received=_f(a.get("received")),
+                consumed=_f(a.get("consumed")),
+                received_tl=_f(a.get("received_tl")),
+                consumed_tl=_f(a.get("consumed_tl")),
+                description=(a.get("description") or None),
+            ))
+            adv_tx_count += 1
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning("340 avans hareketleri tazelenemedi: %s", e)
 
     # PMS acente adı → 120 cari kodu köprüsünü tazele (hak ediş gruplaması için; best-effort)
     try:
@@ -310,6 +340,7 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
         "collections_total": len(col_rows), "collections_new": col_new, "collections_skipped": col_skip,
         "collections_updated": col_updated, "collections_removed": col_removed,
         "advance_accounts": adv_count,
+        "advance_transactions": adv_tx_count,
     }
 
 

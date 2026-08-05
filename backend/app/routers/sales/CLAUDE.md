@@ -5,7 +5,8 @@
 > ve `sales.room_types` modülleri kaldırıldı (migration `b3c9d5e7f1a2`); bu paketteki TÜM
 > router'lar `require_permission("sales.acente_mahsup", "view"|"use")` kullanır ve
 > `room_types` onayı executor'da `sales.acente_mahsup` anahtarıyla çalışır. Router/endpoint
-> path'leri DEĞİŞMEDİ. UI tek sayfa: `/dashboard/satis/acente-mahsup`.
+> path'leri DEĞİŞMEDİ. Ana operasyon UI'ı `/dashboard/satis/acente-mahsup`; salt-okuma
+> aylık finans raporu aynı izni kullanan `/dashboard/satis/acente-finans` sayfasındadır.
 >
 > **2026-07-19 BASİT TASARIM (kullanıcı yüklemesi — repo'daki "Acente Mahsup ve Nakit
 > Akım.zip"):** Sayfa 4 tasarım sekmesi (Doluluk · Acenteler · Günlük Hareketler · Nakit
@@ -17,8 +18,34 @@
 > `cashflow.calendar`/`overdue` blokları. Detay: `docs/modules/acente-mahsup.md`.
 
 Router paketleri: `reservations/` (otel rezervasyon + günlük hareketler), `room_types`,
-`agency_groups`, `acente_mahsup` (projeksiyon panosu). Bu dosya satış
+`agency_groups`, `acente_mahsup` (projeksiyon panosu), `agency_finance` (aylık finans raporu).
+Bu dosya satış
 modülüne katkı kurallarını içerir.
+
+## Acente Finansal Takip (`agency_finance.py`, `sales.acente_mahsup`) — 2026-08-05
+
+- Yeni bağımsız UI sayfası: `/dashboard/satis/acente-finans`; endpoint:
+  `GET /api/sales/acente-finans/?year=YYYY`. Ayrı RBAC kodu açılmaz; satış konsolidasyonu
+  korunur ve `sales.acente_mahsup view` kullanılır. Modül GET-only olduğundan onay executor'ı yoktur.
+- Motor: `services/agency_finance_service.compute_agency_finance()`; tek payload'da 12 ay ×
+  acente grubu matrisi üretir. Para birimi EUR'dur. Kaynaklar:
+  - alınan/mahsup edilen avans: Sedna 340 hareket snapshot'ı (`sales_advance_transactions`),
+  - haricen tahsilat: `sales_collections` (açıklamasında `VİRMAN` olan 120↔340 mahsup bacağı hariç),
+  - rezervasyon ciro/adet: PMS aynası `reservations` (çıkış ayında),
+  - açık/vadesi geçen gerçek hak ediş: `sales_invoices` FIFO kalan + `receivable_terms`,
+  - ileri ay sonu hak ediş tahmini: ileri rezervasyonun çıkış tarihi + acente grup vadesi;
+    mevcut 340 avans bakiyesi grup içinde FIFO mahsup edilir. Eşleşmeyen 340 hesapları ilgisiz
+    `Diğer` rezervasyonlarına mahsup EDİLMEZ.
+- `month_end_receivable = open_due + projected_due`; `overdue`, gerçek açık faturaların bu
+  toplam içindeki vadesi geçmiş alt kümesidir. Önceki yıldan devreden açık/gecikmiş faturalar
+  cari yıl görünümünde Ocak'a taşınır. Bu tanımlar çift sayımı önler ve UI tooltip/metinlerinde
+  açıkça gösterilir.
+- Sedna ayrıntı senkronu: `fetch_advance_transactions()` 340 hareketlerinde tarih, native ve TL
+  tutarını birlikte okur. `run_sales_invoice_import()` kaynak başarıyla geldikten sonra snapshot'ı
+  truncate+reload yapar; Sedna/tünel hatası mevcut snapshot'ı boşaltmaz. İlk senkron öncesi
+  `sales_advances` toplam bakiyesi fallback'tir, fakat aylık avans kırılımı bilinçli olarak boş kalır.
+- Frontend WS yenilemesi `SALES_INVOICES`, `EXCHANGE_RATES`, `HAKEDIS`, `HOTEL_RESERVATION` ve
+  `AGENCY_GROUPS` yayınlarını dinler; HTTP polling yoktur. Detay: `docs/modules/acente-finans.md`.
 
 ## Acente Mahsup & Nakit Akım (`acente_mahsup.py`, `sales.acente_mahsup`)
 

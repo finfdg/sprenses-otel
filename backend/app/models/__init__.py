@@ -49,7 +49,12 @@ from app.models.push_subscription import PushSubscription
 from app.models.receivable_term import ReceivableTerm
 from app.models.reservation import Reservation, ReservationUpload
 from app.models.room_type import RoomType
-from app.models.sales_invoice import SalesAdvance, SalesCollection, SalesInvoice
+from app.models.sales_invoice import (
+    SalesAdvance,
+    SalesAdvanceTransaction,
+    SalesCollection,
+    SalesInvoice,
+)
 from app.models.role import Role
 from app.models.role_module_permission import RoleModulePermission
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
@@ -103,7 +108,7 @@ __all__ = [
     "ContractPaymentPlan", "ContractInstallment", "ContractAction",
     "ContractActionTier", "ContractAllotment", "ContractDeduction",
     "ContractRate", "ContractChildPolicy",
-    "SalesInvoice", "SalesCollection", "SalesAdvance",
+    "SalesInvoice", "SalesCollection", "SalesAdvance", "SalesAdvanceTransaction",
     "ReceivableTerm",
     "ScheduledDefinition", "ScheduledEntry",
     "ApprovalWorkflow", "ApprovalWorkflowStep",

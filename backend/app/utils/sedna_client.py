@@ -180,6 +180,32 @@ ORDER BY SUM(t.Credit) DESC
 """
 
 
+# Alınan avans hareket detayı — aylık acente finans raporu için tarih korunur.
+# Native döviz tutarı CurrCredit/CurrDebit; TL karşılığı ayrıca taşınır. Muhasebe yılı
+# açılış bakiyeleri 1 Ocak hareketi olarak Sedna'da bulunduğundan Ocak ayına doğal biçimde düşer.
+_ADVANCE_TRANSACTION_QUERY = """
+SELECT
+    t.RecId                     AS rec_id,
+    t.AccountingCode            AS code,
+    COALESCE(acc.Remark, '')    AS name,
+    CONVERT(date, o.FicheDate)  AS transaction_date,
+    t.DocumentNo                AS document_no,
+    t.Curr                      AS currency,
+    CASE WHEN t.Curr <> 'TL' THEN t.CurrCredit ELSE t.Credit END AS received,
+    CASE WHEN t.Curr <> 'TL' THEN t.CurrDebit  ELSE t.Debit  END AS consumed,
+    t.Credit                    AS received_tl,
+    t.Debit                     AS consumed_tl,
+    t.Remark1                   AS description
+FROM AccountingTrans t
+JOIN AccountingOwner o ON o.RecId = t.AccOwnerId
+LEFT JOIN Accounting acc ON acc.Code = t.AccountingCode
+WHERE t.AccountingCode LIKE '340%'
+  AND t.Deleted = 0 AND o.Deleted = 0
+  AND o.FicheDate IS NOT NULL
+ORDER BY o.FicheDate, t.RecId
+"""
+
+
 def sedna_configured() -> bool:
     """SEDNA_PASSWORD tanımlı mı (import özelliği etkin mi)."""
     return bool(settings.sedna_password)
@@ -226,6 +252,22 @@ def fetch_advance_accounts() -> List[dict]:
     finally:
         conn.close()
     logger.info("Sedna'dan %d alınan-avans (340) hesabı çekildi", len(rows))
+    return rows
+
+
+def fetch_advance_transactions() -> List[dict]:
+    """Sedna'dan 340 alınan-avans hareketlerini tarih ve TL/native tutarlarıyla çek."""
+    if not sedna_configured():
+        raise SednaUnavailable("Sedna bağlantısı yapılandırılmamış (SEDNA_PASSWORD boş).")
+
+    conn = _connect(timeout=60, context="avans hareketleri")
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(_ADVANCE_TRANSACTION_QUERY)
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    logger.info("Sedna'dan %d alınan-avans (340) hareketi çekildi", len(rows))
     return rows
 
 
