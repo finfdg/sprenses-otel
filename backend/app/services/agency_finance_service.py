@@ -29,7 +29,7 @@ _MONTH_NAMES = [
 _OTHER_ID = 0
 _OTHER_NAME = "Diğer / Eşleşmeyen"
 _MONEY_KEYS = (
-    "advance_received", "advance_applied", "collections", "reservation_amount",
+    "advance_received", "advance_applied", "collections", "reservation_amount", "invoiced_amount",
     "overdue", "open_due", "projected_gross", "projected_advance",
     "projected_due", "month_end_receivable",
 )
@@ -41,6 +41,7 @@ def _empty_metrics() -> dict:
         "advance_applied": 0.0,
         "collections": 0.0,
         "reservation_amount": 0.0,
+        "invoiced_amount": 0.0,
         "reservation_count": 0,
         "overdue": 0.0,
         "open_due": 0.0,
@@ -198,6 +199,19 @@ def compute_agency_finance(
             due_date = reservation.checkout_date + timedelta(days=term_days)
             projected[gid].append((due_date, amount))
 
+    # ── Seçili yılda kesilen acente faturaları: fatura tarihinde brüt tutar ─
+    issued_invoices = db.query(SalesInvoice).filter(
+        SalesInvoice.is_munferit.is_(False),
+        SalesInvoice.invoice_date >= start,
+        SalesInvoice.invoice_date < end,
+    ).all()
+    for invoice in issued_invoices:
+        gid = customer_group.get(invoice.customer_code, _OTHER_ID)
+        value = _to_eur(
+            invoice.amount_currency, invoice.amount, invoice.currency, eur_rate, rates,
+        )
+        _add(matrix[gid][invoice.invoice_date.month - 1], "invoiced_amount", value)
+
     # ── Açık gerçek faturalar: vade ayı + vadesi geçen alt küme ─
     invoice_map, _ = _compute_cached(db)
     terms = get_terms_map(db)
@@ -304,6 +318,7 @@ def compute_agency_finance(
             "advance_transactions": len(advance_rows),
             "collections": collection_count,
             "reservations": selected_reservation_count,
+            "invoices": len(issued_invoices),
             "open_invoices": open_invoice_count,
             "overdue_invoices": overdue_invoice_count,
         },

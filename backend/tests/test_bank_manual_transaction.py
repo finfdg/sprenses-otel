@@ -109,3 +109,65 @@ def test_upload_purges_manual_no_duplicate(client, auth_headers, eur_account, db
     rows = db.execute(text("SELECT source FROM bank_transactions WHERE account_id=:a AND amount=-20000"),
                       {"a": eur_account}).scalars().all()
     assert rows == ["statement"]  # tam olarak 1 satır ve o da ekstreden
+
+
+def test_cancel_redo_cycle_reversal_row_not_deduped(client, auth_headers, eur_account, db):
+    """İptal-tekrar döngüsü: iade satırı (aynı tarih+tutar+bakiye) mükerrer sanılıp ATLANMAZ.
+
+    Canlı vaka (03.08.2026 YK EUR): acente girişi +73.410,06 → 74.010,06; döviz satışı
+    −73.410,06 → 600,00; "Döviz Satış İptali" +73.410,06 → 74.010,06 (giriş satırıyla
+    AYNI üçlü!); yeni satış −73.052,51 → 957,55. Set-bazlı dedup iadeyi atlayıp bakiye
+    zincirini kırıyordu (boşluk 73.410,06). Adet-duyarlı sayaç dördünü de ekler; aynı
+    ekstre yeniden yüklenince dördü de atlanır (idempotans).
+    """
+    from app.models.user import User
+    from app.routers.finance.banks import _process_statement
+    from app.utils.bank_parser import ParsedHeader, ParsedTransaction, ParseResult, compute_tx_hash
+
+    def _tx(d, desc, amount, balance, typ):
+        return ParsedTransaction(date=d, receipt_no=None, description=desc,
+                                 amount=amount, balance=balance, type=typ,
+                                 tx_hash=compute_tx_hash(d, None, amount, desc))
+
+    d = date(2026, 8, 3)
+    parsed = ParseResult(
+        header=ParsedHeader(iban=None, currency="EUR", period_start=d, period_end=d),
+        transactions=[
+            _tx(d, "TRAVE/300726 acente girisi", 73410.06, 173410.06, "income"),
+            _tx(d, "TCMB DÖVİZ SATIŞ kur:54.821", -73410.06, 100000.00, "expense"),
+            _tx(d, "Döviz Satış İptali 516776150450", 73410.06, 173410.06, "income"),
+            _tx(d, "TCMB DÖVİZ SATIŞ kur:54.821", -73052.51, 100357.55, "expense"),
+        ],
+    )
+    user = db.query(User).first()
+    acc = db.query(BankAccount).filter(BankAccount.id == eur_account).first()
+
+    res = _process_statement(db, acc, parsed, SimpleNamespace(filename="t.xlsx"),
+                             "/tmp/t.xlsx", "xlsx", "t.xlsx", user, "127.0.0.1")
+    assert res["new_transactions"] == 4
+    assert res["skipped_transactions"] == 0
+
+    rows = db.execute(text(
+        "SELECT amount, balance FROM bank_transactions "
+        "WHERE account_id=:a AND date='2026-08-03' ORDER BY id"), {"a": eur_account}).all()
+    assert [(float(r[0]), float(r[1])) for r in rows] == [
+        (73410.06, 173410.06), (-73410.06, 100000.00),
+        (73410.06, 173410.06), (-73052.51, 100357.55),
+    ]
+
+    # İade satırının finance_event'i de üretilmiş olmalı (4 yeni FE)
+    fe_count = db.execute(text(
+        "SELECT count(*) FROM finance_events WHERE source_type='bank' AND source_id IN "
+        "(SELECT id FROM bank_transactions WHERE account_id=:a AND date='2026-08-03')"),
+        {"a": eur_account}).scalar()
+    assert fe_count == 4
+
+    # İdempotans: AYNI ekstre yeniden yüklenirse hiçbir satır eklenmez
+    res2 = _process_statement(db, acc, parsed, SimpleNamespace(filename="t.xlsx"),
+                              "/tmp/t.xlsx", "xlsx", "t.xlsx", user, "127.0.0.1")
+    assert res2["new_transactions"] == 0
+    assert res2["skipped_transactions"] == 4
+    total = db.execute(text(
+        "SELECT count(*) FROM bank_transactions WHERE account_id=:a AND date='2026-08-03'"),
+        {"a": eur_account}).scalar()
+    assert total == 4

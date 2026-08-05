@@ -3,8 +3,8 @@
 ## Amaç
 
 Acente finans hareketlerini farklı ekranlardan elle birleştirme ihtiyacını kaldırır. Seçili yıl
-ve ay için her acentede alınan avans, haricen tahsilat, rezervasyon ciro/adedi, vadesi geçen açık
-hak ediş ve ay sonunda alınması beklenen hak ediş aynı satırda gösterilir.
+için her acentede alınan avans, haricen tahsilat, rezervasyon ciro/adedi, kesilen fatura, vadesi
+geçen açık hak ediş ve alınması beklenen hak ediş aynı satırda gösterilir.
 
 - UI: `/dashboard/satis/acente-finans`
 - API: `GET /api/sales/acente-finans/?year=2026`
@@ -18,6 +18,7 @@ hak ediş ve ay sonunda alınması beklenen hak ediş aynı satırda gösterilir
 | Alınan avans / mahsup | Sedna muhasebe `340.*` hareketleri | Fiş tarihi |
 | Haricen tahsilat | Sedna muhasebe `120.*` alacak hareketi | Tahsilat tarihi |
 | Rezervasyon | Sedna PMS yerel aynası `reservations` | Çıkış tarihi |
+| Kesilen fatura | Sedna muhasebe `120.*` satış faturaları | Fatura tarihi |
 | Açık / vadesi geçen hak ediş | `sales_invoices` + FIFO tahsilat + `receivable_terms` | Fatura tarihi + vade günü |
 | İleri hak ediş tahmini | Aktif ileri PMS rezervasyonu + `agency_groups.term_days` | Çıkış tarihi + grup vadesi |
 
@@ -37,6 +38,7 @@ Ay sonu alınacak hak ediş
 API alanları:
 
 - `open_due`: bugün hâlâ açık olan gerçek faturaların kalan tutarı.
+- `invoiced_amount`: seçili yılda kesilen acente faturalarının brüt EUR karşılığı.
 - `projected_gross`: henüz faturalanmamış ileri rezervasyonların brüt tahmini.
 - `projected_advance`: bu tahmine FIFO mahsup edilen mevcut 340 avansı.
 - `projected_due`: `projected_gross - projected_advance`.
@@ -55,8 +57,7 @@ bir kez çalıştırılarak tablo doldurulur; devamında satış faturası senkr
 
 ## Ekran Davranışı
 
-- Yıl, ay (`Tüm Yıl` dahil) ve acente filtresi vardır.
-- KPI kartları seçili filtreye göre yeniden hesaplanır.
+- Yıl ve acente filtresi vardır; ekran doğrudan yıllık toplamları gösterir.
+- KPI kartları seçili yıl ve acenteye göre yeniden hesaplanır.
 - Masaüstünde karşılaştırmalı tablo, mobilde acente kartları kullanılır.
-- 12 aylık hak ediş planı yıl içindeki dağılımı gösterir ve aya geçiş sağlar.
 - Veriler WebSocket yayınlarıyla yenilenir; polling kullanılmaz.

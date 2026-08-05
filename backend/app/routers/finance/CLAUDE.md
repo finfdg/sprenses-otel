@@ -2399,9 +2399,17 @@ virmanın ekstre-gelmemiş tarafı) bakiyeye yansıtmak — ama ekstre yüklenin
 
 Mükerrer tespiti **bakiye bazlı** yapılır — en güvenilir yöntem:
 
-1. **Birincil kontrol:** `(tarih, tutar, bakiye)` üçlüsü DB'de var mı?
-   - Aynı tarih + aynı tutar + aynı bakiye = **kesinlikle aynı işlem** → atla
+1. **Birincil kontrol (2026-08-05'ten beri ADET-DUYARLI):** `(tarih, tutar, bakiye)` üçlüsü
+   `Counter` ile sayılır — DB'deki her kayıt ekstredeki BİR satırı karşılar; ekstrede üçlüden
+   N adet varsa DB'deki M adedi atlanır, fazlası (N−M) eklenir.
+   - Aynı tarih + aynı tutar + aynı bakiye + DB'de karşılığı var = aynı işlem → atla
    - Farklı bakiye = farklı işlem → ekle
+   - **Neden set değil Counter (canlı vaka 03.08.2026 YK EUR):** iptal-tekrar döngüsünde
+     iade satırı bakiyeyi önceki değere birebir geri getirir → aynı üçlü MEŞRU olarak iki
+     kez oluşur (acente girişi +€73.410,06→74.010,06 ile "Döviz Satış İptali"
+     +€73.410,06→74.010,06 aynı anahtar). Set-bazlı kontrol iadeyi mükerrer sanıp atladı →
+     bakiye zinciri kırıldı ("Ekstre bakiye zinciri kırık" bildirimi, boşluk 73.410,06).
+     Regresyon: `test_bank_manual_transaction.py::test_cancel_redo_cycle_reversal_row_not_deduped`.
 2. **Açıklama bazlı fallback (2026-04-20 düzeltildi):** `(tarih, tutar, normalize_desc)` — **yalnızca bakiye yoksa (None) veya 0 ise** devreye girer. Aksi halde aynı gün/tutar/açıklama olan ama bakiyesi farklı iki ayrı işlem (ör. aynı güne iki ayrı EFT çıkışı) birbirini yutar.
 3. **Hash bazlı fallback:** Bakiye ve açıklama eşleşmediyse hash kontrolü — `compute_tx_hash(date, receipt_no, amount, description, seq)` ile çakışırsa seq 1-19 artırılarak benzersiz hash üretilir
 

@@ -11,6 +11,7 @@
 		AlarmClock,
 		Building2,
 		CalendarRange,
+		FileText,
 		Hotel,
 		Inbox,
 		Landmark,
@@ -23,6 +24,7 @@
 		advance_applied: number;
 		collections: number;
 		reservation_amount: number;
+		invoiced_amount: number;
 		reservation_count: number;
 		overdue: number;
 		open_due: number;
@@ -59,6 +61,7 @@
 		advance_applied: 0,
 		collections: 0,
 		reservation_amount: 0,
+		invoiced_amount: 0,
 		reservation_count: 0,
 		overdue: 0,
 		open_due: 0,
@@ -167,10 +170,10 @@
 	</PageHeader>
 
 	{#if loading && !data}
-		<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-			{#each Array(5) as _}<div class="h-32 animate-pulse rounded-2xl bg-gray-100"></div>{/each}
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+			{#each Array(6) as _}<div class="h-32 animate-pulse rounded-2xl bg-gray-100"></div>{/each}
 		</div>
-		<TableSkeleton rows={7} columns={6} />
+		<TableSkeleton rows={7} columns={7} />
 	{:else if !data}
 		<EmptyState icon={Inbox} title="Rapor oluşturulamadı" description="Sedna ve PMS verileri okunamadı." />
 	{:else}
@@ -195,10 +198,11 @@
 		</div>
 
 		<!-- Yıllık KPI'lar -->
-		<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
 			<StatCard icon={WalletCards} accent="teal" label="Alınan Avans" value={euro(activeTotals.advance_received)} hint={`Mahsup: ${euro(activeTotals.advance_applied)}`} />
 			<StatCard icon={Landmark} accent="emerald" label="Haricen Tahsilat" value={euro(activeTotals.collections)} hint="340 virmanları hariç" />
 			<StatCard icon={Hotel} accent="blue" label="Rezervasyon Cirosu" value={euro(activeTotals.reservation_amount)} hint={`${activeTotals.reservation_count.toLocaleString('tr-TR')} rezervasyon`} />
+			<StatCard icon={FileText} accent="gray" label="Kesilen Fatura" value={euro(activeTotals.invoiced_amount)} hint={`${data.source_counts.invoices ?? 0} fatura`} />
 			<StatCard icon={AlarmClock} accent={activeTotals.overdue > 0 ? 'red' : 'gray'} label="Vadesi Geçen Hak Ediş" value={activeTotals.overdue > 0 ? euro(activeTotals.overdue) : '—'} hint="Bugün açık kalan gerçek faturalar" />
 			<StatCard icon={CalendarRange} accent="amber" label="Yıllık Alınacak Hak Ediş" value={euro(activeTotals.month_end_receivable)} hint={`Gerçek ${euro(activeTotals.open_due)} · tahmini ${euro(activeTotals.projected_due)}`} />
 		</div>
@@ -220,18 +224,19 @@
 			{/if}
 
 			{#if loading}
-				<div class="p-4"><TableSkeleton rows={6} columns={6} /></div>
+				<div class="p-4"><TableSkeleton rows={6} columns={7} /></div>
 			{:else if rows.length === 0}
 				<div class="p-8"><EmptyState icon={Inbox} title="Bu yılda kayıt yok" description="Seçili yıl veya acente için finansal hareket bulunamadı." /></div>
 			{:else}
 				<div class="hidden overflow-x-auto md:block">
-					<table class="min-w-[980px] w-full text-sm">
+					<table class="min-w-[1160px] w-full text-sm">
 						<thead class="bg-gray-50 text-left text-[11px] uppercase tracking-wide text-gray-500">
 							<tr>
 								<th class="px-5 py-3 font-semibold">Acente</th>
 								<th class="px-4 py-3 text-right font-semibold">Alınan Avans</th>
 								<th class="px-4 py-3 text-right font-semibold">Tahsilat</th>
 								<th class="px-4 py-3 text-right font-semibold">Rezervasyon</th>
+								<th class="px-4 py-3 text-right font-semibold">Kesilen Fatura</th>
 								<th class="px-4 py-3 text-right font-semibold">Vadesi Geçen</th>
 								<th class="px-5 py-3 text-right font-semibold">Yıllık Hak Ediş</th>
 							</tr>
@@ -251,6 +256,7 @@
 									</td>
 									<td class="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700">{euro(row.metrics.collections)}</td>
 									<td class="px-4 py-3 text-right tabular-nums"><span class="font-semibold text-gray-800">{euro(row.metrics.reservation_amount)}</span><span class="block text-[11px] text-gray-500">{row.metrics.reservation_count} rezervasyon</span></td>
+									<td class="px-4 py-3 text-right font-semibold tabular-nums text-indigo-700">{euro(row.metrics.invoiced_amount)}</td>
 									<td class="px-4 py-3 text-right font-semibold tabular-nums {row.metrics.overdue > 0 ? 'text-red-700' : 'text-gray-400'}">{row.metrics.overdue > 0 ? euro(row.metrics.overdue) : '—'}</td>
 									<td class="px-5 py-3 text-right tabular-nums"><span class="font-bold text-amber-700">{euro(row.metrics.month_end_receivable)}</span><span class="block text-[11px] text-gray-500">gerçek {euro(row.metrics.open_due)} · tahmini {euro(row.metrics.projected_due)}</span></td>
 								</tr>
@@ -262,6 +268,7 @@
 								<td class="px-4 py-3 text-right tabular-nums text-teal-700">{euro(activeTotals.advance_received)}</td>
 								<td class="px-4 py-3 text-right tabular-nums text-emerald-700">{euro(activeTotals.collections)}</td>
 								<td class="px-4 py-3 text-right tabular-nums">{euro(activeTotals.reservation_amount)}</td>
+								<td class="px-4 py-3 text-right tabular-nums text-indigo-700">{euro(activeTotals.invoiced_amount)}</td>
 								<td class="px-4 py-3 text-right tabular-nums text-red-700">{euro(activeTotals.overdue)}</td>
 								<td class="px-5 py-3 text-right tabular-nums text-amber-700">{euro(activeTotals.month_end_receivable)}</td>
 							</tr>
@@ -280,7 +287,8 @@
 								<div><span class="block text-gray-500">Alınan avans</span><strong class="text-teal-700">{euro(row.metrics.advance_received)}</strong></div>
 								<div class="text-right"><span class="block text-gray-500">Tahsilat</span><strong class="text-emerald-700">{euro(row.metrics.collections)}</strong></div>
 								<div><span class="block text-gray-500">Rezervasyon</span><strong>{euro(row.metrics.reservation_amount)}</strong><span class="ml-1 text-gray-500">· {row.metrics.reservation_count}</span></div>
-								<div class="text-right"><span class="block text-gray-500">Vadesi geçen</span><strong class={row.metrics.overdue > 0 ? 'text-red-700' : 'text-gray-400'}>{row.metrics.overdue > 0 ? euro(row.metrics.overdue) : '—'}</strong></div>
+								<div class="text-right"><span class="block text-gray-500">Kesilen fatura</span><strong class="text-indigo-700">{euro(row.metrics.invoiced_amount)}</strong></div>
+								<div><span class="block text-gray-500">Vadesi geçen</span><strong class={row.metrics.overdue > 0 ? 'text-red-700' : 'text-gray-400'}>{row.metrics.overdue > 0 ? euro(row.metrics.overdue) : '—'}</strong></div>
 							</div>
 							<div class="mt-3 flex items-end justify-between rounded-xl bg-amber-50 px-3 py-2">
 								<span class="text-xs text-amber-900">Yıllık alınacak hak ediş<br /><small class="text-amber-700">Gerçek {euro(row.metrics.open_due)} · tahmini {euro(row.metrics.projected_due)}</small></span>

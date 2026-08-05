@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import uuid
+from collections import Counter
 from typing import List
 
 from fastapi import BackgroundTasks, HTTPException, UploadFile
@@ -246,12 +247,18 @@ def _process_statement(
         new_count = 0
         skipped_count = 0
 
-        # DB'deki mevcut bakiyeleri set olarak tut (tarih+tutar+bakiye = benzersiz işlem)
-        existing_balances = set()
+        # DB'deki mevcut bakiyeleri ADET bazlı tut (tarih+tutar+bakiye = aynı işlem).
+        # Counter, set DEĞİL: iptal-tekrar döngüsünde iade satırı bakiyeyi önceki değere
+        # birebir geri getirir ve aynı üçlü MEŞRU olarak iki kez oluşur (canlı vaka
+        # 03.08.2026 YK EUR: acente girişi +73.410,06→74.010,06 ile "Döviz Satış İptali"
+        # +73.410,06→74.010,06 aynı anahtarı üretti; set iadeyi mükerrer sanıp atladı →
+        # bakiye zinciri kırıldı). Ekstrede üçlüden N adet varsa DB'deki M adedi atlanır,
+        # fazlası (N−M) yeni işlem olarak eklenir.
+        existing_balance_counts: Counter = Counter()
         for row in db.query(
             BankTransaction.date, BankTransaction.amount, BankTransaction.balance
         ).filter(BankTransaction.account_id == acc.id).all():
-            existing_balances.add((row.date, float(row.amount), float(row.balance or 0)))
+            existing_balance_counts[(row.date, float(row.amount), float(row.balance or 0))] += 1
 
         # Açıklama bazlı mükerrer kontrolü (tarih+tutar+normalize açıklama)
         def _normalize_desc(desc: str) -> str:
@@ -280,8 +287,10 @@ def _process_statement(
 
         for tx in parsed.transactions:
             # Bakiye bazlı mükerrer kontrolü — aynı tarih+tutar+bakiye = aynı işlem
+            # (adet-duyarlı: DB'deki her kayıt ekstredeki BİR satırı karşılar)
             balance_key = (tx.date, float(tx.amount), float(tx.balance or 0))
-            if balance_key in existing_balances:
+            if existing_balance_counts[balance_key] > 0:
+                existing_balance_counts[balance_key] -= 1
                 skipped_count += 1
                 continue
 
@@ -326,8 +335,9 @@ def _process_statement(
             db.flush()
             # Finance event upsert — yeni işlem nakit akıma eklenir
             finance_event_svc.upsert_bank_tx(db, db_tx, acc)
+            # NOT: balance_key sayacı BİLEREK artırılmaz — aynı dosyada aynı üçlünün
+            # ikinci kez görünmesi (iptal-tekrar) ayrı gerçek işlemdir, ikisi de eklenir.
             existing_hashes.add(final_hash)
-            existing_balances.add(balance_key)
             existing_desc_keys.add(desc_key)
             new_count += 1
 

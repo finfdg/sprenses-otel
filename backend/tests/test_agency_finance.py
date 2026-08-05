@@ -109,6 +109,8 @@ class TestAgencyFinanceMath:
         assert months[1]["advance_received"] == 300
         assert months[4]["advance_applied"] == 100
         assert months[4]["collections"] == 200
+        assert months[4]["invoiced_amount"] == 500
+        assert months[6]["invoiced_amount"] == 400
         assert months[8]["reservation_amount"] == 1000
         assert months[8]["reservation_count"] == 1
 
@@ -128,6 +130,8 @@ class TestAgencyFinanceMath:
         assert months[9]["month_end_receivable"] == 800
 
         assert row["totals"]["month_end_receivable"] == 1500
+        assert row["totals"]["invoiced_amount"] == 900
+        assert result["source_counts"]["invoices"] >= 2
         assert result["totals"]["overdue"] >= 300
 
     def test_virman_is_not_external_collection(self, db):
@@ -165,5 +169,5 @@ class TestAgencyFinanceAPI:
         assert body["agencies"]
         assert set((
             "advance_received", "collections", "reservation_amount", "overdue",
-            "month_end_receivable",
+            "invoiced_amount", "month_end_receivable",
         )).issubset(body["totals"])
