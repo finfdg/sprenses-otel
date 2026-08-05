@@ -26,24 +26,25 @@ geçen açık hak ediş ve alınması beklenen hak ediş aynı satırda gösteri
 faturaya mahsubunun karşı bacağıdır. Dahil edilmesi aynı parayı hem tahsilat hem avans mahsubu
 olarak iki kez gösterirdi.
 
-## Ay Sonu Hak Ediş Formülü
+## Hak Ediş Formülü
 
 ```text
 Ay sonu alınacak hak ediş
-  = açık gerçek faturaların vade ayındaki kalan tutarı
+  = açık gerçek faturaların, kullanılmamış 340 avansı FIFO mahsup edilmiş net tutarı
   + ileri rezervasyonların vade ayındaki brüt tutarı
-  - ilgili acentanın kullanılmamış 340 avansı (FIFO)
+  - açık faturalardan artan 340 avansı (FIFO)
 ```
 
 API alanları:
 
-- `open_due`: bugün hâlâ açık olan gerçek faturaların kalan tutarı.
+- `open_due`: bugün hâlâ açık olan gerçek faturaların bekleyen 340 avansı mahsup edilmiş net tutarı.
 - `invoiced_amount`: seçili yılda kesilen acente faturalarının brüt EUR karşılığı.
 - `projected_gross`: henüz faturalanmamış ileri rezervasyonların brüt tahmini.
 - `projected_advance`: bu tahmine FIFO mahsup edilen mevcut 340 avansı.
 - `projected_due`: `projected_gross - projected_advance`.
 - `month_end_receivable`: `open_due + projected_due`.
-- `overdue`: `open_due` içindeki, vadesi bugün geçmiş alt küme.
+- `overdue`: avans mahsubu sonrası kalan `open_due` içindeki, vadesi bugün geçmiş alt küme. Bir
+  acentanın kullanılmamış avansı açık faturalarını karşılıyorsa vadesi geçen tutar gösterilmez.
 
 Eşleşmeyen muhasebe hesapları `Diğer / Eşleşmeyen` altında görünür. Bu havuzdaki avanslar farklı
 acenteleri birbirine mahsup etmemek için grup dışı rezervasyon tahminlerinden düşülmez.

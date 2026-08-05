@@ -117,10 +117,10 @@ def compute_agency_finance(
 ) -> dict:
     """Seçili yıl için acente × ay finansal takip veri kümesini üret.
 
-    ``month_end_receivable`` iki bileşendir: halen açık gerçek faturaların vade ayı
-    (``open_due``) + henüz faturalanmamış ileri rezervasyonların acente vadesine göre
-    hesaplanan ve kalan 340 avansıyla FIFO mahsup edilmiş net tahmini (``projected_due``).
-    ``overdue``, açık gerçek hak edişlerin bu toplam içindeki vadesi geçmiş alt kümesidir.
+    ``month_end_receivable`` iki bileşendir: kullanılmamış 340 avansı önce FIFO mahsup edilmiş
+    açık gerçek faturalar (``open_due``) + açık faturalardan artan avansla mahsup edilmiş ileri
+    rezervasyon tahmini (``projected_due``). ``overdue``, bu mahsup sırasından sonra kalan açık
+    gerçek hak edişlerin vadesi geçmiş alt kümesidir.
     """
     today = today or date.today()
     rates = _latest_rates(db)
@@ -212,11 +212,12 @@ def compute_agency_finance(
         )
         _add(matrix[gid][invoice.invoice_date.month - 1], "invoiced_amount", value)
 
-    # ── Açık gerçek faturalar: vade ayı + vadesi geçen alt küme ─
+    # ── Açık gerçek faturalar: kullanılmamış 340 avansı önce bunlara FIFO mahsup et ─
     invoice_map, _ = _compute_cached(db)
     terms = get_terms_map(db)
     open_invoice_count = 0
     overdue_invoice_count = 0
+    open_by_group: dict = {gid: [] for gid in group_meta}
     for invoice in db.query(SalesInvoice).filter(SalesInvoice.is_munferit.is_(False)).all():
         status = invoice_map.get(invoice.id, {})
         remaining_tl = round(_f(invoice.amount) - _f(status.get("collected_tl", 0)), 2)
@@ -236,16 +237,30 @@ def compute_agency_finance(
             due_month = due_date.month
         elif year == today.year and due_date.year < year:
             due_month = 1  # önceki yıldan devreden açık/gecikmiş hak ediş
-        if due_month is not None:
-            slot = matrix[gid][due_month - 1]
-            _add(slot, "open_due", remaining_eur)
-            _add(slot, "month_end_receivable", remaining_eur)
-        if due_date < today and due_month is not None:
-            _add(matrix[gid][due_month - 1], "overdue", remaining_eur)
-            overdue_invoice_count += 1
-        open_invoice_count += 1
+        open_by_group[gid].append((due_date, invoice.invoice_date, invoice.id, remaining_eur, due_month))
 
-    # ── İleri rezervasyon hak edişleri: kalan 340 avansla grup bazlı FIFO mahsup ─
+    for gid, items in open_by_group.items():
+        # Eşleşmeyen 340 bakiyesini farklı carilerin ortak havuzuna dönüştürme.
+        balance = max(0.0, advance_balance.get(gid, 0.0)) if gid != _OTHER_ID else 0.0
+        for due_date, invoice_date, invoice_id, remaining_eur, due_month in sorted(
+            items, key=lambda item: (item[0], item[1], item[2]),
+        ):
+            applied = min(balance, remaining_eur)
+            balance = round(balance - applied, 2)
+            net = round(remaining_eur - applied, 2)
+            if net <= 0.01:
+                continue
+            if due_month is not None:
+                slot = matrix[gid][due_month - 1]
+                _add(slot, "open_due", net)
+                _add(slot, "month_end_receivable", net)
+            if due_date < today and due_month is not None:
+                _add(matrix[gid][due_month - 1], "overdue", net)
+                overdue_invoice_count += 1
+            open_invoice_count += 1
+        advance_balance[gid] = balance
+
+    # ── İleri rezervasyon hak edişleri: açık faturadan artan 340 avansla FIFO mahsup ─
     for gid, items in projected.items():
         # Eşleşmeyen 340 hesaplarını, ilgisiz grup-dışı rezervasyonlara mahsup etme.
         balance = max(0.0, advance_balance.get(gid, 0.0)) if gid != _OTHER_ID else 0.0
