@@ -202,7 +202,7 @@
 			<StatCard icon={WalletCards} accent="teal" label="Alınan Avans" value={euro(activeTotals.advance_received)} hint={`Mahsup: ${euro(activeTotals.advance_applied)}`} />
 			<StatCard icon={Landmark} accent="emerald" label="Haricen Tahsilat" value={euro(activeTotals.collections)} hint="340 virmanları hariç" />
 			<StatCard icon={Hotel} accent="blue" label="Rezervasyon Cirosu" value={euro(activeTotals.reservation_amount)} hint={`${activeTotals.reservation_count.toLocaleString('tr-TR')} rezervasyon`} />
-			<StatCard icon={FileText} accent="gray" label="Kesilen Fatura" value={euro(activeTotals.invoiced_amount)} hint={`${data.source_counts.invoices ?? 0} fatura`} />
+			<StatCard icon={FileText} accent="gray" label="Kesilen Fatura" value={euro(activeTotals.invoiced_amount)} hint="Seçili yıldaki brüt tutar" />
 			<StatCard icon={AlarmClock} accent={activeTotals.overdue > 0 ? 'red' : 'gray'} label="Vadesi Geçen Hak Ediş" value={activeTotals.overdue > 0 ? euro(activeTotals.overdue) : '—'} hint="Bugün açık kalan gerçek faturalar" />
 			<StatCard icon={CalendarRange} accent="amber" label="Yıllık Alınacak Hak Ediş" value={euro(activeTotals.month_end_receivable)} hint={`Gerçek ${euro(activeTotals.open_due)} · tahmini ${euro(activeTotals.projected_due)}`} />
 		</div>
