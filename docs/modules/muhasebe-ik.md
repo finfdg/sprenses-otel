@@ -141,6 +141,13 @@ ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **
     tahmini **aşmayan** toplam ara fatura sayılır → `entry.amount` tahminde KALIR, FE tutarı =
     FIFO kalan + (tahmin − gelen). Belirti: 2 Tem'de gelen 1.029 TL'lik ek elektrik faturası 1,5M'lik
     Temmuz planını çökertmişti. Tahmini aşan erken fatura (su: ay başı tam faturası) normal senkronlanır.
+  - **Kapanış toleransı (2026-08-05):** ana fatura ay SONUNDA kesilip Sedna'ya **izleyen ayın
+    içinde** işlenir → "ay bitti = tüm faturalar geldi" varsayımı yanlıştı. Canlı belirti: 1 Ağustos'ta
+    Temmuz "kapanmış" sayılınca ₺2.290'lık üç ek fatura ₺1,5M planı ezdi ve giriş yanlışlıkla
+    "Ödendi" oldu (asıl ~₺3,5M fatura henüz Sedna'da değildi) → projeksiyon o kadar eksik kaldı.
+    Çözüm: fatura ayı izleyen ayın **20'sine kadar** açık sayılır (`_BILL_CLOSE_GRACE_DAYS`,
+    `_bill_month_open`). Gerçekten düşük geçen ay tolerans bitince yine gerçeğe döner; tahmini
+    aşan ana fatura işlendiği an (tolerans beklenmeden) normal senkronlanır.
   - **Faturası gelmemiş (gelecek) ay** → **tahmini** kalır (FE korunur → nakit akım projeksiyonu).
   - Daha önce senkronlanmış ay faturasını kaybederse (cari silme) → tahmine geri döner + FE yeniden.
 - **NAKİT AKIM TEMSİLİ — DÜZENLİ ÖDEME TARAFI (2026-07-07, kullanıcı kararı — ESKİNİN TERSİ):**
@@ -169,8 +176,8 @@ ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **
 - **start_month düzenlenebilir:** Tanımın başlangıç ayı (`start_month`) PATCH ile değiştirilince
   girişler yeniden üretilir; cari-bağlıysa otomatik yeniden senkronlanır (fabrika + onay executor).
 - Test: `tests/test_recurring_vendor_sync.py` (tutar/ödeme/ödenen-ay-FE-silme/kalan-borç-FE/
-  ara-fatura-koruması/FE-idempotent-zorlama/vendor-FE-bastırma+zincir/gelecek-tahmini/revert/
-  endpoint/start_month/fatura-gecikmesi — 15 test).
+  ara-fatura-koruması/kapanış-toleransı-canlı-regresyonu/FE-idempotent-zorlama/
+  vendor-FE-bastırma+zincir/gelecek-tahmini/revert/endpoint/start_month/fatura-gecikmesi — 16 test).
 
 ## API Endpoint'leri
 

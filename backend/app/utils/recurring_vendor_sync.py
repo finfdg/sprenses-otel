@@ -14,13 +14,19 @@ regenerate/entry update) yarışıp ÇİFT SAYIMA (ör. Su Haziran 2026: hem rec
 vendor FE) yol açıyordu.
 
 Senkron kuralları (fatura ayı = tüketim ayı + `billing_offset_months`):
-  - **Fatura ayı KAPANMIŞ** (bugün fatura ayından sonraki ayda/ötesinde) veya gelen
-    faturalar tahmini AŞMIŞSA → ``entry.amount`` = gerçek fatura toplamı,
-    ``entry.is_paid`` = FIFO'ya göre tamamı kapandı mı.
+  - **Fatura ayı KAPANMIŞ** (bugün fatura ayını izleyen ayın `_BILL_CLOSE_GRACE_DAYS`
+    gününü geçmiş) veya gelen faturalar tahmini AŞMIŞSA → ``entry.amount`` = gerçek
+    fatura toplamı, ``entry.is_paid`` = FIFO'ya göre tamamı kapandı mı.
   - **Fatura ayı AÇIK + gelen toplam tahminin ALTINDA** (ara/ek fatura — ör. Temmuz
     başında gelen 1.029 TL'lik ek elektrik faturası) → tahmin KORUNUR (aylık plan
     çökertilmez); FE tutarı = FIFO kalanı + (tahmin − gelen) → projeksiyon plan
     seviyesinde kalır, gelen kısmın ödenen bölümü düşer.
+  - **Kapanış toleransı (2026-08-05):** ana fatura ay SONUNDA kesilip Sedna'ya izleyen
+    ayın içinde işlenir (canlı: Temmuz elektriği ~₺3,5M gelmeden 1 Ağustos'ta ay
+    "kapanmış" sayıldı → ₺2.290'lık üç ek fatura planı ezdi, giriş yanlışlıkla
+    "Ödendi" oldu). Bu yüzden fatura ayı, izleyen ayın `_BILL_CLOSE_GRACE_DAYS`
+    (20). gününe kadar AÇIK sayılır — tahminin altındaki toplam o tarihe dek ara
+    fatura muamelesi görür; gerçekten düşük geçen ay tolerans bitince yine gerçeğe döner.
   - **FE zorlaması her turda (idempotent):** ödendi → FE silinir (banka hareketi
     gerçeği temsil eder); ödenmedi → FE upsert (tutar = yukarıdaki kalan). Başka bir
     akış FE'yi yeniden yaratsa/silse bile bir sonraki senkron durumu düzeltir.
@@ -43,6 +49,20 @@ from app.utils.vendor_fifo import calculate_fifo_amounts
 logger = logging.getLogger(__name__)
 
 _EPS = 0.01
+
+# Fatura ayı kapanış toleransı: ana fatura ay sonunda kesilip Sedna'ya izleyen ayın
+# içinde işlendiğinden, ay izleyen ayın bu gününe kadar "açık" sayılır (ödeme günü
+# tipik olarak izleyen ayın 10'u — 20 gün, işleme gecikmesini rahat karşılar).
+_BILL_CLOSE_GRACE_DAYS = 20
+
+
+def _bill_month_open(today: date, period_year: int, period_month: int, offset_months: int) -> bool:
+    """Fatura ayı (tüketim + offset) hâlâ açık mı? İzleyen ayın tolerans gününe kadar açıktır."""
+    bill_idx = period_year * 12 + (period_month - 1) + (offset_months or 0)
+    today_idx = today.year * 12 + (today.month - 1)
+    if today_idx <= bill_idx:
+        return True
+    return today_idx == bill_idx + 1 and today.day <= _BILL_CLOSE_GRACE_DAYS
 
 
 def _shift_period(d, offset_months: int):
@@ -83,7 +103,6 @@ def sync_recurring_from_vendors(
     if fifo is None:
         fifo = calculate_fifo_amounts(db)  # dict[vtx_id → ödenmemiş tutar]
     today = today or date.today()
-    today_idx = today.year * 12 + (today.month - 1)
 
     details = []
     total_synced = 0
@@ -114,10 +133,11 @@ def sync_recurring_from_vendors(
             if actual and actual["total"] > _EPS:
                 invoiced = round(actual["total"], 2)
                 unpaid = round(actual["unpaid"], 2)
-                # Fatura ayı (tüketim + offset) bitti mi? Bitmeden gelen ve tahmini aşmayan
-                # toplam = ara/ek fatura → aylık plan korunur (tahmin çökertilmez).
-                period_idx = entry.period_year * 12 + (entry.period_month - 1)
-                bill_month_open = today_idx <= period_idx + offset
+                # Fatura ayı (tüketim + offset + kapanış toleransı) bitti mi? Bitmeden
+                # gelen ve tahmini aşmayan toplam = ara/ek fatura → plan korunur.
+                bill_month_open = _bill_month_open(
+                    today, entry.period_year, entry.period_month, offset,
+                )
                 if bill_month_open and invoiced < estimate - _EPS:
                     new_amount = estimate
                     fe_amount = round(unpaid + (estimate - invoiced), 2)

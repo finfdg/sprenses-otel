@@ -138,11 +138,46 @@ def test_partial_open_month_keeps_estimate(db):
     # FE = FIFO kalan (20) + henüz faturalanmamış plan (1000 − 50) = 970
     assert fe is not None and float(fe.amount) == 970.0
 
-    # Ay kapanınca gerçek tutara döner: entry 50, FE = kalan 20
-    sync_recurring_from_vendors(db, today=date(2026, 8, 1))
+    # Kapanış toleransı: izleyen ayın 20'sine kadar ay hâlâ açık → plan korunur
+    sync_recurring_from_vendors(db, today=date(2026, 8, 20))
+    db.refresh(jul)
+    assert float(jul.amount) == 1000.0 and jul.is_paid is False
+
+    # Tolerans bitince gerçek tutara döner: entry 50, FE = kalan 20
+    sync_recurring_from_vendors(db, today=date(2026, 8, 21))
     db.refresh(jul)
     assert float(jul.amount) == 50.0
     assert float(_fe(db, jul.id).amount) == 20.0
+
+
+def test_close_grace_protects_plan_until_main_invoice_arrives(db):
+    """CANLI REGRESYON (2026-08-05, Temmuz elektriği): ana fatura Sedna'ya işlenmeden
+    ay dönümünde küçük ek faturalar planı ezip girişi 'Ödendi' yapıyordu (₺1,5M plan →
+    ₺2.290 'gerçek'). Tolerans içinde plan korunur; ana fatura gelince gerçeğe döner."""
+    defn, vendor = _seed(
+        db,
+        invoices=[(date(2026, 7, 2), 1029.23), (date(2026, 7, 8), 600.0),
+                  (date(2026, 7, 17), 660.87)],
+        payments=[(date(2026, 7, 20), 2290.10)],
+        amount=1500000.0,
+    )
+    # 5 Ağustos: ay dönümü geçti ama tolerans içinde → plan korunur, ödendi DEĞİL
+    sync_recurring_from_vendors(db, today=date(2026, 8, 5))
+    jul = _entries_by_period(defn)[(2026, 7)]
+    assert float(jul.amount) == 1500000.0 and jul.is_paid is False
+    # FE = FIFO kalan (0) + henüz faturalanmamış plan (1.500.000 − 2.290,10)
+    assert float(_fe(db, jul.id).amount) == 1497709.90
+
+    # Ana fatura Sedna'ya işlendi (tahmini aşar) → gerçek tutar + ödenmemiş
+    upload_id = db.query(VendorTransaction.upload_id).filter(
+        VendorTransaction.vendor_id == vendor.id).limit(1).scalar()
+    db.add(VendorTransaction(vendor_id=vendor.id, upload_id=upload_id,
+                             date=date(2026, 7, 31), borc=0, alacak=3500000.0,
+                             bakiye=0, tx_hash="inv-main-jul"))
+    db.flush()
+    sync_recurring_from_vendors(db, today=date(2026, 8, 6))
+    db.refresh(jul)
+    assert float(jul.amount) == 3502290.10 and jul.is_paid is False
 
 
 def test_partial_open_month_exceeding_estimate_syncs_real(db):
