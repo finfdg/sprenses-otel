@@ -24,19 +24,23 @@ Temkinlilik kuralları (yalnız kanıtlı sınıflar — 2026-07-18 denetim ders
   gibi sayar (`matching_service._match_cc_to_bank`).
 """
 import logging
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.models.agency_code_map import AgencyCodeMap
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.check import Check
 from app.models.vendor import Vendor
 from app.utils import sedna_client
 from app.utils.auto_tagger import (
+    AGENCY_CATEGORY,
     CHECK_PAYMENT_CATEGORY,
     LEASING_CATEGORY,
+    _AGENCY_NAME_BLOCK,
     _get_or_create_category,
+    _normalize,
     _sync_finance_events,
 )
 
@@ -61,6 +65,23 @@ PREFIX_CATEGORY: Dict[str, str] = {
     # "Çek Ödemesi" başlığına girer; bağlı çek varsa "Cari: <firma>" etiketi de
     # basılır (btx-özel bilgi → k↔k çaprazlanma riski YOK, exact şartı aranmaz).
     "103": CHECK_PAYMENT_CATEGORY,
+    # 2026-08-05 genişletme (kullanıcı isteği: "Etiketsiz'i Sedna'nın izlediği
+    # başlığa taşı") — Temmuz'daki 13 eşleşmiş-ama-haritasız kalem canlı fişlerle
+    # tek tek doğrulandı; hepsi hesap planı anlamıyla birebir:
+    "100": "Kasa",              # KASA — banka↔kasa nakit yatan/çekilen
+    "101": "Çek Tahsilatı",     # ALINAN ÇEKLER — tahsil edilen müşteri çeki
+    "159": "Verilen Avanslar",  # VERİLEN SİPARİŞ AVANSLARI (ör. arsa avansı)
+    "602": "Diğer Gelirler",    # DİĞER GELİRLER (ör. döviz teşvik primi)
+    "780": "Finansman Gideri",  # FİNANSMAN GİDERLERİ (ör. erken POS tahsilat masrafı)
+}
+
+# 120 (ALICILAR) alt-kırılımı — tek prefix'e indirgenemez (canlı: aynı 120 altında
+# acente, kiracı, münferit misafir, telekom/ATM-kira alıcıları var). Sıra:
+# 1) alt-prefix haritası → 2) acente kod haritası (agency_code_map, PMS↔Sedna eşlemesi;
+# ad blok-listesi `auto_tagger._AGENCY_NAME_BLOCK` ile çift kontrol) → 3) "Cari".
+SUBPREFIX_CATEGORY: Dict[str, str] = {
+    "120.02": "Kira Geliri",           # KİRACILAR (dükkan/foto vb. kira tahsilatı)
+    "120.03": "Konaklama Tahsilatı",   # MUNFERIT (münferit misafir ödemeleri)
 }
 
 TAG_SOURCE_SEDNA = "sedna"
@@ -78,13 +99,15 @@ def decide_category(
     own_code: Optional[str],
     account_currency: Optional[str],
     mapped_currencies: Dict[str, str],
+    agency_codes: Optional[Set[str]] = None,
 ) -> Tuple[Optional[str], Optional[dict]]:
     """Fiş bacaklarından (kategori adı, karar bacağı) türet — saf, test edilebilir.
 
     legs: fetch_fiche_counter_legs satırları (tek fiş). own_code: banka hesabımızın
     Sedna 102 kodu (kendi bacağımız karar dışı). mapped_currencies: bizim eşlenmiş
     hesaplarımız {sedna_code: currency} (banka↔banka fişinde döviz satışı ayrımı).
-    Haritalanamayan fiş → (None, None): kalem etiketlenmez.
+    agency_codes: agency_code_map'teki Sedna acc_code kümesi (120 alıcı bacağında
+    Acenta/Cari ayrımı). Haritalanamayan fiş → (None, None): kalem etiketlenmez.
 
     Karar bacağı = |tutar|ı EN BÜYÜK non-own bacak (102 VEYA non-102). Küçük 770
     komisyon/vergi bacakları büyük 102-virman / 320-cari bacağını GÖLGELEMEZ (canlı:
@@ -104,6 +127,15 @@ def decide_category(
         if cur and cur != (account_currency or "TRY"):
             return "Döviz Satışı", decisive
         return "Virman", decisive
+    if code.startswith("120"):
+        # ALICILAR: alt-prefix → acente haritası → Cari (Sedna cari hesap sınıfı).
+        sub_cat = SUBPREFIX_CATEGORY.get(".".join(code.split(".")[:2]))
+        if sub_cat:
+            return sub_cat, decisive
+        name_norm = _normalize(decisive.get("account_name") or "")
+        if agency_codes and code in agency_codes and not _AGENCY_NAME_BLOCK.search(name_norm):
+            return AGENCY_CATEGORY, decisive
+        return "Cari", decisive
     cat = PREFIX_CATEGORY.get(code.split(".")[0])
     return (cat, decisive) if cat else (None, None)
 
@@ -152,6 +184,7 @@ def apply_sedna_tag_bridge(
         a.sedna_account_code: (a.currency or "TRY")
         for a in db.query(BankAccount).filter(BankAccount.sedna_account_code.isnot(None)).all()
     }
+    agency_codes: Set[str] = {c for (c,) in db.query(AgencyCodeMap.acc_code).all() if c}
 
     tagged: List[BankTransaction] = []
     skipped_unmapped = 0
@@ -164,7 +197,8 @@ def apply_sedna_tag_bridge(
                 continue
             decisions = [
                 decide_category(legs_by_owner.get(s.get("owner_id"), []),
-                                acc.sedna_account_code, acc.currency, mapped_currencies)
+                                acc.sedna_account_code, acc.currency, mapped_currencies,
+                                agency_codes=agency_codes)
                 for s in g["sednas"]
             ]
             cats = {c for c, _ in decisions}

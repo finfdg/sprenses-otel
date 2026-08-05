@@ -5,6 +5,11 @@ edilmesi (2026-07-23): 335/196→Personel, 320→Cari (+vendor_id/tag_note yaln�
 360→Vergi/SGK; 102-yalnız fişte Virman / Döviz Satışı; haritasız (770) ve karışık k↔k
 gruplar ATLANIR; manuel etiket ve "pos bloke" açıklaması DOKUNULMAZ; Sedna kopuksa
 köprü hatası mutabakat koşusunu düşürmez.
+
+2026-08-05 genişletmesi: 100→Kasa, 101→Çek Tahsilatı, 159→Verilen Avanslar,
+602→Diğer Gelirler, 780→Finansman Gideri; 120 (ALICILAR) alt-kırılımlı —
+120.02→Kira Geliri, 120.03→Konaklama Tahsilatı, acente-haritalı (agency_code_map,
+ad blok-listesi geçen)→Acenta, kalan→Cari.
 """
 
 from datetime import date, datetime, timedelta
@@ -175,6 +180,59 @@ class TestDecideCategory:
     def test_own_leg_excluded_empty_fise_none(self):
         legs = [_leg(10, "102.01.01.0001", credit=100.0)]
         assert decide_category(legs, "102.01.01.0001", "TRY", {}) == (None, None)
+
+    # ── 2026-08-05 genişletmesi: yeni prefix'ler + 120 alt-kırılımı ──
+
+    def test_kasa_cek_avans_gelir_finansman_prefixleri(self):
+        cases = [
+            ("100.01.01.0002", "Kasa", "EUR KASA"),
+            ("101.01.02.0001", "Çek Tahsilatı", "ALINAN ÇEKLER - EUR"),
+            ("159.01.01.0082", "Verilen Avanslar", "NECİP ÖZDEN (ARSA)"),
+            ("602.02.01.0030", "Diğer Gelirler", "DÖVİZ TEŞFİK PRİM GELİRİ"),
+            ("780.01.01.0020", "Finansman Gideri", "POS CİHAZLARI MASRAF VE KOMİSYONU"),
+        ]
+        for code, expected, name in cases:
+            legs = [_leg(10, "102.01.01.0001", credit=5000.0),
+                    _leg(10, code, debit=5000.0, name=name)]
+            cat, dec = decide_category(legs, "102.01.01.0001", "TRY", {})
+            assert cat == expected, code
+            assert dec["code"] == code
+
+    def test_120_kiraci_kira_geliri(self):
+        legs = [_leg(10, "102.02.13.0001", debit=80830.65),
+                _leg(10, "120.02.01.0017", credit=80830.65, name="YAVUZ TUNÇER-FOTOĞRAF")]
+        cat, _ = decide_category(legs, "102.02.13.0001", "EUR", {})
+        assert cat == "Kira Geliri"
+
+    def test_120_munferit_konaklama_tahsilati(self):
+        legs = [_leg(10, "102.01.05.0006", debit=52000.0),
+                _leg(10, "120.03.01.0001", credit=52000.0, name="MUNFERIT GENEL")]
+        cat, _ = decide_category(legs, "102.01.05.0006", "TRY", {})
+        assert cat == "Konaklama Tahsilatı"
+
+    def test_120_acente_haritali_acenta(self):
+        legs = [_leg(10, "102.01.02.0002", debit=1092769.44),
+                _leg(10, "120.01.01.F005", credit=1092769.44,
+                     name="FUN AND SUN HOTELS OTEL İŞLETMECİLİĞİ")]
+        cat, _ = decide_category(legs, "102.01.02.0002", "TRY", {},
+                                 agency_codes={"120.01.01.F005"})
+        assert cat == "Acenta"
+
+    def test_120_haritasiz_alici_cari(self):
+        # Vodafone / ATM-kira gibi acente-olmayan 120.01 alıcıları → Cari
+        legs = [_leg(10, "102.01.05.0006", debit=13137.72),
+                _leg(10, "120.01.01.0002", credit=13137.72, name="VODAFONE TELEKOM AŞ.")]
+        cat, _ = decide_category(legs, "102.01.05.0006", "TRY", {}, agency_codes=set())
+        assert cat == "Cari"
+
+    def test_120_haritali_ama_blok_listeli_ad_cari(self):
+        # agency_code_map'te olsa bile adı blok-listeye takılan alıcı Acenta OLMAZ
+        legs = [_leg(10, "102.01.02.0002", debit=106633.30),
+                _leg(10, "120.01.001.Y001", credit=106633.30,
+                     name="YAPI KREDİ BANKASI A.Ş. ATM")]
+        cat, _ = decide_category(legs, "102.01.02.0002", "TRY", {},
+                                 agency_codes={"120.01.001.Y001"})
+        assert cat == "Cari"
 
 
 # ─────────────── B) _match_account match_groups_out ───────────────
@@ -363,6 +421,25 @@ class TestBridgeEndToEnd:
         assert summary["sedna_tagged"] == 1
         assert _cat_name(db, btx) == "Çek Ödemesi"
         assert db.get(BankTransaction, btx.id).tag_note is None
+
+    def test_120_acente_haritasi_dbden_okunur(self, db):
+        # agency_code_map'teki koda çıkan 120 bacağı → Acenta; tag_note exact'te yazılır
+        from app.models.agency_code_map import AgencyCodeMap
+        acc = _mapped_account(db)
+        d = TODAY - timedelta(days=2)
+        code = "120.01.01.T{}".format(uuid4().hex[:3].upper())
+        db.add(AgencyCodeMap(pms_name=f"TEST TOUR {uuid4().hex[:6]}", acc_code=code))
+        db.flush()
+        btx = _mk_btx(db, acc, d, 250000.0, description="Para Gönder Diğer BAKIYE")
+        rows = [_sedna_ledger_row(acc.sedna_account_code, d, 250000.0, rec_id=13)]
+        legs = [_leg(130, acc.sedna_account_code, debit=250000.0),
+                _leg(130, code, credit=250000.0, name="TEST TOUR OPERATOR GMBH")]
+
+        summary = _run(db, rows, legs)
+
+        assert summary["sedna_tagged"] == 1
+        assert _cat_name(db, btx) == "Acenta"
+        assert db.get(BankTransaction, btx.id).tag_note == "Sedna: TEST TOUR OPERATOR GMBH"
 
     def test_pos_bloke_description_skipped(self, db):
         acc = _mapped_account(db)

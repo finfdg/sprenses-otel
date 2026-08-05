@@ -387,7 +387,22 @@ adımıyla birlikte koşar (ekstre ne zaman yüklenirse yüklensin, fiş kesildi
 | 340 | Acenta | tur operatörü avansları |
 | 331 | Temettü | ortaklara borçlar |
 | 103 | Çek Ödemesi | bağlı çek varsa "Cari: <firma>" notu da yazılır (aşağı bkz) |
+| 100 | Kasa | banka↔kasa nakit yatan/çekilen (2026-08-05) |
+| 101 | Çek Tahsilatı | tahsil edilen müşteri çeki (2026-08-05) |
+| 159 | Verilen Avanslar | verilen sipariş avansları, ör. arsa avansı (2026-08-05) |
+| 602 | Diğer Gelirler | ör. döviz teşvik primi (2026-08-05) |
+| 780 | Finansman Gideri | ör. erken POS tahsilat masrafı (2026-08-05) |
 | yalnız 102↔102 | Virman / Döviz Satışı | karşı 102 hesabımız FARKLI para birimindeyse Döviz Satışı |
+
+**120 (ALICILAR) alt-kırılımı (2026-08-05 — kullanıcı isteği: "Etiketsiz'i Sedna'nın
+izlediği başlığa taşı"):** 120 tek prefix'e indirgenemez; canlıda aynı 120 altında acente,
+kiracı, münferit misafir ve telekom/ATM-kira alıcıları var. Karar sırası:
+
+1. `120.02.*` (KİRACILAR) → **Kira Geliri** · `120.03.*` (MUNFERIT) → **Konaklama Tahsilatı**
+2. Kod `agency_code_map`'te (PMS↔Sedna acente eşlemesi) VE hesap adı
+   `auto_tagger._AGENCY_NAME_BLOCK`'a takılmıyorsa → **Acenta**
+   (blok-listesi: 120.01.* saf acente değil — banka/ATM-kira/telekom canlı bulgusu)
+3. Kalan her 120 → **Cari** (Sedna'nın cari-hesap sınıfı; ör. Vodafone, YKB ATM kirası)
 
 **Temkinlilik kuralları:**
 - Karar bacağı = fişin **tüm non-own bacaklarından** (102 VEYA non-102) |tutar|ı en büyük

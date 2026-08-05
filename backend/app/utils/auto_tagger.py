@@ -228,6 +228,12 @@ MANAGED_CATEGORY_COLORS: Dict[str, str] = {
     LEASING_CATEGORY: "orange",  # eski "Kredi" kategorisinin devamı (DB'de rename edildi)
     POS_BLOKE_CATEGORY: "purple",  # hesaplar arası virman sınıfı (Virman ile aynı renk ailesi)
     CHECK_PAYMENT_CATEGORY: "indigo",  # ödenen çek banka bacağı (canlı DB'de id 252 mevcut)
+    # Sedna karşı-hesap köprüsü genişletmesi (2026-08-05, services/sedna_tag_bridge):
+    "Kasa": "amber",              # 100 — banka↔kasa nakit
+    "Çek Tahsilatı": "indigo",    # 101 — alınan çek (Çek Ödemesi ile aynı aile)
+    "Verilen Avanslar": "pink",   # 159 — verilen sipariş avansları
+    "Diğer Gelirler": "cyan",     # 602 — teşvik primi vb. çeşitli gelirler
+    "Finansman Gideri": "orange", # 780 — POS/banka finansman masrafları
 }
 
 
