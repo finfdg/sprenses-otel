@@ -235,6 +235,50 @@ class TestMatchCcNoKeyword:
         assert _match_cc_to_bank(db)["matched"] == 0
 
 
+class TestMatchCcAutoPaymentPartial:
+    """Oto-ödeme imzalı KISMİ ödeme (2026-08-06): banka asgari tutarı kendi çeker,
+    açıklamada kart ifadesi yok ama maskeli PAN + "OTOMATIK ODEME"/"OTO … GECIKMELI"
+    imzası var. Canlı vaka: YK World *7261 26.07 ekstresi (₺494.580,80, vade 30.07) —
+    30.07 −₺66.460,12 "OTOMATIK ODEME" + 31.07 −₺32.456,04 "OTO … GECIKMELI"
+    (toplam = asgari ₺98.916,16) eşleşmeden kalıp panelde tam borç overdue görünüyordu.
+    Pencere + bilinen-kart son-4 kapısı korunur; imzasız kısmi hâlâ eşleşmez.
+    """
+
+    _setup = staticmethod(TestMatchCcNoKeyword._setup)
+
+    def test_live_two_auto_partials_accumulate(self, db):
+        prod, stmt, btx1 = self._setup(
+            db, amount=66460.12, btx_date=date(2026, 6, 30), toplam_borc=494580.80,
+            desc="Diğer Diğer 650837******7261 OTOMATIK ODEME")
+        btx2 = BankTransaction(
+            account_id=btx1.account_id, date=date(2026, 7, 1),
+            description="Diğer Diğer OTO 650837****7261 GECIKMELI",
+            amount=-32456.04, balance=0, type="expense", tx_hash=f"test-ccap-{uuid4().hex}",
+        )
+        db.add(btx2)
+        db.commit()
+        assert _match_cc_to_bank(db)["matched"] == 2
+        db.expire_all()
+        s = db.get(CreditCardStatement, stmt.id)
+        assert s.is_paid is False  # kısmi — ekstre açık kalır
+        assert abs(float(s.paid_amount) - 98916.16) < 0.01
+
+    def test_auto_partial_before_kesim_no_match(self, db):
+        # Oto-ödeme imzalı ama kesimden ÖNCE (farklı ayın tahsilatı) → pencere dışı
+        prod, stmt, _ = self._setup(
+            db, amount=30000.0, btx_date=date(2026, 6, 1), toplam_borc=100000.0,
+            kesim=date(2026, 6, 26), son_odeme=date(2026, 6, 30),
+            desc="Diğer Diğer 650837******7261 OTOMATIK ODEME")
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+    def test_auto_partial_exceeding_remaining_no_match(self, db):
+        # Oto-ödeme imzalı ama tutar kalan borcu aşıyor (+%2 tam-ödeme bandında da değil)
+        prod, stmt, _ = self._setup(
+            db, amount=120000.0, btx_date=date(2026, 6, 30), toplam_borc=100000.0,
+            desc="Diğer Diğer 650837******7261 OTOMATIK ODEME")
+        assert _match_cc_to_bank(db)["matched"] == 0
+
+
 class TestMatchCcWrittenLast4:
     """Yazıyla kart-no verilen ödeme deseni (QNB Corporate "…{son4} ile biten … ödemesi - Virman").
     Kelime yolu (partial'a izin verir) → hem TAM (Şubat/Mart) hem KISMİ (Nisan) ödeme eşleşir.

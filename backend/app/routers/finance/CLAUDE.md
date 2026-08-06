@@ -1536,6 +1536,31 @@ süiti 140 yeşil).
 
 ---
 
+## CC Eşleştirici — Oto-Ödeme İmzalı KISMİ Ödeme (2026-08-06)
+
+**Canlı bulgu (kullanıcı):** YK World Kart (\*7261) 26.07 ekstresi (₺494.580,80, son ödeme
+30.07) Panel "Vadesi Geçenler"de tam borçla görünüyordu; oysa banka **asgari tutarı**
+(₺98.916,16) 30-31.07'de iki parça kendisi çekmişti (btx 6474 "Diğer Diğer
+650837\*\*\*\*\*\*7261 OTOMATIK ODEME" −₺66.460,12 + btx 6476 "…OTO 650837\*\*\*\*7261
+GECIKMELI" −₺32.456,04). **Kök neden:** açıklamada kart kelimesi yok → kelime-yok yolu, ve
+o yol yalnız **TAM ödeme** kabul ediyordu (2026-07-04 aşırı-eşleşme önlemi) → kısmi oto-ödeme
+tahsilatları hiç eşleşmiyordu. Ayrıca iki bacak Sedna köprüsünce yanlışlıkla "Kredi/Leasing"
+etiketlenmişti (makine etiketi — matcher düzeltebilir, 2026-07-23 kuralı).
+
+**Düzeltme (`matching_service`):** yeni `_is_cc_auto_payment_desc` ("otomatik odeme" veya
+`\boto\b` token'ı; Türkçe fold'lu) — kelime-yok dalında pencere şartından SONRA, tam-ödeme
+bandına EK olarak **oto-ödeme imzalı + `tutar ≤ kalan` kısmi** ödeme de eşleşir
+(`paid_amount` birikir, ekstre açık kalır). Bilinen-kart son-4 kapısı + `_cc_payment_in_window`
+korunduğundan 2026-07-04'ün yanlış-ay/yanlış-kart riski geri gelmez; **imzasız kısmi hâlâ
+eşleşmez** (regresyon testi durur). Eşleşme sonrası `upsert_cc_statement` vadesi geçmiş
+ekstreyi gizler (kalan borç sonraki ekstrenin `onceki_bakiye`'sine devreder — mevcut kural).
+
+**Canlı onarım:** matcher yeniden koşturuldu → stmt 21 `paid_amount=98.916,16`, FE kalan
+₺395.664,64 + gizli (vade geçmiş), iki banka bacağı "Kredi Kartı Borç Ödeme"ye çekildi →
+Panel Vadesi Geçenler'den KK kalemi düştü. **Test:** `test_banks_cc_match.py::
+TestMatchCcAutoPaymentPartial` (3 — canlı iki-parça birikim, kesim-öncesi pencere dışı,
+kalan-aşan kısmi eşleşmez).
+
 ## CC Eşleştirici — Auto-Tag Açlığı Düzeltmesi (2026-07-14)
 
 **Canlı hata:** QNB Corporate (\*6075) 09.07 ekstresi (₺1.909.336) 13.07'de bankadan ödendiği

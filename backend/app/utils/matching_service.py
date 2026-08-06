@@ -148,6 +148,22 @@ def _is_cc_payment_desc(description: str) -> bool:
     return False
 
 
+def _is_cc_auto_payment_desc(description: str) -> bool:
+    """Bankanın kart oto-ödeme tahsilatı imzası mı ("OTOMATIK ODEME" / "OTO … GECIKMELI")?
+
+    Oto-ödeme talimatlı kartlarda asgari tutarı banka kendi çeker (gecikmede parça
+    parça); açıklamada kart ifadesi geçmez ama maskeli PAN + oto-ödeme imzası vardır
+    (canlı: "Diğer Diğer 650837******7261 OTOMATIK ODEME" + "…OTO 650837****7261
+    GECIKMELI", 30-31.07.2026). Yalnız bilinen kartın son-4 kapısından geçen işlemler
+    için çağrılır → yanlış-pozitif riski düşük. Ödeme kesin KISMİ olabileceğinden bu
+    imza, kelime-yok yolunun tam-ödeme şartını pencere-içi kısmi ödemeye gevşetir.
+    """
+    if not description:
+        return False
+    d = description.lower().replace("ö", "o").replace("i̇", "i").replace("ı", "i")
+    return "otomatik odeme" in d or re.search(r"\boto\b", d) is not None
+
+
 def _match_cc_to_bank(db: Session) -> dict:
     """Ödenmemiş CC ekstrelerini banka işlemleriyle otomatik eşleştir.
 
@@ -270,7 +286,15 @@ def _match_cc_to_bank(db: Session) -> dict:
                 # elenir — bunlar açık ekstrelere yanlış atanıyordu.
                 if not _cc_payment_in_window(btx.date, stmt):
                     continue
-                if total_borc - 1.0 <= payment_amount <= total_borc * (1 + CC_OVERPAY_TOLERANCE):
+                is_full = total_borc - 1.0 <= payment_amount <= total_borc * (1 + CC_OVERPAY_TOLERANCE)
+                # Oto-ödeme imzalı KISMİ ödeme (asgari tahsilatı) de kabul edilir —
+                # pencere şartı + bilinen-kart son-4 kapısı yanlış-ay/yanlış-kart
+                # atamasını zaten engeller (2026-08-06; imza gerekçesi helper'da).
+                is_auto_partial = (
+                    payment_amount <= remaining + 0.01
+                    and _is_cc_auto_payment_desc(btx.description)
+                )
+                if is_full or is_auto_partial:
                     best_stmt = stmt
                     best_prod = prod
                     best_remaining = remaining
