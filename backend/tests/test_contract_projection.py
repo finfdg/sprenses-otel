@@ -210,6 +210,19 @@ class TestCiroDailySeries:
         assert hits[0]["date"] == date(y, m, 27).isoformat()
         assert hits[0]["amount_eur"] == 600
 
+    def test_align_due_helper(self):
+        """_align_due saf yardımcısı: friday / month_end / day_N / bozuk değer."""
+        from app.services.contract_projection_service import _align_due
+
+        wed = date(2026, 8, 12)   # Çarşamba
+        assert _align_due("friday", wed) == date(2026, 8, 14)
+        assert _align_due("month_end", wed) == date(2026, 8, 31)
+        assert _align_due("day_27", wed) == date(2026, 8, 27)
+        assert _align_due("day_27", date(2026, 8, 28)) == date(2026, 9, 27)
+        assert _align_due("day_27", date(2026, 12, 30)) == date(2027, 1, 27)
+        assert _align_due("day_31", date(2026, 2, 1)) == date(2026, 2, 28)
+        assert _align_due("day_x", wed) == date(2026, 8, 14)  # bozuk → friday
+
     def test_advance_trim_is_group_scoped(self, db):
         """A grubunun bekleyen avansı B grubunun cirosunu KIRPMAZ (2026-08-13)."""
         ga_name = f"PGTEST{uuid4().hex[:6].upper()}"
