@@ -1,9 +1,10 @@
 """Kontrat nakit projeksiyonu (Faz 2) testleri.
 
 Kapsam: contract_projection_service (advances netleme, guarantee_check hariç tutma,
-koşullu bayrak), runway'e kontrat kalemlerinin düşmesi (overdue dahil),
-taksit↔banka otomatik eşleştirici.
+koşullu bayrak, gün-hassasiyetli acente-bazlı ciro serisi), runway'e kontrat
+kalemlerinin düşmesi (overdue dahil), taksit↔banka otomatik eşleştirici.
 """
+import random
 from datetime import date, timedelta
 from uuid import uuid4
 
@@ -14,9 +15,11 @@ from app.models.bank_transaction import BankTransaction
 from app.models.contract import (
     AgencyContract, ContractInstallment, ContractPaymentPlan,
 )
+from app.models.reservation import Reservation
 from app.services.contract_projection_service import (
     contract_inflow_projections, invalidate_cache,
 )
+from app.utils.vendor_fifo import _next_friday
 
 
 def _mk_contract(db, group_name=None):
@@ -87,6 +90,99 @@ class TestProjectionService:
         invalidate_cache()
         p = contract_inflow_projections(db)
         assert not [i for i in p["installments"] if i["contract_code"] == c.code]
+
+
+def _mk_reservation(db, agency, checkout, eur_total):
+    r = Reservation(
+        rec_id=random.randint(10_000_000, 99_000_000),
+        agency=agency, checkin_date=checkout - timedelta(days=7),
+        checkout_date=checkout, record_date=checkout - timedelta(days=60),
+        eur_total=eur_total)
+    db.add(r)
+    db.flush()
+    return r
+
+
+class TestCiroDailySeries:
+    """Gün-hassasiyetli acente-bazlı ciro serisi (2026-08-13 kullanıcı kararı):
+    çıkış + term_days sonrası İLK CUMA'ya acente adıyla yazılır."""
+
+    def _same_year_checkout(self, offset_days):
+        today = date.today()
+        co = today + timedelta(days=offset_days)
+        if co.year != today.year:  # yıl sonu koruması
+            co = today - timedelta(days=5)
+        return co
+
+    def test_ciro_written_to_first_friday_after_term(self, db):
+        gname = f"PGTEST{uuid4().hex[:6].upper()}"
+        g = AgencyGroup(name=gname, members=[gname], term_days=21)
+        db.add(g)
+        db.flush()
+        co = self._same_year_checkout(10)
+        _mk_reservation(db, g.name, co, 1000)
+        db.commit()
+        invalidate_cache()
+
+        p = contract_inflow_projections(db)
+        hits = [i for i in p["ciro_items"] if i["agency"] == g.name]
+        assert len(hits) == 1, hits
+        expected_due = _next_friday(co + timedelta(days=21))
+        assert hits[0]["date"] == expected_due.isoformat()
+        assert expected_due.weekday() == 4  # Cuma
+        assert hits[0]["amount_eur"] == 1000
+        assert g.name in hits[0]["label"]
+
+    def test_past_due_ciro_excluded(self, db):
+        gname = f"PGTEST{uuid4().hex[:6].upper()}"
+        g = AgencyGroup(name=gname, members=[gname], term_days=21)
+        db.add(g)
+        db.flush()
+        _mk_reservation(db, g.name, date.today() - timedelta(days=60), 500)
+        db.commit()
+        invalidate_cache()
+
+        p = contract_inflow_projections(db)
+        assert not [i for i in p["ciro_items"] if i["agency"] == g.name]
+
+    def test_pending_advance_trims_earliest_ciro(self, db):
+        """Koruma [3]: bekleyen avans kaydı ciro serisinin başından FIFO düşülür."""
+        gname = f"PGTEST{uuid4().hex[:6].upper()}"
+        g = AgencyGroup(name=gname, members=[gname], term_days=21)
+        db.add(g)
+        db.flush()
+        co = self._same_year_checkout(10)
+        _mk_reservation(db, g.name, co, 1000)
+        db.add(Advance(agency_name=g.name, amount=300, currency="EUR",
+                       advance_date=co, status="pending"))
+        db.commit()
+        invalidate_cache()
+
+        p = contract_inflow_projections(db)
+        hits = [i for i in p["ciro_items"] if i["agency"] == g.name]
+        assert len(hits) == 1
+        assert hits[0]["amount_eur"] == 700  # 1000 − 300 pending avans kırpması
+
+    def test_advance_trim_is_group_scoped(self, db):
+        """A grubunun bekleyen avansı B grubunun cirosunu KIRPMAZ (2026-08-13)."""
+        ga_name = f"PGTEST{uuid4().hex[:6].upper()}"
+        gb_name = f"PGTEST{uuid4().hex[:6].upper()}"
+        ga = AgencyGroup(name=ga_name, members=[ga_name], term_days=21)
+        gb = AgencyGroup(name=gb_name, members=[gb_name], term_days=21)
+        db.add_all([ga, gb])
+        db.flush()
+        co = self._same_year_checkout(10)
+        _mk_reservation(db, gb.name, co, 1000)
+        # Avans A grubuna ait — B'nin cirosuna dokunmamalı
+        db.add(Advance(agency_name=ga.name, amount=900, currency="EUR",
+                       advance_date=co, status="pending"))
+        db.commit()
+        invalidate_cache()
+
+        p = contract_inflow_projections(db)
+        hits = [i for i in p["ciro_items"] if i["agency"] == gb.name]
+        assert len(hits) == 1
+        assert hits[0]["amount_eur"] == 1000  # kırpılmadı
 
 
 class TestRunwayIntegration:

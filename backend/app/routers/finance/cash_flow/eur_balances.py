@@ -288,7 +288,7 @@ def compute_eur_balances(db: Session) -> dict:
     from app.services.contract_projection_service import contract_inflow_projections
     contract_income_by_date = defaultdict(float)
     _cproj = contract_inflow_projections(db, today=today_date)
-    for _ci in _cproj["installments"] + _cproj["ciro_monthly"]:
+    for _ci in _cproj["installments"] + _cproj["ciro_items"]:
         _cdt = date_cls.fromisoformat(_ci["date"])
         if _cdt <= today_date:
             continue  # vadesi geçmiş taksit bakiyeye eklenmez (runway "Vadesi Geçen Tahsilatlar"da)

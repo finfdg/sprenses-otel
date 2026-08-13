@@ -762,12 +762,25 @@ Beklenen acente tahsilatı ana projeksiyona girdi. Uygulama **okuma-anında serv
 (`services/contract_projection_service.py`, cc_projection deseni) — finance_events'e
 YAZILMAZ: bayat kayıt riski sıfır, #27 çift-motor drift'i yok. Üç tüketici:
 
-- **eur_balances:** `contract_income_by_date` — gelecek güne taksit (net) + aylık ciro kalemi.
+- **eur_balances:** `contract_income_by_date` — gelecek güne taksit (net) + ciro kalemleri.
 - **runway:** vadesi geçmiş taksitler "Vadesi Geçen Tahsilatlar"a KALEM KALEM
   (`contract_installment:{id}`, KOŞULLU etiketi ile); cari ay vadeliler girişlere;
-  cari ay ciro pseudo-kalemi ay sonu. SOURCE_LABELS: "Kontrat Taksiti".
+  ciro kalemleri (`contract_ciro:{key}`) cari ay penceresindeki Cuma günlerine düşer.
+  SOURCE_LABELS: "Kontrat Taksiti".
 - **t_account:** GİRİŞ tarafına iki projeksiyon grubu — "Kontrat Taksitleri (Projeksiyon)"
   (finansman) + "Beklenen Ciro Tahsilatı (Projeksiyon)" (faaliyet); hold kimliği yok.
+
+**GÜN HASSASİYETLİ ACENTE BAZLI CİRO SERİSİ (2026-08-13, kullanıcı kararı):** Eski
+"ay sonu tek toplu kalem" (compute_settlement aylık slotları) yerine seri artık
+`contract_projection_service` içinde GÜN bazında üretilir: her acente grubunun
+rezervasyon cirosu (checkout günü toplamı) **çıkış/fatura tarihi + anlaşma vadesi
+(`agency_groups.term_days`) sonrası İLK CUMA'ya** (`vendor_fifo._next_friday` — cariler
+konvansiyonu; ör. PEGAS 21g: çıkış+21 sonrası ilk Cuma) **acente adıyla** yazılır
+(`ciro_items`: key/date/amount_eur/label/agency; eski `ciro_monthly` anahtarı kalktı).
+Sedna 340 kalan avans bakiyesi (`compute_receivables` grup satırları, received−consumed)
+grup içi vade-FIFO mahsup edilir; vadesi bugünden önce olan tahsilatlar projeksiyona
+girmez (hakediş/vadesi-geçen alanı). Kas/Ara cirosunun ertesi yıla taşan tahsilatı doğal
+olarak Ocak Cumalarına düşer (ayrı "tail" kalemi yok).
 
 **Çift-sayım kural seti (4 vektör, kontrat analizi raporundan — UYGULANDI):**
 1. `advances` tablosu BİRİNCİL (kullanıcı elle işletiyor; FE'leri zaten projeksiyonda) —
@@ -776,10 +789,11 @@ YAZILMAZ: bayat kayıt riski sıfır, #27 çift-motor drift'i yok. Üç tüketic
    → net 60k).
 2. `guarantee_check` planları (otelin VERDİĞİ teminat — Odeon 2×24M TL) hiçbir gelir
    görünümüne girmez.
-3. TAM CİRO serisi `compute_settlement`'tan (340-mahsuplu); CARİ YIL vadeli sözleşmesel
-   girişler (pending advances + net taksitler) serinin başından FIFO kırpılır — aynı para
-   iki kez sayılmaz. 2027+ taksitleri kırpmaya girmez (2027 cirosundan mahsup edilecek).
-   Ertesi yıla taşan tahsilat (tail) Ocak sonu tek kalem.
+3. CARİ YIL vadeli sözleşmesel girişler (pending advances + net taksitler) ciro serisinden
+   **GRUP BAZLI** vade-FIFO kırpılır (2026-08-13: Nordic'in avansı Pegas'ın cirosunu
+   silmez; gruba eşlenemeyen avanslar eski davranışla tüm seriden tarih-FIFO düşülür) —
+   aynı para iki kez sayılmaz. 2027+ taksitleri kırpmaya girmez (2027 cirosundan mahsup
+   edilecek).
 4. Banka gerçekleşmesi: `_match_contract_installments_to_bank` (matching_service, avans
    eşleştiricisinden SONRA koşar; avansa bağlı işlemler aday olamaz) → taksit paid +
    `bank_transaction_id`; projeksiyon cache'i invalidate edilir.

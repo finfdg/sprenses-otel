@@ -400,7 +400,7 @@ def t_account(
           i["label"] + (" — KOŞULLU" if i.get("conditional") else ""))
          for i in _cproj["installments"]] +
         [("Beklenen Ciro Tahsilatı (Projeksiyon)", "faaliyet", i, i["label"])
-         for i in _cproj["ciro_monthly"]]
+         for i in _cproj["ciro_items"]]
     )
     for _glabel, _section_name, _ci, _iname in _contract_feed:
         _cdt = date_cls.fromisoformat(_ci["date"])

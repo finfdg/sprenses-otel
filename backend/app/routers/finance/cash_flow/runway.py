@@ -398,12 +398,12 @@ def runway(
             _inf = dict(_item)
             _inf.pop("source_type")
             inflows.append(_inf)
-    for _ci in _cproj["ciro_monthly"]:
+    for _ci in _cproj["ciro_items"]:
         _cdt = date_cls.fromisoformat(_ci["date"])
         if _cdt <= today or _cdt > month_end:
             continue
         inflows.append({
-            "id": f"contract_ciro:{_ci['month']}",
+            "id": f"contract_ciro:{_ci['key']}",
             "date": _ci["date"],
             "name": _ci["label"],
             "amount_eur": round(float(_ci["amount_eur"]), 2),
