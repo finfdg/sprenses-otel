@@ -175,7 +175,11 @@ manuel "Sedna" butonu da aynı import'u çalıştırır. Kurulum: `scripts/syste
 `agency_code_map` Sedna satış senkronunda silinip yeniden yüklendiğinden elle ekleme kalıcı
 olamaz → kalıcı düzeltmeler **`agency_code_overrides`** tablosunda (pms_name unique → acc_code
 + notes). `receivable_service._group_map` Sedna haritasını kurduktan sonra override'ları üzerine
-yazar (override kazanır). Seed kayıtları: NORDIC→120.01.02.0016, AKAY İNŞ→120.01.01.A001
-(fatura kanıtı), CORAL DEU→O016 (teyit bekliyor). Ayrıca 10 operatörün kontrat vadesi
-`receivable_terms`'e girildi (kaynak maddeler notes'ta). Test:
+yazar (override kazanır). Kayıtlar: NORDIC→120.02.01.0002 (2026-08-13 düzeltme — gerçek NLTG
+carisi; eski 120.01.02.0016 sıfır hareketliydi ve NLTG faturaları Acente Finansal Takip'te
+"Diğer/Eşleşmeyen"e düşüyordu), ANEX EU→120.01.01.0128 (2026-08-13 — ANEXSERVICES-EURO carisi;
+ANEX grubu üyelerinin hiçbiri Sedna kod haritasında yoktu; ayrıca `ANEX SERVICES TURIZM ORG
+TAS.TIC.AS` PMS adı ANEX grubuna üye eklendi → Sedna'nın 0094 köprüsü de gruba bağlandı),
+AKAY İNŞ→120.01.01.A001 (fatura kanıtı), CORAL DEU→O016 (teyit bekliyor). Ayrıca 10 operatörün
+kontrat vadesi `receivable_terms`'e girildi (kaynak maddeler notes'ta). Test:
 `test_hakedis.py::TestGroupingAndAdvances::test_code_override_wins_over_sedna_map`.
