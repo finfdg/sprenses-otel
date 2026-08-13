@@ -783,15 +783,19 @@ günü; vade o günü geçtiyse ertesi ayın aynı günü) — NORDIC=`day_27` (
 Nordic'in aylık beklentisini artık projeksiyon kendisi 27'lere yazar)
 (`ciro_items`: key/date/amount_eur/label/agency; eski `ciro_monthly` anahtarı kalktı).
 Sedna 340 kalan avans bakiyesi (`compute_receivables` grup satırları, received−consumed)
-grup içi vade-FIFO mahsup edilir. **Vadesi geçmiş (2026-08-13 revizyonu, kullanıcı:
-"vadesi geçen alacak dahil olsun"):** HAM vadesi (çıkış+term) bugünden önce olan
-rezervasyon cirosu seriye GİRMEZ — ödenmiş kısmı banka gerçekleşmesinde, ödenmemiş
-kısmı ise GERÇEK vadesi geçmiş alacak olarak temsil edilir: hakediş fatura FIFO'sunun
-`overdue_tl` değeri (tahsilat+avans netlenmiş) grubun BİR SONRAKİ ödeme gününe ayrı
-**"Vadesi geçmiş hakediş tahsilatı (ACENTE)"** kalemi yazılır (`kind='overdue'`;
-adv_left mahsubuna girmez — hakediş zaten netler; koruma-[3] kırpmalarına girer).
-Rezervasyon-bazlı ham geçmişi olduğu gibi taşımak BİLİNÇLİ reddedildi: Nordic canlı
-örneği — ham geçmiş €189K ama €108K'sı zaten tahsil edilmişti; gerçek açık €52,4K. **Mahsup havuzu grup satırından okunduğu için
+grup içi vade-FIFO mahsup edilir. **YAKIN PENCERE = GERÇEK FATURA EVRENİ (2026-08-13
+v2, kullanıcı denetimi):** faturası olan grupların BİR SONRAKİ ödeme gününe kadarki
+alacağı rezervasyon tahmininden DEĞİL, hakediş fatura FIFO'sundan (`firm_open_invoices`
+— gerçek fatura vadesi = fatura + `receivable_terms`; tahsilat+avans FIFO netlenmiş)
+okunur ve iki kalem yazılır: **"Vadesi geçmiş hakediş tahsilatı"** (`kind='overdue'`,
+vade < bugün kalanları) + **"Fatura vadeli hakediş tahsilatı"** (`kind='invoice_due'`,
+bugün→sonraki-ödeme-günü vadeli kalanlar); EUR faturada native kalan kullanılır (kur
+sapmasız). Rezervasyon serisi o pencereyi atlar (sınır=next_pay → iki evren çakışmaz);
+ham vadesi geçmiş rezervasyon cirosu hiç girmez (ödenmişi banka gerçekleşmesinde).
+Faturasız gruplar (Münferit/Diğer) eski davranışla rezervasyondan beslenir. Bu kalemler
+adv_left mahsubuna girmez (hakediş zaten netler), koruma-[3] kırpmalarına girer.
+Nordic canlı doğrulama: açık €437.487 = vadesi geçmiş €54.409 + 13–27 Ağu vadeli
+€197.839 (→ 27 Ağu kalemleri) + 27 Ağu sonrası vadeli €185.239 (→ 27 Eyl ödemesi). **Mahsup havuzu grup satırından okunduğu için
 acentenin 120/340 muhasebe firması gruba üye olmalı** — W2M vakası (2026-08-13,
 kullanıcı: "W2M tahsilatı avansa mahsuplaşır"): avans 340 hesabı ayrı tüzel kişide
 (`120.02.01.0005 W2M S.L.U`) olduğundan grup havuzu boş kalıyor, W2M ciroda görünüyordu;

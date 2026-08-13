@@ -172,7 +172,63 @@ def _compute(db: Session, today: date) -> dict:
     ciro_total = 0.0
     try:
         gmeta, member_to_gid = _agency_group_maps(db)
-        # (grup, vade-Cuma) → EUR ciro
+        # ── YAKIN PENCERE = GERÇEK FATURA EVRENİ (2026-08-13 v2, kullanıcı denetimi) ──
+        # Bir grubun BİR SONRAKİ ödeme gününe kadar vadesi dolan/dolmuş alacağı
+        # rezervasyon tahmini DEĞİL, hakediş fatura FIFO'sundan okunur
+        # (`firm_open_invoices` — gerçek fatura vadesi, tahsilat+avans netlenmiş):
+        #   · vadesi geçmiş kalan → "Vadesi geçmiş hakediş tahsilatı"
+        #   · bugün→sonraki-ödeme-günü vadeli kalan → "Fatura vadeli hakediş tahsilatı"
+        # Rezervasyon serisi o pencereyi ATLAR (sınır = next_pay; iki evren çakışmaz).
+        # Faturası olmayan gruplar (Münferit/Diğer vb.) eski davranışla rezervasyondan
+        # beslenmeye devam eder (ham vadesi geçmişleri yine hariç).
+        rates = _latest_rates(db)
+        eur_rate = float(rates.get("EUR", 0.0) or 0.0)
+        adv_left: dict = defaultdict(float)
+        inv_window: dict = {}       # gid → next_pay (fatura evreninin kapladığı pencere)
+        inv_near: dict = {}         # gid → {"overdue": €, "due": €, "next_pay": date}
+        if eur_rate > 0:
+            from app.services.receivable_service import firm_open_invoices
+            rec = compute_receivables(db, today)
+            inv_gids = set()
+            for f in rec.get("firms", []):
+                code = str(f.get("code", ""))
+                if not (f.get("is_group") and code.startswith("group-")):
+                    continue
+                try:
+                    fgid = int(code.split("-", 1)[1])
+                except (ValueError, IndexError):
+                    continue
+                left = (float(f.get("advance_received_tl", 0) or 0)
+                        - float(f.get("advance_consumed_tl", 0) or 0)) / eur_rate
+                if left > 0:
+                    adv_left[fgid] = round(left, 2)
+                if float(f.get("invoiced_tl", 0) or 0) > 0 and fgid in gmeta:
+                    inv_gids.add(fgid)
+            for fgid in inv_gids:
+                _align = gmeta[fgid].get("payment_alignment") or "friday"
+                next_pay = _align_due(_align, today + timedelta(days=1))
+                inv_window[fgid] = next_pay
+                ovd = due_amt = 0.0
+                for row in firm_open_invoices(db, f"group-{fgid}", today):
+                    try:
+                        ddt = date.fromisoformat(row["due_date"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    if ddt > next_pay:
+                        continue  # sonraki ödemelerin konusu → rezervasyon serisi kapsar
+                    if (row.get("currency") or "").upper() == "EUR":
+                        val = float(row.get("remaining") or 0)  # native — kur sapmasız
+                    else:
+                        val = float(row.get("remaining_tl") or 0) / eur_rate
+                    if ddt < today:
+                        ovd += val
+                    else:
+                        due_amt += val
+                if ovd > 0.5 or due_amt > 0.5:
+                    inv_near[fgid] = {"overdue": round(ovd, 2), "due": round(due_amt, 2),
+                                      "next_pay": next_pay}
+
+        # ── Rezervasyon bazlı ciro serisi (fatura penceresinin ÖTESİ) ──
         agg: dict = defaultdict(float)
         res_rows = (
             db.query(
@@ -191,41 +247,14 @@ def _compute(db: Session, today: date) -> dict:
             term = int(gm.get("term_days") or 30)
             raw = co_date + timedelta(days=term)
             if raw <= today:
-                # HAM vadesi geçmiş ciro projeksiyona GİRMEZ (2026-08-13 revizyonu):
-                # ödenmiş kısmı zaten tahsil edildi (banka gerçekleşmesi), ödenmemiş
-                # kısmı aşağıda GERÇEK (fatura bazlı, tahsilat-düşülmüş) vadesi geçmiş
-                # kalemi olarak bir sonraki ödeme gününe eklenir — çift sayım yok.
+                # HAM vadesi geçmiş ciro projeksiyona GİRMEZ: ödenmiş kısmı zaten
+                # tahsil edildi, ödenmemiş kısmı fatura evreninin "vadesi geçmiş"
+                # kaleminde — çift sayım yok.
                 continue
+            if gid in inv_window and raw <= inv_window[gid]:
+                continue  # bu pencere gerçek fatura kalemlerinden gelir
             due = _align_due(gm.get("payment_alignment") or "friday", raw)
             agg[(gid, due)] += amt
-        # Grup başına kalan (mahsup edilmemiş) avans havuzu — peşin ödenen ciro
-        # vadede tekrar tahsil edilmez; grubun en erken vadelerinden FIFO düşülür.
-        # Aynı receivables okumasından GERÇEK vadesi geçmiş alacak (fatura FIFO'su,
-        # tahsilat + avans netlenmiş) alınır ve grubun BİR SONRAKİ ödeme gününe
-        # ayrı kalem yazılır (kullanıcı 2026-08-13: "vadesi geçen alacak dahil olsun").
-        rates = _latest_rates(db)
-        eur_rate = float(rates.get("EUR", 0.0) or 0.0)
-        adv_left: dict = defaultdict(float)
-        overdue_items: dict = {}   # gid → (due, amount_eur)
-        if eur_rate > 0:
-            rec = compute_receivables(db, today)
-            for f in rec.get("firms", []):
-                code = str(f.get("code", ""))
-                if not (f.get("is_group") and code.startswith("group-")):
-                    continue
-                try:
-                    fgid = int(code.split("-", 1)[1])
-                except (ValueError, IndexError):
-                    continue
-                left = (float(f.get("advance_received_tl", 0) or 0)
-                        - float(f.get("advance_consumed_tl", 0) or 0)) / eur_rate
-                if left > 0:
-                    adv_left[fgid] = round(left, 2)
-                ovd = float(f.get("overdue_tl", 0) or 0) / eur_rate
-                if ovd > 0.5 and fgid in gmeta:
-                    _align = (gmeta[fgid].get("payment_alignment") or "friday")
-                    overdue_items[fgid] = (
-                        _align_due(_align, today + timedelta(days=1)), round(ovd, 2))
         # Çift-sayım kırpması (koruma [3]) — GRUP BAZLI (2026-08-13): bir grubun
         # sözleşmesel girişleri (pending advances + CARİ YIL net taksitleri) yalnız
         # O GRUBUN ciro kalemlerinden vade-FIFO düşülür — Nordic'in avansı Pegas'ın
@@ -237,14 +266,17 @@ def _compute(db: Session, today: date) -> dict:
         for tgid, amt_i in inst_net_by_gid.items():
             group_trim[tgid] += amt_i
         global_trim = round(adv_pending_total - sum(adv_pool.values()), 2)  # grupsuz avanslar
-        # Ciro + vadesi-geçmiş kalemleri tek seride, tarih sırasıyla işlenir.
-        # Vadesi-geçmiş kalem hakediş FIFO'sunda ZATEN tahsilat+avans netlendiğinden
+        # Ciro + fatura-penceresi kalemleri tek seride, tarih sırasıyla işlenir.
+        # Fatura kalemleri hakediş FIFO'sunda ZATEN tahsilat+avans netlendiğinden
         # adv_left mahsubuna girmez; koruma-[3] kırpmalarına (pending advance kaydı
         # aynı ödemeyi temsil edebilir) girer.
-        entries = ([(due, gid, "ciro", amount)
-                    for (gid, due), amount in agg.items()] +
-                   [(due, gid, "overdue", amount)
-                    for gid, (due, amount) in overdue_items.items()])
+        entries = [(due, gid, "ciro", amount)
+                   for (gid, due), amount in agg.items()]
+        for gid, near in inv_near.items():
+            if near["overdue"] > 0.5:
+                entries.append((near["next_pay"], gid, "overdue", near["overdue"]))
+            if near["due"] > 0.5:
+                entries.append((near["next_pay"], gid, "invoice_due", near["due"]))
         for due, gid, kind, amount in sorted(entries, key=lambda e: (e[0], e[1], e[2])):
             if kind == "ciro":
                 avail = adv_left.get(gid, 0.0)
@@ -268,8 +300,10 @@ def _compute(db: Session, today: date) -> dict:
             if amount <= 0.01:
                 continue
             gname = (gmeta.get(gid) or {}).get("name") or "Diğer"
-            label = (f"Vadesi geçmiş hakediş tahsilatı ({gname})" if kind == "overdue"
-                     else f"Beklenen ciro tahsilatı ({gname})")
+            label = {
+                "overdue": f"Vadesi geçmiş hakediş tahsilatı ({gname})",
+                "invoice_due": f"Fatura vadeli hakediş tahsilatı ({gname})",
+            }.get(kind, f"Beklenen ciro tahsilatı ({gname})")
             ciro_items.append({
                 "key": f"{gid}:{kind}:{due.isoformat()}",
                 "month": f"{due.year}-{due.month:02d}",
