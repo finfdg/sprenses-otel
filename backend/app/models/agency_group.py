@@ -10,7 +10,9 @@ DEFAULT_AGENCY_TERM_DAYS = 30
 
 # Ödeme günü hizalaması: vade (çıkış + term_days) sonrası ödeme hangi güne oturur
 PAYMENT_ALIGN_FRIDAY = "friday"        # sonraki ilk Cuma (varsayılan — cariler konvansiyonu)
-PAYMENT_ALIGN_MONTH_END = "month_end"  # vadenin düştüğü ayın son günü (ör. Nordic)
+PAYMENT_ALIGN_MONTH_END = "month_end"  # vadenin düştüğü ayın son günü
+PAYMENT_ALIGN_DAY_PREFIX = "day_"      # "day_27" = ayın 27'si (vade günü 27'yi geçtiyse
+                                       # ertesi ayın 27'si — ör. Nordic, 2026-08-13)
 
 
 class AgencyGroup(Base):

@@ -186,6 +186,30 @@ class TestCiroDailySeries:
         assert hits[0]["date"] == expected.isoformat()
         assert hits[0]["amount_eur"] == 800
 
+    def test_day_of_month_alignment(self, db):
+        """payment_alignment='day_27' (ör. Nordic): vade ayın 27'sine yazılır; vade
+        günü 27'yi geçtiyse ertesi ayın 27'sine kayar."""
+        gname = f"PGTEST{uuid4().hex[:6].upper()}"
+        g = AgencyGroup(name=gname, members=[gname], term_days=30,
+                        payment_alignment="day_27")
+        db.add(g)
+        db.flush()
+        co = self._same_year_checkout(10)
+        _mk_reservation(db, g.name, co, 600)
+        db.commit()
+        invalidate_cache()
+
+        p = contract_inflow_projections(db)
+        hits = [i for i in p["ciro_items"] if i["agency"] == g.name]
+        assert len(hits) == 1
+        raw = co + timedelta(days=30)
+        if raw.day > 27:
+            y, m = (raw.year + 1, 1) if raw.month == 12 else (raw.year, raw.month + 1)
+        else:
+            y, m = raw.year, raw.month
+        assert hits[0]["date"] == date(y, m, 27).isoformat()
+        assert hits[0]["amount_eur"] == 600
+
     def test_advance_trim_is_group_scoped(self, db):
         """A grubunun bekleyen avansı B grubunun cirosunu KIRPMAZ (2026-08-13)."""
         ga_name = f"PGTEST{uuid4().hex[:6].upper()}"

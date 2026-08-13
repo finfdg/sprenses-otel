@@ -166,9 +166,24 @@ def _compute(db: Session, today: date) -> dict:
             gm = gmeta.get(gid) or {}
             term = int(gm.get("term_days") or 30)
             raw = co_date + timedelta(days=term)
-            if gm.get("payment_alignment") == "month_end":
-                # ör. Nordic: vade hangi aya düşerse o ayın SON GÜNÜ öder (Cuma değil)
+            align = gm.get("payment_alignment") or "friday"
+            if align == "month_end":
+                # vade hangi aya düşerse o ayın SON GÜNÜ öder (Cuma değil)
                 due = date(raw.year, raw.month, monthrange(raw.year, raw.month)[1])
+            elif align.startswith("day_"):
+                # "day_27": ayın sabit gününde öder (ör. Nordic 27'si, kullanıcı
+                # 2026-08-13); vade o günü geçtiyse ertesi ayın aynı gününe kayar
+                try:
+                    pday = int(align[4:])
+                except ValueError:
+                    pday = 0
+                if pday < 1:
+                    due = _next_friday(raw)
+                else:
+                    y, m = raw.year, raw.month
+                    if raw.day > pday:
+                        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+                    due = date(y, m, min(pday, monthrange(y, m)[1]))
             else:
                 due = _next_friday(raw)
             if due <= today:

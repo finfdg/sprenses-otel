@@ -777,8 +777,10 @@ rezervasyon cirosu (checkout günü toplamı) **çıkış/fatura tarihi + anlaş
 (`agency_groups.term_days`) sonrası İLK CUMA'ya** (`vendor_fifo._next_friday` — cariler
 konvansiyonu; ör. PEGAS 21g: çıkış+21 sonrası ilk Cuma) **acente adıyla** yazılır.
 **Ödeme günü hizalaması `agency_groups.payment_alignment`** (migration `f3c7a9b5d2e8`):
-`friday` (varsayılan) | `month_end` — ay sonunda ödeyen acenteler (ör. NORDIC, kullanıcı
-bilgisi 2026-08-13) vadenin düştüğü ayın SON GÜNÜNE yazılır, Cuma'ya değil
+`friday` (varsayılan) | `month_end` (vadenin ayının son günü) | `day_N` (ayın sabit
+günü; vade o günü geçtiyse ertesi ayın aynı günü) — NORDIC=`day_27` (kullanıcı bilgisi
+2026-08-13: "Ağustos ödemesini 27'sinde yapacak"; elle girilen 310K avans kaydı silindi,
+Nordic'in aylık beklentisini artık projeksiyon kendisi 27'lere yazar)
 (`ciro_items`: key/date/amount_eur/label/agency; eski `ciro_monthly` anahtarı kalktı).
 Sedna 340 kalan avans bakiyesi (`compute_receivables` grup satırları, received−consumed)
 grup içi vade-FIFO mahsup edilir; vadesi bugünden önce olan tahsilatlar projeksiyona
