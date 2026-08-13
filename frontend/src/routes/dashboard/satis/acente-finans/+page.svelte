@@ -11,6 +11,7 @@
 		AlarmClock,
 		Building2,
 		CalendarRange,
+		ChevronRight,
 		FileText,
 		Hotel,
 		Inbox,
@@ -34,12 +35,18 @@
 		month_end_receivable: number;
 	};
 
+	type MemberRow = {
+		name: string;
+		totals: Metrics;
+	};
+
 	type AgencyRow = {
 		agency_id: number;
 		agency: string;
 		color: string;
 		term_days: number;
 		totals: Metrics;
+		members: MemberRow[];
 	};
 	type Report = {
 		year: number;
@@ -76,6 +83,7 @@
 	let selectedAgency = $state('all');
 	let loading = $state(true);
 	let data = $state<Report | null>(null);
+	let expanded = $state<Record<number, boolean>>({});
 
 	// ── Türetilmiş ───────────────────────────────────────────
 	let rows = $derived.by(() => {
@@ -107,6 +115,11 @@
 			currency: 'EUR',
 			maximumFractionDigits: 0,
 		}).format(value || 0);
+	}
+
+	// ── UI yardımcıları ──────────────────────────────────────
+	function toggleExpand(agencyId: number) {
+		expanded[agencyId] = !expanded[agencyId];
 	}
 
 	function syncLabel(value: string | null): string {
@@ -243,11 +256,27 @@
 						</thead>
 						<tbody class="divide-y divide-gray-100">
 							{#each rows as row (row.agency_id)}
-								<tr class="hover:bg-gray-50/80">
+								<tr
+									class="hover:bg-gray-50/80 {row.members.length > 0 ? 'cursor-pointer' : ''}"
+									onclick={() => row.members.length > 0 && toggleExpand(row.agency_id)}
+								>
 									<td class="px-5 py-3">
 										<div class="flex items-center gap-2.5">
+											{#if row.members.length > 0}
+												<button
+													type="button"
+													class="shrink-0 rounded p-0.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+													aria-expanded={!!expanded[row.agency_id]}
+													aria-label={expanded[row.agency_id] ? `${row.agency} acentelerini gizle` : `${row.agency} acentelerini göster`}
+													onclick={(event) => { event.stopPropagation(); toggleExpand(row.agency_id); }}
+												>
+													<ChevronRight size={15} class="transition-transform {expanded[row.agency_id] ? 'rotate-90' : ''}" />
+												</button>
+											{:else}
+												<span class="w-4 shrink-0"></span>
+											{/if}
 											<span class="h-2.5 w-2.5 shrink-0 rounded-full" style={`background:${row.color}`}></span>
-											<span><span class="block font-semibold text-gray-800">{row.agency}</span><span class="text-[11px] text-gray-500">{row.term_days === 0 ? 'Peşin' : `${row.term_days} gün vade`}</span></span>
+											<span><span class="block font-semibold text-gray-800">{row.agency}</span><span class="text-[11px] text-gray-500">{row.term_days === 0 ? 'Peşin' : `${row.term_days} gün vade`}{#if row.members.length > 1}<span> · {row.members.length} acente</span>{/if}</span></span>
 										</div>
 									</td>
 									<td class="px-4 py-3 text-right tabular-nums">
@@ -260,6 +289,30 @@
 									<td class="px-4 py-3 text-right font-semibold tabular-nums {row.metrics.overdue > 0 ? 'text-red-700' : 'text-gray-400'}">{row.metrics.overdue > 0 ? euro(row.metrics.overdue) : '—'}</td>
 									<td class="px-5 py-3 text-right tabular-nums"><span class="font-bold text-amber-700">{euro(row.metrics.month_end_receivable)}</span><span class="block text-[11px] text-gray-500">gerçek {euro(row.metrics.open_due)} · tahmini {euro(row.metrics.projected_due)}</span></td>
 								</tr>
+								{#if expanded[row.agency_id]}
+									{#each row.members as member (member.name)}
+										<tr class="bg-gray-50/60 text-[13px]">
+											<td class="py-2 pr-5 pl-14">
+												<div class="flex items-center gap-2">
+													<span class="h-1.5 w-1.5 shrink-0 rounded-full opacity-40" style={`background:${row.color}`}></span>
+													<span class="text-gray-600">{member.name}</span>
+												</div>
+											</td>
+											<td class="px-4 py-2 text-right tabular-nums text-teal-700/80">
+												{member.totals.advance_received > 0 ? euro(member.totals.advance_received) : '—'}
+												{#if member.totals.advance_applied > 0}<span class="block text-[11px] text-gray-400">mahsup {euro(member.totals.advance_applied)}</span>{/if}
+											</td>
+											<td class="px-4 py-2 text-right tabular-nums text-emerald-700/80">{member.totals.collections > 0 ? euro(member.totals.collections) : '—'}</td>
+											<td class="px-4 py-2 text-right tabular-nums text-gray-600">
+												{member.totals.reservation_amount > 0 ? euro(member.totals.reservation_amount) : '—'}
+												{#if member.totals.reservation_count > 0}<span class="block text-[11px] text-gray-400">{member.totals.reservation_count} rezervasyon</span>{/if}
+											</td>
+											<td class="px-4 py-2 text-right tabular-nums text-indigo-700/80">{member.totals.invoiced_amount > 0 ? euro(member.totals.invoiced_amount) : '—'}</td>
+											<td class="px-4 py-2 text-right tabular-nums {member.totals.overdue > 0 ? 'text-red-700' : 'text-gray-400'}">{member.totals.overdue > 0 ? euro(member.totals.overdue) : '—'}</td>
+											<td class="px-5 py-2 text-right tabular-nums text-amber-700/80">{member.totals.month_end_receivable > 0 ? euro(member.totals.month_end_receivable) : '—'}</td>
+										</tr>
+									{/each}
+								{/if}
 							{/each}
 						</tbody>
 						<tfoot class="border-t-2 border-gray-200 bg-gray-50 font-semibold">
@@ -294,6 +347,30 @@
 								<span class="text-xs text-amber-900">Yıllık alınacak hak ediş<br /><small class="text-amber-700">Gerçek {euro(row.metrics.open_due)} · tahmini {euro(row.metrics.projected_due)}</small></span>
 								<strong class="text-sm tabular-nums text-amber-800">{euro(row.metrics.month_end_receivable)}</strong>
 							</div>
+							{#if row.members.length > 0}
+								<button
+									type="button"
+									class="mt-3 flex w-full items-center gap-1.5 text-xs font-medium text-gray-500 focus:outline-none"
+									aria-expanded={!!expanded[row.agency_id]}
+									onclick={() => toggleExpand(row.agency_id)}
+								>
+									<ChevronRight size={14} class="transition-transform {expanded[row.agency_id] ? 'rotate-90' : ''}" />
+									{row.members.length} acente kırılımı
+								</button>
+								{#if expanded[row.agency_id]}
+									<ul class="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-100 bg-gray-50/60">
+										{#each row.members as member (member.name)}
+											<li class="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+												<span class="min-w-0 truncate text-gray-600">{member.name}</span>
+												<span class="shrink-0 text-right tabular-nums">
+													<strong class="text-amber-700">{euro(member.totals.month_end_receivable)}</strong>
+													{#if member.totals.reservation_amount > 0}<span class="block text-[11px] text-gray-500">rez. {euro(member.totals.reservation_amount)}</span>{/if}
+												</span>
+											</li>
+										{/each}
+									</ul>
+								{/if}
+							{/if}
 						</article>
 					{/each}
 				</div>

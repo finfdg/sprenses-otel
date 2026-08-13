@@ -46,6 +46,11 @@ modülüne katkı kurallarını içerir.
   `sales_advances` toplam bakiyesi fallback'tir, fakat aylık avans kırılımı bilinçli olarak boş kalır.
 - Frontend WS yenilemesi `SALES_INVOICES`, `EXCHANGE_RATES`, `HAKEDIS`, `HOTEL_RESERVATION` ve
   `AGENCY_GROUPS` yayınlarını dinler; HTTP polling yoktur. Detay: `docs/modules/acente-finans.md`.
+- **Grup içi üye kırılımı (2026-08-13):** her grup satırı `members: [{name, totals}]` taşır
+  (yıllık toplam, aylık yok); UI'da satıra tıklayınca açılır. Üye etiketi kaynağa göre değişir:
+  rezervasyon = PMS acente adı, fatura/tahsilat/açık hak ediş = 120 cari adı, avans = 340 hesap
+  adı — aynı üyenin farklı yazımları bilerek ayrı satırdır. Üye toplamları grup satırıyla birebir
+  tutar (regresyon: `test_agency_finance.py::test_member_breakdown_matches_group_totals`).
 
 ## Acente Mahsup & Nakit Akım (`acente_mahsup.py`, `sales.acente_mahsup`)
 

@@ -135,6 +135,21 @@ def compute_agency_finance(
         gid: [_empty_metrics() for _ in range(12)] for gid in group_meta
     }
 
+    # Grup içi üye kırılımı (yıllık toplam): kaynak kimliği kaynağa göre değişir —
+    # rezervasyonlarda PMS acente adı, fatura/tahsilatta Sedna 120 cari adı, avansta 340
+    # hesap adı. Aynı üyenin farklı yazımları ayrı satır olarak listelenir (bilinçli:
+    # kullanıcı grubun hangi kaynaklardan beslendiğini görür).
+    member_matrix: dict = {gid: {} for gid in group_meta}
+    member_labels: dict = {gid: {} for gid in group_meta}
+
+    def _member(gid: int, label: str) -> dict:
+        key = (label or "").strip().upper() or "BİLİNMEYEN"
+        slots = member_matrix[gid]
+        if key not in slots:
+            slots[key] = _empty_metrics()
+            member_labels[gid][key] = (label or "").strip() or "Bilinmeyen"
+        return slots[key]
+
     # ── 340 alınan avans hareketleri ────────────────────────────
     advance_balance: dict = {gid: 0.0 for gid in group_meta}
     advance_rows = db.query(SalesAdvanceTransaction).all()
@@ -148,6 +163,9 @@ def compute_agency_finance(
             month = matrix[gid][tx.transaction_date.month - 1]
             _add(month, "advance_received", received)
             _add(month, "advance_applied", consumed)
+            member = _member(gid, tx.name or tx.code)
+            _add(member, "advance_received", received)
+            _add(member, "advance_applied", consumed)
         if tx.created_at and (last_sync_at is None or tx.created_at > last_sync_at):
             last_sync_at = tx.created_at
 
@@ -177,6 +195,7 @@ def compute_agency_finance(
             collection.amount_currency, collection.amount, collection.currency, eur_rate, rates,
         )
         _add(matrix[gid][collection.collection_date.month - 1], "collections", value)
+        _add(_member(gid, collection.customer_name or collection.customer_code), "collections", value)
         collection_count += 1
 
     # ── PMS rezervasyonları: çıkış ayında ciro/adet ─────────────
@@ -194,10 +213,13 @@ def compute_agency_finance(
             _add(slot, "reservation_amount", amount)
             slot["reservation_count"] += 1
             selected_reservation_count += 1
+            member = _member(gid, reservation.agency)
+            _add(member, "reservation_amount", amount)
+            member["reservation_count"] += 1
         if reservation.checkout_date >= today and amount > 0:
             term_days = int(group_meta[gid].get("term_days", 30) or 0)
             due_date = reservation.checkout_date + timedelta(days=term_days)
-            projected[gid].append((due_date, amount))
+            projected[gid].append((due_date, amount, reservation.agency))
 
     # ── Seçili yılda kesilen acente faturaları: fatura tarihinde brüt tutar ─
     issued_invoices = db.query(SalesInvoice).filter(
@@ -211,6 +233,7 @@ def compute_agency_finance(
             invoice.amount_currency, invoice.amount, invoice.currency, eur_rate, rates,
         )
         _add(matrix[gid][invoice.invoice_date.month - 1], "invoiced_amount", value)
+        _add(_member(gid, invoice.customer_name or invoice.customer_code), "invoiced_amount", value)
 
     # ── Açık gerçek faturalar: kullanılmamış 340 avansı önce bunlara FIFO mahsup et ─
     invoice_map, _ = _compute_cached(db)
@@ -237,12 +260,15 @@ def compute_agency_finance(
             due_month = due_date.month
         elif year == today.year and due_date.year < year:
             due_month = 1  # önceki yıldan devreden açık/gecikmiş hak ediş
-        open_by_group[gid].append((due_date, invoice.invoice_date, invoice.id, remaining_eur, due_month))
+        open_by_group[gid].append((
+            due_date, invoice.invoice_date, invoice.id, remaining_eur, due_month,
+            invoice.customer_name or invoice.customer_code,
+        ))
 
     for gid, items in open_by_group.items():
         # Eşleşmeyen 340 bakiyesini farklı carilerin ortak havuzuna dönüştürme.
         balance = max(0.0, advance_balance.get(gid, 0.0)) if gid != _OTHER_ID else 0.0
-        for due_date, invoice_date, invoice_id, remaining_eur, due_month in sorted(
+        for due_date, invoice_date, invoice_id, remaining_eur, due_month, label in sorted(
             items, key=lambda item: (item[0], item[1], item[2]),
         ):
             applied = min(balance, remaining_eur)
@@ -254,8 +280,12 @@ def compute_agency_finance(
                 slot = matrix[gid][due_month - 1]
                 _add(slot, "open_due", net)
                 _add(slot, "month_end_receivable", net)
+                member = _member(gid, label)
+                _add(member, "open_due", net)
+                _add(member, "month_end_receivable", net)
             if due_date < today and due_month is not None:
                 _add(matrix[gid][due_month - 1], "overdue", net)
+                _add(_member(gid, label), "overdue", net)
                 overdue_invoice_count += 1
             open_invoice_count += 1
         advance_balance[gid] = balance
@@ -264,7 +294,7 @@ def compute_agency_finance(
     for gid, items in projected.items():
         # Eşleşmeyen 340 hesaplarını, ilgisiz grup-dışı rezervasyonlara mahsup etme.
         balance = max(0.0, advance_balance.get(gid, 0.0)) if gid != _OTHER_ID else 0.0
-        for due_date, gross in sorted(items, key=lambda item: item[0]):
+        for due_date, gross, label in sorted(items, key=lambda item: item[0]):
             applied = min(balance, gross)
             balance = round(balance - applied, 2)
             net = round(gross - applied, 2)
@@ -275,6 +305,11 @@ def compute_agency_finance(
             _add(slot, "projected_advance", applied)
             _add(slot, "projected_due", net)
             _add(slot, "month_end_receivable", net)
+            member = _member(gid, label)
+            _add(member, "projected_gross", gross)
+            _add(member, "projected_advance", applied)
+            _add(member, "projected_due", net)
+            _add(member, "month_end_receivable", net)
 
     # ── Yanıt: acente satırları + ay/genel toplamlar ────────────
     agency_rows = []
@@ -290,6 +325,17 @@ def compute_agency_finance(
         totals = _round_metrics(totals)
         if not any(totals[key] > 0.005 for key in _MONEY_KEYS) and totals["reservation_count"] == 0:
             continue
+        members = []
+        for key, raw in member_matrix[gid].items():
+            member_totals = _round_metrics(raw)
+            if (not any(member_totals[k] > 0.005 for k in _MONEY_KEYS)
+                    and member_totals["reservation_count"] == 0):
+                continue
+            members.append({"name": member_labels[gid][key], "totals": member_totals})
+        members.sort(key=lambda member: (
+            -(member["totals"]["month_end_receivable"] + member["totals"]["reservation_amount"]),
+            member["name"],
+        ))
         agency_rows.append({
             "agency_id": gid,
             "agency": group_meta[gid]["name"],
@@ -297,6 +343,7 @@ def compute_agency_finance(
             "term_days": int(group_meta[gid].get("term_days", 30) or 0),
             "months": rounded_months,
             "totals": totals,
+            "members": members,
         })
 
     agency_rows.sort(key=lambda row: (

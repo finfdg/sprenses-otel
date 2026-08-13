@@ -62,3 +62,23 @@ bir kez çalıştırılarak tablo doldurulur; devamında satış faturası senkr
 - KPI kartları seçili yıl ve acenteye göre yeniden hesaplanır.
 - Masaüstünde karşılaştırmalı tablo, mobilde acente kartları kullanılır.
 - Veriler WebSocket yayınlarıyla yenilenir; polling kullanılmaz.
+
+## Grup İçi Üye Kırılımı (2026-08-13)
+
+Tablodaki her satır bir **acente grubudur** (`agency_groups`); satıra tıklayınca grubun altındaki
+üyeler açılır. API her grup satırına `members: [{name, totals}]` dizisi ekler (yıllık toplamlar,
+aylık kırılım yok). Üye kimliği kaynağa göre değişir — **bilinçli tasarım**, kullanıcı grubun
+hangi kaynaklardan beslendiğini görür:
+
+| Kalem | Üye etiketi |
+|---|---|
+| Rezervasyon + ileri hak ediş tahmini | PMS acente adı (`reservations.agency`) |
+| Fatura / tahsilat / açık hak ediş | Sedna 120 cari adı (`customer_name`) |
+| Alınan avans / mahsup | Sedna 340 hesap adı (`SalesAdvanceTransaction.name`) |
+
+Aynı üyenin farklı yazımları (ör. PMS `ALLTOURS` ile Sedna `ALLTOURS GMBH`) ayrı satır olarak
+listelenir. Üye toplamlarının toplamı grup satırıyla birebir tutar (avans FIFO mahsubu grup
+havuzundan yapılır ama net tutarlar fatura/rezervasyon bazında üyeye yazılır) — regresyon:
+`tests/test_agency_finance.py::test_member_breakdown_matches_group_totals`. Tamamı sıfır olan
+üyeler yanıta eklenmez; `Diğer / Eşleşmeyen` grubunun kırılımı eşleşmeyen kaynakları teşhis için
+özellikle kullanışlıdır.

@@ -160,6 +160,30 @@ class TestAgencyFinanceMath:
         assert row["totals"]["projected_advance"] == 100
         assert row["totals"]["projected_due"] == 900
 
+    def test_member_breakdown_matches_group_totals(self, db):
+        _seed(db)
+        result = compute_agency_finance(db, 2026, today=self.TODAY)
+        row = next(item for item in result["agencies"] if item["agency"] == "AFİN TEST ACENTE")
+        members = {member["name"]: member["totals"] for member in row["members"]}
+
+        # Rezervasyon bacağı PMS acente adıyla, Sedna bacağı 120 cari adıyla listelenir.
+        assert "AFIN PMS" in members
+        assert "AFİN TEST TURİZM A.Ş." in members
+        assert members["AFIN PMS"]["reservation_amount"] == 1000
+        assert members["AFIN PMS"]["reservation_count"] == 1
+        assert members["AFIN PMS"]["projected_due"] == 1000
+        assert members["AFİN TEST TURİZM A.Ş."]["advance_received"] == 300
+        assert members["AFİN TEST TURİZM A.Ş."]["collections"] == 200
+        assert members["AFİN TEST TURİZM A.Ş."]["invoiced_amount"] == 900
+        assert members["AFİN TEST TURİZM A.Ş."]["open_due"] == 500
+        assert members["AFİN TEST TURİZM A.Ş."]["overdue"] == 100
+
+        # Üye kırılımının toplamı grup satırıyla birebir tutmalı.
+        for key in ("advance_received", "collections", "reservation_amount",
+                    "invoiced_amount", "overdue", "open_due", "projected_due",
+                    "month_end_receivable"):
+            assert round(sum(m[key] for m in members.values()), 2) == row["totals"][key], key
+
     def test_virman_is_not_external_collection(self, db):
         _seed(db)
         db.add(SalesCollection(
