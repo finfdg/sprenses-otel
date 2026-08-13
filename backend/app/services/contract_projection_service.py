@@ -27,6 +27,7 @@ gösterebilir; toplamlara dahildir (temkinli senaryo tüketicide filtrelenebilir
 data_confidence bayrağı kalemlerde taşınır (taranmış-belge kaynaklı değerler).
 """
 import time
+from calendar import monthrange
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Optional
@@ -162,8 +163,14 @@ def _compute(db: Session, today: date) -> dict:
             if amt <= 0 or co_date is None:
                 continue
             gid = member_to_gid.get(_agency_norm(agency), _OTHER_ID)
-            term = int((gmeta.get(gid) or {}).get("term_days") or 30)
-            due = _next_friday(co_date + timedelta(days=term))
+            gm = gmeta.get(gid) or {}
+            term = int(gm.get("term_days") or 30)
+            raw = co_date + timedelta(days=term)
+            if gm.get("payment_alignment") == "month_end":
+                # ör. Nordic: vade hangi aya düşerse o ayın SON GÜNÜ öder (Cuma değil)
+                due = date(raw.year, raw.month, monthrange(raw.year, raw.month)[1])
+            else:
+                due = _next_friday(raw)
             if due <= today:
                 continue  # vadesi geçmiş tahsilat projeksiyona girmez (hakediş alanı)
             agg[(gid, due)] += amt

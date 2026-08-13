@@ -8,6 +8,10 @@ from app.database import Base
 # Acente Mahsup & Nakit Akım projeksiyonu için varsayılan vade (gün)
 DEFAULT_AGENCY_TERM_DAYS = 30
 
+# Ödeme günü hizalaması: vade (çıkış + term_days) sonrası ödeme hangi güne oturur
+PAYMENT_ALIGN_FRIDAY = "friday"        # sonraki ilk Cuma (varsayılan — cariler konvansiyonu)
+PAYMENT_ALIGN_MONTH_END = "month_end"  # vadenin düştüğü ayın son günü (ör. Nordic)
+
 
 class AgencyGroup(Base):
     """Rezervasyon acentelerini gruplayan tanım tablosu.
@@ -32,6 +36,9 @@ class AgencyGroup(Base):
     # Sedna 340.01.* avans hesap kodları (Faz C — acente başına PARA BİRİMİ AYRI hesap
     # olabildiğinden liste: ör. ANEX EUR + ANEX USD; avans mutabakatı kod-öncelikli eşleşir)
     sedna_account_codes: Mapped[list] = Column(JSON, nullable=True)
+    # Ciro projeksiyonunda ödeme günü hizalaması (2026-08-13): friday | month_end
+    payment_alignment: Mapped[str] = Column(String(10), nullable=False,
+                                            server_default=PAYMENT_ALIGN_FRIDAY)
     created_at = Column(DateTime(timezone=True), server_default=text("now()"), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=text("now()"),
                         onupdate=text("now()"), nullable=False)

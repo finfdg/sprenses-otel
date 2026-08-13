@@ -775,11 +775,19 @@ YAZILMAZ: bayat kayıt riski sıfır, #27 çift-motor drift'i yok. Üç tüketic
 `contract_projection_service` içinde GÜN bazında üretilir: her acente grubunun
 rezervasyon cirosu (checkout günü toplamı) **çıkış/fatura tarihi + anlaşma vadesi
 (`agency_groups.term_days`) sonrası İLK CUMA'ya** (`vendor_fifo._next_friday` — cariler
-konvansiyonu; ör. PEGAS 21g: çıkış+21 sonrası ilk Cuma) **acente adıyla** yazılır
+konvansiyonu; ör. PEGAS 21g: çıkış+21 sonrası ilk Cuma) **acente adıyla** yazılır.
+**Ödeme günü hizalaması `agency_groups.payment_alignment`** (migration `f3c7a9b5d2e8`):
+`friday` (varsayılan) | `month_end` — ay sonunda ödeyen acenteler (ör. NORDIC, kullanıcı
+bilgisi 2026-08-13) vadenin düştüğü ayın SON GÜNÜNE yazılır, Cuma'ya değil
 (`ciro_items`: key/date/amount_eur/label/agency; eski `ciro_monthly` anahtarı kalktı).
 Sedna 340 kalan avans bakiyesi (`compute_receivables` grup satırları, received−consumed)
 grup içi vade-FIFO mahsup edilir; vadesi bugünden önce olan tahsilatlar projeksiyona
-girmez (hakediş/vadesi-geçen alanı). Kas/Ara cirosunun ertesi yıla taşan tahsilatı doğal
+girmez (hakediş/vadesi-geçen alanı). **Mahsup havuzu grup satırından okunduğu için
+acentenin 120/340 muhasebe firması gruba üye olmalı** — W2M vakası (2026-08-13,
+kullanıcı: "W2M tahsilatı avansa mahsuplaşır"): avans 340 hesabı ayrı tüzel kişide
+(`120.02.01.0005 W2M S.L.U`) olduğundan grup havuzu boş kalıyor, W2M ciroda görünüyordu;
+çözüm NORDIC emsali — üye adı + `agency_code_overrides` köprüsü (üye `W2M S.L.U
+VAT:B62880992` → `120.02.01.0005`) eklendi, W2M kalemleri mahsupla sıfırlandı. Kas/Ara cirosunun ertesi yıla taşan tahsilatı doğal
 olarak Ocak Cumalarına düşer (ayrı "tail" kalemi yok).
 
 **Çift-sayım kural seti (4 vektör, kontrat analizi raporundan — UYGULANDI):**

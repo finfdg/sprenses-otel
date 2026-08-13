@@ -80,6 +80,7 @@ def _agency_group_maps(db: Session):
             "id": g.id, "name": g.name,
             "term_days": int(g.term_days if g.term_days is not None else DEFAULT_AGENCY_TERM_DAYS),
             "kickback_pct": float(g.kickback_percent or 0),
+            "payment_alignment": g.payment_alignment or "friday",
             "color": _PALETTE[i % len(_PALETTE)],
         }
         for m in (g.members or []):
