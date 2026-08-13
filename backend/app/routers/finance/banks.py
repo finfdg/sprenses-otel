@@ -5,6 +5,8 @@ import logging
 import math
 import os
 import uuid
+from datetime import date
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import desc, func
@@ -47,10 +49,22 @@ router = APIRouter(prefix="/banks")
 
 @router.get("/accounts/")
 def list_accounts(
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    min_amount: Optional[float] = Query(default=None, ge=0),
+    max_amount: Optional[float] = Query(default=None, ge=0),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("finance.banks", "view")),
 ):
-    """Tüm banka hesaplarını listele."""
+    """Hareket filtresi varsa yalnız koşullara uyan banka hesaplarını listele."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="Başlangıç tarihi bitiş tarihinden sonra olamaz")
+    if min_amount is not None and max_amount is not None and min_amount > max_amount:
+        raise HTTPException(status_code=400, detail="Minimum tutar maksimum tutardan büyük olamaz")
+
+    movement_filter_active = any(
+        value is not None for value in (date_from, date_to, min_amount, max_amount)
+    )
     accounts = db.query(BankAccount).order_by(BankAccount.bank_name, BankAccount.currency).all()
 
     if not accounts:
@@ -59,13 +73,26 @@ def list_accounts(
     account_ids = [a.id for a in accounts]
 
     # İşlem sayılarını toplu al
-    count_rows = (
+    count_query = (
         db.query(BankTransaction.account_id, func.count(BankTransaction.id))
         .filter(BankTransaction.account_id.in_(account_ids))
-        .group_by(BankTransaction.account_id)
-        .all()
     )
+    if date_from:
+        count_query = count_query.filter(BankTransaction.date >= date_from)
+    if date_to:
+        count_query = count_query.filter(BankTransaction.date <= date_to)
+    if min_amount is not None:
+        count_query = count_query.filter(func.abs(BankTransaction.amount) >= min_amount)
+    if max_amount is not None:
+        count_query = count_query.filter(func.abs(BankTransaction.amount) <= max_amount)
+    count_rows = count_query.group_by(BankTransaction.account_id).all()
     count_map = {acc_id: cnt for acc_id, cnt in count_rows}
+
+    if movement_filter_active:
+        accounts = [acc for acc in accounts if acc.id in count_map]
+        if not accounts:
+            return []
+        account_ids = [a.id for a in accounts]
 
     # Son bakiyeleri toplu al (window function ile)
     last_tx_subq = (
@@ -327,6 +354,10 @@ def list_transactions(
     account_id: int,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    min_amount: Optional[float] = Query(default=None, ge=0),
+    max_amount: Optional[float] = Query(default=None, ge=0),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("finance.banks", "view")),
 ):
@@ -335,7 +366,20 @@ def list_transactions(
     if not acc:
         raise HTTPException(status_code=404, detail="Hesap bulunamadı")
 
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="Başlangıç tarihi bitiş tarihinden sonra olamaz")
+    if min_amount is not None and max_amount is not None and min_amount > max_amount:
+        raise HTTPException(status_code=400, detail="Minimum tutar maksimum tutardan büyük olamaz")
+
     query = db.query(BankTransaction).filter(BankTransaction.account_id == account_id)
+    if date_from:
+        query = query.filter(BankTransaction.date >= date_from)
+    if date_to:
+        query = query.filter(BankTransaction.date <= date_to)
+    if min_amount is not None:
+        query = query.filter(func.abs(BankTransaction.amount) >= min_amount)
+    if max_amount is not None:
+        query = query.filter(func.abs(BankTransaction.amount) <= max_amount)
     total = query.count()
 
     items = (

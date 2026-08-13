@@ -18,7 +18,8 @@
 	import Input from '$lib/components/Input.svelte';
 	import Select from '$lib/components/Select.svelte';
 	import {
-		Upload, Plus, Pencil, Trash2, Check, ChevronRight, Building2, FileText, FileSpreadsheet, Loader2
+		Upload, Plus, Pencil, Trash2, Check, ChevronRight, Building2, FileText, FileSpreadsheet, Loader2,
+		Filter, RotateCcw
 	} from 'lucide-svelte';
 
 	// ─── Logo haritası ──────────────────────────────────────
@@ -37,6 +38,11 @@
 	// ─── State ──────────────────────────────────────────────
 	let accounts = $state<BankAccount[]>([]);
 	let loading = $state(true);
+	let filterDateFrom = $state('');
+	let filterDateTo = $state('');
+	let filterMinAmount = $state('');
+	let filterMaxAmount = $state('');
+	let filterError = $state('');
 
 	// Döviz kurları (EUR çevrimi için)
 	let latestRates = $state<LatestRates | null>(null);
@@ -181,14 +187,68 @@
 	});
 
 	// ─── API ────────────────────────────────────────────────
+	function normalizeAmountFilter(value: string) {
+		return value.trim().replace(',', '.');
+	}
+
+	function parseAmountFilter(value: string) {
+		if (!value.trim()) return null;
+		if (!/^\d+(?:[.,]\d+)?$/.test(value.trim())) return Number.NaN;
+		return Number(normalizeAmountFilter(value));
+	}
+
 	async function loadAccounts() {
+		loading = true;
 		try {
-			accounts = await api.get<BankAccount[]>('/finance/banks/accounts/');
+			const params = new URLSearchParams();
+			if (filterDateFrom) params.set('date_from', filterDateFrom);
+			if (filterDateTo) params.set('date_to', filterDateTo);
+			if (filterMinAmount) params.set('min_amount', normalizeAmountFilter(filterMinAmount));
+			if (filterMaxAmount) params.set('max_amount', normalizeAmountFilter(filterMaxAmount));
+			const query = params.toString();
+			accounts = await api.get<BankAccount[]>(`/finance/banks/accounts/${query ? `?${query}` : ''}`);
 		} catch (err: any) {
 			console.error('Hesaplar yüklenemedi:', err);
+			showToast(err?.message || 'Hesaplar yüklenemedi', 'error');
 		}
 		loading = false;
 	}
+
+	function applyMovementFilters() {
+		filterError = '';
+		if (filterDateFrom && filterDateTo && filterDateFrom > filterDateTo) {
+			filterError = 'Başlangıç tarihi bitiş tarihinden sonra olamaz';
+			return;
+		}
+		const min = parseAmountFilter(filterMinAmount);
+		const max = parseAmountFilter(filterMaxAmount);
+		if (Number.isNaN(min) || Number.isNaN(max)) {
+			filterError = 'Tutarı 83,50 veya 83.50 biçiminde girin';
+			return;
+		}
+		if (min !== null && max !== null && min > max) {
+			filterError = 'Minimum tutar maksimum tutardan büyük olamaz';
+			return;
+		}
+		expandedBanks = {};
+		expandedAccount = null;
+		loadAccounts();
+	}
+
+	function clearMovementFilters() {
+		filterDateFrom = '';
+		filterDateTo = '';
+		filterMinAmount = '';
+		filterMaxAmount = '';
+		filterError = '';
+		expandedBanks = {};
+		expandedAccount = null;
+		loadAccounts();
+	}
+
+	let movementFilterActive = $derived(
+		!!(filterDateFrom || filterDateTo || filterMinAmount || filterMaxAmount)
+	);
 
 	async function loadRates() {
 		try {
@@ -201,8 +261,13 @@
 	async function loadTransactions(accountId: number) {
 		txLoading = true;
 		try {
+			const params = new URLSearchParams({ page: String(txPage), page_size: String(txPageSize) });
+			if (filterDateFrom) params.set('date_from', filterDateFrom);
+			if (filterDateTo) params.set('date_to', filterDateTo);
+			if (filterMinAmount) params.set('min_amount', normalizeAmountFilter(filterMinAmount));
+			if (filterMaxAmount) params.set('max_amount', normalizeAmountFilter(filterMaxAmount));
 			const data = await api.get<{ items: BankTransaction[]; total: number; pages: number }>(
-				`/finance/banks/accounts/${accountId}/transactions?page=${txPage}&page_size=${txPageSize}`
+				`/finance/banks/accounts/${accountId}/transactions?${params.toString()}`
 			);
 			transactions = data.items;
 			txTotal = data.total;
@@ -600,6 +665,25 @@
 	{/if}
 
 	<!-- ─── Başlık ──────────────────────────────────────────── -->
+	<div class="mb-5 rounded-xl border border-gray-200 bg-white p-4">
+		<div class="flex flex-wrap items-center gap-2 mb-3">
+			<Filter size={16} class="text-teal-700" />
+			<h2 class="text-sm font-semibold text-gray-800">Hareket gören hesapları süz</h2>
+			<span class="text-xs text-gray-500">Tutar hesabın kendi para biriminde ve mutlak değere göredir.</span>
+		</div>
+		<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+			<div><label for="bank-filter-from" class="block text-xs font-medium text-gray-600 mb-1">Başlangıç tarihi</label><Input id="bank-filter-from" type="date" size="sm" bind:value={filterDateFrom} /></div>
+			<div><label for="bank-filter-to" class="block text-xs font-medium text-gray-600 mb-1">Bitiş tarihi</label><Input id="bank-filter-to" type="date" size="sm" bind:value={filterDateTo} /></div>
+			<div><label for="bank-filter-min" class="block text-xs font-medium text-gray-600 mb-1">Minimum tutar</label><Input id="bank-filter-min" type="text" inputmode="decimal" size="sm" bind:value={filterMinAmount} placeholder="0,00" /></div>
+			<div><label for="bank-filter-max" class="block text-xs font-medium text-gray-600 mb-1">Maksimum tutar</label><Input id="bank-filter-max" type="text" inputmode="decimal" size="sm" bind:value={filterMaxAmount} placeholder="Sınırsız" /></div>
+		</div>
+		{#if filterError}<p class="mt-2 text-xs text-red-600" role="alert">{filterError}</p>{/if}
+		<div class="flex justify-end gap-2 mt-3">
+			{#if movementFilterActive}<Button variant="secondary" size="sm" onclick={clearMovementFilters}><RotateCcw size={14} /> Temizle</Button>{/if}
+			<Button size="sm" onclick={applyMovementFilters} loading={loading}><Filter size={14} /> Süz</Button>
+		</div>
+	</div>
+
 	<div class="flex items-center justify-between mb-4">
 		<div class="flex items-center gap-3">
 			<h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Banka Hesapları</h2>
@@ -622,10 +706,10 @@
 	{:else if bankGroups.length === 0}
 		<EmptyState
 			icon={Building2}
-			title="Henüz banka hesabı eklenmemiş"
-			description="Yeni hesap eklemek için sağ üstteki butonu kullanın veya yukarıdan ekstre yükleyin"
-			ctaText={canUse ? 'Yeni Hesap' : ''}
-			onCta={canUse ? () => openAccountForm() : null}
+			title={movementFilterActive ? 'Koşullara uyan hareket bulunamadı' : 'Henüz banka hesabı eklenmemiş'}
+			description={movementFilterActive ? 'Tarih veya tutar aralığını değiştirerek yeniden deneyin' : 'Yeni hesap eklemek için sağ üstteki butonu kullanın veya yukarıdan ekstre yükleyin'}
+			ctaText={movementFilterActive ? 'Filtreleri Temizle' : canUse ? 'Yeni Hesap' : ''}
+			onCta={movementFilterActive ? clearMovementFilters : canUse ? () => openAccountForm() : null}
 		/>
 	{:else}
 		<div class="space-y-3">

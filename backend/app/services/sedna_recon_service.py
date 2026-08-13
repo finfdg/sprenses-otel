@@ -11,7 +11,11 @@ satırlarının ~%97'sini kapatır):
   1. (tarih, yönlü tutar) anahtarında k↔k adet eşleme (maaş serisi gibi aynı-tutar
      mükerrer satırlar adetle korunur; Sedna adedi fazlaysa fark = mükerrer şüphesi)
   2. ±3 gün pencere (canlı veride tek istisna +3 gündü; genişi yanlış-pozitif üretir)
-  3. Gün-içi küçük küme toplamı (k≤4, iki yönlü): banka 1 ↔ Sedna N (KDV+damga
+  3. Banka işlem referansıyla ücret+BSMV gruplama (aynı referans ve gün): banka N ↔
+     Sedna 1. Bu geçiş, yoğun günlerde genel kombinasyon güvenlik sınırına takılmaz.
+  4. Tekrarlı masraf serisi: açıklama referansı taşımayan banka satırlarında
+     aynı gün, eşit adet ana masraf + yaklaşık %5 BSMV ↔ eşit adet Sedna toplamı.
+  5. Gün-içi küçük küme toplamı (k≤4, iki yönlü): banka 1 ↔ Sedna N (KDV+damga
      bölmesi) ve banka N ↔ Sedna 1 (ücret+BSMV → tek satır)
 
 Nakit-dışı Sedna satırları (ay sonu kur farkı değerlemesi: Owner.Type=4 veya dövizde
@@ -48,13 +52,14 @@ DATE_WINDOW_DAYS = 3          # geçiş 2 penceresi
 SUBSET_MAX_K = 4              # geçiş 3 küme boyutu üst sınırı
 SUBSET_TOLERANCE = 0.02       # küme toplamı toleransı (kuruş yuvarlaması)
 SUBSET_DAY_CAP = 12           # aynı günde bu kadardan çok aday varsa kombinasyon denenmez
-DEFAULT_WINDOW_DAYS = 45      # varsayılan tarama penceresi (giriş gecikmesi p90=27 gün)
+DEFAULT_WINDOW_DAYS = 45      # bakiye-zinciri gibi ikincil kontrollerin varsayılan penceresi
 PENDING_ALERT_DAYS = 15       # bu yaştan eski 'Sedna bekliyor' bildirim konusu olur
 
 # Sedna Curr değeri 'TRY' bilmez — hesap para birimi çevrimi
 _CURRENCY_TO_SEDNA = {"TRY": "TL"}
 
 _DIGIT_GROUP_RE = re.compile(r"\d{6,}")
+_TRANSFER_REF_RE = re.compile(r"(?:^|[-:/ ])(\d{10,})\s*$")
 
 
 def _today() -> date:
@@ -64,6 +69,23 @@ def _today() -> date:
 
 def _r2(x) -> float:
     return round(float(x or 0), 2)
+
+
+def _transfer_fee_ref(description: Optional[str]) -> Optional[str]:
+    """Banka masrafı açıklamasındaki sondaki işlem referansını döndür.
+
+    Yapı Kredi aynı transferin ana ücret ve BSMV satırlarına aynı sayısal
+    referansı ekler (HAVALE ÜCRETİ-080520262659 gibi). Yalnız transfer masrafı
+    olduğu açıkça anlaşılan açıklamalar kabul edilir; başka hareketlerdeki
+    uzun sayılar yanlış gruplama üretmesin.
+    """
+    text = (description or "").strip().upper()
+    is_transfer = "HAVALE" in text or "EFT" in text
+    is_fee = any(token in text for token in ("ÜCRET", "UCRET", "MASRAF", "KOMİSYON", "KOMISYON", "BSMV"))
+    if not (is_transfer and is_fee):
+        return None
+    match = _TRANSFER_REF_RE.search(text)
+    return match.group(1) if match else None
 
 
 # ─── Hesap eşleme önerileri ─────────────────────────────────────────────────
@@ -254,7 +276,80 @@ def _match_account(bank_rows: List[dict], sedna_rows: List[dict],
             still_b.append(b)
     b_rest = still_b
 
-    # Geçiş 3: gün-içi küme toplamı (k≤4, iki yönlü)
+    # Geçiş 3: transfer referansıyla ücret + BSMV gruplama.
+    # Genel subset geçişindeki SUBSET_DAY_CAP, yoğun günlerde kombinasyon
+    # patlamasını önler. Burada adaylar banka tarafındaki kesin işlem referansıyla
+    # daraltıldığından günlük toplam aday sayısına bakmadan güvenle eşleştirilebilir.
+    ref_groups: Dict[tuple, List[dict]] = defaultdict(list)
+    for b in b_rest:
+        ref = _transfer_fee_ref(b.get("description"))
+        if ref:
+            ref_groups[(b["date"], ref)].append(b)
+
+    used_bank_ids = set()
+    used_sedna_ids = set()
+    for (day, _ref), group in ref_groups.items():
+        # Gerçek masraf grubu: en az bir BSMV ve bir ana ücret satırı.
+        has_bsmv = any("BSMV" in (b.get("description") or "").upper() for b in group)
+        has_main_fee = any("BSMV" not in (b.get("description") or "").upper() for b in group)
+        if len(group) < 2 or len(group) > SUBSET_MAX_K or not (has_bsmv and has_main_fee):
+            continue
+        total = round(sum(b["amount"] for b in group), 2)
+        hit = next((s for s in s_rest
+                    if id(s) not in used_sedna_ids
+                    and s["fiche_date"] == day
+                    and abs(round(s["amount"], 2) - total) <= SUBSET_TOLERANCE), None)
+        if hit:
+            used_bank_ids.update(id(b) for b in group)
+            used_sedna_ids.add(id(hit))
+
+    if used_bank_ids:
+        b_rest = [b for b in b_rest if id(b) not in used_bank_ids]
+        s_rest = [s for s in s_rest if id(s) not in used_sedna_ids]
+
+    # Geçiş 4: tekrarlı ana masraf + %5 BSMV serisi.
+    # Bazı YKB hareketlerinde açıklama ücret/BSMV yerine alıcı metnini taşır;
+    # referansla gruplama yapılamaz. Yanlış pozitiften kaçınmak için ancak:
+    # - iki banka tutarı da negatif ve aynı günde eşit adette (en az 2),
+    # - küçük tutar ana tutarın %4.5–%5.5'i,
+    # - Sedna'da toplam tutar da en az aynı adetteyse topluca eşleştirilir.
+    bank_amount_groups: Dict[tuple, List[dict]] = defaultdict(list)
+    for b in b_rest:
+        bank_amount_groups[(b["date"], round(b["amount"], 2))].append(b)
+
+    used_bank_ids = set()
+    used_sedna_ids = set()
+    keys = sorted(bank_amount_groups, key=lambda key: abs(key[1]), reverse=True)
+    for day, main_amount in keys:
+        main_group = bank_amount_groups[(day, main_amount)]
+        if main_amount >= 0 or len(main_group) < 2:
+            continue
+        for tax_day, tax_amount in keys:
+            if tax_day != day or tax_amount >= 0 or abs(tax_amount) >= abs(main_amount):
+                continue
+            tax_group = bank_amount_groups[(tax_day, tax_amount)]
+            if len(tax_group) != len(main_group):
+                continue
+            ratio = abs(tax_amount / main_amount)
+            if not 0.045 <= ratio <= 0.055:
+                continue
+            total = round(main_amount + tax_amount, 2)
+            sedna_hits = [s for s in s_rest
+                          if id(s) not in used_sedna_ids
+                          and s["fiche_date"] == day
+                          and abs(round(s["amount"], 2) - total) <= SUBSET_TOLERANCE]
+            if len(sedna_hits) < len(main_group):
+                continue
+            used_bank_ids.update(id(b) for b in main_group)
+            used_bank_ids.update(id(b) for b in tax_group)
+            used_sedna_ids.update(id(s) for s in sedna_hits[:len(main_group)])
+            break
+
+    if used_bank_ids:
+        b_rest = [b for b in b_rest if id(b) not in used_bank_ids]
+        s_rest = [s for s in s_rest if id(s) not in used_sedna_ids]
+
+    # Geçiş 5: gün-içi küme toplamı (k≤4, iki yönlü)
     def _subset_pass(singles: List[dict], pools: List[dict], single_amt, pool_amt, pool_date):
         used_pool_ids = set()
         remaining_singles = []
@@ -319,7 +414,13 @@ def run_reconciliation(
     fetch_max_dates = fetch_max_dates or sedna_client.fetch_bank_ledger_max_dates
 
     today = _today()
-    window_start = today - timedelta(days=window_days)
+    # Muhasebe mutabakatı aktif takvim yılının tamamını kapsar. Eşleştirme
+    # motoru ±3 gün tarih kaymasına izin verdiği için yıl sınırındaki (30 Aralık
+    # banka ↔ 2 Ocak Sedna gibi) hareketleri kaybetmemek üzere veri çekimi ayrıca
+    # DATE_WINDOW_DAYS kadar geriden başlar. Tampon dönem yalnız eşleştirme içindir;
+    # kullanıcıya gösterilen/kalıcılaştırılan bulgular aktif yılla sınırlıdır.
+    period_start = date(today.year, 1, 1)
+    fetch_start = period_start - timedelta(days=DATE_WINDOW_DAYS)
 
     accounts = (
         db.query(BankAccount)
@@ -333,7 +434,7 @@ def run_reconciliation(
     summary = {"accounts_scanned": 0, "accounts_skipped": total_accounts - len(accounts),
                "matched": 0, "open": 0, "new": 0, "auto_closed": 0}
     if not accounts:
-        run = SednaReconRun(window_start=window_start, window_end=today, triggered_by=triggered_by,
+        run = SednaReconRun(window_start=period_start, window_end=today, triggered_by=triggered_by,
                             accounts_skipped=summary["accounts_skipped"],
                             note="Eşlenmiş (onaylı) Sedna kodu olan hesap yok")
         db.add(run)
@@ -342,7 +443,7 @@ def run_reconciliation(
 
     codes = [a.sedna_account_code for a in accounts]
     # Tek sorgu — kopukta exception yükselir, kayıtlara DOKUNULMAZ (koşu bütünlüğü)
-    raw_rows = fetch_rows(codes, window_start.isoformat())
+    raw_rows = fetch_rows(codes, fetch_start.isoformat())
     max_dates = fetch_max_dates(codes)
 
     rows_by_code: Dict[str, List[dict]] = {}
@@ -368,24 +469,30 @@ def run_reconciliation(
         bank_rows = [
             {"id": t.id, "date": t.date, "amount": _r2(t.amount), "description": t.description}
             for t in db.query(BankTransaction)
-            .filter(BankTransaction.account_id == acc.id, BankTransaction.date >= window_start)
+            .filter(BankTransaction.account_id == acc.id, BankTransaction.date >= fetch_start)
             .all()
         ]
 
         match_groups: List[dict] = []
-        findings = _match_account(bank_rows, sedna_cash, max_dates.get(acc.sedna_account_code),
-                                  match_groups_out=match_groups)
+        all_findings = _match_account(bank_rows, sedna_cash, max_dates.get(acc.sedna_account_code),
+                                      match_groups_out=match_groups)
+        findings = [
+            f for f in all_findings
+            if ((f.get("btx") or {}).get("date")
+                or (f.get("sedna") or {}).get("fiche_date")) >= period_start
+        ]
         if match_groups:
             bridge_groups.append({"account": acc, "groups": match_groups})
         summary["accounts_scanned"] += 1
-        summary["matched"] += len(bank_rows) - sum(1 for f in findings if f["btx"])
+        report_bank_count = sum(1 for b in bank_rows if b["date"] >= period_start)
+        summary["matched"] += report_bank_count - sum(1 for f in findings if f["btx"])
 
         # Kalıcılaştırma: kimlik = (btx_id, sedna_rec_id)
         open_rows = (
             db.query(SednaBankRecon)
             .filter(SednaBankRecon.bank_account_id == acc.id,
                     SednaBankRecon.resolved_at.is_(None),
-                    SednaBankRecon.event_date >= window_start)
+                    SednaBankRecon.event_date >= period_start)
             .all()
         )
         ignored_ids = {
@@ -445,7 +552,7 @@ def run_reconciliation(
     )
 
     run = SednaReconRun(
-        window_start=window_start, window_end=today, triggered_by=triggered_by,
+        window_start=period_start, window_end=today, triggered_by=triggered_by,
         accounts_scanned=summary["accounts_scanned"], accounts_skipped=summary["accounts_skipped"],
         matched_count=summary["matched"], open_count=summary["open"],
         new_count=summary["new"], auto_closed_count=summary["auto_closed"],

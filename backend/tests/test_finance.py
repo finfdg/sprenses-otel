@@ -199,6 +199,52 @@ class TestBankAccounts:
         assert test_acc is not None
         assert test_acc["transaction_count"] >= 3
 
+    def test_list_accounts_filters_by_transaction_date(self, client, auth_headers, test_transactions):
+        response = client.get(
+            "/api/finance/banks/accounts/?date_from=2026-03-11&date_to=2026-03-11",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        test_acc = next((a for a in response.json() if a["iban"] == "TR000000000000000000000099"), None)
+        assert test_acc is not None
+        assert test_acc["transaction_count"] == 1
+
+    def test_list_accounts_filters_by_absolute_amount(self, client, auth_headers, test_transactions):
+        response = client.get(
+            "/api/finance/banks/accounts/?min_amount=900&max_amount=1100",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        test_acc = next((a for a in response.json() if a["iban"] == "TR000000000000000000000099"), None)
+        assert test_acc is not None
+        assert test_acc["transaction_count"] == 2
+
+    def test_list_accounts_rejects_invalid_filter_ranges(self, client, auth_headers):
+        date_response = client.get(
+            "/api/finance/banks/accounts/?date_from=2026-04-01&date_to=2026-03-01",
+            headers=auth_headers,
+        )
+        amount_response = client.get(
+            "/api/finance/banks/accounts/?min_amount=2000&max_amount=1000",
+            headers=auth_headers,
+        )
+        assert date_response.status_code == 400
+        assert amount_response.status_code == 400
+
+    def test_list_transactions_uses_same_movement_filters(
+        self, client, auth_headers, test_bank_account, test_transactions,
+    ):
+        response = client.get(
+            f"/api/finance/banks/accounts/{test_bank_account.id}/transactions"
+            "?date_from=2026-03-10&date_to=2026-03-12&min_amount=900&max_amount=1100",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 2
+        assert len(body["items"]) == 2
+        assert all(abs(item["amount"]) == 1000 for item in body["items"])
+
     def test_create_account(self, client, auth_headers, db):
         """Yeni hesap oluşturulabilmeli."""
         response = client.post("/api/finance/banks/accounts/", headers=auth_headers, json={

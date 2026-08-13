@@ -50,9 +50,10 @@ TODAY = datetime.now(tz_istanbul).date()  # servis _today() ile aynı (İstanbul
 
 # ─────────────────────────── Yardımcılar ───────────────────────────
 
-def _b(i, d, a):
+def _b(i, d, a, description=None):
     """_match_account banka satırı."""
-    return {"id": i, "date": d, "amount": float(a), "description": f"banka {i}"}
+    return {"id": i, "date": d, "amount": float(a),
+            "description": description or f"banka {i}"}
 
 
 def _s(i, d, a):
@@ -311,6 +312,72 @@ class TestMatchAccount:
         )
         assert findings == []
 
+    def test_transfer_ref_matches_fee_and_bsmv_on_busy_day(self):
+        """Aynı günde >12 aday olsa da referanslı ücret+BSMV grupları eşleşir.
+
+        05.08.2026 Yapı Kredi canlı vakası: 8×(-15.96,-0.80) ↔ 8×-16.76
+        ve 2×(-7.98,-0.40) ↔ 2×-8.38. Genel subset aday sınırı 12'yi
+        aştığı için referans ön-geçişi olmadan tamamı açık kalıyordu.
+        """
+        d = date(2026, 8, 5)
+        bank = []
+        sedna = []
+        next_id = 1
+        for index in range(8):
+            ref = f"08052026{2600 + index:04d}"
+            bank.append(_b(next_id, d, -15.96, f"Diğer Internet - Mobil HAVALE ÜCRETİ-{ref}"))
+            next_id += 1
+            bank.append(_b(next_id, d, -0.80, f"Diğer Internet - Mobil BSMV HAVALE ÜRETİ-{ref}"))
+            next_id += 1
+            sedna.append(_s(index + 1, d, -16.76))
+        for index in range(2):
+            ref = f"08052026{3600 + index:04d}"
+            bank.append(_b(next_id, d, -7.98, f"Diğer Internet - Mobil HAVALE ÜRETİ-{ref}"))
+            next_id += 1
+            bank.append(_b(next_id, d, -0.40, f"Diğer Internet - Mobil BSMV HAVALE ÜRETİ-{ref}"))
+            next_id += 1
+            sedna.append(_s(100 + index, d, -8.38))
+
+        assert len(bank) > 12
+        assert _match_account(bank, sedna, sedna_max_date=TODAY) == []
+
+    def test_transfer_ref_does_not_group_unrelated_long_numbers(self):
+        """Transfer masrafı olmayan açıklamalardaki uzun sayılar gruplanmaz."""
+        d = date(2026, 8, 5)
+        bank = [
+            _b(1, d, -7.98, "CARİ ÖDEME-080520262659"),
+            _b(2, d, -0.40, "VERGİ-080520262659"),
+        ]
+        # Genel subset geçişini kapatacak kadar ilgisiz gün-içi aday ekle;
+        # bu test yalnız referans ön-geçişinin kapsamını doğrular.
+        bank.extend(_b(i, d, -99.0, f"DİĞER HAREKET {i}") for i in range(3, 14))
+        findings = _match_account(bank, [_s(1, d, -8.38)], sedna_max_date=TODAY)
+        assert len(findings) == 14
+
+    def test_repeated_fee_and_five_percent_bsmv_without_reference(self):
+        """Açıklaması alıcı metni olan tekrarlı YKB masraf serisi eşleşir."""
+        d = date(2026, 8, 5)
+        bank = []
+        sedna = []
+        for index in range(8):
+            bank.append(_b(index * 2 + 1, d, -15.96, f"Diğer Internet - Mobil CARİ {index}"))
+            bank.append(_b(index * 2 + 2, d, -0.80, f"Diğer Internet - Mobil PAYI {index}"))
+            sedna.append(_s(index + 1, d, -16.76))
+
+        assert len(bank) > 12
+        assert _match_account(bank, sedna, sedna_max_date=TODAY) == []
+
+    def test_repeated_amounts_outside_bsmv_ratio_are_not_batch_matched(self):
+        """Eşit adet tek başına yetmez; vergi oranı %5 bandı dışında kalır."""
+        d = date(2026, 8, 5)
+        bank = []
+        sedna = []
+        for index in range(7):
+            bank.extend([_b(index * 2 + 1, d, -15.96), _b(index * 2 + 2, d, -1.60)])
+            sedna.append(_s(index + 1, d, -17.56))
+        findings = _match_account(bank, sedna, sedna_max_date=TODAY)
+        assert len(findings) == 21
+
     def test_pending_vs_missing_threshold(self):
         """sedna_max_date SONRASI banka işlemi PENDING; öncesi MISSING; None → PENDING."""
         max_d = TODAY - timedelta(days=5)
@@ -372,6 +439,32 @@ class TestSuggestAccountMappings:
 # ─────────────── D) run_reconciliation (db + enjekte fetch) ───────────────
 
 class TestRunReconciliation:
+    def test_active_year_uses_three_day_fetch_buffer(self, db):
+        """Aktif yıl raporlanır; yıl sınırı eşleşmesi için 3 gün tampon çekilir."""
+        _unmap_all(db)
+        code = "102.90.{}.{}".format(uuid4().hex[:2], uuid4().hex[:4])
+        acc = _mk_account(db, currency="TRY", sedna_code=code, confirmed=True)
+        year_start = date(TODAY.year, 1, 1)
+        _mk_btx(db, acc, year_start - timedelta(days=2), 1995.0)
+        sedna_row = _sedna_ledger_row(code, year_start + timedelta(days=1), 1995.0, 99001)
+        requested_starts = []
+
+        result = run_reconciliation(
+            db,
+            fetch_rows=lambda codes, start: requested_starts.append(start) or [sedna_row],
+            fetch_max_dates=lambda codes: {code: TODAY},
+            notify=False,
+        )
+
+        assert requested_starts == [(year_start - timedelta(days=3)).isoformat()]
+        assert result["open"] == 0
+        assert db.query(SednaBankRecon).filter(
+            SednaBankRecon.bank_account_id == acc.id,
+            SednaBankRecon.resolved_at.is_(None),
+        ).count() == 0
+        run = db.query(SednaReconRun).order_by(SednaReconRun.id.desc()).first()
+        assert run.window_start == year_start
+
     def test_missing_creates_record_and_run_row(self, db):
         """Sedna'da olmayan banka işlemi → SEDNA_MISSING kaydı + SednaReconRun satırı."""
         acc = _mapped_account(db)
