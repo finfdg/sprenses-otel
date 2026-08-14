@@ -223,6 +223,24 @@ class TestCiroDailySeries:
         assert _align_due("day_31", date(2026, 2, 1)) == date(2026, 2, 28)
         assert _align_due("day_x", wed) == date(2026, 8, 14)  # bozuk → friday
 
+    def test_per_invoice_deduction_applied(self, db):
+        """Aktif kontrattaki per_invoice % kesinti (ör. Nordic %2 rehber+web) ciro
+        kalemine NET uygulanır."""
+        from app.models.contract import ContractDeduction
+
+        g, c = _mk_contract(db)
+        db.add(ContractDeduction(contract_id=c.id, deduction_type="representative_fee",
+                                 percent=2, currency="EUR", applies="per_invoice"))
+        co = self._same_year_checkout(10)
+        _mk_reservation(db, "PTEST ACENTE", co, 1000)
+        db.commit()
+        invalidate_cache()
+
+        p = contract_inflow_projections(db)
+        hits = [i for i in p["ciro_items"] if i["agency"] == g.name]
+        assert len(hits) == 1
+        assert hits[0]["amount_eur"] == 980.0  # 1000 × (1 − %2)
+
     def test_advance_trim_is_group_scoped(self, db):
         """A grubunun bekleyen avansı B grubunun cirosunu KIRPMAZ (2026-08-13)."""
         ga_name = f"PGTEST{uuid4().hex[:6].upper()}"

@@ -794,8 +794,17 @@ sapmasız). Rezervasyon serisi o pencereyi atlar (sınır=next_pay → iki evren
 ham vadesi geçmiş rezervasyon cirosu hiç girmez (ödenmişi banka gerçekleşmesinde).
 Faturasız gruplar (Münferit/Diğer) eski davranışla rezervasyondan beslenir. Bu kalemler
 adv_left mahsubuna girmez (hakediş zaten netler), koruma-[3] kırpmalarına girer.
-Nordic canlı doğrulama: açık €437.487 = vadesi geçmiş €54.409 + 13–27 Ağu vadeli
-€197.839 (→ 27 Ağu kalemleri) + 27 Ağu sonrası vadeli €185.239 (→ 27 Eyl ödemesi). **Mahsup havuzu grup satırından okunduğu için
+**AYLIK PARTİ + KESİNTİ (2026-08-13 v3, NLTG pro forma kanıtıyla):** aylık ödeyen
+(day_N/month_end) acentede parti sınırı vade değil **FATURA AYI** — önceki ay(lar)
+kesimli TÜM açık faturalar bir sonraki ödeme partisine girer (self-billing: NLTG bir
+ayın çıkışlarını izleyen ay sonunda tek pro formada öder; vade 2 gün taşan SPA...1644
+de partiye dahil); rezervasyon serisi de aynı sınırı kullanır (cari ay öncesi çıkışlar
+fatura evreninden). Haftalık (friday) acentede pencere vade bazlı kalır. Ayrıca
+**`contract_deductions.applies='per_invoice'` yüzdesi** (aktif kontrat, grup başına
+max) tüm ciro/fatura kalemlerine NET uygulanır — Nordic %2 rehber+web kanıtı: pro
+forma 260731111316 (Haziran çıkışları) brüt 74.908,22 − %2 = 73.410,06, bankaya 3 Ağu
+düşen tahsilatla birebir. Nordic 27 Ağu = (265.225 Temmuz kesimli + 1.080 Haziran
+artığı) × 0,98 = **€260.979**. **Mahsup havuzu grup satırından okunduğu için
 acentenin 120/340 muhasebe firması gruba üye olmalı** — W2M vakası (2026-08-13,
 kullanıcı: "W2M tahsilatı avansa mahsuplaşır"): avans 340 hesabı ayrı tüzel kişide
 (`120.02.01.0005 W2M S.L.U`) olduğundan grup havuzu boş kalıyor, W2M ciroda görünüyordu;

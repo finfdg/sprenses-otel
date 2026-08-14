@@ -42,7 +42,7 @@ from app.models.advance import Advance
 from app.models.agency_group import AgencyGroup
 from app.models.contract import (
     INSTALLMENT_PENDING, PLAN_TYPE_GUARANTEE_CHECK, AgencyContract,
-    ContractInstallment, ContractPaymentPlan,
+    ContractDeduction, ContractInstallment, ContractPaymentPlan,
 )
 from app.models.reservation import Reservation
 from app.utils.vendor_fifo import _next_friday
@@ -184,8 +184,24 @@ def _compute(db: Session, today: date) -> dict:
         rates = _latest_rates(db)
         eur_rate = float(rates.get("EUR", 0.0) or 0.0)
         adv_left: dict = defaultdict(float)
-        inv_window: dict = {}       # gid → next_pay (fatura evreninin kapladığı pencere)
+        inv_window: dict = {}       # gid → ("due", next_pay) | ("month", ay_başı) — rezervasyon atlama sınırı
         inv_near: dict = {}         # gid → {"overdue": €, "due": €, "next_pay": date}
+        # Fatura-başı % kesinti (contract_deductions.applies='per_invoice' — ör. Nordic
+        # %2 rehber+web; pro forma 260731111316 ile kanıtlandı: brüt 74.908 − %2 = 73.410
+        # ödendi). Aktif kontratlardan grup başına en yüksek yüzde alınır; hem fatura
+        # hem rezervasyon ciro kalemlerine NET uygulanır.
+        ded_pct: dict = {}
+        for ded_gid, ded_p in (
+            db.query(AgencyContract.agency_group_id, func.max(ContractDeduction.percent))
+            .join(ContractDeduction, ContractDeduction.contract_id == AgencyContract.id)
+            .filter(AgencyContract.status == "active",
+                    ContractDeduction.applies == "per_invoice",
+                    ContractDeduction.percent.isnot(None))
+            .group_by(AgencyContract.agency_group_id).all()
+        ):
+            if ded_gid is not None and ded_p:
+                ded_pct[ded_gid] = float(ded_p)
+        month_start = date(today.year, today.month, 1)
         if eur_rate > 0:
             from app.services.receivable_service import firm_open_invoices
             rec = compute_receivables(db, today)
@@ -207,14 +223,24 @@ def _compute(db: Session, today: date) -> dict:
             for fgid in inv_gids:
                 _align = gmeta[fgid].get("payment_alignment") or "friday"
                 next_pay = _align_due(_align, today + timedelta(days=1))
-                inv_window[fgid] = next_pay
+                # AYLIK ödeyen acente (day_N/month_end) partiyi FATURA AYINA göre kurar
+                # (self-billing kanıtı: NLTG bir ayın çıkışlarını izleyen ay sonunda tek
+                # pro formada öder) → önceki ay(lar) kesimli TÜM açık faturalar bu
+                # partiye girer (vadesi ödeme gününü birkaç gün aşsa bile — SPA...1644).
+                # Haftalık (friday) acentede pencere vade bazlı kalır.
+                monthly_batch = _align != "friday"
+                inv_window[fgid] = ("month", month_start) if monthly_batch else ("due", next_pay)
                 ovd = due_amt = 0.0
                 for row in firm_open_invoices(db, f"group-{fgid}", today):
                     try:
                         ddt = date.fromisoformat(row["due_date"])
+                        idt = date.fromisoformat(row["invoice_date"])
                     except (KeyError, TypeError, ValueError):
                         continue
-                    if ddt > next_pay:
+                    if monthly_batch:
+                        if idt >= month_start:
+                            continue  # cari ay kesimliler bir sonraki partinin konusu
+                    elif ddt > next_pay:
                         continue  # sonraki ödemelerin konusu → rezervasyon serisi kapsar
                     if (row.get("currency") or "").upper() == "EUR":
                         val = float(row.get("remaining") or 0)  # native — kur sapmasız
@@ -251,8 +277,12 @@ def _compute(db: Session, today: date) -> dict:
                 # tahsil edildi, ödenmemiş kısmı fatura evreninin "vadesi geçmiş"
                 # kaleminde — çift sayım yok.
                 continue
-            if gid in inv_window and raw <= inv_window[gid]:
-                continue  # bu pencere gerçek fatura kalemlerinden gelir
+            if gid in inv_window:
+                mode, bound = inv_window[gid]
+                if mode == "month" and co_date < bound:
+                    continue  # önceki ay çıkışları fatura partisinden gelir
+                if mode == "due" and raw <= bound:
+                    continue  # bu pencere gerçek fatura kalemlerinden gelir
             due = _align_due(gm.get("payment_alignment") or "friday", raw)
             agg[(gid, due)] += amt
         # Çift-sayım kırpması (koruma [3]) — GRUP BAZLI (2026-08-13): bir grubun
@@ -278,6 +308,9 @@ def _compute(db: Session, today: date) -> dict:
             if near["due"] > 0.5:
                 entries.append((near["next_pay"], gid, "invoice_due", near["due"]))
         for due, gid, kind, amount in sorted(entries, key=lambda e: (e[0], e[1], e[2])):
+            pct = ded_pct.get(gid)
+            if pct:
+                amount *= (1 - pct / 100.0)  # fatura-başı kesinti — net nakit beklentisi
             if kind == "ciro":
                 avail = adv_left.get(gid, 0.0)
                 if avail > 0:
