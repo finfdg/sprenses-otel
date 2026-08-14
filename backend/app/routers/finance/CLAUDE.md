@@ -176,6 +176,40 @@ Detay: `docs/modules/transaction-tags.md` + `docs/modules/sedna-mutabakat.md`.
 
 ---
 
+## GBP Çapraz Kura Alındı + İlk GBP Hesabı (2026-08-14)
+
+**Tetikleyici:** Kullanıcı Halkbank'ın yeni GBP POS hesabını (1376 SİDE ŞUBESİ, hesap no
+**2A000897**, IBAN TR74000120013760002A000897 — EUR 2A000895 / USD 2A000896 kardeş serisinin
+üçüncüsü) sisteme açtırdı. Hesap `bank_accounts` id=444; ekrandaki tek hareket (10.08.2026
+POS satış +2.450,00 GBP) **manuel satır** olarak eklendi (btx 6945, `source='manual'`) —
+gerçek ekstre yüklenince `_process_statement` tarih-aralığı purjü otomatik siler (tasarım).
+
+**Kod değişikliği — GBP artık USD ile aynı çapraz-kur yolunda:** Yeni ortak sabit
+**`cash_flow/_helpers.py::CROSS_EUR_CURRENCIES = ("USD", "GBP")`** + genel
+`_get_fx_buying(db, code, dt)` (eski `_get_usd_rate` bunun sarmalayıcısı). Dört tüketici:
+
+- `t_account._event_eur` + `runway._event_eur`: GBP kalem → `amount × GBP alış / EUR alış`
+  (amount_try'a BAKILMAZ — USD'nin 2026-07-19 determinizm kuralı aynen; iki kurdan biri
+  yoksa kalem atlanır + `skipped_no_rate`). Eski durumda GBP `amount_try` yolundaydı ve
+  banka satırlarında amount_try hiç dolmadığından GBP kalemler ATLANIRDI.
+- `runway._compute_start_eur`: GBP hesap bakiyesi çapraz kurla. **Eski davranış GBP'yi TRY
+  gibi EUR kuruna bölüyordu** (£2.450 → ~€44 gösterirdi — hesap açılmadan düzeltildi).
+- `eur_balances.to_eur`: GBP dalı eklendi (bisect'li `get_gbp`). **Eski davranış bilinmeyen
+  dövizi 1:1 EUR sayıyordu** (£2.450 → €2.450).
+- TCMB cronu GBP'yi zaten çekiyor (`tcmb.CURRENCIES`, exchange_rates'te 1.322 GBP satırı).
+
+**Frontend (`bankalar/+page.svelte`):** hesap formu para birimi dropdown'ına GBP seçeneği
+(eksikti — hesap UI'dan açılamıyordu) + `toEur`'a `gbpRate` çaprazı (banka grubu EUR toplamı).
+
+**Test:** `test_cash_flow_taccount.py::TestTAccountUsdConversion::test_gbp_converted_via_cross_ignores_amount_try`,
+`test_cash_flow_runway.py::test_gbp_pending_converted_via_cross` + `TestRunwayStartEur::
+test_start_eur_gbp_account_cross_rate`, `test_eur_balances_seed.py::TestEurBalancesGbpCross`.
+Eski amount_try-yolu testleri GBP→**CHF**'ye çevrildi (o yol çapraz-küme dışı dövizler için
+yaşıyor). Aşağıdaki 2026-07-19 bölümündeki "GBP vb. amount_try yolundan gider" ifadesi bu
+tarihle GEÇERSİZ — GBP artık çapraz kümede.
+
+---
+
 ## USD Kalemler T-Hesap/Runway'de Çapraz Kurla Çevrilir (2026-07-19)
 
 **Canlı bulgu (2026-07-19 DB denetimi):** USD para birimli `finance_events`'lerde `amount_try`

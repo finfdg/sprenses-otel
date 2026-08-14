@@ -413,10 +413,11 @@ class TestTAccountEurConversion:
                category_name="T-KUR GELİR", description="TRY KALEM")
         _mk_fe(db, direction=1, amount=75, currency="EUR",
                category_name="T-KUR GELİR", description="EUR KALEM")
-        # USD-dışı döviz kalem: amount_try (106 TL) kur 53'e bölünür → 2 EUR
-        # (USD çapraz kurla çevrilir — TestTAccountUsdConversion; GBP bu yolu sınar)
-        _mk_fe(db, direction=-1, amount=10, currency="GBP", amount_try=106,
-               category_name="T-KUR GİDER", description="GBP KALEM")
+        # Çapraz-küme dışı döviz kalem: amount_try (106 TL) kur 53'e bölünür → 2 EUR
+        # (USD/GBP çapraz kurla çevrilir — TestTAccountUsdConversion; CHF bu yolu sınar,
+        #  2026-08-14: GBP ilk GBP hesabıyla çapraz kümeye alındı)
+        _mk_fe(db, direction=-1, amount=10, currency="CHF", amount_try=106,
+               category_name="T-KUR GİDER", description="CHF KALEM")
         db.commit()
 
         resp = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers)
@@ -524,6 +525,33 @@ class TestTAccountUsdConversion:
         body = resp.json()
         assert body["skipped_no_rate"] >= 1
         assert _group(body, "giris", "T-USD KURSUZ") is None
+
+    def test_gbp_converted_via_cross_ignores_amount_try(self, client, auth_headers, db):
+        """GBP de çapraz kur kümesinde (2026-08-14, ilk GBP hesabı — Halkbank 2A000897).
+
+        10 GBP, GBP kuru 60 / EUR kuru 50 → 10 × 60 / 50 = 12 EUR; amount_try
+        dolu olsa bile çapraz kur kazanır (USD ile aynı determinizm kuralı).
+        """
+        today = date.today()
+        _reset_rates(db, "EUR")
+        _reset_rates(db, "GBP")
+        _mk_rate(db, today - timedelta(days=3), 50, code="EUR")
+        _mk_rate(db, today - timedelta(days=3), 60, code="GBP")
+
+        _mk_fe(db, direction=1, amount=10, currency="GBP", amount_try=99999,
+               category_name="T-GBP GELİR", description="GBP POS SATIŞ")
+        db.commit()
+
+        resp = client.get(f"{URL}?period=monthly&offset=0", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["skipped_no_rate"] == 0
+        grup = _group(body, "giris", "T-GBP GELİR")
+        assert grup is not None
+        assert grup["total_eur"] == 12.0  # 10 × 60 / 50 — 99999/50 DEĞİL
+        item = grup["items"][0]
+        assert item["amount_native"] == 10.0
+        assert item["currency"] == "GBP"
 
 
 class TestTAccountPeriods:

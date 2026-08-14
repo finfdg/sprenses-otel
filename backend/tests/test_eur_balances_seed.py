@@ -177,3 +177,23 @@ class TestLastBalanceDateIdOrder:
 
         start = _compute_start_eur(db)
         assert round(start) == 1000, f"max(id) bayat bakiyeyi seçti: {start}"
+
+
+class TestEurBalancesGbpCross:
+    def test_gbp_account_balance_converted_via_cross(self, db):
+        """GBP hesap bakiyesi GBP/EUR çaprazıyla çevrilir — 1:1 EUR sayılmaz (2026-08-14).
+
+        Eski to_eur bilinmeyen dövizi aynen döndürüyordu (GBP 2.450 → €2.450);
+        doğrusu 2.450 × 60 (GBP alış) / 50 (EUR alış) = 2.940 €. İlk GBP hesabı
+        (Halkbank 2A000897) canlıya girerken kapatıldı.
+        """
+        db.query(ExchangeRate).filter(
+            ExchangeRate.currency_code.in_(("EUR", "GBP"))
+        ).delete(synchronize_session=False)
+        _mk_rate(db, MIN_DATE, 50.0, code="EUR")
+        _mk_rate(db, MIN_DATE, 60.0, code="GBP")
+        acc = _mk_account(db, currency="GBP")
+        _mk_btx(db, acc, tx_date=TODAY, amount=2450, balance=2450)
+
+        bal = _daily(db)[str(TODAY)]["balance_eur"]
+        assert round(bal) == 2940, f"GBP çapraz çevrilmedi: {bal}"

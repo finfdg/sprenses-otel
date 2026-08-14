@@ -159,6 +159,24 @@ class TestRunwayStartEur:
         after = client.get(URL, headers=auth_headers).json()["start_eur"]
         assert round(after - before, 2) == 250.0
 
+    def test_start_eur_gbp_account_cross_rate(self, client, auth_headers, db):
+        """GBP hesap bakiyesi çapraz kurla eklenir — EUR kuruna BÖLÜNMEZ (2026-08-14).
+
+        Eski davranış GBP'yi TRY gibi EUR kuruna bölüyordu: £2.450 → ~€49 (saçma).
+        Doğrusu: 2.450 × 60 (GBP alış) / 50 (EUR alış) = 2.940 EUR.
+        """
+        _reset_rates(db, "EUR")
+        _reset_rates(db, "GBP")
+        _mk_rate(db, date.today(), 50, "EUR")
+        _mk_rate(db, date.today(), 60, "GBP")
+        before = client.get(URL, headers=auth_headers).json()["start_eur"]
+
+        acc = _mk_account(db, currency="GBP")
+        _mk_tx(db, acc, balance=2450, amount=2450)
+        db.commit()
+        after = client.get(URL, headers=auth_headers).json()["start_eur"]
+        assert round(after - before, 2) == 2940.0
+
 
 class TestRunwayEvents:
     def test_direction_split_and_id_format(self, client, auth_headers, db):
@@ -248,10 +266,11 @@ class TestRunwayEvents:
                source_type="bank", description="RW EUR KALEM")
         _mk_fe(db, event_date=d, direction=-1, amount=5300, currency="TRY",
                source_type="check", description="RW TRY KALEM")
-        # USD-dışı döviz kalem: amount_try (106) / 53 = 2 EUR
-        # (USD çapraz kurla çevrilir — test_usd_pending_converted_via_cross)
-        _mk_fe(db, event_date=d, direction=-1, amount=10, currency="GBP", amount_try=106,
-               source_type="credit", description="RW GBP KALEM")
+        # Çapraz-küme dışı döviz kalem: amount_try (106) / 53 = 2 EUR
+        # (USD/GBP çapraz kurla çevrilir — test_usd_pending_converted_via_cross;
+        #  2026-08-14: GBP ilk GBP hesabıyla çapraz kümeye alındı, CHF bu yolu sınar)
+        _mk_fe(db, event_date=d, direction=-1, amount=10, currency="CHF", amount_try=106,
+               source_type="credit", description="RW CHF KALEM")
         # ad önceliği: description boş → bank_name fallback
         _mk_fe(db, event_date=d, direction=1, amount=53, currency="TRY",
                source_type="bank", description=None, bank_name="RW Banka Adı")
@@ -259,7 +278,7 @@ class TestRunwayEvents:
         body = client.get(URL, headers=auth_headers).json()
         assert _find(body["inflows"], "RW EUR KALEM")["amount_eur"] == 75.0
         assert _find(body["outs"], "RW TRY KALEM")["amount_eur"] == 100.0
-        assert _find(body["outs"], "RW GBP KALEM")["amount_eur"] == 2.0
+        assert _find(body["outs"], "RW CHF KALEM")["amount_eur"] == 2.0
         assert _find(body["inflows"], "RW Banka Adı") is not None  # bank_name fallback
 
     def test_usd_pending_converted_via_cross(self, client, auth_headers, db):
@@ -299,6 +318,28 @@ class TestRunwayEvents:
         assert body["skipped_no_rate"] >= 1
         names = [i["name"] for i in body["inflows"] + body["outs"]]
         assert "RW USD KURSUZ" not in names
+
+    def test_gbp_pending_converted_via_cross(self, client, auth_headers, db):
+        """GBP kalem GBP/EUR çaprazıyla çevrilir (2026-08-14, ilk GBP hesabı).
+
+        2450 GBP, GBP kuru 60 / EUR kuru 50 → 2450 × 60 / 50 = 2940 EUR;
+        amount_try NULL olsa bile atlanmaz (USD ile aynı kural).
+        """
+        _reset_rates(db, "EUR")
+        _reset_rates(db, "GBP")
+        d = _mid_month_date()
+        _mk_rate(db, d - timedelta(days=1), 50, code="EUR")
+        _mk_rate(db, d - timedelta(days=1), 60, code="GBP")
+        _mk_fe(db, event_date=d, direction=1, amount=2450, currency="GBP",
+               source_type="advance", description="RW GBP POS")
+        db.commit()
+        body = client.get(URL, headers=auth_headers).json()
+        item = _find(body["inflows"], "RW GBP POS")
+        assert item is not None
+        assert item["amount_eur"] == 2940.0
+        assert item["currency"] == "GBP"
+        assert item["amount_native"] == 2450.0
+        assert body["skipped_no_rate"] == 0
 
     def test_missing_rate_skips_item_and_counts(self, client, auth_headers, db):
         """Kur hiç yoksa TRY kalem 1'e bölünmez — dışarıda kalır, skipped_no_rate artar."""

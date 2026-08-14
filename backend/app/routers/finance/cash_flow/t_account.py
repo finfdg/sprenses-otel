@@ -34,6 +34,8 @@ from app.models.finance_event import (
 from app.models.user import User
 from app.utils.finance_helpers import MIN_DATE
 
+from ._helpers import CROSS_EUR_CURRENCIES
+
 # Transfer kategorileri — frontend groupByMonth (TRANSFER_CATEGORIES) ile birebir aynı
 TRANSFER_CATEGORIES = ("Virman", "Döviz Satım", "İade")
 
@@ -166,9 +168,10 @@ def _eur_rate_for(db: Session, dt: date_cls, cache: Dict[Tuple[str, date_cls], O
 def _event_eur(db: Session, fe: FinanceEvent, cache: Dict[Tuple[str, date_cls], Optional[float]]) -> Optional[float]:
     """Kalemi EUR'a çevir; çevrilemiyorsa None (çağıran skipped_no_rate sayar).
 
-    EUR kalem → amount aynen; USD kalem → USD/EUR çaprazı (amount × USD alış /
+    EUR kalem → amount aynen; USD/GBP kalem → çapraz kur (amount × {code} alış /
     EUR alış — eur_balances `to_eur` ile aynı formül; amount_try'a BAKILMAZ,
-    USD banka satırlarında amount_try dolmuyordu → panel USD'ye kördü, 2026-07-19).
+    USD banka satırlarında amount_try dolmuyordu → panel USD'ye kördü, 2026-07-19;
+    GBP 2026-08-14'te ilk GBP hesabıyla aynı yola alındı).
     Diğerleri → TRY değeri / o tarihteki EUR kuru. TRY değeri: amount_try, yoksa
     currency TRY ise amount. Kur ya da TRY değeri bilinemiyorsa kalem
     1 TL = 1 EUR gibi saçma bir varsayımla ÇEVRİLMEZ — dışarıda bırakılır.
@@ -177,12 +180,12 @@ def _event_eur(db: Session, fe: FinanceEvent, cache: Dict[Tuple[str, date_cls], 
     if currency == "EUR":
         return float(fe.amount)
 
-    if currency == "USD":
-        usd = _rate_for(db, fe.event_date, "USD", cache)
+    if currency in CROSS_EUR_CURRENCIES:
+        fx = _rate_for(db, fe.event_date, currency, cache)
         eur = _eur_rate_for(db, fe.event_date, cache)
-        if not usd or not eur:
+        if not fx or not eur:
             return None
-        return float(fe.amount) * usd / eur
+        return float(fe.amount) * fx / eur
 
     # TRY kalemde `amount` TANIMI GEREĞİ TL karşılığıdır → amount_try'a BAKILMAZ (FIN-001).
     # Sıra bilerek böyle: eskiden amount_try önce geliyordu ve bayat bir değer (kısmi

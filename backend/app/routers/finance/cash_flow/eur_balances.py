@@ -158,16 +158,25 @@ def compute_eur_balances(db: Session) -> dict:
         .order_by(ExchangeRate.date)
         .all()
     )
+    all_gbp_rates = (
+        db.query(ExchangeRate.date, ExchangeRate.forex_buying)
+        .filter(ExchangeRate.currency_code == "GBP")
+        .order_by(ExchangeRate.date)
+        .all()
+    )
 
     # Tarih → kur dict
     eur_rate_list = [(r.date, float(r.forex_buying)) for r in all_eur_rates if r.forex_buying]
     usd_rate_list = [(r.date, float(r.forex_buying)) for r in all_usd_rates if r.forex_buying]
+    gbp_rate_list = [(r.date, float(r.forex_buying)) for r in all_gbp_rates if r.forex_buying]
 
     # Binary search ile en yakın önceki kuru bul
     eur_dates = [r[0] for r in eur_rate_list]
     usd_dates = [r[0] for r in usd_rate_list]
+    gbp_dates = [r[0] for r in gbp_rate_list]
     eur_cache = {}
     usd_cache = {}
+    gbp_cache = {}
 
     def get_eur(dt):
         if dt not in eur_cache:
@@ -181,6 +190,12 @@ def compute_eur_balances(db: Session) -> dict:
             usd_cache[dt] = usd_rate_list[idx][1] if idx >= 0 else 1.0
         return usd_cache[dt]
 
+    def get_gbp(dt):
+        if dt not in gbp_cache:
+            idx = bisect.bisect_right(gbp_dates, dt) - 1
+            gbp_cache[dt] = gbp_rate_list[idx][1] if idx >= 0 else 1.0
+        return gbp_cache[dt]
+
     def to_eur(amount, currency, dt):
         if currency == "EUR":
             return amount
@@ -189,6 +204,8 @@ def compute_eur_balances(db: Session) -> dict:
             return round(amount / rate, 2) if rate > 0 else 0
         if currency == "USD":
             return round((amount * get_usd(dt)) / get_eur(dt), 2) if get_eur(dt) > 0 else 0
+        if currency == "GBP":  # çapraz kur — t_account/runway CROSS_EUR_CURRENCIES ile aynı formül
+            return round((amount * get_gbp(dt)) / get_eur(dt), 2) if get_eur(dt) > 0 else 0
         return amount
 
     # Kalıcı öteleme haritası (R5 2026-07-11): çek/kredi/KK ham tablolardan okunduğundan

@@ -213,12 +213,28 @@ def _get_eur_rate(db: Session, target_date) -> float:
     return float(rate[0]) if rate and rate[0] else 1.0
 
 
-def _get_usd_rate(db: Session, target_date) -> float:
-    """Belirli tarih için USD/TRY alış kuru."""
+# EUR'a çapraz kurla çevrilen dövizler (amount × {code} alış / EUR alış) — TCMB üçü
+# için de günlük kur çeker; amount_try'a BAKILMAZ. USD 2026-07-19 kararı; GBP
+# 2026-08-14'te ilk GBP hesabı (Halkbank 2A000897) canlıya girince aynı yola alındı.
+# t_account._event_eur + runway._event_eur/_compute_start_eur + eur_balances.to_eur
+# dördü de bu kümeyi kullanır (tek sayı kuralı).
+CROSS_EUR_CURRENCIES = ("USD", "GBP")
+
+
+def _get_fx_buying(db: Session, code: str, target_date) -> float:
+    """Belirli tarih için {code}/TRY alış kuru (<= en yakın gün); yoksa 1.0.
+
+    Çağıran 1.0'ı "kur yok" sinyali olarak ele almalı (1:1 varsayımı yapılmaz).
+    """
     rate = (
         db.query(ExchangeRate.forex_buying)
-        .filter(ExchangeRate.currency_code == "USD", ExchangeRate.date <= target_date)
+        .filter(ExchangeRate.currency_code == code, ExchangeRate.date <= target_date)
         .order_by(ExchangeRate.date.desc())
         .first()
     )
     return float(rate[0]) if rate and rate[0] else 1.0
+
+
+def _get_usd_rate(db: Session, target_date) -> float:
+    """Belirli tarih için USD/TRY alış kuru."""
+    return _get_fx_buying(db, "USD", target_date)

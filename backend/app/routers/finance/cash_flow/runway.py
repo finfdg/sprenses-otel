@@ -12,13 +12,13 @@ Tüm tutarlar EUR'a çevrilir:
   TCMB EUR/USD alış kuruyla EUR'a çevrilir (mobile_dashboard_summary "son bakiye"
   deseni + eur_balances `to_eur` çevrim mantığı).
 - kalem tutarları: olayın kendi `event_date`'indeki EUR alış kuru (`_get_eur_rate`);
-  USD kalemler USD/EUR çaprazıyla (amount × USD alış / EUR alış, `_get_usd_rate`).
+  USD/GBP kalemler çapraz kurla (amount × {code} alış / EUR alış, `_get_fx_buying`).
 Kur yoksa kalem 1 TL = 1 EUR gibi çevrilmez → ATLANIR + `skipped_no_rate` sayılır.
 """
 
 import calendar
 from datetime import date as date_cls
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import or_
@@ -40,7 +40,7 @@ from app.models.payment_deferral import PaymentDeferral
 from app.models.user import User
 from app.utils.finance_helpers import MIN_DATE
 
-from ._helpers import _get_eur_rate, _get_usd_rate
+from ._helpers import CROSS_EUR_CURRENCIES, _get_eur_rate, _get_fx_buying
 
 # Transfer kategorileri — t_account / groupByMonth ile birebir aynı (iç hareket)
 TRANSFER_CATEGORIES = ("Virman", "Döviz Satım", "İade")
@@ -95,8 +95,8 @@ def _compute_start_eur(db: Session) -> float:
 
     mobile_dashboard_summary'deki tek-sorgu "son bakiye" desenini kopyalar:
     her hesabın max(id) işleminin bakiyesi → effective = last_balance - blocked.
-    EUR çevrim: TRY → /eurRate, EUR → aynen, USD → (usd*usdRate)/eurRate,
-    diğer para birimleri → /eurRate (en son alış kurları). Kur yoksa 0 varsayılır
+    EUR çevrim: TRY → /eurRate, EUR → aynen, USD/GBP → (bakiye*fxRate)/eurRate
+    (çapraz kur), diğer para birimleri → /eurRate (en son alış kurları). Kur yoksa 0 varsayılır
     (banka nakdi başlangıç değeri — kalem atlama mantığı yalnız planlı hareketlerde).
     """
     accounts = db.query(BankAccount).all()
@@ -123,7 +123,7 @@ def _compute_start_eur(db: Session) -> float:
     acc_currency = {a.id: (a.currency or "TRY").upper() for a in accounts}
 
     eur_rate = _latest_buying(db, "EUR")
-    usd_rate = _latest_buying(db, "USD")
+    cross_rates = {code: _latest_buying(db, code) for code in CROSS_EUR_CURRENCIES}
 
     total_eur = 0.0
     for acc_id, bal in last_bal.items():
@@ -131,10 +131,11 @@ def _compute_start_eur(db: Session) -> float:
         currency = acc_currency.get(acc_id, "TRY")
         if currency == "EUR":
             total_eur += effective
-        elif currency == "USD":
-            if usd_rate and eur_rate:
-                total_eur += (effective * usd_rate) / eur_rate
-        else:  # TRY ve diğer para birimleri → EUR kuruna böl
+        elif currency in CROSS_EUR_CURRENCIES:  # USD/GBP → çapraz kur
+            fx_rate = cross_rates.get(currency)
+            if fx_rate and eur_rate:
+                total_eur += (effective * fx_rate) / eur_rate
+        else:  # TRY (ve bilinmeyen para birimleri) → EUR kuruna böl
             if eur_rate:
                 total_eur += effective / eur_rate
     return round(total_eur, 2)
@@ -142,13 +143,14 @@ def _compute_start_eur(db: Session) -> float:
 
 def _event_eur(
     db: Session, fe: FinanceEvent, cache: Dict[date_cls, float],
-    usd_cache: Dict[date_cls, float],
+    fx_cache: Dict[Tuple[str, date_cls], float],
 ) -> Optional[float]:
     """Kalemi EUR'a çevir; çevrilemiyorsa None (çağıran skipped_no_rate sayar).
 
-    EUR kalem → amount aynen; USD kalem → USD/EUR çaprazı (amount × USD alış /
+    EUR kalem → amount aynen; USD/GBP kalem → çapraz kur (amount × {code} alış /
     EUR alış — t_account/eur_balances ile aynı formül; amount_try'a BAKILMAZ,
-    USD satırlarında dolmuyordu → USD kalemler atlanıyordu, 2026-07-19).
+    USD satırlarında dolmuyordu → USD kalemler atlanıyordu, 2026-07-19; GBP
+    2026-08-14'te aynı yola alındı).
     Diğerleri → TRY değeri / o tarihteki EUR alış kuru. TRY değeri: amount_try,
     yoksa currency TRY ise amount. Kur yoksa/0 ise 1'e bölünmez — kalem
     dışarıda bırakılır.
@@ -161,14 +163,15 @@ def _event_eur(
         cache[fe.event_date] = _get_eur_rate(db, fe.event_date)
     eur_rate = cache[fe.event_date]
 
-    if currency == "USD":
-        if fe.event_date not in usd_cache:
-            usd_cache[fe.event_date] = _get_usd_rate(db, fe.event_date)
-        usd_rate = usd_cache[fe.event_date]
+    if currency in CROSS_EUR_CURRENCIES:
+        fx_key = (currency, fe.event_date)
+        if fx_key not in fx_cache:
+            fx_cache[fx_key] = _get_fx_buying(db, currency, fe.event_date)
+        fx_rate = fx_cache[fx_key]
         # _get_*_rate kur yoksa 1.0 döner → 1:1 saçmalığını engelle (iki kur da gerekli)
-        if not usd_rate or usd_rate <= 1.0 or not eur_rate or eur_rate <= 1.0:
+        if not fx_rate or fx_rate <= 1.0 or not eur_rate or eur_rate <= 1.0:
             return None
-        return float(fe.amount) * usd_rate / eur_rate
+        return float(fe.amount) * fx_rate / eur_rate
 
     # TRY kalemde `amount` TANIMI GEREĞİ TL karşılığıdır → amount_try'a BAKILMAZ (FIN-001).
     # Sıra bilerek böyle: eskiden amount_try önce geliyordu ve bayat bir değer (kısmi
@@ -293,10 +296,10 @@ def runway(
     held: list = []
     skipped_no_rate = 0
     rate_cache: Dict[date_cls, float] = {}
-    usd_rate_cache: Dict[date_cls, float] = {}
+    fx_rate_cache: Dict[Tuple[str, date_cls], float] = {}
 
     for fe in events:
-        eur = _event_eur(db, fe, rate_cache, usd_rate_cache)
+        eur = _event_eur(db, fe, rate_cache, fx_rate_cache)
         if eur is None:
             skipped_no_rate += 1
             continue

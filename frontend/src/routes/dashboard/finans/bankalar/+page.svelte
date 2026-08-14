@@ -94,6 +94,7 @@
 	// Kur dönüşüm yardımcısı: TRY ve USD → EUR
 	let eurRate = $derived(latestRates?.rates.find(r => r.currency_code === 'EUR')?.forex_selling ?? null);
 	let usdRate = $derived(latestRates?.rates.find(r => r.currency_code === 'USD')?.forex_selling ?? null);
+	let gbpRate = $derived(latestRates?.rates.find(r => r.currency_code === 'GBP')?.forex_selling ?? null);
 
 	// Sisteme kayıtlı ama BANK_LOGOS'ta tanımsız bankalar da dahil
 	let allBankNames = $derived.by(() => {
@@ -135,6 +136,7 @@
 		if (currency === 'EUR') return balance;
 		if (currency === 'TRY' && eurRate) return balance / eurRate;
 		if (currency === 'USD' && usdRate && eurRate) return (balance * usdRate) / eurRate;
+		if (currency === 'GBP' && gbpRate && eurRate) return (balance * gbpRate) / eurRate;
 		return null;
 	}
 
@@ -1119,6 +1121,7 @@
 					<option value="TRY">TRY (Türk Lirası)</option>
 					<option value="EUR">EUR (Euro)</option>
 					<option value="USD">USD (Dolar)</option>
+					<option value="GBP">GBP (İngiliz Sterlini)</option>
 				</Select>
 			</div>
 		</div>
