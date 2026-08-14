@@ -757,3 +757,78 @@ class TestPosBlokeTransfers:
         assert _cat_of(db, in_leg) == "Pos Bloke Çözme"
         assert _cat_of(db, out_leg) == "Virman"
         assert out_leg.tag_source == "manual"
+
+
+class TestGuestCollections:
+    """Misafir havale/EFT tahsilatı — rezervasyon misafir adıyla eşleşme (2026-08-14)."""
+
+    def _mk_checkin_group_and_res(self, db, guests, checkin=None):
+        from app.models.agency_group import AgencyGroup
+        from app.models.reservation import Reservation
+        import random
+
+        gname = f"GTEST{uuid4().hex[:6].upper()}"
+        g = AgencyGroup(name=gname, members=[gname], term_days=0,
+                        payment_alignment="checkin")
+        db.add(g)
+        db.flush()
+        ci = checkin or (TODAY - timedelta(days=2))
+        r = Reservation(
+            rec_id=random.randint(10_000_000, 99_000_000), agency=gname,
+            checkin_date=ci, checkout_date=ci + timedelta(days=7),
+            record_date=ci - timedelta(days=30), guests=guests, eur_total=500)
+        db.add(r)
+        db.flush()
+        return g, r
+
+    def test_guest_full_name_income_tagged(self, client, db):
+        self._mk_checkin_group_and_res(db, "Mr Ahmet Yılmazoğlu,Mrs Ayşe Yılmazoğlu")
+        acc = _mk_account(db, currency="TRY")
+        btx = _mk_btx(db, acc, amount=35000,
+                      desc="Gelen havale AHMET YILMAZOGLU konaklama")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) == "Konaklama Tahsilatı"
+        db.refresh(btx)
+        assert btx.tag_note == "Misafir: Ahmet Yılmazoğlu"
+
+    def test_single_token_not_enough(self, client, db):
+        """Yalnız isim (soyadsız) eşleşmesi Konaklama Tahsilatı ÜRETMEZ."""
+        self._mk_checkin_group_and_res(db, "Mr Ahmet Yılmazoğlu")
+        acc = _mk_account(db, currency="TRY")
+        btx = _mk_btx(db, acc, amount=35000, desc="Gelen havale AHMET BEY odeme")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Konaklama Tahsilatı"
+
+    def test_checkin_window_enforced(self, client, db):
+        """Giriş tarihi ±45 gün dışındaki misafir eşleşmez."""
+        self._mk_checkin_group_and_res(
+            db, "Mr Veli Karataşlıgil", checkin=TODAY - timedelta(days=90))
+        acc = _mk_account(db, currency="TRY")
+        btx = _mk_btx(db, acc, amount=20000,
+                      desc="Gelen havale VELI KARATASLIGIL")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Konaklama Tahsilatı"
+
+    def test_non_checkin_group_guest_not_matched(self, client, db):
+        """checkin-modu olmayan grubun misafiri bu kurala girmez."""
+        from app.models.agency_group import AgencyGroup
+        from app.models.reservation import Reservation
+        import random
+
+        gname = f"GTEST{uuid4().hex[:6].upper()}"
+        g = AgencyGroup(name=gname, members=[gname], term_days=21,
+                        payment_alignment="friday")
+        db.add(g)
+        db.flush()
+        db.add(Reservation(
+            rec_id=random.randint(10_000_000, 99_000_000), agency=gname,
+            checkin_date=TODAY - timedelta(days=2),
+            checkout_date=TODAY + timedelta(days=5),
+            record_date=TODAY - timedelta(days=30),
+            guests="Mr Osman Denizhanoğlu", eur_total=700))
+        db.flush()
+        acc = _mk_account(db, currency="TRY")
+        btx = _mk_btx(db, acc, amount=15000,
+                      desc="Gelen havale OSMAN DENIZHANOGLU")
+        auto_tag_transactions(db, [btx.id])
+        assert _cat_of(db, btx) != "Konaklama Tahsilatı"

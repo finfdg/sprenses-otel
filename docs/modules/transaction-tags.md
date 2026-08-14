@@ -476,3 +476,18 @@ Test: `test_sedna_tag_bridge.py::TestCheckBankLegTagging` + `test_cek_fisi_tags_
 3. **Toplu işlem:** 1000+ işlemde toplu etiketleme endpoint'i kullanılmalı
 4. **WS broadcast:** Etiketleme sonrası `broadcast_finance_update(background_tasks, "banks", "tag")` tetiklenir
 5. **Renk kodu:** Kategoriler için HEX renk kodu zorunludur (frontend badge gösterimi için)
+
+## Misafir Havale/EFT Tahsilatı — Rezervasyon Adı Eşleşmesi (2026-08-14)
+
+Girişte ödeyen grupların (`agency_groups.payment_alignment='checkin'` — Expedia,
+Münferit) misafirleri girişte havale/POS ile öder; POS bacağı "POS" kategorisiyle
+yakalanır ama HAVALE bacağı kişi adı taşıdığından kelime kurallarına yakalanmıyor,
+üstelik "havale" kelimesiyle Virman'a düşebiliyordu. `auto_tagger._tag_guest_collections`
+(acenta geçişinden sonra, ücret/kelime kurallarından ÖNCE koşar): etiketsiz GELİR
+işleminin açıklamasında bir rezervasyon misafirinin adının TÜM ayırt edici token'ları
+(ad + soyad, ≥2 token, ≥3 harf) geçiyorsa ve giriş tarihi işlem tarihine ±45 gün
+içindeyse → **"Konaklama Tahsilatı"** (sedna_tag_bridge 120.03 köprüsüyle aynı kategori;
+Sedna fişini beklemeden anında) + `tag_note="Misafir: <ad>"`. "virman/hesaplar arası"
+açıklamaları hariç; manuel etiket ezilmez. Geriye dönük ilk koşu 5 gerçek misafir
+havalesi yakaladı (pasaport/TCKN + "konaklama bedeli" açıklamalı). Test:
+`tests/test_auto_tagger.py::TestGuestCollections` (4).

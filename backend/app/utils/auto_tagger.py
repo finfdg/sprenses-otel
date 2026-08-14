@@ -234,6 +234,7 @@ MANAGED_CATEGORY_COLORS: Dict[str, str] = {
     "Verilen Avanslar": "pink",   # 159 — verilen sipariş avansları
     "Diğer Gelirler": "cyan",     # 602 — teşvik primi vb. çeşitli gelirler
     "Finansman Gideri": "orange", # 780 — POS/banka finansman masrafları
+    "Konaklama Tahsilatı": "green",  # misafir havale/EFT (sedna_tag_bridge 120.03 ile aynı ad)
 }
 
 
@@ -289,6 +290,7 @@ def auto_tag_transactions(
     # yanlışlıkla Acenta'ya, gider bacağı "pos " kelimesiyle POS'a düşmesin
     tagged = _tag_pos_bloke_transfers(db, untagged, cat_map[POS_BLOKE_CATEGORY])
     tagged.extend(_tag_agency_collections(db, untagged, cat_map[AGENCY_CATEGORY]))
+    tagged.extend(_tag_guest_collections(db, untagged, cat_map[GUEST_CATEGORY]))
     tagged.extend(_tag_bank_fees(db, untagged, cat_map[FEE_CATEGORY]))
 
     for tx in untagged:
@@ -673,6 +675,85 @@ _SKIP_WORDS = {
 
 # Minimum kelime uzunluğu (kısa kelimeler çok fazla false positive üretir)
 _MIN_WORD_LEN = 4
+
+
+# ─── Misafir Havale/EFT Tahsilatı Tespiti (2026-08-14, kullanıcı isteği) ──────
+# Girişte ödeyen grupların (agency_groups.payment_alignment='checkin' — Expedia,
+# Münferit) misafirleri girişte havale/POS ile öder. POS bacağı POS kategorisiyle
+# zaten yakalanıyor; HAVALE bacağı kişi adı taşıdığından kelime kurallarına
+# yakalanmaz (hatta "havale" kelimesiyle Virman'a düşebilirdi). Bu kural etiketsiz
+# GELİR işlemini rezervasyon misafir adlarıyla eşleştirir: adın TÜM ayırt edici
+# token'ları (ad + soyad, ≥2 token) açıklamada geçmeli + giriş tarihi ±45 gün.
+# Eşleşince "Konaklama Tahsilatı" + tag_note "Misafir: <ad>" yazılır (sedna_tag_bridge
+# 120.03 köprüsüyle aynı kategori — Sedna fişini beklemeden anında etiket).
+
+GUEST_CATEGORY = "Konaklama Tahsilatı"
+_GUEST_TITLE_RE = re.compile(r"^(mr|mrs|ms|miss|chd|inf)\.?\s+", re.IGNORECASE)
+_GUEST_MATCH_WINDOW_DAYS = 45
+_GUEST_MIN_TOKENS = 2  # ad + soyad şart — tek isim eşleşmesi yanlış-pozitif üretir
+
+
+def _guest_signal_entries(db: Session, dmin, dmax) -> List[Tuple[Set[str], str, "object"]]:
+    """Girişte-ödeyen grupların rezervasyonlarından misafir adı sinyalleri:
+    (token_kümesi, görünen_ad, giriş_tarihi) listesi."""
+    member_norms: Set[str] = set()
+    for g in db.query(AgencyGroup).filter(AgencyGroup.payment_alignment == "checkin").all():
+        member_norms.add(_normalize(g.name or "").strip())
+        for m in (g.members or []):
+            member_norms.add(_normalize(m or "").strip())
+    member_norms.discard("")
+    if not member_norms:
+        return []
+    entries: List[Tuple[Set[str], str, "object"]] = []
+    rows = (
+        db.query(Reservation.agency, Reservation.checkin_date, Reservation.guests)
+        .filter(Reservation.checkin_date.between(dmin, dmax),
+                Reservation.guests.isnot(None))
+        .all()
+    )
+    for ag, ci, guests in rows:
+        if _normalize(ag or "").strip() not in member_norms:
+            continue
+        for raw_name in (guests or "").split(","):
+            disp = _GUEST_TITLE_RE.sub("", raw_name.strip()).strip()
+            toks = {
+                t for t in (_normalize(w) for w in re.split(r"\s+", disp))
+                if len(t) >= 3 and not t.isdigit()
+            }
+            if len(toks) >= _GUEST_MIN_TOKENS:
+                entries.append((toks, disp[:40], ci))
+    return entries
+
+
+def _tag_guest_collections(
+    db: Session, untagged: List[BankTransaction], cat_id: int
+) -> List[BankTransaction]:
+    """Misafir havale/EFT gelirlerini rezervasyon misafir adıyla etiketle (commit ETMEZ)."""
+    cands = [tx for tx in untagged
+             if tx.category_id is None and tx.type == "income" and tx.description]
+    if not cands:
+        return []
+    dmin = min(tx.date for tx in cands) - timedelta(days=_GUEST_MATCH_WINDOW_DAYS)
+    dmax = max(tx.date for tx in cands) + timedelta(days=_GUEST_MATCH_WINDOW_DAYS)
+    entries = _guest_signal_entries(db, dmin, dmax)
+    if not entries:
+        return []
+    tagged: List[BankTransaction] = []
+    for tx in cands:
+        norm = _strip_bank_noise(_normalize(tx.description))
+        if "virman" in norm or "hesaplar arasi" in norm:
+            continue  # iç transfer — misafir tahsilatı değil
+        desc_tokens = {t for t in re.split(r"[^a-z0-9]+", norm) if len(t) >= 3}
+        for toks, disp, ci in entries:
+            if abs((tx.date - ci).days) > _GUEST_MATCH_WINDOW_DAYS:
+                continue
+            if toks <= desc_tokens:
+                tx.category_id = cat_id
+                tx.tag_source = "auto"
+                tx.tag_note = f"Misafir: {disp}"
+                tagged.append(tx)
+                break
+    return tagged
 
 
 def _extract_vendor_keywords(hesap_adi: str) -> List[str]:
