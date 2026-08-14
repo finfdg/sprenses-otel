@@ -778,9 +778,12 @@ rezervasyon cirosu (checkout günü toplamı) **çıkış/fatura tarihi + anlaş
 konvansiyonu; ör. PEGAS 21g: çıkış+21 sonrası ilk Cuma) **acente adıyla** yazılır.
 **Ödeme günü hizalaması `agency_groups.payment_alignment`** (migration `f3c7a9b5d2e8`):
 `friday` (varsayılan) | `month_end` (vadenin ayının son günü) | `day_N` (ayın sabit
-günü; vade o günü geçtiyse ertesi ayın aynı günü) — NORDIC=`day_27` (kullanıcı bilgisi
-2026-08-13: "Ağustos ödemesini 27'sinde yapacak"; elle girilen 310K avans kaydı silindi,
-Nordic'in aylık beklentisini artık projeksiyon kendisi 27'lere yazar)
+günü; vade o günü geçtiyse ertesi ayın aynı günü) | `checkin` (GİRİŞTE öder — kalem
+GÜNLÜK, giriş tarihine; girişi geçmiş misafir zaten ödedi → girmez). NORDIC=`day_27`
+(kullanıcı 2026-08-13); EXPEDIA + MUNFERIT=`checkin` (kullanıcı 2026-08-14: Expedia
+girişte POS, münferitler girişte havale/POS — doğrulama: 1–13 Ağu girişli münferit
+cirosu €17,2K ↔ aynı dönem POS-kategorili banka geliri ≈ €13,2K; fark havale bacağı +
+POS bloke/T+1 gecikmesi)
 (`ciro_items`: key/date/amount_eur/label/agency; eski `ciro_monthly` anahtarı kalktı).
 Sedna 340 kalan avans bakiyesi (`compute_receivables` grup satırları, received−consumed)
 grup içi vade-FIFO mahsup edilir. **YAKIN PENCERE = GERÇEK FATURA EVRENİ (2026-08-13

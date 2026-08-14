@@ -13,6 +13,8 @@ PAYMENT_ALIGN_FRIDAY = "friday"        # sonraki ilk Cuma (varsayılan — caril
 PAYMENT_ALIGN_MONTH_END = "month_end"  # vadenin düştüğü ayın son günü
 PAYMENT_ALIGN_DAY_PREFIX = "day_"      # "day_27" = ayın 27'si (vade günü 27'yi geçtiyse
                                        # ertesi ayın 27'si — ör. Nordic, 2026-08-13)
+PAYMENT_ALIGN_CHECKIN = "checkin"      # GİRİŞTE öder (POS/havale — ör. Expedia, Münferit;
+                                       # 2026-08-14): kalem GÜNLÜK, giriş tarihine yazılır
 
 
 class AgencyGroup(Base):

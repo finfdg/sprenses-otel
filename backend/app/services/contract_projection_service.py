@@ -227,8 +227,8 @@ def _compute(db: Session, today: date) -> dict:
                 # (self-billing kanıtı: NLTG bir ayın çıkışlarını izleyen ay sonunda tek
                 # pro formada öder) → önceki ay(lar) kesimli TÜM açık faturalar bu
                 # partiye girer (vadesi ödeme gününü birkaç gün aşsa bile — SPA...1644).
-                # Haftalık (friday) acentede pencere vade bazlı kalır.
-                monthly_batch = _align != "friday"
+                # Haftalık (friday) ve girişte-ödeyen (checkin) acentede pencere vade bazlı.
+                monthly_batch = _align == "month_end" or _align.startswith("day_")
                 inv_window[fgid] = ("month", month_start) if monthly_batch else ("due", next_pay)
                 ovd = due_amt = 0.0
                 for row in firm_open_invoices(db, f"group-{fgid}", today):
@@ -261,18 +261,29 @@ def _compute(db: Session, today: date) -> dict:
         agg: dict = defaultdict(float)
         res_rows = (
             db.query(
-                Reservation.agency, Reservation.checkout_date,
+                Reservation.agency, Reservation.checkin_date,
+                Reservation.checkout_date,
                 func.coalesce(func.sum(Reservation.eur_total), 0))
             .filter(extract("year", Reservation.checkout_date) == today.year)
-            .group_by(Reservation.agency, Reservation.checkout_date)
+            .group_by(Reservation.agency, Reservation.checkin_date,
+                      Reservation.checkout_date)
             .all()
         )
-        for agency, co_date, eur in res_rows:
+        for agency, ci_date, co_date, eur in res_rows:
             amt = float(eur or 0)
             if amt <= 0 or co_date is None:
                 continue
             gid = member_to_gid.get(_agency_norm(agency), _OTHER_ID)
             gm = gmeta.get(gid) or {}
+            align = gm.get("payment_alignment") or "friday"
+            if align == "checkin":
+                # GİRİŞTE ödeyen acente (Expedia POS, Münferit havale/POS —
+                # kullanıcı 2026-08-14): tahsilat GİRİŞ GÜNÜNE günlük yazılır;
+                # girişi geçmiş misafir zaten ödedi (POS/banka gerçekleşmesi).
+                if ci_date is None or ci_date <= today:
+                    continue
+                agg[(gid, ci_date)] += amt
+                continue
             term = int(gm.get("term_days") or 30)
             raw = co_date + timedelta(days=term)
             if raw <= today:
@@ -286,7 +297,7 @@ def _compute(db: Session, today: date) -> dict:
                     continue  # önceki ay çıkışları fatura partisinden gelir
                 if mode == "due" and raw <= bound:
                     continue  # bu pencere gerçek fatura kalemlerinden gelir
-            due = _align_due(gm.get("payment_alignment") or "friday", raw)
+            due = _align_due(align, raw)
             agg[(gid, due)] += amt
         # Çift-sayım kırpması (koruma [3]) — GRUP BAZLI (2026-08-13): bir grubun
         # sözleşmesel girişleri (pending advances + CARİ YIL net taksitleri) yalnız

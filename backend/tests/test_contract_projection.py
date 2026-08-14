@@ -223,6 +223,30 @@ class TestCiroDailySeries:
         assert _align_due("day_31", date(2026, 2, 1)) == date(2026, 2, 28)
         assert _align_due("day_x", wed) == date(2026, 8, 14)  # bozuk → friday
 
+    def test_checkin_alignment_daily(self, db):
+        """payment_alignment='checkin' (Expedia/Münferit): tahsilat GİRİŞ gününe
+        günlük yazılır; girişi bugünden önce/bugün olan misafir zaten ödedi → girmez."""
+        gname = f"PGTEST{uuid4().hex[:6].upper()}"
+        g = AgencyGroup(name=gname, members=[gname], term_days=0,
+                        payment_alignment="checkin")
+        db.add(g)
+        db.flush()
+        today = date.today()
+        co = self._same_year_checkout(12)
+        # gelecek girişli misafir (giriş = çıkış - 7)
+        _mk_reservation(db, g.name, co, 500)
+        # girişi geçmiş (konaklamakta olan) misafir — girişte ödedi, projeksiyona girmez
+        r2 = _mk_reservation(db, g.name, today + timedelta(days=3), 400)
+        # _mk_reservation girişi çıkış-7 yapar → r2 girişi geçmişte
+        db.commit()
+        invalidate_cache()
+
+        p = contract_inflow_projections(db)
+        hits = [i for i in p["ciro_items"] if i["agency"] == g.name]
+        assert len(hits) == 1, hits
+        assert hits[0]["date"] == (co - timedelta(days=7)).isoformat()  # GİRİŞ günü
+        assert hits[0]["amount_eur"] == 500
+
     def test_per_invoice_deduction_applied(self, db):
         """Aktif kontrattaki per_invoice % kesinti (ör. Nordic %2 rehber+web) ciro
         kalemine NET uygulanır."""
