@@ -246,7 +246,10 @@ def _compute(db: Session, today: date) -> dict:
                         val = float(row.get("remaining") or 0)  # native — kur sapmasız
                     else:
                         val = float(row.get("remaining_tl") or 0) / eur_rate
-                    if ddt < today:
+                    if not monthly_batch and ddt < today:
+                        # yalnız vade-bazlı (friday) acentede gecikme ayrımı anlamlı;
+                        # aylık partide fatura-başı vade sözleşmesel değil (self-billing)
+                        # → tek kalemde birleşir, gün geçtikçe satırlar arası kayma olmaz
                         ovd += val
                     else:
                         due_amt += val
