@@ -792,8 +792,13 @@ vade < bugün kalanları) + **"Fatura vadeli hakediş tahsilatı"** (`kind='invo
 bugün→sonraki-ödeme-günü vadeli kalanlar); EUR faturada native kalan kullanılır (kur
 sapmasız). Rezervasyon serisi o pencereyi atlar (sınır=next_pay → iki evren çakışmaz);
 ham vadesi geçmiş rezervasyon cirosu hiç girmez (ödenmişi banka gerçekleşmesinde).
-Faturasız gruplar (Münferit/Diğer) eski davranışla rezervasyondan beslenir. Bu kalemler
-adv_left mahsubuna girmez (hakediş zaten netler), koruma-[3] kırpmalarına girer.
+Faturasız gruplar (Münferit/Diğer) eski davranışla rezervasyondan beslenir. **adv_left
+(mahsup edilmemiş 340 avans havuzu) TÜM kalem türlerine uygulanır (2026-08-14, Odeon
+vakası):** grubun açık faturası vadesi geçse bile elimizde tüketilmemiş avansı varsa
+nakit tahsilat beklenmez — karşılığı avanstan mahsup edilir (Odeon ~€773K havuz → Ağu/Eyl
+kalemleri sıfır, nakit beklentisi havuzun bittiği ~Ekim ortasından itibaren başlar).
+FIFO'nun tükettiği avans 'consumed'da olduğundan adv_left'te yoktur → çift netleme olmaz.
+Kalemler ayrıca koruma-[3] kırpmalarına girer.
 **AYLIK PARTİ + KESİNTİ (2026-08-13 v3, NLTG pro forma kanıtıyla):** aylık ödeyen
 (day_N/month_end) acentede parti sınırı vade değil **FATURA AYI** — önceki ay(lar)
 kesimli TÜM açık faturalar bir sonraki ödeme partisine girer (self-billing: NLTG bir

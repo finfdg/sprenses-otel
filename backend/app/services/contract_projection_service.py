@@ -300,9 +300,12 @@ def _compute(db: Session, today: date) -> dict:
             group_trim[tgid] += amt_i
         global_trim = round(adv_pending_total - sum(adv_pool.values()), 2)  # grupsuz avanslar
         # Ciro + fatura-penceresi kalemleri tek seride, tarih sırasıyla işlenir.
-        # Fatura kalemleri hakediş FIFO'sunda ZATEN tahsilat+avans netlendiğinden
-        # adv_left mahsubuna girmez; koruma-[3] kırpmalarına (pending advance kaydı
-        # aynı ödemeyi temsil edebilir) girer.
+        # adv_left (= grup 340 received − consumed, yani HENÜZ MAHSUP EDİLMEMİŞ avans)
+        # TÜM kalem türlerine uygulanır (2026-08-14, Odeon vakası — kullanıcı: "avans
+        # alındı, hâlâ borcumuz var; nakit tahsilat beklenmez"): grubun açık faturası
+        # vadesi geçse bile karşılığı avanstan mahsup edilecektir. FIFO'nun zaten
+        # tükettiği avans 'consumed' içinde olduğundan adv_left'te YOKTUR → çift
+        # netleme olmaz. Koruma-[3] kırpmaları (pending advance kaydı) ayrıca uygulanır.
         entries = [(due, gid, "ciro", amount)
                    for (gid, due), amount in agg.items()]
         for gid, near in inv_near.items():
@@ -314,14 +317,13 @@ def _compute(db: Session, today: date) -> dict:
             pct = ded_pct.get(gid)
             if pct:
                 amount *= (1 - pct / 100.0)  # fatura-başı kesinti — net nakit beklentisi
-            if kind == "ciro":
-                avail = adv_left.get(gid, 0.0)
-                if avail > 0:
-                    cut = min(avail, amount)
-                    amount -= cut
-                    adv_left[gid] = round(avail - cut, 2)
-                if amount <= 0.01:
-                    continue
+            avail = adv_left.get(gid, 0.0)
+            if avail > 0:
+                cut = min(avail, amount)
+                amount -= cut
+                adv_left[gid] = round(avail - cut, 2)
+            if amount <= 0.01:
+                continue
             gt = group_trim.get(gid, 0.0)
             if gt > 0:
                 cut = min(gt, amount)
