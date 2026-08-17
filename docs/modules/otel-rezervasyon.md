@@ -74,6 +74,11 @@ dosya yüklemeden** hep güncel kalır.
   onaydan muaf. Tünel kapalıysa 503.
 - **Merkezi sync adımı:** `sedna_sync.py:_STEPS` → `reservations` (`run_reservation_import`).
   Topbar'daki tek "Sedna" butonu otomatik kapsar — **sayfa-içi ayrı buton yok**.
+- **Otomatik koşu (2026-08-17):** Adım artık `cron_sedna_sync._CRON_STEP_KEYS`'te →
+  `sprenses-sedna-sync.timer` ile **09–21 arası 2 saatte bir** kendiliğinden koşar. Gerekçe:
+  Panel'in "Beklenen ciro tahsilatı" projeksiyonu bu tablodan **okuma-anında** türetilir
+  (`contract_projection_service`) → elle senkron beklenirse yeni rezervasyon/iptaller günlerce
+  projeksiyona yansımıyordu. Topbar butonu elbette çalışmaya devam eder (anında tazeleme).
 - **Eşleme (`utils/sedna_client.py:fetch_reservations` + `Reservation` join `Agency`):**
   | Bizim alan | Sedna kaynağı |
   |---|---|

@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-"""Cari + çek + düzenli-ödeme + banka-mutabakat Sedna senkron cronu (Faz 2 #18).
+"""Cari + çek + düzenli-ödeme + rezervasyon + banka-mutabakat Sedna senkron cronu (Faz 2 #18).
 
 Merkezi Sedna senkronunun ÇEKİRDEK finans adımlarını admin kullanıcısıyla koşar:
-cariler, ibans, checks, recurring_sync, bank_recon. (Satış faturaları kendi
-timer'ında: sprenses-sales-sync; stok/rezervasyon Topbar butonuyla.) Systemd:
-sprenses-sedna-sync.timer — 09-21 arası 2 saatte bir (sales-sync ile 1 saat faz
-farklı; EC2 bellek koruması: ağır işler eşzamanlı tetiklenmez).
+cariler, ibans, checks, recurring_sync, salary_sync, reservations, bank_recon.
+(Satış faturaları kendi timer'ında: sprenses-sales-sync; stok Topbar butonuyla.)
+Systemd: sprenses-sedna-sync.timer — 09-21 arası 2 saatte bir (sales-sync ile 1 saat
+faz farklı; EC2 bellek koruması: ağır işler eşzamanlı tetiklenmez).
+
+REZERVASYON ADIMI (2026-08-17, kullanıcı kararı): Panel'deki "Beklenen ciro tahsilatı"
+projeksiyonu `reservations` tablosundan OKUMA-ANINDA türetilir
+(`contract_projection_service`) → tablo bayatsa yeni rezervasyon/iptaller projeksiyona
+yansımaz. Adım eskiden yalnız Topbar butonuyla koşuyordu (elle, günde 0-2 kez) ve
+projeksiyon günlerce eski kalabiliyordu. Bedeli: her turda ~10.000 satır Sedna sorgusu
++ pencere aynalaması (cari yıl+); ölçülen yük kabul edildi. Stok adımı BİLEREK dışarıda
+kalmaya devam eder (nakit projeksiyonunu beslemez, elle tetiklenir).
 
 Tünel/Sedna kapalıysa (HTTP 503) uyarı loglar ve 0 ile çıkar (timer'ı düşürmez).
 Ancak bir adım GERÇEKTEN hata verirse çıkış kodu 2 (EXIT_PARTIAL) olur → systemd
@@ -21,7 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("sedna-sync-cron")
 
-_CRON_STEP_KEYS = {"cariler", "ibans", "checks", "recurring_sync", "salary_sync", "bank_recon"}
+_CRON_STEP_KEYS = {"cariler", "ibans", "checks", "recurring_sync", "salary_sync",
+                   "reservations", "bank_recon"}
 
 
 def main() -> int:

@@ -519,3 +519,15 @@ class TestCronSednaSync:
         step_keys = {s["key"] for s in sedna_sync._STEPS}
         assert cron_sedna_sync._CRON_STEP_KEYS <= step_keys, \
             f"cron adım anahtarları _STEPS'te yok: {cron_sedna_sync._CRON_STEP_KEYS - step_keys}"
+
+    def test_reservations_step_runs_on_cron(self):
+        """Rezervasyon adımı cron'da OLMALI (2026-08-17 kullanıcı kararı).
+
+        Panel'in "Beklenen ciro tahsilatı" projeksiyonu `reservations` tablosundan
+        okuma-anında türetilir (contract_projection_service) → adım cron'dan
+        çıkarılırsa yeni rezervasyon/iptaller yalnız Topbar butonuna basılınca
+        yansır ve projeksiyon günlerce bayat kalır.
+        """
+        import cron_sedna_sync
+
+        assert "reservations" in cron_sedna_sync._CRON_STEP_KEYS

@@ -197,9 +197,18 @@ Cari/çek/mutabakat Sedna senkronu artık kullanıcı butonunu beklemez — **ot
 | Alan | Değer |
 |---|---|
 | Script | `backend/cron_sedna_sync.py` (`sprenses-sedna-sync.service`, oneshot, `User=ec2-user`, `TZ=Europe/Istanbul`) |
-| Kapsam | Merkezi senkronun **çekirdek finans adımları**: `cariler`, `ibans`, `checks`, `recurring_sync`, `bank_recon` — `sedna_sync._STEPS` registry'sinden `_CRON_STEP_KEYS` süzgeciyle, **admin** kullanıcısıyla |
+| Kapsam | Merkezi senkronun **çekirdek finans adımları**: `cariler`, `ibans`, `checks`, `recurring_sync`, `salary_sync`, `reservations`, `bank_recon` — `sedna_sync._STEPS` registry'sinden `_CRON_STEP_KEYS` süzgeciyle, **admin** kullanıcısıyla |
 | Zamanlama | `OnCalendar=*-*-* 09,11,13,15,17,19,21:15:00 Europe/Istanbul` + `Persistent=true` (09–21 arası 2 saatte bir, tek saatler :15) |
-| Kapsam DIŞI | Satış faturaları (kendi timer'ı: `sprenses-sales-sync`), stok ve rezervasyon (Topbar butonuyla) |
+| Kapsam DIŞI | Satış faturaları (kendi timer'ı: `sprenses-sales-sync`), **stok** (Topbar butonuyla) |
+
+**Rezervasyon adımı cron'a alındı (2026-08-17, kullanıcı kararı).** Panel'in "Beklenen ciro tahsilatı
+(Projeksiyon)" kalemleri `reservations` tablosundan **okuma-anında** türetilir
+(`contract_projection_service` — finance_events'e yazılmaz) → tablo bayatsa yeni rezervasyon ve
+iptaller projeksiyona yansımaz. Adım eskiden yalnız Topbar butonuyla koşuyordu (elle, düzensiz:
+11 → 13 → 14 → 17 Ağustos) ve projeksiyon günlerce eski kalabiliyordu. Bedeli her turda ~10.000 satır
+Sedna sorgusu + cari-yıl penceresinin aynalanması; ölçülen yük kabul edildi. **Stok adımı bilerek
+dışarıda** (nakit projeksiyonunu beslemez). Regresyon bekçisi:
+`tests/test_faz2_realtime.py::TestCronSednaSync::test_reservations_step_runs_on_cron`.
 
 **Faz farkı gerekçesi (EC2 bellek koruması):** `sprenses-sales-sync.timer` **çift saatler** :15'te
 (08,10,…,22:15 Istanbul) koşar; sedna-sync **tek saatler** :15'te → iki ağır Sedna işi asla aynı anda
