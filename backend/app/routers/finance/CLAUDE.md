@@ -5,6 +5,94 @@ Daha kapsamlı mimari belgeleme için: `docs/modules/finans-mimarisi.md`
 
 ---
 
+## Nakit Akım Grafiği — Dönem Serisi + Anlık Banka Bakiyeleri (2026-08-19, kullanıcı isteği)
+
+**İstek:** "Finans modülü altında nakit akım grafiği olsun. Günlük/haftalık/aylık/yıllık bazda
+ödemeler ve tahsilatlar görünsün. Anlık banka hesap tutarları da grafiğe dahil edilsin. Tüm planlı
+ödeme ve tahsilatlar, ayrıca gerçekleşenler ve vadesi geride kalanlar burada görünsün."
+
+**Önceki durum:** Grafik YALNIZ Panel'de vardı (`RunwayChart` — `CashFlowTAccount` içinde, cari
+dönemin GÜNLÜK banka bakiyesi eğrisi). Finans → Nakit Akım sayfasında hiç grafik yoktu; sayfa
+özet kartları + ay akordiyonundan ibaretti. T-Hesap cetveli dönem kırılımını veriyordu ama TEK
+dönem gösteriyor, ardışık dönemleri yan yana kıyaslamak mümkün değildi.
+
+### Yeni uç: `GET /finance/cash-flow/chart` (`cash_flow/chart.py`)
+
+`?period=daily|weekly|monthly|yearly&back=&forward=&offset=` → ardışık kova serisi.
+Varsayılan pencere bugünün iki yanında simetrik (nakit akımda GELECEK en az geçmiş kadar
+önemlidir): günlük 14+1+14, haftalık 8+1+8, aylık 6+1+6, yıllık 2+1+2. Tavan `MAX_BUCKETS=60`;
+aşılırsa ÖNCE gelecek kırpılır (geçmiş gerçekleşen veriyi taşır).
+
+Her kova: `income_realized/planned/overdue/held/info`, aynısı `expense_*`, `income_total`,
+`expense_total`, `net_eur`, kalem sayaçları, `is_current`/`is_past`, kısa+uzun Türkçe etiket.
+Yanıt ayrıca `accounts` (anlık banka bakiyeleri, hesap bazında), `total_balance_eur`,
+`overdue_expense_eur`, `overdue_income_eur`, `skipped_no_rate` taşır.
+
+### TEK SAYI KURALI (en kritik değişmez)
+
+Her kova, AYNI `(period, offset)` için T-Hesap cetveliyle **birebir** aynı sayıyı verir:
+
+| grafik | t-account |
+|---|---|
+| `income_realized + income_planned` | `total_in_eur` |
+| `expense_realized + expense_planned` | `total_out_eur` |
+| `income_realized` | `realized_in_eur` |
+| `expense_realized` | `realized_out_eur` |
+| `net_eur` | `net_eur` |
+
+Bunu garanti etmek için dönem sınırı (`_period_range`), EUR çevrimi (`_event_eur`), grup etiketi
+(`_group_label`) ve transfer/bilgi kategorisi kuralları **`t_account`'tan import edilir** —
+kopyalanmaz. Kopyalama FIN-001 sınıfı sessiz drift üretir (bir tarafta düzeltilen kur mantığı
+diğerinde bayat kalır). CC ekstre rezervi `due_reserve_projections`, kontrat/ciro tahsilatı
+`contract_inflow_projections` ile aynı tek kaynaktan gelir. Regresyon:
+`backend/tests/test_cash_flow_chart.py::TestChartSingleNumberRule` (4 dönem × 3 kova).
+Canlı veride 2026-08-19'da 4 dönem × 64 kova birebir tuttu.
+
+### T-Hesap'tan TEK sapma — VADESİ GEÇENLER grafikte GÖRÜNÜR
+
+`t_account` gerçekleşmemiş + vadesi bugün/geçmiş kalemi listeden **düşer** (ayrı "Vadesi Geçenler"
+panelinde izlenir, çift gösterim olmasın diye). Grafik onları KENDİ tarihlerinde `*_overdue`
+serisinde gösterir — kullanıcı isteğinin ta kendisi ("vadesi geride kalanlar burada görünsün").
+
+**Ama toplama/net'e GİRMEZ ve bakiye eğrisini DÜŞÜRMEZ** — "ödenmedi, para hâlâ bankada" kuralı
+(`eur_balances` 2026-07-06 kullanıcı kararı). Frontend bunu görsel olarak da söyler: ayrı DAR
+kesik-çizgili kırmızı sütun + lejantta "(toplam dışı)". Aynı sütuna yığmak "toplama dahil"
+yanılsaması yaratırdı. Sıra `runway.py` ile aynı: **önce** vadesi-geçen, **sonra** bekletme —
+vadesi geçmiş bekletilmiş kalem yine vadesi-geçendir (aksi halde grafikten sessizce kaybolurdu).
+
+Vadesi geçen tahsilat tarafına kontrat taksitleri de dahildir (`runway.overdue_income` ile aynı
+mantık); ciro projeksiyonu geçmişte gösterilmez (gerçekleşen ciro banka tarafında zaten sayılır
+→ çift sayım olurdu).
+
+### `_helpers.bank_snapshot` — anlık banka nakdinin TEK kaynağı
+
+Grafiğin hesap şeridi için hesap KIRILIMI gerekiyordu; `runway._compute_start_eur` yalnız TOPLAM
+üretiyordu. Hesaplama `_helpers.bank_snapshot(db)`'ye taşındı, `_compute_start_eur` ona delege
+eder. Matematik DEĞİŞMEDİ — taşıma öncesi/sonrası canlı veride **45.794,10 €** birebir aynı
+(41 finansal değişmezden biri; `services/audit_finance_invariants.py:413`). Böylece "Bankadaki
+Nakit" başlığı, runway `start_eur` ve grafik şeridi asla ayrışamaz.
+
+Satır başına: `bank_name`, `currency`, `iban_tail` (yalnız son 4 hane — tam IBAN sızmaz),
+`last_balance`, `blocked_amount`, `effective_balance`, `balance_eur`, `last_movement_date`.
+Hareketsiz hesap listede `last_balance=null` ile görünür ama toplama GİRMEZ (eski
+`_compute_start_eur` davranışıyla birebir — o da yalnız son-bakiyesi olan hesaplarda döngü kurardı).
+
+### Bakiye eğrisi backend'den DÖNMEZ
+
+Frontend `cashFlowCache.eurBalances.daily`den (RunwayChart + PDF raporuyla aynı
+`compute_eur_balances` çekirdeği) kova sonundaki son bakiyeyi okur. Sebep: `compute_eur_balances`
+ağır bir tam-taramadır ve sayfa onu zaten WS-geçersizlemeli cache'te tutuyor; dönem sekmesi her
+değiştiğinde yeniden hesaplatmak israf olurdu. Çapraz doğrulama: 2026-08-19'da eğrinin bugün
+noktası (€45.794,10) `bank_snapshot.total_eur` ile birebir eşitti — iki bağımsız hesap aynı sayıyı
+verdi.
+
+### Hız sınırı
+
+`chart_limiter` = 30 istek/dk (t-account ile aynı gerekçe: dönem sekmesi + ileri/geri gezinme art
+arda istek üretir, `heavy_limiter`'ın 10/dk'sı gezinmeyi boğardı).
+
+---
+
 ## Düzenli Ödeme (recurring) ↔ Banka Eşleştirmesi + Para Birimi Kapısı (2026-07-28)
 
 **Canlı bulgu:** "Temmuz 2026 — 2026 Leasing All Risk Sigortası (Trafo)" (€684,38) 27.07'de

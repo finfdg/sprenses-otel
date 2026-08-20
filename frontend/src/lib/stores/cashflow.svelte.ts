@@ -108,15 +108,39 @@ export async function loadCashFlowUntaggedCount() {
 	}
 }
 
-export async function loadCashFlowEurBalances() {
-	try {
-		cashFlowCache.eurBalances = await api.get('/finance/cash-flow/eur-balances');
-		cashFlowCache.eurBalancesFetchedAt = Date.now();
-	} catch (err) {
-		// Grafik (RunwayChart) + gün bakiyeleri bu veriden beslenir — sessiz kalırsa
-		// kullanıcı bayat eğriye bakar (2026-07-07: rate-limit 429'ları fark edilmedi)
-		console.error('EUR bakiye hatası:', err);
-		showToast('Nakit projeksiyon bakiyeleri yüklenemedi', 'error');
+// eur-balances TEKİL-UÇUŞ (2026-08-19): `/eur-balances` ağır bir tam-taramadır ve 30 istek/dk
+// ile sınırlıdır. Artık AYNI ANDA birden çok tüketici çağırıyor — sayfanın WS handler'ı
+// (refreshCashFlowLight/Full), Panel T-Hesap'ı ve Nakit Akım grafiği. Guard'sız her finans
+// mutasyonu 2-3 özdeş istek üretip limiti yarıya indiriyordu (aynı sınıf sorun 2026-07-07'de
+// nginx'te 47×429 olarak görülmüştü). Uçuş sürerken gelen çağrı yeni istek AÇMAZ:
+//   force=false (varsayılan, fırsatçı yükleme: mount, bayat kontrolü) → uçuştaki söze biner.
+//   force=true  (WS sonrası "taze veri lazım") → uçuş bittikten sonra TEK bir kuyruk yenilemesi
+//                yapar; böylece uçuştaki yanıt mutasyon-ÖNCESİ durumu taşıyorsa bayat kalmaz.
+let eurBalancesInFlight: Promise<void> | null = null;
+let eurBalancesQueued = false;
+
+export async function loadCashFlowEurBalances(force = false): Promise<void> {
+	if (eurBalancesInFlight) {
+		if (force) eurBalancesQueued = true;
+		return eurBalancesInFlight;
+	}
+	eurBalancesInFlight = (async () => {
+		try {
+			cashFlowCache.eurBalances = await api.get('/finance/cash-flow/eur-balances');
+			cashFlowCache.eurBalancesFetchedAt = Date.now();
+		} catch (err) {
+			// Grafik (RunwayChart + CashFlowChart) + gün bakiyeleri bu veriden beslenir — sessiz
+			// kalırsa kullanıcı bayat eğriye bakar (2026-07-07: rate-limit 429'ları fark edilmedi)
+			console.error('EUR bakiye hatası:', err);
+			showToast('Nakit projeksiyon bakiyeleri yüklenemedi', 'error');
+		} finally {
+			eurBalancesInFlight = null;
+		}
+	})();
+	await eurBalancesInFlight;
+	if (eurBalancesQueued) {
+		eurBalancesQueued = false;
+		await loadCashFlowEurBalances();
 	}
 }
 
@@ -145,7 +169,7 @@ export async function loadAllCashFlow(force = false) {
 export async function refreshCashFlowLight() {
 	await Promise.all([
 		loadCashFlowUntaggedCount(),
-		loadCashFlowEurBalances(),
+		loadCashFlowEurBalances(true), // WS sonrası: uçuştaki yanıt mutasyon-öncesi olabilir
 	]);
 }
 
@@ -154,7 +178,7 @@ export async function refreshCashFlowFull() {
 	await Promise.all([
 		loadCashFlowItems(true),
 		loadCashFlowUntaggedCount(),
-		loadCashFlowEurBalances(),
+		loadCashFlowEurBalances(true), // WS sonrası: uçuştaki yanıt mutasyon-öncesi olabilir
 		loadCashFlowProjections(),
 	]);
 }

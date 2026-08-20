@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from .aging import router as aging_router
 from .cc_projections import router as cc_projections_router
+from .chart import router as chart_router
 from .deferral import router as deferral_router
 from .eur_balances import router as eur_balances_router
 from .hold import router as hold_router
@@ -24,3 +25,4 @@ router.include_router(t_account_router)
 router.include_router(deferral_router)
 router.include_router(hold_router)
 router.include_router(cc_projections_router)
+router.include_router(chart_router)

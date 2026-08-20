@@ -238,3 +238,113 @@ def _get_fx_buying(db: Session, code: str, target_date) -> float:
 def _get_usd_rate(db: Session, target_date) -> float:
     """Belirli tarih için USD/TRY alış kuru."""
     return _get_fx_buying(db, "USD", target_date)
+
+
+def _latest_buying(db: Session, currency_code: str) -> Optional[float]:
+    """EN SON yayınlanan (birim başına) TCMB alış kuru; hiç yoksa None.
+
+    `_get_fx_buying`'den farkı TARİH FİLTRESİ YOKLUĞUDUR: "bugünkü bakiye"
+    değerlemesi ileri tarihli bir gün için de en son yayınlanan kuru kullanır
+    (hafta sonu/tatilde dünkü kur). 1.0 fallback YOK — çağıran None'ı
+    "kur bilinmiyor" olarak ele alır (1 TL = 1 EUR saçmalığı engellenir).
+    """
+    row = (
+        db.query(ExchangeRate.forex_buying, ExchangeRate.unit)
+        .filter(
+            ExchangeRate.currency_code == currency_code,
+            ExchangeRate.forex_buying.isnot(None),
+        )
+        .order_by(ExchangeRate.date.desc())
+        .first()
+    )
+    if row and row.forex_buying:
+        return float(row.forex_buying) / float(row.unit or 1)
+    return None
+
+
+def bank_snapshot(db: Session) -> dict:
+    """ANLIK banka nakdi — hesap bazında son bakiye + toplam EUR karşılığı.
+
+    `runway._compute_start_eur`'ün TEK KAYNAĞIdır (o fonksiyon buraya delege eder,
+    2026-08-19): "Bankadaki Nakit" başlığı, runway `start_eur` ve Nakit Akım
+    grafiğinin hesap şeridi aynı sayıyı gösterir. Daha önce yalnız TOPLAM
+    hesaplanıyordu; grafik hesap KIRILIMI istediğinden hesaplama buraya taşındı
+    ve satır satır döner (matematik birebir aynı — `total_eur` değişmedi).
+
+    "Son bakiye" = (date, id) sırasına göre son satır — max(id) DEĞİL: sonradan
+    eklenen (backfill/devir) ESKİ tarihli satır tabloda en yüksek id'yi alır ve
+    bayat bakiyeyi "güncel" sanırdı (2026-07-19 bulgusu; canlı hesap 9/10'da 57
+    çelişkili satır). DISTINCT ON (PostgreSQL).
+
+    EUR çevrimi: TRY → /eurRate, EUR → aynen, USD/GBP → (bakiye × fxRate)/eurRate
+    (çapraz kur, `CROSS_EUR_CURRENCIES`), diğer para birimleri → /eurRate.
+    Kur yoksa hesap toplama KATILMAZ (`balance_eur=None`) — 1:1 varsayılmaz.
+
+    HAREKETSİZ hesaplar (hiç banka işlemi yok) listede `last_balance=None` ile
+    görünür ama toplama girmez — eski `_compute_start_eur` davranışıyla birebir
+    (o da yalnız son-bakiyesi olan hesaplar üzerinde döngü kurardı).
+    """
+    accounts = db.query(BankAccount).order_by(BankAccount.bank_name, BankAccount.id).all()
+
+    last_rows = (
+        db.query(
+            BankTransaction.account_id,
+            BankTransaction.balance,
+            BankTransaction.date,
+        )
+        .filter(BankTransaction.balance.isnot(None))
+        .distinct(BankTransaction.account_id)
+        .order_by(
+            BankTransaction.account_id,
+            BankTransaction.date.desc(),
+            BankTransaction.id.desc(),
+        )
+        .all()
+    )
+    last_bal = {r.account_id: float(r.balance) for r in last_rows}
+    last_date = {r.account_id: r.date for r in last_rows}
+
+    eur_rate = _latest_buying(db, "EUR")
+    cross_rates = {code: _latest_buying(db, code) for code in CROSS_EUR_CURRENCIES}
+
+    items = []
+    total_eur = 0.0
+    for acc in accounts:
+        currency = (acc.currency or "TRY").upper()
+        blocked = float(acc.blocked_amount) if acc.blocked_amount else 0.0
+        raw = last_bal.get(acc.id)
+        effective = None if raw is None else raw - blocked
+
+        balance_eur = None
+        if effective is not None:
+            if currency == "EUR":
+                balance_eur = effective
+            elif currency in CROSS_EUR_CURRENCIES:
+                fx_rate = cross_rates.get(currency)
+                if fx_rate and eur_rate:
+                    balance_eur = (effective * fx_rate) / eur_rate
+            elif eur_rate:
+                balance_eur = effective / eur_rate
+        if balance_eur is not None:
+            total_eur += balance_eur
+
+        items.append({
+            "id": acc.id,
+            "bank_name": acc.bank_name,
+            "account_no": acc.account_no,
+            # IBAN'ın yalnız son 4 hanesi (tam IBAN grafik şeridinde gerekmez)
+            "iban_tail": (acc.iban or "")[-4:] or None,
+            "currency": currency,
+            "is_active": bool(acc.is_active),
+            "last_balance": None if raw is None else round(raw, 2),
+            "blocked_amount": round(blocked, 2),
+            "effective_balance": None if effective is None else round(effective, 2),
+            "balance_eur": None if balance_eur is None else round(balance_eur, 2),
+            "last_movement_date": last_date[acc.id].isoformat() if acc.id in last_date else None,
+        })
+
+    return {
+        "accounts": items,
+        "total_eur": round(total_eur, 2),
+        "eur_rate": eur_rate,
+    }

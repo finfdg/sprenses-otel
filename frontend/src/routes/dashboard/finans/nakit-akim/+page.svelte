@@ -29,6 +29,7 @@
 		applyCashFlowFilters,
 	} from '$lib/stores/cashflow.svelte';
 	import CashFlowSummaryCards from '$lib/components/finance/CashFlowSummaryCards.svelte';
+	import CashFlowChart from '$lib/components/finance/CashFlowChart.svelte';
 	import CashFlowFilterBar from '$lib/components/finance/CashFlowFilterBar.svelte';
 	import MonthAccordion from '$lib/components/finance/MonthAccordion.svelte';
 	import type { CashFlowItem as CashFlowItemType, TransactionCategory } from '$lib/types/finance';
@@ -811,6 +812,10 @@
 
 {#if !matchMode && !ccMatchMode}
 	<CashFlowSummaryCards />
+	<!-- Nakit akim grafigi (2026-08-19): donem serisi tahsilat/odeme + banka bakiyesi.
+	     Eslestirme modlarinda gizli — o modlarda sayfa tek isli (banka satiri secimi),
+	     grafik dikkat dagitir ve listeyi ekran disina iter. -->
+	<CashFlowChart />
 {/if}
 
 <!-- Tarih Aralığı & Arama Filtresi -->

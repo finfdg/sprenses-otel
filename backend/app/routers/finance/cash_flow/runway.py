@@ -27,20 +27,16 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import runway_limiter
-from app.models.bank_account import BankAccount
-from app.models.bank_transaction import BankTransaction
-from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import (
     DIRECTION_EXPENSE,
     DIRECTION_INCOME,
-    SOURCE_BANK,
     FinanceEvent,
 )
 from app.models.payment_deferral import PaymentDeferral
 from app.models.user import User
 from app.utils.finance_helpers import MIN_DATE
 
-from ._helpers import CROSS_EUR_CURRENCIES, _get_eur_rate, _get_fx_buying
+from ._helpers import CROSS_EUR_CURRENCIES, _get_eur_rate, _get_fx_buying, bank_snapshot
 
 # Transfer kategorileri — t_account / groupByMonth ile birebir aynı (iç hareket)
 TRANSFER_CATEGORIES = ("Virman", "Döviz Satım", "İade")
@@ -74,71 +70,18 @@ SOURCE_LABELS = {
 router = APIRouter()
 
 
-def _latest_buying(db: Session, currency_code: str) -> Optional[float]:
-    """Verilen döviz için EN SON (birim başına) TCMB alış kuru; yoksa None."""
-    row = (
-        db.query(ExchangeRate.forex_buying, ExchangeRate.unit)
-        .filter(
-            ExchangeRate.currency_code == currency_code,
-            ExchangeRate.forex_buying.isnot(None),
-        )
-        .order_by(ExchangeRate.date.desc())
-        .first()
-    )
-    if row and row.forex_buying:
-        return float(row.forex_buying) / float(row.unit or 1)
-    return None
-
-
 def _compute_start_eur(db: Session) -> float:
     """BUGÜNKÜ toplam banka nakdi (EUR) — her hesabın son bakiyesi, blocked düşülmüş.
 
-    mobile_dashboard_summary'deki tek-sorgu "son bakiye" desenini kopyalar:
-    her hesabın max(id) işleminin bakiyesi → effective = last_balance - blocked.
-    EUR çevrim: TRY → /eurRate, EUR → aynen, USD/GBP → (bakiye*fxRate)/eurRate
-    (çapraz kur), diğer para birimleri → /eurRate (en son alış kurları). Kur yoksa 0 varsayılır
-    (banka nakdi başlangıç değeri — kalem atlama mantığı yalnız planlı hareketlerde).
+    Hesaplama `_helpers.bank_snapshot`a taşındı (2026-08-19): Nakit Akım grafiği hesap
+    KIRILIMI (anlık banka tutarları şeridi) istediğinden aynı matematiği ikinci kez
+    yazmak yerine tek kaynak paylaşılır — "Bankadaki Nakit" başlığı, runway `start_eur`
+    ve grafik şeridi böylece asla ayrışamaz (FIN-001 sınıfı sessiz drift engeli).
+    Matematik DEĞİŞMEDİ; taşıma öncesi/sonrası canlı veride 45.794,10 € birebir aynı.
+    Son-bakiye sıralaması (date,id — max(id) DEĞİL), blocked düşümü ve USD/GBP çapraz
+    kur gerekçeleri `bank_snapshot` docstring'inde.
     """
-    accounts = db.query(BankAccount).all()
-
-    # "Son bakiye" = (date, id) sırasına göre son satır — max(id) DEĞİL (2026-07-19):
-    # sonradan eklenen (backfill/devir) ESKİ tarihli satır tabloda en yüksek id'yi alır;
-    # max(id) o bayat bakiyeyi "güncel" sanırdı (Garanti filtreli PDF tuzağı sınıfı;
-    # canlı hesap 9/10'da 57 id↔tarih çelişkili satır kanıtı). DISTINCT ON (PostgreSQL).
-    last_balance_rows = (
-        db.query(BankTransaction.account_id, BankTransaction.balance)
-        .filter(BankTransaction.balance.isnot(None))
-        .distinct(BankTransaction.account_id)
-        .order_by(
-            BankTransaction.account_id,
-            BankTransaction.date.desc(),
-            BankTransaction.id.desc(),
-        )
-        .all()
-    )
-    last_bal = {row.account_id: float(row.balance) for row in last_balance_rows}
-    acc_blocked = {
-        a.id: float(a.blocked_amount) if a.blocked_amount else 0.0 for a in accounts
-    }
-    acc_currency = {a.id: (a.currency or "TRY").upper() for a in accounts}
-
-    eur_rate = _latest_buying(db, "EUR")
-    cross_rates = {code: _latest_buying(db, code) for code in CROSS_EUR_CURRENCIES}
-
-    total_eur = 0.0
-    for acc_id, bal in last_bal.items():
-        effective = bal - acc_blocked.get(acc_id, 0.0)
-        currency = acc_currency.get(acc_id, "TRY")
-        if currency == "EUR":
-            total_eur += effective
-        elif currency in CROSS_EUR_CURRENCIES:  # USD/GBP → çapraz kur
-            fx_rate = cross_rates.get(currency)
-            if fx_rate and eur_rate:
-                total_eur += (effective * fx_rate) / eur_rate
-        else:  # TRY (ve bilinmeyen para birimleri) → EUR kuruna böl
-            if eur_rate:
-                total_eur += effective / eur_rate
-    return round(total_eur, 2)
+    return bank_snapshot(db)['total_eur']
 
 
 def _event_eur(

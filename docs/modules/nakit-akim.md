@@ -25,13 +25,15 @@
 | `backend/app/routers/finance/cash_flow/eur_balances.py` | EUR bakiye endpoint'i + `compute_eur_balances(db)` ortak çekirdeği |
 | `backend/app/routers/finance/cash_flow/report.py` | Nakit akım PDF raporu endpoint'i (ay/gün bazlı EUR tablosu) |
 | `backend/app/routers/finance/cash_flow/runway.py` | Runway / nakit koruma projeksiyonu endpoint'i (ay-içi planlı hareketler EUR) |
-| `backend/app/routers/finance/cash_flow/_helpers.py` | Ortak yardımcı fonksiyonlar |
+| `backend/app/routers/finance/cash_flow/chart.py` | Nakit akım GRAFİĞİ — dönem serisi (gün/hafta/ay/yıl) tahsilat/ödeme kırılımı + anlık banka bakiyeleri |
+| `backend/app/routers/finance/cash_flow/_helpers.py` | Ortak yardımcı fonksiyonlar + `bank_snapshot(db)` (anlık banka nakdinin tek kaynağı) |
 
 ### Frontend
 | Dosya | Açıklama |
 |---|---|
 | `frontend/src/routes/dashboard/finans/+page.svelte` | Finans ana sayfa (nakit-akim'e yönlendirir) |
 | `frontend/src/routes/dashboard/finans/nakit-akim/+page.svelte` | Nakit akım UI (liste, özet, form) |
+| `frontend/src/lib/components/finance/CashFlowChart.svelte` | Nakit akım grafiği — ortak x eksenli iki panel (üstte ıraksayan akım sütunları, altta banka bakiyesi eğrisi) + anlık hesap şeridi |
 
 ### Veritabanı
 | Dosya | Açıklama |
@@ -69,6 +71,7 @@
 | `GET` | `/api/finance/cash-flow/monthly-summary` | `view` | Aylık gelir/gider/bakiye özeti |
 | `GET` | `/api/finance/cash-flow/eur-balances` | `view` | EUR bakiye özeti |
 | `GET` | `/api/finance/cash-flow/report/pdf` | `view` | Ay/gün bazlı nakit akım PDF raporu (`start_date`/`end_date` opsiyonel) |
+| `GET` | `/api/finance/cash-flow/chart` | `view` | **Nakit akım grafiği** — `period=daily\|weekly\|monthly\|yearly` + `back`/`forward`/`offset`; ardışık kova serisi. Her kova: `income_*`/`expense_*` (`realized`/`planned`/`overdue`/`held`/`info`), `net_eur`, kalem sayaçları. Yanıt ayrıca `accounts` (anlık banka bakiyeleri hesap bazında), `total_balance_eur`, `overdue_*_eur`, `skipped_no_rate`. **Tek sayı kuralı:** `income_realized+income_planned == t-account total_in_eur` (aynı period/offset) — dönüşüm/gruplama kuralları `t_account`'tan import edilir. Vadesi geçenler t-account'tan FARKLI olarak GÖRÜNÜR ama toplam/net dışıdır. Hız sınırı 30/dk |
 | `GET` | `/api/finance/cash-flow/t-account` | `view` | T hesap cetveli — `period=daily\|weekly\|monthly\|yearly` + `offset<=0`; giriş/çıkış grupları EUR (transfer hariç, `skipped_no_rate` sayaçlı). USD kalemler USD/EUR çaprazıyla çevrilir (`amount × USD alış / EUR alış`, `to_eur` hizası — 2026-07-19; runway `_event_eur` da aynı; öncesinde amount_try NULL olduğundan atlanıyorlardı, backend `finance/CLAUDE.md` "USD Kalemler" bölümü) |
 | `GET` | `/api/finance/cash-flow/runway` | `view` | Runway / nakit koruma projeksiyonu — içinde bulunulan ay; `start_eur` bugünkü banka nakdi + ay-içi planlı hareketler (`inflows`/`outs`, EUR; transfer hariç, `skipped_no_rate` sayaçlı). `overdue`/`overdue_income` = vadesi geçen **VEYA bugün vadeli** ödenmemiş kalemler (`event_date <= today`, orijinal tarih; kullanıcı isteği 2026-07-16 — bugün vadeli ama ödenmemiş kalem bekleyen `outs`/`inflows`'ta değil, hemen Vadesi Geçenler'de). `t_account` da aynı sınırı kullanır (çift gösterim yok). Her out/overdue/inflow kaleminde `deferred: bool` + `original_date` |
 | `POST` | `/api/finance/cash-flow/defer` | `use` | Bir ödeme kalemini KALICI öteler / öteleme kaldırır (onaysız+audit+WS; body `{source_type, source_id, deferred_to: "YYYY-MM-DD"\|null}`; null→siler; bank HARİÇ) |
@@ -107,9 +110,10 @@
 ### Sayfa Bileşenleri
 1. **Başlık Bölümü** — Sayfa başlığı + "Gelir Ekle" / "Gider Ekle" butonları (canUse kontrolü)
 2. **Özet Kartları** — 3 kart grid: Toplam Gelir (emerald), Toplam Gider (rose), Net Bakiye (blue/red)
-3. **Aylık Akordiyon** — Her ay genişletilebilir; başlıkta ay adı + gelir/gider/bakiye badge'leri
-4. **T Yapısı** — Akordiyon içinde sol: giderler (rose), sağ: gelirler (emerald), ortada dikey mavi çizgi
-5. **Odak Modu** — Sütun başlığına tıklayarak genişletme/daraltma (`focusMode`: balanced/expense/income)
+3. **Nakit Akım Grafiği** (`CashFlowChart`, 2026-08-19) — özet kartlarının hemen altında; dönem sekmesi (Günlük/Haftalık/Aylık/Yıllık) + ileri/geri/bugüne-dön gezinme. Ortak x eksenli İKİ panel: üstte ıraksayan sütun (sıfırın üstü tahsilat, altı ödeme; her biri gerçekleşen+planlı yığılı), altta banka bakiyesi eğrisi (0'ın altı kırmızı). Vadesi geçenler ana sütunun yanında DAR kesik-çizgili kırmızı sütun (toplam dışı). En altta açılır "Anlık Banka Bakiyeleri" şeridi (hesap bazında). Eşleştirme modlarında (`matchMode`/`ccMatchMode`) gizlenir. Neden çift eksen DEĞİL: aylık akım ~€1,9M ↔ banka nakdi ~€46K; sıfır-hizalı çift eksen 0'ın üstünde/altında farklı ölçek katsayısı üretip eğimi yanıltıcı gösteriyordu
+4. **Aylık Akordiyon** — Her ay genişletilebilir; başlıkta ay adı + gelir/gider/bakiye badge'leri
+5. **T Yapısı** — Akordiyon içinde sol: giderler (rose), sağ: gelirler (emerald), ortada dikey mavi çizgi
+6. **Odak Modu** — Sütun başlığına tıklayarak genişletme/daraltma (`focusMode`: balanced/expense/income)
 
 ### Renk Şeması
 - **Gelir:** emerald (emerald-50 bg, emerald-200 border, emerald-600 text)
