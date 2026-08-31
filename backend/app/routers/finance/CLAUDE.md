@@ -271,13 +271,17 @@ açtırdı. Hesap `bank_accounts` id=444; ekrandaki tek hareket (10.08.2026 POS 
 +2.450,00 GBP) **manuel satır** olarak eklendi (btx 6945, `source='manual'`) —
 gerçek ekstre yüklenince `_process_statement` tarih-aralığı purjü otomatik siler (tasarım).
 
-> **Kimlik düzeltmesi (2026-08-31):** İlk kayıtta hesap no **2A000897** / IBAN
-> TR74000120013760002A000897 girilmişti (EUR 2A000895 / USD 2A000896 kardeş serisinden
-> türetme — IBAN checksum'ı geçerli olduğundan fark edilmedi). Halkbank internet şubesi
-> canlı ekranı gerçek kimliği gösterdi: hesap no **55100175**, IBAN
-> **TR380001200137600055100175**. id=444 yerinde güncellendi (yeni hesap AÇILMADI —
-> mükerrer olurdu; ekstre/hareket geçmişi aynı kayıtta durur). Ders: kardeş-seri
-> türetmesiyle hesap kimliği kaydetme — banka ekranı/dekont teyidi şart.
+> **İKİ AYRI GBP HESABI (2026-08-31 — yanlış "düzeltme" geri alındı):** Halkbank'ta GBP
+> için iki hesap var: **2A000897** (IBAN TR74000120013760002A000897 — POS tahsilat hesabı,
+> id=444) ve **55100175** (IBAN TR380001200137600055100175 — vadesiz, id=445). Aynı gün önce
+> internet şubesi ekranında yalnız 55100175 görülünce id=444'ün kimliği "yanlış girilmiş"
+> sanılıp 55100175'e çevrildi; ardından kullanıcının 2A000897 ekstre yüklemesi **başlık-IBAN
+> doğrulamasından 400 aldı** (Faz 3 #22 bekçisi hatayı yakaladı) ve ekstrenin kendisi
+> 2A000897'nin gerçek olduğunu kanıtladı (10.08 POS +2.450 → 31.08 KKIV −2.450, bakiye 0;
+> para vadesiz 55100175'e geçiyor — orada 2.450 duruyor). id=444 geri alındı + 55100175 ayrı
+> hesap olarak açıldı. **Ders: iki kayıt aynı bakiyeyi gösteriyor diye aynı hesap sayma —
+> POS hesabı + vadesiz çifti olabilir; hesap kimliğini yalnız o hesabın ekstre/dekontuyla
+> teyit et.** 31.08 −2.450/+2.450 çifti iki hesabın ekstresi yüklenince Virman etiketi almalı.
 
 **Kod değişikliği — GBP artık USD ile aynı çapraz-kur yolunda:** Yeni ortak sabit
 **`cash_flow/_helpers.py::CROSS_EUR_CURRENCIES = ("USD", "GBP")`** + genel

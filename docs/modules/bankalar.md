@@ -43,7 +43,7 @@
 | `branch_name` | varchar(200) | Şube adı |
 | `account_no` | varchar(50) | Hesap no |
 | `iban` | varchar(34) | IBAN (unique) |
-| `currency` | varchar(3) | Para birimi (TRY, USD, EUR, GBP — GBP 2026-08-14'te eklendi, ilk hesap: Halkbank 55100175 — ilk kayıtta 2A000897 girilmişti, 2026-08-31'de banka ekranıyla düzeltildi; EUR çevrimi GBP/EUR çaprazıyla, bkz. finance/CLAUDE.md "GBP Çapraz Kura Alındı") |
+| `currency` | varchar(3) | Para birimi (TRY, USD, EUR, GBP — GBP 2026-08-14'te eklendi, ilk hesaplar: Halkbank 2A000897 [POS] + 55100175 [vadesiz] — iki AYRI GBP hesabı, 2026-08-31; EUR çevrimi GBP/EUR çaprazıyla, bkz. finance/CLAUDE.md "GBP Çapraz Kura Alındı") |
 | `holder_name` | varchar(300) | Hesap sahibi |
 | `blocked_amount` | numeric(15,2) | Bloke tutar |
 | `is_active` | boolean | Aktif/pasif |
