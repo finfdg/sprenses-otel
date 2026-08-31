@@ -12,14 +12,21 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { api } from '$lib/api';
+	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import Input from '$lib/components/Input.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
-	import { CalendarRange } from 'lucide-svelte';
+	import { CalendarRange, ListPlus } from 'lucide-svelte';
 	import type { MonthlyFifoRow, MonthlyPeriodRow } from '$lib/types/vendor';
 
 	let { onOpenVendor }: { onOpenVendor: (vendorId: number) => void } = $props();
+
+	const canUse = hasPermission('finance.cariler', 'use');
 
 	const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 	const now = new Date();
@@ -128,6 +135,66 @@
 			: `borç ${fmt(totals.total_borc ?? 0)} − alacak ${fmt(totals.total_alacak ?? 0)}`
 	);
 
+	// ───── Talimat listesine toplu ekleme (FIFO Kalan listesi) ─────
+	let addModal = $state(false);
+	let piLists = $state<{ id: number; name: string; item_count: number }[]>([]);
+	let piSelectedListId = $state<number | ''>('');
+	let piNewListName = $state('');
+	let piAdding = $state(false);
+
+	async function openAddAllToList() {
+		addModal = true;
+		piSelectedListId = '';
+		piNewListName = '';
+		try {
+			piLists = await api.get('/finance/payment-instructions/');
+			if (piLists.length > 0) piSelectedListId = piLists[0].id;
+		} catch (err) {
+			console.error('Talimat listeleri alınamadı:', err);
+			showToast('Talimat listeleri yüklenemedi', 'error');
+		}
+	}
+
+	async function confirmAddAllToList() {
+		const newName = piNewListName.trim();
+		if (!newName && !piSelectedListId) {
+			showToast('Liste seçin veya yeni liste adı girin', 'warning');
+			return;
+		}
+		// FIFO kalan = ödenecek tutar; bakiye konvansiyonu negatif (borç)
+		const items = fifoRows.map((r) => ({
+			vendor_id: r.vendor_id,
+			hesap_kodu: r.hesap_kodu,
+			hesap_adi: r.hesap_adi,
+			amount: r.remaining,
+			balance_snapshot: -r.remaining,
+		}));
+		if (items.length === 0) {
+			showToast('Eklenecek cari yok', 'warning');
+			return;
+		}
+		piAdding = true;
+		try {
+			if (newName) {
+				// Önce boş liste, sonra items ucu — kalemlere carinin varsayılan banka/IBAN'ı otomatik gelir
+				const created = await api.post<any>('/finance/payment-instructions/', { name: newName, items: [] });
+				await api.post(`/finance/payment-instructions/${created.id}/items`, { items });
+				showToast(`"${newName}" listesi oluşturuldu — ${items.length} cari eklendi`, 'success');
+			} else {
+				const res = await api.post<any>(`/finance/payment-instructions/${piSelectedListId}/items`, { items });
+				const listName = piLists.find((l) => l.id === piSelectedListId)?.name || 'liste';
+				const skippedNote = res.skipped > 0 ? ` (${res.skipped} mükerrer atlandı)` : '';
+				showToast(`${res.added} cari → ${listName}${skippedNote}`, res.added > 0 ? 'success' : 'info');
+			}
+			addModal = false;
+		} catch (err) {
+			console.error('Talimata toplu ekleme hatası:', err);
+			showToast('Cariler talimat listesine eklenemedi', 'error');
+		} finally {
+			piAdding = false;
+		}
+	}
+
 	let unsubFinance: (() => void) | null = null;
 
 	onMount(() => {
@@ -157,6 +224,12 @@
 			{/each}
 			{#if mode === 'period'}
 				<button onclick={toggleHideZero} class="px-3 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer {hideZero ? 'bg-teal-700 border-teal-700 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}">Sıfır bakiyeleri gizle</button>
+			{/if}
+			{#if mode === 'fifo' && canUse && !loading && fifoRows.length > 0}
+				<Button size="sm" variant="secondary" onclick={openAddAllToList}>
+					<ListPlus class="w-3.5 h-3.5" />
+					Talimat Listesine Ekle
+				</Button>
 			{/if}
 		</div>
 	</div>
@@ -228,3 +301,40 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Talimat Listesine Toplu Ekle Modal -->
+<Modal bind:show={addModal} title="Talimat Listesine Ekle" maxWidth="max-w-md">
+	<div class="space-y-4 text-sm">
+		<div class="bg-gray-50 rounded-lg p-3">
+			<div class="font-medium text-gray-800">{MONTH_NAMES[month - 1]} {YEAR} — FIFO Kalan listesi</div>
+			<div class="text-xs text-gray-500 mt-1">
+				<span class="font-semibold text-gray-700">{fifoRows.length} cari</span>, toplam
+				<span class="font-semibold text-brass-dark tabular-nums">{fmt(totals.remaining ?? 0)}</span>
+				talimat listesine eklenecek. Tutarlar FIFO kalanından gelir; listede düzenlenebilir. Zaten listede olan cariler atlanır.
+			</div>
+		</div>
+
+		{#if piLists.length > 0}
+			<div>
+				<label for="mb-pi-list-select" class="text-xs text-gray-500 mb-1 block">Mevcut Listeye Ekle</label>
+				<Select id="mb-pi-list-select" size="sm" bind:value={piSelectedListId}>
+					{#each piLists as l (l.id)}
+						<option value={l.id}>{l.name} ({l.item_count} cari)</option>
+					{/each}
+				</Select>
+			</div>
+			<div class="text-center text-xs text-gray-500">— veya —</div>
+		{/if}
+
+		<div>
+			<label for="mb-pi-new-name" class="text-xs text-gray-500 mb-1 block">Yeni Liste Oluştur</label>
+			<Input id="mb-pi-new-name" size="sm" bind:value={piNewListName} placeholder="ör: {MONTH_NAMES[month - 1]} {YEAR} Ödemeleri" />
+			<p class="text-[11px] text-gray-500 mt-1">Ad girerseniz yeni liste oluşturulur, aksi halde seçili listeye eklenir.</p>
+		</div>
+
+		<div class="flex items-center justify-end gap-2 pt-1">
+			<Button variant="secondary" onclick={() => { addModal = false; }}>Vazgeç</Button>
+			<Button onclick={confirmAddAllToList} loading={piAdding}>Ekle</Button>
+		</div>
+	</div>
+</Modal>
