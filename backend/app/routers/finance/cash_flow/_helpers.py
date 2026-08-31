@@ -215,7 +215,7 @@ def _get_eur_rate(db: Session, target_date) -> float:
 
 # EUR'a çapraz kurla çevrilen dövizler (amount × {code} alış / EUR alış) — TCMB üçü
 # için de günlük kur çeker; amount_try'a BAKILMAZ. USD 2026-07-19 kararı; GBP
-# 2026-08-14'te ilk GBP hesabı (Halkbank 2A000897) canlıya girince aynı yola alındı.
+# 2026-08-14'te ilk GBP hesabı (Halkbank 55100175) canlıya girince aynı yola alındı.
 # t_account._event_eur + runway._event_eur/_compute_start_eur + eur_balances.to_eur
 # dördü de bu kümeyi kullanır (tek sayı kuralı).
 CROSS_EUR_CURRENCIES = ("USD", "GBP")

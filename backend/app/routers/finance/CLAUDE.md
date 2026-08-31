@@ -266,11 +266,18 @@ Detay: `docs/modules/transaction-tags.md` + `docs/modules/sedna-mutabakat.md`.
 
 ## GBP Çapraz Kura Alındı + İlk GBP Hesabı (2026-08-14)
 
-**Tetikleyici:** Kullanıcı Halkbank'ın yeni GBP POS hesabını (1376 SİDE ŞUBESİ, hesap no
-**2A000897**, IBAN TR74000120013760002A000897 — EUR 2A000895 / USD 2A000896 kardeş serisinin
-üçüncüsü) sisteme açtırdı. Hesap `bank_accounts` id=444; ekrandaki tek hareket (10.08.2026
-POS satış +2.450,00 GBP) **manuel satır** olarak eklendi (btx 6945, `source='manual'`) —
+**Tetikleyici:** Kullanıcı Halkbank'ın yeni GBP POS hesabını (1376 SİDE ŞUBESİ) sisteme
+açtırdı. Hesap `bank_accounts` id=444; ekrandaki tek hareket (10.08.2026 POS satış
++2.450,00 GBP) **manuel satır** olarak eklendi (btx 6945, `source='manual'`) —
 gerçek ekstre yüklenince `_process_statement` tarih-aralığı purjü otomatik siler (tasarım).
+
+> **Kimlik düzeltmesi (2026-08-31):** İlk kayıtta hesap no **2A000897** / IBAN
+> TR74000120013760002A000897 girilmişti (EUR 2A000895 / USD 2A000896 kardeş serisinden
+> türetme — IBAN checksum'ı geçerli olduğundan fark edilmedi). Halkbank internet şubesi
+> canlı ekranı gerçek kimliği gösterdi: hesap no **55100175**, IBAN
+> **TR380001200137600055100175**. id=444 yerinde güncellendi (yeni hesap AÇILMADI —
+> mükerrer olurdu; ekstre/hareket geçmişi aynı kayıtta durur). Ders: kardeş-seri
+> türetmesiyle hesap kimliği kaydetme — banka ekranı/dekont teyidi şart.
 
 **Kod değişikliği — GBP artık USD ile aynı çapraz-kur yolunda:** Yeni ortak sabit
 **`cash_flow/_helpers.py::CROSS_EUR_CURRENCIES = ("USD", "GBP")`** + genel
