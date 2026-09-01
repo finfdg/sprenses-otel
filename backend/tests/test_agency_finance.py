@@ -221,3 +221,91 @@ class TestAgencyFinanceAPI:
             "advance_received", "collections", "reservation_amount", "overdue",
             "invoiced_amount", "month_end_receivable",
         )).issubset(body["totals"])
+
+
+class TestAgencyFinanceFxDates:
+    """Kur tarihi kuralı (2026-09-01, denetim O1): akışlar hareketin KENDİ tarihindeki kurla,
+    avans havuzu / açık alacak BUGÜNKÜ kurla; kur bulunamayan hareket 0 + `skipped_no_rate`."""
+    TODAY = date(2026, 7, 15)
+
+    def _rates(self, db, eur, usd=()):
+        from app.models.exchange_rate import ExchangeRate
+        db.query(ExchangeRate).filter(
+            ExchangeRate.currency_code.in_(("EUR", "USD"))
+        ).delete(synchronize_session=False)
+        for dt, value in eur:
+            db.add(ExchangeRate(date=dt, currency_code="EUR", unit=1,
+                                forex_buying=value, forex_selling=value))
+        for dt, value in usd:
+            db.add(ExchangeRate(date=dt, currency_code="USD", unit=1,
+                                forex_buying=value, forex_selling=value))
+        db.flush()
+
+    def _seed_fx(self, db):
+        group = AgencyGroup(name="AFX TEST ACENTE", members=["AFX PMS"], term_days=30,
+                            kickback_percent=0)
+        db.add(group)
+        db.flush()
+        db.add(AgencyCodeMap(pms_name="AFX PMS", acc_code="120.99.99.9902"))
+        db.add_all([
+            # TL tahsilat Ocak: 4.000 TL → Ocak kuru 40 → 100 € (bugünkü 50 ile 80 DEĞİL)
+            SalesCollection(
+                customer_code="120.99.99.9902", customer_name="AFX TEST TURİZM A.Ş.",
+                collection_date=date(2026, 1, 20), amount=4000, currency="TL",
+                amount_currency=4000, description="Havale", tx_hash="afx-col-1",
+            ),
+            # TL avans Ocak: 8.000 TL → akış 200 € (kur 40); havuza bugünkü kurla 160 €
+            SalesAdvanceTransaction(
+                sedna_rec_id=990101, code="340.99.99.9902", name="AFX TEST TURİZM A.Ş.",
+                transaction_date=date(2026, 1, 10), currency="TL",
+                received=8000, consumed=0, received_tl=8000, consumed_tl=0,
+            ),
+            # USD avans Şubat: 100 $ → akış 100 × 30 / 40 = 75 € (çapraz, Şubat kuru);
+            # havuza bugünkü kurla 100 × 35 / 50 = 70 €
+            SalesAdvanceTransaction(
+                sedna_rec_id=990102, code="340.99.99.9903", name="AFX TEST TURİZM A.Ş.",
+                transaction_date=date(2026, 2, 10), currency="USD",
+                received=100, consumed=0, received_tl=3000, consumed_tl=0,
+            ),
+            # İleri rezervasyon (çıkış 15 Ağu + 30 gün vade = 14 Eyl): havuz buna mahsup edilir
+            Reservation(
+                rec_id=9999002, agency="AFX PMS", checkin_date=date(2026, 8, 10),
+                checkout_date=date(2026, 8, 15), record_date=date(2026, 2, 1),
+                nights=5, rooms=1, eur_total=1000,
+            ),
+        ])
+        db.flush()
+        _invalidate_compute_cache()
+
+    def test_flows_use_transaction_date_rate_and_pool_uses_today(self, db):
+        self._rates(db, eur=[(date(2026, 1, 1), 40), (date(2026, 4, 1), 50)],
+                    usd=[(date(2026, 1, 1), 30), (date(2026, 4, 1), 35)])
+        self._seed_fx(db)
+        result = compute_agency_finance(db, 2026, today=self.TODAY)
+        row = next(r for r in result["agencies"] if r["agency"] == "AFX TEST ACENTE")
+        months = {m["month"]: m for m in row["months"]}
+
+        assert months[1]["collections"] == 100          # 4.000 / 40 — bugünkü 50 ile 80 olurdu
+        assert months[1]["advance_received"] == 200     # 8.000 / 40
+        assert months[2]["advance_received"] == 75      # 100 × 30 / 40 (çapraz, Şubat)
+        # Havuz (stok) bugünkü kurla: 8.000/50 = 160 + 100×35/50 = 70 → 230 €
+        assert months[9]["projected_gross"] == 1000
+        assert months[9]["projected_advance"] == 230
+        assert months[9]["projected_due"] == 770
+        assert result["source_counts"]["skipped_no_rate"] == 0
+        assert result["eur_rate"] == 50
+
+    def test_missing_rate_skips_and_counts(self, db):
+        """Kur geçmişi 1 Mart'ta başlıyor → Ocak/Şubat hareketleri çevrilemez: 0 + sayaç
+        (1 TL = 1 EUR varsayımı YOK); havuz yine bugünkü kurla hesaplanır."""
+        self._rates(db, eur=[(date(2026, 3, 1), 50)], usd=[(date(2026, 3, 1), 35)])
+        self._seed_fx(db)
+        result = compute_agency_finance(db, 2026, today=self.TODAY)
+        row = next(r for r in result["agencies"] if r["agency"] == "AFX TEST ACENTE")
+        months = {m["month"]: m for m in row["months"]}
+
+        assert months[1]["collections"] == 0
+        assert months[1]["advance_received"] == 0
+        assert months[2]["advance_received"] == 0   # ne çapraz ne EUR kuru var
+        assert result["source_counts"]["skipped_no_rate"] == 3
+        assert months[9]["projected_advance"] == 230

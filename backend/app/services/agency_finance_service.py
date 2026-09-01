@@ -3,7 +3,19 @@
 Sedna'dan yerel aynalara alınan 120 fatura/tahsilat ve 340 avans hareketlerini,
 PMS rezervasyonlarını ve yerel vade tanımlarını tek ``ay × acente`` veri kümesinde
 birleştirir. Tüm tutarlar karşılaştırılabilir olması için EUR olarak döner.
+
+KUR TARİHİ KURALI (2026-09-01, denetim O1):
+- AKIŞLAR (alınan/mahsup avans, haricen tahsilat, kesilen fatura) hareketin KENDİ
+  tarihindeki TCMB alış kuruyla çevrilir (`_to_eur_on` + `utils/fx_rates.RateBook`) —
+  T-Hesap / runway / grafik `_event_eur` ile aynı kural; USD/GBP çapraz (native × kur / EUR).
+- STOKLAR (açık alacak kalanı, kalan avans havuzu) BUGÜNKÜ kurla değerlenir (`_to_eur_today`):
+  tahsil edilecek EUR tahsilat günündeki kura bağlıdır; Hak Ediş ve kontrat projeksiyonu da
+  açık alacağı böyle ölçer.
+- Kur bulunamayan hareket 1 TL = 1 EUR sayılmaz: 0 yazılır + `source_counts.skipped_no_rate`.
+Önceki davranış (05–31 Ağu): tüm TL/USD tutarlar bugünkü kurla → Ocak TL faturası T-Hesap'tan
+~%20 düşük görünüyordu (TL değer kaybı kadar).
 """
+from collections import defaultdict
 from datetime import date, timedelta
 from typing import Optional
 
@@ -20,6 +32,7 @@ from app.models.sales_invoice import (
 from app.services.agency_settlement_service import _agency_group_maps
 from app.services.receivable_service import _group_map, _latest_rates, get_terms_map
 from app.services.sales_invoice_service import _compute_cached, _f
+from app.utils.fx_rates import CROSS_EUR_CURRENCIES, RateBook
 from app.utils.text_match import _norm_tokens
 
 _MONTH_NAMES = [
@@ -62,21 +75,56 @@ def _add(target: dict, key: str, amount: float) -> None:
     target[key] = float(target.get(key, 0) or 0) + float(amount or 0)
 
 
-def _to_eur(native: float, amount_tl: float, currency: str, eur_rate: float,
-            rates: Optional[dict] = None) -> float:
-    """Native/TL muhasebe tutarını EUR'ya çevir.
+def _cur(currency: Optional[str]) -> str:
+    return (currency or "TL").strip().upper() or "TL"
 
-    EUR kaydında native tutar kur farkından etkilenmez. Diğer hareketlerde fişteki
-    gerçek TL karşılığı kullanılır; yalnız eski özet fallback'inde TL yoksa TCMB kuru
-    devreye girer.
+
+def _to_eur_today(native: float, amount_tl: float, currency: str, eur_rate: float,
+                  rates: Optional[dict] = None) -> float:
+    """STOK değerlemesi — BUGÜNKÜ TCMB kuruyla EUR (açık alacak kalanı gibi "hâlâ tahsil
+    edilecek" tutarlar). Tahsil edilecek EUR karşılığı tahsilat günündeki kura bağlı olduğundan
+    en iyi tahmin bugünkü kurdur; Hak Ediş (`receivable_service`) ve kontrat projeksiyonu da açık
+    alacağı böyle değerler. Geçmiş AKIŞLAR için `_to_eur_on` kullanılır (denetim O1).
+
+    EUR kaydında native tutar kur farkından etkilenmez. Diğer hareketlerde fişteki gerçek TL
+    karşılığı kullanılır; TL yoksa native × bugünkü kur (bilinmeyen döviz → 0, 1:1 sayılmaz).
     """
-    cur = (currency or "TL").strip().upper() or "TL"
+    cur = _cur(currency)
     if cur == "EUR" and _f(native) > 0:
         return round(_f(native), 2)
     if _f(amount_tl) > 0 and eur_rate > 0:
         return round(_f(amount_tl) / eur_rate, 2)
-    if rates and eur_rate > 0:
-        return round(_f(native) * float(rates.get(cur, 1.0) or 1.0) / eur_rate, 2)
+    if rates and eur_rate > 0 and _f(native) > 0:
+        fx = float(rates.get(cur, 0) or 0)
+        return round(_f(native) * fx / eur_rate, 2) if fx > 0 else 0.0
+    return 0.0
+
+
+def _to_eur_on(book: RateBook, native: float, amount_tl: float, currency: str,
+               on_date: Optional[date]) -> Optional[float]:
+    """AKIŞ değerlemesi — hareketi KENDİ TARİHİNDEKİ TCMB kuruyla EUR'a çevir (2026-09-01,
+    denetim O1: T-Hesap / runway / grafik `_event_eur` ile aynı kural; önceden bugünkü kur
+    kullanılıyordu ve aynı TL fatura iki ekranda farklı EUR gösteriyordu).
+
+    EUR → native aynen · USD/GBP → native × {kur}(t) / EUR(t) (çapraz; amount_try'a bakılmaz) ·
+    TL → fişteki TL / EUR(t) · çapraz kur yoksa TL bacağına düşer · EUR kuru da yoksa **None**
+    (çağıran `skipped_no_rate` sayar; 1 TL = 1 EUR varsayımı YAPILMAZ).
+    """
+    cur = _cur(currency)
+    if cur == "EUR" and _f(native) > 0:
+        return round(_f(native), 2)
+    if on_date is None:
+        return None
+    if cur in CROSS_EUR_CURRENCIES and _f(native) > 0:
+        value = book.to_eur(_f(native), cur, on_date)
+        if value is not None:
+            return round(value, 2)
+    if _f(amount_tl) > 0:
+        eur = book.eur(on_date)
+        return round(_f(amount_tl) / eur, 2) if eur else None
+    if _f(native) > 0:  # TL kaydında yalnız native gelebilir (özet fallback) → TL'dir
+        value = book.to_eur(_f(native), cur, on_date)
+        return None if value is None else round(value, 2)
     return 0.0
 
 
@@ -125,6 +173,17 @@ def compute_agency_finance(
     today = today or date.today()
     rates = _latest_rates(db)
     eur_rate = float(rates.get("EUR", 0) or 0)
+    book = RateBook.load(db)  # akışlar için tarih bazlı kur defteri (tek sorgu + bisect)
+    skipped_no_rate = 0
+
+    def _flow(native, amount_tl, currency, on_date) -> float:
+        """Akış kalemi → EUR (hareket tarihi kuru); kur yoksa 0 + sayaç (boşluk raporda görünür)."""
+        nonlocal skipped_no_rate
+        value = _to_eur_on(book, native, amount_tl, currency, on_date)
+        if value is None:
+            skipped_no_rate += 1
+            return 0.0
+        return value
     group_meta, member_to_gid = _agency_group_maps(db)
     group_meta[_OTHER_ID]["name"] = _OTHER_NAME
     customer_group = {code: int(meta["id"]) for code, meta in _group_map(db).items()}
@@ -151,15 +210,26 @@ def compute_agency_finance(
         return slots[key]
 
     # ── 340 alınan avans hareketleri ────────────────────────────
-    advance_balance: dict = {gid: 0.0 for gid in group_meta}
+    # AKIŞ (aylık advance_received/applied): hareketin KENDİ tarihindeki kur (`_flow`, denetim O1).
+    # HAVUZ (kalan avans stoku): para birimi bazında NATIVE biriktirilir, BUGÜNKÜ kurla EUR'a
+    # çevrilir — ileri fatura/rezervasyona mahsup edilecek değer bugünün kuruyla ölçülür (Hak Ediş
+    # `advance_received_tl` yaklaşımı). Aynı 340 adı için grup eşleşmesi memo'lanır (denetim O3).
+    pool_native: dict = {gid: defaultdict(float) for gid in group_meta}
+    group_memo: dict = {}
+
+    def _advance_gid(label: str) -> int:
+        if label not in group_memo:
+            group_memo[label] = _match_advance_group(label, firm_tokens, customer_group)
+        return group_memo[label]
+
     advance_rows = db.query(SalesAdvanceTransaction).all()
     last_sync_at = None
     for tx in advance_rows:
-        gid = _match_advance_group(tx.name or tx.code, firm_tokens, customer_group)
-        received = _to_eur(tx.received, tx.received_tl, tx.currency, eur_rate, rates)
-        consumed = _to_eur(tx.consumed, tx.consumed_tl, tx.currency, eur_rate, rates)
-        advance_balance[gid] = advance_balance.get(gid, 0.0) + received - consumed
+        gid = _advance_gid(tx.name or tx.code)
+        pool_native[gid][_cur(tx.currency)] += _f(tx.received) - _f(tx.consumed)
         if tx.transaction_date and tx.transaction_date.year == year:
+            received = _flow(tx.received, tx.received_tl, tx.currency, tx.transaction_date)
+            consumed = _flow(tx.consumed, tx.consumed_tl, tx.currency, tx.transaction_date)
             month = matrix[gid][tx.transaction_date.month - 1]
             _add(month, "advance_received", received)
             _add(month, "advance_applied", consumed)
@@ -173,10 +243,22 @@ def compute_agency_finance(
     # Aylık hareket kırılımı yalnız detay snapshot geldikten sonra oluşur.
     if not advance_rows:
         for row in db.query(SalesAdvance).all():
-            gid = _match_advance_group(row.name or row.code, firm_tokens, customer_group)
-            received = _to_eur(row.received, 0, row.currency, eur_rate, rates)
-            consumed = _to_eur(row.consumed, 0, row.currency, eur_rate, rates)
-            advance_balance[gid] = advance_balance.get(gid, 0.0) + received - consumed
+            gid = _advance_gid(row.name or row.code)
+            pool_native[gid][_cur(row.currency)] += _f(row.received) - _f(row.consumed)
+
+    advance_balance: dict = {gid: 0.0 for gid in group_meta}
+    for gid, per_currency in pool_native.items():
+        total = 0.0
+        for cur, amount in per_currency.items():
+            if abs(amount) < 0.005:
+                continue
+            if cur == "EUR":
+                total += amount
+            elif eur_rate > 0:
+                fx = float(rates.get(cur, 0) or 0)  # TL/TRY → 1.0; bilinmeyen döviz havuza girmez
+                if fx > 0:
+                    total += amount * fx / eur_rate
+        advance_balance[gid] = round(total, 2)
 
     # ── 120 haricen tahsilatlar (340 virman/mahsup hariç) ───────
     collection_count = 0
@@ -191,8 +273,9 @@ def compute_agency_finance(
         if "VİRMAN" in desc or "VIRMAN" in desc:
             continue
         gid = customer_group.get(collection.customer_code, _OTHER_ID)
-        value = _to_eur(
-            collection.amount_currency, collection.amount, collection.currency, eur_rate, rates,
+        value = _flow(
+            collection.amount_currency, collection.amount, collection.currency,
+            collection.collection_date,
         )
         _add(matrix[gid][collection.collection_date.month - 1], "collections", value)
         _add(_member(gid, collection.customer_name or collection.customer_code), "collections", value)
@@ -229,8 +312,8 @@ def compute_agency_finance(
     ).all()
     for invoice in issued_invoices:
         gid = customer_group.get(invoice.customer_code, _OTHER_ID)
-        value = _to_eur(
-            invoice.amount_currency, invoice.amount, invoice.currency, eur_rate, rates,
+        value = _flow(
+            invoice.amount_currency, invoice.amount, invoice.currency, invoice.invoice_date,
         )
         _add(matrix[gid][invoice.invoice_date.month - 1], "invoiced_amount", value)
         _add(_member(gid, invoice.customer_name or invoice.customer_code), "invoiced_amount", value)
@@ -248,7 +331,8 @@ def compute_agency_finance(
             continue
         native_total = _f(invoice.amount_currency) or _f(invoice.amount)
         remaining_native = round(native_total - _f(status.get("collected", 0)), 2)
-        remaining_eur = _to_eur(
+        # STOK: hâlâ tahsil edilecek kalan → bugünkü kur (fatura tarihi kuru değil; docstring)
+        remaining_eur = _to_eur_today(
             remaining_native, remaining_tl, invoice.currency, eur_rate, rates,
         )
         gid = customer_group.get(invoice.customer_code, _OTHER_ID)
@@ -383,5 +467,7 @@ def compute_agency_finance(
             "invoices": len(issued_invoices),
             "open_invoices": open_invoice_count,
             "overdue_invoices": overdue_invoice_count,
+            # tarihinde TCMB kuru bulunamayan akış hareketi (0 yazıldı; UI not gösterir)
+            "skipped_no_rate": skipped_no_rate,
         },
     }

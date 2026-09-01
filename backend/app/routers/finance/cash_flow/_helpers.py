@@ -11,6 +11,7 @@ from app.models.check import Check
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CREDIT_TYPE_LABELS, CreditPayment, CreditProduct
 from app.models.exchange_rate import ExchangeRate
+from app.utils.fx_rates import CROSS_EUR_CURRENCIES  # noqa: F401 — re-export (tek kaynak utils/fx_rates)
 from app.models.finance_event import DIRECTION_INCOME, FinanceEvent
 from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
@@ -218,7 +219,9 @@ def _get_eur_rate(db: Session, target_date) -> float:
 # 2026-08-14'te ilk GBP hesabı (Halkbank 2A000897) canlıya girince aynı yola alındı.
 # t_account._event_eur + runway._event_eur/_compute_start_eur + eur_balances.to_eur
 # dördü de bu kümeyi kullanır (tek sayı kuralı).
-CROSS_EUR_CURRENCIES = ("USD", "GBP")
+# Tanım `utils/fx_rates.py`'de (2026-09-01): HTTP'siz servisler (agency_finance) router paketinden
+# import edemez (katman yönü kuralı) → tek kaynak utils'e taşındı, buradan yeniden dışa verilir;
+# t_account / runway / eur_balances / chart `from ._helpers import CROSS_EUR_CURRENCIES` değişmez.
 
 
 def _get_fx_buying(db: Session, code: str, target_date) -> float:

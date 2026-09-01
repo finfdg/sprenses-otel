@@ -206,7 +206,7 @@
 							{/each}
 						</select>
 				</label>
-				<span class="text-xs text-gray-500">{periodLabel} · EUR/TL kuru {data.eur_rate.toLocaleString('tr-TR')}</span>
+				<span class="text-xs text-gray-500">{periodLabel} · Akışlar hareket tarihindeki TCMB kuruyla, açık alacak ve avans havuzu bugünkü kurla (EUR/TL {data.eur_rate.toLocaleString('tr-TR')})</span>
 			</div>
 		</div>
 
@@ -233,6 +233,12 @@
 			{#if data.source_counts.advance_transactions === 0}
 				<div class="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
 					Sedna 340 hareket detayı ilk senkronu bekliyor. Yıllık alınan ve mahsup edilen avans toplamları senkrondan sonra dolacaktır.
+				</div>
+			{/if}
+			{#if (data.source_counts.skipped_no_rate ?? 0) > 0}
+				<!-- Kur bulunamayan hareket 1 TL = 1 EUR sayılmaz; 0 yazılır ve burada görünür (chart/T-Hesap deseni) -->
+				<div class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs text-gray-600">
+					{data.source_counts.skipped_no_rate} hareket, tarihinde TCMB kuru bulunamadığı için EUR toplamlarına dahil edilmedi.
 				</div>
 			{/if}
 

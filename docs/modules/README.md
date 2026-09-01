@@ -36,6 +36,7 @@
 | Otel Rezervasyon | `otel-rezervasyon.md` |
 | Günlük Hareketler (rezervasyon/iptal) | `gunluk-hareketler.md` |
 | Acente Mahsup & Nakit Akım | `acente-mahsup.md` |
+| Acente Finansal Takip (yıllık ay × acente rapor, aynı `sales.acente_mahsup` izni) | `acente-finans.md` |
 | Oda Tipleri | `oda-tipleri.md` |
 | Kontratlar | `kontratlar.md` |
 | Yedekleme | `yedekleme.md` |

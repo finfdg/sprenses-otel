@@ -191,3 +191,12 @@ MUNFERIT/EXPEDIA=`checkin` elle girilmişti. Ayrıca `agency_groups` mutasyonlar
 - Test: `test_agency_groups.py` (+7: varsayılan friday, day_27, 7 geçersiz değer ×2 uç, tüm modlar,
   exclude_unset koruması, liste, service doğrulaması) + `test_approval_system.py::TestApprovalExecutor::
   test_agency_group_update_via_approval_regression` / `test_agency_assign_via_approval_regression`.
+
+## Acente Finans — Kur Tarihi Kuralı (2026-09-01, denetim O1)
+
+`agency_finance_service` artık AKIŞ kalemlerini (avans alındı/mahsup, haricen tahsilat, kesilen
+fatura) hareketin **kendi tarihindeki** TCMB kuruyla çevirir (`_to_eur_on` + `utils/fx_rates.RateBook`;
+USD/GBP çapraz) — T-Hesap/runway/grafik `_event_eur` ile aynı sayı. STOK kalemleri (açık alacak
+kalanı, kalan 340 avans havuzu) **bugünkü** kurla (`_to_eur_today`; havuz native biriktirilir).
+Kur yoksa 0 + `source_counts.skipped_no_rate` (1:1 varsayımı yok). `CROSS_EUR_CURRENCIES` tanımı
+`utils/fx_rates.py`'ye taşındı (`cash_flow/_helpers` re-export eder — services/ router import edemez).

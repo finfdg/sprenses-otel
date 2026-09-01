@@ -82,3 +82,17 @@ havuzundan yapılır ama net tutarlar fatura/rezervasyon bazında üyeye yazıl�
 `tests/test_agency_finance.py::test_member_breakdown_matches_group_totals`. Tamamı sıfır olan
 üyeler yanıta eklenmez; `Diğer / Eşleşmeyen` grubunun kırılımı eşleşmeyen kaynakları teşhis için
 özellikle kullanışlıdır.
+
+## Kur Yöntemi (2026-09-01, denetim O1)
+
+| Kalem | Kur | Neden |
+|---|---|---|
+| Alınan / mahsup avans, haricen tahsilat, kesilen fatura (**AKIŞ**) | Hareketin **kendi tarihindeki** TCMB alış kuru (`utils/fx_rates.RateBook`, tek sorgu + bisect; USD/GBP çapraz: native × kur / EUR) | T-Hesap / runway / grafik `_event_eur` ile aynı kural — aynı fatura her ekranda aynı EUR |
+| Açık alacak kalanı, kalan avans havuzu (**STOK**) | **Bugünkü** kur (`_latest_rates`) — havuz para birimi bazında native biriktirilip bugünkü kurla çevrilir | Tahsil edilecek EUR tahsilat günündeki kura bağlıdır; Hak Ediş ve kontrat projeksiyonu da açık alacağı böyle ölçer |
+| Rezervasyon cirosu / ileri tahmin | PMS `eur_total` (zaten EUR) | — |
+
+Kur bulunamayan hareket **1 TL = 1 EUR sayılmaz**: 0 yazılır ve `source_counts.skipped_no_rate`
+sayacına düşer (UI'da tablo üstünde gri not). Önceki davranış (05–31 Ağu 2026): tüm TL/USD tutarlar
+bugünkü kurla çevriliyordu → Ocak'taki bir TL faturası T-Hesap'tan TL değer kaybı kadar (~%20)
+düşük görünüyordu. Aynı 340 adı için grup eşleşmesi memo'lanır (O3 performans notu).
+Regresyon: `tests/test_agency_finance.py::TestAgencyFinanceFxDates` (2) + `tests/test_fx_rates.py` (4).

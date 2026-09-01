@@ -36,6 +36,12 @@ danışma uyarıları) §4.3'te.
 > (Acente Ayarları modalı) + `agency_groups` mutasyonları `check_approval` kapsamına alındı
 > (`services/agency_group_service` router+executor ortak; `_kind` ayrıştırıcılı executor). D4 (sabitler)
 > de bu kapsamda kapandı. Detay: `backend/app/routers/sales/CLAUDE.md` "Acente Grupları — payment_alignment".
+>
+> **O1 KAPANDI** — akışlar hareket tarihindeki kurla (`utils/fx_rates.RateBook`, USD/GBP çapraz), açık alacak /
+> avans havuzu bugünkü kurla; kur yoksa 0 + `skipped_no_rate` (UI notu). `CROSS_EUR_CURRENCIES` tek kaynak
+> `utils/fx_rates`'e taşındı (`_helpers` re-export). O3'ün ad→grup memo'su da eklendi. **O2 KAPANDI** —
+> `docs/modules/README.md`, `docs/api-haritasi.md` (acente-finans, chart, banka filtreleri), kök `CLAUDE.md`
+> (tablo 86, RBAC Satış satırı, yapı ağacı) güncellendi. Detay: `docs/modules/acente-finans.md` "Kur Yöntemi".
 
 ---
 
