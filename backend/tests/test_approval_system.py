@@ -549,6 +549,77 @@ class TestApprovalExecutor:
         assert rt.total_rooms == 10
         assert rt.max_occupancy == 3
 
+    def test_agency_group_update_via_approval_regression(self, db):
+        """Acente grubu PATCH'i onaya düşer; onaylanınca `payment_alignment` + `term_days`
+        GERÇEKTEN uygulanır (2026-09-01: agency_groups onay kapsamına alındı — denetim Y2).
+        Executor `sales.acente_mahsup` handler'ı `_kind="agency_group"` ile oda tipinden ayrışır;
+        `_kind` olmayan payload oda tipi yolunda kalır (üstteki test bunu korur)."""
+        from app.models.agency_group import AgencyGroup
+
+        _, req_role, req_client = _make_actor(db, {
+            "sales.acente_mahsup": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "sales.acente_mahsup", req_role, app_role)
+
+        grp = AgencyGroup(name=f"AGTEST{uuid4().hex[:6].upper()}", members=["AGT PMS"], term_days=30)
+        db.add(grp)
+        db.commit()
+        gid = grp.id
+
+        resp = req_client.patch(f"/api/sales/agency-groups/{gid}",
+                                json={"payment_alignment": "month_end", "term_days": 45})
+        assert resp.status_code == 202, f"onaya düşmeli: {resp.text}"
+        req_id = resp.json()["request_id"]
+
+        db.expire_all()
+        g = db.get(AgencyGroup, gid)
+        assert g.payment_alignment == "friday" and g.term_days == 30, "onay öncesi değişmemeli"
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, f"handler eksikse 500 verir: {ap.text}"
+        assert ap.json()["status"] == STATUS_APPROVED
+
+        db.expire_all()
+        g = db.get(AgencyGroup, gid)
+        assert g.payment_alignment == "month_end"
+        assert g.term_days == 45
+
+    def test_agency_assign_via_approval_regression(self, db):
+        """POST /assign da onay kapsamında (`_kind="agency_assign"`): onaylanınca acente
+        kaynak gruptan çıkar, hedefe eklenir."""
+        from app.models.agency_group import AgencyGroup
+
+        _, req_role, req_client = _make_actor(db, {
+            "sales.acente_mahsup": {"view": True, "use": True},
+            "system.approval": {"view": True, "use": False},
+        })
+        _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
+        _make_workflow(db, "sales.acente_mahsup", req_role, app_role)
+
+        tag = uuid4().hex[:6].upper()
+        src = AgencyGroup(name=f"AGSRC{tag}", members=[f"TASINAN {tag}"])
+        dst = AgencyGroup(name=f"AGDST{tag}", members=[])
+        db.add_all([src, dst])
+        db.commit()
+        src_id, dst_id = src.id, dst.id
+
+        resp = req_client.post("/api/sales/agency-groups/assign",
+                               json={"agency_name": f"TASINAN {tag}", "target_group_id": dst_id})
+        assert resp.status_code == 202, resp.text
+        req_id = resp.json()["request_id"]
+
+        db.expire_all()
+        assert db.get(AgencyGroup, dst_id).members == []
+
+        ap = app_client.post(f"{API}/requests/{req_id}/approve", json={})
+        assert ap.status_code == 200, ap.text
+
+        db.expire_all()
+        assert db.get(AgencyGroup, src_id).members == []
+        assert db.get(AgencyGroup, dst_id).members == [f"TASINAN {tag}"]
+
     def test_check_status_via_approval_regression(self, db):
         """REGRESYON: _handle_finance_checks payload {"new_status"} ile model alanı "status"'u
         uyuşturmuyordu → onaylı çek durumu SESSİZCE değişmiyordu (2026-06-17 tarama bulgusu)."""

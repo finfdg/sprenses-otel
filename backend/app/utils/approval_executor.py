@@ -757,7 +757,6 @@ def _handle_sales_kontratlar(db, action_type, entity_id, payload, actor_id):
 
 def _make_simple_crud_handlers():
     from app.models.advance import Advance
-    from app.models.bank_account import BankAccount
     from app.models.room_type import RoomType
     from app.services import advance_service, room_type_service
 
@@ -776,6 +775,54 @@ def _make_simple_crud_handlers():
             room_type_service.apply_room_type_update, room_type_service.delete_room_type,
             "Oda tipi bulunamadı: {id}", create_takes_actor=False),
     }
+
+
+def _make_acente_mahsup_handler(room_type_handler):
+    """`sales.acente_mahsup` TEK modül kodu altında iki varlık yaşar (2026-07-09 birleştirme):
+    oda tipleri (factory CRUD handler'ı, payload'da `_kind` YOK — davranış birebir korunur) ve
+    2026-09-01'den beri acente grupları (`_kind="agency_group"`: create/update/delete) +
+    acente→grup ataması (`_kind="agency_assign"`, action_type="update"). Mutasyon
+    `services/agency_group_service` ile router'la ORTAK (D1-2). Bilinmeyen `_kind` → hata
+    (talep sessizce "uygulandı" görünmesin)."""
+    def handler(db, action_type, entity_id, payload, actor_id):
+        from app.models.agency_group import AgencyGroup
+        from app.services import agency_group_service
+        from app.utils.audit import log_action
+
+        data = dict(payload or {})
+        kind = data.pop("_kind", None)
+        if kind is None:
+            return room_type_handler(db, action_type, entity_id, data, actor_id)
+
+        if kind == "agency_group":
+            if action_type == "create":
+                g = agency_group_service.create_group(db, data)
+                db.flush()
+                log_action(db, actor_id, "create", "agency_group", g.id,
+                           f"Onaylı grup: {g.name} ({g.payment_alignment})")
+            elif action_type == "update":
+                g = db.query(AgencyGroup).filter(AgencyGroup.id == entity_id).first()
+                if not g:
+                    raise ValueError(f"Acente grubu bulunamadı: {entity_id}")
+                agency_group_service.apply_group_update(db, g, data)
+                log_action(db, actor_id, "update", "agency_group", g.id,
+                           f"Onaylı güncelleme: {g.name} ({g.payment_alignment}, vade {g.term_days}g)")
+            elif action_type == "delete":
+                g = db.query(AgencyGroup).filter(AgencyGroup.id == entity_id).first()
+                if g:
+                    log_action(db, actor_id, "delete", "agency_group", g.id, f"Onaylı silme: {g.name}")
+                    agency_group_service.delete_group(db, g)
+            return
+
+        if kind == "agency_assign":
+            res = agency_group_service.assign_agency(
+                db, data.get("agency_name"), data.get("target_group_id"))
+            log_action(db, actor_id, "update", "agency_group_assign", res["target_id"] or 0,
+                       f"Onaylı atama: {data.get('agency_name')} → {res['target_name'] or 'bireysel'}")
+            return
+
+        raise ValueError(f"Bilinmeyen sales.acente_mahsup varlık türü: {kind}")
+    return handler
 
 
 # ── Handler kayıt tablosu ────────────────────────────────────
@@ -811,6 +858,9 @@ _HANDLERS = {
 
 # Uniform basit-CRUD modülleri (finance.banks/avanslar/departmanlar, sales.acente_mahsup)
 _HANDLERS.update(_make_simple_crud_handlers())
+# sales.acente_mahsup: oda tipi factory handler'ı `_kind` ayrıştırıcısıyla sarılır —
+# acente grubu CRUD + atama da aynı modül kodundan onaylanır (2026-09-01).
+_HANDLERS["sales.acente_mahsup"] = _make_acente_mahsup_handler(_HANDLERS["sales.acente_mahsup"])
 
 # Scheduled modüller (7 adet — temettü bespoke, yukarıda açık kayıtlı)
 for _code, (_src, _dir) in _SCHEDULED_SOURCE_MAP.items():

@@ -161,3 +161,33 @@ ve o kod RoomType CRUD'una tahsisli; ayrıca kontratlara özel onay workflow'u k
 - `data_confidence` disiplini: taranmış belgeden gelen değerler `scanned_approx`,
   elle düzeltilmiş/çelişkili değerler `needs_confirmation` — Faz 2-4 tüketicileri
   bu bayrağı dikkate almalı. Detay + faz yol haritası: `docs/modules/kontratlar.md`.
+
+## Acente Grupları — `payment_alignment` API/UI + Onay Entegrasyonu (2026-09-01, denetim Y2)
+
+**Bulgu:** `agency_groups.payment_alignment` (migration `f3c7a9b5d2e8`, 2026-08-13) yalnız SQL ile
+set edilebiliyordu — şema, PATCH ve UI'da alan yoktu; canlıda NORDIC=`day_27`,
+MUNFERIT/EXPEDIA=`checkin` elle girilmişti. Ayrıca `agency_groups` mutasyonları `check_approval`
+çağırmıyordu (CLAUDE.md zorunlu kuralı).
+
+**Yapılan:**
+- `models/agency_group.py`: `PAYMENT_ALIGNMENT_PATTERN` + `is_valid_payment_alignment()` — tek yazım
+  (`friday | month_end | checkin | day_1..day_31`, öncü sıfır yok). Şema (`pattern=`) ve service aynı
+  deseni kullanır; `contract_projection_service` / `agency_settlement_service` / `auto_tagger` literal
+  yerine `PAYMENT_ALIGN_*` sabitlerini kullanır.
+- `services/agency_group_service.py` (YENİ, D1-2): `create_group` / `apply_group_update` /
+  `delete_group` / `assign_agency` — router ve executor ORTAK çağırır; flush/commit çağıran yapar.
+  Service `payment_alignment`'ı kendisi de doğrular (executor yolu pydantic'ten geçmez).
+- `routers/sales/agency_groups.py`: `AgencyGroupCreate/Update/Response`'a `payment_alignment`;
+  POST/PATCH/DELETE/`/assign` → `check_approval("sales.acente_mahsup", ...)`; payload `_kind`
+  (`agency_group` | `agency_assign`) taşır çünkü modül kodu oda tipleriyle ortak. Sıra: 404/409 doğrulama
+  → onay → service → commit → audit → broadcast.
+- `utils/approval_executor.py`: `_make_acente_mahsup_handler` oda tipi factory handler'ını sarar;
+  `_kind` yoksa oda tipi (birebir eski davranış), varsa acente grubu/atama.
+- Frontend `satis/acente-mahsup/+page.svelte` Acente Ayarları modalı: "Ödeme günü" `Select`
+  (Cuma / ay sonu / ayın N'i [+ gün alanı] / girişte) — `day_N` UI'da `alignMode`+`alignDay` olarak
+  ayrılır, kaydederken birleştirilir; 202 yanıtı "onay sürecine alındı" toast'ı.
+- **Bilinen sınır:** bekleyen-onay kontrolü `(module_code, entity_id)` ile → aynı id'li oda tipi ve grup
+  talepleri birbirini geçici olarak 409 ile bloklar (talep kapanınca açılır).
+- Test: `test_agency_groups.py` (+7: varsayılan friday, day_27, 7 geçersiz değer ×2 uç, tüm modlar,
+  exclude_unset koruması, liste, service doğrulaması) + `test_approval_system.py::TestApprovalExecutor::
+  test_agency_group_update_via_approval_regression` / `test_agency_assign_via_approval_regression`.

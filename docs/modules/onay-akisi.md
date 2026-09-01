@@ -264,7 +264,7 @@ yan-etki yok), elle handler yazmak yerine `_make_crud_handler` factory kullanıl
 
 - `create_takes_actor`, `create_fn`'in `actor_id` alıp almadığını **AÇIKÇA** kodlar
   (banks/avanslar alır; room_types almaz). Bu imza farkı eski drift bug'larının (D2-4) kaynağıydı —
-  gizlenmez. Şu an factory ile: `finance.banks`, `finance.avanslar`, `sales.acente_mahsup` (oda tipleri; 2026-07-09 birleştirmeden önce `sales.room_types`).
+  gizlenmez. Şu an factory ile: `finance.banks`, `finance.avanslar`, `sales.acente_mahsup` (oda tipleri; 2026-07-09 birleştirmeden önce `sales.room_types`). **`sales.acente_mahsup` sarmalı (2026-09-01):** factory handler `_make_acente_mahsup_handler` ile sarılır — payload `_kind` yoksa oda tipi (birebir eski davranış), `_kind="agency_group"` ise acente grubu CRUD, `_kind="agency_assign"` ise acente→grup ataması (`services/agency_group_service`, router ile ORTAK). Bilinen sınır: bekleyen-onay kontrolü `(module_code, entity_id)` çiftiyle → aynı id'li oda tipi/grup talepleri birbirini talep kapanana dek 409 ile bloklar. Regresyon: `test_approval_system.py::TestApprovalExecutor::test_agency_group_update_via_approval_regression` + `test_agency_assign_via_approval_regression`.
 - **Açık (elle) tutulanlar:** özel mantıklı handler'lar — `finance.krediler` (`_target` ürün/ödeme),
   `finance.butce` (kompozit-anahtar upsert + `target=department/category`), `finance.checks` (iptal
   kademesi), `finance.departmanlar` (**butce `target=department` yeniden kullandığından** açık

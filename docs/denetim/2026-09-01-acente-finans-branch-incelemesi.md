@@ -31,6 +31,12 @@ testleri (441 test yeşil) ve modül dokümantasyonu güçlü. Kritik lint kapı
 Düşük önemli 9 bulgu (UI tasarım-sistemi sapmaları, sabit kullanımı, test boşlukları, lint
 danışma uyarıları) §4.3'te.
 
+> **Durum (2026-09-01, aynı gün):** **Y1 KAPANDI** — `master` branch'e hızlı-ileri alındı (`4482ba8`),
+> checkout `master`, `origin/master` push edildi. **Y2 KAPANDI** — `payment_alignment` şema/PATCH/UI
+> (Acente Ayarları modalı) + `agency_groups` mutasyonları `check_approval` kapsamına alındı
+> (`services/agency_group_service` router+executor ortak; `_kind` ayrıştırıcılı executor). D4 (sabitler)
+> de bu kapsamda kapandı. Detay: `backend/app/routers/sales/CLAUDE.md` "Acente Grupları — payment_alignment".
+
 ---
 
 ## 1. Kapsam ve Yöntem

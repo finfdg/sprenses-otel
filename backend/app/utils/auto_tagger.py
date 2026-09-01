@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.models.agency_group import AgencyGroup
+from app.models.agency_group import PAYMENT_ALIGN_CHECKIN, AgencyGroup
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.reservation import Reservation
@@ -697,7 +697,7 @@ def _guest_signal_entries(db: Session, dmin, dmax) -> List[Tuple[Set[str], str, 
     """Girişte-ödeyen grupların rezervasyonlarından misafir adı sinyalleri:
     (token_kümesi, görünen_ad, giriş_tarihi) listesi."""
     member_norms: Set[str] = set()
-    for g in db.query(AgencyGroup).filter(AgencyGroup.payment_alignment == "checkin").all():
+    for g in db.query(AgencyGroup).filter(AgencyGroup.payment_alignment == PAYMENT_ALIGN_CHECKIN).all():
         member_norms.add(_normalize(g.name or "").strip())
         for m in (g.members or []):
             member_norms.add(_normalize(m or "").strip())

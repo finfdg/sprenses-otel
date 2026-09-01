@@ -376,7 +376,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 ### Satış — Acente Grupları
 - `GET /api/sales/agency-groups/` — Grup listesi (üye acenteler dahil)
 - `POST /api/sales/agency-groups/` — Yeni grup
-- `PATCH /api/sales/agency-groups/{id}` — Grup adı / üyeleri + **`term_days` (vade) / `kickback_percent`** güncelle (Acente Mahsup konfigü)
+- `PATCH /api/sales/agency-groups/{id}` — Grup adı / üyeleri + **`term_days` (vade) / `kickback_percent` / `payment_alignment`** güncelle (Acente Mahsup konfigü). `payment_alignment` (2026-09-01): `friday` \| `month_end` \| `checkin` \| `day_1..day_31` — şemada pattern doğrulaması (422). POST/PATCH/DELETE/assign **`check_approval`** kapsamında (payload `_kind=agency_group|agency_assign`, executor `sales.acente_mahsup`)
 - `DELETE /api/sales/agency-groups/{id}` — Grubu sil
 - `POST /api/sales/agency-groups/assign` — Atomik atama (acente ↔ grup) — drag-drop için
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md` (acente gruplama bölümü)

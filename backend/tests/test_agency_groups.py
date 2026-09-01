@@ -304,3 +304,78 @@ def test_assign_to_nonexistent_target_returns_404(client, auth_headers):
         headers=auth_headers,
     )
     assert res.status_code == 404
+
+
+# ─── Ödeme günü hizalaması — payment_alignment (2026-09-01) ─────
+# Denetim Y2: alan daha önce yalnız SQL ile set edilebiliyordu; API'den okunup yazılır,
+# geçersiz değer şemada (pydantic pattern) 422 ile reddedilir.
+
+
+def test_create_defaults_payment_alignment_friday(client, auth_headers):
+    res = client.post(f"{PREFIX}/", json={"name": "HIZASIZ"}, headers=auth_headers)
+    assert res.status_code == 201, res.text
+    assert res.json()["payment_alignment"] == "friday"
+
+
+def test_create_with_payment_alignment_day_of_month(client, auth_headers, db):
+    res = client.post(
+        f"{PREFIX}/",
+        json={"name": "NORDIC TEST", "payment_alignment": "day_27"},
+        headers=auth_headers,
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["payment_alignment"] == "day_27"
+    db.expire_all()
+    grp = db.query(AgencyGroup).filter(AgencyGroup.name == "NORDIC TEST").first()
+    assert grp.payment_alignment == "day_27"
+
+
+@pytest.mark.parametrize("bad", ["monday", "day_0", "day_32", "day_07", "DAY_5", "checkin ", ""])
+def test_payment_alignment_invalid_values_422(client, auth_headers, db, bad):
+    """Kabul edilen tek yazım: friday | month_end | checkin | day_1..day_31 (öncü sıfır yok)."""
+    res = client.post(
+        f"{PREFIX}/", json={"name": "KOTU", "payment_alignment": bad}, headers=auth_headers,
+    )
+    assert res.status_code == 422, res.text
+    grp = _seed_group(db, name="GUNCEL")
+    res = client.patch(f"{PREFIX}/{grp.id}", json={"payment_alignment": bad}, headers=auth_headers)
+    assert res.status_code == 422, res.text
+
+
+def test_update_payment_alignment_all_modes(client, auth_headers, db):
+    grp = _seed_group(db, name="HIZA")
+    for value in ("month_end", "checkin", "day_1", "day_31", "friday"):
+        res = client.patch(
+            f"{PREFIX}/{grp.id}", json={"payment_alignment": value}, headers=auth_headers,
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["payment_alignment"] == value
+    db.expire_all()
+    assert db.get(AgencyGroup, grp.id).payment_alignment == "friday"
+
+
+def test_update_without_alignment_keeps_existing(client, auth_headers, db):
+    """Yalnız vade gönderilirse mevcut hizalama korunur (exclude_unset)."""
+    grp = _seed_group(db, name="KORU", payment_alignment="checkin")
+    res = client.patch(f"{PREFIX}/{grp.id}", json={"term_days": 15}, headers=auth_headers)
+    assert res.status_code == 200, res.text
+    assert res.json()["payment_alignment"] == "checkin"
+    assert res.json()["term_days"] == 15
+
+
+def test_list_exposes_payment_alignment(client, auth_headers, db):
+    _seed_group(db, name="LISTE", payment_alignment="month_end")
+    res = client.get(f"{PREFIX}/", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json()[0]["payment_alignment"] == "month_end"
+
+
+def test_service_rejects_invalid_alignment_outside_schema(db):
+    """Executor yolu pydantic'ten geçmez → service kendi doğrulamasını yapmalı."""
+    from app.services import agency_group_service
+
+    grp = _seed_group(db, name="SERVIS")
+    with pytest.raises(ValueError):
+        agency_group_service.apply_group_update(db, grp, {"payment_alignment": "day_40"})
+    with pytest.raises(ValueError):
+        agency_group_service.create_group(db, {"name": "X", "payment_alignment": "tuesday"})

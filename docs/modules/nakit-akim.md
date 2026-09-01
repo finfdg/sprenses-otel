@@ -788,7 +788,7 @@ GÜNLÜK, giriş tarihine; girişi geçmiş misafir zaten ödedi → girmez). NO
 girişte POS, münferitler girişte havale/POS — doğrulama: 1–13 Ağu girişli münferit
 cirosu €17,2K ↔ aynı dönem POS-kategorili banka geliri ≈ €13,2K; fark havale bacağı +
 POS bloke/T+1 gecikmesi)
-(`ciro_items`: key/date/amount_eur/label/agency; eski `ciro_monthly` anahtarı kalktı).
+(`ciro_items`: key/date/amount_eur/label/agency; eski `ciro_monthly` anahtarı kalktı). **Ayarlama (2026-09-01, denetim Y2):** `payment_alignment` artık UI'dan düzenlenir — Acente Mahsup → "Acente Ayarları" modalı (ödeme günü seçimi: Cuma / ay sonu / ayın N'i / girişte) → `PATCH /api/sales/agency-groups/{id}` (`check_approval` kapsamında; şema deseni `models/agency_group.PAYMENT_ALIGNMENT_PATTERN`). Öncesinde yalnız SQL ile set edilebiliyordu; canlıdaki üç değer (NORDIC=day_27, MUNFERIT/EXPEDIA=checkin) korunur.
 Sedna 340 kalan avans bakiyesi (`compute_receivables` grup satırları, received−consumed)
 grup içi vade-FIFO mahsup edilir. **YAKIN PENCERE = GERÇEK FATURA EVRENİ (2026-08-13
 v2, kullanıcı denetimi):** faturası olan grupların BİR SONRAKİ ödeme gününe kadarki

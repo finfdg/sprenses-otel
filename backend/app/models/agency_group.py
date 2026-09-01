@@ -1,6 +1,8 @@
 """AgencyGroup modeli — acente gruplama tanımları."""
 
-from sqlalchemy import Column, Integer, Numeric, String, DateTime, JSON, text
+import re
+
+from sqlalchemy import JSON, Column, DateTime, Integer, Numeric, String, text
 from sqlalchemy.orm import Mapped
 
 from app.database import Base
@@ -15,6 +17,19 @@ PAYMENT_ALIGN_DAY_PREFIX = "day_"      # "day_27" = ayın 27'si (vade günü 27'
                                        # ertesi ayın 27'si — ör. Nordic, 2026-08-13)
 PAYMENT_ALIGN_CHECKIN = "checkin"      # GİRİŞTE öder (POS/havale — ör. Expedia, Münferit;
                                        # 2026-08-14): kalem GÜNLÜK, giriş tarihine yazılır
+
+# Geçerli değer deseni (2026-09-01) — router şeması (pydantic `pattern`) ve
+# `agency_group_service.validate_payment_alignment` AYNI kaynağı kullanır. Tek yazım:
+# day_1..day_31, öncü sıfır YOK ("day_07" geçersiz) → `_align_due` int() ile tek biçim okur.
+PAYMENT_ALIGNMENT_PATTERN = r"^(friday|month_end|checkin|day_([1-9]|[12][0-9]|3[01]))$"
+_PAYMENT_ALIGNMENT_RE = re.compile(PAYMENT_ALIGNMENT_PATTERN)
+
+
+def is_valid_payment_alignment(value) -> bool:
+    """`payment_alignment` kabul edilen dört konvansiyondan biri mi (friday | month_end |
+    checkin | day_N)? Onay executor yolu pydantic şemasından geçmediği için service de
+    bununla doğrular."""
+    return isinstance(value, str) and _PAYMENT_ALIGNMENT_RE.match(value) is not None
 
 
 class AgencyGroup(Base):
@@ -40,7 +55,9 @@ class AgencyGroup(Base):
     # Sedna 340.01.* avans hesap kodları (Faz C — acente başına PARA BİRİMİ AYRI hesap
     # olabildiğinden liste: ör. ANEX EUR + ANEX USD; avans mutabakatı kod-öncelikli eşleşir)
     sedna_account_codes: Mapped[list] = Column(JSON, nullable=True)
-    # Ciro projeksiyonunda ödeme günü hizalaması (2026-08-13): friday | month_end
+    # Ciro projeksiyonunda ödeme günü hizalaması (2026-08-13): friday | month_end | day_N |
+    # checkin — 2026-09-01'den beri API/UI'dan düzenlenir (PATCH /sales/agency-groups/{id},
+    # Acente Ayarları modalı); daha önce yalnız SQL ile set edilebiliyordu.
     payment_alignment: Mapped[str] = Column(String(10), nullable=False,
                                             server_default=PAYMENT_ALIGN_FRIDAY)
     created_at = Column(DateTime(timezone=True), server_default=text("now()"), nullable=False)

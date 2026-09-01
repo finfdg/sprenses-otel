@@ -101,13 +101,13 @@ senaryo katmanı ekler. İki modül farklı sorulara cevap verir; birbirinin yer
 ## 2. Dosya Haritası
 
 **Backend:**
-- `app/models/agency_group.py` — `AgencyGroup` modeline `term_days` + `kickback_percent`
+- `app/models/agency_group.py` — `AgencyGroup` modeline `term_days` + `kickback_percent` (+ `payment_alignment`, 2026-08-13; API/UI'dan düzenlenebilir 2026-09-01)
   kolonları eklendi (projeksiyon konfigü).
 - `app/services/agency_settlement_service.py` — `compute_settlement()` projeksiyon motoru
   (HTTP'siz, salt-okuma). Rezervasyon cirosu + konfig + avans + hedef → 5 sekmelik payload.
 - `app/routers/sales/acente_mahsup.py` — GET endpoint (require_permission view, 60sn TTL cache).
 - `app/routers/sales/__init__.py` — `/acente-mahsup` prefix ile bağlanır.
-- `app/routers/sales/agency_groups.py` — CRUD şeması + PATCH/POST `term_days`/`kickback_percent`
+- `app/routers/sales/agency_groups.py` — CRUD şeması + PATCH/POST `term_days`/`kickback_percent`/`payment_alignment`; mutasyonlar `services/agency_group_service` üzerinden ve `check_approval` kapsamında (2026-09-01)
   taşıyacak şekilde genişletildi (konfig düzenleme yüzeyi).
 - `alembic/versions/e1a2c3d4f5b6_acente_mahsup_module.py` — kolonlar + modül + Admin RBAC.
 
@@ -163,7 +163,7 @@ tahsilat takvimi/overdue) · `backend/tests/test_reservations.py::test_occupancy
 
 Konfig düzenleme (vade/kickback) mevcut acente-grup endpoint'iyle yapılır:
 `PATCH /api/sales/agency-groups/{id}` (izin: `sales.acente_mahsup` use) —
-`term_days` (0-365) ve `kickback_percent` (0-100) alanları eklendi.
+`term_days` (0-365) ve `kickback_percent` (0-100) alanları eklendi. **2026-09-01:** `payment_alignment` (`friday` | `month_end` | `checkin` | `day_1..day_31`) da aynı uçtan düzenlenir — Acente Ayarları modalında "Ödeme günü" seçimi (ayın N'i için ek gün alanı). Onay akışı tanımlıysa PATCH 202 döner ve modal "onay sürecine alındı" bildirir.
 
 ## 5b. Acente × Durum Kırılımı (2026-07-08)
 

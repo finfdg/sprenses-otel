@@ -11,6 +11,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import MoneyInput from '$lib/components/MoneyInput.svelte';
+	import Select from '$lib/components/Select.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import OccupancyPanel from '$lib/components/sales/OccupancyPanel.svelte';
@@ -109,13 +110,38 @@
 		if (i !== chipIdx) chipIdx = i;
 	}
 
-	// ── Ayarlar (vade + kickback) ────────────────────────────
+	// ── Ayarlar (vade + ödeme günü + kickback) ───────────────
+	// Ödeme günü hizalaması — backend `agency_group.PAYMENT_ALIGN_*` ile birebir:
+	// friday | month_end | day_N (1-31) | checkin. UI'da "day_N" iki alana ayrılır
+	// (alignMode='day' + alignDay), kaydederken yeniden birleştirilir (joinAlignment).
+	const ALIGN_OPTIONS = [
+		{ value: 'friday', label: 'Vade sonrası ilk Cuma' },
+		{ value: 'month_end', label: 'Vade ayının son günü' },
+		{ value: 'day', label: 'Ayın belirli günü' },
+		{ value: 'checkin', label: 'Girişte peşin (POS / havale)' },
+	];
+	function splitAlignment(raw: string | null | undefined): { alignMode: string; alignDay: number } {
+		const v = raw || 'friday';
+		if (v.startsWith('day_')) return { alignMode: 'day', alignDay: Number(v.slice(4)) || 1 };
+		return { alignMode: v, alignDay: 27 };
+	}
+	function joinAlignment(mode: string, day: number): string | null {
+		if (mode !== 'day') return mode;
+		const d = Math.round(Number(day));
+		if (!Number.isInteger(d) || d < 1 || d > 31) return null;
+		return `day_${d}`;
+	}
+
 	async function openSettings() {
 		showSettings = true;
 		groupsLoading = true;
 		try {
 			const rows = await api.get<any[]>('/sales/agency-groups/');
-			groups = rows.map((g) => ({ ...g, kickback_percent: Number(g.kickback_percent) || 0 }));
+			groups = rows.map((g) => ({
+				...g,
+				kickback_percent: Number(g.kickback_percent) || 0,
+				...splitAlignment(g.payment_alignment),
+			}));
 		} catch (e) {
 			console.error('Acente grupları yüklenemedi:', e);
 			showToast('Acente grupları yüklenemedi', 'error');
@@ -125,18 +151,29 @@
 	}
 
 	async function saveGroup(g: any) {
+		const alignment = joinAlignment(g.alignMode, g.alignDay);
+		if (!alignment) {
+			showToast('Ödeme günü 1 ile 31 arasında olmalı', 'warning');
+			return;
+		}
 		savingId = g.id;
 		try {
-			await api.patch(`/sales/agency-groups/${g.id}`, {
+			const res = await api.patch<any>(`/sales/agency-groups/${g.id}`, {
 				term_days: Math.round(g.term_days),
 				kickback_percent: g.kickback_percent ?? 0,
+				payment_alignment: alignment,
 			});
+			// Onay akışı tanımlıysa endpoint 202 + requires_approval döner — kayıt henüz değişmedi
+			if (res?.requires_approval) {
+				showToast(`${g.name} ayar değişikliği onay sürecine alındı`, 'info');
+				return;
+			}
 			showToast(`${g.name} ayarları kaydedildi`, 'success');
 			markReload(); // endpoint AGENCY_GROUPS broadcast'i yayar — yankı çift yükleme yapmasın
 			tick += 1;
-		} catch (e) {
+		} catch (e: any) {
 			console.error('Ayar kaydedilemedi:', e);
-			showToast('Ayar kaydedilemedi', 'error');
+			showToast(e?.message || 'Ayar kaydedilemedi', 'error');
 		} finally {
 			savingId = null;
 		}
@@ -278,14 +315,14 @@
 	{/if}
 </div>
 
-<!-- Acente Ayarları Modalı (vade + kickback — Nakit Akım tahsilat vadelerinin girdisi) -->
-<Modal bind:show={showSettings} title="Acente Ayarları — Vade & Kickback" maxWidth="max-w-2xl">
+<!-- Acente Ayarları Modalı (vade + ödeme günü + kickback — Nakit Akım tahsilat vadelerinin girdisi) -->
+<Modal bind:show={showSettings} title="Acente Ayarları — Vade, Ödeme Günü & Kickback" maxWidth="max-w-2xl">
 	{#if groupsLoading}
 		<TableSkeleton rows={4} columns={3} />
 	{:else if groups.length === 0}
 		<EmptyState icon={Inbox} title="Acente grubu yok" description="Önce Rezervasyonlar sekmesindeki Grupları Yönet ile acente grupları oluşturun." />
 	{:else}
-		<p class="mb-3 text-sm text-gray-600">Her acente grubunun tahsilat vadesini (gün) ve yıl sonu kickback oranını (%) ayarlayın.</p>
+		<p class="mb-3 text-sm text-gray-600">Her acente grubunun tahsilat vadesini (gün), vade sonrası ödemenin hangi güne oturduğunu ve yıl sonu kickback oranını (%) ayarlayın. Ödeme günü, Nakit Akım'daki "Beklenen ciro tahsilatı" kalemlerinin tarihini belirler.</p>
 		<div class="space-y-2">
 			{#each groups as g (g.id)}
 				<div class="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 p-3">
@@ -296,6 +333,18 @@
 							class="w-20 rounded-lg border border-gray-300 px-2 py-1.5 text-right tabular-nums focus:ring-2 focus:ring-teal-500" />
 						<span class="text-gray-500">gün</span>
 					</label>
+					<div class="flex items-center gap-2 text-sm">
+						<span class="text-gray-600">Ödeme günü</span>
+						<Select size="sm" fullWidth={false} bind:value={g.alignMode} aria-label="{g.name} ödeme günü hizalaması">
+							{#each ALIGN_OPTIONS as opt (opt.value)}<option value={opt.value}>{opt.label}</option>{/each}
+						</Select>
+						{#if g.alignMode === 'day'}
+							<span class="text-gray-500">ayın</span>
+							<input type="number" min="1" max="31" bind:value={g.alignDay} aria-label="{g.name} ödeme günü (ayın günü)"
+								class="w-16 rounded-lg border border-gray-300 px-2 py-1.5 text-right tabular-nums focus:ring-2 focus:ring-teal-500" />
+							<span class="text-gray-500">'i</span>
+						{/if}
+					</div>
 					<label class="flex items-center gap-2 text-sm">
 						<span class="text-gray-600">Kickback</span>
 						<div class="w-24"><MoneyInput bind:value={g.kickback_percent} currency="%" min={0} decimals={1} /></div>

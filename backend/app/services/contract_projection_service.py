@@ -39,7 +39,13 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.models.advance import Advance
-from app.models.agency_group import AgencyGroup
+from app.models.agency_group import (
+    PAYMENT_ALIGN_CHECKIN,
+    PAYMENT_ALIGN_DAY_PREFIX,
+    PAYMENT_ALIGN_FRIDAY,
+    PAYMENT_ALIGN_MONTH_END,
+    AgencyGroup,
+)
 from app.models.contract import (
     INSTALLMENT_PENDING, PLAN_TYPE_GUARANTEE_CHECK, AgencyContract,
     ContractDeduction, ContractInstallment, ContractPaymentPlan,
@@ -62,11 +68,11 @@ def _align_due(align: str, raw: date) -> date:
     friday (varsayılan): sonraki ilk Cuma · month_end: ayın son günü ·
     day_N: ayın N'i (ham vade N'i geçtiyse ertesi ayın N'i).
     """
-    if align == "month_end":
+    if align == PAYMENT_ALIGN_MONTH_END:
         return date(raw.year, raw.month, monthrange(raw.year, raw.month)[1])
-    if align.startswith("day_"):
+    if align.startswith(PAYMENT_ALIGN_DAY_PREFIX):
         try:
-            pday = int(align[4:])
+            pday = int(align[len(PAYMENT_ALIGN_DAY_PREFIX):])
         except ValueError:
             pday = 0
         if pday >= 1:
@@ -221,14 +227,15 @@ def _compute(db: Session, today: date) -> dict:
                 if float(f.get("invoiced_tl", 0) or 0) > 0 and fgid in gmeta:
                     inv_gids.add(fgid)
             for fgid in inv_gids:
-                _align = gmeta[fgid].get("payment_alignment") or "friday"
+                _align = gmeta[fgid].get("payment_alignment") or PAYMENT_ALIGN_FRIDAY
                 next_pay = _align_due(_align, today + timedelta(days=1))
                 # AYLIK ödeyen acente (day_N/month_end) partiyi FATURA AYINA göre kurar
                 # (self-billing kanıtı: NLTG bir ayın çıkışlarını izleyen ay sonunda tek
                 # pro formada öder) → önceki ay(lar) kesimli TÜM açık faturalar bu
                 # partiye girer (vadesi ödeme gününü birkaç gün aşsa bile — SPA...1644).
                 # Haftalık (friday) ve girişte-ödeyen (checkin) acentede pencere vade bazlı.
-                monthly_batch = _align == "month_end" or _align.startswith("day_")
+                monthly_batch = (_align == PAYMENT_ALIGN_MONTH_END
+                                 or _align.startswith(PAYMENT_ALIGN_DAY_PREFIX))
                 inv_window[fgid] = ("month", month_start) if monthly_batch else ("due", next_pay)
                 ovd = due_amt = 0.0
                 for row in firm_open_invoices(db, f"group-{fgid}", today):
@@ -275,8 +282,8 @@ def _compute(db: Session, today: date) -> dict:
                 continue
             gid = member_to_gid.get(_agency_norm(agency), _OTHER_ID)
             gm = gmeta.get(gid) or {}
-            align = gm.get("payment_alignment") or "friday"
-            if align == "checkin":
+            align = gm.get("payment_alignment") or PAYMENT_ALIGN_FRIDAY
+            if align == PAYMENT_ALIGN_CHECKIN:
                 # GİRİŞTE ödeyen acente (Expedia POS, Münferit havale/POS —
                 # kullanıcı 2026-08-14): tahsilat GİRİŞ GÜNÜNE günlük yazılır;
                 # girişi geçmiş misafir zaten ödedi (POS/banka gerçekleşmesi).

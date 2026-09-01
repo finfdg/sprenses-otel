@@ -23,7 +23,7 @@ from typing import Optional
 from sqlalchemy import extract, func, text
 from sqlalchemy.orm import Session
 
-from app.models.agency_group import DEFAULT_AGENCY_TERM_DAYS, AgencyGroup
+from app.models.agency_group import DEFAULT_AGENCY_TERM_DAYS, PAYMENT_ALIGN_FRIDAY, AgencyGroup
 from app.models.reservation import Reservation
 from app.models.room_type import RoomType
 from app.services.receivable_service import _latest_rates, compute_receivables
@@ -80,7 +80,7 @@ def _agency_group_maps(db: Session):
             "id": g.id, "name": g.name,
             "term_days": int(g.term_days if g.term_days is not None else DEFAULT_AGENCY_TERM_DAYS),
             "kickback_pct": float(g.kickback_percent or 0),
-            "payment_alignment": g.payment_alignment or "friday",
+            "payment_alignment": g.payment_alignment or PAYMENT_ALIGN_FRIDAY,
             "color": _PALETTE[i % len(_PALETTE)],
         }
         for m in (g.members or []):
