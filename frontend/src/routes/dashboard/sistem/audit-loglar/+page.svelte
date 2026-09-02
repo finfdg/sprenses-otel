@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { api } from '$lib/api';
 	import { onMount } from 'svelte';
-	import ListPage from '$lib/components/ListPage.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import Select from '$lib/components/Select.svelte';
+	import ListPage from '$lib/components/ui/ListPage.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 	import { ClipboardList } from 'lucide-svelte';
 
 	interface AuditLog {

@@ -6,14 +6,14 @@
 	import { onlinePresence, onWsEvent } from '$lib/stores/websocket.svelte';
 	import { WS_EVENT } from '$lib/constants/realtime';
 	import { validateRequired, validateEmail, validatePassword } from '$lib/utils/validation';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 	import { Plus, Pencil, KeyRound, Trash2, Users, Eye, EyeOff, MailCheck } from 'lucide-svelte';
 
 	const canUse = hasPermission('system.users', 'use');

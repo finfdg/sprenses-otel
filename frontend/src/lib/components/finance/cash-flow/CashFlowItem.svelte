@@ -3,7 +3,7 @@
 	import { formatCurrency, formatCompact } from '$lib/utils/finance';
 	import { categoryColorMap, getColor } from '$lib/utils/colorMap';
 	import { getPaymentMethod } from '$lib/utils/paymentMethods';
-	import TagSelector from './TagSelector.svelte';
+	import TagSelector from '$lib/components/finance/cash-flow/TagSelector.svelte';
 	import { Landmark, Upload } from 'lucide-svelte';
 
 	let {

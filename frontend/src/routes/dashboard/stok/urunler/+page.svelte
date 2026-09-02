@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Input from '$lib/components/Input.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 	import { formatCurrency } from '$lib/utils/finance';
 	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
 	import { BROADCAST_MODULE } from '$lib/constants/realtime';

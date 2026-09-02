@@ -6,17 +6,17 @@
 	import { hasPermission, authState } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import MoneyInput from '$lib/components/MoneyInput.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import MoneyInput from '$lib/components/ui/MoneyInput.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import FileDropzone from '$lib/components/ui/FileDropzone.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 	import {
 		Upload, Plus, Pencil, Trash2, Check, ChevronRight, Building2, FileText, FileSpreadsheet, Loader2,
 		Filter, RotateCcw

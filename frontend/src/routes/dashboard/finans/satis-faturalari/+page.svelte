@@ -4,14 +4,14 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
 	import { BROADCAST_MODULE } from '$lib/constants/realtime';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import StatusBadge, { type BadgeType } from '$lib/components/ui/StatusBadge.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
 	import { ReceiptText, FileText, CircleCheck, CircleDashed, Search, X, Wallet } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { paid: 'Tahsil edildi', partial: 'Kısmi', open: 'Açık' };

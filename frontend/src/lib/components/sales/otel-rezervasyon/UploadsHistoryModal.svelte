@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { UploadHistory } from '$lib/types/reservation';
-	import Modal from '$lib/components/Modal.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
 	import { Trash2 } from 'lucide-svelte';
 
 	let {

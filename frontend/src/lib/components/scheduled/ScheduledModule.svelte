@@ -4,18 +4,18 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { authState } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import MoneyInput from '$lib/components/MoneyInput.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Textarea from '$lib/components/Textarea.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import MoneyInput from '$lib/components/ui/MoneyInput.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import {
 		Plus, Pencil, Trash2, X, Check, Clock, ChevronDown, Search,

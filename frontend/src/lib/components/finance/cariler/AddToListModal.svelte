@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { Vendor } from '$lib/types/vendor';
 	import { formatCurrency } from '$lib/utils/finance';
-	import Modal from '$lib/components/Modal.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 
 	let {
 		show = $bindable(),

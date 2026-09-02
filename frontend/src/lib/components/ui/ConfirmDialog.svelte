@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { focusTrap } from '$lib/utils/focus-trap';
-	import Button from '$lib/components/Button.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 
 	let {
 		show = $bindable(false),

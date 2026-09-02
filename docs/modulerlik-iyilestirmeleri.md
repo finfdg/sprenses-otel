@@ -69,7 +69,7 @@ toast + panele yönlendirme.
 
 ## #4 — Veri-Tabanlı Sidebar
 
-**Sorun:** [`Sidebar.svelte`](../frontend/src/lib/components/Sidebar.svelte) 781 satırdı;
+**Sorun:** [`Sidebar.svelte`](../frontend/src/lib/components/layout/Sidebar.svelte) 781 satırdı;
 ~40 link bloğu (href + izin kodu + etiket + ikon) elle, tekrar tekrar yazılmıştı. Yeni
 modül = 15+ satır kopyala-yapıştır + ayrı route guard.
 
@@ -96,7 +96,7 @@ sidebar linki **ve** route koruması otomatik gelir. (Alt rotalı sayfa: `prefix
 loading/empty durumları, pagination) tekrar tekrar elle yazıyordu. Bazıları
 `PageHeader` bile kullanmıyordu (denetim sapması).
 
-**Çözüm:** [`lib/components/ListPage.svelte`](../frontend/src/lib/components/ListPage.svelte)
+**Çözüm:** [`lib/components/ui/ListPage.svelte`](../frontend/src/lib/components/ui/ListPage.svelte)
 — kanonik iskeleti (PageHeader → Stat kartları → Filtre barı → İçerik[loading/empty/
 children] → Pagination) tek yerde toplar. Sayfa yalnızca kendine özel içeriği (tablo,
 modallar) snippet olarak verir.

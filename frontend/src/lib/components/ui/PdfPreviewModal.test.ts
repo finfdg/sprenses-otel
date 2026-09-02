@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import PdfPreviewModal from './PdfPreviewModal.svelte';
+import PdfPreviewModal from '$lib/components/ui/PdfPreviewModal.svelte';
 
 // jsdom URL.createObjectURL/revokeObjectURL sağlamaz — mock'lanır
 let urlCounter = 0;

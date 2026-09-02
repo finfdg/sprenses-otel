@@ -9,9 +9,9 @@
 	import { connectWebSocket, disconnectWebSocket, onWsEvent, resetReconnect, wsState } from '$lib/stores/websocket.svelte';
 	import { isPushSupported, getPushPermissionState, subscribeToPush, requestPushPermission } from '$lib/utils/push';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import Sidebar from '$lib/components/Sidebar.svelte';
-	import Topbar from '$lib/components/Topbar.svelte';
-	import ToastContainer from '$lib/components/ToastContainer.svelte';
+	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import Topbar from '$lib/components/layout/Topbar.svelte';
+	import ToastContainer from '$lib/components/layout/ToastContainer.svelte';
 
 	let { children } = $props();
 	let ready = $state(false);

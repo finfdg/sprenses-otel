@@ -1,7 +1,7 @@
 <script lang="ts">
-	import Modal from '$lib/components/Modal.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Select from '$lib/components/Select.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 
 	interface DeptOption {
 		id: number;

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import Input from '$lib/components/Input.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 	import type { GroupMember } from '$lib/types/messaging';
 
 	let {

@@ -2,13 +2,13 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
-	import ListPage from '$lib/components/ListPage.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import ListPage from '$lib/components/ui/ListPage.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Textarea from '$lib/components/Textarea.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
 	import { CheckCircle2, Check, X } from 'lucide-svelte';
 
 	interface PendingItem {

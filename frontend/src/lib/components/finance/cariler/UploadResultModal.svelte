@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { VendorUploadResult } from '$lib/types/vendor';
 	import { formatCurrency } from '$lib/utils/finance';
-	import Modal from '$lib/components/Modal.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 
 	let {
 		show = $bindable(),

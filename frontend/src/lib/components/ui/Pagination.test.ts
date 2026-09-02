@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
-import Pagination, { getPageNumbers, DEFAULT_PAGE_SIZES } from './Pagination.svelte';
+import Pagination, { getPageNumbers, DEFAULT_PAGE_SIZES } from '$lib/components/ui/Pagination.svelte';
 
 afterEach(() => cleanup());
 

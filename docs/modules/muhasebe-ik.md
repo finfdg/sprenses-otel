@@ -245,7 +245,7 @@ Her alt modül aynı endpoint setini sunar (prefix değişir):
 ### Frontend
 | Dosya | Açıklama |
 |---|---|
-| `src/lib/components/ScheduledModule.svelte` | Ortak UI bileşeni |
+| `src/lib/components/scheduled/ScheduledModule.svelte` | Ortak UI bileşeni |
 | `src/routes/dashboard/muhasebe/vergiler/+page.svelte` | Vergiler sayfası |
 | `src/routes/dashboard/muhasebe/duzenli-odemeler/+page.svelte` | Düzenli ödemeler sayfası |
 | `src/routes/dashboard/muhasebe/alinan-kiralar/+page.svelte` | Alınan kiralar sayfası |
@@ -277,7 +277,7 @@ Onay gereken "create" işlemlerinde kayıt `is_active=False` olarak veritabanın
 - `backend/app/routers/scheduled_base.py` — POST endpoint'inde pasif kayıt oluşturma
 - `backend/app/approval/approval_executor.py` — `_handle_scheduled` create handler + `cleanup_rejected_or_cancelled()`
 - `backend/app/routers/approval/requests.py` — reject/cancel endpoint'lerinde cleanup çağrısı
-- `frontend/src/lib/components/ScheduledModule.svelte` — Pasif kayıt gösterimi (turuncu tema, expand engeli)
+- `frontend/src/lib/components/scheduled/ScheduledModule.svelte` — Pasif kayıt gösterimi (turuncu tema, expand engeli)
 
 ## Çok Yıllı Yapılandırma / Değişken Tutarlı Ödeme Planı Modellemesi (2026-07-06)
 

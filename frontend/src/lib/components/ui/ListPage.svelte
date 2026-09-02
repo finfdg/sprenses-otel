@@ -31,10 +31,10 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Search, X } from 'lucide-svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Input from '$lib/components/Input.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 
 	let {
 		title,

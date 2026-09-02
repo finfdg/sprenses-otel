@@ -5,14 +5,14 @@
 	import { onMount } from 'svelte';
 	import { toggleSidebar } from '$lib/stores/ui.svelte';
 	import { notificationSettings, toggleSound } from '$lib/stores/notification.svelte';
-	import NotificationBell from './NotificationBell.svelte';
-	import Modal from './Modal.svelte';
+	import NotificationBell from '$lib/components/layout/NotificationBell.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
 	import { isPushSupported, getPushPermissionState, subscribeToPush, requestPushPermission, unsubscribeFromPush } from '$lib/utils/push';
 	import { onlinePresence, wsState, resetReconnect, onWsEvent } from '$lib/stores/websocket.svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { WS_EVENT } from '$lib/constants/realtime';
-	import StatusBadge from './StatusBadge.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import { Database, Loader2, CheckCircle2, XCircle, MinusCircle, Circle, Menu, ArrowLeft, ChevronDown, User, Volume2, Bell, LogOut } from 'lucide-svelte';
 
 	type SednaStepStatus = 'pending' | 'running' | 'ok' | 'error' | 'skipped';

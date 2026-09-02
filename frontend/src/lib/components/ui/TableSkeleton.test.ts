@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/svelte';
-import TableSkeleton from './TableSkeleton.svelte';
+import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
 
 afterEach(() => cleanup());
 

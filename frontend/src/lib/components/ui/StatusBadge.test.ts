@@ -2,7 +2,7 @@
  * StatusBadge bileşeni testleri — tip→renk eşlemesi ve görsel tutarlılık.
  */
 import { describe, it, expect } from 'vitest';
-import { BADGE_STYLES, type BadgeType } from './StatusBadge.svelte';
+import { BADGE_STYLES, type BadgeType } from '$lib/components/ui/StatusBadge.svelte';
 
 describe('StatusBadge — BADGE_STYLES', () => {
 	it('5 tip tanımlıdır: success, error, warning, info, neutral', () => {

@@ -5,8 +5,8 @@
 	// listesi açılır. Veri: /sales/daily-activity/* (Sedna canlı) + occupancy-overview (taban).
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { CloudOff } from 'lucide-svelte';
 	import {
 		MONTHS_FULL_TR,

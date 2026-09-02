@@ -33,7 +33,7 @@
 |---|---|
 | `frontend/src/routes/dashboard/finans/+page.svelte` | Finans ana sayfa (nakit-akim'e yönlendirir) |
 | `frontend/src/routes/dashboard/finans/nakit-akim/+page.svelte` | Nakit akım UI (liste, özet, form) |
-| `frontend/src/lib/components/finance/CashFlowChart.svelte` | Nakit akım grafiği — ortak x eksenli iki panel (üstte ıraksayan akım sütunları, altta banka bakiyesi eğrisi) + anlık hesap şeridi |
+| `frontend/src/lib/components/finance/cash-flow/CashFlowChart.svelte` | Nakit akım grafiği — ortak x eksenli iki panel (üstte ıraksayan akım sütunları, altta banka bakiyesi eğrisi) + anlık hesap şeridi |
 
 ### Veritabanı
 | Dosya | Açıklama |

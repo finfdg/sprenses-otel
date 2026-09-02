@@ -3,17 +3,17 @@
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Textarea from '$lib/components/Textarea.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import StatusBadge, { type BadgeType } from '$lib/components/ui/StatusBadge.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { ClipboardCheck, Inbox, Plus, Check, X, Undo2, Send, History, Pencil, Trash2, Eye, ChevronRight, FileText } from 'lucide-svelte';
 

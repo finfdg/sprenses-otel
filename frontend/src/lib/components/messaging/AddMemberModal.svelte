@@ -2,7 +2,7 @@
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { focusTrap } from '$lib/utils/focus-trap';
-	import Input from '$lib/components/Input.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 	import { Search } from 'lucide-svelte';
 	import type { ChatUser, GroupMember } from '$lib/types/messaging';
 

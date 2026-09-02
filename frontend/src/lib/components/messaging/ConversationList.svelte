@@ -2,7 +2,7 @@
 	import type { ConversationItem } from '$lib/types/messaging';
 	import { formatTime, getConvDisplayName, getConvInitial } from '$lib/types/messaging';
 	import { onlinePresence } from '$lib/stores/websocket.svelte';
-	import Input from '$lib/components/Input.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 	import { Search } from 'lucide-svelte';
 
 	let {

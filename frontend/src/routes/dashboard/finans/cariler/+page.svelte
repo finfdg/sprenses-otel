@@ -9,12 +9,12 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
-	import PaymentInstructions from '$lib/components/finance/PaymentInstructions.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import FileDropzone from '$lib/components/ui/FileDropzone.svelte';
+	import LoadingOverlay from '$lib/components/ui/LoadingOverlay.svelte';
+	import PaymentInstructions from '$lib/components/finance/cariler/PaymentInstructions.svelte';
 	import CheckMatchModal from '$lib/components/finance/cariler/CheckMatchModal.svelte';
 	import UploadResultModal from '$lib/components/finance/cariler/UploadResultModal.svelte';
 	import DeptAssignModal from '$lib/components/finance/cariler/DeptAssignModal.svelte';
@@ -22,10 +22,10 @@
 	import MonthlyBalances from '$lib/components/finance/cariler/MonthlyBalances.svelte';
 	import YearlyTurnover from '$lib/components/finance/cariler/YearlyTurnover.svelte';
 	import { Users, Landmark, Star, Trash2, Plus, Search, Loader2, CreditCard, Banknote, FileText, Scroll, Scale, Wallet, Check, X, Calendar, Download, Pencil, Copy, User, StickyNote, ArrowLeft, ExternalLink, RefreshCw, AlertTriangle } from 'lucide-svelte';
-	import Button from '$lib/components/Button.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Input from '$lib/components/Input.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 
 	// Generic onay state
 	let confirmState = $state<{ show: boolean; title: string; message: string; onConfirm: () => void | Promise<void> }>({

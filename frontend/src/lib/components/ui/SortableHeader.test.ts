@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
-import SortableHeader, { getNextSort } from './SortableHeader.svelte';
+import SortableHeader, { getNextSort } from '$lib/components/ui/SortableHeader.svelte';
 
 afterEach(() => cleanup());
 

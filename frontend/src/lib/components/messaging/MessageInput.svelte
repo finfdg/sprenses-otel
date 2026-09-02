@@ -3,7 +3,7 @@
 	import { Check, Pencil, X } from 'lucide-svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { formatFileSize, getFileIcon } from '$lib/types/messaging';
-	import EmojiPicker from '$lib/components/EmojiPicker.svelte';
+	import EmojiPicker from '$lib/components/messaging/EmojiPicker.svelte';
 
 	let {
 		messageInput = $bindable(''),

@@ -100,7 +100,7 @@
 - **Katman yönü — router router'dan import etmez:** Bir router modülü (`app/routers/...`) **başka bir router'dan saf iş-mantığı fonksiyonu import edemez** (coupling'i yanlış katmana taşır; uzak router'ın iç fonksiyonu değişince sessizce kırılır). Paylaşılan saf domain mantığı `app/services/` (HTTP'siz) veya `app/utils/`'e konur; hem router hem tüketici oradan alır. **Ayrım:** `utils/` = teknik yardımcı (font, dosya doğrulama, audit, response builder); `services/` = domain iş mantığı (Sedna import orchestration, KPI/maliyet hesabı). **services/ router import etmez** (tek yön: router → service → model). Paket-içi `_helpers` import'u (ör. `cariler/_helpers`) serbesttir — sorun yalnız PAKETLER-ARASI router→router'dır. (2026-06-22 mimari denetim D1-1/D1-5: `stock`/`reservation`/`sales` saf fonksiyonları `services/`'e taşındı — `stock_service`/`reservation_service`/`sales_invoice_service`; `_norm_tokens` → `utils/text_match.py`. **Tüm 4 paketler-arası router→router import'u kapatıldı.** Aynı-paket `sedna_sync→sales_invoices.run_sales_invoice_import` bilinçli istisna — finance/ paket-içi, "Sedna servis fonksiyonu" deseni.)
 - **Response Builder:** `utils/response_builders.py` — kullanıcı/rol yanıtları ortak helper ile oluşturulur (N+1 sorgu yok)
 - **Form Validation:** Frontend'de `lib/utils/validation.ts` helper'ları kullanılır
-- **Modal:** Frontend'de `lib/components/Modal.svelte` reusable bileşeni kullanılır
+- **Modal:** Frontend'de `lib/components/ui/Modal.svelte` reusable bileşeni kullanılır
 - **Hata Yakalama:** Boş `catch {}` blokları **yasaktır** — her catch bloğunda `console.error` ve gerekirse kullanıcı bildirimi olmalıdır
 - **Pagination:** List endpoint'leri **istek** `?page=1&page_size=50` (page_size UI seçenekleri 25/50/100/200; backend `le` üst sınırı endpoint'e göre) alır; **yanıt** `{ items, total, page, page_size, pages }` döner. Sayfalı listede **`limit`/`offset` query-param'ı kullanılmaz** (bunlar yalnız ORM içi `.offset()/.limit()`; top-N/son-N endpoint'leri sayfalama değildir → `limit` query-param'ı alabilir). Kullanıcı-kontrollü sıralama: **`?sort_by=field&sort_dir=asc|desc`** — `sort_by` **whitelist'li** (regex pattern ile sabit alan kümesi → keyfi kolon sıralaması engellenir), `sort_dir` default `asc`.
 - **Merkezi Sabitler (sihirli string yasak):** WS event tipleri, broadcast modül adları ve planlı `source_type` değerleri **literal yazılmaz** — backend `app/constants.py` (`WSEvent`/`BroadcastModule`/`SourceType`), frontend `lib/constants/realtime.ts` (`WS_EVENT`/`BROADCAST_MODULE`). İki taraf birebir aynı tutulur (otomatik senkron yok). Finans `source_type`'ları `models/finance_event.py`'den re-export edilir (çift tanım yok). DB-saklı değerler değiştirilemez. `onWsEvent`/`emitLocal` `WsEventType` union ile tiplidir → typo derleme hatası. Detay: `docs/modulerlik-iyilestirmeleri.md`
@@ -151,7 +151,7 @@ Tüm yeni dosyalar aşağıdaki sıralamaya uymalıdır. Mevcut dosyalarda da bu
    - Svelte              import { onMount, onDestroy } from 'svelte';
    - SvelteKit           import { goto } from '$app/navigation';
    - Proje store/api     import { api } from '$lib/api';
-   - Bileşenler          import Modal from '$lib/components/Modal.svelte';
+   - Bileşenler          import Modal from '$lib/components/ui/Modal.svelte';
 2. Props ($props)         let { title, apiPrefix } = $props();
 3. Sabitler               const MONTH_NAMES = [...];
 4. Türetilmiş ($derived)  let canUse = $derived(hasPermission(...));
@@ -624,7 +624,7 @@ Hızlı özet:
   - `value` tipi `number | null` (boş input → null), form state'i buna göre tanımlanmalı
   - Opsiyonel para birimi rozeti: `currency="TRY" | "EUR" | "USD" | "GBP"` veya custom string
   - `<MoneyInput bind:value={form.amount} currency="TRY" min={0} placeholder="0,00" />`
-  - Test: `src/lib/components/MoneyInput.test.ts` (33 test — formatTR/parseTR/formatLiveTR/round-trip)
+  - Test: `src/lib/components/ui/MoneyInput.test.ts` (33 test — formatTR/parseTR/formatLiveTR/round-trip)
   - **`<input type="number">` para için kullanılmaz** — UX detayları (canlı binlik, TR format, highlight kalıcılığı) MoneyInput'ta çözülür
   - **İç mimari:** `bind:value` kullanılmaz; `bind:this` ile DOM referansı alınır, `oninput` handler'ı manuel format+caret yönetir. `$effect` focus dışında input.value'yu senkronlar, focus içinde skip eder (kullanıcı "1,5" yazarken "1,50" zorlanmasın).
 - **Form doğrulama:** `validation.ts` helper'ları + field-level hata gösterimi

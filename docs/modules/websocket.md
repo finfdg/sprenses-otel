@@ -188,7 +188,7 @@ markReload(); // endpoint'in broadcast yankısı echoMs içinde atlanır → çi
 - Stok 4 sayfa (`stok/{maliyet,urunler,hareketler,depolar}`) — STOK
 - `finans/doviz` — EXCHANGE_RATES (kur kartları + grafik + tarihçe)
 
-**Topbar Sedna akışı (frontend tarafı):** `lib/components/Topbar.svelte` —
+**Topbar Sedna akışı (frontend tarafı):** `lib/components/layout/Topbar.svelte` —
 `sedna_sync_progress` dinler; koşarken butonda spinner + `"3/8 · Verilen çekler…"` mini metni,
 koşarken tekrar tıklama yeni iş başlatmaz canlı adım modalını açar (adım satırları event'lerle
 dolar: pending→running→ok/error), `done`'da toplam özet toast + sonuç modalı + tazelik rozeti

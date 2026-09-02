@@ -180,7 +180,7 @@ Bir cari → **0..N** banka hesabı (`bank_name`, `iban`, `account_holder`, `is_
 - Toplam tutar (`total_amount`) ve kalem sayısı (`item_count`) yanıtlarda kalemlerden hesaplanır (denormalize kolon yok → tutarsızlık riski yok).
 
 **Frontend:**
-- **"Ödeme Talimatı"** sekmesi (`lib/components/finance/PaymentInstructions.svelte`) — liste seç/oluştur/sil, cari ara+ekle, MoneyInput ile tutar düzenle, Excel/PDF indir.
+- **"Ödeme Talimatı"** sekmesi (`lib/components/finance/cariler/PaymentInstructions.svelte`) — liste seç/oluştur/sil, cari ara+ekle, MoneyInput ile tutar düzenle, Excel/PDF indir.
 - **Cari satırından hızlı ekleme:** Cariler tablosunda bakiye yanında (masaüstü hover'da "+" ikonu, mobilde "Talimat" butonu) → modal: mevcut listeye ekle veya yeni liste oluştur. Tutar carinin bakiyesinden otomatik gelir (`openAddToList`/`confirmAddToList`).
 - **Ay Sonu Bakiyelerinden toplu ekleme (2026-08-31):** `MonthlyBalances.svelte` FIFO Kalan modunda "Talimat Listesine Ekle" butonu (yalnız `finance.cariler` use + liste doluyken) — listedeki TÜM cariler tek seferde bir talimat listesine eklenir. Tutar = FIFO kalan, `balance_snapshot = -kalan` (bakiye konvansiyonu: negatif = borç). Mevcut listeye eklemede backend mükerrer carileri atlar (toast `added/skipped` bildirir). **Yeni liste akışı bilinçli iki çağrı:** önce boş liste (`POST /payment-instructions/`), sonra `POST /{id}/items` — çünkü varsayılan banka/IBAN otomatik doldurma yalnız items ucunda var (create ucu doldurmaz); tek çağrıyla oluşturulsaydı kalemler IBAN'sız kalırdı. Dönem Sonu Bakiye modunda buton görünmez (o moddaki bakiye "ödenecek tutar" değildir).
 

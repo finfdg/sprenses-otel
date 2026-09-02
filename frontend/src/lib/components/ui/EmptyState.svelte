@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Button from '$lib/components/Button.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	// Icon: herhangi bir Svelte bileşeni (tipik: lucide-svelte ikonu).
 	// Tip kontrolünü gevşetiyoruz ki Lucide'ın kendi Component tipleri uyumsuzluk yaratmasın.
 	let {

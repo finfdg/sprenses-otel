@@ -12,7 +12,7 @@
 | Model | `backend/app/models/notification.py` |
 | Util | `backend/app/realtime/notification.py` — `create_notification()`, `notify_users()` |
 | Util | `backend/app/realtime/push.py` — VAPID push delivery |
-| Frontend | Topbar dropdown — `frontend/src/lib/components/Topbar.svelte` |
+| Frontend | Topbar dropdown — `frontend/src/lib/components/layout/Topbar.svelte` |
 
 ## Veri Modeli
 **`notifications`**:

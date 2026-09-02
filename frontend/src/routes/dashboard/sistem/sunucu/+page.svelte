@@ -3,14 +3,14 @@
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Select from '$lib/components/Select.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 	import { RefreshCw, RotateCw, FileText, Cpu, MemoryStick, HardDrive, Clock, Mail, Trash2, Info } from 'lucide-svelte';
 
 	interface ServiceInfo {

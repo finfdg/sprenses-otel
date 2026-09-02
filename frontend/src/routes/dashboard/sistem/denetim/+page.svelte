@@ -3,14 +3,14 @@
 	import { api, ApiError } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import ListPage from '$lib/components/ListPage.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import ListPage from '$lib/components/ui/ListPage.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
 	import {
 		ShieldCheck, Copy, Check, Gauge, AlertTriangle, CheckCircle2, Bot, Play,
 		ChevronDown, ChevronRight, Settings, TrendingUp, FileText, RefreshCw

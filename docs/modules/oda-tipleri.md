@@ -44,7 +44,7 @@ Bu modül **olmadan otel rezervasyon dashboard'undaki doluluk metrikleri %0** g�
 | Dosya | Açıklama |
 |---|---|
 | `frontend/src/lib/components/sales/RoomTypesPanel.svelte` | CRUD sekmesi — tablo + modal + canlı toplam doğrulama |
-| `frontend/src/lib/components/Sidebar.svelte` | Satış grubunda menü öğesi |
+| `frontend/src/lib/components/layout/Sidebar.svelte` | Satış grubunda menü öğesi |
 
 ## Veritabanı Şeması
 

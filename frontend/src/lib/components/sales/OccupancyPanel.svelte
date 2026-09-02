@@ -5,10 +5,10 @@
 	// Veri: occupancy-overview (sayfadan prop) + /sales/reservations/daily-occupancy (yerel fetch).
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { BedDouble } from 'lucide-svelte';
 	import { eurCompact, FUTURE_STRIPE, MONTHS_FULL_TR, MONTHS_TR, WEEKDAYS_TR, trInt } from '$lib/utils/salesDesign';
 

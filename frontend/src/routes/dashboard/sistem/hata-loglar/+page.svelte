@@ -2,10 +2,10 @@
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import ListPage from '$lib/components/ListPage.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Select from '$lib/components/Select.svelte';
+	import ListPage from '$lib/components/ui/ListPage.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 	import { onMount } from 'svelte';
 	import { CheckCircle2, Trash2 } from 'lucide-svelte';
 

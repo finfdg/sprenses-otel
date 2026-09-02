@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { api, ApiError } from '$lib/api';
-	import MoneyInput from '$lib/components/MoneyInput.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import MoneyInput from '$lib/components/ui/MoneyInput.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { FileText, Plus, Trash2, Download, Search, X } from 'lucide-svelte';
 

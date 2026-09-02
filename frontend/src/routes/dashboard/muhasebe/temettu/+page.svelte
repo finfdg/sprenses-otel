@@ -4,20 +4,20 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import MoneyInput from '$lib/components/MoneyInput.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Textarea from '$lib/components/Textarea.svelte';
-	import Field from '$lib/components/Field.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import StatusBadge, { type BadgeType } from '$lib/components/ui/StatusBadge.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import MoneyInput from '$lib/components/ui/MoneyInput.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
+	import Field from '$lib/components/ui/Field.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
 	import {
 		Plus, Trash2, X, Check, ChevronRight, Coins, Banknote, Landmark,
 		Users, CalendarDays, Search

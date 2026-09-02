@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
-import BulkActionsBar from './BulkActionsBar.svelte';
+import BulkActionsBar from '$lib/components/ui/BulkActionsBar.svelte';
 
 afterEach(() => cleanup());
 

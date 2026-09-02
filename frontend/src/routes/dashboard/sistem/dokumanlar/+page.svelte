@@ -11,14 +11,14 @@
 	import css from 'highlight.js/lib/languages/css';
 	import json from 'highlight.js/lib/languages/json';
 	import bash from 'highlight.js/lib/languages/bash';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
 	import { FileText, Download, Eye, Search, Library, FolderOpen, FileStack } from 'lucide-svelte';
 
 	hljs.registerLanguage('python', python);

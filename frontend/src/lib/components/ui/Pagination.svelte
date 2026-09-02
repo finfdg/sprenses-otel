@@ -28,7 +28,7 @@
 
 <script lang="ts">
 	import { ChevronLeft, ChevronRight } from 'lucide-svelte';
-	import Select from '$lib/components/Select.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 
 	let {
 		page,

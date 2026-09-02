@@ -21,10 +21,10 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { WS_EVENT } from '$lib/constants/realtime';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import RunwayChart from '$lib/components/RunwayChart.svelte';
-	import OverdueList from '$lib/components/OverdueList.svelte';
-	import HeldList from '$lib/components/HeldList.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import RunwayChart from '$lib/components/dashboard/RunwayChart.svelte';
+	import OverdueList from '$lib/components/dashboard/OverdueList.svelte';
+	import HeldList from '$lib/components/dashboard/HeldList.svelte';
 	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
 	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/runway.svelte';
 	import { aggregateRows, AGGREGATE_LABELS, daySourceRank, firstTippingRow, type CashRow } from '$lib/utils/cashflow';

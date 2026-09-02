@@ -4,16 +4,16 @@
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import StatusBadge, { type BadgeType } from '$lib/components/StatusBadge.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import FileDropzone from '$lib/components/ui/FileDropzone.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import StatusBadge, { type BadgeType } from '$lib/components/ui/StatusBadge.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
 	import { ReceiptText, Landmark, FileText, Clock, CalendarX, Loader2, ChevronRight, ArrowUp, Undo2 } from 'lucide-svelte';
 
 	const STATUS_LABELS: Record<string, string> = { pending: 'Bekliyor', paid: 'Ödendi', cancelled: 'İptal' };

@@ -64,7 +64,7 @@ Semantik sabit renkler — her modülde aynı anlam:
 | ⚪ Gri | Pasif / İptal | inactive, cancelled, archived |
 
 ```svelte
-import StatusBadge from '$lib/components/StatusBadge.svelte';
+import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 <StatusBadge type="success">Ödendi</StatusBadge>
 <StatusBadge type="warning">Bekliyor</StatusBadge>
 ```
@@ -223,7 +223,7 @@ Modül tipine göre seçilir ama modül içinde tutarlı kalır:
 - Kullanım:
   ```svelte
   <script>
-    import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+    import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
 
     let showDeleteConfirm = $state(false);
     let deleteTarget = $state<Item | null>(null);

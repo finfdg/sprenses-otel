@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
-	import Input from '$lib/components/Input.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 	import type { TransactionCategory } from '$lib/types/finance';
 	import { categoryColorMap, availableColors as colorOptions, getColor } from '$lib/utils/colorMap';
 	import { SELECTABLE_PAYMENT_METHODS, CATEGORIES_WITH_PAYMENT_METHOD } from '$lib/utils/paymentMethods';

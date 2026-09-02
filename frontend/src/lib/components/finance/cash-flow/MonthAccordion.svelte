@@ -3,8 +3,8 @@
 	import type { MonthGroup, TransactionCategory } from '$lib/types/finance';
 	import { formatCompact, groupDaySourceItems } from '$lib/utils/finance';
 	import { lazyMount } from '$lib/utils/lazy-mount';
-	import CashFlowItem from './CashFlowItem.svelte';
-	import CashFlowGroupCard from './CashFlowGroupCard.svelte';
+	import CashFlowItem from '$lib/components/finance/cash-flow/CashFlowItem.svelte';
+	import CashFlowGroupCard from '$lib/components/finance/cash-flow/CashFlowGroupCard.svelte';
 
 	let {
 		monthGroups,

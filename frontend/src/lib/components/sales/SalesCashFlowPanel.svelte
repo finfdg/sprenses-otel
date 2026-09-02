@@ -5,9 +5,9 @@
 	// projeksiyonu (rezervasyon cirosu + acente vadesi + gerçek avans/hak ediş gecikmesi).
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { Inbox, Wallet, ReceiptText, Scale, AlarmClock } from 'lucide-svelte';
 	import { FUTURE_STRIPE, eurCompact, monthKeyLabel, trInt } from '$lib/utils/salesDesign';
 

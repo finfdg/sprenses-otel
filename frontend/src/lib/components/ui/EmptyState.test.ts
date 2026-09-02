@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/svelte';
-import EmptyState from './EmptyState.svelte';
+import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 afterEach(() => cleanup());
 

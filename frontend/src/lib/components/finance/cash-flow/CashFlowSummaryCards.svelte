@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
-	import StatCard, { type StatAccent } from '$lib/components/StatCard.svelte';
+	import StatCard, { type StatAccent } from '$lib/components/ui/StatCard.svelte';
 	import { Landmark, Scroll, CreditCard, Wallet, Users } from 'lucide-svelte';
 
 	interface CardData {

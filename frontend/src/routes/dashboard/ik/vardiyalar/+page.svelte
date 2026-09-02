@@ -3,16 +3,16 @@
 	import { api, ApiError } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Field from '$lib/components/Field.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Field from '$lib/components/ui/Field.svelte';
 	import { Plus, Pencil, Trash2, Clock, CalendarClock } from 'lucide-svelte';
 
 	type Shift = {

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
-import Breadcrumb from './Breadcrumb.svelte';
+import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
 
 afterEach(() => cleanup());
 

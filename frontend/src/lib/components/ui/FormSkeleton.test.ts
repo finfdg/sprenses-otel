@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/svelte';
-import FormSkeleton from './FormSkeleton.svelte';
+import FormSkeleton from '$lib/components/ui/FormSkeleton.svelte';
 
 afterEach(() => cleanup());
 

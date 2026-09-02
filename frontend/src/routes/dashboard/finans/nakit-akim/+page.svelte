@@ -6,17 +6,17 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import PdfPreviewModal from '$lib/components/ui/PdfPreviewModal.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
 	import { Filter, AlertTriangle, Receipt, Check, FileDown, RefreshCw, Link2, ArrowRight, X, Hourglass, Target } from 'lucide-svelte';
 	import {
 		cashFlowCache,
@@ -28,10 +28,10 @@
 		refreshCashFlowFull,
 		applyCashFlowFilters,
 	} from '$lib/stores/cashflow.svelte';
-	import CashFlowSummaryCards from '$lib/components/finance/CashFlowSummaryCards.svelte';
-	import CashFlowChart from '$lib/components/finance/CashFlowChart.svelte';
-	import CashFlowFilterBar from '$lib/components/finance/CashFlowFilterBar.svelte';
-	import MonthAccordion from '$lib/components/finance/MonthAccordion.svelte';
+	import CashFlowSummaryCards from '$lib/components/finance/cash-flow/CashFlowSummaryCards.svelte';
+	import CashFlowChart from '$lib/components/finance/cash-flow/CashFlowChart.svelte';
+	import CashFlowFilterBar from '$lib/components/finance/cash-flow/CashFlowFilterBar.svelte';
+	import MonthAccordion from '$lib/components/finance/cash-flow/MonthAccordion.svelte';
 	import type { CashFlowItem as CashFlowItemType, TransactionCategory } from '$lib/types/finance';
 	import { groupByMonth, getTodayKeys, monthKeysToDateRange } from '$lib/utils/finance';
 

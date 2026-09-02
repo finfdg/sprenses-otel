@@ -10,7 +10,7 @@
 	çıkarılma: 2026-07-03 (nakit-akim PDF raporu iPad'de aynı hatayı verince).
 
 	Kullanım:
-		import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+		import PdfPreviewModal from '$lib/components/ui/PdfPreviewModal.svelte';
 		let pdfModal: PdfPreviewModal | undefined = $state();
 		...
 		const blob = await res.blob();
@@ -21,7 +21,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { Printer, Download, X } from 'lucide-svelte';
-	import Button from './Button.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 
 	let preview = $state<{ url: string; filename: string } | null>(null);

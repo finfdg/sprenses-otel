@@ -5,20 +5,20 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { WS_EVENT } from '$lib/constants/realtime';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import Field from '$lib/components/Field.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import SortableHeader, { type SortOrder } from '$lib/components/SortableHeader.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import Field from '$lib/components/ui/Field.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import FileDropzone from '$lib/components/ui/FileDropzone.svelte';
+	import SortableHeader, { type SortOrder } from '$lib/components/ui/SortableHeader.svelte';
 	import {
 		UserPlus, Pencil, Trash2, QrCode, Monitor, History, Clock, Users,
 		LogIn, Printer, Copy, Fingerprint, Settings, Hourglass, Ban, Upload, RotateCcw, MoreHorizontal, Loader2,

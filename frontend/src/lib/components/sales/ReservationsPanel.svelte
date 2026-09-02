@@ -30,13 +30,13 @@
 	} from 'lucide-svelte';
 
 	import { api, ApiError } from '$lib/api';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import FileDropzone from '$lib/components/FileDropzone.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import FileDropzone from '$lib/components/ui/FileDropzone.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import ResultModal from '$lib/components/sales/otel-rezervasyon/ResultModal.svelte';
 	import RemovalReviewModal from '$lib/components/sales/otel-rezervasyon/RemovalReviewModal.svelte';
 	import UploadsHistoryModal from '$lib/components/sales/otel-rezervasyon/UploadsHistoryModal.svelte';

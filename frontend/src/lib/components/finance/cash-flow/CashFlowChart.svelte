@@ -31,7 +31,7 @@
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { WS_EVENT } from '$lib/constants/realtime';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
 	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
 	import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Landmark, RotateCcw } from 'lucide-svelte';
 

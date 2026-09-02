@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import Button from '$lib/components/Button.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import { CheckCircle2, XCircle, Loader2, Mail } from 'lucide-svelte';
 
 	type Status = 'loading' | 'success' | 'error';

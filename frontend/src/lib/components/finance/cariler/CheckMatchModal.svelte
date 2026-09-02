@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { formatCurrency } from '$lib/utils/finance';
-	import Modal from '$lib/components/Modal.svelte';
-	import Input from '$lib/components/Input.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 	import { Search, Loader2 } from 'lucide-svelte';
 
 	interface CandidateCheck {

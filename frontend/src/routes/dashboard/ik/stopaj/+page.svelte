@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ScheduledModule from '$lib/components/ScheduledModule.svelte';
+	import ScheduledModule from '$lib/components/scheduled/ScheduledModule.svelte';
 </script>
 
 <ScheduledModule

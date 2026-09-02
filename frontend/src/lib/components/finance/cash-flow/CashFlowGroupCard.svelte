@@ -2,7 +2,7 @@
 	import type { DayRenderUnit } from '$lib/utils/finance';
 	import { formatCurrency } from '$lib/utils/finance';
 	import type { TransactionCategory } from '$lib/types/finance';
-	import CashFlowItem from './CashFlowItem.svelte';
+	import CashFlowItem from '$lib/components/finance/cash-flow/CashFlowItem.svelte';
 	import { ChevronDown, ChevronRight, FileText, Building2, Landmark, CreditCard } from 'lucide-svelte';
 
 	let {

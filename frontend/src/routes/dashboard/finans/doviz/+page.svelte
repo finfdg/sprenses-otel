@@ -2,10 +2,10 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Pagination from '$lib/components/Pagination.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
 	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
 	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { Loader2 } from 'lucide-svelte';

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
-import FileDropzone, { formatSize, validateFiles } from './FileDropzone.svelte';
+import FileDropzone, { formatSize, validateFiles } from '$lib/components/ui/FileDropzone.svelte';
 
 afterEach(() => cleanup());
 

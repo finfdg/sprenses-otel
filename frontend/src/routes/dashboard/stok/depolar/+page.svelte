@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
 	import { formatCurrency } from '$lib/utils/finance';
 	import { useLiveRefetch } from '$lib/utils/liveRefetch.svelte';
 	import { BROADCAST_MODULE } from '$lib/constants/realtime';

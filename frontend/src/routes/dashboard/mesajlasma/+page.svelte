@@ -35,8 +35,8 @@
 	import NewChatModal from '$lib/components/messaging/NewChatModal.svelte';
 	import NewGroupModal from '$lib/components/messaging/NewGroupModal.svelte';
 	import AddMemberModal from '$lib/components/messaging/AddMemberModal.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import Input from '$lib/components/Input.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
 	import { Search } from 'lucide-svelte';
 	import { formatMsgTime, formatDateSeparator, shouldShowDateSeparator } from '$lib/types/messaging';
 

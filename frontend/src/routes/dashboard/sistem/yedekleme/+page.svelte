@@ -3,11 +3,11 @@
 	import { api, ApiError } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import ListPage from '$lib/components/ListPage.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import ListPage from '$lib/components/ui/ListPage.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
 	import {
 		UploadCloud, History, CheckCircle2, Clock, Cloud, RotateCcw,
 		Database, FileArchive, ShieldAlert, ShieldCheck

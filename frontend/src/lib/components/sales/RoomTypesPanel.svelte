@@ -19,14 +19,14 @@
 	} from 'lucide-svelte';
 
 	import { api, ApiError } from '$lib/api';
-	import Button from '$lib/components/Button.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Textarea from '$lib/components/Textarea.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import StatCard from '$lib/components/ui/StatCard.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Textarea from '$lib/components/ui/Textarea.svelte';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
 	import { validateRequired } from '$lib/utils/validation';

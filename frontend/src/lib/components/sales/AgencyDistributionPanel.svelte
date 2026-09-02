@@ -5,10 +5,10 @@
 	// Veri: /sales/reservations/summary (by_agency) + /sales/agency-groups/.
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import EmptyState from '$lib/components/EmptyState.svelte';
-	import Button from '$lib/components/Button.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import EmptyState from '$lib/components/ui/EmptyState.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
 	import { Inbox, Settings2 } from 'lucide-svelte';
 	import { eurCompact, rollupAgencyGroups, trInt } from '$lib/utils/salesDesign';
 

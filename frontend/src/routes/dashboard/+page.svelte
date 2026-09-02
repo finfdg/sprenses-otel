@@ -6,9 +6,9 @@
 	import { BROADCAST_MODULE } from '$lib/constants/realtime';
 	import { runwayStore, subscribeRunway } from '$lib/stores/runway.svelte';
 	import { onMount, onDestroy } from 'svelte';
-	import Modal from '$lib/components/Modal.svelte';
-	import CashFlowTAccount from '$lib/components/CashFlowTAccount.svelte';
-	import AiDigestCard from '$lib/components/AiDigestCard.svelte';
+	import Modal from '$lib/components/ui/Modal.svelte';
+	import CashFlowTAccount from '$lib/components/dashboard/CashFlowTAccount.svelte';
+	import AiDigestCard from '$lib/components/dashboard/AiDigestCard.svelte';
 	import { CheckCircle2, ArrowRight } from 'lucide-svelte';
 
 	// ── İzinler

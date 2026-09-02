@@ -3,10 +3,10 @@
 	import { marked } from 'marked';
 	import { api } from '$lib/api';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import AiChart from '$lib/components/AiChart.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import AiChart from '$lib/components/ai/AiChart.svelte';
 	import { Sparkles, Send, Bot, User as UserIcon, FileSpreadsheet, FileText, Plus, Trash2, MessageSquare, X } from 'lucide-svelte';
 
 	interface ChartPoint { etiket: string; deger: number; }

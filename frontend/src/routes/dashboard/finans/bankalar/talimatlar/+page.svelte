@@ -3,15 +3,15 @@
 	import { api } from '$lib/api';
 	import { hasPermission } from '$lib/stores/auth.svelte';
 	import { showToast } from '$lib/stores/toast.svelte';
-	import MoneyInput from '$lib/components/MoneyInput.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
-	import Breadcrumb from '$lib/components/Breadcrumb.svelte';
-	import Button from '$lib/components/Button.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import Input from '$lib/components/Input.svelte';
-	import Select from '$lib/components/Select.svelte';
-	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
-	import PdfPreviewModal from '$lib/components/PdfPreviewModal.svelte';
+	import MoneyInput from '$lib/components/ui/MoneyInput.svelte';
+	import TableSkeleton from '$lib/components/ui/TableSkeleton.svelte';
+	import Breadcrumb from '$lib/components/ui/Breadcrumb.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Input from '$lib/components/ui/Input.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import PdfPreviewModal from '$lib/components/ui/PdfPreviewModal.svelte';
 	import { ChevronDown, Send } from 'lucide-svelte';
 
 	// ─── Types ───────────────────────────────────────────
