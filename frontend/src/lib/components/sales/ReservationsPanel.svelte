@@ -168,8 +168,30 @@
 		if (!ppData) return null;
 		return ppMonth === 0 ? ppData.year_totals : (ppData.months[ppMonth - 1] ?? null);
 	});
-	let ppRows = $derived(ppBucket?.agencies ?? []);
-	let ppMax = $derived(ppRows.reduce((mx, r) => Math.max(mx, r.pp_night), 0));
+	// Görüntü satırları: fiyat metni, çubuk genişliği ve yıllık değişim ÖNCEDEN hesaplanır ve
+	// anahtar dönemle nitelenir (`2026-11:g:1`). Canlı bulgu 2026-09-02: aynı `r.key` ile
+	// yeniden kullanılan satırda ay değişince çubuk güncellenip fiyat METNİ eski ayın değerinde
+	// kalabiliyordu (ALLTOURS Ekim 59,24 → Kasım 34,79 görünmedi). Dönem-nitelikli anahtar satırı
+	// her dönemde sıfırdan kurar (≤ 25 satır — maliyeti yok), sıralama backend'den gelir (pp azalan).
+	let ppRows = $derived.by(() => {
+		const rows = ppBucket?.agencies ?? [];
+		const max = rows.reduce((mx, r) => Math.max(mx, r.pp_night), 0);
+		const period = `${ppYear}-${ppMonth}`;
+		return rows.map((r, i) => {
+			const w = max > 0 ? Math.max(4, (r.pp_night / max) * 100) : 0;
+			const dp = compareMode && r.prev_pp_night != null ? yoyPct(r.pp_night, r.prev_pp_night) : null;
+			return {
+				...r,
+				rowKey: `${period}:${r.key}`,
+				rank: i + 1,
+				barPct: w.toFixed(1),
+				onBar: w >= 80,
+				ppText: fmtPp(r.pp_night),
+				prevText: r.prev_pp_night != null ? fmtPp(r.prev_pp_night) : null,
+				dp,
+			};
+		});
+	});
 	let previousYearLabel = $derived(
 		typeof filters.year === 'number' ? filters.year - 1 : null
 	);
@@ -1403,11 +1425,9 @@
 						</span>
 					</div>
 					<ol class="space-y-2">
-						{#each ppRows as r, i (r.key)}
-							{@const w = ppMax > 0 ? Math.max(4, (r.pp_night / ppMax) * 100) : 0}
-							{@const dp = compareMode && r.prev_pp_night != null ? yoyPct(r.pp_night, r.prev_pp_night) : null}
+						{#each ppRows as r (r.rowKey)}
 							<li class="flex items-center gap-2 sm:gap-3 text-sm">
-								<span class="w-5 shrink-0 text-right text-[11px] font-semibold tabular-nums text-gray-500">{i + 1}</span>
+								<span class="w-5 shrink-0 text-right text-[11px] font-semibold tabular-nums text-gray-500">{r.rank}</span>
 								<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:{r.color}" aria-hidden="true"></span>
 								<div class="w-28 sm:w-44 shrink-0 min-w-0">
 									<span class="block truncate font-medium text-gray-800" title={r.name}>{r.name}</span>
@@ -1415,16 +1435,16 @@
 								</div>
 								<div class="flex-1 min-w-0">
 									<div class="bg-gray-100 rounded-full h-7 relative overflow-hidden">
-										<div class="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full transition-all" style="width: {w.toFixed(1)}%"></div>
+										<div class="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full" style="width: {r.barPct}%"></div>
 										<div class="absolute inset-0 flex items-center justify-end px-2.5 gap-1.5 text-xs">
-											{#if dp !== null}
-												<span class="text-[10px] font-semibold px-1 rounded {changeColorClass(dp)}" title="{previousYearLabel} aynı dönem: {fmtPp(r.prev_pp_night)} €">{changeArrow(dp)}{dp >= 0 ? '+' : ''}{dp.toFixed(0)}%</span>
+											{#if r.dp !== null}
+												<span class="text-[10px] font-semibold px-1 rounded {changeColorClass(r.dp)}" title="{previousYearLabel} aynı dönem: {r.prevText} €">{changeArrow(r.dp)}{r.dp >= 0 ? '+' : ''}{r.dp.toFixed(0)}%</span>
 											{/if}
-											<span class="font-bold tabular-nums whitespace-nowrap {w >= 80 ? 'text-white drop-shadow-sm' : 'text-gray-700'}">{fmtPp(r.pp_night)} €</span>
+											<span class="font-bold tabular-nums whitespace-nowrap {r.onBar ? 'text-white drop-shadow-sm' : 'text-gray-700'}">{r.ppText} €</span>
 										</div>
 									</div>
-									{#if dp !== null}
-										<div class="px-2 mt-0.5 text-[10px] text-gray-500 tabular-nums"><span class="font-semibold text-gray-600">{previousYearLabel}:</span> {fmtPp(r.prev_pp_night)} € / kişi-gece</div>
+									{#if r.dp !== null}
+										<div class="px-2 mt-0.5 text-[10px] text-gray-500 tabular-nums"><span class="font-semibold text-gray-600">{previousYearLabel}:</span> {r.prevText} € / kişi-gece</div>
 									{/if}
 								</div>
 								<span class="hidden sm:block w-16 shrink-0 text-right text-[11px] tabular-nums text-gray-500" title="Döneme düşen ciro">{formatEurCompact(r.revenue)}</span>

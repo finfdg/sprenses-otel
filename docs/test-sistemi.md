@@ -64,6 +64,7 @@ cd frontend && npx vitest run
 
 *Bileşenler:*
 - `src/lib/components/MoneyInput.test.ts` — formatTR/parseTR/formatLiveTR/round-trip + imleç/highlight (33 test)
+- `src/lib/components/sales/ReservationsPanel.ppCard.test.ts` — **gerçek bileşen** jsdom'da (`$lib/api`/auth/ws/toast taklit): "Acente Bazında Kişi Başı Fiyat" kartı Ekim→Kasım geçişinde aynı acentenin fiyat metnini tazeler (2026-09-02 bayat metin regresyonu; 1 test, büyük bileşen grafiği → transform ~25 sn, testte 60 sn zaman aşımı)
 - `src/lib/components/Pagination.test.ts` — getPageNumbers (windowed), sayfa boyutu (16 test)
 - `src/lib/components/FileDropzone.test.ts` — drag-drop, MIME/boyut doğrulama, çoklu dosya (14 test)
 - `src/lib/components/SortableHeader.test.ts` — sıralama yönü/ikon (11 test)

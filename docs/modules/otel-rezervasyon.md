@@ -265,3 +265,12 @@ ortalamalarını **en pahalıdan en ucuza** liste hâlinde gösteren yeni kart.
 - **Yenileme:** `refreshAll` + yıl değişimi + `sales_updated` WS yayını (polling yok).
 - **Test:** `tests/test_reservations.py::test_agency_pp_prices_math_grouping_and_sorting`
   (ay taşması, grup toplama, ödeyen-kişisiz satır dışlama, sıralama, önceki yıl, yıl toplamı).
+- **Sıralama kaynağı:** liste sırası backend'den gelir (`pp_night` azalan; eşitlikte ciro büyük
+  önce, sonra ad) — frontend yeniden sıralamaz.
+- **Bayat metin düzeltmesi (2026-09-02, canlı bulgu):** Ekim→Kasım geçişinde ALLTOURS satırında
+  çubuk ve ciro Kasım'a güncellenirken fiyat metni Ekim değerinde (59,24) kaldı. jsdom'da hem eski
+  hem yeni sürüm doğru güncelleniyor (`ReservationsPanel.ppCard.test.ts`, gerçek bileşen + taklit
+  API) → veri/Svelte hatası değil, büyük olasılıkla Safari'nin `overflow-hidden` + yuvarlatılmış
+  kapsayıcıda `transition-all` çubuğun yanındaki metni yeniden boyamaması (çizim artığı).
+  Kalıcı önlem: satır anahtarı dönemle nitelenir (`2026-11:g:1`) → DOM her ay değişiminde sıfırdan
+  kurulur, fiyat/çubuk/değişim metinleri `$derived` içinde önceden hesaplanır; çubukta geçiş yok.
