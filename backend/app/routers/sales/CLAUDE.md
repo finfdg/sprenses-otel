@@ -200,3 +200,13 @@ USD/GBP çapraz) — T-Hesap/runway/grafik `_event_eur` ile aynı sayı. STOK ka
 kalanı, kalan 340 avans havuzu) **bugünkü** kurla (`_to_eur_today`; havuz native biriktirilir).
 Kur yoksa 0 + `source_counts.skipped_no_rate` (1:1 varsayımı yok). `CROSS_EUR_CURRENCIES` tanımı
 `utils/fx_rates.py`'ye taşındı (`cash_flow/_helpers` re-export eder — services/ router import edemez).
+
+## Acente Bazında Kişi Başı Fiyat (`reservations/pricing.py`, 2026-09-02)
+
+`GET /reservations/agency-pp-prices?year=` — ay × acente **kişi-gece fiyatı** (aya düşen ciro ÷
+ödeyen kişi-gece; `adult + child_paid`), pahalıdan ucuza. Ay dağıtımı doluluk kartıyla AYNI
+stay-night SQL deseni (`generate_series`, `eur_total/nights`) — kopya değil, aynı kural; ödeyen
+kişisiz/`nights=0` satırlar pay+payda birlikte atlanır. Satır anahtarı `g:<gid>` (grup,
+`_agency_group_maps`) / `a:<PMS adı>` (grupsuz). Önceki yıl aynı ay `prev_pp_night`. GET-only →
+onay dışı. UI: `ReservationsPanel.svelte` "Acente Bazında Kişi Başı Fiyat" kartı. Detay:
+`docs/modules/otel-rezervasyon.md`.

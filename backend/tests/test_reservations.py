@@ -527,3 +527,80 @@ def test_bulk_delete_unauthorized():
     from app.main import app
     res = TestClient(app).post("/api/sales/reservations/bulk-delete", json={"ids": [1]})
     assert res.status_code == 401
+
+
+# ─── Acente bazında kişi başı fiyat (agency-pp-prices, 2026-09-02) ───────────
+
+
+def test_agency_pp_prices_requires_auth(client):
+    assert client.get("/api/sales/reservations/agency-pp-prices?year=2026").status_code == 401
+
+
+def test_agency_pp_prices_math_grouping_and_sorting(client, auth_headers, db):
+    """Kişi-gece fiyatı = aya düşen ciro / ödeyen kişi-gece (stay-night dağıtımı, adult+child_paid);
+    grup üyeleri tek satırda toplanır, gruba bağlı olmayan acente kendi adıyla listelenir;
+    ay içinde pahalıdan ucuza sıralanır; ödeyen kişisi olmayan rezervasyon ortalamaya girmez;
+    önceki yılın aynı ayı `prev_pp_night` olarak döner."""
+    from uuid import uuid4
+
+    from app.models.agency_group import AgencyGroup
+
+    tag = uuid4().hex[:6].upper()
+    grp = AgencyGroup(name=f"PPGRP{tag}", members=[f"PPAG1{tag}", f"PPAG2{tag}"], term_days=30)
+    db.add(grp)
+    db.flush()
+
+    def _rez(rec_id, agency, ci, co, adult, child_paid, child_free, eur):
+        db.add(Reservation(
+            rec_id=rec_id, agency=agency, room_type="STD", voucher=f"V{rec_id}", guests="G",
+            checkin_date=ci, checkout_date=co, nights=(co - ci).days, record_date=ci,
+            board="AI", rooms=1, adult=adult, child_paid=child_paid, child_free=child_free,
+            baby=0, nation="DEU", net_amount=eur, currency="EUR", eur_total=eur,
+            rez_status="Definite", status="Reservation",
+        ))
+
+    # Grup üyesi: 30 Mar → 2 Nis (3 gece: 30, 31 Mar + 1 Nis), 2 yetişkin + 1 ücretli çocuk,
+    # 900 € → gece başı 300 €, ödeyen 3 kişi → 100 €/kişi-gece
+    _rez(980001, f"PPAG1{tag}", date(2026, 3, 30), date(2026, 4, 2), 2, 1, 1, 900.0)
+    # Aynı grubun ikinci üyesi, Mart: 1 gece, 1 yetişkin, 100 € → 100 €/kişi-gece
+    _rez(980002, f"PPAG2{tag}", date(2026, 3, 5), date(2026, 3, 6), 1, 0, 0, 100.0)
+    # Gruba bağlı olmayan acente, Mart: 2 gece, 2 yetişkin, 200 € → 50 €/kişi-gece
+    _rez(980003, f"PPSOLO{tag}", date(2026, 3, 10), date(2026, 3, 12), 2, 0, 0, 200.0)
+    # Ödeyen kişisi olmayan satır (yalnız ücretsiz çocuk) → ortalamaya GİRMEZ
+    _rez(980004, f"PPSOLO{tag}", date(2026, 3, 20), date(2026, 3, 21), 0, 0, 2, 999.0)
+    # Önceki yıl aynı ay (grup): 1 gece, 1 yetişkin, 80 € → prev 80
+    _rez(980005, f"PPAG1{tag}", date(2025, 3, 15), date(2025, 3, 16), 1, 0, 0, 80.0)
+    db.flush()
+
+    res = client.get("/api/sales/reservations/agency-pp-prices?year=2026", headers=auth_headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["year"] == 2026 and body["prev_year"] == 2025 and len(body["months"]) == 12
+
+    mar = body["months"][2]
+    by_name = {r["name"]: r for r in mar["agencies"]}
+    g = by_name[f"PPGRP{tag}"]
+    solo = by_name[f"PPSOLO{tag}"]
+    # Grup: Mart'a düşen 2 gece × 300 € + 100 € = 700 €; ödeyen kişi-gece 2×3 + 1 = 7 → 100 €
+    assert g["is_group"] is True and g["member_count"] == 2
+    assert g["revenue"] == 700.0 and g["pax_nights"] == 7 and g["rez"] == 2
+    assert g["pp_night"] == 100.0
+    assert g["prev_pp_night"] == 80.0
+    # Bağımsız acente: 200 € / 4 kişi-gece = 50 €; ödeyen kişisiz 999 € satırı YOK
+    assert solo["is_group"] is False and solo["pp_night"] == 50.0
+    assert solo["revenue"] == 200.0 and solo["pax_nights"] == 4 and solo["rez"] == 1
+    assert solo["prev_pp_night"] is None
+    # Sıralama: pahalıdan ucuza (grup 100 → solo 50)
+    names = [r["name"] for r in mar["agencies"]]
+    assert names.index(f"PPGRP{tag}") < names.index(f"PPSOLO{tag}")
+    assert [r["pp_night"] for r in mar["agencies"]] == sorted(
+        (r["pp_night"] for r in mar["agencies"]), reverse=True)
+
+    # Nisan: yalnız taşan 1 gece (300 € / 3 kişi) → 100 €
+    apr = {r["name"]: r for r in body["months"][3]["agencies"]}[f"PPGRP{tag}"]
+    assert apr["pp_night"] == 100.0 and apr["pax_nights"] == 3 and apr["revenue"] == 300.0
+
+    # Yıl toplamı: grup 1.000 € / 10 kişi-gece = 100 €
+    yt = {r["name"]: r for r in body["year_totals"]["agencies"]}[f"PPGRP{tag}"]
+    assert yt["pp_night"] == 100.0 and yt["pax_nights"] == 10 and yt["revenue"] == 1000.0
+    assert yt["prev_pp_night"] == 80.0

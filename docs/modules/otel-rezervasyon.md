@@ -238,3 +238,30 @@ Gruplar veritabanında saklanır (`agency_groups` tablosu) — sabit kod yok.
 - Form görünümü: grup adı + üye arama/ekleme (autocomplete sadece `summary.by_agency`'de görünen ve başka gruba ait olmayan acenteleri önerir) + üye chip'lerinden X ile çıkarma
 - Modal kapanışında `$effect` ile state otomatik temizlenir (kapanış yolundan bağımsız)
 - Footer slotu yok — butonlar içerik bölümünün altına `border-t` ile ayrılmış flex div'de
+
+## Acente Bazında Kişi Başı Fiyat Kartı (2026-09-02, kullanıcı isteği)
+
+**İstek:** "Aylık Doluluk Dağılımı" kartının altına, ay ay acente bazında kişi başı fiyat
+ortalamalarını **en pahalıdan en ucuza** liste hâlinde gösteren yeni kart.
+
+- **Endpoint:** `GET /api/sales/reservations/agency-pp-prices?year=YYYY`
+  (`routers/sales/reservations/pricing.py`, `sales.acente_mahsup` view, GET-only → onay dışı).
+- **Metrik:** `pp_night` = aya düşen ciro ÷ ödeyen kişi-gece. Ay dağıtımı **stay-night**
+  (`generate_series`, `eur_total / nights` gece başına) — doluluk kartı / `occupancy-overview` ile
+  birebir aynı yöntem; iki kart aynı ayın cirosunu farklı göstermez. Ödeyen kişi =
+  `adult + child_paid` (ücretsiz çocuk/bebek fiyatı düşürmesin). Ödeyen kişisi olmayan veya
+  `nights = 0` satırlar pay VE paydadan birlikte atlanır (aksi halde paydasız ciro diğer
+  acenteleri şişirirdi). Sedna `per_adult` (eur_total/adult, konaklama başına, çocuğu saymaz)
+  bilinçli kullanılmaz.
+- **Satır:** acente **grubu** (`agency_groups`, Acenteler sekmesiyle aynı gruplama; grup rengi
+  + katkı veren üye sayısı) — gruba bağlı olmayan PMS acenteleri kendi adıyla ayrı satır (gri
+  nokta), gizlenmez. Sıralama: `pp_night` azalan; eşitlikte ciro büyük önce.
+- **Kart (ReservationsPanel, doluluk kartının hemen altı):** ay chip'leri (Oca…Ara + Yıl;
+  varsayılan cari ay), satır = sıra no · renk noktası · ad
+  (grup ise "N acente") · rez/kişi-gece · çubuk (ayın en pahalısına oranlı) · **€/kişi-gece** ·
+  ciro; üstte ay özeti (acente sayısı, kişi-gece, ciro, ay ortalaması). "Karşılaştır" modunda
+  önceki yılın aynı ay değeri ve % değişim rozeti (doluluk kartıyla aynı `changeColorClass`).
+  Yıl filtresi "Tüm Yıllar" iken kart cari yılı gösterir (uç yıl ister).
+- **Yenileme:** `refreshAll` + yıl değişimi + `sales_updated` WS yayını (polling yok).
+- **Test:** `tests/test_reservations.py::test_agency_pp_prices_math_grouping_and_sorting`
+  (ay taşması, grup toplama, ödeyen-kişisiz satır dışlama, sıralama, önceki yıl, yıl toplamı).

@@ -338,6 +338,7 @@ Sistemdeki tüm HTTP/WS endpoint'lerinin **referans kataloğu** — method · pa
 - `GET /api/sales/reservations/summary` — Dashboard KPI + dağılımlar + **doluluk metrikleri** (total_capacity, occupancy_pct, aylık/tip başına doluluk)
 - `GET /api/sales/reservations/daily-occupancy?month=YYYY-MM` — Aylık drill-down: günlük doluluk + check-in/out sayıları (takvim heatmap için)
 - `GET /api/sales/reservations/occupancy-overview?year=` — Doluluk sekmesi genel bakışı (2026-07-19): 12 ayın oda-gece toplamı gerçekleşen/ileri kırılımıyla (`past_nights`/`future_nights`, İstanbul-TZ bugün) + bugün/cari ay/yıl ortalaması chip verileri
+- `GET /api/sales/reservations/agency-pp-prices?year=` — **Acente bazında kişi başı fiyat (2026-09-02):** 12 ay × acente satırı, her ayda **pahalıdan ucuza** sıralı; `pp_night` = aya düşen ciro ÷ ödeyen kişi-gece (`adult + child_paid`; stay-night dağıtımı, doluluk kartıyla aynı `eur_total/nights` yöntemi). Satır = acente grubu (`is_group`, `member_count`, grup rengi) veya gruba bağlı olmayan PMS acentesi; `pax_nights`/`revenue`/`rez`, önceki yılın aynı ayı `prev_pp_night`; ay ve yıl özetleri (`year_totals`). Ödeyen kişisi olmayan/`nights=0` satırlar ortalamaya girmez. view, GET-only
 - Detaylı bilgi: `docs/modules/otel-rezervasyon.md`
 
 ### Satış — Günlük Hareketler (gelen rezervasyon / iptal akışı)

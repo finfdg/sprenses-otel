@@ -101,6 +101,21 @@
 		low_occupancy_pct: number;
 	};
 
+	// Acente bazında kişi başı fiyat kartı (2026-09-02) — agency-pp-prices yanıtı
+	type PpPriceRow = {
+		key: string; name: string; color: string; is_group: boolean; member_count: number;
+		pp_night: number; pax_nights: number; revenue: number; rez: number; prev_pp_night: number | null;
+	};
+	type PpPriceBucket = {
+		agencies: PpPriceRow[]; pp_night: number | null; pax_nights: number; revenue: number; rez: number;
+		agency_count: number; prev_pp_night: number | null;
+	};
+	type PpPriceData = {
+		year: number; prev_year: number; today: string;
+		months: Array<PpPriceBucket & { month: number }>;
+		year_totals: PpPriceBucket;
+	};
+
 	// ───── Derived ────────────────────────────────────────
 	const canView = $derived(hasPermission('sales.acente_mahsup', 'view'));
 	const canUse = $derived(hasPermission('sales.acente_mahsup', 'use'));
@@ -138,6 +153,23 @@
 	// Yıl karşılaştırma state
 	let compareMode = $state<boolean>(false);
 	let previousYearSummary = $state<SummaryData | null>(null);
+
+	// Acente bazında kişi başı fiyat kartı — ay chip'i (0 = yıl toplamı), varsayılan cari ay
+	let ppData = $state<PpPriceData | null>(null);
+	let ppLoading = $state<boolean>(false);
+	let ppMonth = $state<number>(new Date().getMonth() + 1);
+	const PP_MONTH_CHIPS = [
+		...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: TR_AY[String(i + 1).padStart(2, '0')] })),
+		{ value: 0, label: 'Yıl' },
+	];
+	// "Tüm Yıllar" filtresinde kart cari yılı gösterir (uç yıl ister)
+	let ppYear = $derived(typeof filters.year === 'number' ? filters.year : new Date().getFullYear());
+	let ppBucket = $derived.by<PpPriceBucket | null>(() => {
+		if (!ppData) return null;
+		return ppMonth === 0 ? ppData.year_totals : (ppData.months[ppMonth - 1] ?? null);
+	});
+	let ppRows = $derived(ppBucket?.agencies ?? []);
+	let ppMax = $derived(ppRows.reduce((mx, r) => Math.max(mx, r.pp_night), 0));
 	let previousYearLabel = $derived(
 		typeof filters.year === 'number' ? filters.year - 1 : null
 	);
@@ -528,6 +560,26 @@
 		}
 	}
 
+	async function loadPpPrices() {
+		ppLoading = true;
+		try {
+			ppData = await api.get<PpPriceData>(`/sales/reservations/agency-pp-prices?year=${ppYear}`);
+		} catch (e) {
+			console.error('Kişi başı fiyatlar yüklenemedi:', e);
+			if (!(e instanceof Error && e.message === 'Unauthorized')) {
+				showToast('Kişi başı fiyatlar yüklenemedi', 'error');
+			}
+		} finally {
+			ppLoading = false;
+		}
+	}
+
+	/** Kişi-gece fiyatı: 48.2 → "48,20" */
+	function fmtPp(n: number | null | undefined): string {
+		if (n == null || isNaN(n)) return '-';
+		return new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+	}
+
 	// ───── Karşılaştırma helper'ları ──────────────────────
 	/** Yıllık % değişim — geçerli vs önceki. previous=0 ise current>0 → 100 (yeni), aksi → 0. */
 	function yoyPct(current: number, previous: number): number {
@@ -652,7 +704,7 @@
 	async function refreshAll() {
 		loading = true;
 		try {
-			await Promise.all([loadSummary(), loadUploads()]);
+			await Promise.all([loadSummary(), loadUploads(), loadPpPrices()]);
 		} finally {
 			loading = false;
 		}
@@ -765,6 +817,7 @@
 		expandedMonth = null;  // Yıl değişince expand'i kapat
 		dailyData = null;
 		loadSummary();
+		loadPpPrices();
 	}
 
 	// ───── Aylık Drill-Down ─────────────────────────────────
@@ -1306,6 +1359,78 @@
 							</span>
 						</span>
 					</div>
+				{/if}
+			</section>
+
+			<!-- ── Acente Bazında Kişi Başı Fiyat (kişi-gece; 2026-09-02 kullanıcı isteği) ── -->
+			<section class="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm">
+				<div class="flex items-center gap-2 mb-1">
+					<Coins size={18} class="text-teal-500" />
+					<h2 class="font-semibold text-gray-900">Acente Bazında Kişi Başı Fiyat</h2>
+					<span class="text-xs text-gray-500 ml-auto">Kişi-gece bazlı · {ppYear}</span>
+				</div>
+				<p class="text-xs text-gray-500 mb-3">
+					Ortalama = aya düşen ciro ÷ ödeyen kişi-gece (yetişkin + ücretli çocuk). En pahalıdan en ucuza sıralıdır; çubuk, seçili dönemin en pahalı acentesine oranlıdır.
+					{#if compareMode && previousYearLabel !== null}
+						<span class="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-semibold">{previousYearLabel} aynı dönem altta</span>
+					{/if}
+				</p>
+				<!-- Ay seçici chip'leri (0 = yıl toplamı) -->
+				<div class="flex gap-1.5 overflow-x-auto pb-1 mb-3" role="tablist" aria-label="Dönem">
+					{#each PP_MONTH_CHIPS as c (c.value)}
+						<button
+							type="button"
+							role="tab"
+							aria-selected={ppMonth === c.value}
+							onclick={() => (ppMonth = c.value)}
+							class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors {ppMonth === c.value ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}"
+						>{c.label}</button>
+					{/each}
+				</div>
+				{#if ppLoading && !ppData}
+					<TableSkeleton rows={6} columns={3} />
+				{:else if !ppBucket || ppRows.length === 0}
+					<p class="text-sm text-gray-500 text-center py-6">Bu dönemde ödeyen misafirli rezervasyon yok</p>
+				{:else}
+					<div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-xs text-gray-500">
+						<span>{ppBucket.agency_count} acente · {formatInt(ppBucket.pax_nights)} kişi-gece · {formatEurCompact(ppBucket.revenue)}</span>
+						<span>
+							Dönem ortalaması <span class="font-semibold text-teal-700 tabular-nums">{fmtPp(ppBucket.pp_night)} €</span> / kişi-gece
+							{#if compareMode && ppBucket.prev_pp_night != null}
+								{@const dAvg = yoyPct(ppBucket.pp_night ?? 0, ppBucket.prev_pp_night)}
+								<span class="ml-1 inline-flex text-[10px] font-semibold px-1 rounded {changeColorClass(dAvg)}" title="{previousYearLabel} aynı dönem: {fmtPp(ppBucket.prev_pp_night)} €">{changeArrow(dAvg)}{dAvg >= 0 ? '+' : ''}{dAvg.toFixed(0)}%</span>
+							{/if}
+						</span>
+					</div>
+					<ol class="space-y-2">
+						{#each ppRows as r, i (r.key)}
+							{@const w = ppMax > 0 ? Math.max(4, (r.pp_night / ppMax) * 100) : 0}
+							{@const dp = compareMode && r.prev_pp_night != null ? yoyPct(r.pp_night, r.prev_pp_night) : null}
+							<li class="flex items-center gap-2 sm:gap-3 text-sm">
+								<span class="w-5 shrink-0 text-right text-[11px] font-semibold tabular-nums text-gray-500">{i + 1}</span>
+								<span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:{r.color}" aria-hidden="true"></span>
+								<div class="w-28 sm:w-44 shrink-0 min-w-0">
+									<span class="block truncate font-medium text-gray-800" title={r.name}>{r.name}</span>
+									<span class="block truncate text-[10px] text-gray-500">{r.is_group ? `${r.member_count} acente · ` : ''}{formatInt(r.rez)} rez · {formatInt(r.pax_nights)} kişi-gece</span>
+								</div>
+								<div class="flex-1 min-w-0">
+									<div class="bg-gray-100 rounded-full h-7 relative overflow-hidden">
+										<div class="h-full bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full transition-all" style="width: {w.toFixed(1)}%"></div>
+										<div class="absolute inset-0 flex items-center justify-end px-2.5 gap-1.5 text-xs">
+											{#if dp !== null}
+												<span class="text-[10px] font-semibold px-1 rounded {changeColorClass(dp)}" title="{previousYearLabel} aynı dönem: {fmtPp(r.prev_pp_night)} €">{changeArrow(dp)}{dp >= 0 ? '+' : ''}{dp.toFixed(0)}%</span>
+											{/if}
+											<span class="font-bold tabular-nums whitespace-nowrap {w >= 80 ? 'text-white drop-shadow-sm' : 'text-gray-700'}">{fmtPp(r.pp_night)} €</span>
+										</div>
+									</div>
+									{#if dp !== null}
+										<div class="px-2 mt-0.5 text-[10px] text-gray-500 tabular-nums"><span class="font-semibold text-gray-600">{previousYearLabel}:</span> {fmtPp(r.prev_pp_night)} € / kişi-gece</div>
+									{/if}
+								</div>
+								<span class="hidden sm:block w-16 shrink-0 text-right text-[11px] tabular-nums text-gray-500" title="Döneme düşen ciro">{formatEurCompact(r.revenue)}</span>
+							</li>
+						{/each}
+					</ol>
 				{/if}
 			</section>
 
