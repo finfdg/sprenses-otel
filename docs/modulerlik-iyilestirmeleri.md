@@ -51,13 +51,13 @@ sayfasına URL ile gidince sayfa mount oluyor ve veri çekmeye çalışıyordu (
 **Çözüm:** [`dashboard/+layout.svelte`](../frontend/src/routes/dashboard/+layout.svelte)
 içinde reaktif `$effect` guard'ı. Mevcut rotanın gerektirdiği modül izni
 [`lib/config/navigation.ts`](../frontend/src/lib/config/navigation.ts) →
-`requiredModuleForPath(pathname)` ile bulunur; `hasPermission(code, 'view')` yoksa
+`requiredModulesForPath(pathname)` ile bulunur; `hasPermission(code, 'view')` yoksa
 toast + panele yönlendirme.
 
 **Tasarım notları:**
 - **Asıl kapı backend'dir.** Her endpoint `require_permission` ile korunur; bu guard
   **derinlemesine savunma + temiz UX**'tir, tek başına güvenlik sınırı değildir.
-- **Tek route→modül haritası:** `requiredModuleForPath` aynı `navigation.ts` konfigini
+- **Tek route→modül haritası:** `requiredModulesForPath` aynı `navigation.ts` konfigini
   kullanır (sidebar ile ortak). En uzun eşleşen href kazanır (iç içe rotalar:
   `bankalar/talimatlar`, `formlar/[id]`).
 - **Yönlendirme döngüsü yok:** Hedef `/dashboard` (Panel) izin gerektirmez.

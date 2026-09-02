@@ -1,4 +1,5 @@
 import type { CashFlowItem, MonthGroup, DayGroup } from '$lib/types/finance';
+import { TRANSFER_CATEGORIES } from '$lib/constants/finance';
 
 export const MONTH_NAMES = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
@@ -13,8 +14,7 @@ export function formatCompact(amount: number, currency: string = 'TRY'): string 
 	return formatCurrency(amount, currency);
 }
 
-// Dahili transfer kategorileri — gelir/gider toplamlarından hariç tutulur
-const TRANSFER_CATEGORIES = new Set(['Virman', 'Döviz Satım', 'İade']);
+// Dahili transfer kategorileri (gelir/gider toplamlarından hariç) — tek kaynak: constants/finance.ts
 
 // Toplam-dışı bilgi kategorileri — kalem listede görünür ama ay/gün toplamına girmez.
 // Backend karşılığı: t_account.INFO_CATEGORIES (POS bloke çözümü = hesaplar arası virman;

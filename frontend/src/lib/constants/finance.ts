@@ -1,6 +1,6 @@
 /**
  * Finans modülü sabitleri — backend ile senkronize tutulmalıdır.
- * Backend karşılığı: app/utils/finance_event_service.py (source_type'lar)
+ * Backend karşılığı: app/models/finance_event.py SOURCE_* (tek kaynak; app/constants.py re-export eder)
  */
 
 // ─── Kaynak Tipleri (finance_events.source_type) ─────────────────────────
@@ -11,7 +11,6 @@ export const SOURCE_CREDIT = 'credit' as const;
 export const SOURCE_CC_PAYMENT = 'cc_payment' as const;
 export const SOURCE_ADVANCE = 'advance' as const;
 export const SOURCE_VENDOR_PAYMENT = 'vendor_payment' as const;
-export const SOURCE_CASH_FLOW = 'cash_flow' as const;
 
 export type SourceType =
 	| typeof SOURCE_BANK
@@ -19,8 +18,7 @@ export type SourceType =
 	| typeof SOURCE_CREDIT
 	| typeof SOURCE_CC_PAYMENT
 	| typeof SOURCE_ADVANCE
-	| typeof SOURCE_VENDOR_PAYMENT
-	| typeof SOURCE_CASH_FLOW;
+	| typeof SOURCE_VENDOR_PAYMENT;
 
 // ─── Bekletilebilir Kaynak Tipleri (nakit akım hold) ─────────────────────
 // Backend karşılığı: app/services/hold_service.py HOLDABLE_SOURCE_TYPES — birebir aynı

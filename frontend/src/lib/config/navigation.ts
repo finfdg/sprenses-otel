@@ -5,7 +5,7 @@
  * href/izin-kodu/etiket/ikon tekrar tekrar kopyalanıyordu. Artık menü yapısı burada
  * veri olarak tanımlıdır:
  *   - Sidebar.svelte bu konfigi loop ile render eder (hasPerm geçidiyle).
- *   - +layout.svelte route guard'ı `requiredModuleForPath()` ile mevcut rotanın
+ *   - +layout.svelte route guard'ı `requiredModulesForPath()` ile mevcut rotanın
  *     gerektirdiği modül iznini bulup yetkisiz erişimi engeller.
  *
  * Yeni modül/sayfa eklemek için: ilgili gruba bir NavItem ekle — sidebar linki ve
@@ -165,16 +165,6 @@ export const NAV_GROUPS: NavGroup[] = [
 		],
 	},
 ];
-
-/**
- * Verilen pathname için gerekli modül iznini döndürür (route guard).
- * En uzun eşleşen href kazanır (iç içe rotalar: bankalar/talimatlar, formlar/[id]).
- * Eşleşme yoksa null (ör. /dashboard panel — izin gerekmez).
- */
-export function requiredModuleForPath(pathname: string): string | null {
-	const codes = requiredModulesForPath(pathname);
-	return codes ? codes[0] : null;
-}
 
 /**
  * Rotanın kabul ettiği modül kodları (OR) — sekme-gömülü modüller (altCodes) dahil.

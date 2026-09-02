@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	SOURCE_BANK, SOURCE_CHECK, SOURCE_CREDIT, SOURCE_CC_PAYMENT,
-	SOURCE_ADVANCE, SOURCE_VENDOR_PAYMENT, SOURCE_CASH_FLOW,
+	SOURCE_ADVANCE, SOURCE_VENDOR_PAYMENT,
 	TYPE_INCOME, TYPE_EXPENSE,
 	TRANSFER_CATEGORIES,
 	PM_HAVALE_EFT, PM_FAST, PM_VIRMAN, PM_CEK, PM_KREDI_KARTI,
@@ -39,19 +39,18 @@ describe('HOLDABLE_SOURCE_TYPES', () => {
 // ─── Kaynak Tipleri ──────────────────────────────────────────
 
 describe('kaynak tipleri', () => {
-	it('7 kaynak tipi tanımlıdır', () => {
+	it('6 finans kaynak tipi tanımlıdır (backend finance_event SOURCE_* ile birebir; cash_flow bir source_type değil)', () => {
 		const sources = [SOURCE_BANK, SOURCE_CHECK, SOURCE_CREDIT, SOURCE_CC_PAYMENT,
-			SOURCE_ADVANCE, SOURCE_VENDOR_PAYMENT, SOURCE_CASH_FLOW];
-		expect(sources).toHaveLength(7);
+			SOURCE_ADVANCE, SOURCE_VENDOR_PAYMENT];
+		expect(sources).toHaveLength(6);
 		// Hepsi benzersiz olmalı
-		expect(new Set(sources).size).toBe(7);
+		expect(new Set(sources).size).toBe(6);
 	});
 
 	it('değerler string türünde', () => {
 		expect(typeof SOURCE_BANK).toBe('string');
 		expect(SOURCE_BANK).toBe('bank');
 		expect(SOURCE_CHECK).toBe('check');
-		expect(SOURCE_CASH_FLOW).toBe('cash_flow');
 	});
 });
 
