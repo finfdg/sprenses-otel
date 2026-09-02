@@ -74,7 +74,7 @@ export async function logout() {
 	localStorage.removeItem('user');
 
 	try {
-		const { invalidateCashFlowCache } = await import('./cashflow.svelte');
+		const { invalidateCashFlowCache } = await import('$lib/stores/cashflow/cache.svelte');
 		invalidateCashFlowCache();
 	} catch (e) {
 		console.error('Nakit akım cache temizlenemedi (store henüz yüklenmemiş olabilir):', e);

@@ -359,13 +359,13 @@ Bağlantı kapandığında:
 | Dosya | Açıklama |
 |---|---|
 | `frontend/src/routes/dashboard/mesajlasma/+page.svelte` | Mesajlaşma sayfası |
-| `frontend/src/lib/stores/messaging.svelte.ts` | Mesajlaşma state yönetimi |
+| `frontend/src/lib/stores/messaging/store.svelte.ts` | Mesajlaşma state yönetimi |
 | `frontend/src/lib/stores/websocket.svelte.ts` | WebSocket bağlantı yönetimi |
 | `frontend/src/lib/stores/notification.svelte.ts` | Bildirim sesi yönetimi |
-| `frontend/src/lib/utils/messaging-ws-handlers.svelte.ts` | WS event handler'ları |
-| `frontend/src/lib/utils/messaging-helpers.svelte.ts` | Typing manager, yardımcı fonksiyonlar |
-| `frontend/src/lib/utils/messaging-messages.svelte.ts` | Mesaj işlemleri |
-| `frontend/src/lib/utils/messaging-ui.svelte.ts` | UI yardımcı fonksiyonları |
+| `frontend/src/lib/stores/messaging/ws-handlers.ts` | WS event handler'ları |
+| `frontend/src/lib/stores/messaging/helpers.ts` | Typing manager, yardımcı fonksiyonlar |
+| `frontend/src/lib/stores/messaging/messages.ts` | Mesaj işlemleri |
+| `frontend/src/lib/stores/messaging/ui-handlers.ts` | UI yardımcı fonksiyonları |
 | `frontend/src/lib/utils/push.ts` | Push abonelik yönetimi |
 | `frontend/src/lib/types/messaging.ts` | TypeScript tipleri |
 | `frontend/src/service-worker.ts` | Service Worker (push handler) |

@@ -10,7 +10,7 @@ import { emitLocal } from '$lib/stores/websocket.svelte';
 import {
 	msg, selectConversation, deselectConversation, updateConversationLocally,
 	loadConversationsImmediate, loadMoreMessages, scrollToBottom, requestConfirm,
-} from '$lib/stores/messaging.svelte';
+} from '$lib/stores/messaging/store.svelte';
 import type { MessageItem, ConversationItem, ConversationDetail, ChatUser } from '$lib/types/messaging';
 
 let touchStartX = 0;

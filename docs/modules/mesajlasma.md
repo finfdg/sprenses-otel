@@ -16,7 +16,7 @@
 | Schema | `backend/app/schemas/message.py` |
 | WebSocket | `backend/app/routers/core/ws.py`, `backend/app/websocket/manager.py` |
 | Frontend | `frontend/src/routes/dashboard/mesajlasma/+page.svelte` |
-| Store | `frontend/src/lib/stores/messaging.svelte.ts` |
+| Store | `frontend/src/lib/stores/messaging/store.svelte.ts` |
 
 ## Veri Modeli
 - **`conversations`**: id, type (`private` | `group`), name, created_at, updated_at

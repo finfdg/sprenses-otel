@@ -9,7 +9,7 @@ import {
 	msg, markAsRead, scrollToBottom, updateConversationLocally,
 	loadConversationsImmediate, refreshConversationDetail,
 	deselectConversation, syncData,
-} from '$lib/stores/messaging.svelte';
+} from '$lib/stores/messaging/store.svelte';
 import type { MessageItem } from '$lib/types/messaging';
 
 let typingTimeout: ReturnType<typeof setTimeout> | null = null;

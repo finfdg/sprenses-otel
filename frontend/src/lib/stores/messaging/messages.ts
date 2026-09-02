@@ -7,7 +7,7 @@ import { api } from '$lib/api';
 import { showToast } from '$lib/stores/toast.svelte';
 import {
 	msg, scrollToBottom, updateConversationLocally, requestConfirm, clearDraft,
-} from '$lib/stores/messaging.svelte';
+} from '$lib/stores/messaging/store.svelte';
 import type { MessageItem } from '$lib/types/messaging';
 
 export async function sendMessage() {

@@ -27,7 +27,7 @@
 		refreshCashFlowLight,
 		refreshCashFlowFull,
 		applyCashFlowFilters,
-	} from '$lib/stores/cashflow.svelte';
+	} from '$lib/stores/cashflow/cache.svelte';
 	import CashFlowSummaryCards from '$lib/components/finance/cash-flow/CashFlowSummaryCards.svelte';
 	import CashFlowChart from '$lib/components/finance/cash-flow/CashFlowChart.svelte';
 	import CashFlowFilterBar from '$lib/components/finance/cash-flow/CashFlowFilterBar.svelte';

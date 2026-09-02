@@ -15,7 +15,7 @@
 	import {
 		runwayStore, subscribeRunway, deferBatch,
 		fmtEur, fmtNative, labelDate, cleanName, SRC_LABELS, type Flow,
-	} from '$lib/stores/runway.svelte';
+	} from '$lib/stores/cashflow/runway.svelte';
 	import { aggregateRows, AGGREGATE_LABELS } from '$lib/utils/cashflow';
 
 	// Öteleme yalnız finance.cash_flow KULLANIM yetkisi olanlara açık

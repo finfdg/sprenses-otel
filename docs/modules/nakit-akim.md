@@ -129,7 +129,7 @@
 - `expandedYears`, `expandedMonths`, `expandedDays` — 3 seviyeli akordiyon açık/kapalı state'i
 - `visibleDays` — `IntersectionObserver` ile işaretlenen viewport'a girmiş günler (lazy mount sinyali)
 - `focusMode` — T yapısı odak modu
-- **`cashFlowCache` (lib/stores/cashflow.svelte.ts) — oturum-içi cache + WS geçersizlemesi (2026-07-07):**
+- **`cashFlowCache` (lib/stores/cashflow/cache.svelte.ts) — oturum-içi cache + WS geçersizlemesi (2026-07-07):**
   `items`/`categories`/`eurBalances` navigasyonlar arasında yaşar (5 dk TTL). `finance_updated` WS
   event'i **store seviyesinde** (sayfa bağımsız, modül-scope `onWsEvent`) tazelik damgalarını
   (`lastFetchedAt` + `eurBalancesFetchedAt`) sıfırlar — **fetch yapmaz**; bir sonraki mount

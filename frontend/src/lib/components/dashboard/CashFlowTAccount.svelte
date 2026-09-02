@@ -25,8 +25,8 @@
 	import RunwayChart from '$lib/components/dashboard/RunwayChart.svelte';
 	import OverdueList from '$lib/components/dashboard/OverdueList.svelte';
 	import HeldList from '$lib/components/dashboard/HeldList.svelte';
-	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
-	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/runway.svelte';
+	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow/cache.svelte';
+	import { runwayStore, setHoldMode, holdBatch, type SourceRef } from '$lib/stores/cashflow/runway.svelte';
 	import { aggregateRows, AGGREGATE_LABELS, daySourceRank, firstTippingRow, type CashRow } from '$lib/utils/cashflow';
 	import { bankBadge } from '$lib/utils/bankBadge';
 	import { HOLDABLE_SOURCE_TYPES } from '$lib/constants/finance';

@@ -2,28 +2,28 @@
 	import { onMount } from 'svelte';
 	import { authState } from '$lib/stores/auth.svelte';
 	import { onWsEvent, resetReconnect, onlinePresence, wsState } from '$lib/stores/websocket.svelte';
-	import { createTypingManager, createDraftManager } from '$lib/utils/messaging-helpers.svelte';
+	import { createTypingManager, createDraftManager } from '$lib/stores/messaging/helpers';
 	import {
 		msg, syncData, loadConversationsImmediate, selectConversation,
 		deselectConversation, refreshConversationDetail, handleMessagesScroll,
 		scrollToBottom, setDraftManager, resolveConfirm, resetState,
-	} from '$lib/stores/messaging.svelte';
+	} from '$lib/stores/messaging/store.svelte';
 	import {
 		handleWsNewMessage, handleWsMessageEdited, handleWsMessageDeleted,
 		handleWsReadStatus, handleWsTyping, handleWsNewConversation,
 		handleWsGroupUpdate, handleWsGroupMemberRemoved, handleWsGroupNameChanged,
 		handleWsUserStatus, handleWsConnected, cleanupWsHandlers,
-	} from '$lib/utils/messaging-ws-handlers.svelte';
+	} from '$lib/stores/messaging/ws-handlers';
 	import {
 		sendMessage, handleSendFile, startEdit, cancelEdit, saveEdit,
 		deleteMessage, isMessageRead,
-	} from '$lib/utils/messaging-messages.svelte';
+	} from '$lib/stores/messaging/messages';
 	import {
 		handleTouchStart, handleTouchEnd, toggleActionMenu, closeMenus,
 		handleMessageSearchInput, scrollToMessage, toggleMessageSearch,
 		handleStartChat, handleGroupCreated, handleGroupNameUpdated,
 		toggleMute, deleteConversation, cleanupUiHandlers,
-	} from '$lib/utils/messaging-ui.svelte';
+	} from '$lib/stores/messaging/ui-handlers';
 	import { focusTrap } from '$lib/utils/focus-trap';
 
 	// Bileşenler

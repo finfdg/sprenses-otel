@@ -18,7 +18,7 @@
 	import {
 		runwayStore, subscribeRunway, holdBatch,
 		fmtEur, fmtNative, labelDate, cleanName, SRC_LABELS, type Flow, type SourceRef,
-	} from '$lib/stores/runway.svelte';
+	} from '$lib/stores/cashflow/runway.svelte';
 
 	const canHold = hasPermission('finance.cash_flow', 'use');
 

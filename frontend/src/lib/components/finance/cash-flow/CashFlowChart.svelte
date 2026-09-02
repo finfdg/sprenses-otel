@@ -32,7 +32,7 @@
 	import { onWsEvent } from '$lib/stores/websocket.svelte';
 	import { WS_EVENT } from '$lib/constants/realtime';
 	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
-	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow.svelte';
+	import { cashFlowCache, loadCashFlowEurBalances, isEurBalancesStale } from '$lib/stores/cashflow/cache.svelte';
 	import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Landmark, RotateCcw } from 'lucide-svelte';
 
 	type Bucket = {

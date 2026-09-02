@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { cashFlowCache, isEurBalancesStale, invalidateCashFlowCache } from './cashflow.svelte';
-import { emitLocal } from './websocket.svelte';
+import { cashFlowCache, isEurBalancesStale, invalidateCashFlowCache } from '$lib/stores/cashflow/cache.svelte';
+import { emitLocal } from '$lib/stores/websocket.svelte';
 import { WS_EVENT } from '$lib/constants/realtime';
 
 const STALE_MS = 5 * 60 * 1000;
