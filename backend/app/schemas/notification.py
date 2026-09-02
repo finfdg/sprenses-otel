@@ -19,9 +19,6 @@ class NotificationResponse(BaseModel):
         from_attributes = True
 
 
-class NotificationUnreadCount(BaseModel):
-    count: int
-
 
 class NotificationMarkRead(BaseModel):
     notification_ids: Optional[List[int]] = None

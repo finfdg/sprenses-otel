@@ -10,8 +10,13 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.models.contract import (
-    ALL_ACTION_TYPES, ALL_COMBINE_RULES, ALL_CONFIDENCE, ALL_CONTRACT_STATUS,
-    ALL_DOC_TYPES, ALL_INSTALLMENT_STATUS, ALL_PLAN_TYPES,
+    ALL_ACTION_TYPES,
+    ALL_COMBINE_RULES,
+    ALL_CONFIDENCE,
+    ALL_CONTRACT_STATUS,
+    ALL_DOC_TYPES,
+    ALL_INSTALLMENT_STATUS,
+    ALL_PLAN_TYPES,
 )
 
 # Sözde-enum alan whitelist'leri (denetim bulgusu #10 — API doğrudan çağrılırsa da sıkı)

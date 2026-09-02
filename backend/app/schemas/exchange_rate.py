@@ -1,7 +1,7 @@
 """Döviz kuru Pydantic şemaları."""
 
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -21,9 +21,3 @@ class ExchangeRateResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
-class ExchangeRateLatest(BaseModel):
-    """Güncel kurlar — tek tarih, tüm dövizler."""
-    date: Optional[date] = None
-    rates: List[ExchangeRateResponse]
-    eur_usd_parity: Optional[float] = None

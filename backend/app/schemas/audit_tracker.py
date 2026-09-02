@@ -1,6 +1,6 @@
 """Denetim Takip şemaları — bulgu, boyut, otomasyon koşusu ve yapılandırma."""
-from datetime import date, datetime
-from typing import List, Optional
+from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -91,42 +91,6 @@ class RunResponse(BaseModel):
     error: Optional[str] = None
 
 
-class FindingResponse(BaseModel):
-    """Tablo satırı — bulgu + türetilmiş alanlar (prompt, skor etkisi)."""
-
-    id: int
-    code: str
-    title: str
-    dimension_no: int
-    dimension_name: str
-    risk: str
-    effort: str
-    category: str
-    status: str
-    evidence: Optional[str] = None
-    solution: Optional[str] = None
-    closure_criteria: Optional[str] = None
-    source_section: Optional[str] = None
-    score_impact: float
-    # Bu bulgunun genel nota (100'lük) hâlihazırda kattığı / katacağı puan
-    applied_points: float
-    potential_points: float
-    automatable: bool
-    auto_enabled: bool
-    auto_attempts: int
-    last_run_at: Optional[datetime] = None
-    last_run_status: Optional[str] = None
-    branch_name: Optional[str] = None
-    closed_at: Optional[datetime] = None
-    closed_by_name: Optional[str] = None
-    closure_note: Optional[str] = None
-    verification_output: Optional[str] = None
-    # Kullanıcının Claude Code'a kopyalayacağı hazır komut
-    prompt: str
-    has_prompt_override: bool
-    run_count: int
-    last_run: Optional[RunResponse] = None
-
 
 class DimensionResponse(BaseModel):
     """Skor panosu satırı — güncel skor TÜRETİLİR, saklanmaz."""
@@ -145,21 +109,3 @@ class DimensionResponse(BaseModel):
     # Bu boyuttaki açık maddelerin tamamı kapanırsa ulaşılacak skor
     score_potential: float
 
-
-class ScoreboardResponse(BaseModel):
-    """Genel not paneli — raporun ilan ettiği nota karşı canlı hesap."""
-
-    report_key: str
-    report_title: str
-    report_date: date
-    doc_path: Optional[str] = None
-    baseline_score: float
-    current_score: float
-    potential_score: float
-    target_score: float
-    declared_baseline: Optional[float] = None
-    declared_target: Optional[float] = None
-    core_avg: float
-    ops_avg: float
-    counts: dict
-    dimensions: List[DimensionResponse]

@@ -5,7 +5,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-
 # ─── Create ──────────────────────────────────────────────────────────
 
 class DividendShareholderInput(BaseModel):

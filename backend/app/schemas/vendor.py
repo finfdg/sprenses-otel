@@ -5,7 +5,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-
 # ─── Cari Banka Hesabı (IBAN) ───────────────────────────
 
 class VendorBankAccountCreate(BaseModel):
@@ -116,11 +115,6 @@ class VendorNoteResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
-class VendorNoteListItem(VendorNoteResponse):
-    """Toplu not listesi satırı — nota firma bilgisi eklenir (Notlar sekmesi kartı)."""
-    vendor_name: str
-    vendor_code: str
 
 
 # ─── VendorTransaction ──────────────────────────────────

@@ -12,35 +12,10 @@ class RoleSummary(BaseModel):
     name: str
 
 
-class ModuleWithRoles(BaseModel):
-    id: int
-    name: str
-    code: str
-    roles: List[RoleSummary] = []
-
 
 # --- Workflow Step (geriye uyumluluk) ---
 
-class WorkflowStepCreate(BaseModel):
-    step_number: int = Field(..., ge=1)
-    approver_type: str = Field(..., pattern=r"^(user|role|department_manager)$")
-    approver_user_id: Optional[int] = None
-    approver_role_id: Optional[int] = None
-    approver_dept_id: Optional[int] = None
 
-
-class WorkflowStepResponse(BaseModel):
-    id: int
-    step_number: int
-    approver_type: str
-    approver_user_id: Optional[int] = None
-    approver_role_id: Optional[int] = None
-    approver_dept_id: Optional[int] = None
-    approver_name: Optional[str] = None
-    is_active: bool
-
-    class Config:
-        from_attributes = True
 
 
 # --- Workflow ---
