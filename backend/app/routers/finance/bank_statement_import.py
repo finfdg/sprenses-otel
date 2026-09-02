@@ -23,6 +23,7 @@ from app.models.bank_transaction import BankTransaction
 from app.models.module import Module
 from app.models.role_module_permission import RoleModulePermission
 from app.models.user import User
+from app.paths import uploads_subdir
 from app.schemas.bank import UploadResult
 from app.utils.audit import log_action
 from app.utils.bank_parser import compute_tx_hash, parse_excel, parse_pdf
@@ -42,7 +43,7 @@ from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "uploads", "bank_statements")
+UPLOAD_DIR = uploads_subdir("bank_statements")
 
 
 def _ensure_upload_dir():

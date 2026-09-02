@@ -21,12 +21,14 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from app.paths import BACKEND_DIR, REPO_ROOT
+
 logger = logging.getLogger(__name__)
 
 # ─── Yol sabitleri ────────────────────────────────────────────────────────────
 
-_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_REPO_DIR = os.path.dirname(_BACKEND_DIR)
+_BACKEND_DIR = str(BACKEND_DIR)
+_REPO_DIR = str(REPO_ROOT)
 _HOME = os.path.expanduser("~")
 
 APP_LOG_DIR = os.path.join(_BACKEND_DIR, "logs")

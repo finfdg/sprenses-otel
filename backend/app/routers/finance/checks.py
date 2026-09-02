@@ -11,28 +11,29 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Qu
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip, upload_limiter
 from app.models.check import Check, CheckUpload
 from app.models.user import User
-from app.schemas.check import CheckResponse, CheckUploadResponse, CheckUploadResult
-from app.utils.approval_check import check_approval
-from app.utils.audit import log_action
-from app.utils.check_parser import parse_check_excel
-from app.utils.file_validation import validate_upload_file
-from app.constants import BroadcastModule
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.finance_event_service import finance_event_svc
-from app.services import check_service
-from app.utils.matching_service import _match_checks_to_bank
-from app.utils.sedna_client import sedna_configured
-from app.utils.pagination import page_meta
+from app.paths import uploads_subdir
 from app.routers.finance.check_import import (
     _check_dedup_key,
     detect_check_no_mismatches,
     run_check_import,
 )
+from app.schemas.check import CheckResponse, CheckUploadResponse, CheckUploadResult
+from app.services import check_service
+from app.utils.approval_check import check_approval
+from app.utils.audit import log_action
+from app.utils.check_parser import parse_check_excel
+from app.utils.file_validation import validate_upload_file
+from app.utils.finance_broadcast import broadcast_finance_update
+from app.utils.finance_event_service import finance_event_svc
+from app.utils.matching_service import _match_checks_to_bank
+from app.utils.pagination import page_meta
+from app.utils.sedna_client import sedna_configured
 
 logger = logging.getLogger(__name__)
 TZ = pytz.timezone("Europe/Istanbul")
@@ -40,10 +41,7 @@ TZ = pytz.timezone("Europe/Istanbul")
 router = APIRouter(prefix="/checks")
 
 
-UPLOAD_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    "uploads", "check_files",
-)
+UPLOAD_DIR = uploads_subdir("check_files")
 
 
 def _ensure_upload_dir():

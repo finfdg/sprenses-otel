@@ -1,7 +1,6 @@
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +8,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.paths import LOGS_DIR, UPLOADS_DIR
 from app.routers import (
     accounting,
     ai_assistant,
@@ -39,7 +39,7 @@ from app.routers import (
 )
 
 # ─── Merkezi Log Yapılandırması ──────────────────────────────────────────────
-LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
+LOG_DIR = str(LOGS_DIR)
 os.makedirs(LOG_DIR, exist_ok=True)
 
 LOG_FORMAT = "%(asctime)s %(levelname)-8s [%(name)s:%(lineno)d] %(message)s"
@@ -225,5 +225,5 @@ from app.routers import approval
 app.include_router(approval.router, prefix="/api/system/approval", tags=["approval"])
 
 # Yükleme dizinini oluştur (dosya endpoint'i tarafından kullanılır)
-_uploads_dir = Path(__file__).resolve().parent.parent / "uploads"
+_uploads_dir = UPLOADS_DIR
 _uploads_dir.mkdir(exist_ok=True)

@@ -8,14 +8,12 @@ from sqlalchemy.orm import Session
 from app.models.budget import BudgetCategory
 from app.models.department import Department
 from app.models.user import User
+from app.paths import uploads_subdir
 from app.schemas.vendor import VendorTransactionResponse
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
-    "uploads", "vendor_statements",
-)
+UPLOAD_DIR = uploads_subdir("vendor_statements")
 
 
 def _ensure_upload_dir():

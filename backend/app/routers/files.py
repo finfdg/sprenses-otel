@@ -7,7 +7,6 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from jose import JWTError
-
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,6 +14,7 @@ from app.middleware.auth import user_can
 from app.models.conversation import ConversationMember
 from app.models.message import Message
 from app.models.user import User
+from app.paths import UPLOADS_DIR
 from app.utils.security import decode_access_token
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Yükleme dizini — file_upload.py ile aynı konum
-_uploads_dir = Path(__file__).resolve().parent.parent.parent / "uploads"
+_uploads_dir = UPLOADS_DIR
 
 # Dizin öneki → modül eşlemesi. serve_file yalnız kimlik değil, dosyanın ait olduğu
 # modülün görüntüleme iznini de arar (IDOR koruması). Buraya eklenmemiş önekler

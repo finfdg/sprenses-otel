@@ -15,8 +15,16 @@ from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query,
-    Request, UploadFile, status,
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
 )
 from fastapi.responses import FileResponse
 from sqlalchemy import func
@@ -29,14 +37,30 @@ from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.agency_group import AgencyGroup
 from app.models.contract import (
-    ALL_DOC_TYPES, INSTALLMENT_PENDING, PLAN_TYPE_GUARANTEE_CHECK, AgencyContract,
-    ContractAction, ContractDocument, ContractInstallment, ContractPaymentPlan,
+    ALL_DOC_TYPES,
+    INSTALLMENT_PENDING,
+    PLAN_TYPE_GUARANTEE_CHECK,
+    AgencyContract,
+    ContractAction,
+    ContractDocument,
+    ContractInstallment,
+    ContractPaymentPlan,
 )
 from app.models.user import User
+from app.paths import uploads_subdir
 from app.schemas.contract import (
-    ActionCreate, ActionTierCreate, AllotmentCreate, ChildPolicyCreate,
-    ContractCreate, ContractUpdate, DeductionCreate, DocumentMetaUpdate,
-    InstallmentCreate, PaymentPlanCreate, PeriodCreate, RateCreate,
+    ActionCreate,
+    ActionTierCreate,
+    AllotmentCreate,
+    ChildPolicyCreate,
+    ContractCreate,
+    ContractUpdate,
+    DeductionCreate,
+    DocumentMetaUpdate,
+    InstallmentCreate,
+    PaymentPlanCreate,
+    PeriodCreate,
+    RateCreate,
     RoomTypeMapCreate,
 )
 from app.services import contract_service
@@ -61,8 +85,7 @@ _KIND_SCHEMAS = {
     "child-policies": ChildPolicyCreate,
 }
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))))), "uploads", "contract_files")
+UPLOAD_DIR = uploads_subdir("contract_files")
 
 router = APIRouter(prefix="/kontratlar", tags=["Kontratlar"])
 
@@ -270,10 +293,11 @@ def price_audit(
     girildiğinde kontrat-fiyat karşılaştırması bu motora eklenir (`rate_rows` sayısı
     yanıtın counts'unda — 0 ise karşılaştırma atlanmıştır).
     """
-    from statistics import median
     from collections import defaultdict as _dd
-    from app.models.reservation import Reservation
+    from statistics import median
+
     from app.models.contract import ContractRate
+    from app.models.reservation import Reservation
 
     if end < start or (end - start).days > 500:
         raise HTTPException(status_code=400, detail="Geçersiz pencere (en çok 500 gün)")
@@ -398,8 +422,9 @@ def deductions_forecast(
     için 'beklenen kesinti' dökümü.
     """
     from sqlalchemy import extract
-    from app.models.reservation import Reservation
+
     from app.models.contract import ContractDeduction
+    from app.models.reservation import Reservation
 
     groups = db.query(AgencyGroup).all()
     members_by_gid = {g.id: [(m or "").strip().upper() for m in (g.members or [])]
@@ -503,8 +528,8 @@ def allotment_usage(
     Taahhüt uyarıları: guaranteed_share_percent (AllTours %80 stop-sale'siz,
     Pegas/Roket %70) — kullanım bu eşiğin altındaysa bilgi, üstündeyse риск yok.
     """
-    from app.models.reservation import Reservation
     from app.models.contract import ContractAllotment
+    from app.models.reservation import Reservation
 
     if end < start or (end - start).days > 400:
         raise HTTPException(status_code=400, detail="Geçersiz pencere (en çok 400 gün)")

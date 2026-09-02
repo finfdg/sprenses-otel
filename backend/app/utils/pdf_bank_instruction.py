@@ -24,6 +24,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 
+from app.paths import BACKEND_DIR
+
 # ─── Font kaydı (Türkçe karakter desteği) ─────────────────────────────
 
 _FONT_DIR = os.path.join(os.path.dirname(reportlab.__file__), "fonts")
@@ -37,9 +39,7 @@ FONT_BOLD = "VeraBd"
 
 # ─── Logo ─────────────────────────────────────────────────────────────
 
-_BACKEND_DIR = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
+_BACKEND_DIR = str(BACKEND_DIR)
 _LOGO_PATH = os.path.join(_BACKEND_DIR, "uploads", "logos", "1_17e1b8ab.jpg")
 
 # ─── Ortak sabitler ───────────────────────────────────────────────────

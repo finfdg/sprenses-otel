@@ -23,6 +23,7 @@ from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.audit_tracker import AuditFinding, AuditFindingRun
 from app.models.user import User
+from app.paths import BACKEND_DIR, CRON_DENETIM_SCRIPT
 from app.schemas.audit_tracker import (
     AutomationConfigUpdate,
     FindingCreate,
@@ -39,8 +40,8 @@ router = APIRouter()
 MODULE_CODE = "system.denetim"
 
 # Otomasyon cron'unun mutlak yolu — "şimdi çalıştır" ucu bunu alt süreç olarak başlatır
-_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_CRON_SCRIPT = os.path.join(_BACKEND_DIR, "cron_denetim_auto.py")
+_BACKEND_DIR = str(BACKEND_DIR)
+_CRON_SCRIPT = str(CRON_DENETIM_SCRIPT)
 
 
 # ─── Yardımcılar ─────────────────────────────────────────────

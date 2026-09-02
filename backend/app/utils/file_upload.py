@@ -1,6 +1,5 @@
 """Dosya yükleme yardımcısı — mesajlarda dosya/görsel paylaşımı için."""
 
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -10,11 +9,12 @@ import pytz
 from fastapi import HTTPException, UploadFile
 
 from app.config import settings
+from app.paths import UPLOADS_DIR
 
 _tz = pytz.timezone(settings.timezone)
 
 # Yükleme dizini — proje kökünden göreceli
-UPLOAD_DIR = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))).joinpath("uploads")
+UPLOAD_DIR = UPLOADS_DIR
 
 # Maksimum dosya boyutu: 20 MB
 MAX_FILE_SIZE = 20 * 1024 * 1024

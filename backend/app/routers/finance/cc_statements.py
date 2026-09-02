@@ -12,12 +12,14 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Re
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip, upload_limiter
 from app.models.credit_card_statement import CreditCardStatement, CreditCardTransaction
 from app.models.credit_product import CreditProduct
 from app.models.user import User
+from app.paths import BACKEND_DIR, uploads_subdir
 from app.schemas.credit_card import (
     CCStatementListItem,
     CCStatementResponse,
@@ -27,13 +29,12 @@ from app.schemas.credit_card import (
 from app.utils.audit import log_action
 from app.utils.cc_statement_parser import parse_cc_statement
 from app.utils.file_validation import validate_upload_file
-from app.constants import BroadcastModule
 from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.finance_event_service import finance_event_svc
 
 router = APIRouter(prefix="/krediler/kart")
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "uploads", "cc_statements")
+UPLOAD_DIR = uploads_subdir("cc_statements")
 
 
 def _ensure_upload_dir() -> None:
@@ -469,10 +470,7 @@ def delete_statement(
 
     # Dosyayi sil
     if file_url:
-        full_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-            file_url.lstrip("/"),
-        )
+        full_path = os.path.join(str(BACKEND_DIR), file_url.lstrip("/"))
         if os.path.exists(full_path):
             try:
                 os.remove(full_path)

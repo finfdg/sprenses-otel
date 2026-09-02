@@ -15,9 +15,10 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from app.middleware.auth import require_permission
 from app.models.user import User
+from app.paths import REPO_ROOT
 from app.utils.md_docx import build_docs_docx
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent  # otel/ (proje kökü)
+ROOT = REPO_ROOT  # otel/ (proje kökü) — app/paths.py tek kaynak
 _EXCLUDE = {"node_modules", "venv", ".git", "build", ".svelte-kit", ".claude",
             ".pytest_cache", "__pycache__", "htmlcov"}
 

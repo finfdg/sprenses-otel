@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import List, Optional
 
+from app.paths import TESSDATA_DIR as _TESSDATA_DIR
 from app.utils.bank_parse_helpers import (
     _detect_number_format,
     _extract_trailing_numbers,
@@ -150,9 +151,7 @@ def compute_tx_hash(tx_date: date, receipt_no: Optional[str], amount: float, des
 
 # ─── PDF Parser ──────────────────────────────────────────
 
-TESSDATA_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "tessdata"
-)
+TESSDATA_DIR = str(_TESSDATA_DIR)
 
 
 def _ocr_page(page) -> str:

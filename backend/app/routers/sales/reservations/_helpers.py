@@ -10,15 +10,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.reservation import Reservation
+from app.paths import uploads_subdir
 
 logger = logging.getLogger(__name__)
 
-# `reservations/` paketi 4 seviye derinlikte: backend/app/routers/sales/reservations/_helpers.py
-# UPLOAD_DIR — backend/uploads/reservation_files
-UPLOAD_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))),
-    "uploads", "reservation_files",
-)
+# UPLOAD_DIR — backend/uploads/reservation_files (app/paths.py tek kaynak; derinlikten bağımsız)
+UPLOAD_DIR = uploads_subdir("reservation_files")
 
 
 def _ensure_upload_dir():

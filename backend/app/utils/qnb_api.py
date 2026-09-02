@@ -23,6 +23,7 @@ from typing import List, Optional
 import httpx
 
 from app.config import settings
+from app.paths import QNB_REFRESH_TOKEN_FILE
 from app.utils.bank_parser import (
     ParsedHeader,
     ParsedTransaction,
@@ -36,10 +37,7 @@ _TIMEOUT = 60.0
 _TICKET_PAGE_SIZE = 100
 
 # Rotating refresh_token'ın kalıcı yazıldığı dosya (git'te DEĞİL — .gitignore'da).
-_REFRESH_FILE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-    ".qnb_refresh_token",
-)
+_REFRESH_FILE = str(QNB_REFRESH_TOKEN_FILE)
 
 # Süreç-içi access token önbelleği (aynı koşuda tekrar token çağrısı/rotasyonu olmasın)
 _access_cache = {"token": None, "exp": 0.0}

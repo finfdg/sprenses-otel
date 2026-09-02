@@ -1,0 +1,4751 @@
+[
+{
+"path": "/api/accounting/dividend/",
+"methods": [
+"GET"
+],
+"endpoint": "list_distributions",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/dividend/",
+"methods": [
+"POST"
+],
+"endpoint": "create_distribution",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/dividend/payments/{payment_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_payment",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/dividend/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/dividend/{distribution_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_distribution",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/dividend/{distribution_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_distribution",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/dividend/{distribution_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_distribution",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/fis-icmali/status",
+"methods": [
+"GET"
+],
+"endpoint": "fis_icmali_status",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/fis-icmali/summary",
+"methods": [
+"GET"
+],
+"endpoint": "fis_icmali_summary",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/fis-icmali/voucher-detail",
+"methods": [
+"GET"
+],
+"endpoint": "fis_icmali_voucher_detail",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/fis-icmali/vouchers",
+"methods": [
+"GET"
+],
+"endpoint": "fis_icmali_vouchers",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mizan/status",
+"methods": [
+"GET"
+],
+"endpoint": "mizan_status",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mizan/summary",
+"methods": [
+"GET"
+],
+"endpoint": "mizan_summary",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mizan/transactions",
+"methods": [
+"GET"
+],
+"endpoint": "mizan_transactions",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/account-mappings",
+"methods": [
+"GET"
+],
+"endpoint": "account_mappings",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/account-mappings/{account_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_account_mapping",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/agency-mappings",
+"methods": [
+"GET"
+],
+"endpoint": "agency_mappings",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/agency-mappings/{group_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_agency_mapping",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/credit-mappings",
+"methods": [
+"GET"
+],
+"endpoint": "credit_mappings",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/credit-mappings/{product_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_credit_mapping",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/fx-differences",
+"methods": [
+"GET"
+],
+"endpoint": "fx_differences",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/fx-revaluation",
+"methods": [
+"GET"
+],
+"endpoint": "fx_revaluation",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/items",
+"methods": [
+"GET"
+],
+"endpoint": "list_items",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/items/pdf",
+"methods": [
+"GET"
+],
+"endpoint": "items_pdf",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/items/{item_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_item",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/period-lock",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_period_lock",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/run",
+"methods": [
+"POST"
+],
+"endpoint": "run_reconciliation",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/mutabakat/summary",
+"methods": [
+"GET"
+],
+"endpoint": "recon_summary",
+"tags": [
+"Sedna Mutabakat",
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/",
+"methods": [
+"GET"
+],
+"endpoint": "list_definitions",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/",
+"methods": [
+"POST"
+],
+"endpoint": "create_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/entries/{entry_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_entry",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/summary/totals",
+"methods": [
+"GET"
+],
+"endpoint": "get_summary",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/sync-vendors",
+"methods": [
+"POST"
+],
+"endpoint": "sync_vendors",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/{defn_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/{defn_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/recurring/{defn_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/",
+"methods": [
+"GET"
+],
+"endpoint": "list_definitions",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/",
+"methods": [
+"POST"
+],
+"endpoint": "create_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/entries/{entry_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_entry",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/summary/totals",
+"methods": [
+"GET"
+],
+"endpoint": "get_summary",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/{defn_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/{defn_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-expense/{defn_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/",
+"methods": [
+"GET"
+],
+"endpoint": "list_definitions",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/",
+"methods": [
+"POST"
+],
+"endpoint": "create_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/entries/{entry_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_entry",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/summary/totals",
+"methods": [
+"GET"
+],
+"endpoint": "get_summary",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/{defn_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/{defn_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/rent-income/{defn_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/",
+"methods": [
+"GET"
+],
+"endpoint": "list_definitions",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/",
+"methods": [
+"POST"
+],
+"endpoint": "create_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/entries/{entry_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_entry",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/summary/totals",
+"methods": [
+"GET"
+],
+"endpoint": "get_summary",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/{defn_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/{defn_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/accounting/taxes/{defn_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_definition",
+"tags": [
+"accounting"
+]
+},
+{
+"path": "/api/ai/disa-aktar",
+"methods": [
+"POST"
+],
+"endpoint": "disa_aktar",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/ai/gunun-ozeti",
+"methods": [
+"GET"
+],
+"endpoint": "gunun_ozeti",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/ai/konusmalar",
+"methods": [
+"GET"
+],
+"endpoint": "konusmalar",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/ai/konusmalar/{konusma_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "konusma_sil",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/ai/konusmalar/{konusma_id}",
+"methods": [
+"GET"
+],
+"endpoint": "konusma_detay",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/ai/sor",
+"methods": [
+"POST"
+],
+"endpoint": "sor",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/ai/sor-stream",
+"methods": [
+"POST"
+],
+"endpoint": "sor_stream",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/ai/uygula",
+"methods": [
+"POST"
+],
+"endpoint": "uygula",
+"tags": [
+"ai-assistant"
+]
+},
+{
+"path": "/api/attendance/kiosk-link",
+"methods": [
+"GET"
+],
+"endpoint": "kiosk_link",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/kiosk/config",
+"methods": [
+"GET"
+],
+"endpoint": "kiosk_config",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/kiosk/qr",
+"methods": [
+"GET"
+],
+"endpoint": "kiosk_qr",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/kiosk/recent",
+"methods": [
+"GET"
+],
+"endpoint": "kiosk_recent",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/logs",
+"methods": [
+"GET"
+],
+"endpoint": "list_logs",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/logs/{log_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_log",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/logs/{log_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_log",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/logs/{log_id}/history",
+"methods": [
+"GET"
+],
+"endpoint": "log_history",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/manual",
+"methods": [
+"POST"
+],
+"endpoint": "manual_punch",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/me",
+"methods": [
+"GET"
+],
+"endpoint": "me",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/pdks-manifest",
+"methods": [
+"GET"
+],
+"endpoint": "pdks_manifest",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/pending",
+"methods": [
+"GET"
+],
+"endpoint": "list_pending",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/pending/{request_id}/cancel",
+"methods": [
+"POST"
+],
+"endpoint": "cancel_pending",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel",
+"methods": [
+"GET"
+],
+"endpoint": "list_personnel",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel",
+"methods": [
+"POST"
+],
+"endpoint": "create_personnel",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel/cards.pdf",
+"methods": [
+"GET"
+],
+"endpoint": "personnel_cards_pdf",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel/import",
+"methods": [
+"POST"
+],
+"endpoint": "import_personnel",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel/{personnel_id}/reset-device",
+"methods": [
+"POST"
+],
+"endpoint": "reset_device",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel/{pid}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_personnel",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel/{pid}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_personnel",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/personnel/{pid}/qr",
+"methods": [
+"GET"
+],
+"endpoint": "personnel_setup_qr",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/punch",
+"methods": [
+"POST"
+],
+"endpoint": "punch",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/settings",
+"methods": [
+"GET"
+],
+"endpoint": "get_settings",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/settings",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_settings",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/setup",
+"methods": [
+"POST"
+],
+"endpoint": "setup",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/status",
+"methods": [
+"GET"
+],
+"endpoint": "who_is_inside",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/attendance/summary",
+"methods": [
+"GET"
+],
+"endpoint": "monthly_summary",
+"tags": [
+"attendance"
+]
+},
+{
+"path": "/api/auth/change-password",
+"methods": [
+"POST"
+],
+"endpoint": "change_password",
+"tags": [
+"auth"
+]
+},
+{
+"path": "/api/auth/login",
+"methods": [
+"POST"
+],
+"endpoint": "login",
+"tags": [
+"auth"
+]
+},
+{
+"path": "/api/auth/logout",
+"methods": [
+"POST"
+],
+"endpoint": "logout",
+"tags": [
+"auth"
+]
+},
+{
+"path": "/api/auth/me",
+"methods": [
+"GET"
+],
+"endpoint": "get_me",
+"tags": [
+"auth"
+]
+},
+{
+"path": "/api/auth/verify-email",
+"methods": [
+"POST"
+],
+"endpoint": "verify_email",
+"tags": [
+"auth"
+]
+},
+{
+"path": "/api/finance/avanslar/",
+"methods": [
+"GET"
+],
+"endpoint": "list_advances",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/avanslar/",
+"methods": [
+"POST"
+],
+"endpoint": "create_advance",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/avanslar/sedna-reconciliation",
+"methods": [
+"GET"
+],
+"endpoint": "sedna_reconciliation",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/avanslar/summary",
+"methods": [
+"GET"
+],
+"endpoint": "advance_summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/avanslar/{advance_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_advance",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/avanslar/{advance_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_advance",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/avanslar/{advance_id}/match",
+"methods": [
+"POST"
+],
+"endpoint": "match_advance",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/bank-instructions/accounts",
+"methods": [
+"GET"
+],
+"endpoint": "list_bank_accounts_for_instructions",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/bank-instructions/currency-exchange",
+"methods": [
+"POST"
+],
+"endpoint": "create_currency_exchange_instruction",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/bank-instructions/transfer",
+"methods": [
+"POST"
+],
+"endpoint": "create_transfer_instruction",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/",
+"methods": [
+"GET"
+],
+"endpoint": "list_accounts",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/",
+"methods": [
+"POST"
+],
+"endpoint": "create_account",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/{account_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_account",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/{account_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_account",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/{account_id}/manual-transaction",
+"methods": [
+"POST"
+],
+"endpoint": "create_manual_transaction",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/{account_id}/statements",
+"methods": [
+"GET"
+],
+"endpoint": "list_statements",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/{account_id}/transactions",
+"methods": [
+"GET"
+],
+"endpoint": "list_transactions",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/accounts/{account_id}/upload",
+"methods": [
+"POST"
+],
+"endpoint": "upload_statement",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/statements/{statement_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_statement",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/transactions/{tx_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_transaction",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/banks/upload",
+"methods": [
+"POST"
+],
+"endpoint": "upload_statement_auto",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/",
+"methods": [
+"GET"
+],
+"endpoint": "list_budgets",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/",
+"methods": [
+"POST"
+],
+"endpoint": "upsert_budget",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/bulk",
+"methods": [
+"POST"
+],
+"endpoint": "bulk_upsert_budgets",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/kategoriler",
+"methods": [
+"GET"
+],
+"endpoint": "list_categories",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/kategoriler",
+"methods": [
+"POST"
+],
+"endpoint": "create_category",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/kategoriler/{cat_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_category",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/kategoriler/{cat_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_category",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/monthly-summary",
+"methods": [
+"GET"
+],
+"endpoint": "monthly_summary",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/summary",
+"methods": [
+"GET"
+],
+"endpoint": "annual_summary",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/butce/{budget_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_budget",
+"tags": [
+"Bütçe",
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/export/payment-schedule",
+"methods": [
+"GET"
+],
+"endpoint": "export_payment_schedule_excel",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/export/vendors",
+"methods": [
+"GET"
+],
+"endpoint": "export_vendors_excel",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/monthly-balances",
+"methods": [
+"GET"
+],
+"endpoint": "get_monthly_balances",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/notes",
+"methods": [
+"GET"
+],
+"endpoint": "list_all_vendor_notes",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/payment-schedule",
+"methods": [
+"GET"
+],
+"endpoint": "get_payment_schedule",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/sedna-import",
+"methods": [
+"POST"
+],
+"endpoint": "sedna_import",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/sedna-import-ibans",
+"methods": [
+"POST"
+],
+"endpoint": "sedna_import_ibans",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/sedna-status",
+"methods": [
+"GET"
+],
+"endpoint": "sedna_status",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/transactions/bulk-delete",
+"methods": [
+"POST"
+],
+"endpoint": "bulk_delete_transactions",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/transactions/{vtx_id}/candidate-checks",
+"methods": [
+"GET"
+],
+"endpoint": "get_candidate_checks",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/transactions/{vtx_id}/devir",
+"methods": [
+"PATCH"
+],
+"endpoint": "mark_as_devir",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/transactions/{vtx_id}/match-check/{check_id}",
+"methods": [
+"POST"
+],
+"endpoint": "match_vendor_with_check",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/transactions/{vtx_id}/unmatch",
+"methods": [
+"DELETE"
+],
+"endpoint": "unmatch_vendor_transaction",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/transactions/{vtx_id}/unmatch-check",
+"methods": [
+"DELETE"
+],
+"endpoint": "unmatch_vendor_check",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/upload",
+"methods": [
+"POST"
+],
+"endpoint": "upload_vendor_excel",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/uploads",
+"methods": [
+"GET"
+],
+"endpoint": "list_uploads",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/uploads/{upload_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_upload",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors",
+"methods": [
+"GET"
+],
+"endpoint": "list_vendors",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/summary",
+"methods": [
+"GET"
+],
+"endpoint": "get_vendors_summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_vendor_detail",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/bank-accounts",
+"methods": [
+"GET"
+],
+"endpoint": "list_bank_accounts",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/bank-accounts",
+"methods": [
+"POST"
+],
+"endpoint": "add_bank_account",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/bank-accounts/{ba_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_bank_account",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/bank-accounts/{ba_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_bank_account",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/bank-transactions",
+"methods": [
+"GET"
+],
+"endpoint": "get_vendor_bank_transactions",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/contact",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_vendor_contact",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/notes",
+"methods": [
+"GET"
+],
+"endpoint": "list_vendor_notes",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/notes",
+"methods": [
+"POST"
+],
+"endpoint": "create_vendor_note",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/notes/{note_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_vendor_note",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/notes/{note_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_vendor_note",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/payment-days",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_vendor_payment_days",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/vendors/{vendor_id}/status",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_vendor_status",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cariler/yearly-turnover",
+"methods": [
+"GET"
+],
+"endpoint": "get_yearly_turnover",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/",
+"methods": [
+"GET"
+],
+"endpoint": "list_cash_flows",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/cc-projections",
+"methods": [
+"GET"
+],
+"endpoint": "cc_projections",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/cc-statements-unpaid",
+"methods": [
+"GET"
+],
+"endpoint": "list_unpaid_cc_statements",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/chart",
+"methods": [
+"GET"
+],
+"endpoint": "cash_flow_chart",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/credit-payments-unpaid",
+"methods": [
+"GET"
+],
+"endpoint": "list_unpaid_credit_payments",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/defer",
+"methods": [
+"POST"
+],
+"endpoint": "defer_payment",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/defer-batch",
+"methods": [
+"POST"
+],
+"endpoint": "defer_payment_batch",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/eur-balances",
+"methods": [
+"GET"
+],
+"endpoint": "eur_balances",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/forecast-accuracy",
+"methods": [
+"GET"
+],
+"endpoint": "forecast_accuracy",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/hold-batch",
+"methods": [
+"POST"
+],
+"endpoint": "hold_batch",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/match-cc-payment",
+"methods": [
+"POST"
+],
+"endpoint": "match_cc_payment",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/match-checks-batch",
+"methods": [
+"POST"
+],
+"endpoint": "match_checks_batch",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/match-credit-payment",
+"methods": [
+"POST"
+],
+"endpoint": "match_credit_payment",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/match-suggestions",
+"methods": [
+"GET"
+],
+"endpoint": "list_match_suggestions",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/match-suggestions/{suggestion_id}/accept",
+"methods": [
+"POST"
+],
+"endpoint": "accept_match_suggestion",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/match-suggestions/{suggestion_id}/reject",
+"methods": [
+"POST"
+],
+"endpoint": "reject_match_suggestion",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/match-vendor-tx",
+"methods": [
+"POST"
+],
+"endpoint": "match_vendor_tx",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/mobile-dashboard",
+"methods": [
+"GET"
+],
+"endpoint": "mobile_dashboard_summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/monthly-summary",
+"methods": [
+"GET"
+],
+"endpoint": "monthly_summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/reconciliation/aging",
+"methods": [
+"GET"
+],
+"endpoint": "reconciliation_aging",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/rematch",
+"methods": [
+"POST"
+],
+"endpoint": "rematch_all",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/report/pdf",
+"methods": [
+"GET"
+],
+"endpoint": "cash_flow_report_pdf",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/runway",
+"methods": [
+"GET"
+],
+"endpoint": "runway",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/summary",
+"methods": [
+"GET"
+],
+"endpoint": "cash_flow_summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/t-account",
+"methods": [
+"GET"
+],
+"endpoint": "t_account",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/unmatch-cc-payment",
+"methods": [
+"POST"
+],
+"endpoint": "unmatch_cc_payment",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/unmatch-check",
+"methods": [
+"POST"
+],
+"endpoint": "unmatch_check",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/cash-flow/unmatch-credit-payment",
+"methods": [
+"POST"
+],
+"endpoint": "unmatch_credit_payment",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/",
+"methods": [
+"GET"
+],
+"endpoint": "list_checks",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/match-bank",
+"methods": [
+"POST"
+],
+"endpoint": "auto_match_bank",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/number-anomalies",
+"methods": [
+"GET"
+],
+"endpoint": "check_number_anomalies",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/sedna-import",
+"methods": [
+"POST"
+],
+"endpoint": "sedna_import_checks",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/sedna-status",
+"methods": [
+"GET"
+],
+"endpoint": "sedna_status",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/summary",
+"methods": [
+"GET"
+],
+"endpoint": "checks_summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/upload",
+"methods": [
+"POST"
+],
+"endpoint": "upload_checks",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/uploads",
+"methods": [
+"GET"
+],
+"endpoint": "list_uploads",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/uploads/{upload_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_upload",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/checks/{check_id}/status",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_check_status",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/departmanlar/",
+"methods": [
+"GET"
+],
+"endpoint": "list_departments",
+"tags": [
+"Departmanlar",
+"finance"
+]
+},
+{
+"path": "/api/finance/departmanlar/",
+"methods": [
+"POST"
+],
+"endpoint": "create_department",
+"tags": [
+"Departmanlar",
+"finance"
+]
+},
+{
+"path": "/api/finance/departmanlar/{dept_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_department",
+"tags": [
+"Departmanlar",
+"finance"
+]
+},
+{
+"path": "/api/finance/departmanlar/{dept_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_department",
+"tags": [
+"Departmanlar",
+"finance"
+]
+},
+{
+"path": "/api/finance/exchange-rates/chart",
+"methods": [
+"GET"
+],
+"endpoint": "get_chart_data",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/exchange-rates/history",
+"methods": [
+"GET"
+],
+"endpoint": "get_rate_history",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/exchange-rates/latest",
+"methods": [
+"GET"
+],
+"endpoint": "get_latest_rates",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/exchange-rates/parity/history",
+"methods": [
+"GET"
+],
+"endpoint": "get_parity_history",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/hakedis/",
+"methods": [
+"GET"
+],
+"endpoint": "list_receivables",
+"tags": [
+"Hak Ediş Takibi",
+"finance"
+]
+},
+{
+"path": "/api/finance/hakedis/firms/{customer_code}/collections",
+"methods": [
+"GET"
+],
+"endpoint": "firm_collections",
+"tags": [
+"Hak Ediş Takibi",
+"finance"
+]
+},
+{
+"path": "/api/finance/hakedis/firms/{customer_code}/invoices",
+"methods": [
+"GET"
+],
+"endpoint": "firm_invoices",
+"tags": [
+"Hak Ediş Takibi",
+"finance"
+]
+},
+{
+"path": "/api/finance/hakedis/terms/{customer_code}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_term",
+"tags": [
+"Hak Ediş Takibi",
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/",
+"methods": [
+"GET"
+],
+"endpoint": "list_products",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/",
+"methods": [
+"POST"
+],
+"endpoint": "create_product",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/export/pdf",
+"methods": [
+"GET"
+],
+"endpoint": "export_credits_pdf",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/kart/auto-upload",
+"methods": [
+"POST"
+],
+"endpoint": "auto_upload_statement",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/kart/{product_id}/statements",
+"methods": [
+"GET"
+],
+"endpoint": "list_statements",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/kart/{product_id}/statements/{stmt_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_statement",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/kart/{product_id}/statements/{stmt_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_statement",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/kart/{product_id}/upload",
+"methods": [
+"POST"
+],
+"endpoint": "upload_statement",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/payments/{payment_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_payment",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/payments/{payment_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_payment",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/summary/by-type",
+"methods": [
+"GET"
+],
+"endpoint": "credit_summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/upcoming-payments",
+"methods": [
+"GET"
+],
+"endpoint": "upcoming_payments",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/{product_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_product",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/{product_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_product",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/{product_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_product",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/{product_id}/close",
+"methods": [
+"POST"
+],
+"endpoint": "close_product",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/{product_id}/kmh-status",
+"methods": [
+"GET"
+],
+"endpoint": "get_kmh_status",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/{product_id}/payments",
+"methods": [
+"POST"
+],
+"endpoint": "add_payments",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/krediler/{product_id}/reopen",
+"methods": [
+"POST"
+],
+"endpoint": "reopen_product",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/onay/approve/{vtx_id}",
+"methods": [
+"POST"
+],
+"endpoint": "approve_transaction",
+"tags": [
+"Onay",
+"finance"
+]
+},
+{
+"path": "/api/finance/onay/assign/{vtx_id}",
+"methods": [
+"POST"
+],
+"endpoint": "assign_department",
+"tags": [
+"Onay",
+"finance"
+]
+},
+{
+"path": "/api/finance/onay/my-approvals",
+"methods": [
+"GET"
+],
+"endpoint": "get_my_approvals",
+"tags": [
+"Onay",
+"finance"
+]
+},
+{
+"path": "/api/finance/onay/pending-count",
+"methods": [
+"GET"
+],
+"endpoint": "get_pending_count",
+"tags": [
+"Onay",
+"finance"
+]
+},
+{
+"path": "/api/finance/onay/reject/{vtx_id}",
+"methods": [
+"POST"
+],
+"endpoint": "reject_transaction",
+"tags": [
+"Onay",
+"finance"
+]
+},
+{
+"path": "/api/finance/onay/remove/{vtx_id}",
+"methods": [
+"POST"
+],
+"endpoint": "remove_assignment",
+"tags": [
+"Onay",
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/",
+"methods": [
+"GET"
+],
+"endpoint": "list_instruction_lists",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/",
+"methods": [
+"POST"
+],
+"endpoint": "create_instruction_list",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_instruction_list",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_instruction_list",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_instruction_list",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}/export/excel",
+"methods": [
+"GET"
+],
+"endpoint": "export_excel",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}/export/pdf",
+"methods": [
+"GET"
+],
+"endpoint": "export_pdf",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}/export/ykb-excel",
+"methods": [
+"GET"
+],
+"endpoint": "export_ykb_excel",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}/items",
+"methods": [
+"POST"
+],
+"endpoint": "add_items",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}/items/{item_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_item",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/payment-instructions/{list_id}/items/{item_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_item",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/sales-invoices/",
+"methods": [
+"GET"
+],
+"endpoint": "list_invoices",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/sales-invoices/advances",
+"methods": [
+"GET"
+],
+"endpoint": "advance_balances",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/sales-invoices/sedna-import",
+"methods": [
+"POST"
+],
+"endpoint": "sedna_import_sales",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/sales-invoices/summary",
+"methods": [
+"GET"
+],
+"endpoint": "summary",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/sedna/last-sync",
+"methods": [
+"GET"
+],
+"endpoint": "sedna_last_sync",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/sedna/status",
+"methods": [
+"GET"
+],
+"endpoint": "sedna_sync_status",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/sedna/sync-all",
+"methods": [
+"POST"
+],
+"endpoint": "sedna_sync_all",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/auto-match-vendors",
+"methods": [
+"POST"
+],
+"endpoint": "run_auto_match_vendors",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/auto-tag",
+"methods": [
+"POST"
+],
+"endpoint": "run_auto_tag",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/categories",
+"methods": [
+"GET"
+],
+"endpoint": "list_categories",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/categories",
+"methods": [
+"POST"
+],
+"endpoint": "create_category",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/payment-methods",
+"methods": [
+"GET"
+],
+"endpoint": "list_payment_methods",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/transactions/bulk",
+"methods": [
+"POST"
+],
+"endpoint": "bulk_tag_transactions",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/transactions/{tx_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "tag_transaction",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/tags/untagged-count",
+"methods": [
+"GET"
+],
+"endpoint": "untagged_count",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/vakifbank/status",
+"methods": [
+"GET"
+],
+"endpoint": "vakifbank_status",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/vakifbank/sync",
+"methods": [
+"POST"
+],
+"endpoint": "vakifbank_sync",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/finance/vakifbank/test-connection",
+"methods": [
+"POST"
+],
+"endpoint": "vakifbank_test_connection",
+"tags": [
+"finance"
+]
+},
+{
+"path": "/api/health",
+"methods": [
+"GET"
+],
+"endpoint": "health_check",
+"tags": [
+"health"
+]
+},
+{
+"path": "/api/health/live",
+"methods": [
+"GET"
+],
+"endpoint": "liveness",
+"tags": [
+"health"
+]
+},
+{
+"path": "/api/hr/salary/",
+"methods": [
+"GET"
+],
+"endpoint": "list_definitions",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/salary/",
+"methods": [
+"POST"
+],
+"endpoint": "create_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/salary/entries/{entry_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_entry",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/salary/summary/totals",
+"methods": [
+"GET"
+],
+"endpoint": "get_summary",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/salary/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/salary/{defn_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/salary/{defn_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/salary/{defn_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/",
+"methods": [
+"GET"
+],
+"endpoint": "list_definitions",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/",
+"methods": [
+"POST"
+],
+"endpoint": "create_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/entries/{entry_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_entry",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/summary/totals",
+"methods": [
+"GET"
+],
+"endpoint": "get_summary",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/{defn_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/{defn_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/sgk/{defn_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/shift-schedule",
+"methods": [
+"GET"
+],
+"endpoint": "get_schedule",
+"tags": [
+"hr-shift-schedule"
+]
+},
+{
+"path": "/api/hr/shift-schedule",
+"methods": [
+"POST"
+],
+"endpoint": "assign_cell",
+"tags": [
+"hr-shift-schedule"
+]
+},
+{
+"path": "/api/hr/shift-schedule/bulk",
+"methods": [
+"POST"
+],
+"endpoint": "bulk_assign",
+"tags": [
+"hr-shift-schedule"
+]
+},
+{
+"path": "/api/hr/shift-schedule/copy-week",
+"methods": [
+"POST"
+],
+"endpoint": "copy_week",
+"tags": [
+"hr-shift-schedule"
+]
+},
+{
+"path": "/api/hr/shift-schedule/{assignment_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "remove_cell",
+"tags": [
+"hr-shift-schedule"
+]
+},
+{
+"path": "/api/hr/shifts",
+"methods": [
+"GET"
+],
+"endpoint": "list_shifts",
+"tags": [
+"hr-shifts"
+]
+},
+{
+"path": "/api/hr/shifts",
+"methods": [
+"POST"
+],
+"endpoint": "create_shift",
+"tags": [
+"hr-shifts"
+]
+},
+{
+"path": "/api/hr/shifts/{sid}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_shift",
+"tags": [
+"hr-shifts"
+]
+},
+{
+"path": "/api/hr/shifts/{sid}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_shift",
+"tags": [
+"hr-shifts"
+]
+},
+{
+"path": "/api/hr/withholding/",
+"methods": [
+"GET"
+],
+"endpoint": "list_definitions",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/withholding/",
+"methods": [
+"POST"
+],
+"endpoint": "create_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/withholding/entries/{entry_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_entry",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/withholding/summary/totals",
+"methods": [
+"GET"
+],
+"endpoint": "get_summary",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/withholding/years",
+"methods": [
+"GET"
+],
+"endpoint": "list_years",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/withholding/{defn_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/withholding/{defn_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/hr/withholding/{defn_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_definition",
+"tags": [
+"hr"
+]
+},
+{
+"path": "/api/internal/broadcast-finance-update",
+"methods": [
+"POST"
+],
+"endpoint": "broadcast_finance_update",
+"tags": [
+"internal"
+]
+},
+{
+"path": "/api/messages/conversations",
+"methods": [
+"GET"
+],
+"endpoint": "list_conversations",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations",
+"methods": [
+"POST"
+],
+"endpoint": "create_conversation",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/group",
+"methods": [
+"POST"
+],
+"endpoint": "create_group",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_conversation",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_conversation",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}",
+"methods": [
+"POST"
+],
+"endpoint": "send_message",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/admins/{user_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_group_admin",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/members",
+"methods": [
+"POST"
+],
+"endpoint": "add_group_members",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/members/{user_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "remove_group_member",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/messages/{message_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_message",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/messages/{message_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "edit_message",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/mute",
+"methods": [
+"PATCH"
+],
+"endpoint": "toggle_mute",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/name",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_group_name",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/read",
+"methods": [
+"PATCH"
+],
+"endpoint": "mark_as_read",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/search",
+"methods": [
+"GET"
+],
+"endpoint": "search_messages",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/conversations/{conversation_id}/upload",
+"methods": [
+"POST"
+],
+"endpoint": "upload_file",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/online",
+"methods": [
+"GET"
+],
+"endpoint": "get_online_users",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/unread-count",
+"methods": [
+"GET"
+],
+"endpoint": "get_unread_count",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/messages/users",
+"methods": [
+"GET"
+],
+"endpoint": "list_chat_users",
+"tags": [
+"messages"
+]
+},
+{
+"path": "/api/notifications/",
+"methods": [
+"GET"
+],
+"endpoint": "list_notifications",
+"tags": [
+"notifications"
+]
+},
+{
+"path": "/api/notifications/all",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_all_notifications",
+"tags": [
+"notifications"
+]
+},
+{
+"path": "/api/notifications/read",
+"methods": [
+"PATCH"
+],
+"endpoint": "mark_read",
+"tags": [
+"notifications"
+]
+},
+{
+"path": "/api/notifications/test-email",
+"methods": [
+"POST"
+],
+"endpoint": "send_test_email",
+"tags": [
+"notifications"
+]
+},
+{
+"path": "/api/notifications/test-email/recipients",
+"methods": [
+"GET"
+],
+"endpoint": "list_test_email_recipients",
+"tags": [
+"notifications"
+]
+},
+{
+"path": "/api/notifications/unread-count",
+"methods": [
+"GET"
+],
+"endpoint": "unread_count",
+"tags": [
+"notifications"
+]
+},
+{
+"path": "/api/notifications/{notification_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_notification",
+"tags": [
+"notifications"
+]
+},
+{
+"path": "/api/push/subscribe",
+"methods": [
+"POST"
+],
+"endpoint": "subscribe",
+"tags": [
+"push"
+]
+},
+{
+"path": "/api/push/test",
+"methods": [
+"POST"
+],
+"endpoint": "test_push",
+"tags": [
+"push"
+]
+},
+{
+"path": "/api/push/unsubscribe",
+"methods": [
+"DELETE"
+],
+"endpoint": "unsubscribe",
+"tags": [
+"push"
+]
+},
+{
+"path": "/api/push/vapid-key",
+"methods": [
+"GET"
+],
+"endpoint": "get_vapid_public_key",
+"tags": [
+"push"
+]
+},
+{
+"path": "/api/sales/acente-finans/",
+"methods": [
+"GET"
+],
+"endpoint": "agency_finance_report",
+"tags": [
+"sales",
+"sales-acente-finans"
+]
+},
+{
+"path": "/api/sales/acente-mahsup/",
+"methods": [
+"GET"
+],
+"endpoint": "settlement",
+"tags": [
+"sales",
+"sales-acente-mahsup"
+]
+},
+{
+"path": "/api/sales/acente-mahsup/agency-status",
+"methods": [
+"GET"
+],
+"endpoint": "agency_status",
+"tags": [
+"sales",
+"sales-acente-mahsup"
+]
+},
+{
+"path": "/api/sales/agency-groups/",
+"methods": [
+"GET"
+],
+"endpoint": "list_groups",
+"tags": [
+"agency-groups",
+"sales",
+"sales-agency-groups"
+]
+},
+{
+"path": "/api/sales/agency-groups/",
+"methods": [
+"POST"
+],
+"endpoint": "create_group",
+"tags": [
+"agency-groups",
+"sales",
+"sales-agency-groups"
+]
+},
+{
+"path": "/api/sales/agency-groups/assign",
+"methods": [
+"POST"
+],
+"endpoint": "assign_agency",
+"tags": [
+"agency-groups",
+"sales",
+"sales-agency-groups"
+]
+},
+{
+"path": "/api/sales/agency-groups/{group_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_group",
+"tags": [
+"agency-groups",
+"sales",
+"sales-agency-groups"
+]
+},
+{
+"path": "/api/sales/agency-groups/{group_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_group",
+"tags": [
+"agency-groups",
+"sales",
+"sales-agency-groups"
+]
+},
+{
+"path": "/api/sales/daily-activity/details",
+"methods": [
+"GET"
+],
+"endpoint": "daily_activity_details",
+"tags": [
+"sales",
+"sales-daily-activity"
+]
+},
+{
+"path": "/api/sales/daily-activity/status",
+"methods": [
+"GET"
+],
+"endpoint": "daily_activity_status",
+"tags": [
+"sales",
+"sales-daily-activity"
+]
+},
+{
+"path": "/api/sales/daily-activity/summary",
+"methods": [
+"GET"
+],
+"endpoint": "daily_activity_summary",
+"tags": [
+"sales",
+"sales-daily-activity"
+]
+},
+{
+"path": "/api/sales/kontratlar/",
+"methods": [
+"GET"
+],
+"endpoint": "list_contracts",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/",
+"methods": [
+"POST"
+],
+"endpoint": "create_contract",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/actions-calendar",
+"methods": [
+"GET"
+],
+"endpoint": "actions_calendar",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/allotment-usage",
+"methods": [
+"GET"
+],
+"endpoint": "allotment_usage",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/children/{kind}/{child_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_child",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/children/{kind}/{child_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_child",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/deductions-forecast",
+"methods": [
+"GET"
+],
+"endpoint": "deductions_forecast",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/documents",
+"methods": [
+"POST"
+],
+"endpoint": "upload_document",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/documents/{doc_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_document",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/documents/{doc_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_document_meta",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/documents/{doc_id}/download",
+"methods": [
+"GET"
+],
+"endpoint": "download_document",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/price-audit",
+"methods": [
+"GET"
+],
+"endpoint": "price_audit",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/summary",
+"methods": [
+"GET"
+],
+"endpoint": "contracts_summary",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/{contract_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_contract",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/{contract_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_contract_detail",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/{contract_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_contract",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/kontratlar/{contract_id}/children/{kind}",
+"methods": [
+"POST"
+],
+"endpoint": "create_child",
+"tags": [
+"Kontratlar",
+"sales",
+"sales-kontratlar"
+]
+},
+{
+"path": "/api/sales/reservations/",
+"methods": [
+"GET"
+],
+"endpoint": "list_reservations",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/agency-pp-prices",
+"methods": [
+"GET"
+],
+"endpoint": "agency_pp_prices",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/bulk-delete",
+"methods": [
+"POST"
+],
+"endpoint": "bulk_delete_reservations",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/daily-occupancy",
+"methods": [
+"GET"
+],
+"endpoint": "daily_occupancy",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/occupancy-overview",
+"methods": [
+"GET"
+],
+"endpoint": "occupancy_overview",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/sedna-import",
+"methods": [
+"POST"
+],
+"endpoint": "reservation_sedna_import",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/sedna-status",
+"methods": [
+"GET"
+],
+"endpoint": "reservation_sedna_status",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/summary",
+"methods": [
+"GET"
+],
+"endpoint": "reservation_summary",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/upload",
+"methods": [
+"POST"
+],
+"endpoint": "upload_reservations",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/uploads",
+"methods": [
+"GET"
+],
+"endpoint": "list_uploads",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/uploads/{upload_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_upload",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/reservations/years",
+"methods": [
+"GET"
+],
+"endpoint": "reservation_years",
+"tags": [
+"sales",
+"sales-reservations"
+]
+},
+{
+"path": "/api/sales/room-types/",
+"methods": [
+"GET"
+],
+"endpoint": "list_room_types",
+"tags": [
+"Oda Tipleri",
+"sales",
+"sales-room-types"
+]
+},
+{
+"path": "/api/sales/room-types/",
+"methods": [
+"POST"
+],
+"endpoint": "create_room_type",
+"tags": [
+"Oda Tipleri",
+"sales",
+"sales-room-types"
+]
+},
+{
+"path": "/api/sales/room-types/{room_type_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_room_type",
+"tags": [
+"Oda Tipleri",
+"sales",
+"sales-room-types"
+]
+},
+{
+"path": "/api/sales/room-types/{room_type_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_room_type",
+"tags": [
+"Oda Tipleri",
+"sales",
+"sales-room-types"
+]
+},
+{
+"path": "/api/sales/room-types/{room_type_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_room_type",
+"tags": [
+"Oda Tipleri",
+"sales",
+"sales-room-types"
+]
+},
+{
+"path": "/api/stok/by-supplier",
+"methods": [
+"GET"
+],
+"endpoint": "by_supplier",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/cost-by-department",
+"methods": [
+"GET"
+],
+"endpoint": "cost_by_department",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/depots",
+"methods": [
+"GET"
+],
+"endpoint": "list_depots",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/monthly-trend",
+"methods": [
+"GET"
+],
+"endpoint": "monthly_trend",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/movements",
+"methods": [
+"GET"
+],
+"endpoint": "list_movements",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/operational-kpi",
+"methods": [
+"GET"
+],
+"endpoint": "operational_kpi",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/price-variance",
+"methods": [
+"GET"
+],
+"endpoint": "price_variance",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/product-purchases/{product_id}",
+"methods": [
+"GET"
+],
+"endpoint": "product_purchases",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/product-purchases/{product_id}/pdf",
+"methods": [
+"GET"
+],
+"endpoint": "product_purchases_pdf",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/products",
+"methods": [
+"GET"
+],
+"endpoint": "list_products",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/sedna-import",
+"methods": [
+"POST"
+],
+"endpoint": "stock_sedna_import",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/sedna-status",
+"methods": [
+"GET"
+],
+"endpoint": "stock_sedna_status",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/stok/summary",
+"methods": [
+"GET"
+],
+"endpoint": "stock_summary",
+"tags": [
+"stock"
+]
+},
+{
+"path": "/api/system/approval/modules-with-roles",
+"methods": [
+"GET"
+],
+"endpoint": "get_modules_with_roles",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/history",
+"methods": [
+"GET"
+],
+"endpoint": "list_history",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/my-submissions",
+"methods": [
+"GET"
+],
+"endpoint": "list_my_submissions",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/pending",
+"methods": [
+"GET"
+],
+"endpoint": "list_pending_requests",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/pending/count",
+"methods": [
+"GET"
+],
+"endpoint": "pending_count",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/{request_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_request_detail",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/{request_id}/approve",
+"methods": [
+"POST"
+],
+"endpoint": "approve_request",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/{request_id}/cancel",
+"methods": [
+"POST"
+],
+"endpoint": "cancel_request",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/{request_id}/reject",
+"methods": [
+"POST"
+],
+"endpoint": "reject_request",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/{request_id}/resubmit",
+"methods": [
+"POST"
+],
+"endpoint": "resubmit_request",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/requests/{request_id}/return",
+"methods": [
+"POST"
+],
+"endpoint": "return_request",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/status/bulk",
+"methods": [
+"POST"
+],
+"endpoint": "get_bulk_approval_status",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/status/{entity_type}/{entity_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_entity_approval_status",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/trigger",
+"methods": [
+"POST"
+],
+"endpoint": "trigger_approval",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/workflows",
+"methods": [
+"GET"
+],
+"endpoint": "list_workflows",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/workflows",
+"methods": [
+"POST"
+],
+"endpoint": "create_workflow",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/workflows/{workflow_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_workflow",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/workflows/{workflow_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_workflow",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/approval/workflows/{workflow_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_workflow",
+"tags": [
+"approval"
+]
+},
+{
+"path": "/api/system/audit-logs/",
+"methods": [
+"GET"
+],
+"endpoint": "list_audit_logs",
+"tags": [
+"audit"
+]
+},
+{
+"path": "/api/system/backup/data-status",
+"methods": [
+"GET"
+],
+"endpoint": "get_data_backup_status",
+"tags": [
+"system-backup"
+]
+},
+{
+"path": "/api/system/backup/restore",
+"methods": [
+"POST"
+],
+"endpoint": "restore_backup",
+"tags": [
+"system-backup"
+]
+},
+{
+"path": "/api/system/backup/run",
+"methods": [
+"POST"
+],
+"endpoint": "run_backup",
+"tags": [
+"system-backup"
+]
+},
+{
+"path": "/api/system/backup/status",
+"methods": [
+"GET"
+],
+"endpoint": "get_backup_status",
+"tags": [
+"system-backup"
+]
+},
+{
+"path": "/api/system/denetim/config",
+"methods": [
+"GET"
+],
+"endpoint": "get_config",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/config",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_config",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/findings",
+"methods": [
+"GET"
+],
+"endpoint": "list_findings",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/findings",
+"methods": [
+"POST"
+],
+"endpoint": "create_finding",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/findings/{finding_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_finding",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/findings/{finding_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_finding",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/findings/{finding_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_finding",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/findings/{finding_id}/run",
+"methods": [
+"POST"
+],
+"endpoint": "trigger_run",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/runs",
+"methods": [
+"GET"
+],
+"endpoint": "list_runs",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/denetim/scoreboard",
+"methods": [
+"GET"
+],
+"endpoint": "get_scoreboard",
+"tags": [
+"system-denetim"
+]
+},
+{
+"path": "/api/system/docs/",
+"methods": [
+"GET"
+],
+"endpoint": "list_documents",
+"tags": [
+"system-docs"
+]
+},
+{
+"path": "/api/system/docs/download",
+"methods": [
+"GET"
+],
+"endpoint": "doc_download",
+"tags": [
+"system-docs"
+]
+},
+{
+"path": "/api/system/docs/export/word",
+"methods": [
+"GET"
+],
+"endpoint": "doc_export_word",
+"tags": [
+"system-docs"
+]
+},
+{
+"path": "/api/system/docs/raw",
+"methods": [
+"GET"
+],
+"endpoint": "doc_raw",
+"tags": [
+"system-docs"
+]
+},
+{
+"path": "/api/system/error-logs/",
+"methods": [
+"DELETE"
+],
+"endpoint": "clear_error_logs",
+"tags": [
+"error-logs"
+]
+},
+{
+"path": "/api/system/error-logs/",
+"methods": [
+"GET"
+],
+"endpoint": "list_error_logs",
+"tags": [
+"error-logs"
+]
+},
+{
+"path": "/api/system/error-logs/summary",
+"methods": [
+"GET"
+],
+"endpoint": "error_log_summary",
+"tags": [
+"error-logs"
+]
+},
+{
+"path": "/api/system/error-logs/{log_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_error_log",
+"tags": [
+"error-logs"
+]
+},
+{
+"path": "/api/system/modules/",
+"methods": [
+"GET"
+],
+"endpoint": "list_modules",
+"tags": [
+"system-modules"
+]
+},
+{
+"path": "/api/system/modules/",
+"methods": [
+"POST"
+],
+"endpoint": "create_module",
+"tags": [
+"system-modules"
+]
+},
+{
+"path": "/api/system/modules/tree",
+"methods": [
+"GET"
+],
+"endpoint": "get_module_tree",
+"tags": [
+"system-modules"
+]
+},
+{
+"path": "/api/system/modules/{module_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_module",
+"tags": [
+"system-modules"
+]
+},
+{
+"path": "/api/system/modules/{module_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_module",
+"tags": [
+"system-modules"
+]
+},
+{
+"path": "/api/system/modules/{module_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_module",
+"tags": [
+"system-modules"
+]
+},
+{
+"path": "/api/system/roles/",
+"methods": [
+"GET"
+],
+"endpoint": "list_roles",
+"tags": [
+"system-roles"
+]
+},
+{
+"path": "/api/system/roles/",
+"methods": [
+"POST"
+],
+"endpoint": "create_role",
+"tags": [
+"system-roles"
+]
+},
+{
+"path": "/api/system/roles/{role_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_role",
+"tags": [
+"system-roles"
+]
+},
+{
+"path": "/api/system/roles/{role_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_role",
+"tags": [
+"system-roles"
+]
+},
+{
+"path": "/api/system/roles/{role_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_role",
+"tags": [
+"system-roles"
+]
+},
+{
+"path": "/api/system/server/disk",
+"methods": [
+"GET"
+],
+"endpoint": "get_disk_detail",
+"tags": [
+"system-server"
+]
+},
+{
+"path": "/api/system/server/disk/cleanup",
+"methods": [
+"POST"
+],
+"endpoint": "cleanup_disk",
+"tags": [
+"system-server"
+]
+},
+{
+"path": "/api/system/server/info",
+"methods": [
+"GET"
+],
+"endpoint": "get_server_info",
+"tags": [
+"system-server"
+]
+},
+{
+"path": "/api/system/server/services/{service_name}/logs",
+"methods": [
+"GET"
+],
+"endpoint": "get_service_logs",
+"tags": [
+"system-server"
+]
+},
+{
+"path": "/api/system/server/services/{service_name}/restart",
+"methods": [
+"POST"
+],
+"endpoint": "restart_service",
+"tags": [
+"system-server"
+]
+},
+{
+"path": "/api/system/users/",
+"methods": [
+"GET"
+],
+"endpoint": "list_users",
+"tags": [
+"system-users"
+]
+},
+{
+"path": "/api/system/users/",
+"methods": [
+"POST"
+],
+"endpoint": "create_user",
+"tags": [
+"system-users"
+]
+},
+{
+"path": "/api/system/users/{user_id}",
+"methods": [
+"DELETE"
+],
+"endpoint": "delete_user",
+"tags": [
+"system-users"
+]
+},
+{
+"path": "/api/system/users/{user_id}",
+"methods": [
+"GET"
+],
+"endpoint": "get_user",
+"tags": [
+"system-users"
+]
+},
+{
+"path": "/api/system/users/{user_id}",
+"methods": [
+"PATCH"
+],
+"endpoint": "update_user",
+"tags": [
+"system-users"
+]
+},
+{
+"path": "/api/system/users/{user_id}/reset-password",
+"methods": [
+"POST"
+],
+"endpoint": "reset_password",
+"tags": [
+"system-users"
+]
+},
+{
+"path": "/api/system/users/{user_id}/send-verification",
+"methods": [
+"POST"
+],
+"endpoint": "send_verification",
+"tags": [
+"system-users"
+]
+},
+{
+"path": "/api/ws",
+"methods": [],
+"endpoint": "websocket_endpoint",
+"tags": []
+},
+{
+"path": "/docs",
+"methods": [
+"GET"
+],
+"endpoint": "swagger_ui_html",
+"tags": []
+},
+{
+"path": "/docs/oauth2-redirect",
+"methods": [
+"GET"
+],
+"endpoint": "swagger_ui_redirect",
+"tags": []
+},
+{
+"path": "/openapi.json",
+"methods": [
+"GET"
+],
+"endpoint": "openapi",
+"tags": []
+},
+{
+"path": "/redoc",
+"methods": [
+"GET"
+],
+"endpoint": "redoc_html",
+"tags": []
+},
+{
+"path": "/uploads/{file_path:path}",
+"methods": [
+"GET"
+],
+"endpoint": "serve_file",
+"tags": [
+"files"
+]
+}
+]
