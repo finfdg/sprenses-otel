@@ -23,7 +23,7 @@ from app.utils.security import hash_password
 
 PREFIX = "/api/finance/sedna"
 CARI = "app.routers.finance.cariler.sedna_import"
-CHK = "app.routers.finance.check_import"
+CHK = "app.services.check_import_service"
 
 ALL_STEP_KEYS = {"cariler", "ibans", "checks", "sales_invoices",
                  "recurring_sync", "salary_sync", "stock", "reservations", "bank_recon"}

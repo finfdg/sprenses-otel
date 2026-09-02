@@ -1436,14 +1436,14 @@ nakit akışını PDF indirir: `GET /cash-flow/report/pdf?start_date&end_date`
   indi. Tüm Sedna içe-aktarma mantığı (`run_check_import`, `_import_one_check_row`,
   `_build_existing_and_stale`, `infer_check_banks`, `detect_check_no_mismatches`,
   `_sweep_stale_checks`, dedup/status anahtar helper'ları `_check_dedup_key`/`_check_status_from_pos`/
-  `_check_group_key`/`_checkno_to_int`/`_norm_bank`) yeni `app/routers/finance/check_import.py`'ye
+  `_check_group_key`/`_checkno_to_int`/`_norm_bank`) yeni `app/services/check_import_service.py`'ye
   taşındı. Bu modül **router'dan import ETMEZ** (tek yön → cycle yok); `checks.py` ihtiyaç duyduğu
   isimleri (`_check_dedup_key` [Excel upload dedup'u], `run_check_import`, `detect_check_no_mismatches`)
   geri import eder. `sedna_sync.py` artık `run_check_import`'u doğrudan `check_import`'tan alır (router
   yerine domain modülü). **`run_check_import` mantığı değişmedi** — yalnız taşındı + iç döngü
   `_import_one_check_row` helper'ına bölündü (207→~80 satır; davranış birebir).
   - **Test patch hedefi değişti:** `sedna_configured`/`fetch_issued_checks` patch'leri artık
-    `app.routers.finance.check_import`'u hedefler (run_check_import orada bu adları kendi global'inde
+    `app.services.check_import_service`'u hedefler (run_check_import orada bu adları kendi global'inde
     arar). `TARGET`/`CHK` sabitleri + 3 doğrudan import (`infer_check_banks`/`detect_check_no_mismatches`/
     `_sweep_stale_checks`) `check_import`'a repoint edildi. Test: `test_checks.py`, `test_sedna_sync.py`.
 - **`bank_statement_import.py` (yeni) — banka ekstresi yükleme/işleme domain katmanı:** `banks.py`

@@ -25,6 +25,7 @@ from app.middleware.auth import get_current_user, user_can
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
 from app.realtime.finance_broadcast import broadcast_finance_update, notify_finance_update_sync
+from app.services.check_import_service import run_check_import
 from app.services.recurring_vendor_sync import run_recurring_vendor_sync
 from app.services.reservation_service import run_reservation_import
 from app.services.salary_sync_service import run_salary_sedna_sync
@@ -32,7 +33,6 @@ from app.services.stock_service import run_stock_import
 from app.websocket.manager import manager
 
 from .cariler.sedna_import import run_cari_import, run_iban_import
-from .check_import import run_check_import
 from .sales_invoices import run_sales_invoice_import
 
 logger = logging.getLogger(__name__)

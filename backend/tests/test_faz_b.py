@@ -44,7 +44,7 @@ TODAY = datetime.now(tz_istanbul).date()
 
 MUTABAKAT_API = "/api/accounting/mutabakat"
 CARI_TARGET = "app.routers.finance.cariler.sedna_import"
-CHECK_TARGET = "app.routers.finance.check_import"
+CHECK_TARGET = "app.services.check_import_service"
 SALES_TARGET = "app.routers.finance.sales_invoices"
 
 

@@ -24,7 +24,7 @@ from app.database import SessionLocal
 from app.integrations.yapikredi_api import fetch_yapikredi_statement
 from app.models.bank_account import BankAccount
 from app.models.user import User
-from app.routers.finance.bank_statement_import import (
+from app.services.bank_statement_import_service import (
     _post_upload_processing,
     _process_statement,
 )

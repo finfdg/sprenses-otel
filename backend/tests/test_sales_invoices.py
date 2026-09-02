@@ -208,7 +208,7 @@ def test_central_sync_includes_sales(client, auth_headers, db):
     with patch.object(settings, "sedna_password", "x"), \
          patch("app.routers.finance.cariler.sedna_import.fetch_cari_transactions", return_value=[]), \
          patch("app.routers.finance.cariler.sedna_import.fetch_vendor_ibans", return_value=[]), \
-         patch("app.routers.finance.check_import.fetch_issued_checks", return_value=[]), \
+         patch("app.services.check_import_service.fetch_issued_checks", return_value=[]), \
          patch(f"{TARGET}.fetch_sales_invoices", return_value=FAKE), \
          patch(f"{TARGET}.fetch_advance_accounts", return_value=[]):
         j = run_sync_all_steps(db, admin, "test")

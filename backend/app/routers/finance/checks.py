@@ -22,13 +22,13 @@ from app.models.user import User
 from app.parsers.check_parser import parse_check_excel
 from app.paths import uploads_subdir
 from app.realtime.finance_broadcast import broadcast_finance_update
-from app.routers.finance.check_import import (
+from app.schemas.check import CheckResponse, CheckUploadResponse, CheckUploadResult
+from app.services import check_service
+from app.services.check_import_service import (
     _check_dedup_key,
     detect_check_no_mismatches,
     run_check_import,
 )
-from app.schemas.check import CheckResponse, CheckUploadResponse, CheckUploadResult
-from app.services import check_service
 from app.services.finance_event_service import finance_event_svc
 from app.services.matching_service import _match_checks_to_bank
 from app.utils.audit import log_action

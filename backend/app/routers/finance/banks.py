@@ -23,11 +23,6 @@ from app.models.bank_statement import BankStatement
 from app.models.bank_transaction import BankTransaction
 from app.models.user import User
 from app.realtime.finance_broadcast import broadcast_finance_update
-from app.routers.finance.bank_statement_import import (
-    _post_upload_processing,
-    _process_statement,
-    _save_and_parse,
-)
 from app.schemas.bank import (
     BankAccountCreate,
     BankAccountResponse,
@@ -37,6 +32,11 @@ from app.schemas.bank import (
     ManualTransactionCreate,
 )
 from app.services import bank_account_service
+from app.services.bank_statement_import_service import (
+    _post_upload_processing,
+    _process_statement,
+    _save_and_parse,
+)
 from app.services.finance_event_service import finance_event_svc
 from app.utils.audit import log_action
 
