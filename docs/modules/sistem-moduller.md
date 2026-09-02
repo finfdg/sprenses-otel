@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/system_modules.py` |
+| Router | `backend/app/routers/system/modules.py` |
 | Schema | `backend/app/schemas/module.py` |
 | Model | `backend/app/models/module.py` |
 | Frontend | `frontend/src/routes/dashboard/sistem/moduller/+page.svelte` |

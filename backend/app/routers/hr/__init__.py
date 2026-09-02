@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
 from app.constants import BroadcastModule, SourceType
-from app.routers.scheduled_base import create_scheduled_router
+from app.routers.common.scheduled_factory import create_scheduled_router
+from app.routers.hr import shift_schedule, shifts
 
 salary_router = create_scheduled_router(
     source_type=SourceType.SALARY,
@@ -25,6 +26,11 @@ sgk_router = create_scheduled_router(
 )
 
 router = APIRouter()
-router.include_router(salary_router, prefix="/salary")
-router.include_router(withholding_router, prefix="/withholding")
-router.include_router(sgk_router, prefix="/sgk")
+# Etiketler yeniden yapılandırma (2026-09-02) öncesi main.py kablolamasıyla birebir: fabrika
+# modülleri "hr", vardiyalar "hr-shifts"/"hr-shift-schedule". Devam takip (attendance/) /api/attendance
+# yolunu koruduğu için ayrı paket olarak kalır (QR kartlar/PWA bu yolu gömer).
+router.include_router(salary_router, prefix="/salary", tags=["hr"])
+router.include_router(withholding_router, prefix="/withholding", tags=["hr"])
+router.include_router(sgk_router, prefix="/sgk", tags=["hr"])
+router.include_router(shifts.router, tags=["hr-shifts"])
+router.include_router(shift_schedule.router, tags=["hr-shift-schedule"])

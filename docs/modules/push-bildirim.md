@@ -7,7 +7,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/push.py` |
+| Router | `backend/app/routers/core/push.py` |
 | Model | `backend/app/models/push_subscription.py` |
 | Util | `backend/app/realtime/push.py` — `send_push()`, `send_push_to_user()` |
 | Frontend util | `frontend/src/lib/utils/push.ts` — `subscribeToPush()`, `unsubscribeFromPush()`, `isPushSupported()` |

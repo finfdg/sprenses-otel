@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/auth.py` |
+| Router | `backend/app/routers/core/auth.py` |
 | Middleware | `backend/app/middleware/auth.py` — `get_current_user()`, `require_permission()` |
 | Middleware | `backend/app/middleware/rate_limit.py` — Login için 5/dk IP bazlı |
 | Util | `backend/app/utils/security.py` — `hash_password()`, `verify_password()`, `create_access_token()` |
@@ -40,7 +40,7 @@
 - **Response body:** Login/register `access_token` döndürmez (cookie yeterli), sadece kullanıcı bilgisi
 
 ## WebSocket Entegrasyonu
-- WebSocket upgrade request'inde cookie'den JWT okunur (`backend/app/routers/ws.py`)
+- WebSocket upgrade request'inde cookie'den JWT okunur (`backend/app/routers/core/ws.py`)
 - Fallback: auth mesajı ile token gönderimi destekli (geriye dönük uyumluluk)
 
 ## Audit Log

@@ -37,7 +37,7 @@ Kategoriler: **Genel Dokümanlar** (kök `CLAUDE.md` + `docs/` kökü), **Modül
 - **İndirme:** `api.fetchRaw` (cookie auth) → blob → tarayıcı indirmesi. Tekil `.md` veya birleşik `.docx`.
 
 ## Backend Dosyaları
-- `app/routers/system_docs.py` — list/raw/download/export-word + `_walk`/`_resolve` (allowlist).
+- `app/routers/system/docs.py` — list/raw/download/export-word + `_walk`/`_resolve` (allowlist).
 - `app/utils/md_docx.py` — `build_docs_docx(files)`: python-docx ile birleşik Word (kapak + dosya başına H1 + pragmatik markdown render: başlık/paragraf/liste/kod/tablo).
 - Migration `e3b7c9d1f2a4` — modül + admin izni. CI/test seed: `tests/ci/02_seed.sql` (id 914).
 - Test: `tests/test_system_docs.py` (liste/içerik/indir/Word/traversal-engeli/izin-403).

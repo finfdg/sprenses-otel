@@ -2,7 +2,6 @@
 
 import pytest
 
-
 # ==================== AUDIT LOG TESTLERİ ====================
 
 
@@ -128,7 +127,7 @@ class TestPush:
         from sqlalchemy import func
 
         from app.models.push_subscription import PushSubscription
-        from app.routers.push import MAX_ACTIVE_SUBSCRIPTIONS_PER_USER as CAP
+        from app.routers.core.push import MAX_ACTIVE_SUBSCRIPTIONS_PER_USER as CAP
 
         # CAP'ten fazla farklı endpoint ile abone ol
         for i in range(CAP + 5):
@@ -153,13 +152,13 @@ class TestWebSocketAuth:
 
     def test_ws_auth_function(self):
         """authenticate_ws_token fonksiyonu geçersiz token'da None dönmeli."""
-        from app.routers.ws import authenticate_ws_token
+        from app.routers.core.ws import authenticate_ws_token
         result = authenticate_ws_token("invalid_token")
         assert result is None
 
     def test_ws_auth_valid_token(self, client, auth_headers):
         """Geçerli token'dan user_id alınabilmeli."""
-        from app.routers.ws import authenticate_ws_token
+        from app.routers.core.ws import authenticate_ws_token
         token = auth_headers["Authorization"].replace("Bearer ", "")
         result = authenticate_ws_token(token)
         assert result is not None

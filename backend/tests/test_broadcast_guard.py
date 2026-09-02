@@ -34,6 +34,21 @@ BROADCAST_FUNCS = {
 # Her giriş tarama anındaki gerçek bir ihlale karşılık gelir; endpoint sonradan yayın
 # kazanırsa giriş buradan SİLİNMELİDİR (test bunu da zorlar).
 WHITELIST = {
+    # İK vardiya router'ları 2026-09-02'de hr/ paketine taşındı (tarama kapsamına girdi)
+    "hr/shifts.py:create_shift":
+        "İK vardiya (hr.shifts/hr.shift_schedule) — finance_events'e yazmaz; WS yayını manager.send_to_all_sync ile",
+    "hr/shifts.py:update_shift":
+        "İK vardiya (hr.shifts/hr.shift_schedule) — finance_events'e yazmaz; WS yayını manager.send_to_all_sync ile",
+    "hr/shifts.py:delete_shift":
+        "İK vardiya (hr.shifts/hr.shift_schedule) — finance_events'e yazmaz; WS yayını manager.send_to_all_sync ile",
+    "hr/shift_schedule.py:assign_cell":
+        "İK vardiya (hr.shifts/hr.shift_schedule) — finance_events'e yazmaz; WS yayını manager.send_to_all_sync ile",
+    "hr/shift_schedule.py:remove_cell":
+        "İK vardiya (hr.shifts/hr.shift_schedule) — finance_events'e yazmaz; WS yayını manager.send_to_all_sync ile",
+    "hr/shift_schedule.py:bulk_assign":
+        "İK vardiya (hr.shifts/hr.shift_schedule) — finance_events'e yazmaz; WS yayını manager.send_to_all_sync ile",
+    "hr/shift_schedule.py:copy_week":
+        "İK vardiya (hr.shifts/hr.shift_schedule) — finance_events'e yazmaz; WS yayını manager.send_to_all_sync ile",
     # PDF üretimi — DB'de finansal veri değişmez, yalnız talimat PDF'i döner
     "finance/bank_instructions.py:create_transfer_instruction":
         "PDF üretimi (talimat çıktısı; veri mutasyonu yok)",

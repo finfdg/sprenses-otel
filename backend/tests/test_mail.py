@@ -91,15 +91,15 @@ class TestTestEmailEndpoint:
         assert resp.status_code == 403
 
     def test_503_when_smtp_disabled(self, client, auth_headers):
-        with patch("app.routers.notifications.is_mail_enabled", return_value=False):
+        with patch("app.routers.core.notifications.is_mail_enabled", return_value=False):
             resp = client.post(f"{NOTIF_PREFIX}/test-email", headers=auth_headers)
         assert resp.status_code == 503
 
     def test_success_sends_to_system_mailbox(self, client, auth_headers):
         from app.config import settings
 
-        with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(
-            "app.routers.notifications.send_email", return_value=True
+        with patch("app.routers.core.notifications.is_mail_enabled", return_value=True), patch(
+            "app.routers.core.notifications.send_email", return_value=True
         ) as se:
             resp = client.post(f"{NOTIF_PREFIX}/test-email", headers=auth_headers)
         assert resp.status_code == 200
@@ -111,8 +111,8 @@ class TestTestEmailEndpoint:
         assert se.call_args.kwargs["to"] == settings.smtp_user
 
     def test_502_when_send_fails(self, client, auth_headers):
-        with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(
-            "app.routers.notifications.send_email", return_value=False
+        with patch("app.routers.core.notifications.is_mail_enabled", return_value=True), patch(
+            "app.routers.core.notifications.send_email", return_value=False
         ):
             resp = client.post(f"{NOTIF_PREFIX}/test-email", headers=auth_headers)
         assert resp.status_code == 502
@@ -122,8 +122,8 @@ class TestTestEmailEndpoint:
             f"{NOTIF_PREFIX}/test-email/recipients", headers=auth_headers
         ).json()
         admin = next(r for r in recips if r["email"] == "admin@sprenses.com")
-        with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(
-            "app.routers.notifications.send_email", return_value=True
+        with patch("app.routers.core.notifications.is_mail_enabled", return_value=True), patch(
+            "app.routers.core.notifications.send_email", return_value=True
         ) as se:
             resp = client.post(
                 f"{NOTIF_PREFIX}/test-email",
@@ -135,8 +135,8 @@ class TestTestEmailEndpoint:
         assert se.call_args.kwargs["to"] == "admin@sprenses.com"
 
     def test_404_unknown_user(self, client, auth_headers):
-        with patch("app.routers.notifications.is_mail_enabled", return_value=True), patch(
-            "app.routers.notifications.send_email", return_value=True
+        with patch("app.routers.core.notifications.is_mail_enabled", return_value=True), patch(
+            "app.routers.core.notifications.send_email", return_value=True
         ):
             resp = client.post(
                 f"{NOTIF_PREFIX}/test-email",

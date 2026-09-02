@@ -5,7 +5,7 @@ Gerçek sudo restart çağrıları yapmıyoruz — sadece izin/whitelist davran�
 ve response yapısını test ediyoruz. Sudo gerektiren restart yolu, subprocess
 mock'lanarak doğrulanır.
 """
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -175,7 +175,7 @@ def test_restart_whitelisted_service_calls_subprocess(client, auth_headers):
     fake_result = MagicMock()
     fake_result.returncode = 0
     fake_result.stderr = ""
-    with patch("app.routers.system_server.subprocess.run", return_value=fake_result) as mock_run:
+    with patch("app.routers.system.server.subprocess.run", return_value=fake_result) as mock_run:
         res = client.post(
             "/api/system/server/services/sprenses-api/restart",
             headers=auth_headers,
@@ -196,7 +196,7 @@ def test_restart_propagates_subprocess_failure(client, auth_headers):
     fake_result = MagicMock()
     fake_result.returncode = 1
     fake_result.stderr = "sudo: a password is required"
-    with patch("app.routers.system_server.subprocess.run", return_value=fake_result):
+    with patch("app.routers.system.server.subprocess.run", return_value=fake_result):
         res = client.post(
             "/api/system/server/services/sprenses-api/restart",
             headers=auth_headers,
@@ -241,7 +241,7 @@ def test_logs_whitelisted_service_returns_log_field(client, auth_headers):
     fake_result.returncode = 0
     fake_result.stdout = "Apr 12 12:00:01 sprenses-api[123]: started"
     fake_result.stderr = ""
-    with patch("app.routers.system_server.subprocess.run", return_value=fake_result):
+    with patch("app.routers.system.server.subprocess.run", return_value=fake_result):
         res = client.get(
             "/api/system/server/services/postgresql/logs?lines=10",
             headers=auth_headers,
@@ -259,7 +259,7 @@ def test_logs_propagates_subprocess_failure(client, auth_headers):
     fake_result.returncode = 1
     fake_result.stderr = "Permission denied"
     fake_result.stdout = ""
-    with patch("app.routers.system_server.subprocess.run", return_value=fake_result):
+    with patch("app.routers.system.server.subprocess.run", return_value=fake_result):
         res = client.get(
             "/api/system/server/services/nginx/logs",
             headers=auth_headers,
@@ -357,7 +357,7 @@ def test_cleanup_calls_service_and_audits(client, auth_headers, db):
         "filesystem": {"mount": "/", "total_bytes": 1, "used_bytes": 1, "free_bytes": 0, "percent": 1.0},
     }
     with patch(
-        "app.routers.system_server.disk_cleanup_service.run_cleanup",
+        "app.routers.system.server.disk_cleanup_service.run_cleanup",
         return_value=fake_result,
     ) as mock_clean:
         res = client.post(

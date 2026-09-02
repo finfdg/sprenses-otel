@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/system_users.py` |
+| Router | `backend/app/routers/system/users.py` |
 | Schema | `backend/app/schemas/user.py` |
 | Model | `backend/app/models/user.py` |
 | Response builder | `backend/app/utils/response_builders.py` — `build_user_responses_batch()` |

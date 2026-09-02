@@ -31,7 +31,7 @@ class TestSystemDocs:
         r = client.get(f"{PREFIX}/", headers=auth_headers)
         assert r.status_code == 200, r.text
         cats = {it["path"]: it["category"] for it in r.json()["items"]}
-        be = "backend/app/routers/system_docs.py"
+        be = "backend/app/routers/system/docs.py"
         assert be in cats and cats[be] == "Kaynak — Backend", cats.get(be)
         assert any(p.startswith("frontend/src/") and cats[p] == "Kaynak — Frontend" for p in cats)
         # .env bu kümede ASLA olmamalı (uzantı + konum dışı)

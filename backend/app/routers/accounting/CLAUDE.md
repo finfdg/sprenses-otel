@@ -11,7 +11,7 @@ katkı kurallarını içerir.
 
 ```python
 from app.constants import BroadcastModule, SourceType
-from app.routers.scheduled_base import create_scheduled_router
+from app.routers.common.scheduled_factory import create_scheduled_router
 
 taxes_router = create_scheduled_router(
     source_type=SourceType.TAX,

@@ -17,7 +17,7 @@ from app.models.module import Module
 from app.models.role import Role
 from app.models.role_module_permission import RoleModulePermission
 from app.models.user import User
-from app.routers.files import _uploads_dir
+from app.routers.core.files import _uploads_dir
 from app.utils.security import hash_password
 
 

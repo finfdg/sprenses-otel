@@ -346,8 +346,8 @@ Bağlantı kapandığında:
 | `backend/app/routers/messages/_helpers.py` | WS event builder, yardımcı fonksiyonlar |
 | `backend/app/routers/messages/groups.py` | Grup konuşma işlemleri |
 | `backend/app/routers/messages/users.py` | Mesajlaşılabilir kullanıcı listesi |
-| `backend/app/routers/ws.py` | WebSocket endpoint + typing handler |
-| `backend/app/routers/push.py` | Push abonelik API'leri |
+| `backend/app/routers/core/ws.py` | WebSocket endpoint + typing handler |
+| `backend/app/routers/core/push.py` | Push abonelik API'leri |
 | `backend/app/websocket/manager.py` | WS bağlantı yöneticisi |
 | `backend/app/realtime/push.py` | Push bildirim gönderim helper'ı |
 | `backend/app/models/message.py` | Message modeli |

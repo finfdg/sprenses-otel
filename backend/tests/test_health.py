@@ -30,7 +30,7 @@ def test_health_returns_503_when_db_down(client):
 
     Bu testin varlık sebebi: eski uç DB'ye hiç bakmadığından her koşulda 200 dönerdi.
     """
-    from app.routers import health as health_mod
+    from app.routers.core import health as health_mod
 
     with patch.object(health_mod, "text", side_effect=RuntimeError("DB kapalı")):
         response = client.get("/api/health")
@@ -47,7 +47,7 @@ def test_sedna_tunnel_down_does_not_fail_health(client):
     Tünel akşamları/LAN makinesi kapalıyken normalde kapalıdır; sert saymak her gece
     sahte alarm üretirdi. Yalnız içe-aktarma adımları 503 döner.
     """
-    from app.routers import health as health_mod
+    from app.routers.core import health as health_mod
 
     with patch.object(settings, "sedna_password", "testpw"), \
          patch.object(health_mod, "_check_sedna_tunnel",
@@ -68,7 +68,7 @@ def test_sedna_disabled_when_not_configured(client):
 
 def test_liveness_never_checks_dependencies(client):
     """/health/live yalnız süreç canlılığı — DB kontrolü YAPMAZ, daima 200."""
-    from app.routers import health as health_mod
+    from app.routers.core import health as health_mod
 
     with patch.object(health_mod, "text", side_effect=RuntimeError("DB kapalı")):
         response = client.get("/api/health/live")

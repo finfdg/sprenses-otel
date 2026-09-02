@@ -236,7 +236,7 @@ Her alt modül aynı endpoint setini sunar (prefix değişir):
 |---|---|
 | `app/models/scheduled.py` | ScheduledDefinition + ScheduledEntry modelleri |
 | `app/schemas/scheduled.py` | Pydantic şemaları |
-| `app/routers/scheduled_base.py` | Generic CRUD router fabrikası |
+| `app/routers/common/scheduled_factory.py` | Generic CRUD router fabrikası |
 | `app/routers/accounting/__init__.py` | Muhasebe router (taxes + recurring) |
 | `app/routers/hr/__init__.py` | İK router (salary + withholding) |
 | `app/services/entry_generator.py` | Giriş üretme/yenileme mantığı |
@@ -274,7 +274,7 @@ Onay gereken "create" işlemlerinde kayıt `is_active=False` olarak veritabanın
 5. Reddedildiğinde / iptal edildiğinde: `cleanup_rejected_or_cancelled()` pasif kaydı siler
 
 ### Etkilenen Dosyalar
-- `backend/app/routers/scheduled_base.py` — POST endpoint'inde pasif kayıt oluşturma
+- `backend/app/routers/common/scheduled_factory.py` — POST endpoint'inde pasif kayıt oluşturma
 - `backend/app/approval/approval_executor.py` — `_handle_scheduled` create handler + `cleanup_rejected_or_cancelled()`
 - `backend/app/routers/approval/requests.py` — reject/cancel endpoint'lerinde cleanup çağrısı
 - `frontend/src/lib/components/scheduled/ScheduledModule.svelte` — Pasif kayıt gösterimi (turuncu tema, expand engeli)

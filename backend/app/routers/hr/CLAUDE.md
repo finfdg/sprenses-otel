@@ -9,7 +9,7 @@
 
 ```python
 from app.constants import BroadcastModule, SourceType
-from app.routers.scheduled_base import create_scheduled_router
+from app.routers.common.scheduled_factory import create_scheduled_router
 
 salary_router = create_scheduled_router(
     source_type=SourceType.SALARY,

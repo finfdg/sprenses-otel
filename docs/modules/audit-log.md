@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/audit.py` |
+| Router | `backend/app/routers/system/audit_logs.py` |
 | Model | `backend/app/models/audit_log.py` |
 | Util | `backend/app/utils/audit.py` — `log_action()` helper |
 | Frontend | `frontend/src/routes/dashboard/sistem/audit-loglar/+page.svelte` |

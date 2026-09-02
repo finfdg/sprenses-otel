@@ -86,7 +86,7 @@ payload'dan üretir (recurring'de UI "Onayda" ön-kaydı yapılmaz — talep Ona
 |---|---|---|
 | Config | `backend/app/config.py` | `anthropic_api_key`, `anthropic_model` (varsayılan `claude-opus-4-8`) |
 | Servis | `backend/app/services/ai_service.py` | 3 okuma tool'u + Claude tool-use döngüsü; her tool `user_can` izin kontrollü |
-| Router | `backend/app/routers/ai_assistant.py` | `POST /api/ai/sor` — `require_permission("ai.asistan","view")` + audit (`ai_query`) |
+| Router | `backend/app/routers/ai/assistant.py` | `POST /api/ai/sor` — `require_permission("ai.asistan","view")` + audit (`ai_query`) |
 | Kayıt | `backend/app/main.py` | router `/api/ai` prefix'iyle include |
 | Migration | `alembic/.../b8e5c2f1a9d7_add_ai_asistan_module.py` | `ai` + `ai.asistan` modülleri + Admin izni |
 | Frontend | `frontend/src/routes/dashboard/asistan/+page.svelte` | Sohbet arayüzü (tasarım sistemi: PageHeader/Button/Lucide/AA) |

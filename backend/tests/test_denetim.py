@@ -392,7 +392,7 @@ class TestFindingsApi:
         """
         import subprocess as sp
 
-        from app.routers import system_denetim
+        from app.routers.system import denetim
 
         captured = {}
 
@@ -400,7 +400,7 @@ class TestFindingsApi:
             captured["cmd"] = cmd
             return sp.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-        monkeypatch.setattr(system_denetim.subprocess, "run", fake_run)
+        monkeypatch.setattr(denetim.subprocess, "run", fake_run)
 
         f = _finding(db, denetim_report, "A-001", automatable=True)
         db.commit()

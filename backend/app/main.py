@@ -11,31 +11,16 @@ from app.config import settings
 from app.paths import LOGS_DIR, UPLOADS_DIR
 from app.routers import (
     accounting,
-    ai_assistant,
+    ai,
+    approval,
     attendance,
-    audit,
-    auth,
-    error_logs,
-    files,
+    core,
     finance,
-    health,
     hr,
-    internal,
     messages,
-    notifications,
-    push,
     sales,
-    shift_schedule,
-    shifts,
     stock,
-    system_backup,
-    system_denetim,
-    system_docs,
-    system_modules,
-    system_roles,
-    system_server,
-    system_users,
-    ws,
+    system,
 )
 
 # ─── Merkezi Log Yapılandırması ──────────────────────────────────────────────
@@ -193,35 +178,20 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     return JSONResponse(status_code=500, content={"detail": "Sunucu hatası oluştu"})
 
-app.include_router(health.router, prefix="/api", tags=["health"])
-app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-app.include_router(system_users.router, prefix="/api/system/users", tags=["system-users"])
-app.include_router(system_roles.router, prefix="/api/system/roles", tags=["system-roles"])
-app.include_router(system_modules.router, prefix="/api/system/modules", tags=["system-modules"])
-app.include_router(system_server.router, prefix="/api/system", tags=["system-server"])
-app.include_router(system_backup.router, prefix="/api/system", tags=["system-backup"])
-app.include_router(system_docs.router, prefix="/api/system/docs", tags=["system-docs"])
-app.include_router(system_denetim.router, prefix="/api/system/denetim", tags=["system-denetim"])
+# Router kablolaması — her paket kendi alt-router etiket/öneklerini __init__'inde taşır
+# (2026-09-02 yeniden yapılandırması; yol/metot/etiket kümesi tests/test_route_manifest.py ile dondurulmuştur).
+app.include_router(core.router, prefix="/api")                                   # health, auth/, ws, push/, notifications/
+app.include_router(system.router, prefix="/api/system")                          # users/ roles/ modules/ server backup docs/ denetim/ audit-logs/ error-logs/
 app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
-app.include_router(ws.router, prefix="/api", tags=["websocket"])
-app.include_router(push.router, prefix="/api/push", tags=["push"])
-app.include_router(audit.router, prefix="/api/system/audit-logs", tags=["audit"])
-app.include_router(error_logs.router, prefix="/api/system/error-logs", tags=["error-logs"])
-app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(finance.router, prefix="/api/finance", tags=["finance"])
 app.include_router(accounting.router, prefix="/api/accounting", tags=["accounting"])
-app.include_router(hr.router, prefix="/api/hr", tags=["hr"])
-app.include_router(shifts.router, prefix="/api/hr", tags=["hr-shifts"])
-app.include_router(shift_schedule.router, prefix="/api/hr", tags=["hr-shift-schedule"])
-app.include_router(attendance.router, prefix="/api", tags=["attendance"])
+app.include_router(hr.router, prefix="/api/hr")                                  # salary/ withholding/ sgk/ + shifts + shift-schedule
+app.include_router(attendance.router, prefix="/api", tags=["attendance"])       # /api/attendance/* — yol koruma (QR kartlar/PWA)
 app.include_router(sales.router, prefix="/api/sales", tags=["sales"])
 app.include_router(stock.router, prefix="/api/stok", tags=["stock"])
-app.include_router(ai_assistant.router, prefix="/api/ai", tags=["ai-assistant"])
-app.include_router(files.router, tags=["files"])
-app.include_router(internal.router, tags=["internal"])
-
-from app.routers import approval
-
+app.include_router(ai.router, prefix="/api/ai")
+app.include_router(core.files_router)                                            # /uploads/{path} (öneksiz)
+app.include_router(core.internal_router)                                         # /api/internal/* (router-düzeyi önek)
 app.include_router(approval.router, prefix="/api/system/approval", tags=["approval"])
 
 # Yükleme dizinini oluştur (dosya endpoint'i tarafından kullanılır)

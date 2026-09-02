@@ -28,7 +28,7 @@ taşıyıcı, her otomasyon koşusu denetlenebilir bir kayıt.
 | `app/models/audit_tracker.py` | 5 model: `AuditReport`, `AuditDimension`, `AuditFinding`, `AuditFindingRun`, `AuditAutomationConfig` |
 | `app/schemas/audit_tracker.py` | `FindingCreate/Update`, `AutomationConfigUpdate`, `FindingResponse`, `DimensionResponse`, `ScoreboardResponse`, `RunResponse` |
 | `app/services/audit_tracker_service.py` | **Skor motoru + prompt üreteci + CRUD** — router, onay executor'ı ve cron ORTAK kullanır |
-| `app/routers/system_denetim.py` | HTTP uçları (izin + onay + audit) |
+| `app/routers/system/denetim.py` | HTTP uçları (izin + onay + audit) |
 | `app/approval/approval_executor.py` | `_handle_system_denetim` + `_HANDLERS["system.denetim"]` |
 | `alembic/versions/c4d8e2f6a1b9_*.py` | 5 tablo + `system.denetim` modülü + Admin izni |
 | `cron_denetim_auto.py` | 5 saatlik otomasyon (worktree → claude → test → deploy → geri alma) |

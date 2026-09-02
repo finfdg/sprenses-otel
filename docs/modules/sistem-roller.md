@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/system_roles.py` |
+| Router | `backend/app/routers/system/roles.py` |
 | Schema | `backend/app/schemas/role.py` |
 | Model | `backend/app/models/role.py`, `role_module_permission.py` |
 | Response builder | `backend/app/utils/response_builders.py` — `build_role_responses_batch()` |

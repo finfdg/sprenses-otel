@@ -21,7 +21,7 @@ Giden e-posta gönderimi — sistemin `bilgi@sprenses.com` kurumsal kutusundan
 | Config | `backend/app/config.py` | `smtp_host/port/use_ssl/user/password/from_name` ayarları |
 | Helper | `backend/app/integrations/mail.py` | `send_email()` + `is_mail_enabled()` |
 | Bildirim | `backend/app/realtime/notification.py` | `email=True` opt-in → arka planda e-posta (`_build_email_html`, `_build_email_payloads`, `_send_email_background`) |
-| Endpoint | `backend/app/routers/notifications.py` | `POST /api/notifications/test-email` (deneme) |
+| Endpoint | `backend/app/routers/core/notifications.py` | `POST /api/notifications/test-email` (deneme) |
 | Frontend | `frontend/src/routes/dashboard/sistem/sunucu/+page.svelte` | "Deneme e-postası gönder" butonu (E-posta SMTP kartı) |
 | Test | `backend/tests/test_mail.py` | 15 test (helper + escape + endpoint) |
 | Şablon | `backend/.env.example` | SMTP bölümü |

@@ -69,14 +69,14 @@ class TestSendVerification:
 
     def test_503_when_smtp_disabled(self, client, auth_headers, db):
         u = _make_user(db, username="sv_smtpoff", email="svs@sprenses.com")
-        with patch("app.routers.system_users.is_mail_enabled", return_value=False):
+        with patch("app.routers.system.users.is_mail_enabled", return_value=False):
             resp = client.post(f"{USERS_PREFIX}/{u.id}/send-verification", headers=auth_headers)
         assert resp.status_code == 503
 
     def test_success(self, client, auth_headers, db):
         u = _make_user(db, username="sv_ok", email="svok@sprenses.com")
-        with patch("app.routers.system_users.is_mail_enabled", return_value=True), patch(
-            "app.routers.system_users.send_email_background"
+        with patch("app.routers.system.users.is_mail_enabled", return_value=True), patch(
+            "app.routers.system.users.send_email_background"
         ) as bg:
             resp = client.post(f"{USERS_PREFIX}/{u.id}/send-verification", headers=auth_headers)
         assert resp.status_code == 200
@@ -117,7 +117,7 @@ class TestVerifyEmailPublic:
     def test_verify_broadcasts_ws_event(self, client, db):
         u = _make_user(db, username="ve_ws", email="wsverify@sprenses.com")
         token = create_email_verification_token(u.id, u.email)
-        with patch("app.routers.auth.manager.send_to_all_sync") as bc:
+        with patch("app.routers.core.auth.manager.send_to_all_sync") as bc:
             resp = client.post(f"{AUTH_PREFIX}/verify-email", json={"token": token})
         assert resp.status_code == 200
         bc.assert_called_once()

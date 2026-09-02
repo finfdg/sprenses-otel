@@ -14,7 +14,7 @@
 | Rol cache | `backend/app/utils/messaging_role_cache.py` — messaging erişimli rol ID'leri (5dk TTL). **Cache state utils'tedir** (router değil) ki `system_service` izin değişiminde invalidate ederken service→router import yönü oluşmasın (2026-06-27 refactor). `_helpers.py` geriye uyum için `_get_messaging_role_ids`/`_invalidate_messaging_role_cache` adlarıyla re-export eder. |
 | Model | `backend/app/models/conversation.py`, `message.py`, `conversation_member.py` |
 | Schema | `backend/app/schemas/message.py` |
-| WebSocket | `backend/app/routers/ws.py`, `backend/app/websocket/manager.py` |
+| WebSocket | `backend/app/routers/core/ws.py`, `backend/app/websocket/manager.py` |
 | Frontend | `frontend/src/routes/dashboard/mesajlasma/+page.svelte` |
 | Store | `frontend/src/lib/stores/messaging.svelte.ts` |
 
@@ -50,7 +50,7 @@
 
 ## Dosya Ekleri & Erişim Güvenliği (IDOR)
 - Mesaj ekleri `save_upload` ile `backend/uploads/YYYY/MM/uuid.ext` altına yazılır; `Message.file_url` = `/uploads/2026/02/uuid.ext`.
-- **Sunum:** `backend/app/routers/files.py` → `GET /uploads/{path}` (`serve_file`). Kimlik doğrulama TEK BAŞINA yeterli değildir.
+- **Sunum:** `backend/app/routers/core/files.py` → `GET /uploads/{path}` (`serve_file`). Kimlik doğrulama TEK BAŞINA yeterli değildir.
 - **IDOR koruması (SECA-001, 2026-07-25):** `serve_file` dizin-önekini modüle eşler ve o modülün `user_can(view)` iznini arar. Mesaj ekleri (yıl-önekli `YYYY/MM/`) için ayrıca **konuşma üyeliği** doğrulanır — dosyayı referanslayan mesajın konuşmasına üye olmayan kullanıcı `messaging` izni olsa bile **403** alır. Tanınmayan dizin öneki **deny-by-default 403**. Test: `backend/tests/test_files_idor.py`.
 
 ## Mesaj Düzenleme & Silme Kuralları

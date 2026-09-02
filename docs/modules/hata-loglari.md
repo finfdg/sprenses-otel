@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/error_logs.py` |
+| Router | `backend/app/routers/system/error_logs.py` |
 | Model | `backend/app/models/error_log.py` |
 | Middleware | `backend/app/main.py` — global exception handler ErrorLog'a yazar |
 | Log köprüsü | `backend/app/utils/db_log_handler.py` — `DBLogHandler` (root logger'a bağlı) |

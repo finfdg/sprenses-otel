@@ -8,7 +8,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/notifications.py` |
+| Router | `backend/app/routers/core/notifications.py` |
 | Model | `backend/app/models/notification.py` |
 | Util | `backend/app/realtime/notification.py` — `create_notification()`, `notify_users()` |
 | Util | `backend/app/realtime/push.py` — VAPID push delivery |

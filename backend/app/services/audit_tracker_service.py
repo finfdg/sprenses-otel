@@ -1,6 +1,6 @@
 """Denetim Takip domain servisi — skor motoru, prompt üreteci, bulgu CRUD.
 
-HTTP'siz. Router (`app/routers/system_denetim.py`), onay executor handler'ı ve
+HTTP'siz. Router (`app/routers/system/denetim.py`), onay executor handler'ı ve
 otomasyon cron'u (`backend/cron_denetim_auto.py`) AYNI fonksiyonları çağırır —
 CLAUDE.md D1-2 ortak-service deseni (router ile executor'ın sessizce ayrışmasını
 yapısal olarak engeller).

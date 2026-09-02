@@ -249,7 +249,7 @@ Otomatik yedek `.claude/settings.json` Stop hook'u ile zaten alınır; bu modül
 **görünürlük + manuel kontrol** ekler.
 
 ## Dosya Haritası
-- Backend: `backend/app/routers/system_backup.py` (main.py'de `/api/system` altına mount)
+- Backend: `backend/app/routers/system/backup.py` (main.py'de `/api/system` altına mount)
 - Frontend: `frontend/src/routes/dashboard/sistem/yedekleme/+page.svelte`
 - Navigasyon: `frontend/src/lib/config/navigation.ts` → system grubu → `system.backup`
 

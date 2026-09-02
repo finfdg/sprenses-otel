@@ -3,7 +3,7 @@
 ## Genel Bilgi
 - **Endpoint:** `WS /api/ws`
 - **Auth:** Upgrade request cookie'sinden JWT, fallback olarak auth mesajı
-- **Router:** `backend/app/routers/ws.py`
+- **Router:** `backend/app/routers/core/ws.py`
 - **Manager:** `backend/app/websocket/manager.py`
 - **Frontend store:** `frontend/src/lib/stores/websocket.svelte.ts`
 

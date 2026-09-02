@@ -27,11 +27,12 @@ def test_consumers_share_the_central_paths():
     from app import main
     from app.integrations import qnb_api
     from app.parsers import bank_parser
-    from app.routers import files, system_denetim, system_docs
+    from app.routers.core import files
     from app.routers.finance import cc_statements, checks
     from app.routers.finance.cariler import _helpers as cariler_helpers
     from app.routers.sales import contracts
     from app.routers.sales.reservations import _helpers as reservation_helpers
+    from app.routers.system import denetim, docs
     from app.services import bank_statement_import_service, disk_cleanup_service
     from app.utils import file_upload, pdf_bank_instruction
 
@@ -40,9 +41,9 @@ def test_consumers_share_the_central_paths():
     assert main._uploads_dir == paths.UPLOADS_DIR
     assert files._uploads_dir == paths.UPLOADS_DIR
     assert file_upload.UPLOAD_DIR == paths.UPLOADS_DIR
-    assert system_docs.ROOT == paths.REPO_ROOT
-    assert system_denetim._BACKEND_DIR == str(paths.BACKEND_DIR)
-    assert system_denetim._CRON_SCRIPT == str(paths.CRON_DENETIM_SCRIPT)
+    assert docs.ROOT == paths.REPO_ROOT
+    assert denetim._BACKEND_DIR == str(paths.BACKEND_DIR)
+    assert denetim._CRON_SCRIPT == str(paths.CRON_DENETIM_SCRIPT)
     assert cc_statements.UPLOAD_DIR == os.path.join(up, "cc_statements")
     assert checks.UPLOAD_DIR == os.path.join(up, "check_files")
     assert bank_statement_import_service.UPLOAD_DIR == os.path.join(up, "bank_statements")

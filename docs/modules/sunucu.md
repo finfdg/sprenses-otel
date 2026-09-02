@@ -10,7 +10,7 @@
 ## Dosya Haritası
 | Katman | Dosya |
 |---|---|
-| Router | `backend/app/routers/system_server.py` |
+| Router | `backend/app/routers/system/server.py` |
 | Servis | `backend/app/services/disk_cleanup_service.py` (disk dökümü + temizlik) |
 | Şema | `backend/app/schemas/server.py` |
 | Cron | `backend/cron_disk_cleanup.py` (`sprenses-disk-cleanup.timer`) |
