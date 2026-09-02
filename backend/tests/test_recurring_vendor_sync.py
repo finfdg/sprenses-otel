@@ -14,9 +14,9 @@ from app.models.scheduled import ScheduledDefinition
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.models.vendor_upload import VendorUpload
-from app.utils.entry_generator import generate_entries
-from app.utils.recurring_vendor_sync import sync_recurring_from_vendors
-from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+from app.services.entry_generator import generate_entries
+from app.services.recurring_vendor_sync import sync_recurring_from_vendors
+from app.services.sync_vendor_fifo import sync_vendor_finance_events
 
 PREFIX = "/api/accounting/recurring"
 
@@ -109,7 +109,7 @@ def test_paid_month_fe_removed_unpaid_month_fe_remainder(db):
 
 def test_fe_enforced_every_run(db):
     """FE zorlaması idempotent: başka bir akış FE'yi geri getirse/silse bile senkron düzeltir."""
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     defn, _ = _seed(db, invoices=[(date(2026, 1, 5), 1500)],
                     payments=[(date(2026, 1, 20), 1500)], amount=1000)

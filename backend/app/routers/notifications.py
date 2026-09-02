@@ -1,19 +1,19 @@
 """Bildirim endpoint'leri — liste, okunmamış sayısı, okundu işaretleme."""
 
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from typing import Optional
-
 from app.config import settings
 from app.database import get_db
+from app.integrations.mail import is_mail_enabled, send_email
 from app.middleware.auth import get_current_user, require_permission
 from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.notification import NotificationMarkRead, NotificationResponse, TestEmailRequest
-from app.utils.mail import is_mail_enabled, send_email
 from app.utils.pagination import page_meta
 
 router = APIRouter()

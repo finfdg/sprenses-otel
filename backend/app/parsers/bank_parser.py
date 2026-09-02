@@ -18,8 +18,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import List, Optional
 
-from app.paths import TESSDATA_DIR as _TESSDATA_DIR
-from app.utils.bank_parse_helpers import (
+from app.parsers.bank_parse_helpers import (
     _detect_number_format,
     _extract_trailing_numbers,
     _normalize_tr,
@@ -29,6 +28,7 @@ from app.utils.bank_parse_helpers import (
     parse_english_number,
     parse_turkish_number,
 )
+from app.paths import TESSDATA_DIR as _TESSDATA_DIR
 
 
 @dataclass

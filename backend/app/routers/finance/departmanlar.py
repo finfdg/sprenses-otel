@@ -6,19 +6,19 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.constants import BroadcastModule
 from app.database import get_db
-from app.utils.finance_broadcast import broadcast_finance_update
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.department import Department
 from app.models.user import User
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.schemas.budget import (
     DepartmentCreate,
     DepartmentResponse,
     DepartmentUpdate,
 )
-from app.utils.approval_check import check_approval
 from app.services import department_service
 from app.utils.audit import log_action
 

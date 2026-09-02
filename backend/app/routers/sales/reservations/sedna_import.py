@@ -18,12 +18,11 @@ from sqlalchemy.orm import Session
 
 from app.constants import BroadcastModule
 from app.database import get_db
+from app.integrations.sedna_client import SednaUnavailable, sedna_configured
 from app.middleware.auth import get_current_user, require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
-from app.utils.sales_broadcast import broadcast_sales_update
-from app.utils.sedna_client import SednaUnavailable, sedna_configured
-
+from app.realtime.sales_broadcast import broadcast_sales_update
 from app.services.reservation_service import run_reservation_import
 
 logger = logging.getLogger(__name__)

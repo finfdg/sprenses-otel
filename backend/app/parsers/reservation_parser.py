@@ -199,8 +199,9 @@ def _read_xlsx(file_path: str) -> List[list]:
     durumda `_serial_to_date` None döner. Bu yüzden datetime'ları serial sayısına
     çeviriyoruz — tek bir kod yolu kalır.
     """
-    import openpyxl
     from datetime import datetime as _dt
+
+    import openpyxl
     wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
     sheet = wb.active
     rows: List[list] = []

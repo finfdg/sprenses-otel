@@ -8,6 +8,8 @@ from sqlalchemy import case as sa_case
 from sqlalchemy import collate, desc, func
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -17,6 +19,7 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.user import User
 from app.models.vendor import STATUS_PAYMENT_BANNED, VENDOR_STATUS_CHOICES, Vendor
 from app.models.vendor_transaction import VendorTransaction
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.schemas.vendor import (
     VendorContactUpdate,
     VendorDetailResponse,
@@ -24,13 +27,10 @@ from app.schemas.vendor import (
     VendorResponse,
     VendorStatusUpdate,
 )
-from app.utils.approval_check import check_approval
-from app.utils.audit import log_action
-from app.constants import BroadcastModule
-from app.utils.finance_broadcast import broadcast_finance_update
 from app.services import vendor_service
+from app.services.vendor_fifo import calculate_fifo_amounts, calculate_overdue_by_vendor
+from app.utils.audit import log_action
 from app.utils.pagination import page_meta
-from app.utils.vendor_fifo import calculate_fifo_amounts, calculate_overdue_by_vendor
 
 from ._helpers import _build_dept_cat_user_maps, _build_tx_response, logger
 

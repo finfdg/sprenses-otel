@@ -23,22 +23,22 @@ from app.models.bank_transaction import BankTransaction
 from app.models.module import Module
 from app.models.role_module_permission import RoleModulePermission
 from app.models.user import User
+from app.parsers.bank_parser import compute_tx_hash, parse_excel, parse_pdf
 from app.paths import uploads_subdir
+from app.realtime.finance_broadcast import broadcast_finance_update
+from app.realtime.notification import _notification_to_ws_event, create_notifications
+from app.realtime.push import send_push_to_user
 from app.schemas.bank import UploadResult
-from app.utils.audit import log_action
-from app.utils.bank_parser import compute_tx_hash, parse_excel, parse_pdf
-from app.utils.file_validation import validate_upload_file
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.matching_service import (
+from app.services.finance_event_service import finance_event_svc
+from app.services.matching_service import (
     _match_advances_to_bank,
     _match_cc_to_bank,
     _match_checks_to_bank,
     _match_credits_to_bank,
     run_post_ingest_processing,
 )
-from app.utils.notification import _notification_to_ws_event, create_notifications
-from app.utils.push import send_push_to_user
+from app.utils.audit import log_action
+from app.utils.file_validation import validate_upload_file
 from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)

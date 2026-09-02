@@ -65,7 +65,7 @@
 
 ## Otomatik Banka Eşleştirme (2026-07-11)
 
-Ekstre yüklendiğinde `_match_advances_to_bank` (`app/utils/matching_service.py`) bekleyen
+Ekstre yüklendiğinde `_match_advances_to_bank` (`app/services/matching_service.py`) bekleyen
 avansları banka **gelir** işlemleriyle otomatik eşleştirir (çek/kredi/KK ile aynı zincir,
 `bank_statement_import._post_upload_processing`):
 

@@ -17,16 +17,16 @@ from uuid import uuid4
 
 import pytz
 
+from app.integrations.sedna_client import SednaUnavailable
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.check import Check, CheckUpload
 from app.models.finance_event import FinanceEvent
 from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
+from app.services.finance_event_service import finance_event_svc
 from app.services.sedna_recon_service import _match_account, run_reconciliation
 from app.services.sedna_tag_bridge import apply_sedna_tag_bridge, decide_category
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.sedna_client import SednaUnavailable
 
 tz_istanbul = pytz.timezone("Europe/Istanbul")
 TODAY = datetime.now(tz_istanbul).date()
@@ -495,7 +495,7 @@ class TestCheckBankLegTagging:
         return chk
 
     def test_match_tags_bank_leg(self, db):
-        from app.utils.matching_service import apply_check_bank_match
+        from app.services.matching_service import apply_check_bank_match
         acc = _mk_account(db)
         btx = _mk_btx(db, acc, TODAY - timedelta(days=1), -75000.0,
                       description="Çekin Takastan Ödenmesi")
@@ -515,7 +515,7 @@ class TestCheckBankLegTagging:
         assert fe is not None and fe.category_name == "Çek Ödemesi"
 
     def test_manual_tag_preserved(self, db):
-        from app.utils.matching_service import apply_check_bank_match
+        from app.services.matching_service import apply_check_bank_match
         acc = _mk_account(db)
         manual_cat = TransactionCategory(name=f"Elle Kat {uuid4().hex[:6]}", color="gray")
         db.add(manual_cat)

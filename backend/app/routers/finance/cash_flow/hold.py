@@ -16,9 +16,9 @@ from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.services.hold_service import HOLDABLE_SOURCE_TYPES, apply_holds_batch
 from app.utils.audit import log_action
-from app.utils.finance_broadcast import broadcast_finance_update
 
 router = APIRouter()
 

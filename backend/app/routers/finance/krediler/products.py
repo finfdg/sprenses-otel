@@ -7,6 +7,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 
+from app.approval.approval_check import check_approval
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -17,25 +19,23 @@ from app.models.credit_product import (
     CreditProduct,
 )
 from app.models.user import User
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.schemas.credit import (
     CreditCloseRequest,
     CreditPaymentResponse,
     CreditProductCreate,
     CreditProductUpdate,
 )
-from app.utils.approval_check import check_approval
+from app.services import credit_service
+from app.services.finance_event_service import finance_event_svc
 from app.utils.audit import log_action
-from app.constants import BroadcastModule
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.finance_event_service import finance_event_svc
+from app.utils.pagination import page_meta
 from app.utils.sql_search import like_pattern
 
 from ._helpers import (
     _batch_payment_stats,
     _build_product_response,
 )
-from app.services import credit_service
-from app.utils.pagination import page_meta
 
 router = APIRouter()
 

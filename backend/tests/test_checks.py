@@ -167,6 +167,7 @@ class TestSednaCheckImport:
     def test_import_auto_matches_existing_bank_tx(self, client, auth_headers, db):
         """Boşluk kapandı: ekstre ÖNCE yüklenmişse, import edilen çek otomatik eşleşir (paid)."""
         import uuid
+
         from app.models.bank_account import BankAccount
         from app.models.bank_transaction import BankTransaction
         acc = BankAccount(bank_name="Halkbank", iban="TR" + uuid.uuid4().hex[:30].upper(), currency="TRY")
@@ -269,9 +270,10 @@ class TestSednaCheckImport:
         """Aynı (no,cari,vade) tutar farklı ama çek EŞLEŞMİŞ (banka kanıtı) → DOKUNULMAZ, çökmez
         (mutabık verimiz korunur, ör. 714659 paid+banka-eşleşmiş EUR/TL etiketi)."""
         import uuid
-        from app.models.check import Check, CheckUpload
+
         from app.models.bank_account import BankAccount
         from app.models.bank_transaction import BankTransaction
+        from app.models.check import Check, CheckUpload
         acc = BankAccount(bank_name="TEB", iban="TR" + uuid.uuid4().hex[:30].upper(), currency="TRY")
         db.add(acc)
         db.flush()
@@ -321,7 +323,8 @@ class TestSednaCheckImport:
         """fetch_issued_checks SQL'i 320 (satıcı) + 159 (avans) + 335 (personel/ortak) prefix'lerini kapsar."""
         import sys
         import types
-        from app.utils import sedna_client
+
+        from app.integrations import sedna_client
         captured = {}
 
         class _Cur:

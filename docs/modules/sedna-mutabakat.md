@@ -39,8 +39,8 @@ bir parçasıdır; elle de tetiklenebilir (`POST /run`).
 | `app/services/fx_service.py` | **Faz B** — `ledger_rate` (Sedna-eşdeğer defter kuru) + `record_match_fx_diff` + `compute_monthly_revaluation` |
 | `app/models/event_match.py` | **Faz B** — `EventMatch` (kalıcı eşleşme izi) + `FxDifference` (kur farkı kayıtları) + `MATCH_METHOD_*` sabitleri |
 | `app/routers/accounting/mutabakat.py` | 13 endpoint (`accounting/__init__.py` → `prefix="/mutabakat"`; Faz B: `+ fx-revaluation`, `+ fx-differences`; Faz C: `+ credit-mappings` GET/PATCH, `+ agency-mappings` GET/PATCH, `+ period-lock` PATCH) |
-| `app/utils/sedna_client.py` | `fetch_bank_leaf_accounts` / `fetch_bank_ledger_rows` / `fetch_bank_ledger_max_dates` + `_safe_codes` (kod injection guard) + **Faz C:** `fetch_vendor_balances` (320 aggregate) / `fetch_credit_leaf_accounts` (300.*) |
-| `app/utils/approval_executor.py` | `_handle_accounting_mutabakat` (op: `resolve_item` \| `account_mapping` \| **Faz C:** `credit_mapping` \| `agency_mapping` \| `period_lock`) |
+| `app/integrations/sedna_client.py` | `fetch_bank_leaf_accounts` / `fetch_bank_ledger_rows` / `fetch_bank_ledger_max_dates` + `_safe_codes` (kod injection guard) + **Faz C:** `fetch_vendor_balances` (320 aggregate) / `fetch_credit_leaf_accounts` (300.*) |
+| `app/approval/approval_executor.py` | `_handle_accounting_mutabakat` (op: `resolve_item` \| `account_mapping` \| **Faz C:** `credit_mapping` \| `agency_mapping` \| `period_lock`) |
 | `app/routers/finance/sedna_sync.py` | `_STEPS` → `bank_recon` adımı (merkezi Sedna butonu) |
 | `app/constants.py` | `ReconStatus` (durum sözlüğü) + `BroadcastModule.RECON` |
 | `alembic/versions/c7d8e9f0a1b2_add_sedna_mutabakat.py` | Migration: 2 tablo + bank_accounts kolonları + RBAC |

@@ -16,7 +16,7 @@ from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.sales_invoice import SalesCollection
 from app.models.transaction_category import TransactionCategory
-from app.utils.auto_tagger import (
+from app.services.auto_tagger import (
     AGENCY_CATEGORY,
     _get_or_create_category,
     auto_tag_transactions,
@@ -257,12 +257,12 @@ class TestBankNameNoise:
         assert _cat_of(db, btx) == "Kredi/Leasing"
 
     def test_payment_method_stays_fast(self, client, db):
-        from app.utils.auto_tagger import detect_payment_method
+        from app.services.auto_tagger import detect_payment_method
 
         assert detect_payment_method("FAST Anlık Ödeme TEMMUZ AVANS" + self.YK_SUFFIX) == "fast"
 
     def test_payment_method_bank_name_not_kredi(self, client, db):
-        from app.utils.auto_tagger import detect_payment_method
+        from app.services.auto_tagger import detect_payment_method
 
         assert (
             detect_payment_method("Para Gönder Yapı ve Kredi Bankası A.Ş. hesabına gönderilen tutar")
@@ -585,7 +585,7 @@ class TestAgencyTagging:
     def test_finance_event_syncs_category(self, client, db):
         """Acenta etiketi finance_events'e de yansır (Panel T-Hesap bu koldan okur)."""
         from app.models.finance_event import FinanceEvent
-        from app.utils.finance_event_service import finance_event_svc
+        from app.services.finance_event_service import finance_event_svc
 
         acc = _mk_account(db, currency="EUR")
         btx = _mk_btx(db, acc, amount=13500, desc="Diğer Diğer SEYAHAT ACENT/030726/352484")
@@ -656,7 +656,7 @@ class TestAgencyDisplayName:
     """Acenta kaleminde görünen ad = çözülen acente adı (tag_note; 2026-07-13)."""
 
     def test_short_agency_name(self, client):
-        from app.utils.auto_tagger import _short_agency_name
+        from app.services.auto_tagger import _short_agency_name
         assert _short_agency_name("PGST ANTALYA TURİZM SEYAHAT ACENTASI TAŞ. VE TİC.") == "PGST"
         assert _short_agency_name("OTS Open Travel Services AG") == "OTS Open Travel"
         assert _short_agency_name("NORDİC LEİSURE TRAVEL GROUP AB ( NLTG )") == "NORDİC LEİSURE TRAVEL"
@@ -763,9 +763,10 @@ class TestGuestCollections:
     """Misafir havale/EFT tahsilatı — rezervasyon misafir adıyla eşleşme (2026-08-14)."""
 
     def _mk_checkin_group_and_res(self, db, guests, checkin=None):
+        import random
+
         from app.models.agency_group import AgencyGroup
         from app.models.reservation import Reservation
-        import random
 
         gname = f"GTEST{uuid4().hex[:6].upper()}"
         g = AgencyGroup(name=gname, members=[gname], term_days=0,
@@ -811,9 +812,10 @@ class TestGuestCollections:
 
     def test_non_checkin_group_guest_not_matched(self, client, db):
         """checkin-modu olmayan grubun misafiri bu kurala girmez."""
+        import random
+
         from app.models.agency_group import AgencyGroup
         from app.models.reservation import Reservation
-        import random
 
         gname = f"GTEST{uuid4().hex[:6].upper()}"
         g = AgencyGroup(name=gname, members=[gname], term_days=21,

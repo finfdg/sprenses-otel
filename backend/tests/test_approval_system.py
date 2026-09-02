@@ -16,6 +16,13 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.approval.approval_service import (
+    _evaluate_conditions,
+    check_and_trigger_approval,
+    find_matching_workflow,
+    get_pending_approver_ids,
+    is_user_approver,
+)
 from app.main import app
 from app.middleware.rate_limit import login_limiter
 from app.models.advance import Advance
@@ -37,13 +44,6 @@ from app.models.role_module_permission import RoleModulePermission
 from app.models.scheduled import ScheduledDefinition
 from app.models.user import User
 from app.routers.approval.requests import _redact_payload
-from app.utils.approval_service import (
-    _evaluate_conditions,
-    check_and_trigger_approval,
-    find_matching_workflow,
-    get_pending_approver_ids,
-    is_user_approver,
-)
 from app.utils.security import hash_password
 
 API = "/api/system/approval"
@@ -960,10 +960,14 @@ class TestApprovalExecutorMoreModules:
         """Temettü bespoke handler (_handle_accounting_dividend): onaylanınca dağıtım +
         taksitler + 72 (burada 6) ödeme + net/stopaj finance_events üretilir (router ile birebir)."""
         from app.models.dividend import (
-            DividendDistribution, DividendInstallment, DividendPayment,
+            DividendDistribution,
+            DividendInstallment,
+            DividendPayment,
         )
         from app.models.finance_event import (
-            FinanceEvent, SOURCE_DIVIDEND, SOURCE_DIVIDEND_STOPAJ,
+            SOURCE_DIVIDEND,
+            SOURCE_DIVIDEND_STOPAJ,
+            FinanceEvent,
         )
         _, req_role, req_client = _make_actor(db, {"accounting.dividend": {"view": True, "use": True}})
         _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
@@ -1033,7 +1037,7 @@ class TestApprovalExecutorMoreModules:
 
         from app.models.credit_product import CreditPayment, CreditProduct
         from app.models.finance_event import FinanceEvent
-        from app.utils.finance_event_service import finance_event_svc
+        from app.services.finance_event_service import finance_event_svc
         _, req_role, req_client = _make_actor(db, {"finance.krediler": {"view": True, "use": True}})
         _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
         _make_workflow(db, "finance.krediler", req_role, app_role)
@@ -1075,7 +1079,7 @@ class TestApprovalExecutorMoreModules:
         from app.models.vendor import Vendor
         from app.models.vendor_transaction import VendorTransaction
         from app.models.vendor_upload import VendorUpload
-        from app.utils.vendor_parser import calculate_payment_friday, compute_vendor_tx_hash
+        from app.parsers.vendor_parser import calculate_payment_friday, compute_vendor_tx_hash
 
         _, req_role, req_client = _make_actor(db, {"finance.cariler": {"view": True, "use": True}})
         _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
@@ -1116,8 +1120,8 @@ class TestApprovalExecutorMoreModules:
         from app.models.vendor import STATUS_PAYMENT_BANNED, Vendor
         from app.models.vendor_transaction import VendorTransaction
         from app.models.vendor_upload import VendorUpload
-        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
-        from app.utils.vendor_parser import compute_vendor_tx_hash
+        from app.parsers.vendor_parser import compute_vendor_tx_hash
+        from app.services.sync_vendor_fifo import sync_vendor_finance_events
 
         _, req_role, req_client = _make_actor(db, {"finance.cariler": {"view": True, "use": True}})
         _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
@@ -1165,7 +1169,7 @@ class TestApprovalExecutorMoreModules:
         from app.models.vendor import Vendor
         from app.models.vendor_transaction import VendorTransaction
         from app.models.vendor_upload import VendorUpload
-        from app.utils.vendor_parser import compute_vendor_tx_hash
+        from app.parsers.vendor_parser import compute_vendor_tx_hash
 
         _, req_role, req_client = _make_actor(db, {"finance.checks": {"view": True, "use": True}})
         _, app_role, app_client = _make_actor(db, {"system.approval": {"view": True, "use": True}})
@@ -1648,7 +1652,7 @@ class TestExecutorImportIntegrity:
         import importlib
         import inspect as _inspect
 
-        import app.utils.approval_executor as ax
+        import app.approval.approval_executor as ax
 
         tree = ast.parse(_inspect.getsource(ax))
         failures = []
@@ -1681,7 +1685,7 @@ class TestExecutorImportIntegrity:
         from sqlalchemy import inspect as sqla_inspect
         from sqlalchemy.orm import class_mapper
 
-        import app.utils.approval_executor as ax
+        import app.approval.approval_executor as ax
 
         tree = ast.parse(_inspect.getsource(ax))
 
@@ -1729,7 +1733,7 @@ class TestExecutorImportIntegrity:
         import ast
         import pathlib
 
-        from app.utils.approval_executor import _HANDLERS
+        from app.approval.approval_executor import _HANDLERS
 
         routers_dir = pathlib.Path(__file__).resolve().parent.parent / "app" / "routers"
         literal_module_codes = {}

@@ -31,8 +31,8 @@ from app.constants import ReconStatus
 from app.main import app
 from app.middleware.rate_limit import login_limiter
 from app.models import (
-    AgencyGroup,
     Advance,
+    AgencyGroup,
     BankAccount,
     BankTransaction,
     CreditProduct,
@@ -508,7 +508,7 @@ class TestNegativeBalances:
 
 class TestFazCEndpoints:
     def test_get_credit_mappings(self, client, auth_headers, db, monkeypatch):
-        import app.utils.sedna_client as sedna_client_module
+        import app.integrations.sedna_client as sedna_client_module
 
         prod = _mk_credit(db, bank_name="HALK BANKASI", total_amount=6000000)
         db.commit()
@@ -544,7 +544,7 @@ class TestFazCEndpoints:
         assert "300" in r2.json()["detail"]
 
     def test_get_agency_mappings(self, client, auth_headers, db, monkeypatch):
-        import app.utils.sedna_client as sedna_client_module
+        import app.integrations.sedna_client as sedna_client_module
 
         g = _mk_group(db, name=f"FZC Anex Endpoint {uuid4().hex[:6]}")
         db.commit()

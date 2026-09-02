@@ -5,23 +5,23 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.approval.approval_check import check_approval
 from app.config import settings
 from app.constants import WSEvent
 from app.database import get_db
+from app.integrations.mail import is_mail_enabled, send_email_background
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.user import PasswordReset, UserCreate, UserResponse, UserUpdate
-from app.utils.approval_check import check_approval
+from app.services import system_service
 from app.utils.audit import log_action
-from app.utils.mail import is_mail_enabled, send_email_background
+from app.utils.pagination import page_meta
 from app.utils.response_builders import build_user_response, build_user_responses_batch
 from app.utils.security import create_email_verification_token, hash_password
-from app.services import system_service
 from app.utils.sql_search import like_pattern
 from app.websocket.manager import manager
-from app.utils.pagination import page_meta
 
 router = APIRouter()
 

@@ -11,9 +11,9 @@ build'i `vendor_id`/`billing_offset_months`'u set etmiyordu.
 from sqlalchemy.orm import Session
 
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
-from app.utils.entry_generator import _build_description, generate_entries, regenerate_entries
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.recurring_vendor_sync import sync_recurring_from_vendors
+from app.services.entry_generator import _build_description, generate_entries, regenerate_entries
+from app.services.finance_event_service import finance_event_svc
+from app.services.recurring_vendor_sync import sync_recurring_from_vendors
 
 # Bu alanlar değişince planlı girişler yeniden üretilir (yeni entry_date/tutar)
 _REGEN_FIELDS = ("amount", "frequency", "payment_day", "start_month", "pay_next_month")
@@ -141,7 +141,7 @@ def close_entry_via_bank(db: Session, entry: ScheduledEntry, btx, direction: int
     2026-07-18: banka kanıtı girişin TAHMİNİ tutarını da GERÇEK tutara çeker (aynı
     para birimiyse VE tam-ödeme bandındaysa — kısmi banka bacağı planlı toplamı ezmez).
     """
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     locked = (db.query(ScheduledEntry)
               .filter(ScheduledEntry.id == entry.id, ScheduledEntry.is_paid == False)  # noqa: E712
@@ -168,7 +168,7 @@ def attach_bank_to_paid_entry(db: Session, entry: ScheduledEntry, btx, direction
     düşer, banka bacağı tek gerçek olur. Tutar/tarih banka kanıtına çekilir.
     """
     from app.models.finance_event import FinanceEvent
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     locked = (db.query(ScheduledEntry)
               .filter(ScheduledEntry.id == entry.id, ScheduledEntry.is_paid == True)  # noqa: E712

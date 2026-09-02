@@ -30,9 +30,9 @@ from app.models.sales_invoice import (
     SalesInvoice,
 )
 from app.services.agency_settlement_service import _agency_group_maps
+from app.services.fx_rates import CROSS_EUR_CURRENCIES, RateBook
 from app.services.receivable_service import _group_map, _latest_rates, get_terms_map
 from app.services.sales_invoice_service import _compute_cached, _f
-from app.utils.fx_rates import CROSS_EUR_CURRENCIES, RateBook
 from app.utils.text_match import _norm_tokens
 
 _MONTH_NAMES = [

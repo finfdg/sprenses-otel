@@ -7,9 +7,9 @@ SGK) burada parametrik olarak kapsanır. (Temettü artık bespoke — bkz.
 tests/test_dividend.py.)
 """
 
-import pytest
 from datetime import date
 
+import pytest
 
 # ─── Modül parametreleri ────────────────────────────────────
 
@@ -785,7 +785,7 @@ class TestPayNextMonth:
     PREFIX = "/api/accounting/recurring"
 
     def test_payment_date_unit_shift_and_rollover(self):
-        from app.utils.entry_generator import _payment_date
+        from app.services.entry_generator import _payment_date
         assert _payment_date("recurring", 2026, 1, 10, pay_next_month=True) == date(2026, 2, 10)
         assert _payment_date("recurring", 2026, 12, 10, pay_next_month=True) == date(2027, 1, 10)  # yıl geçişi
         assert _payment_date("recurring", 2026, 1, 10, pay_next_month=False) == date(2026, 1, 10)  # aynı ay

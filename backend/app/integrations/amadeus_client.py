@@ -8,7 +8,7 @@ Test ortamı: ücretsiz 2000 sorgu/ay
 Production: sorgu başı ücret (Self-Service kapatma sonrası geçersiz)
 
 Kullanım:
-    from app.utils.amadeus_client import amadeus
+    from app.integrations.amadeus_client import amadeus
     flights = amadeus.search_flights("IST", "AYT", "2026-06-15", adults=2)
     airports = amadeus.search_airports("ist")
 """

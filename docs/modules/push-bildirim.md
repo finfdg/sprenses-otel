@@ -9,7 +9,7 @@
 |---|---|
 | Router | `backend/app/routers/push.py` |
 | Model | `backend/app/models/push_subscription.py` |
-| Util | `backend/app/utils/push.py` — `send_push()`, `send_push_to_user()` |
+| Util | `backend/app/realtime/push.py` — `send_push()`, `send_push_to_user()` |
 | Frontend util | `frontend/src/lib/utils/push.ts` — `subscribeToPush()`, `unsubscribeFromPush()`, `isPushSupported()` |
 | Service Worker | `frontend/src/service-worker.ts` — push event handler |
 | PWA Manifest | `frontend/static/manifest.json` |

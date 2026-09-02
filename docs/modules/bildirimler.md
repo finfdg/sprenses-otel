@@ -10,8 +10,8 @@
 |---|---|
 | Router | `backend/app/routers/notifications.py` |
 | Model | `backend/app/models/notification.py` |
-| Util | `backend/app/utils/notification.py` — `create_notification()`, `notify_users()` |
-| Util | `backend/app/utils/push.py` — VAPID push delivery |
+| Util | `backend/app/realtime/notification.py` — `create_notification()`, `notify_users()` |
+| Util | `backend/app/realtime/push.py` — VAPID push delivery |
 | Frontend | Topbar dropdown — `frontend/src/lib/components/Topbar.svelte` |
 
 ## Veri Modeli
@@ -37,7 +37,7 @@
 
 ## Kullanım (Backend)
 ```python
-from app.utils.notification import create_notification
+from app.realtime.notification import create_notification
 
 create_notification(
     db, user_id=target_user.id, type="approval_request",

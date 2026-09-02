@@ -28,17 +28,17 @@ from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.integrations import sedna_client
 from app.models.agency_code_map import AgencyCodeMap
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.check import Check
 from app.models.vendor import Vendor
-from app.utils import sedna_client
-from app.utils.auto_tagger import (
+from app.services.auto_tagger import (
+    _AGENCY_NAME_BLOCK,
     AGENCY_CATEGORY,
     CHECK_PAYMENT_CATEGORY,
     LEASING_CATEGORY,
-    _AGENCY_NAME_BLOCK,
     _get_or_create_category,
     _normalize,
     _sync_finance_events,

@@ -28,10 +28,10 @@ import pytz
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.integrations.sedna_client import SednaUnavailable, fetch_personnel_payroll
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
+from app.services.finance_event_service import finance_event_svc
 from app.utils.audit import log_action
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.sedna_client import SednaUnavailable, fetch_personnel_payroll
 
 logger = logging.getLogger(__name__)
 

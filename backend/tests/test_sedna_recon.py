@@ -18,6 +18,7 @@ import pytz
 from fastapi.testclient import TestClient
 
 from app.constants import ReconStatus
+from app.integrations.sedna_client import SednaUnavailable
 from app.main import app
 from app.middleware.rate_limit import login_limiter
 from app.models import BankAccount, BankTransaction, SednaBankRecon, SednaReconRun
@@ -38,7 +39,6 @@ from app.services.sedna_recon_service import (
     run_reconciliation,
     suggest_account_mappings,
 )
-from app.utils.sedna_client import SednaUnavailable
 from app.utils.security import hash_password
 
 API = "/api/accounting/mutabakat"
@@ -664,7 +664,7 @@ class TestEndpoints:
 
     def test_run_endpoint_with_mocked_sedna(self, client, auth_headers, db, monkeypatch):
         """POST /run — sedna_client fonksiyonları sahtelenir, 200 + özet döner."""
-        import app.utils.sedna_client as sedna_client_module
+        import app.integrations.sedna_client as sedna_client_module
 
         acc = _mapped_account(db)
         _mk_btx(db, acc, TODAY - timedelta(days=2), 100.0)

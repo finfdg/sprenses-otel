@@ -14,7 +14,7 @@ from app.models.bank_transaction import BankTransaction
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CreditProduct
 from app.models.transaction_category import TransactionCategory
-from app.utils.matching_service import (
+from app.services.matching_service import (
     _extract_last4_from_desc,
     _get_card_last4,
     _is_cc_payment_desc,

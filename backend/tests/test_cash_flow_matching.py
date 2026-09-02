@@ -51,12 +51,12 @@ from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.models.vendor_upload import VendorUpload
 from app.services import deferral_service
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.finance_helpers import MIN_DATE
-from app.utils.matching_service import (
+from app.services.finance_event_service import finance_event_svc
+from app.services.matching_service import (
     _match_credits_to_bank,
     run_post_ingest_processing,
 )
+from app.utils.finance_helpers import MIN_DATE
 
 API = "/api/finance/cash-flow"
 TODAY = date.today()
@@ -668,7 +668,7 @@ class TestRunPostIngestProcessing:
             raise RuntimeError("auto-tag patladı (test)")
 
         # run_post_ingest_processing fonksiyon içinde import eder → kaynak modülü patch'le
-        monkeypatch.setattr("app.utils.auto_tagger.auto_tag_transactions", _boom)
+        monkeypatch.setattr("app.services.auto_tagger.auto_tag_transactions", _boom)
 
         results = run_post_ingest_processing(db)
 
@@ -895,7 +895,7 @@ class TestVakifbankPostIngest:
 
         # run_vakifbank_import fonksiyon içinde import eder → kaynak modülü patch'le
         monkeypatch.setattr(
-            "app.utils.matching_service.run_post_ingest_processing", _counting_post_ingest,
+            "app.services.matching_service.run_post_ingest_processing", _counting_post_ingest,
         )
 
         r1 = client.post(f"{self.API}/sync", headers=auth_headers)

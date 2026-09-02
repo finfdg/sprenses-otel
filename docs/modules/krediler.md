@@ -28,7 +28,7 @@
 | `app/routers/finance/cc_statements.py` | Kredi kartı ekstre yükleme (PDF) |
 | `app/models/credit_product.py` | `CreditProduct` **ve** `CreditPayment` modelleri (ikisi de bu dosyada) |
 | `app/models/credit_card_statement.py` | `CreditCardStatement`, `CreditCardTransaction` modelleri |
-| `app/utils/cc_statement_parser.py` | PDF ekstre ayrıştırıcı |
+| `app/parsers/cc_statement_parser.py` | PDF ekstre ayrıştırıcı |
 | `app/schemas/credit.py` | Pydantic şemalar |
 | `app/schemas/credit_card.py` | Kredi kartı Pydantic şemalar |
 
@@ -211,7 +211,7 @@ M = P × r(1+r)^n / ((1+r)^n - 1)
 
 ## PDF Ekstre Ayrıştırma (Kredi Kartı)
 
-`app/utils/cc_statement_parser.py`:
+`app/parsers/cc_statement_parser.py`:
 - pdfplumber kullanarak metin çıkarımı
 - Türkçe banka ekstresi formatlarını tanır
 - Kart no son 4 hane, kesim tarihi, son ödeme tarihi, işlem listesi çıkarılır

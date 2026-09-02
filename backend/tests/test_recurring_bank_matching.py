@@ -20,8 +20,8 @@ from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
 from app.models.finance_event import FinanceEvent
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
 from app.models.transaction_category import TransactionCategory
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.matching_service import _match_scheduled_to_bank, _recurring_keyword_re
+from app.services.finance_event_service import finance_event_svc
+from app.services.matching_service import _match_scheduled_to_bank, _recurring_keyword_re
 
 API = "/api/finance/cash-flow"
 TODAY = date.today()
@@ -108,7 +108,7 @@ def _ensure_category(db, name, color="amber"):
 class TestRecurringKeywordRegex:
     def test_turkish_suffix_tolerated_via_stem(self):
         """"Sigortası" → "sigort" kökü; banka açıklamasındaki "SİGORTA" ile eşleşir."""
-        from app.utils.auto_tagger import _normalize
+        from app.services.auto_tagger import _normalize
 
         re_ = _recurring_keyword_re("2026 Leasing All Risk Sigortası (Trafo)", "Sigorta")
         assert re_ is not None

@@ -14,6 +14,11 @@ from fastapi import HTTPException
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
+from app.integrations.sedna_client import (
+    fetch_stock_depots,
+    fetch_stock_movements,
+    fetch_stock_products,
+)
 from app.models.exchange_rate import ExchangeRate
 from app.models.stock import (
     COST_GROUP_LABELS,
@@ -25,13 +30,8 @@ from app.models.stock import (
     type_label,
 )
 from app.models.user import User
+from app.services.occupancy import guest_nights_by_period, occupancy_metrics
 from app.utils.audit import log_action
-from app.utils.occupancy import guest_nights_by_period, occupancy_metrics
-from app.utils.sedna_client import (
-    fetch_stock_depots,
-    fetch_stock_movements,
-    fetch_stock_products,
-)
 
 logger = logging.getLogger(__name__)
 

@@ -63,7 +63,7 @@
 - Sidebar badge'i WS `unread_updated` event'i ile canlı güncellenir
 
 ## Push Bildirim
-- **VAPID destekli web push** (`backend/app/utils/push.py`, `frontend/src/lib/utils/push.ts`)
+- **VAPID destekli web push** (`backend/app/realtime/push.py`, `frontend/src/lib/utils/push.ts`)
 - Kullanıcı sessize aldığı konuşmalardan push almaz (`is_muted`)
 - Service worker: `frontend/src/service-worker.ts` — push event → notification show
 

@@ -306,7 +306,7 @@ def get_payment_schedule(
     Returns:
         List[dict]: WeeklyPaymentGroup formatında haftalık gruplar.
     """
-    from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+    from app.services.sync_vendor_fifo import sync_vendor_finance_events
 
     # Vadesi geçmiş faturaların finance_events tarihlerini güncelle
     sync_result = sync_vendor_finance_events(db)

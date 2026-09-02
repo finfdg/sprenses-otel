@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -30,7 +31,6 @@ from app.schemas.audit_tracker import (
     FindingUpdate,
 )
 from app.services import audit_tracker_service as svc
-from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.utils.pagination import page_meta
 from app.utils.sql_search import like_pattern

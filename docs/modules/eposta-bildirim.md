@@ -19,8 +19,8 @@ Giden e-posta gönderimi — sistemin `bilgi@sprenses.com` kurumsal kutusundan
 | Katman | Dosya | Görev |
 |---|---|---|
 | Config | `backend/app/config.py` | `smtp_host/port/use_ssl/user/password/from_name` ayarları |
-| Helper | `backend/app/utils/mail.py` | `send_email()` + `is_mail_enabled()` |
-| Bildirim | `backend/app/utils/notification.py` | `email=True` opt-in → arka planda e-posta (`_build_email_html`, `_build_email_payloads`, `_send_email_background`) |
+| Helper | `backend/app/integrations/mail.py` | `send_email()` + `is_mail_enabled()` |
+| Bildirim | `backend/app/realtime/notification.py` | `email=True` opt-in → arka planda e-posta (`_build_email_html`, `_build_email_payloads`, `_send_email_background`) |
 | Endpoint | `backend/app/routers/notifications.py` | `POST /api/notifications/test-email` (deneme) |
 | Frontend | `frontend/src/routes/dashboard/sistem/sunucu/+page.svelte` | "Deneme e-postası gönder" butonu (E-posta SMTP kartı) |
 | Test | `backend/tests/test_mail.py` | 15 test (helper + escape + endpoint) |
@@ -44,7 +44,7 @@ SMTP_FROM_NAME=Sprenses Otel
 
 ### 1. Tek e-posta gönder (düşük seviye)
 ```python
-from app.utils.mail import send_email
+from app.integrations.mail import send_email
 
 send_email(
     to="ornek@sprenses.com",
@@ -58,7 +58,7 @@ send_email(
 Mevcut bildirim akışına `email=True` eklemek yeterli — DB + WS + Push + e-posta
 hepsi tek çağrıda gider, e-posta arka plan thread'inde (bloklamaz):
 ```python
-from app.utils.notification import create_and_send_notifications_sync
+from app.realtime.notification import create_and_send_notifications_sync
 
 create_and_send_notifications_sync(
     db, user_ids=[5, 8],

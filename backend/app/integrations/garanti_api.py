@@ -23,7 +23,7 @@ from typing import List, Optional
 import httpx
 
 from app.config import settings
-from app.utils.bank_parser import (
+from app.parsers.bank_parser import (
     ParsedHeader,
     ParsedTransaction,
     ParseResult,

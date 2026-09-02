@@ -1,15 +1,17 @@
 """Finance modülleri detaylı testleri (cash_flow, banks, exchange_rates, transaction_tags, cariler)."""
 
+from datetime import date
+from decimal import Decimal
+
 import pytest
+
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
+from app.models.exchange_rate import ExchangeRate
 from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.models.vendor_upload import VendorUpload
-from app.models.exchange_rate import ExchangeRate
-from datetime import date
-from decimal import Decimal
 
 
 @pytest.fixture
@@ -521,7 +523,8 @@ class TestRemovalCandidates:
     def _seed(self, db, code="320.99.99.TEST", txs=None):
         """Test cari + işlem fixture'ı oluştur."""
         from datetime import date
-        from app.utils.vendor_parser import compute_vendor_tx_hash
+
+        from app.parsers.vendor_parser import compute_vendor_tx_hash
 
         upload = VendorUpload(
             file_name="seed.xlsx",
@@ -563,8 +566,9 @@ class TestRemovalCandidates:
     def test_compute_removal_candidates_basic(self, db):
         """Excel'de olmayan kayıt aday olmalı, Excel'de olan dokunulmamalı."""
         from datetime import date
+
+        from app.parsers.vendor_parser import ParsedVendorTransaction, compute_vendor_tx_hash
         from app.routers.finance.cariler.uploads import _compute_removal_candidates
-        from app.utils.vendor_parser import ParsedVendorTransaction, compute_vendor_tx_hash
 
         vendor, vtxs = self._seed(db, code="320.RC.001", txs=[
             (date(2026, 4, 1), 100.0, 0.0, "EV-1"),
@@ -595,8 +599,9 @@ class TestRemovalCandidates:
     def test_compute_removal_candidates_date_scope(self, db):
         """Excel'in tarih aralığı dışındaki kayıtlar aday OLMAMALI."""
         from datetime import date
+
+        from app.parsers.vendor_parser import ParsedVendorTransaction, compute_vendor_tx_hash
         from app.routers.finance.cariler.uploads import _compute_removal_candidates
-        from app.utils.vendor_parser import ParsedVendorTransaction, compute_vendor_tx_hash
 
         vendor, _ = self._seed(db, code="320.RC.002", txs=[
             (date(2026, 1, 15), 50.0, 0.0, "OLD-1"),  # Excel kapsamı dışı (önce)
@@ -628,8 +633,9 @@ class TestRemovalCandidates:
     def test_compute_removal_candidates_protected(self, db):
         """match_number ve dept_status dolu kayıtlar aday OLMAMALI."""
         from datetime import date
+
+        from app.parsers.vendor_parser import ParsedVendorTransaction, compute_vendor_tx_hash
         from app.routers.finance.cariler.uploads import _compute_removal_candidates
-        from app.utils.vendor_parser import ParsedVendorTransaction, compute_vendor_tx_hash
 
         vendor, vtxs = self._seed(db, code="320.RC.003", txs=[
             (date(2026, 4, 1), 100.0, 0.0, "EV-A"),
@@ -796,7 +802,7 @@ class TestPaidChecksVisible:
         from app.models.bank_transaction import BankTransaction
         from app.models.check import Check, CheckUpload
         from app.models.finance_event import FinanceEvent
-        from app.utils.finance_event_service import finance_event_svc
+        from app.services.finance_event_service import finance_event_svc
 
         up = CheckUpload(file_name="seed", file_url="x")
         db.add(up)
@@ -838,8 +844,8 @@ class TestPaidChecksVisible:
         from app.models.bank_transaction import BankTransaction
         from app.models.check import Check, CheckUpload
         from app.models.finance_event import FinanceEvent
-        from app.utils.finance_event_service import finance_event_svc
-        from app.utils.matching_service import _match_checks_to_bank
+        from app.services.finance_event_service import finance_event_svc
+        from app.services.matching_service import _match_checks_to_bank
 
         up = CheckUpload(file_name="seed", file_url="x")
         db.add(up)

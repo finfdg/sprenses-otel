@@ -19,13 +19,13 @@ from datetime import date, timedelta
 from fastapi import BackgroundTasks
 
 from app.database import SessionLocal
+from app.integrations.garanti_api import fetch_garanti_statement, garanti_configured
 from app.models.bank_account import BankAccount
 from app.models.user import User
 from app.routers.finance.bank_statement_import import (
     _post_upload_processing,
     _process_statement,
 )
-from app.utils.garanti_api import fetch_garanti_statement, garanti_configured
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cron_fetch_garanti_statements")

@@ -20,9 +20,9 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import FinanceEvent
 from app.models.payment_deferral import PaymentDeferral
 from app.services import deferral_service
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
+from app.services.vendor_fifo import effective_due_date
 from app.utils.finance_helpers import MIN_DATE
-from app.utils.vendor_fifo import effective_due_date
 
 DEFER_URL = "/api/finance/cash-flow/defer"
 RUNWAY_URL = "/api/finance/cash-flow/runway"
@@ -116,7 +116,7 @@ class TestUpsertDeferralOverride:
 
     def test_bank_source_is_never_deferred(self, db):
         """bank türü lookup dışı — deferral olsa bile event_date değişmez (override guard)."""
-        from app.utils.finance_event_service import _dec  # noqa: F401 (import kontrolü)
+        from app.services.finance_event_service import _dec  # noqa: F401 (import kontrolü)
         # doğrudan _upsert'e bank event yaz (deferral kaydı olsa bile uygulanmamalı)
         deferral_service.apply_deferral(db, "bank", 555010, _future_date(30), user_id=None)
         d = _future_date(2)
@@ -372,6 +372,7 @@ class TestEurBalanceOverdueVendor:
 
     def _seed_bank(self, db, balance_try):
         from datetime import date, timedelta
+
         from app.models.bank_account import BankAccount
         from app.models.bank_transaction import BankTransaction
         acc = BankAccount(bank_name="OD Test Bank", iban="TR990000000000000000000077",
@@ -393,8 +394,9 @@ class TestEurBalanceOverdueVendor:
 
     def test_overdue_vendor_not_subtracted_from_balance(self, db):
         from datetime import date, timedelta
-        from app.routers.finance.cash_flow.eur_balances import compute_eur_balances
+
         from app.models.finance_event import FinanceEvent
+        from app.routers.finance.cash_flow.eur_balances import compute_eur_balances
 
         self._seed_bank(db, 100000)   # 100.000 TL = 2000 EUR @50
         self._rate(db, 50.0)
@@ -417,6 +419,7 @@ class TestEurBalanceOverdueVendor:
         2026-07-18: "henüz ödenmedi, ödenip ödenmeyeceği belli değil" — grafik bugün noktası =
         saf banka nakdi = Bankadaki Nakit başlığı). Projeksiyon yarından itibaren başlar."""
         from datetime import date, timedelta
+
         from app.models.bank_account import BankAccount
         from app.models.bank_transaction import BankTransaction
         from app.models.finance_event import FinanceEvent

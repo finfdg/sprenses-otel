@@ -419,7 +419,7 @@ def _notify(db, finding, run, cfg, extra: str = "") -> None:
     try:
         from app.middleware.auth import user_can
         from app.models.user import User
-        from app.utils.notification import create_and_send_notifications_sync
+        from app.realtime.notification import create_and_send_notifications_sync
 
         user_ids = [
             u.id for u in db.query(User).filter(User.is_active.is_(True)).all()

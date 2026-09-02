@@ -117,7 +117,7 @@ def compute_monthly_revaluation(
     Deftere/finance_events'e YAZMAZ — salt rapor.
     """
     if fetch_valuation is None:
-        from app.utils.sedna_client import fetch_bank_fx_valuation
+        from app.integrations.sedna_client import fetch_bank_fx_valuation
         fetch_valuation = fetch_bank_fx_valuation
 
     month_end = date(year, month, monthrange(year, month)[1])

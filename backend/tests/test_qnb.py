@@ -4,7 +4,7 @@ Parse saf fonksiyonlarla, fetch monkeypatch'li (ağ/kimlik yok) test edilir.
 """
 from datetime import date
 
-from app.utils import qnb_api as qnb
+from app.integrations import qnb_api as qnb
 
 # Doküman "Account Statement" örnek accountTransactionList (2 kayıt)
 _DOC_ROWS = [

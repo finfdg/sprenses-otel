@@ -25,13 +25,15 @@ def test_repo_and_backend_roots_resolve_to_real_project():
 def test_consumers_share_the_central_paths():
     """Yol tüketen her modül merkezi sabitle birebir aynı değeri görmeli (derinlikten bağımsız)."""
     from app import main
+    from app.integrations import qnb_api
+    from app.parsers import bank_parser
     from app.routers import files, system_denetim, system_docs
     from app.routers.finance import bank_statement_import, cc_statements, checks
     from app.routers.finance.cariler import _helpers as cariler_helpers
     from app.routers.sales import contracts
     from app.routers.sales.reservations import _helpers as reservation_helpers
     from app.services import disk_cleanup_service
-    from app.utils import bank_parser, file_upload, pdf_bank_instruction, qnb_api
+    from app.utils import file_upload, pdf_bank_instruction
 
     up = str(paths.UPLOADS_DIR)
     assert Path(main.LOG_DIR) == paths.LOGS_DIR

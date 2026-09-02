@@ -18,7 +18,7 @@
 | `backend/app/models/exchange_rate.py` | `ExchangeRate` SQLAlchemy modeli |
 | `backend/app/schemas/exchange_rate.py` | Pydantic şemaları |
 | `backend/app/routers/finance/exchange_rates.py` | API endpoint'leri |
-| `backend/app/utils/tcmb.py` | TCMB XML çekme ve ayrıştırma |
+| `backend/app/integrations/tcmb.py` | TCMB XML çekme ve ayrıştırma |
 | `backend/cron_fetch_exchange_rates.py` | Cron scripti (toplu + günlük) |
 
 ### Frontend

@@ -1,7 +1,7 @@
 """Planlı gider giriş üretici — tanımdan aylık/dönemsel girişler oluşturur.
 
 Kullanım:
-    from app.utils.entry_generator import generate_entries, regenerate_entries
+    from app.services.entry_generator import generate_entries, regenerate_entries
 
     entries = generate_entries(db, definition)
     regenerate_entries(db, definition)  # ödenmemiş eski girişleri sil, yeniden üret
@@ -13,7 +13,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 logger = logging.getLogger(__name__)
 

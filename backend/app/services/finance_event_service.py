@@ -4,7 +4,7 @@ Her kaynak modülün write endpoint'i (create/update/delete/match) bu servisi ç
 finance_events tablosunu güncel tutar. Nakit akım listesi buradan okur.
 
 Kullanım:
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     # Kayıt ekle / güncelle
     finance_event_svc.upsert_bank_tx(db, tx, acc, cat, vendor)
@@ -93,7 +93,7 @@ def _flush_ws_modules(session) -> None:
         return
     mods = list(_pending_ws_modules)
     _pending_ws_modules.clear()
-    from app.utils.finance_broadcast import notify_finance_update_sync
+    from app.realtime.finance_broadcast import notify_finance_update_sync
     for m in mods:
         notify_finance_update_sync(m, "update")
 

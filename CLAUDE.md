@@ -37,7 +37,7 @@
 - Dosya yükleme, toplu işlem, eşleştirme gibi özel endpoint'ler hariç tutulabilir
 - Kullanım:
   ```python
-  from app.utils.approval_check import check_approval
+  from app.approval.approval_check import check_approval
 
   # POST (create) — entity_id=0
   approval_resp = check_approval(db, "module.code", 0, current_user.id, "create", data.model_dump())

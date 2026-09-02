@@ -14,14 +14,14 @@ from typing import List, Optional
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from app.constants import BroadcastModule, WSEvent
-from app.models.approval import STATUS_PENDING, ApprovalRequest
-from app.utils.approval_service import (
+from app.approval.approval_service import (
     check_and_trigger_approval,
     get_entity_type_label,
     get_pending_approver_ids,
 )
-from app.utils.notification import create_and_send_notifications_sync
+from app.constants import BroadcastModule, WSEvent
+from app.models.approval import STATUS_PENDING, ApprovalRequest
+from app.realtime.notification import create_and_send_notifications_sync
 from app.websocket.manager import manager
 
 logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.bank_transaction import BankTransaction
 from app.models.check import Check
 from app.models.vendor_transaction import VendorTransaction
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 
 def apply_check_status(db: Session, check: Check, new_status: str) -> None:

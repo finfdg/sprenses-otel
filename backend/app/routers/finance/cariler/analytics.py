@@ -15,11 +15,11 @@ from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.middleware.auth import require_permission
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
-from app.middleware.auth import require_permission
-from app.utils.vendor_fifo import calculate_fifo_amounts
+from app.services.vendor_fifo import calculate_fifo_amounts
 
 # Devir/açılış kayıtları ciro sayılmaz (match_number=-1 işareti veya işlem tipi)
 _DEVIR_MATCH = -1

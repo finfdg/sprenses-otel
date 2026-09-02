@@ -70,8 +70,8 @@ def test_manual_tx_validations(client, auth_headers, eur_account):
 
 def test_upload_purges_manual_no_duplicate(client, auth_headers, eur_account, db):
     from app.models.user import User
+    from app.parsers.bank_parser import ParsedHeader, ParsedTransaction, ParseResult, compute_tx_hash
     from app.routers.finance.banks import _process_statement
-    from app.utils.bank_parser import ParsedHeader, ParsedTransaction, ParseResult, compute_tx_hash
 
     # 1) Manuel hareket (06-10, -20000)
     r = client.post(f"{PREFIX}/accounts/{eur_account}/manual-transaction",
@@ -121,8 +121,8 @@ def test_cancel_redo_cycle_reversal_row_not_deduped(client, auth_headers, eur_ac
     ekstre yeniden yüklenince dördü de atlanır (idempotans).
     """
     from app.models.user import User
+    from app.parsers.bank_parser import ParsedHeader, ParsedTransaction, ParseResult, compute_tx_hash
     from app.routers.finance.banks import _process_statement
-    from app.utils.bank_parser import ParsedHeader, ParsedTransaction, ParseResult, compute_tx_hash
 
     def _tx(d, desc, amount, balance, typ):
         return ParsedTransaction(date=d, receipt_no=None, description=desc,

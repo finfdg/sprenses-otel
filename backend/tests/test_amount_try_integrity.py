@@ -20,7 +20,7 @@ import pytest
 
 from app.models.bank_account import BankAccount
 from app.models.finance_event import FinanceEvent
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 
 @pytest.fixture

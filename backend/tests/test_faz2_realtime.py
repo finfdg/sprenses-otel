@@ -41,9 +41,10 @@ from app.models.scheduled import ScheduledDefinition, ScheduledEntry
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
+from app.realtime import finance_broadcast
 from app.routers.finance import sedna_sync
-from app.utils import finance_broadcast, finance_event_service
-from app.utils.finance_event_service import finance_event_svc
+from app.services import finance_event_service
+from app.services.finance_event_service import finance_event_svc
 from app.utils.security import hash_password
 
 PREFIX = "/api/finance/sedna"

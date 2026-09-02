@@ -10,8 +10,8 @@ from unittest.mock import patch
 from app.models.exchange_rate import ExchangeRate
 from app.models.reservation import Reservation
 from app.models.room_type import RoomType
+from app.services.occupancy import occupancy_metrics
 from app.services.reservation_service import _window_start
-from app.utils.occupancy import occupancy_metrics
 
 PREFIX = "/api/sales/reservations"
 TARGET = "app.routers.sales.reservations.sedna_import"

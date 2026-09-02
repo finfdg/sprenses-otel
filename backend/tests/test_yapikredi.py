@@ -6,7 +6,7 @@ açıklama, dekont no ve response zarfı (response.return.list) doğrulanır.
 """
 from datetime import date
 
-from app.utils import yapikredi_api as yk
+from app.integrations import yapikredi_api as yk
 
 # Doküman "Output Parametreleri" örneği (kısaltılmış — 2 kayıt, 100'den az → tek sayfa)
 _DOC_LIST = [

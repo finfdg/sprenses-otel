@@ -26,8 +26,7 @@ from app.models.dividend import (
     DividendShareholder,
 )
 from app.models.finance_event import SOURCE_DIVIDEND, SOURCE_DIVIDEND_STOPAJ
-from app.utils.finance_event_service import finance_event_svc
-
+from app.services.finance_event_service import finance_event_svc
 
 # ─── Yardımcılar ─────────────────────────────────────────────────────
 

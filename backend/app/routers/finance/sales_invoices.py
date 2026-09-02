@@ -15,6 +15,13 @@ from sqlalchemy.orm import Session
 
 from app.constants import BroadcastModule
 from app.database import get_db
+from app.integrations.sedna_client import (
+    SednaUnavailable,
+    fetch_advance_accounts,
+    fetch_advance_transactions,
+    fetch_sales_invoices,
+    sedna_configured,
+)
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.sales_invoice import (
@@ -27,6 +34,7 @@ from app.models.sales_invoice import (
     SalesInvoice,
 )
 from app.models.user import User
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.services.sales_invoice_service import (
     _EPS,
     _compute_cached,
@@ -35,14 +43,6 @@ from app.services.sales_invoice_service import (
     _merged_advances,
 )
 from app.utils.audit import log_action
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.sedna_client import (
-    SednaUnavailable,
-    fetch_advance_accounts,
-    fetch_advance_transactions,
-    fetch_sales_invoices,
-    sedna_configured,
-)
 
 logger = logging.getLogger(__name__)
 TZ = pytz.timezone("Europe/Istanbul")
@@ -315,8 +315,8 @@ def run_sales_invoice_import(db: Session, current_user: User, ip=None) -> dict:
 
     # PMS acente adı → 120 cari kodu köprüsünü tazele (hak ediş gruplaması için; best-effort)
     try:
+        from app.integrations.sedna_client import fetch_agency_acc_codes
         from app.models.agency_code_map import AgencyCodeMap
-        from app.utils.sedna_client import fetch_agency_acc_codes
         pairs = fetch_agency_acc_codes()
         if pairs:
             db.query(AgencyCodeMap).delete()

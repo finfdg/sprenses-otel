@@ -20,14 +20,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.middleware.auth import get_current_user, require_permission
-from app.models.user import User
-from app.utils.sedna_client import (
+from app.integrations.sedna_client import (
     SednaUnavailable,
     fetch_reservation_activity,
     sedna_configured,
 )
-
+from app.middleware.auth import get_current_user, require_permission
+from app.models.user import User
 from app.services.reservation_service import _currency_to_eur_factors
 
 logger = logging.getLogger(__name__)

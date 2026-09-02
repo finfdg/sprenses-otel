@@ -2,9 +2,9 @@
 
 from unittest.mock import MagicMock, patch
 
-import app.utils.mail as mail_mod
-from app.utils.mail import is_mail_enabled, send_email
-from app.utils.notification import _build_email_html
+import app.integrations.mail as mail_mod
+from app.integrations.mail import is_mail_enabled, send_email
+from app.realtime.notification import _build_email_html
 
 NOTIF_PREFIX = "/api/notifications"
 

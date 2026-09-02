@@ -19,11 +19,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
 from app.models.user import User
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.schemas.scheduled import (
     DefinitionCreate,
     DefinitionResponse,
@@ -31,11 +33,9 @@ from app.schemas.scheduled import (
     EntryResponse,
     EntryUpdate,
 )
-from app.utils.approval_check import check_approval
-from app.utils.audit import log_action
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.recurring_vendor_sync import run_recurring_vendor_sync
 from app.services import scheduled_service
+from app.services.recurring_vendor_sync import run_recurring_vendor_sync
+from app.utils.audit import log_action
 from app.utils.pagination import page_meta
 
 

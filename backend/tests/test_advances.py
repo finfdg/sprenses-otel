@@ -1,7 +1,8 @@
 """Alınan Avanslar modülü testleri."""
-import pytest
 from datetime import date
 from unittest.mock import patch
+
+import pytest
 
 REC = "app.routers.finance.advances"
 
@@ -176,7 +177,7 @@ def _mk_bank_income(db, iban, currency, amount, tx_date, description, tx_hash):
     """Hesap + gelir işlemi oluştur, banka FE'sini üret."""
     from app.models.bank_account import BankAccount
     from app.models.bank_transaction import BankTransaction
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     acc = BankAccount(bank_name="Avans Match Bank", iban=iban, currency=currency, is_active=True)
     db.add(acc)
@@ -196,7 +197,7 @@ def test_auto_match_advance_by_agency_name(db):
     avans 'received' olur, FE is_matched=True + event_status='received',
     banka FE görünür kalır (is_realized=True) → nakit akımda çift sayım kapanır."""
     from app.models.finance_event import FinanceEvent
-    from app.utils.matching_service import _match_advances_to_bank
+    from app.services.matching_service import _match_advances_to_bank
 
     adv = _mk_advance(db, "Alltours Flugreisen GmbH", 250000, "EUR", date(2026, 6, 20))
     btx = _mk_bank_income(
@@ -229,7 +230,7 @@ def test_auto_match_advance_by_agency_name(db):
 
 def test_auto_match_advance_blind_close_date(db):
     """İsim geçmese de tutar+para birimi+yakın tarih (kör yol) eşleşir."""
-    from app.utils.matching_service import _match_advances_to_bank
+    from app.services.matching_service import _match_advances_to_bank
 
     adv = _mk_advance(db, "Körtest Acentesi", 120000, "EUR", date(2026, 7, 8))
     _mk_bank_income(
@@ -245,7 +246,7 @@ def test_auto_match_advance_blind_close_date(db):
 
 def test_auto_match_advance_blind_far_date_skipped(db):
     """İsim yok + tarih uzak (>10 gün) → eşleşmez (yanlış-pozitif koruması)."""
-    from app.utils.matching_service import _match_advances_to_bank
+    from app.services.matching_service import _match_advances_to_bank
 
     adv = _mk_advance(db, "Uzaktarih Acentesi", 90000, "EUR", date(2026, 5, 1))
     _mk_bank_income(
@@ -261,7 +262,7 @@ def test_auto_match_advance_blind_far_date_skipped(db):
 
 def test_auto_match_advance_currency_mismatch_skipped(db):
     """Para birimi farklıysa (TRY hesaba EUR avans) eşleşmez."""
-    from app.utils.matching_service import _match_advances_to_bank
+    from app.services.matching_service import _match_advances_to_bank
 
     adv = _mk_advance(db, "Dövizfark Acentesi", 50000, "EUR", date(2026, 7, 9))
     _mk_bank_income(
@@ -277,7 +278,7 @@ def test_auto_match_advance_currency_mismatch_skipped(db):
 
 def test_auto_match_advance_virman_skipped(db):
     """Virman (hesaplar arası aktarım) açıklaması aday olamaz."""
-    from app.utils.matching_service import _match_advances_to_bank
+    from app.services.matching_service import _match_advances_to_bank
 
     adv = _mk_advance(db, "Virmantest Acentesi", 75000, "EUR", date(2026, 7, 9))
     _mk_bank_income(
@@ -295,7 +296,7 @@ def test_auto_match_advance_early_payment_skipped(db):
     """İsim geçse bile beklenen tarihten >10 gün ÖNCE gelen para eşleşmez —
     erken gelen para önceki taksitin tahsilatıdır (canlı vaka: 10.06 Swift'i
     20.07 taksitine bağlanıyordu)."""
-    from app.utils.matching_service import _match_advances_to_bank
+    from app.services.matching_service import _match_advances_to_bank
 
     adv = _mk_advance(db, "Erkentest Acentesi", 250000, "EUR", date(2026, 7, 20))
     _mk_bank_income(
@@ -313,7 +314,7 @@ def test_auto_match_advance_manual_receipt_tx_skipped(db):
     """Elle 'alındı' işaretlenmiş (banka bağlantısız) avansın karşılığı olan banka
     hareketi başka bir taksite aday olamaz (para birimi+tutar+tarih imzası)."""
     from app.services import advance_service
-    from app.utils.matching_service import _match_advances_to_bank
+    from app.services.matching_service import _match_advances_to_bank
 
     # Haziran taksiti elle alındı işaretlendi (btx bağlantısı YOK)
     received = advance_service.create_advance(db, {

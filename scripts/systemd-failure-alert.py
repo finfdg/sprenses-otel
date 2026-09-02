@@ -86,7 +86,7 @@ def _write_error_log(unit: str, message: str, logs: str) -> bool:
 
 def _send_mails(unit: str, message: str, logs: str, dry_run: bool) -> int:
     from app.database import SessionLocal
-    from app.utils.mail import is_mail_enabled, send_email
+    from app.integrations.mail import is_mail_enabled, send_email
 
     if not is_mail_enabled():
         print("NOT: SMTP yapılandırılmamış — e-posta atlandı")

@@ -8,6 +8,7 @@ from sqlalchemy import func
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -21,18 +22,17 @@ from app.models.transaction_category import TransactionCategory
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
-from app.utils.audit import log_action
-from app.constants import BroadcastModule
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.sync_vendor_fifo import sync_vendor_finance_events
-from app.utils.matching_service import (
+from app.realtime.finance_broadcast import broadcast_finance_update
+from app.services.finance_event_service import finance_event_svc
+from app.services.matching_service import (
     SCHEDULED_TARGET_TYPES,
     apply_advance_bank_match,
     apply_check_bank_match,
     apply_credit_bank_match,
     apply_vendor_bank_match,
 )
-from app.utils.finance_event_service import finance_event_svc
+from app.services.sync_vendor_fifo import sync_vendor_finance_events
+from app.utils.audit import log_action
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +257,7 @@ def match_credit_payment(
         # Manuel yola özgü etiketleme: kullanıcı bilinçli eşleştirdi → tag_source='manual'
         # (apply içindeki _tag_scheduled_bank_leg 'auto' yazar; manuel karar onu ezer —
         # ürün adı notu ve ödeme yöntemi de yalnız bu yolda anlamlıdır).
-        from app.utils.auto_tagger import LEASING_CATEGORY, _get_or_create_category
+        from app.services.auto_tagger import LEASING_CATEGORY, _get_or_create_category
         kredi_cat = _get_or_create_category(db, LEASING_CATEGORY)
         btx.category_id = kredi_cat.id if kredi_cat else None
         btx.tag_source = "manual"
@@ -434,7 +434,7 @@ def rematch_all(
     Onaydan MUAF — operasyonel eşleştirme (dosya-yükleme istisnası sınıfı,
     docs/modules/onay-akisi.md kapsam listesi); audit'li + WS yayınlı.
     """
-    from app.utils.matching_service import run_post_ingest_processing
+    from app.services.matching_service import run_post_ingest_processing
 
     results = run_post_ingest_processing(db)
     log_action(

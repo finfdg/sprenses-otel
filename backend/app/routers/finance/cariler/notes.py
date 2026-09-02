@@ -20,9 +20,9 @@ from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_note import VendorNote
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.schemas.vendor import VendorNoteCreate, VendorNoteResponse, VendorNoteUpdate
 from app.utils.audit import log_action
-from app.utils.finance_broadcast import broadcast_finance_update
 from app.utils.pagination import page_meta
 
 from ._helpers import logger

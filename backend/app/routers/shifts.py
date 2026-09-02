@@ -10,13 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.shift import ShiftDefinition
 from app.models.user import User
 from app.services import hr_service
-from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 
 router = APIRouter()

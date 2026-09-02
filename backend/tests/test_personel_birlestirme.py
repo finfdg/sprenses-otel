@@ -19,14 +19,14 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import FinanceEvent
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
 from app.models.transaction_category import TransactionCategory
-from app.services.salary_sync_service import sync_salary_from_sedna
-from app.services.scheduled_service import close_entry_via_bank, link_entry_to_bank
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.matching_service import (
+from app.services.finance_event_service import finance_event_svc
+from app.services.matching_service import (
     _match_scheduled_to_bank,
     cleanup_stale_suggestions,
     run_all_matchers,
 )
+from app.services.salary_sync_service import sync_salary_from_sedna
+from app.services.scheduled_service import close_entry_via_bank, link_entry_to_bank
 
 TODAY = date.today()
 

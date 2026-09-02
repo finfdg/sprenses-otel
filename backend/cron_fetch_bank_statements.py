@@ -21,13 +21,13 @@ from typing import Optional
 from fastapi import BackgroundTasks
 
 from app.database import SessionLocal
+from app.integrations.yapikredi_api import fetch_yapikredi_statement
 from app.models.bank_account import BankAccount
 from app.models.user import User
 from app.routers.finance.bank_statement_import import (
     _post_upload_processing,
     _process_statement,
 )
-from app.utils.yapikredi_api import fetch_yapikredi_statement
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cron_fetch_bank_statements")

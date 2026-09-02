@@ -50,7 +50,7 @@ kalıbıyla **Sedna'dan canlı sorgular** (model/migration/senkron yok, geçmiş
 
 | Katman | Dosya |
 |---|---|
-| Sedna sorgusu | `backend/app/utils/sedna_client.py` → `_RESERVATION_ACTIVITY_QUERY` + `fetch_reservation_activity(start, end_next)` |
+| Sedna sorgusu | `backend/app/integrations/sedna_client.py` → `_RESERVATION_ACTIVITY_QUERY` + `fetch_reservation_activity(start, end_next)` |
 | Router | `backend/app/routers/sales/reservations/daily_activity.py` |
 | Router kaydı | `backend/app/routers/sales/__init__.py` (`prefix="/daily-activity"`) |
 | Migration | `backend/alembic/versions/a7c4e2b9d1f3_add_daily_reservations_module.py` (yalnız modül + Admin izni; tablo yok) |

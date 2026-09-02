@@ -11,15 +11,15 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.middleware.auth import get_current_user, require_permission
-from app.models.user import User
-from app.utils.sedna_client import (
+from app.integrations.sedna_client import (
     SednaUnavailable,
     fetch_user_vouchers,
     fetch_voucher_detail,
     fetch_voucher_summary,
     sedna_configured,
 )
+from app.middleware.auth import get_current_user, require_permission
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,7 @@ from app.models.check import Check
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
 from app.models.vendor_transaction import VendorTransaction
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 logger = logging.getLogger(__name__)
 

@@ -14,6 +14,7 @@ from app.middleware.rate_limit import get_client_ip, message_limiter, search_lim
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.user import User
+from app.realtime.push import send_push_to_user
 from app.routers.messages._helpers import (
     _broadcast_to_conversation,
     _build_new_message_event,
@@ -27,7 +28,6 @@ from app.routers.messages._helpers import (
 from app.schemas.message import MessageCreate, MessageEdit, MessageResponse
 from app.utils.audit import log_action
 from app.utils.file_upload import save_upload
-from app.utils.push import send_push_to_user
 from app.websocket.manager import manager
 
 router = APIRouter()

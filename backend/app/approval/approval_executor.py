@@ -500,7 +500,7 @@ def _handle_finance_checks(db, action_type, entity_id, payload, actor_id):
         else:
             # Savunmacı: durum dışı alan güncellemesi (endpoint her zaman new_status gönderir)
             from app.models.bank_transaction import BankTransaction
-            from app.utils.finance_event_service import finance_event_svc
+            from app.services.finance_event_service import finance_event_svc
             _apply_fields(check, payload)
             bank_tx = (db.query(BankTransaction).filter(
                 BankTransaction.id == check.bank_transaction_id).first()
@@ -538,7 +538,7 @@ def _handle_finance_banks(db, action_type, entity_id, payload, actor_id):
             raise ValueError(f"Ekstre bulunamadı: {entity_id}")
         totals = bank_release_service.delete_bank_statement(db, stmt)
         if totals.get("needs_vendor_sync"):
-            from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+            from app.services.sync_vendor_fifo import sync_vendor_finance_events
             sync_vendor_finance_events(db)
         return
     if op == "delete_transaction":

@@ -27,7 +27,7 @@ from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.credit_product import CreditPayment, CreditProduct
 from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
-from app.utils.matching_service import (
+from app.services.matching_service import (
     CREDIT_AUTO_MIN,
     CREDIT_SUGGEST_MIN,
     _match_advances_to_bank,

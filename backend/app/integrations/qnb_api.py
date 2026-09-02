@@ -23,13 +23,13 @@ from typing import List, Optional
 import httpx
 
 from app.config import settings
-from app.paths import QNB_REFRESH_TOKEN_FILE
-from app.utils.bank_parser import (
+from app.parsers.bank_parser import (
     ParsedHeader,
     ParsedTransaction,
     ParseResult,
     compute_tx_hash,
 )
+from app.paths import QNB_REFRESH_TOKEN_FILE
 
 logger = logging.getLogger(__name__)
 

@@ -13,11 +13,11 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.integrations.sedna_client import fetch_reservations
 from app.models.exchange_rate import ExchangeRate
 from app.models.reservation import Reservation
 from app.models.user import User
 from app.utils.audit import log_action
-from app.utils.sedna_client import fetch_reservations
 
 logger = logging.getLogger(__name__)
 

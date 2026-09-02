@@ -6,8 +6,8 @@ from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models.push_subscription import PushSubscription
 from app.models.user import User
+from app.realtime.push import send_push_to_user
 from app.schemas.push import PushSubscriptionCreate, PushSubscriptionResponse, VapidPublicKeyResponse
-from app.utils.push import send_push_to_user
 
 router = APIRouter()
 

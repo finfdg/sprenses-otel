@@ -11,12 +11,12 @@ from app.models.check import Check
 from app.models.credit_card_statement import CreditCardStatement
 from app.models.credit_product import CREDIT_TYPE_LABELS, CreditPayment, CreditProduct
 from app.models.exchange_rate import ExchangeRate
-from app.utils.fx_rates import CROSS_EUR_CURRENCIES  # noqa: F401 — re-export (tek kaynak utils/fx_rates)
 from app.models.finance_event import DIRECTION_INCOME, FinanceEvent
 from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.schemas.cash_flow import CashFlowResponse
+from app.services.fx_rates import CROSS_EUR_CURRENCIES  # noqa: F401 — re-export (tek kaynak utils/fx_rates)
 
 
 def _build_bank_response(

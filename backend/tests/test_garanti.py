@@ -4,7 +4,7 @@ Parse saf fonksiyonlarla, fetch monkeypatch'li (ağ/kimlik yok) test edilir.
 """
 from datetime import date
 
-from app.utils import garanti_api as gb
+from app.integrations import garanti_api as gb
 
 # Doküman "Sample Response" transactions[] (kısaltılmış — A ve B örnekleri)
 _DOC_ROWS = [

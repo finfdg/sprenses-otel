@@ -10,7 +10,7 @@ Otelcilikte gerçek maliyet kontrolü operasyon (satın alma→depo→tüketim) 
 (geceleme/pax) füzyonuyla anlam kazanır. Bu modül **all-inclusive otelin can damarı KPI'larını**
 hesaplar: kişi başı F&B maliyeti, CPOR, stok devir hızı, fiyat sapması.
 
-## Operasyonel KPI füzyonu (`app/utils/occupancy.py` + `stock.py:compute_operational_kpi`)
+## Operasyonel KPI füzyonu (`app/services/occupancy.py` + `stock.py:compute_operational_kpi`)
 - **Geceleme/oda-gece** rezervasyondan **occupancy-overlap** ile (generate_series): bir konaklama
   birden çok aya yayılırsa her ayın gecelemesine doğru pay düşer — stok tüketim ayıyla eşleşir.
   `guest_nights = SUM(pax×gece)`, pax=adult+child_paid+child_free+baby, checkout EXCLUSIVE.

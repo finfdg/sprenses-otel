@@ -3,6 +3,7 @@ from typing import List, Set
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import get_current_user, require_permission
@@ -10,7 +11,6 @@ from app.middleware.rate_limit import get_client_ip
 from app.models.module import Module
 from app.models.user import User
 from app.schemas.module import ModuleCreate, ModuleResponse, ModuleUpdate
-from app.utils.approval_check import check_approval
 from app.services import system_service
 from app.utils.audit import log_action
 from app.websocket.manager import manager

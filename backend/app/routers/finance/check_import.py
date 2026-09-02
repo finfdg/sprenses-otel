@@ -17,12 +17,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.constants import SourceType
+from app.integrations.sedna_client import SednaUnavailable, fetch_issued_checks, sedna_configured
 from app.models.check import Check, CheckUpload
 from app.models.user import User
+from app.services.finance_event_service import finance_event_svc
+from app.services.matching_service import _match_checks_to_bank
 from app.utils.audit import log_action
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.matching_service import _match_checks_to_bank
-from app.utils.sedna_client import SednaUnavailable, fetch_issued_checks, sedna_configured
 
 logger = logging.getLogger(__name__)
 TZ = pytz.timezone("Europe/Istanbul")

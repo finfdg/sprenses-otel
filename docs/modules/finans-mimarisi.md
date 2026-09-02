@@ -121,7 +121,7 @@ CREATE INDEX ix_fe_category     ON finance_events(category_id) WHERE category_id
 
 ## `FinanceEventService` — Upsert/Invalidate/Match
 
-Tüm `finance_events` yazmaları `app/utils/finance_event_service.py` üzerinden yapılır.
+Tüm `finance_events` yazmaları `app/services/finance_event_service.py` üzerinden yapılır.
 
 ### Temel Metodlar
 
@@ -218,7 +218,7 @@ Avantaj: Nakit akım sorgusu sırasında JOIN veya hesaplama yapılmaz.
 Toplu Excel yüklemelerinde (500 satır → 500 muhtemel broadcast) aşırı WebSocket trafiğini önler.
 
 ```python
-# app/utils/finance_broadcast.py
+# app/realtime/finance_broadcast.py
 _pending_modules: Set[str] = set()
 _debounce_lock = asyncio.Lock()
 

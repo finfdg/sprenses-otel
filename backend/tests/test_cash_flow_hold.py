@@ -22,7 +22,7 @@ from app.models.exchange_rate import ExchangeRate
 from app.models.finance_event import FinanceEvent
 from app.routers.finance.cash_flow.t_account import taccount_limiter
 from app.services import hold_service
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 from app.utils.finance_helpers import MIN_DATE
 
 HOLD_URL = "/api/finance/cash-flow/hold-batch"

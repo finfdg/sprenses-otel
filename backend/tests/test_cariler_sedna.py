@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from sqlalchemy import text
 
-from app.utils.sedna_client import SednaUnavailable
+from app.integrations.sedna_client import SednaUnavailable
 
 PREFIX = "/api/finance/cariler"
 TARGET = "app.routers.finance.cariler.sedna_import"
@@ -277,7 +277,7 @@ def test_sedna_import_hash_collision_merges_into_existing_row(client, auth_heade
     from app.models.vendor import Vendor
     from app.models.vendor_transaction import VendorTransaction
     from app.models.vendor_upload import VendorUpload
-    from app.utils.vendor_parser import compute_vendor_tx_hash
+    from app.parsers.vendor_parser import compute_vendor_tx_hash
 
     code, evrak, tarih = "320.77.06.H001", "128", date(2026, 1, 22)
 

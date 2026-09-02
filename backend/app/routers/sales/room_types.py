@@ -13,12 +13,14 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.room_type import RoomType
 from app.models.user import User
+from app.realtime.sales_broadcast import broadcast_sales_update
 from app.schemas.room_type import (
     RoomTypeCreate,
     RoomTypeListResponse,
@@ -26,9 +28,7 @@ from app.schemas.room_type import (
     RoomTypeUpdate,
 )
 from app.services import room_type_service
-from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
-from app.utils.sales_broadcast import broadcast_sales_update
 
 router = APIRouter(prefix="/room-types", tags=["Oda Tipleri"])
 

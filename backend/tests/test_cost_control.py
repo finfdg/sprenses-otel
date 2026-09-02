@@ -8,7 +8,7 @@ from app.models.reservation import Reservation
 from app.models.room_type import RoomType
 from app.models.stock import StockDepot, StockMovement, StockProduct
 from app.models.vendor_upload import VendorUpload
-from app.utils.occupancy import occupancy_metrics
+from app.services.occupancy import occupancy_metrics
 
 PREFIX = "/api/stok"
 

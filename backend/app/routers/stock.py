@@ -14,6 +14,7 @@ from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.integrations.sedna_client import SednaUnavailable, sedna_configured
 from app.middleware.auth import get_current_user, require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.stock import (
@@ -24,8 +25,6 @@ from app.models.stock import (
     type_label,
 )
 from app.models.user import User
-from app.utils.sedna_client import SednaUnavailable, sedna_configured
-
 from app.services.stock_service import (
     compute_operational_kpi,
     compute_price_anomalies,

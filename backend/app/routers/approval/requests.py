@@ -8,6 +8,14 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.approval.approval_executor import cleanup_rejected_or_cancelled, execute_approved_payload
+from app.approval.approval_service import (
+    check_and_trigger_approval,
+    get_entity_type_label,
+    get_pending_approver_ids,
+    is_user_approver,
+    process_action,
+)
 from app.constants import BroadcastModule, WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
@@ -24,21 +32,13 @@ from app.models.approval import (
     ApprovalRequestLog,
 )
 from app.models.user import User
+from app.realtime.notification import create_and_send_notifications
 from app.schemas.approval import (
     ApprovalAction,
     ApprovalRejectAction,
     TriggerApprovalRequest,
 )
-from app.utils.approval_executor import cleanup_rejected_or_cancelled, execute_approved_payload
-from app.utils.approval_service import (
-    check_and_trigger_approval,
-    get_entity_type_label,
-    get_pending_approver_ids,
-    is_user_approver,
-    process_action,
-)
 from app.utils.audit import log_action
-from app.utils.notification import create_and_send_notifications
 from app.websocket.manager import manager
 
 router = APIRouter()

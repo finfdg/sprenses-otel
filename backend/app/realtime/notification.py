@@ -87,7 +87,7 @@ def _send_push_for_payloads(payloads: List[dict]) -> None:
     WS ile bildirim alır, ancak telefonda push bildirimi de görsünler diye
     tüm kullanıcılara gönderilir.
     """
-    from app.utils.push import send_push_to_user
+    from app.realtime.push import send_push_to_user
 
     for p in payloads:
         try:
@@ -138,7 +138,7 @@ def _build_email_payloads(
 
     SMTP kapalıysa boş liste döner (hiç sorgu yapmaz).
     """
-    from app.utils.mail import is_mail_enabled
+    from app.integrations.mail import is_mail_enabled
 
     if not is_mail_enabled() or not notifications:
         return []
@@ -164,7 +164,7 @@ def _build_email_payloads(
 
 def _send_email_for_payloads(payloads: List[dict]) -> None:
     """Snapshot e-posta payload'larını gönder (arka plan thread'inde çalışır)."""
-    from app.utils.mail import send_email
+    from app.integrations.mail import send_email
 
     for p in payloads:
         try:

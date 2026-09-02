@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.credit_product import CreditPayment, CreditProduct
-from app.utils.kmh_calculator import (
+from app.services.kmh_calculator import (
     _next_quarter_first,
     _quarter_first,
     _quarter_last,

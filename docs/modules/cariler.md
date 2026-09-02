@@ -24,7 +24,7 @@
 | `backend/app/models/vendor_bank_account.py` | `VendorBankAccount` (cari IBAN'ları) |
 | `backend/app/models/payment_instruction.py` + `backend/app/routers/finance/payment_instructions.py` | Ödeme Talimatı listeleri/kalemleri |
 | `backend/app/services/vendor_service.py` | Cari vade/durum güncelleme (router + onay executor ORTAK) |
-| `backend/app/utils/vendor_parser.py` | Excel ayrıştırma mantığı |
+| `backend/app/parsers/vendor_parser.py` | Excel ayrıştırma mantığı |
 
 ### Frontend
 | Dosya | Açıklama |

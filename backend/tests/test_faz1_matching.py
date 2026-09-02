@@ -43,8 +43,8 @@ from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.models.vendor_upload import VendorUpload
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.matching_service import (
+from app.services.finance_event_service import finance_event_svc
+from app.services.matching_service import (
     _match_advances_to_bank,
     _match_checks_to_bank,
     _match_credits_to_bank,
@@ -53,7 +53,7 @@ from app.utils.matching_service import (
     apply_check_bank_match,
     cleanup_stale_suggestions,
 )
-from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+from app.services.sync_vendor_fifo import sync_vendor_finance_events
 
 API = "/api/finance/cash-flow"
 TAGS_API = "/api/finance/tags"

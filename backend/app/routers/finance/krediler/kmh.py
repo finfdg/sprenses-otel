@@ -21,7 +21,7 @@ def get_kmh_status(
 
     Sadece type='kmh' ve linked_account_id dolu olan krediler için çalışır.
     """
-    from app.utils.kmh_calculator import calculate_kmh_status, sync_kmh_to_finance_events
+    from app.services.kmh_calculator import calculate_kmh_status, sync_kmh_to_finance_events
 
     product = db.query(CreditProduct).filter(CreditProduct.id == product_id).first()
     if not product:

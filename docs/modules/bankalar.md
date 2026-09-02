@@ -24,7 +24,7 @@
 | `app/models/bank_account.py` | `BankAccount` modeli |
 | `app/models/bank_transaction.py` | `BankTransaction` modeli |
 | `app/models/bank_statement.py` | `BankStatement` modeli |
-| `app/utils/bank_parser.py` | Excel/PDF ekstre ayrıştırıcı |
+| `app/parsers/bank_parser.py` | Excel/PDF ekstre ayrıştırıcı |
 
 ### Frontend
 | Dosya | Açıklama |
@@ -117,7 +117,7 @@
 
 ## Çek / Kredi / Kredi Kartı / Avans Eşleştirmesi
 
-Ekstre yüklenince otomatik eşleştirme tetiklenir (tümü `app/utils/matching_service.py`):
+Ekstre yüklenince otomatik eşleştirme tetiklenir (tümü `app/services/matching_service.py`):
 
 ```python
 # bank_statement_import.py → _post_upload_processing (her biri SAVEPOINT ile izole)

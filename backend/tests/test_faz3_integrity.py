@@ -63,12 +63,12 @@ from app.services.bank_release_service import (
     delete_bank_transaction,
     release_bank_transaction,
 )
+from app.services.finance_event_service import finance_event_svc
 from app.services.sedna_recon_service import (
     BALANCE_CHAIN_TOLERANCE,
     check_balance_chains,
     run_reconciliation,
 )
-from app.utils.finance_event_service import finance_event_svc
 from app.utils.security import hash_password
 
 API_BANKS = "/api/finance/banks"
@@ -656,7 +656,7 @@ class TestDeleteEndpoints:
 def _install_fake_parse(monkeypatch, *, iban, currency, amount=-1000.0, balance=None):
     """banks.upload_statement'ın kullandığı _save_and_parse'ı sahte parsed ile değiştir
     (gerçek dosya parse edilmez — test_bank_manual_transaction deseninin endpoint hali)."""
-    from app.utils.bank_parser import ParsedHeader, ParsedTransaction, ParseResult, compute_tx_hash
+    from app.parsers.bank_parser import ParsedHeader, ParsedTransaction, ParseResult, compute_tx_hash
 
     tx_date = TODAY - timedelta(days=1)
     parsed = ParseResult(

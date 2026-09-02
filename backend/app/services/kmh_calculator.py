@@ -344,7 +344,7 @@ def sync_kmh_to_finance_events(credit: CreditProduct, db: Session) -> int:
     if credit.type != "kmh" or not credit.linked_account_id:
         return 0
 
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     status = calculate_kmh_status(credit, db)
     if not status:

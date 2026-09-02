@@ -88,7 +88,7 @@ def minimal_xls_bytes():
 
 
 def test_parse_minimal_xls(tmp_path, minimal_xls_bytes):
-    from app.utils.reservation_parser import parse_reservation_excel
+    from app.parsers.reservation_parser import parse_reservation_excel
     p = tmp_path / "mini.xls"
     p.write_bytes(minimal_xls_bytes)
     result = parse_reservation_excel(str(p))
@@ -107,7 +107,7 @@ def test_parse_minimal_xls(tmp_path, minimal_xls_bytes):
 
 @pytest.mark.skipif(not HAVE_REAL_XLS, reason="Gerçek XLS bulunamadı")
 def test_parse_real_xls():
-    from app.utils.reservation_parser import parse_reservation_excel
+    from app.parsers.reservation_parser import parse_reservation_excel
     r = parse_reservation_excel(REAL_XLS)
     assert r.hotel_name and "SIDE PRENSES" in r.hotel_name.upper()
     assert len(r.reservations) == 4813
@@ -524,6 +524,7 @@ def test_bulk_delete_over_5000_rejected(client, auth_headers):
 def test_bulk_delete_unauthorized():
     """Auth'sız erişim 401."""
     from fastapi.testclient import TestClient
+
     from app.main import app
     res = TestClient(app).post("/api/sales/reservations/bulk-delete", json={"ids": [1]})
     assert res.status_code == 401

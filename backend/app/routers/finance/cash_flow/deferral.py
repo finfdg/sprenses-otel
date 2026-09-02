@@ -17,6 +17,7 @@ from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.user import User
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.services.deferral_service import (
     DEFERRABLE_SOURCE_TYPES,
     apply_deferral,
@@ -24,7 +25,6 @@ from app.services.deferral_service import (
     resync_deferred_event,
 )
 from app.utils.audit import log_action
-from app.utils.finance_broadcast import broadcast_finance_update
 
 router = APIRouter()
 
@@ -140,7 +140,7 @@ def defer_payment_batch(
         applied += 1
 
     if touched_vendor:
-        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        from app.services.sync_vendor_fifo import sync_vendor_finance_events
         sync_vendor_finance_events(db)
 
     log_action(

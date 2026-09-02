@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 
+from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
@@ -15,22 +16,21 @@ from app.models.transaction_category import TransactionCategory
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
+from app.realtime.finance_broadcast import broadcast_finance_update
 from app.schemas.transaction_tag import (
     BulkTagAssignment,
     CategoryCreate,
     TagAssignment,
     TransactionCategoryResponse,
 )
-from app.utils.audit import log_action
-from app.utils.auto_tagger import (
+from app.services.auto_tagger import (
     PAYMENT_METHOD_LABELS,
     auto_detect_payment_methods,
     auto_match_vendors,
     auto_tag_transactions,
 )
-from app.constants import BroadcastModule
-from app.utils.finance_broadcast import broadcast_finance_update
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
+from app.utils.audit import log_action
 from app.utils.finance_helpers import MIN_DATE, validate_category
 
 # Eşleştirme numarası ve ödeme yöntemi seçimi gerektiren kategoriler
@@ -335,8 +335,8 @@ def tag_transaction(
         # açık giriş varsa banka kanıtıyla kapatılır; birden çok aday → öneri kuyruğu.
         if cat_name in _SCHEDULED_CATEGORY_MAP and not data.vendor_id and tx.date:
             from app.models.scheduled import ScheduledEntry
+            from app.services.matching_service import _upsert_suggestion
             from app.services.scheduled_service import close_entry_via_bank
-            from app.utils.matching_service import _upsert_suggestion
 
             amt = abs(float(tx.amount))
             cands = (

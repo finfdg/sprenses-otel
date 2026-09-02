@@ -134,11 +134,11 @@ def resync_deferred_event(db: Session, source_type: str, source_id: int) -> None
 
     Kaynak bulunamazsa (silinmiş) sessizce geçer — FE zaten yoktur.
     """
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     if source_type == "vendor_payment":
         # FIFO + amount hesabı sync ile gelir; öteleme _upsert override'ında uygulanır.
-        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        from app.services.sync_vendor_fifo import sync_vendor_finance_events
         sync_vendor_finance_events(db)
         return
 
@@ -186,7 +186,10 @@ def resync_deferred_event(db: Session, source_type: str, source_id: int) -> None
     if source_type in ("dividend", "dividend_stopaj"):
         # Bespoke temettü — source_id = dividend_payments.id (pay sahibi × taksit; ScheduledEntry DEĞİL)
         from app.models.dividend import (
-            DividendDistribution, DividendInstallment, DividendPayment, DividendShareholder,
+            DividendDistribution,
+            DividendInstallment,
+            DividendPayment,
+            DividendShareholder,
         )
         from app.services.dividend_service import _payment_events
         pay = db.query(DividendPayment).filter(DividendPayment.id == source_id).first()

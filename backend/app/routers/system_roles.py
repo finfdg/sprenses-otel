@@ -5,6 +5,7 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
@@ -12,7 +13,6 @@ from app.middleware.rate_limit import get_client_ip
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.role import RoleCreate, RoleResponse, RoleUpdate
-from app.utils.approval_check import check_approval
 from app.services import system_service
 from app.utils.audit import log_action
 from app.utils.response_builders import build_role_response, build_role_responses_batch

@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.models.vendor import VENDOR_STATUS_CHOICES, Vendor
 from app.models.vendor_transaction import VendorTransaction
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.sync_vendor_fifo import sync_vendor_finance_events
-from app.utils.vendor_parser import calculate_payment_friday
+from app.parsers.vendor_parser import calculate_payment_friday
+from app.services.finance_event_service import finance_event_svc
+from app.services.sync_vendor_fifo import sync_vendor_finance_events
 
 
 def apply_vendor_update(db: Session, vendor: Vendor, update_data: dict) -> int:

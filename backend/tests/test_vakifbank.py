@@ -6,19 +6,19 @@ sandbox uçtan uca test edildi. Burada ağ çağrısı YOK — testlenebilir çe
 """
 from datetime import date
 
+from app.integrations.vakifbank_client import (
+    _build_transactions_payload,
+    _extract_account_list,
+    _extract_transaction_list,
+    _normalize_batch,
+    _parse_iso_z,
+)
 from app.models.bank_account import BankAccount
 from app.models.finance_event import FinanceEvent
 from app.routers.finance.vakifbank import (
     _ingest_transactions,
     _is_vakifbank,
     _vakifbank_accounts,
-)
-from app.utils.vakifbank_client import (
-    _build_transactions_payload,
-    _extract_account_list,
-    _extract_transaction_list,
-    _normalize_batch,
-    _parse_iso_z,
 )
 
 API = "/api/finance/vakifbank"

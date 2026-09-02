@@ -42,9 +42,9 @@ from sqlalchemy.orm import Session
 
 from app.models.scheduled import ScheduledDefinition, ScheduledEntry
 from app.models.vendor_transaction import VendorTransaction
+from app.services.finance_event_service import finance_event_svc
+from app.services.vendor_fifo import calculate_fifo_amounts
 from app.utils.audit import log_action
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.vendor_fifo import calculate_fifo_amounts
 
 logger = logging.getLogger(__name__)
 

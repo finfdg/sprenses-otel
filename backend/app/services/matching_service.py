@@ -24,7 +24,7 @@ from app.models.credit_product import CreditPayment, CreditProduct
 from app.models.transaction_category import TransactionCategory
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 from app.utils.text_match import _norm_tokens
 
 logger = logging.getLogger(__name__)
@@ -927,8 +927,7 @@ def _match_credits_to_bank(db: Session) -> dict:
                                                     method="auto", score=90)
                         # Grubun tüm banka bacakları "Kredi/Leasing" etiketi alır
                         # (tekil eşleşme yoluyla aynı kural; manuel etiket korunur)
-                        from app.utils.auto_tagger import (LEASING_CATEGORY,
-                                                           _get_or_create_category)
+                        from app.services.auto_tagger import LEASING_CATEGORY, _get_or_create_category
                         _get_or_create_category(db, LEASING_CATEGORY)
                         for tx in group_txs:
                             _tag_scheduled_bank_leg(db, tx, LEASING_CATEGORY)
@@ -1057,7 +1056,7 @@ def apply_check_bank_match(db: Session, check: Check, btx: BankTransaction,
     # Banka bacağı "Çek Ödemesi" başlığı + "Cari: <firma>" etiketi alır (2026-07-23
     # kullanıcı isteği: ödenen çek aynı zamanda cari ödemesidir — kredi bacağı
     # deseninin çeke uyarlanması). vendor_id bilerek yazılmaz (auto_tagger nota bkz).
-    from app.utils.auto_tagger import CHECK_PAYMENT_CATEGORY, _get_or_create_category
+    from app.services.auto_tagger import CHECK_PAYMENT_CATEGORY, _get_or_create_category
     _get_or_create_category(db, CHECK_PAYMENT_CATEGORY)
     vendor_name = (locked.vendor_name or "").strip()
     _tag_scheduled_bank_leg(db, btx, CHECK_PAYMENT_CATEGORY,
@@ -1087,7 +1086,7 @@ def apply_credit_bank_match(db: Session, payment: CreditPayment, product: Credit
     # taksit havaleleri kelime kurallarıyla Virman/Cari'ye düşebiliyordu (canlı:
     # "HAVALE ... NOLU ÖDEME PLANI" Halk Leasing taksitleri "Cari"de görünüyordu).
     # Manuel etiket _tag_scheduled_bank_leg içinde korunur.
-    from app.utils.auto_tagger import LEASING_CATEGORY, _get_or_create_category
+    from app.services.auto_tagger import LEASING_CATEGORY, _get_or_create_category
     _get_or_create_category(db, LEASING_CATEGORY)
     _tag_scheduled_bank_leg(db, btx, LEASING_CATEGORY)
     return True
@@ -1137,8 +1136,7 @@ def apply_vendor_bank_match(db: Session, vtx: VendorTransaction, btx: BankTransa
     # Leasing ödemesinin banka bacağı "Cari" değil "Kredi/Leasing" etiketi alır
     # (2026-07-18 kullanıcı isteği): leasing şirketi Sedna'da 320'li cari olduğundan
     # cari eşleşmesi bacağı "Cari" başlığına çekiyordu — eşleşme bağı yine kurulur.
-    from app.utils.auto_tagger import (LEASING_CATEGORY, _get_or_create_category,
-                                       is_leasing_description)
+    from app.services.auto_tagger import LEASING_CATEGORY, _get_or_create_category, is_leasing_description
     if is_leasing_description(locked_b.description):
         cari_cat = _get_or_create_category(db, LEASING_CATEGORY)
     else:
@@ -1268,7 +1266,7 @@ def _match_vendors_to_bank(db: Session) -> dict:
 
     if matched_count:
         # Eşleşme FIFO kalanını değiştirir → vendor_payment FE'leri yeniden yazılır
-        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        from app.services.sync_vendor_fifo import sync_vendor_finance_events
         sync_vendor_finance_events(db)
 
     return {"matched": matched_count, "suggested": suggested, "total_open": len(open_fes)}
@@ -1290,8 +1288,12 @@ def _match_contract_installments_to_bank(db: Session) -> dict:
     """
     from app.models.agency_group import AgencyGroup
     from app.models.contract import (
-        INSTALLMENT_PAID, INSTALLMENT_PENDING, PLAN_TYPE_GUARANTEE_CHECK,
-        AgencyContract, ContractInstallment, ContractPaymentPlan,
+        INSTALLMENT_PAID,
+        INSTALLMENT_PENDING,
+        PLAN_TYPE_GUARANTEE_CHECK,
+        AgencyContract,
+        ContractInstallment,
+        ContractPaymentPlan,
     )
 
     rows = (
@@ -1448,7 +1450,7 @@ def _recurring_keyword_re(*parts: Optional[str]):
     Ayırt edici token kalmazsa None döner → o giriş kelimesiz sayılır ve
     `recurring` kör yola kapalı olduğundan hiç aday üretmez (sessiz-güvenli).
     """
-    from app.utils.auto_tagger import _normalize
+    from app.services.auto_tagger import _normalize
 
     stems = set()
     for part in parts:
@@ -1488,7 +1490,7 @@ def _tag_scheduled_bank_leg(db: Session, tx: BankTransaction, category_name: str
     if not changed:
         return
     db.flush()
-    from app.utils.auto_tagger import _sync_finance_events
+    from app.services.auto_tagger import _sync_finance_events
     _sync_finance_events(db, [tx])
 
 
@@ -1517,8 +1519,8 @@ def _match_scheduled_to_bank(db: Session) -> dict:
     from app.models.event_match import MATCH_METHOD_SUGGESTION, EventMatch
     from app.models.finance_event import FinanceEvent
     from app.models.scheduled import ScheduledDefinition, ScheduledEntry
+    from app.services.auto_tagger import _normalize
     from app.services.scheduled_service import link_entry_to_bank
-    from app.utils.auto_tagger import _normalize
 
     today = date_cls.today()
     window_start = today - timedelta(days=SCHEDULED_LOOKBACK_DAYS)
@@ -1691,7 +1693,7 @@ def run_post_ingest_processing(db) -> dict:
     results = {}
     try:
         nested = db.begin_nested()
-        from app.utils.auto_tagger import (
+        from app.services.auto_tagger import (
             auto_detect_payment_methods,
             auto_match_vendors,
             auto_tag_transactions,

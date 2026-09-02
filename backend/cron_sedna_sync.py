@@ -37,10 +37,9 @@ def main() -> int:
     from fastapi import HTTPException
 
     from app.database import SessionLocal
+    from app.integrations.sedna_client import sedna_configured
     from app.models.user import User
     from app.routers.finance import sedna_sync as ss
-    from app.utils.sedna_client import sedna_configured
-
     from cron_exit_codes import EXIT_OK, exit_code_for_steps
 
     if not sedna_configured():
@@ -61,7 +60,7 @@ def main() -> int:
                 detail = st["run"](db, admin, "cron")
                 logger.info("%s: %s", st["label"], ss._summarize(st["key"], detail))
                 if st.get("broadcast"):
-                    from app.utils.finance_broadcast import notify_finance_update_sync
+                    from app.realtime.finance_broadcast import notify_finance_update_sync
                     notify_finance_update_sync(st["broadcast"], "upload")
             except HTTPException as e:
                 db.rollback()

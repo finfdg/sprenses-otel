@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.constants import WSEvent
 from app.database import get_db
 from app.middleware.auth import require_permission
@@ -26,7 +27,6 @@ from app.models.shift import ShiftDefinition
 from app.models.shift_assignment import ShiftAssignment
 from app.models.user import User
 from app.services import hr_service
-from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.websocket.manager import manager
 

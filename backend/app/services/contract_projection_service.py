@@ -47,11 +47,15 @@ from app.models.agency_group import (
     AgencyGroup,
 )
 from app.models.contract import (
-    INSTALLMENT_PENDING, PLAN_TYPE_GUARANTEE_CHECK, AgencyContract,
-    ContractDeduction, ContractInstallment, ContractPaymentPlan,
+    INSTALLMENT_PENDING,
+    PLAN_TYPE_GUARANTEE_CHECK,
+    AgencyContract,
+    ContractDeduction,
+    ContractInstallment,
+    ContractPaymentPlan,
 )
 from app.models.reservation import Reservation
-from app.utils.vendor_fifo import _next_friday
+from app.services.vendor_fifo import _next_friday
 
 # 30 sn TTL süreç-içi cache (cc_projection/settlement desenleriyle tutarlı)
 _CACHE: dict = {"t": 0.0, "key": None, "val": None}
@@ -170,8 +174,7 @@ def _compute(db: Session, today: date) -> dict:
     # vade-FIFO düşülür; sözleşmesel girişlerin çift-sayım kırpması (koruma [3],
     # pending advances + CARİ YIL net taksitleri) tarih-FIFO olarak AYNEN uygulanır.
     # Kas/Ara cirosunun ertesi yıla taşan tahsilatı doğal olarak Ocak Cumalarına düşer.
-    from app.services.agency_settlement_service import (
-        _OTHER_ID, _agency_group_maps)
+    from app.services.agency_settlement_service import _OTHER_ID, _agency_group_maps
     from app.services.agency_settlement_service import _norm as _agency_norm
     from app.services.receivable_service import _latest_rates, compute_receivables
     ciro_items = []

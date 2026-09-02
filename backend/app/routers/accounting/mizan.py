@@ -15,15 +15,15 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.middleware.auth import get_current_user, require_permission
-from app.models.user import User
-from app.utils.sedna_client import (
+from app.integrations.sedna_client import (
     SednaUnavailable,
     fetch_account_names,
     fetch_account_transactions,
     fetch_mizan,
     sedna_configured,
 )
+from app.middleware.auth import get_current_user, require_permission
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 

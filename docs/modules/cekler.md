@@ -20,7 +20,7 @@
 |---|---|
 | `app/routers/finance/checks.py` | Ana router — yükleme, listeleme, durum güncelleme, banka eşleştirme |
 | `app/models/check.py` | `Check`, `CheckUpload` modelleri |
-| `app/utils/check_parser.py` | Excel çek dosyası ayrıştırıcı |
+| `app/parsers/check_parser.py` | Excel çek dosyası ayrıştırıcı |
 | `app/schemas/check.py` | Pydantic şemalar |
 
 ### Frontend

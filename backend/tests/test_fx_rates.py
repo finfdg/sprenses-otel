@@ -2,7 +2,7 @@
 from datetime import date
 
 from app.models.exchange_rate import ExchangeRate
-from app.utils.fx_rates import CROSS_EUR_CURRENCIES, RateBook
+from app.services.fx_rates import CROSS_EUR_CURRENCIES, RateBook
 
 
 def _seed(db, rows):

@@ -174,9 +174,9 @@ returned → pending (yeniden gönderildi)
 | `app/routers/approval/__init__.py` | Router paketi |
 | `app/routers/approval/workflows.py` | Tanım CRUD + modules-with-roles |
 | `app/routers/approval/requests.py` | Onay talep işlemleri |
-| `app/utils/approval_service.py` | Merkezi servis (tetikleme, çözümleme, işlem) |
-| `app/utils/approval_check.py` | CRUD endpoint'leri için onay kontrol helper'ı |
-| `app/utils/approval_executor.py` | Onaylanan taleplerin payload'larını uygulayan executor |
+| `app/approval/approval_service.py` | Merkezi servis (tetikleme, çözümleme, işlem) |
+| `app/approval/approval_check.py` | CRUD endpoint'leri için onay kontrol helper'ı |
+| `app/approval/approval_executor.py` | Onaylanan taleplerin payload'larını uygulayan executor |
 
 ### Frontend
 | Dosya | Açıklama |
@@ -190,7 +190,7 @@ returned → pending (yeniden gönderildi)
 Tüm modüllerin POST/PATCH/DELETE endpoint'leri `check_approval()` çağrısı içermelidir:
 
 ```python
-from app.utils.approval_check import check_approval
+from app.approval.approval_check import check_approval
 
 # ── POST (create) ──
 @router.post("/", status_code=201)
@@ -225,7 +225,7 @@ def delete_entity(entity_id: int, db=Depends(get_db), current_user=Depends(...))
 
 ### Executor Handler Ekleme
 
-Yeni modül için `app/utils/approval_executor.py`'ye handler eklenmeli:
+Yeni modül için `app/approval/approval_executor.py`'ye handler eklenmeli:
 
 ```python
 def _handle_my_module(db, action_type, entity_id, payload, actor_id):

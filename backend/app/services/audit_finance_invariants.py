@@ -46,9 +46,9 @@ def _inv_avans_bakiye_birlesik(db, ref_date=None):
 def _inv_cari_net_borc_toplami(db, ref_date=None):
     """FIFO'nun girdisi olan net borç haritası (_get_vendor_net_debts): borç−alacak < 0 olan carilerin toplam net borcu + cari sayısı. Ödeme yasaklısı cariler BİLEREK hariçtir — bu filtre kaybolursa/genişlerse toplam sessizce şişer. Canlı referans: 42.037.794,96 TL / 171 cari (FIFO toplamıyla birebir aynı olmalı; sapma FIFO kırpmasının bozulduğunu gösterir).
 
-    Önem: kritik · Kaynak: app/utils/vendor_fifo.py:239
+    Önem: kritik · Kaynak: app/services/vendor_fifo.py:239
     """
-    from app.utils.vendor_fifo import _get_vendor_net_debts
+    from app.services.vendor_fifo import _get_vendor_net_debts
     debts = _get_vendor_net_debts(db)
     result = {"toplam": round(sum(debts.values()), 2), "cari_sayisi": len(debts)}
     return result
@@ -72,6 +72,7 @@ def _inv_cek_durum_para_birimi_toplami(db, ref_date=None):
     Önem: kritik · Kaynak: backend/app/services/check_service.py:17
     """
     from sqlalchemy import func
+
     from app.models.check import Check
     rows = (db.query(Check.status, Check.currency,
                      func.count(Check.id),
@@ -109,6 +110,7 @@ def _inv_fe_acik_defter_toplami(db, ref_date=None):
     Önem: kritik · Kaynak: backend/app/models/finance_event.py:60
     """
     from sqlalchemy import func
+
     from app.models.finance_event import FinanceEvent
     _rows = (db.query(FinanceEvent.currency, FinanceEvent.direction,
                       func.count(FinanceEvent.id),
@@ -123,9 +125,10 @@ def _inv_fe_acik_defter_toplami(db, ref_date=None):
 def _inv_fe_amount_try_tutarliligi(db, ref_date=None):
     """FIN-001 'hayalet para' imzasının doğrudan ölçümü: (a) TRY kayıtlarda amount_try ile amount'un 0,01'den fazla saptığı satır sayısı — bayat amount_try tam olarak 696 bin TL'lik hayalet parayı üretmişti; (b) döviz kayıtlarda amount_try NULL sayısı (USD/GBP çevrim körlüğü); (c) tüm tabloda ve yalnız açık kayıtlarda amount_try toplamı. Bu sayıların SIFIR olması gerekmiyor — canlı taban 2 sapan TRY + 634 NULL döviz; DEĞİŞMEMELERİ gerekiyor.
 
-    Önem: kritik · Kaynak: backend/app/utils/finance_event_service.py:154
+    Önem: kritik · Kaynak: backend/app/services/finance_event_service.py:154
     """
     from sqlalchemy import func
+
     from app.models.finance_event import FinanceEvent
     _drift = db.query(func.count(FinanceEvent.id)).filter(
         FinanceEvent.currency.in_(("TRY", "TL")),
@@ -147,12 +150,13 @@ def _inv_fe_amount_try_tutarliligi(db, ref_date=None):
 def _inv_fifo_cari_bazli_parmak_izi(db, ref_date=None):
     """FIFO kalanlarının CARİ BAZINDA dağılımının sha256 özeti (ilk 16 hane) + cari sayısı. Toplam değişmeden firmalar arasında tutar kayması (ör. sıralama/kırpma mantığı bozulup borcun yanlış cariye yazılması) yalnız bu değişmezde yakalanır — genel toplam bunu gizler. Deterministik ve hızlı (0,04 sn). Canlı referans: 7106448022d050cb / 171 cari.
 
-    Önem: kritik · Kaynak: app/utils/vendor_fifo.py:66
+    Önem: kritik · Kaynak: app/services/vendor_fifo.py:66
     """
     import hashlib
     from collections import defaultdict
+
     from app.models.vendor_transaction import VendorTransaction
-    from app.utils.vendor_fifo import calculate_fifo_amounts
+    from app.services.vendor_fifo import calculate_fifo_amounts
     fifo = calculate_fifo_amounts(db)
     per = defaultdict(float)
     if fifo:
@@ -166,11 +170,11 @@ def _inv_fifo_cari_bazli_parmak_izi(db, ref_date=None):
 
 
 def _inv_fifo_kalan_toplam(db, ref_date=None):
-    """FIFO motorunun (calculate_fifo_amounts) ürettiği ödenmemiş fatura kalanlarının toplamı ve kalem sayısı. Cari modülünün ÇEKİRDEK sayısı: ödeme planı, vadesi geçmiş kartı, nakit akım vendor_payment olayları, aylık bakiye sekmesi — hepsi bu tek fonksiyondan türer. Kod yolu birebir çağrılır (app/utils/vendor_fifo.py:66). Canlı referans: toplam 42.037.794,96 TL / 870 kalem.
+    """FIFO motorunun (calculate_fifo_amounts) ürettiği ödenmemiş fatura kalanlarının toplamı ve kalem sayısı. Cari modülünün ÇEKİRDEK sayısı: ödeme planı, vadesi geçmiş kartı, nakit akım vendor_payment olayları, aylık bakiye sekmesi — hepsi bu tek fonksiyondan türer. Kod yolu birebir çağrılır (app/services/vendor_fifo.py:66). Canlı referans: toplam 42.037.794,96 TL / 870 kalem.
 
-    Önem: kritik · Kaynak: app/utils/vendor_fifo.py:66
+    Önem: kritik · Kaynak: app/services/vendor_fifo.py:66
     """
-    from app.utils.vendor_fifo import calculate_fifo_amounts
+    from app.services.vendor_fifo import calculate_fifo_amounts
     fifo = calculate_fifo_amounts(db)
     result = {"toplam": round(sum(fifo.values()), 2), "kalem_sayisi": len(fifo)}
     return result
@@ -182,6 +186,7 @@ def _inv_fx_event_eur_cevrim(db, ref_date=None):
     Önem: kritik · Kaynak: backend/app/routers/finance/cash_flow/t_account.py:166
     """
     from datetime import date
+
     from app.models.finance_event import FinanceEvent
     from app.routers.finance.cash_flow.t_account import _event_eur
     _cache = {}
@@ -214,6 +219,7 @@ def _inv_fx_ledger_rate_sabit(db, ref_date=None):
     Önem: kritik · Kaynak: backend/app/services/fx_service.py:34
     """
     from datetime import date
+
     from app.services import fx_service
     _probe_dates = [date(2026, 1, 15), date(2026, 3, 31), date(2026, 5, 4), date(2026, 7, 1)]
     result = {}
@@ -230,6 +236,7 @@ def _inv_hakedis_ozet(db, ref_date=None):
     Önem: kritik · Kaynak: app/services/receivable_service.py:194
     """
     from datetime import date
+
     from app.services.receivable_service import compute_receivables
     from app.services.sales_invoice_service import _invalidate_compute_cache
     _invalidate_compute_cache()
@@ -273,9 +280,10 @@ def _inv_kredi_aktif_kalan_anapara_tip(db, ref_date=None):
 def _inv_kredi_cek_finance_event_izdusumu(db, ref_date=None):
     """Kredi ve çeklerin nakit akımına YANSIYAN hali: `finance_events` tablosunda source_type in ('credit','check') kayıtlarının kaynak × para birimi × is_matched kırılımında adet ve tutar toplamı. `upsert_credit_payment` / `upsert_check` bu satırları üretir; is_matched kırılımı ÇİFT SAYIM sınırıdır (eşleşmiş kayıt frontend'de toplam dışı bırakılır). Kaynak tabloyla (yukarıdaki iki değişmez) nakit akım izdüşümü arasındaki kopukluk buradan yakalanır.
 
-    Önem: kritik · Kaynak: backend/app/utils/finance_event_service.py:269
+    Önem: kritik · Kaynak: backend/app/services/finance_event_service.py:269
     """
     from sqlalchemy import func
+
     from app.models.finance_event import FinanceEvent
     rows = (db.query(FinanceEvent.source_type, FinanceEvent.currency, FinanceEvent.is_matched,
                      func.count(FinanceEvent.id),
@@ -327,6 +335,7 @@ def _inv_kredi_odenmemis_taksit_toplami(db, ref_date=None):
     Önem: kritik · Kaynak: backend/app/models/credit_product.py:104
     """
     from sqlalchemy import func
+
     from app.models.credit_product import CreditPayment, CreditProduct
     rows = (db.query(CreditProduct.currency,
                      func.coalesce(func.sum(CreditPayment.amount), 0),
@@ -382,7 +391,9 @@ def _inv_rez_eur_toplam_yil(db, ref_date=None):
     Önem: kritik · Kaynak: backend/app/services/reservation_service.py:100
     """
     from datetime import date
+
     from sqlalchemy import func
+
     from app.models.reservation import Reservation
     _rows = (
         db.query(
@@ -422,6 +433,7 @@ def _inv_runway_ozet(db, ref_date=None):
     """
     import uuid
     from types import SimpleNamespace
+
     from app.routers.finance.cash_flow.runway import runway
     _r = runway(db=db, current_user=SimpleNamespace(id="fp-" + uuid.uuid4().hex))
     result = {
@@ -479,6 +491,7 @@ def _inv_si_ham_veri_kanari(db, ref_date=None):
     Önem: kritik · Kaynak: app/models/sales_invoice.py:27
     """
     from sqlalchemy import func
+
     from app.models.sales_invoice import SalesAdvance, SalesCollection, SalesInvoice
     inv_n, inv_tl, inv_nat = db.query(func.count(SalesInvoice.id),
                                      func.coalesce(func.sum(SalesInvoice.amount), 0),
@@ -503,7 +516,7 @@ def _inv_si_ozet_endpoint(db, ref_date=None):
     Önem: kritik · Kaynak: app/routers/finance/sales_invoices.py:372
     """
     from app.models.sales_invoice import STATUS_OPEN, STATUS_PAID, STATUS_PARTIAL, SalesInvoice
-    from app.services.sales_invoice_service import _f, _invalidate_compute_cache, _compute_cached
+    from app.services.sales_invoice_service import _compute_cached, _f, _invalidate_compute_cache
     _invalidate_compute_cache()
     smap, _ = _compute_cached(db)
     agg = {"total": {"invoiced": 0.0, "collected": 0.0, "count": 0},
@@ -538,6 +551,7 @@ def _inv_t_hesap_cari_ay_toplam(db, ref_date=None):
     """
     import uuid
     from types import SimpleNamespace
+
     from app.routers.finance.cash_flow.t_account import t_account
     _r = t_account(period="monthly", offset=0, db=db,
                    current_user=SimpleNamespace(id="fp-" + uuid.uuid4().hex))
@@ -554,6 +568,7 @@ def _inv_t_hesap_grup_kirilimi(db, ref_date=None):
     """
     import uuid
     from types import SimpleNamespace
+
     from app.routers.finance.cash_flow.t_account import t_account
     _r = t_account(period="monthly", offset=0, db=db,
                    current_user=SimpleNamespace(id="fp-" + uuid.uuid4().hex))
@@ -576,6 +591,7 @@ def _inv_acente_mahsup_projeksiyon(db, ref_date=None):
     Önem: yuksek · Kaynak: app/services/agency_settlement_service.py:94
     """
     from datetime import date
+
     from app.services.agency_settlement_service import compute_settlement
     from app.services.sales_invoice_service import _invalidate_compute_cache
     _invalidate_compute_cache()
@@ -607,8 +623,9 @@ def _inv_avans_fe_mutabakat(db, ref_date=None):
     Önem: yuksek · Kaynak: app/services/advance_service.py:23
     """
     from sqlalchemy import func
-    from app.models.finance_event import FinanceEvent
+
     from app.models.advance import Advance
+    from app.models.finance_event import FinanceEvent
     rows = (db.query(FinanceEvent.currency, FinanceEvent.is_matched,
                      func.coalesce(func.sum(FinanceEvent.amount), 0), func.count(FinanceEvent.id))
             .filter(FinanceEvent.source_type == "advance")
@@ -633,6 +650,7 @@ def _inv_avans_modul_ozet(db, ref_date=None):
     Önem: yuksek · Kaynak: app/routers/finance/advances.py:300
     """
     from sqlalchemy import func
+
     from app.models.advance import Advance
     rows = (db.query(Advance.currency, Advance.status,
                      func.sum(Advance.amount), func.count(Advance.id))
@@ -658,7 +676,7 @@ def _inv_cari_detay_ornek(db, ref_date=None):
     Önem: yuksek · Kaynak: app/routers/finance/cariler/vendors.py:234
     """
     from app.routers.finance.cariler.vendors import get_vendor_detail
-    from app.utils.vendor_fifo import _get_vendor_net_debts
+    from app.services.vendor_fifo import _get_vendor_net_debts
     debts = _get_vendor_net_debts(db)
     if not debts:
         result = {"vendor_id": None}
@@ -686,6 +704,7 @@ def _inv_fe_eslesme_bayraklari(db, ref_date=None):
     Önem: yuksek · Kaynak: backend/app/models/finance_event.py:104
     """
     from sqlalchemy import func
+
     from app.models.finance_event import FinanceEvent
     _rows = (db.query(FinanceEvent.source_type, FinanceEvent.is_matched,
                       func.count(FinanceEvent.id))
@@ -702,9 +721,10 @@ def _inv_fe_eslesme_bayraklari(db, ref_date=None):
 def _inv_fe_vendor_payment_toplam(db, ref_date=None):
     """FIFO'nun nakit akıma yansıması: eşleşmemiş vendor_payment finance_events kayıtlarının adedi, amount ve amount_try toplamı (ham okuma, sync_vendor_fifo yazımının SONUCU ölçülür). FIFO toplamı değişmeden bu sayı kayarsa senkron kopmuştur; amount_try kolonu FIN-001 'hayalet para' bulgusunun tam kaynağıdır (canlıda amount 40.349.056,15 iken amount_try yalnız 1.875.144,79 — çoğu satırda NULL). Adet farkı (868 vs FIFO 870) normaldir: aktif düzenli ödeme tanımına bağlı carilere FE üretilmez.
 
-    Önem: yuksek · Kaynak: app/utils/sync_vendor_fifo.py:38
+    Önem: yuksek · Kaynak: app/services/sync_vendor_fifo.py:38
     """
     from sqlalchemy import func
+
     from app.models.finance_event import FinanceEvent
     row = (db.query(func.count(FinanceEvent.id),
                     func.coalesce(func.sum(FinanceEvent.amount), 0),
@@ -742,6 +762,7 @@ def _inv_fx_kur_tablosu_ozet(db, ref_date=None):
     Önem: yuksek · Kaynak: backend/app/models/exchange_rate.py:22
     """
     from sqlalchemy import func
+
     from app.models.exchange_rate import ExchangeRate
     result = {"satir_sayisi": int(db.query(func.count(ExchangeRate.id)).scalar() or 0)}
     _maxd = db.query(func.max(ExchangeRate.date)).scalar()
@@ -763,9 +784,10 @@ def _inv_fx_kur_tablosu_ozet(db, ref_date=None):
 def _inv_kredi_anapara_tutarlilik_sapmasi(db, ref_date=None):
     """ARCH-001 NÖBETÇİSİ. Her aktif kredi için `remaining_amount` ile `total_amount - (ödenmiş taksitlerin anapara toplamı)` karşılaştırılır; 1 kuruştan büyük farkı olan kredi adedi ve toplam sapma döner. ARCH-001'de manuel kredi eşleştirme `apply_credit_bank_match`'i atlayıp anaparayı düşmüyor, geri alma ise koşulsuz iade ediyordu → her eşleştir/geri-al turunda `remaining_amount` şişiyordu. Bu sayı DB verisinden türetilir (kod yolu çağırmaz) — deploy'un migration'ı ya da eşleştirme mantığı veriyi bozarsa seviye kayar.
 
-    Önem: yuksek · Kaynak: backend/app/utils/matching_service.py:950
+    Önem: yuksek · Kaynak: backend/app/services/matching_service.py:950
     """
     from sqlalchemy import func
+
     from app.models.credit_product import CreditPayment, CreditProduct
     odenen = dict(db.query(CreditPayment.credit_product_id,
                            func.coalesce(func.sum(CreditPayment.principal), 0))
@@ -812,8 +834,9 @@ def _inv_mutabakat_acik_ve_kur_farki(db, ref_date=None):
     Önem: yuksek · Kaynak: backend/app/routers/accounting/mutabakat.py:67
     """
     from sqlalchemy import func
-    from app.models.sedna_recon import SednaBankRecon
+
     from app.models.event_match import FxDifference
+    from app.models.sedna_recon import SednaBankRecon
     from app.routers.accounting.mutabakat import _apply_item_filters
     _q = _apply_item_filters(db.query(SednaBankRecon), None, None, None, False, None)
     _open = _q.all()
@@ -853,6 +876,7 @@ def _inv_cari_analitik_toplamlari(db, ref_date=None):
     Önem: orta · Kaynak: app/routers/finance/cariler/analytics.py:43
     """
     from sqlalchemy import func
+
     from app.models.vendor_transaction import VendorTransaction
     from app.routers.finance.cariler.analytics import get_monthly_balances, get_yearly_turnover
     mx = db.query(func.max(VendorTransaction.date)).scalar()
@@ -876,10 +900,11 @@ def _inv_cari_analitik_toplamlari(db, ref_date=None):
 def _inv_rez_doluluk_ciro(db, ref_date=None):
     """Doluluk/ciro hesaplayıcısı `occupancy.occupancy_metrics(db, 2026-01-01, 2026-12-31)` birebir çağrılır: oda-gece, geceleme, kapasite, doluluk %, EUR ciro, ADR, RevPAR. Rezervasyon EUR'sunun rapor katmanındaki orantılama (eur_total/nights × generate_series overlap) mantığını kilitler. Sabit tarih aralığı verildiği için `date.today()` etkisi yoktur; ~4 sn sürer (365 günlük generate_series join) — bu yüzden 'orta'.
 
-    Önem: orta · Kaynak: backend/app/utils/occupancy.py:55
+    Önem: orta · Kaynak: backend/app/services/occupancy.py:55
     """
     from datetime import date
-    from app.utils.occupancy import occupancy_metrics
+
+    from app.services.occupancy import occupancy_metrics
     _m = occupancy_metrics(db, date(2026, 1, 1), date(2026, 12, 31))
     result = {
         "room_nights": _m["room_nights"],

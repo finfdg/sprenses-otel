@@ -18,7 +18,7 @@ from app.models.credit_product import (
     CreditPayment,
     CreditProduct,
 )
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 # BCH/KMH yeniden hesap tetikleyen alanlar (update'te plan yenilenir)
 RECALC_FIELDS = {

@@ -13,13 +13,16 @@ from app.models.agency_group import AgencyGroup
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
 from app.models.contract import (
-    AgencyContract, ContractInstallment, ContractPaymentPlan,
+    AgencyContract,
+    ContractInstallment,
+    ContractPaymentPlan,
 )
 from app.models.reservation import Reservation
 from app.services.contract_projection_service import (
-    contract_inflow_projections, invalidate_cache,
+    contract_inflow_projections,
+    invalidate_cache,
 )
-from app.utils.vendor_fifo import _next_friday
+from app.services.vendor_fifo import _next_friday
 
 
 def _mk_contract(db, group_name=None):
@@ -309,7 +312,7 @@ class TestRunwayIntegration:
 class TestBankMatcher:
     def test_installment_matched_to_bank_income(self, db):
         """Tutar+PB birebir ve grup adı açıklamada → taksit paid + banka bağı kurulur."""
-        from app.utils.matching_service import _match_contract_installments_to_bank
+        from app.services.matching_service import _match_contract_installments_to_bank
 
         g, c = _mk_contract(db)
         plan = _mk_plan(db, c)

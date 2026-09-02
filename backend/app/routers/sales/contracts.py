@@ -31,6 +31,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.approval.approval_check import check_approval
 from app.constants import BroadcastModule
 from app.database import get_db
 from app.middleware.auth import require_permission
@@ -48,6 +49,7 @@ from app.models.contract import (
 )
 from app.models.user import User
 from app.paths import uploads_subdir
+from app.realtime.sales_broadcast import broadcast_sales_update
 from app.schemas.contract import (
     ActionCreate,
     ActionTierCreate,
@@ -64,10 +66,8 @@ from app.schemas.contract import (
     RoomTypeMapCreate,
 )
 from app.services import contract_service
-from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 from app.utils.file_validation import validate_upload_file
-from app.utils.sales_broadcast import broadcast_sales_update
 
 MODULE_CODE = "sales.kontratlar"
 

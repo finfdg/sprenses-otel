@@ -119,8 +119,8 @@ def test_run_sync_all_steps_runs_all(db):
          patch("app.services.stock_service.fetch_stock_products", return_value=[]), \
          patch("app.services.stock_service.fetch_stock_movements", return_value=[]), \
          patch("app.services.reservation_service.fetch_reservations", return_value=[]), \
-         patch("app.utils.sedna_client.fetch_bank_ledger_rows", return_value=[]), \
-         patch("app.utils.sedna_client.fetch_bank_ledger_max_dates", return_value={}), \
+         patch("app.integrations.sedna_client.fetch_bank_ledger_rows", return_value=[]), \
+         patch("app.integrations.sedna_client.fetch_bank_ledger_max_dates", return_value={}), \
          patch("app.services.salary_sync_service.fetch_personnel_payroll", return_value=[]):
         j = run_sync_all_steps(db, _admin(db), "test")
 

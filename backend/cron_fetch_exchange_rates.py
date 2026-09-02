@@ -7,25 +7,26 @@ Kullanım:
   python cron_fetch_exchange_rates.py --bulk    # 2023-01-01'den bugüne toplu çekme
 """
 
-import sys
-import os
-import time
 import argparse
-import logging
-import urllib.request
-import urllib.error
 import json
+import logging
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
 from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from sqlalchemy import func
+
 from app.database import SessionLocal
-from app.models.credit_product import CreditProduct  # noqa: F401 — model registry
+from app.integrations.tcmb import fetch_hourly_rates_sync, fetch_rates_for_date_sync, fetch_today_rates_sync
 from app.models.credit_card_statement import CreditCardStatement  # noqa: F401
+from app.models.credit_product import CreditProduct  # noqa: F401 — model registry
 from app.models.exchange_rate import ExchangeRate
-from app.utils.tcmb import fetch_rates_for_date_sync, fetch_today_rates_sync, fetch_hourly_rates_sync
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)

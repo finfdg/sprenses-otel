@@ -959,7 +959,7 @@ ekstre yüklemesiyle **birebir aynı** (bakiye-bazlı dedup + `finance_event_svc
 akıma yansır, çift kayıt olmaz. Sedna içe-aktarma deseninin bir bankaya uyarlaması.
 
 **Dosyalar:**
-- `app/utils/vakifbank_client.py` — OAuth2 B2B token (cache'li) + `fetch_account_transactions(iban,
+- `app/integrations/vakifbank_client.py` — OAuth2 B2B token (cache'li) + `fetch_account_transactions(iban,
   start, end)`; `VakifbankUnavailable`, `vakifbank_configured()`. Kimlik yalnız `.env` (Sedna deseni;
   `VAKIFBANK_API_SECRET` boşsa özellik kapalı).
 - `app/routers/finance/vakifbank.py` — `run_vakifbank_import(db, user, ip)` servisi (Sedna imzası) +
@@ -1044,7 +1044,7 @@ parse, availBal, boş liste, aynı-gün-dedup + ccy eşleme). Not: manuel tetik 
 
 ## QNB API — Account Statement V2 (2026-07-09, doküman DOĞRULANDI)
 
-`app/utils/qnb_api.py` + `cron_fetch_qnb_statements.py` + config `qnb_*`. Hareketler `ParseResult` →
+`app/integrations/qnb_api.py` + `cron_fetch_qnb_statements.py` + config `qnb_*`. Hareketler `ParseResult` →
 `_process_statement` hattı (YKB deseni; dedup + finance_events + otomatik eşleştirme yeniden kullanılır).
 
 **Şema DOĞRULANDI (developer.qnb.com.tr → Account Statement V2):**
@@ -1071,7 +1071,7 @@ iki tarih biçimi, ticket fallback, aynı-gün-dedup, kapalı). Sistemde 3 QNB h
 
 ## Garanti BBVA API — Account Transactions (2026-07-09, doküman DOĞRULANDI)
 
-`app/utils/garanti_api.py` + `cron_fetch_garanti_statements.py` + config `garanti_*`. Hareketler
+`app/integrations/garanti_api.py` + `cron_fetch_garanti_statements.py` + config `garanti_*`. Hareketler
 `ParseResult` → `_process_statement` hattı (QNB deseni; dedup + finance_events + otomatik eşleştirme).
 
 **Şema (developers.garantibbva.com.tr → Account Transactions v9):**
@@ -1800,7 +1800,7 @@ Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
   deterministik; kod yoksa eski ad-fuzzy (token + para birimi) fallback.
   Detay: `docs/modules/avanslar.md`.
   `banks.py` eskiden bu private fonksiyonları üç kardeş router'dan (`checks.py`, `krediler/`,
-  `banks_cc_match.py`) import ediyordu (katman/coupling ihlali) → artık hepsi `app.utils.matching_service`'ten.
+  `banks_cc_match.py`) import ediyordu (katman/coupling ihlali) → artık hepsi `app.services.matching_service`'ten.
   `banks_cc_match.py` **silindi**; `checks.py`/`krediler/__init__.py` matcher'ı utils'ten re-import eder
   (geriye uyum + iç kullanım korunur). Davranış birebir aynı (test: `test_banks_cc_match.py`).
   **Faz 1 (2026-07-11):** 5. matcher `_match_vendors_to_bank` (cari↔banka) + iki-eşikli öneri
@@ -2105,7 +2105,7 @@ Her yeni para hareketi oluşturulduğunda, güncellendiğinde veya silindiğinde
 `finance_event_svc` servisi çağrılmalıdır:
 
 ```python
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 # Ekleme / Güncelleme — db.flush() SONRA, db.commit() ÖNCE
 finance_event_svc.upsert_*(db, model_instance, ...)
@@ -2152,7 +2152,7 @@ async def my_upload(file: UploadFile = File(...), ...):
 Her CRUD işlemi sonunda broadcast:
 
 ```python
-from app.utils.finance_broadcast import broadcast_finance_update
+from app.realtime.finance_broadcast import broadcast_finance_update
 
 # Endpoint imzasına BackgroundTasks ekle
 def my_endpoint(background_tasks: BackgroundTasks, ...):
@@ -2740,8 +2740,8 @@ katmanı kontrat gerçekleriyle hizalandı:
 
 | Dosya | Açıklama |
 |---|---|
-| `app/utils/finance_event_service.py` | Merkezi olay deposu servisi |
-| `app/utils/finance_broadcast.py` | WS broadcast + 500ms debounce |
+| `app/services/finance_event_service.py` | Merkezi olay deposu servisi |
+| `app/realtime/finance_broadcast.py` | WS broadcast + 500ms debounce |
 | `app/utils/file_validation.py` | MIME + boyut güvenlik doğrulaması |
 | `app/models/finance_event.py` | `finance_events` tablo modeli |
 | `backend/cron_fetch_exchange_rates.py` | Günlük TCMB kur güncelleme cronu |

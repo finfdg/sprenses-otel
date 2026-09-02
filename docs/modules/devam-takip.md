@@ -19,7 +19,7 @@ kendi telefonunun **yerleşik kamerasıyla** okutarak basar.
 - `personnel.py` — yönetici personel CRUD + Excel içe aktarma + QR kart üretimi (PDF) + cihaz sıfırlama
 - `logs.py` — yönetici izleme/raporlar (status, logs, summary) + elle giriş/düzenle/sil + bekleyen onaylar
 
-**Onay executor:** `app/utils/approval_executor.py` → `_handle_attendance` (manuel giriş/düzenle/sil onaya tabi).
+**Onay executor:** `app/approval/approval_executor.py` → `_handle_attendance` (manuel giriş/düzenle/sil onaya tabi).
 
 **Frontend:** `dashboard/ik/devam-takip/+page.svelte` (yönetici), `routes/devam/` altında public sayfalar (`ekran`, `kur`, `+page.svelte` basış).
 

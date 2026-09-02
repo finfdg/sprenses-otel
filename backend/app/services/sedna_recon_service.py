@@ -38,9 +38,9 @@ import pytz
 from sqlalchemy.orm import Session
 
 from app.constants import ReconStatus
+from app.integrations import sedna_client
 from app.models import BankAccount, BankTransaction, SednaBankRecon, SednaReconRun
 from app.models.sedna_recon import RESOLUTION_AUTO, RESOLUTION_IGNORED, RESOLUTION_MANUAL
-from app.utils import sedna_client
 from app.utils.text_match import _norm_tokens
 
 logger = logging.getLogger(__name__)
@@ -746,7 +746,7 @@ def _mutabakat_viewer_ids(db: Session) -> List[int]:
 def _notify_viewers(db: Session, title: str, body: str) -> None:
     """Mutabakat izleyicilerine tek bildirim (best-effort — koşuyu düşürmez)."""
     try:
-        from app.utils.notification import create_and_send_notifications_sync
+        from app.realtime.notification import create_and_send_notifications_sync
 
         user_ids = _mutabakat_viewer_ids(db)
         if user_ids:
@@ -764,7 +764,7 @@ def _notify_new_items(db: Session, items: List[SednaBankRecon]) -> None:
         return
     try:
         from app.models import Module, RoleModulePermission, User
-        from app.utils.notification import create_and_send_notifications_sync
+        from app.realtime.notification import create_and_send_notifications_sync
 
         mod = db.query(Module).filter(Module.code == "accounting.mutabakat").first()
         if not mod:

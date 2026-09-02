@@ -22,6 +22,7 @@ import pytz
 from sqlalchemy import text
 
 from app.constants import ReconStatus
+from app.integrations.sedna_client import SednaUnavailable
 from app.models import BankAccount, BankTransaction, SednaBankRecon
 from app.models.check import Check, CheckUpload
 from app.models.event_match import EventMatch, FxDifference
@@ -31,13 +32,12 @@ from app.models.sales_invoice import SalesCollection, SalesInvoice
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.services import fx_service
+from app.services.finance_event_service import finance_event_svc
 from app.services.sedna_recon_service import (
     close_stale_entity_diffs,
     report_entity_diff,
     resolve_recon_item,
 )
-from app.utils.finance_event_service import finance_event_svc
-from app.utils.sedna_client import SednaUnavailable
 
 tz_istanbul = pytz.timezone("Europe/Istanbul")
 TODAY = datetime.now(tz_istanbul).date()
@@ -535,7 +535,7 @@ def _simport(client, headers, fake, accounts=None):
     with patch(f"{SALES_TARGET}.sedna_configured", return_value=True), \
          patch(f"{SALES_TARGET}.fetch_sales_invoices", return_value=fake), \
          patch(f"{SALES_TARGET}.fetch_advance_accounts", return_value=accounts or []), \
-         patch("app.utils.sedna_client.fetch_agency_acc_codes", return_value=[]):
+         patch("app.integrations.sedna_client.fetch_agency_acc_codes", return_value=[]):
         return client.post("/api/finance/sales-invoices/sedna-import", headers=headers)
 
 
@@ -657,7 +657,7 @@ class TestMutabakatFazBEndpoints:
 
     def test_fx_revaluation_endpoint_sedna_bekliyor(self, client, auth_headers, db, monkeypatch):
         """Type=4 fişi yok (valuation_tl None) → 'sedna_bekliyor'; rate/expected_try dolu."""
-        import app.utils.sedna_client as sedna_client_module
+        import app.integrations.sedna_client as sedna_client_module
 
         acc = _mk_fx_account(db, currency="EUR")
         db.add(BankTransaction(account_id=acc.id, date=date(2026, 6, 15),
@@ -682,7 +682,7 @@ class TestMutabakatFazBEndpoints:
         assert item["sedna_valuation_tl"] is None
 
     def test_fx_revaluation_sedna_unavailable_503(self, client, auth_headers, db, monkeypatch):
-        import app.utils.sedna_client as sedna_client_module
+        import app.integrations.sedna_client as sedna_client_module
 
         _mk_fx_account(db, currency="EUR")
         db.commit()

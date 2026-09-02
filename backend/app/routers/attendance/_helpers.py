@@ -22,6 +22,8 @@ from pydantic import BaseModel
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
+from app.approval.approval_service import get_pending_approver_ids, process_action
 from app.config import settings
 from app.constants import WSEvent
 from app.database import get_db
@@ -50,8 +52,6 @@ from app.models.personnel import (
     Personnel,
 )
 from app.models.user import User
-from app.utils.approval_check import check_approval
-from app.utils.approval_service import get_pending_approver_ids, process_action
 from app.utils.audit import log_action
 from app.utils.file_validation import validate_upload_file
 from app.websocket.manager import manager

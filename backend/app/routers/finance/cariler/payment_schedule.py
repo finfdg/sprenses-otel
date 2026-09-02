@@ -16,8 +16,8 @@ from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.schemas.vendor import PaymentScheduleItem, WeeklyPaymentGroup
-from app.utils.sync_vendor_fifo import sync_vendor_finance_events
-from app.utils.vendor_fifo import _next_friday
+from app.services.sync_vendor_fifo import sync_vendor_finance_events
+from app.services.vendor_fifo import _next_friday
 
 router = APIRouter()
 
@@ -155,7 +155,7 @@ def get_payment_schedule(
     # 5) KALICI ÖTELEME uygula (Cuma roll-over KALDIRILDI 2026-07-04 — vadesi geçen
     #    fatura orijinal tarihinde kalır; yalnız kullanıcı ötelediyse ileri çekilir).
     from app.services.deferral_service import get_deferral_map
-    from app.utils.vendor_fifo import effective_due_date
+    from app.services.vendor_fifo import effective_due_date
     deferral_map = get_deferral_map(db)
     for inv, _amt in schedule_items:
         inv.payment_due_date = effective_due_date(

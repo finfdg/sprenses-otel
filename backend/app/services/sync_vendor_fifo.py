@@ -27,8 +27,8 @@ from app.models.scheduled import ScheduledDefinition
 from app.models.vendor import Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.services.deferral_service import get_deferral_map
-from app.utils.recurring_vendor_sync import sync_recurring_from_vendors
-from app.utils.vendor_fifo import calculate_fifo_amounts, effective_due_date
+from app.services.recurring_vendor_sync import sync_recurring_from_vendors
+from app.services.vendor_fifo import calculate_fifo_amounts, effective_due_date
 
 logger = logging.getLogger(__name__)
 

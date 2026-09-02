@@ -67,13 +67,13 @@ await manager.broadcast({"type": "announcement", "data": {...}})
 ```
 
 ## Debounce (Finans)
-`backend/app/utils/finance_broadcast.py` — 500ms debounce window ile `cash_flow_changed` event'i birleştirilir (batch upload'ta 100 event tek mesajda)
+`backend/app/realtime/finance_broadcast.py` — 500ms debounce window ile `cash_flow_changed` event'i birleştirilir (batch upload'ta 100 event tek mesajda)
 
 ## after_commit Yayın Sigortası (Faz 2 #15, 2026-07-12)
 
 **Sorun sınıfı:** Bir mutasyon endpoint'i/executor'ı/import'u `finance_events`'e yazıyor ama
 `broadcast_finance_update` çağırmayı unutuyor → açık sayfalar sessizce bayat kalıyordu (denetim
-B sınıfı bulgular). **Kalıcı çözüm:** `backend/app/utils/finance_event_service.py` dosyasının
+B sınıfı bulgular). **Kalıcı çözüm:** `backend/app/services/finance_event_service.py` dosyasının
 başındaki sigorta — finance_events'e yazan **HER yol** commit anında otomatik, modül-doğru
 `finance_updated` yayınlar; elle broadcast unutulması artık bayatlık üretmez.
 

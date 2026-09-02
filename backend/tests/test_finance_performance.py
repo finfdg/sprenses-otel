@@ -18,13 +18,12 @@ from typing import List
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.conftest import TestSessionLocal, extract_token
 from app.main import app
 from app.middleware.rate_limit import heavy_limiter, login_limiter
-from app.models.finance_event import FinanceEvent
 from app.models.bank_account import BankAccount
-from app.utils.finance_event_service import finance_event_svc
-
+from app.models.finance_event import FinanceEvent
+from app.services.finance_event_service import finance_event_svc
+from tests.conftest import TestSessionLocal, extract_token
 
 # ─── Yardımcılar ─────────────────────────────────────────────────────────────
 

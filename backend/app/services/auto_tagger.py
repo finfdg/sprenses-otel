@@ -73,7 +73,7 @@ def _sync_finance_events(db: Session, txs) -> None:
     """
     if not txs:
         return
-    from app.utils.finance_event_service import finance_event_svc
+    from app.services.finance_event_service import finance_event_svc
 
     cat_ids = {t.category_id for t in txs if t.category_id}
     cats = {}

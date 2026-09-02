@@ -9,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from app.utils.bank_parser import (
+from app.parsers.bank_parser import (
     ParsedTransaction,
     _balance_chain_score,
     _detect_number_format,
@@ -255,7 +255,7 @@ class TestEnsureChronologicalOrder:
 
 from datetime import datetime  # noqa: E402
 
-from app.utils.bank_parser import parse_excel  # noqa: E402
+from app.parsers.bank_parser import parse_excel  # noqa: E402
 
 
 def _write_xlsx(path, meta_rows, header, data_rows):

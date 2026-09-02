@@ -30,7 +30,7 @@ def main() -> int:
     from app.middleware.auth import user_can
     from app.models.user import User
     from app.services import ai_service
-    from app.utils.notification import create_and_send_notifications_sync
+    from app.realtime.notification import create_and_send_notifications_sync
 
     db = SessionLocal()
     try:

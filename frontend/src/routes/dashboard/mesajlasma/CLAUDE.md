@@ -349,7 +349,7 @@ Bağlantı kapandığında:
 | `backend/app/routers/ws.py` | WebSocket endpoint + typing handler |
 | `backend/app/routers/push.py` | Push abonelik API'leri |
 | `backend/app/websocket/manager.py` | WS bağlantı yöneticisi |
-| `backend/app/utils/push.py` | Push bildirim gönderim helper'ı |
+| `backend/app/realtime/push.py` | Push bildirim gönderim helper'ı |
 | `backend/app/models/message.py` | Message modeli |
 | `backend/app/models/conversation.py` | Conversation + ConversationMember modelleri |
 | `backend/app/models/push_subscription.py` | PushSubscription modeli |

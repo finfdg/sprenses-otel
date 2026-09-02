@@ -41,5 +41,5 @@ def delete_account(db: Session, acc: BankAccount) -> None:
 
     totals = delete_account_with_cleanup(db, acc)
     if totals.get("needs_vendor_sync"):
-        from app.utils.sync_vendor_fifo import sync_vendor_finance_events
+        from app.services.sync_vendor_fifo import sync_vendor_finance_events
         sync_vendor_finance_events(db)

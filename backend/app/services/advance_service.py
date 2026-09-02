@@ -5,7 +5,7 @@ D1-2 (2026-06-22): Router (advances.py) ve onay executor (_handle_finance_avansl
 from sqlalchemy.orm import Session
 
 from app.models.advance import Advance
-from app.utils.finance_event_service import finance_event_svc
+from app.services.finance_event_service import finance_event_svc
 
 
 def create_advance(db: Session, data: dict, actor_id) -> Advance:

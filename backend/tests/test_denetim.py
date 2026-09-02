@@ -16,7 +16,6 @@ from app.models.audit_tracker import (
 )
 from app.services import audit_tracker_service as svc
 
-
 # ─── Fixture'lar ─────────────────────────────────────────────
 
 @pytest.fixture
@@ -431,7 +430,7 @@ class TestApprovalRegression:
     """Executor handler router ile AYNI service'i çağırmalı (CLAUDE.md D1-2)."""
 
     def test_executor_update_applies_same_change_as_router(self, db, denetim_report):
-        from app.utils.approval_executor import _HANDLERS
+        from app.approval.approval_executor import _HANDLERS
 
         f = _finding(db, denetim_report, "A-001", score_impact=1.0)
         handler = _HANDLERS["system.denetim"]
@@ -443,7 +442,7 @@ class TestApprovalRegression:
         assert svc.dimension_scores(db, denetim_report)[0]["score_current"] == 7.0
 
     def test_executor_create_uses_active_report(self, db, denetim_report):
-        from app.utils.approval_executor import _HANDLERS
+        from app.approval.approval_executor import _HANDLERS
 
         handler = _HANDLERS["system.denetim"]
         handler(db, "create", 0, {
@@ -461,7 +460,7 @@ class TestApprovalRegression:
         assert created.report_id == denetim_report.id
 
     def test_executor_config_update(self, db, denetim_report):
-        from app.utils.approval_executor import _HANDLERS
+        from app.approval.approval_executor import _HANDLERS
 
         handler = _HANDLERS["system.denetim"]
         handler(db, "update_config", 1, {"enabled": True, "model": "sonnet"}, actor_id=None)
@@ -471,7 +470,7 @@ class TestApprovalRegression:
 
     def test_module_has_executor_handler(self):
         """AST bekçisiyle aynı sözleşme — açıkça de doğrula."""
-        from app.utils.approval_executor import _HANDLERS
+        from app.approval.approval_executor import _HANDLERS
         assert "system.denetim" in _HANDLERS
 
 
@@ -746,8 +745,9 @@ class TestCronHelpers:
 
         Tam tarama eklenince aynı hata yakalandı: TRY 29.435.343,35 → 29.438.847,78.
         """
-        from app.services import audit_finance_invariants as inv
         import inspect
+
+        from app.services import audit_finance_invariants as inv
 
         keys = {i["key"] for i in inv.INVARIANTS}
         assert "fe_event_eur_tam_tarama" in keys, \

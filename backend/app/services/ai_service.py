@@ -23,7 +23,9 @@ import pytz
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from app.approval.approval_check import check_approval
 from app.config import settings
+from app.constants import SourceType
 from app.middleware.auth import user_can
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
@@ -36,14 +38,11 @@ from app.models.finance_event import (
     FinanceEvent,
 )
 from app.models.reservation import Reservation
-from app.constants import SourceType
 from app.models.scheduled import ScheduledDefinition
 from app.models.user import User
-from app.models.vendor import Vendor
-from app.models.vendor import STATUS_NORMAL, STATUS_PAYMENT_BANNED, VENDOR_STATUS_LABELS
+from app.models.vendor import STATUS_NORMAL, STATUS_PAYMENT_BANNED, VENDOR_STATUS_LABELS, Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.services import advance_service, check_service, scheduled_service, vendor_service
-from app.utils.approval_check import check_approval
 from app.utils.audit import log_action
 
 logger = logging.getLogger(__name__)
