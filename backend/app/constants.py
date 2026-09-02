@@ -10,8 +10,10 @@ Tek doğruluk kaynağı ilkesi:
 - Finans hareketi `source_type` değerleri zaten `app/models/finance_event.py` içinde
   (`SOURCE_BANK` vb.) tanımlıdır. Burada **yeniden tanımlanmaz**, oradan re-export
   edilir — böylece değer iki yerde tutulmaz.
-- Planlı (scheduled) `source_type` değerleri ile WS event tipleri ve broadcast modül
-  adlarının başka bir evi yoktu; bunların kanonik evi bu dosyadır.
+- Planlı (scheduled) `source_type` değerleri de `models/finance_event.py`'de tanımlıdır
+  (SOURCE_TAX … SOURCE_DIVIDEND_STOPAJ) ve buradan re-export edilir (2026-09-02: eskiden
+  burada ikinci kez literal yazılıydı). WS event tipleri ve broadcast modül adlarının başka
+  bir evi yoktur; bunların kanonik evi bu dosyadır.
 
 Frontend karşılığı: `frontend/src/lib/constants/realtime.ts`. WS event tipleri ve
 broadcast modül adları iki taraf arasında **birebir aynı** olmalıdır (Python ↔ TS
@@ -28,7 +30,16 @@ from app.models.finance_event import (
     SOURCE_CC_PAYMENT,
     SOURCE_CHECK,
     SOURCE_CREDIT,
+    SOURCE_DIVIDEND,
+    SOURCE_DIVIDEND_STOPAJ,
+    SOURCE_RECURRING,
+    SOURCE_RENT_EXPENSE,
+    SOURCE_RENT_INCOME,
+    SOURCE_SALARY,
+    SOURCE_SGK,
+    SOURCE_TAX,
     SOURCE_VENDOR,
+    SOURCE_WITHHOLDING,
 )
 
 
@@ -150,18 +161,20 @@ class SourceType:
     VENDOR_PAYMENT = SOURCE_VENDOR
 
     # Planlı tanım kaynakları (scheduled_definitions) — create_scheduled_router
-    TAX = "tax"
-    RECURRING = "recurring"
-    RENT_INCOME = "rent_income"
-    RENT_EXPENSE = "rent_expense"
-    SALARY = "salary"
-    WITHHOLDING = "withholding"
-    SGK = "sgk"
+    # (re-export — tek kaynak: models/finance_event.py; 2026-09-02'ye kadar burada literal
+    # olarak İKİNCİ kez tanımlıydı, "çift tanım yok" ilkesine aykırıydı → tests/test_constants.py bekçi)
+    TAX = SOURCE_TAX
+    RECURRING = SOURCE_RECURRING
+    RENT_INCOME = SOURCE_RENT_INCOME
+    RENT_EXPENSE = SOURCE_RENT_EXPENSE
+    SALARY = SOURCE_SALARY
+    WITHHOLDING = SOURCE_WITHHOLDING
+    SGK = SOURCE_SGK
 
     # Kâr payı dağıtımı (bespoke modül — create_scheduled_router DEĞİL).
     # DIVIDEND = net kalem (ortaklara), DIVIDEND_STOPAJ = stopaj kalemi (vergi dairesine).
-    DIVIDEND = "dividend"
-    DIVIDEND_STOPAJ = "dividend_stopaj"
+    DIVIDEND = SOURCE_DIVIDEND
+    DIVIDEND_STOPAJ = SOURCE_DIVIDEND_STOPAJ
 
     # create_scheduled_router fabrikasıyla üretilen tüm planlı source_type'lar
     # (temettü artık fabrika DIŞI — bespoke; bu yüzden burada YOK)
