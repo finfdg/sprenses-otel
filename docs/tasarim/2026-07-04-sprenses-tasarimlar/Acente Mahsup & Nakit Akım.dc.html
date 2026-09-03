@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae5;font-family:'IBM Plex Sans',system-ui,sans-serif}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d8cdb4;border-radius:8px}
+</style>
+</helmet>
+
+<div style="max-width:1280px;margin:0 auto;padding:34px 30px 48px;color:#232733">
+  <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:18px;box-shadow:0 14px 44px -16px rgba(0,0,0,.28);overflow:hidden">
+
+    <!-- HEADER -->
+    <div style="padding:24px 28px 20px;background:#1b2b45;color:#e8ecf3">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:#8496b3;margin-bottom:4px">Satış &amp; Finans · Birleşik Modül</div>
+          <div style="font-family:'Spectral',serif;font-size:23px;font-weight:600;line-height:1">Acente Mahsup &amp; Nakit Akım Projeksiyonu</div>
+          <div style="font-size:12.5px;color:#9fb0cb;margin-top:5px">Rezervasyon → Fatura → Avans Mahsubu → Vadeli Tahsilat · yıl sonu €{{ targetShort }} ciro hedefiyle · EUR</div>
+        </div>
+        <div style="text-align:right"><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Bugün</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#e8c979;margin-top:3px">05 Tem 2026</div></div>
+      </div>
+
+      <!-- SUMMARY KPIS -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:20px">
+        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px">
+          <div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Yıl Sonu Ciro Hedefi</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#e8c979;margin-top:5px">{{ kpiTarget }}</div>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px">
+          <div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Gerçekleşen · Oca–Haz</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#8fd0a8;margin-top:5px">{{ kpiRealized }}</div>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px">
+          <div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Tahmini · Tem–Ara</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#e8ecf3;margin-top:5px">{{ kpiForecast }}</div>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px">
+          <div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Alınan Avans · mahsup</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#9ec3e6;margin-top:5px">{{ kpiAdvance }}</div>
+        </div>
+        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px">
+          <div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Yıl Sonu Kickback</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#f0a58f;margin-top:5px">{{ kpiKickback }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div style="display:flex;gap:2px;padding:0 20px;background:#f7f3ea;border-bottom:1px solid #e7dfcd">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+        <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+
+    <div style="padding:24px 28px 30px">
+
+      <!-- ========== GENEL BAKIŞ ========== -->
+      <sc-if value="{{ showOzet }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <!-- pipeline funnel -->
+        <div style="display:flex;align-items:stretch;gap:0;flex-wrap:wrap">
+          <sc-for list="{{ funnel }}" as="f" hint-placeholder-count="5">
+            <div style="flex:1;min-width:150px;display:flex;align-items:center">
+              <div style="flex:1;background:{{ f.bg }};border:1px solid {{ f.border }};border-radius:13px;padding:15px 16px">
+                <div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:{{ f.labelColor }}">{{ f.label }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:{{ f.valColor }};margin-top:5px">{{ f.value }}</div>
+                <div style="font-size:11px;color:#a09a88;margin-top:3px">{{ f.note }}</div>
+              </div>
+              <sc-if value="{{ f.arrow }}" hint-placeholder-val="{{ true }}"><span style="padding:0 6px;color:#c9bd9c;font-size:16px;flex:none">→</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- €11M progress -->
+        <div style="margin-top:22px;background:#fbf7ee;border:1px solid #e9e0cd;border-radius:14px;padding:18px 20px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+            <div style="font-family:'Spectral',serif;font-size:15px;font-weight:600">Yıl Sonu €{{ targetShort }} Ciro Hedefine İlerleme</div>
+            <div style="font-size:12px;color:#8a8574">Gerçekleşen <span style="font-family:'IBM Plex Mono',monospace;color:#3f7d64;font-weight:600">{{ kpiRealized }}</span> · Tahmini <span style="font-family:'IBM Plex Mono',monospace;color:#8a6f22;font-weight:600">{{ kpiForecast }}</span></div>
+          </div>
+          <div style="display:flex;height:34px;border-radius:9px;overflow:hidden;background:#f0ebde">
+            <div style="width:{{ realizedPct }};background:#2c4269;display:flex;align-items:center;padding-left:12px;color:#e8ecf3;font-size:11.5px;font-weight:600">Oca–Haz</div>
+            <div style="width:{{ forecastPct }};background:repeating-linear-gradient(45deg,#bd9a45,#bd9a45 8px,#c9aa5c 8px,#c9aa5c 16px);display:flex;align-items:center;padding-left:12px;color:#3a2e10;font-size:11.5px;font-weight:600">Tem–Ara tahmini</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#a09a88;margin-top:6px"><span>€0</span><span>Hedef {{ kpiTarget }}</span></div>
+        </div>
+
+        <!-- agency table -->
+        <div style="margin-top:20px;background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:1.4fr 66px 1fr 108px 92px 118px 92px;gap:12px;padding:13px 18px;border-bottom:2px solid #1b2b45;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574;font-weight:700">
+            <span>Acente</span><span style="text-align:right">Pay</span><span>Ciro payı</span><span style="text-align:right">Yıllık Ciro</span><span style="text-align:right">Vade</span><span style="text-align:right">Alınan Avans</span><span style="text-align:right">Kickback</span>
+          </div>
+          <sc-for list="{{ agencyRows }}" as="a" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:1.4fr 66px 1fr 108px 92px 118px 92px;gap:12px;align-items:center;padding:12px 18px;border-bottom:1px solid #efe7d5">
+              <span style="display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:500"><span style="width:9px;height:9px;border-radius:3px;background:{{ a.color }};flex:none"></span>{{ a.name }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#5a5648">{{ a.sharePct }}</span>
+              <span><span style="display:block;height:8px;border-radius:5px;background:{{ a.color }};width:{{ a.barW }}"></span></span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#232733">{{ a.ciro }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#5a5648">{{ a.vade }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:{{ a.avansColor }}">{{ a.avans }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:{{ a.kbColor }}">{{ a.kbTutar }}</span>
+            </div>
+          </sc-for>
+          <div style="display:grid;grid-template-columns:1.4fr 66px 1fr 108px 92px 118px 92px;gap:12px;align-items:center;padding:13px 18px;background:#f7f3ea;font-weight:600">
+            <span style="font-size:12.5px;color:#232733">Toplam</span><span></span><span></span>
+            <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#232733">{{ kpiTarget }}</span><span></span>
+            <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#4a6a8c">{{ kpiAdvance }}</span>
+            <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#b5533a">{{ kpiKickback }}</span>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ========== ALINAN AVANSLAR ========== -->
+      <sc-if value="{{ showAvans }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+          <div style="flex:1;min-width:180px;background:#eef2f7;border:1px solid #dbe6f0;border-radius:13px;padding:15px 17px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#4a6a8c">Toplam Alınan Avans</div><div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#3a5a82;margin-top:5px">{{ advanceTotal }}</div><div style="font-size:11px;color:#7a8aa0;margin-top:3px">bilançoda yükümlülük · nakde alındı</div></div>
+          <div style="flex:1;min-width:180px;background:#eef4f0;border:1px solid #dcebe2;border-radius:13px;padding:15px 17px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#4f7d64">Faturayla Mahsup Edilen</div><div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#3f8f68;margin-top:5px">{{ appliedTotal }}</div><div style="font-size:11px;color:#7fa38f;margin-top:3px">konaklama tamamlandıkça</div></div>
+          <div style="flex:1;min-width:180px;background:#faf5e9;border:1px solid #efe3c9;border-radius:13px;padding:15px 17px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a6f22">Mahsup Bekleyen</div><div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#a9862f;margin-top:5px">{{ remainingTotal }}</div><div style="font-size:11px;color:#b0a074;margin-top:3px">gelecek konaklamalara mahsup</div></div>
+        </div>
+
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:1.3fr 1.6fr 88px 118px 118px 1fr;gap:14px;padding:13px 18px;border-bottom:2px solid #1b2b45;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574;font-weight:700">
+            <span>Acente</span><span>Açıklama</span><span>Tarih</span><span style="text-align:right">Avans</span><span style="text-align:right">Kalan</span><span>Mahsup Durumu</span>
+          </div>
+          <sc-for list="{{ advanceRows }}" as="v" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:1.3fr 1.6fr 88px 118px 118px 1fr;gap:14px;align-items:center;padding:13px 18px;border-bottom:1px solid #efe7d5">
+              <span style="display:flex;align-items:center;gap:9px;font-size:13px;font-weight:500"><span style="width:9px;height:9px;border-radius:3px;background:{{ v.color }};flex:none"></span>{{ v.agency }}</span>
+              <span style="font-size:12.5px;color:#5a5648">{{ v.desc }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8a8574">{{ v.date }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#3a5a82">{{ v.amount }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:{{ v.remColor }}">{{ v.remaining }}</span>
+              <span style="display:flex;align-items:center;gap:9px">
+                <span style="flex:1;height:7px;border-radius:5px;background:#eee6d5;overflow:hidden"><span style="display:block;height:100%;border-radius:5px;background:#6aa583;width:{{ v.pct }}"></span></span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5a5648;flex:none;width:34px;text-align:right">{{ v.pctLabel }}</span>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:11.5px;color:#a09a88;margin-top:12px;line-height:1.5">İleriye dönük rezervasyonlarda peşin avans oranı <strong>%0</strong> kabul edildi — avanslar acenteyle görüşmeye istinaden alınan özel depozitlerdir. Konaklama tamamlanıp fatura kesildikçe ilgili avans mahsup edilir; mahsup edilen tutar tekrar tahsil edilmez.</div>
+      </div>
+      </sc-if>
+
+      <!-- ========== REZERVASYON & CİRO ========== -->
+      <sc-if value="{{ showCiro }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+          <div style="font-family:'Spectral',serif;font-size:15px;font-weight:600">Aylık Ciro · Gerçekleşen &amp; Hedef Tahmini</div>
+          <div style="display:flex;gap:15px;font-size:11.5px;color:#5a5648;flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#2c4269"></span>Gerçekleşen (Oca–Haz)</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#bd9a45"></span>Mevcut ileri rezervasyon</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:repeating-linear-gradient(45deg,#d8bd76,#d8bd76 5px,#e6d29a 5px,#e6d29a 10px)"></span>Ek hedef tahmini</span>
+          </div>
+        </div>
+        <div style="background:#fbf7ee;border:1px solid #e9e0cd;border-radius:14px;padding:16px 20px">
+          <sc-for list="{{ monthRows }}" as="m" hint-placeholder-count="12">
+            <div style="display:flex;align-items:center;gap:12px;padding:5px 0">
+              <div style="width:34px;font-size:11.5px;color:#8a8574;font-weight:500">{{ m.nm }}</div>
+              <div style="width:44px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#a09a88">{{ m.occ }}</div>
+              <div style="flex:1;height:22px;background:#f0ebde;border-radius:6px;overflow:hidden;display:flex"><div style="{{ m.fillBooked }}"></div><div style="{{ m.fillExtra }}"></div></div>
+              <div style="width:78px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:{{ m.valColor }}">{{ m.val }}</div>
+              <div style="width:82px;text-align:right;font-size:10.5px;color:{{ m.tagColor }}">{{ m.tag }}</div>
+            </div>
+          </sc-for>
+          <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #e7dfcd">
+            <span style="font-size:12px;color:#8a8574">Mevcut ileri rez. <span style="font-family:'IBM Plex Mono',monospace;color:#8a6f22;font-weight:600">{{ mevcutFwd }}</span></span>
+            <span style="font-size:12px;color:#8a8574">Ek hedef tahmini <span style="font-family:'IBM Plex Mono',monospace;color:#a9862f;font-weight:600">{{ ekFwd }}</span></span>
+            <span style="margin-left:auto;font-size:12.5px;color:#5a5648">Yıl Sonu Toplam Ciro <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700;color:#1b2b45;margin-left:6px">{{ kpiTarget }}</span></span>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:#a09a88;margin-top:12px;line-height:1.5">Tem–Ara barlarında <strong style="color:#8a6f22">dolu altın</strong> = mevcut (kesinleşen) ileri rezervasyon, <strong style="color:#a9862f">taralı</strong> = yıl sonu <strong>€{{ targetShort }}</strong> hedefine ulaşmak için gereken ek tahmin. Her ayın toplam cirosu acente paylarıyla (TUI %32, Coral %21, …) oranlanarak fatura, mahsup ve tahsilat hesaplarına aktarılır.</div>
+      </div>
+      </sc-if>
+
+      <!-- ========== SATIŞ FATURALARI ========== -->
+      <sc-if value="{{ showFatura }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+          <div style="flex:1;min-width:160px;background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Kesilen Fatura</div><div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#232733;margin-top:5px">{{ invTotal }}</div><div style="font-size:11px;color:#a09a88;margin-top:3px">Haziran–Temmuz dönemi</div></div>
+          <div style="flex:1;min-width:160px;background:#eef2f7;border:1px solid #dbe6f0;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#4a6a8c">Avans Mahsubu</div><div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#3a5a82;margin-top:5px">{{ invMahsup }}</div><div style="font-size:11px;color:#7a8aa0;margin-top:3px">faturadan düşülen</div></div>
+          <div style="flex:1;min-width:160px;background:#1b2b45;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Net Tahsil Edilecek</div><div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#8fd0a8;margin-top:5px">{{ invNet }}</div><div style="font-size:11px;color:#9fb0cb;margin-top:3px">vade tarihlerinde</div></div>
+        </div>
+
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:72px 1.15fr 1.5fr 104px 104px 104px 84px 108px;gap:11px;padding:12px 18px;border-bottom:2px solid #1b2b45;font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#8a8574;font-weight:700">
+            <span>Çıkış</span><span>Acente</span><span>Açıklama</span><span style="text-align:right">Tutar</span><span style="text-align:right">Mahsup</span><span style="text-align:right">Net</span><span style="text-align:right">Vade</span><span style="text-align:right">Durum</span>
+          </div>
+          <sc-for list="{{ invoiceRows }}" as="i" hint-placeholder-count="10">
+            <div style="display:grid;grid-template-columns:72px 1.15fr 1.5fr 104px 104px 104px 84px 108px;gap:11px;align-items:center;padding:11px 18px;border-bottom:1px solid #efe7d5">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a8574">{{ i.date }}</span>
+              <span style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500"><span style="width:8px;height:8px;border-radius:2px;background:{{ i.dot }};flex:none"></span>{{ i.agency }}</span>
+              <span style="font-size:12px;color:#5a5648">{{ i.desc }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#232733">{{ i.amount }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;color:{{ i.mahsupColor }}">{{ i.mahsup }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#232733">{{ i.net }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#8a8574">{{ i.due }}</span>
+              <span style="text-align:right"><span style="{{ i.statusStyle }}">{{ i.statusLabel }}</span></span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:11.5px;color:#a09a88;margin-top:12px;line-height:1.5">Faturalar konaklama tamamlandığında (check-out) kesilir. Varsa acente avansı mahsup edilir; kalan net tutar acentenin vadesinde tahsil edilir (Web/Direkt peşin, Pegas/Diğer 30 gün, Coral/Anex 45 gün, TUI 60 gün).</div>
+      </div>
+      </sc-if>
+
+      <!-- ========== NAKİT AKIM ========== -->
+      <sc-if value="{{ showNakit }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <!-- runway chart -->
+        <div style="padding:18px 20px;background:#1b2b45;border-radius:14px;color:#c9d3e2">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+            <div><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Tahsilat Bakiyesi Projeksiyonu · Tem–Ara 2026</div><div style="font-size:12px;color:#9fb0cb;margin-top:3px">Açılış (1 Tem, avanslar dahil) <span style="font-family:'IBM Plex Mono',monospace;color:#e8ecf3">{{ cfOpening }}</span></div></div>
+            <div style="text-align:right"><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Ara sonu bakiye</div><div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:#8fd0a8;margin-top:3px">{{ cfClosing }}</div></div>
+          </div>
+          <div style="position:relative;margin-top:14px">
+            <svg viewBox="0 0 620 96" preserveAspectRatio="none" style="width:100%;height:70px;display:block">
+              <defs><linearGradient id="amcf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fa8d0" stop-opacity=".34"/><stop offset="1" stop-color="#7fa8d0" stop-opacity="0"/></linearGradient></defs>
+              <path d="{{ chartArea }}" fill="url(#amcf)"></path>
+              <polyline points="{{ chartLine }}" fill="none" stroke="#7fa8d0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+              <circle cx="{{ chartMinX }}" cy="{{ chartMinY }}" r="4.5" fill="#e8c979"></circle>
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#6d7c92;margin-top:3px"><span>1 Tem</span><span>Ağu</span><span>Eyl</span><span>Eki</span><span>Kas</span><span>Ara</span></div>
+          </div>
+          <div style="font-size:11.5px;color:#a8b6c9;margin-top:8px">En düşük tahsilat bakiyesi: <span style="color:#e8c979;font-weight:600">{{ chartMinLabel }}</span> · yıl sonu kickback ödemesi ({{ kpiKickback }}) Aralık'ta düşülür</div>
+        </div>
+
+        <!-- monthly table -->
+        <div style="margin-top:18px;background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:1fr 130px 130px 130px 140px;gap:12px;padding:13px 20px;border-bottom:2px solid #1b2b45;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574;font-weight:700">
+            <span>Ay</span><span style="text-align:right">Tahsilat +</span><span style="text-align:right">Kickback −</span><span style="text-align:right">Net Ay</span><span style="text-align:right">Kümülatif Bakiye</span>
+          </div>
+          <sc-for list="{{ cfRows }}" as="c" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:1fr 130px 130px 130px 140px;gap:12px;align-items:center;padding:12px 20px;border-bottom:1px solid #efe7d5">
+              <span style="font-size:13px;font-weight:500;color:#232733">{{ c.ay }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#3f7d64">{{ c.tahsilat }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:{{ c.kbColor }}">{{ c.kickback }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:{{ c.netColor }}">{{ c.net }}</span>
+              <span style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#1b2b45">{{ c.cum }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;gap:14px;margin-top:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px;background:#eef4f0;border:1px solid #dcebe2;border-radius:13px;padding:15px 17px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#4f7d64">Tem–Ara Toplam Tahsilat</div><div style="font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;color:#3f8f68;margin-top:5px">{{ cfInTotal }}</div></div>
+          <div style="flex:1;min-width:200px;background:#faf5e9;border:1px solid #efe3c9;border-radius:13px;padding:15px 17px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a6f22">2027'ye Devreden Tahsilat</div><div style="font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;color:#a9862f;margin-top:5px">{{ cfTail }}</div><div style="font-size:11px;color:#b0a074;margin-top:3px">Kas–Ara konaklamaların vadeli kısmı</div></div>
+        </div>
+        <div style="font-size:11.5px;color:#a09a88;margin-top:12px;line-height:1.5">Her ayın cirosu acente vadesine göre ileri tarihe kaydırılarak tahsilat ayına yazılır. Alınan avanslar açılış bakiyesine dahildir; mahsup edilen tutarlar tekrar tahsilat olarak sayılmaz.</div>
+      </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:900},&quot;yearTarget&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:11,&quot;min&quot;:8,&quot;max&quot;:16,&quot;step&quot;:0.5,&quot;unit&quot;:&quot; M€&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Senaryo&quot;},&quot;openingCash&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2410000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Senaryo&quot;},&quot;showTail&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Senaryo&quot;}}">
+class Component extends DCLogic {
+  state = { tab: 'ozet' };
+
+  SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  FULL  = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  OCC = [52,58,64,71,83,88,92,95,86,74,61,66];
+  REAL = 6;
+
+  agencies = [
+    { id:'tui',   name:'TUI',             share:0.32, term:60, offset:2, kb:0.08, color:'#bd9a45', advance:180000, applied:110000 },
+    { id:'coral', name:'Coral Travel',    share:0.21, term:45, offset:1, kb:0.07, color:'#2c4269', advance:95000,  applied:95000  },
+    { id:'anex',  name:'Anex Tour',       share:0.14, term:45, offset:1, kb:0.06, color:'#6aa583', advance:60000,  applied:35000  },
+    { id:'pegas', name:'Pegas Touristik', share:0.09, term:30, offset:1, kb:0.05, color:'#c67a2e', advance:28000,  applied:28000  },
+    { id:'web',   name:'Web / Direkt',    share:0.08, term:0,  offset:0, kb:0,    color:'#8496b3', advance:0,      applied:0      },
+    { id:'other', name:'Diğer',           share:0.16, term:30, offset:1, kb:0.03, color:'#d8b24a', advance:22000,  applied:12000  },
+  ];
+
+  advanceMeta = {
+    tui:'Ağustos grup bloğu avansı', coral:'Temmuz kontenjan avansı', anex:'Yaz sezonu depozito',
+    pegas:'Temmuz grup rezervasyonu', other:'Muhtelif grup avansları',
+  };
+  advanceDate = { tui:'12 May', coral:'28 May', anex:'03 Haz', pegas:'10 Haz', other:'18 Haz' };
+
+  fmt(n){ return '€'+new Intl.NumberFormat('tr-TR').format(Math.round(n)); }
+  short(n){
+    const neg=n<0, a=Math.abs(n), s=neg?'−':'';
+    if(a>=1e6) return s+'€'+(a/1e6).toFixed(2).replace('.',',')+'M';
+    if(a>=1e3) return s+'€'+Math.round(a/1e3)+'K';
+    return s+'€'+Math.round(a);
+  }
+  addDays(m,d,days){ const dt=new Date(2026,m,d); dt.setDate(dt.getDate()+days); return dt; }
+  fmtDt(dt){ return dt.getDate()+' '+this.SHORT[dt.getMonth()]; }
+
+  renderVals(){
+    const st=this.state;
+    const target=(this.props.yearTarget ?? 11)*1e6;
+    const opening=this.props.openingCash ?? 2410000;
+    const showTail=this.props.showTail ?? true;
+
+    // ── monthly revenue ──
+    const monthRev=[]; let realizedSum=0;
+    for(let i=0;i<this.REAL;i++){ const r=this.OCC[i]*5200; monthRev[i]=r; realizedSum+=r; }
+    const forecastTotal=Math.max(0,target-realizedSum);
+    let occSum=0; for(let i=this.REAL;i<12;i++) occSum+=this.OCC[i];
+    for(let i=this.REAL;i<12;i++) monthRev[i]=forecastTotal*this.OCC[i]/occSum;
+
+    // ── collections timing ──
+    const coll=new Array(14).fill(0);
+    for(const a of this.agencies){
+      let advLeft=a.advance;
+      for(let si=0;si<12;si++){
+        let rev=monthRev[si]*a.share, applied=0;
+        if(si>=this.REAL){ applied=Math.min(advLeft,rev); advLeft-=applied; }
+        coll[si+a.offset]+=rev-applied;
+      }
+    }
+    let kickTotal=0; for(const a of this.agencies) kickTotal+=a.share*target*a.kb;
+
+    // ── balances Jul(6)..Dec(11) ──
+    const bals=[opening]; let b=opening;
+    for(let t=6;t<=11;t++){ b+=coll[t]-(t===11?kickTotal:0); bals.push(b); }
+    const tail=coll[12]+coll[13];
+    const h2In=coll.slice(6,12).reduce((s,x)=>s+x,0);
+
+    const advanceTotalN=this.agencies.reduce((s,a)=>s+a.advance,0);
+    const appliedTotalN=this.agencies.reduce((s,a)=>s+a.applied,0);
+
+    // ── tabs ──
+    const tabDefs=[['ozet','Genel Bakış'],['avans','Alınan Avanslar'],['ciro','Rezervasyon & Ciro'],['fatura','Satış Faturaları'],['nakit','Nakit Akım']];
+    const tabBase='padding:13px 17px;background:none;border:none;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:-1px;border-bottom:2px solid ';
+    const tabs=tabDefs.map(([id,label])=>({ label, onClick:()=>this.setState({tab:id}),
+      style: tabBase + (st.tab===id ? '#bd9a45;color:#1b2b45;font-weight:600' : 'transparent;color:#8a8574;font-weight:500') }));
+
+    // ── overview funnel ──
+    const funnel=[
+      { label:'Yıllık Ciro', value:this.short(target), note:'rezervasyon → fatura', bg:'#f3f7f4', border:'#dcebe2', labelColor:'#4f7d64', valColor:'#3f8f68', arrow:true },
+      { label:'Kesilen Fatura', value:this.short(target), note:'check-out anında', bg:'#fffdf7', border:'#e9e0cd', labelColor:'#8a8574', valColor:'#232733', arrow:true },
+      { label:'Avans Mahsubu', value:'−'+this.short(advanceTotalN), note:'alınan avanslar', bg:'#eef2f7', border:'#dbe6f0', labelColor:'#4a6a8c', valColor:'#3a5a82', arrow:true },
+      { label:'Net Tahsilat (H2)', value:this.short(h2In+tail), note:'vadelerde', bg:'#1b2b45', border:'#1b2b45', labelColor:'#8496b3', valColor:'#8fd0a8', arrow:true },
+      { label:'Yıl Sonu Kickback', value:'−'+this.short(kickTotal), note:'acenteye ödeme', bg:'#fbf1ea', border:'#f0dccf', labelColor:'#b5533a', valColor:'#b5533a', arrow:false },
+    ];
+
+    const agencyRows=this.agencies.map(a=>({
+      name:a.name, color:a.color,
+      sharePct:'%'+Math.round(a.share*100),
+      barW:(a.share*100).toFixed(1)+'%',
+      ciro:this.short(a.share*target),
+      vade: a.term===0?'Peşin':(a.term+' gün'),
+      avans: a.advance>0?this.short(a.advance):'—',
+      avansColor: a.advance>0?'#3a5a82':'#c9bfa8',
+      kbTutar: a.kb>0?('−'+this.short(a.share*target*a.kb)):'—',
+      kbColor: a.kb>0?'#b5533a':'#c9bfa8',
+    }));
+
+    // ── advances ──
+    const advanceRows=this.agencies.filter(a=>a.advance>0).map(a=>{
+      const rem=a.advance-a.applied, pct=Math.round(a.applied/a.advance*100);
+      return { agency:a.name, color:a.color, desc:this.advanceMeta[a.id], date:this.advanceDate[a.id],
+        amount:this.fmt(a.advance), remaining: rem>0?this.fmt(rem):'Tamamlandı',
+        remColor: rem>0?'#a9862f':'#3f8f68', pct:pct+'%', pctLabel:'%'+pct };
+    });
+
+    // ── reservation months (forward bars split: booked vs additional forecast) ──
+    const maxRev=Math.max(...monthRev);
+    let mevcutFwdN=0; for(let i=this.REAL;i<12;i++) mevcutFwdN+=this.OCC[i]*5200;
+    const ekFwdN=Math.max(0,forecastTotal-mevcutFwdN);
+    const monthRows=monthRev.map((r,i)=>{
+      const real=i<this.REAL;
+      const booked = real ? r : Math.min(r, this.OCC[i]*5200);
+      const extra  = real ? 0 : (r-booked);
+      return { nm:this.SHORT[i], occ:'%'+this.OCC[i], val:this.short(r),
+        valColor: real?'#2c4269':'#8a6f22',
+        tag: real?'Gerçekleşen':('Mevcut '+this.short(booked)),
+        tagColor: real?'#8a8574':'#a9862f',
+        fillBooked:'height:100%;width:'+(booked/maxRev*100).toFixed(1)+'%;background:'+(real?'#2c4269':'#bd9a45'),
+        fillExtra:'height:100%;width:'+(extra/maxRev*100).toFixed(1)+'%;background:repeating-linear-gradient(45deg,#d8bd76,#d8bd76 7px,#e6d29a 7px,#e6d29a 14px)' };
+    });
+
+    // ── invoices (Jun & Jul, per agency) ──
+    const today=new Date(2026,6,5);
+    const inv=[];
+    for(const a of this.agencies){
+      // June stay
+      const amtJ=monthRev[5]*a.share;
+      inv.push(this.mkInv(5,27,a,'Haziran konaklama · grup',amtJ,0,today));
+      // July partial stay
+      const amtT=monthRev[6]*a.share*0.5;
+      const applied=Math.min(a.applied,amtT);
+      inv.push(this.mkInv(6,14,a,'Temmuz konaklama · 1–14',amtT,applied,today));
+    }
+    inv.sort((x,y)=>x.coMs-y.coMs);
+    const invTotalN=inv.reduce((s,x)=>s+x._amt,0);
+    const invMahsupN=inv.reduce((s,x)=>s+x._mah,0);
+    const invNetN=inv.reduce((s,x)=>s+x._net,0);
+
+    // ── cash flow rows ──
+    const cfNames=['Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+    const cfRows=[];
+    for(let t=6;t<=11;t++){
+      const kb=(t===11)?kickTotal:0;
+      const net=coll[t]-kb;
+      cfRows.push({ ay:cfNames[t-6], tahsilat:this.short(coll[t]),
+        kickback: kb>0?('−'+this.short(kb)):'—', kbColor: kb>0?'#b5533a':'#c9bfa8',
+        net:(net>=0?'+':'')+this.short(net).replace('−',''), netColor: net>=0?'#3f8f68':'#b5533a',
+        cum:this.short(bals[t-5]) });
+    }
+    // fix net sign formatting
+    for(let t=6;t<=11;t++){ const kb=(t===11)?kickTotal:0; const net=coll[t]-kb; cfRows[t-6].net=(net<0?'−':'+')+this.short(Math.abs(net)).replace('−',''); }
+
+    // ── chart ──
+    const W=620,H=96,pad=12;
+    const maxB=Math.max(...bals),minB=Math.min(...bals),range=(maxB-minB)||1;
+    const pts=bals.map((v,i)=>{ const x=i/(bals.length-1)*W; const y=H-pad-((v-minB)/range)*(H-2*pad); return [x,y]; });
+    const chartLine=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const chartArea='M'+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L')+' L'+W+' '+H+' L0 '+H+' Z';
+    const minIdx=bals.indexOf(minB);
+    const balLabels=['1 Tem','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+
+    return {
+      targetShort:(target/1e6).toFixed(0),
+      kpiTarget:this.short(target), kpiRealized:this.short(realizedSum), kpiForecast:this.short(forecastTotal),
+      kpiAdvance:this.short(advanceTotalN), kpiKickback:'−'+this.short(kickTotal),
+
+      tabs,
+      showOzet:st.tab==='ozet', showAvans:st.tab==='avans', showCiro:st.tab==='ciro',
+      showFatura:st.tab==='fatura', showNakit:st.tab==='nakit',
+
+      funnel, agencyRows,
+      realizedPct:(realizedSum/target*100).toFixed(1)+'%',
+      forecastPct:(forecastTotal/target*100).toFixed(1)+'%',
+
+      advanceRows, advanceTotal:this.fmt(advanceTotalN), appliedTotal:this.fmt(appliedTotalN), remainingTotal:this.fmt(advanceTotalN-appliedTotalN),
+
+      monthRows, mevcutFwd:this.short(mevcutFwdN), ekFwd:this.short(ekFwdN),
+
+      invoiceRows:inv, invTotal:this.short(invTotalN), invMahsup:'−'+this.short(invMahsupN), invNet:this.short(invNetN),
+
+      cfRows, cfOpening:this.short(opening), cfClosing:this.short(bals[bals.length-1]),
+      cfInTotal:this.short(h2In), cfTail: showTail?this.short(tail):'—',
+      chartLine, chartArea, chartMinX:pts[minIdx][0].toFixed(1), chartMinY:pts[minIdx][1].toFixed(1),
+      chartMinLabel: balLabels[minIdx]+' · '+this.short(minB),
+    };
+  }
+
+  mkInv(m,d,a,desc,amt,mahsup,today){
+    const net=amt-mahsup;
+    const co=new Date(2026,m,d);
+    const due=this.addDays(m,d,a.term);
+    let label,color,bg;
+    if(net<=0){ label='Mahsup edildi'; color='#3a5a82'; bg='#eef2f7'; }
+    else if(a.term===0 && co<=today){ label='Tahsil edildi'; color='#3f7d64'; bg='#eef4f0'; }
+    else if(co>today){ label='Planlandı'; color='#8a8574'; bg='#f2efe6'; }
+    else if(due<today){ label='Vadesi geçti'; color='#b5533a'; bg='#fbf1ea'; }
+    else { label='Bekliyor'; color='#8a6f22'; bg='#faf5e9'; }
+    return {
+      _amt:amt, _mah:mahsup, _net:net, coMs:co.getTime(),
+      date:this.fmtDt(co), agency:a.name, dot:a.color, desc,
+      amount:this.short(amt), mahsup: mahsup>0?('−'+this.short(mahsup)):'—',
+      mahsupColor: mahsup>0?'#3a5a82':'#c9bfa8', net:this.short(net), due:this.fmtDt(due),
+      statusLabel:label,
+      statusStyle:'display:inline-block;padding:3px 9px;border-radius:7px;font-size:10.5px;font-weight:600;white-space:nowrap;color:'+color+';background:'+bg,
+    };
+  }
+}
+</script>
+</body>
+</html>

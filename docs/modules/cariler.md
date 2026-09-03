@@ -418,7 +418,7 @@ Tüm carilerin notlarını tek listede izleyen kart; Cariler sayfası üst sekme
 
 ## Cariler Yeniden Tasarımı v2 — 7 Sekme + Analitik Görünümler (2026-07-23)
 
-Kullanıcının GitHub'a yüklediği **"Cariler modülü yeniden tasarımı.zip"** (commit `11475ef`,
+Kullanıcının GitHub'a yüklediği **"docs/tasarim/2026-07-23-cariler-yeniden-tasarim/"** (commit `11475ef`,
 `Cariler Yeniden Tasarim.dc.html` + mobil varyant) uygulandı. Sayfa düzeni tasarıma birebir
 taşındı (tasarım-uygula-düzeni-dönüştür dersi): SegmentedControl yerine **alt-çizgili sekme barı**
 (aktif sekme altın alt çizgi), 7 sekme: **Dosya Yükle / Cariler / Aylık Bakiye / Yıllık Ciro /

@@ -582,7 +582,7 @@ Her yeni/değişen sayfa 10 boyutta kanıtlı (dosya:satır) denetlenir: kullan�
 > Sans, h1-h3 Spectral (serif), `.tabular-nums` IBM Plex Mono. **Yeni sayfa yazarken kural AYNI:
 > `teal-700` = primary yazmaya devam et** (görsel çıktı lacivert olur; kod-seviyesi konvansiyon
 > değişmedi). Sidebar koyu lacivert + pirinç rozetlidir. Tasarım kaynağı:
-> `design_handoff_panel_redesign` (repo kökündeki zip). Panel sayfası: KPI ızgarası + T Hesap
+> `docs/tasarim/2026-07-04-sprenses-tasarimlar/` (eski `design_handoff_panel_redesign` zip'i, 2026-09-02'de açıldı). Panel sayfası: KPI ızgarası + T Hesap
 > Cetveli (`CashFlowTAccount.svelte`, `GET /finance/cash-flow/t-account`) + Son Hareketler +
 > Bekleyen Onay kartı/modalı.
 

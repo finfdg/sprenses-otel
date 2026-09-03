@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#eceae5;font-family:'IBM Plex Sans',system-ui,sans-serif}
+  .dv-turn{padding:44px 48px 40px;scroll-margin-top:16px}
+  .dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 26px}
+  .dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+  .dv-tname{font:600 13px/1.2 'IBM Plex Sans',system-ui,sans-serif;color:#1a1a1a}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}
+  .dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+  .dv-olabel{display:flex;align-items:baseline;gap:9px;font:500 12px/1.3 'IBM Plex Sans',system-ui,sans-serif;color:rgba(0,0,0,.55)}
+  .dv-card{max-width:100%;border-radius:16px;box-shadow:0 12px 40px -12px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.08);overflow:hidden;background:#fffdf7;border:1px solid #e9e0cd}
+  .dv-opt:target .dv-oid{background:#bd9a45;color:#fff}
+  .dv-next{margin:30px 0 0;font:13px/1.6 'IBM Plex Sans',system-ui,sans-serif;color:rgba(0,0,0,.5)}
+  .dv-next a{color:rgba(0,0,0,.5)}
+  .nk-tab{padding:6px 13px;border-radius:8px;font:500 12px 'IBM Plex Sans';color:#6d6446;cursor:default}
+  .nk-tab.on{background:#1b2b45;color:#f4ecd4;font-weight:600}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t3">
+  <div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Faaliyet / Finansman ayrımı + Nakit Yeterlilik (runway)</span></div>
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="3a">
+      <div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Doğru nakit akımı — avans/kredi finansman, kredi anaparası gider değil, faiz gider; üstte runway</div>
+      <div class="dv-card" style="width:720px;padding:24px 26px;color:#232733">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div><div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Nakit Akım · Faaliyet & Finansman</div><div style="font-size:12px;color:#a09a88;margin-top:2px">Temmuz 2026 · EUR</div></div>
+          <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:10px;padding:3px"><span class="nk-tab">Günlük</span><span class="nk-tab">Haftalık</span><span class="nk-tab on">Aylık</span><span class="nk-tab">Yıllık</span></div>
+        </div>
+
+        <!-- RUNWAY -->
+        <div style="margin-top:18px;padding:16px 18px;background:#1b2b45;border-radius:14px;color:#c9d3e2">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+            <div><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Bankadaki Nakit</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#e8ecf3;margin-top:3px">€2.410.000</div></div>
+            <div style="text-align:right"><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Nakit Yeterliliği</div><div style="font-size:14px;font-weight:600;color:#8fd0a8;margin-top:3px">Ay sonuna kadar yeterli ✓</div></div>
+          </div>
+          <div style="position:relative;margin-top:12px">
+            <svg viewBox="0 0 620 90" preserveAspectRatio="none" style="width:100%;height:64px;display:block">
+              <defs><linearGradient id="rw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b7fa6" stop-opacity=".35"/><stop offset="1" stop-color="#5b7fa6" stop-opacity="0"/></linearGradient></defs>
+              <line x1="0" y1="70" x2="620" y2="70" stroke="#39465c" stroke-width="1" stroke-dasharray="4 4"/>
+              <path d="M0,20 L150,30 L300,58 L360,52 L470,40 L620,14 L620,90 L0,90 Z" fill="url(#rw)"/>
+              <path d="M0,20 L150,30 L300,58 L360,52 L470,40 L620,14" fill="none" stroke="#7fa8d0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="300" cy="58" r="4.5" fill="#e8c979"/>
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono';font-size:9.5px;color:#6d7c92;margin-top:2px"><span>1 Tem</span><span>10</span><span>15</span><span>20</span><span>31 Tem</span></div>
+          </div>
+          <div style="display:flex;gap:22px;margin-top:8px;font-size:11.5px">
+            <span style="color:#a8b6c9">En düşük bakiye: <span style="color:#e8c979;font-weight:600">15 Tem · €2.180.000</span> <span style="color:#7d8ba0">(maaş + kredi taksiti günü)</span></span>
+          </div>
+        </div>
+
+        <!-- FAALİYET GELİRLERİ -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;margin-bottom:2px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#4f7d64;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#6aa583"></span>Faaliyet Gelirleri</div>
+          <div style="font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#4f7d64">+€391.100</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #efe7d5"><span style="width:7px;height:7px;border-radius:50%;background:#6aa583;flex:none"></span><span style="flex:1;font-size:13px">Oda Gelirleri</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#3f7d64">+€255.200</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #efe7d5"><span style="width:7px;height:7px;border-radius:50%;background:#6aa583;flex:none"></span><span style="flex:1;font-size:13px">Yiyecek & İçecek</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#3f7d64">+€62.200</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #efe7d5"><span style="width:7px;height:7px;border-radius:50%;background:#6aa583;flex:none"></span><span style="flex:1;font-size:13px">Etkinlik & Toplantı</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#3f7d64">+€55.500</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px"><span style="width:7px;height:7px;border-radius:50%;background:#6aa583;flex:none"></span><span style="flex:1;font-size:13px">Diğer Gelirler</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#3f7d64">+€18.200</span></div>
+
+        <!-- FAALİYET GİDERLERİ -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:2px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6f22;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#bd9a45"></span>Faaliyet Giderleri</div>
+          <div style="font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">−€283.600</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #efe7d5"><span style="width:7px;height:7px;border-radius:50%;background:#bd9a45;flex:none"></span><span style="flex:1;font-size:13px">Personel & Maaş</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#8a6f22">−€131.100</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #efe7d5"><span style="width:7px;height:7px;border-radius:50%;background:#bd9a45;flex:none"></span><span style="flex:1;font-size:13px">Tedarikçi Ödemeleri</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#8a6f22">−€62.700</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #efe7d5"><span style="width:7px;height:7px;border-radius:50%;background:#bd9a45;flex:none"></span><span style="flex:1;font-size:13px">Sabit Giderler</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#8a6f22">−€56.800</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #efe7d5"><span style="width:7px;height:7px;border-radius:50%;background:#bd9a45;flex:none"></span><span style="flex:1;font-size:13px">Vergiler (KDV, Stopaj)</span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#8a6f22">−€24.800</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px"><span style="width:7px;height:7px;border-radius:50%;background:#bd9a45;flex:none"></span><span style="flex:1;font-size:13px">Kredi Faiz & Komisyon <span style="font-size:10.5px;color:#a09a88">· taksitin gider kısmı</span></span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#8a6f22">−€8.200</span></div>
+
+        <!-- FAALİYET NETİ -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:12px 18px;background:#eef4f0;border:1px solid #dcebe2;border-radius:11px">
+          <span style="font-size:12.5px;font-weight:600;color:#3f7d64">Faaliyet Neti <span style="font-weight:400;color:#8a8574">· gerçek nakit üretimi</span></span>
+          <span style="font-family:'IBM Plex Mono';font-size:16px;font-weight:700;color:#3f8f68">+€107.500</span>
+        </div>
+
+        <!-- FİNANSMAN -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;margin-bottom:2px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#4a6a8c;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#5b7fa6"></span>Finansman Hareketleri</div>
+          <div style="font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#4a6a8c">+€30.700</div>
+        </div>
+        <div style="font-size:10.5px;color:#a09a88;margin:0 0 4px 17px">Nakdi etkiler, gelir/gider değildir</div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #eef0f4"><span style="width:7px;height:7px;border-radius:50%;background:#5b7fa6;flex:none"></span><span style="flex:1;font-size:13px">Alınan Avanslar <span style="font-size:10.5px;color:#a09a88">· firmalardan, yükümlülük</span></span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#4a6a8c">+€42.000</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid #eef0f4"><span style="width:7px;height:7px;border-radius:50%;background:#5b7fa6;flex:none"></span><span style="flex:1;font-size:13px">Kullanılan Kredi <span style="font-size:10.5px;color:#a09a88">· bu ay çekim yok</span></span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#8a8574">€0</span></div>
+        <div style="display:flex;align-items:center;gap:11px;padding:9px 4px"><span style="width:7px;height:7px;border-radius:50%;background:#5b7fa6;flex:none"></span><span style="flex:1;font-size:13px">Kredi Anapara Ödemesi <span style="font-size:10.5px;color:#a09a88">· gider değil, borç azalışı</span></span><span style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:#4a6a8c">−€11.300</span></div>
+
+        <!-- NET NAKİT DEĞİŞİMİ -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:14px 20px;background:#1b2b45;border-radius:12px">
+          <span style="font-size:13px;color:#c9d3e2">Net Nakit Değişimi <span style="color:#8496b3">· bankaya etki</span></span>
+          <span style="font-family:'IBM Plex Mono';font-size:19px;font-weight:700;color:#8fd0a8">+€138.200</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Sırada: "<a class="dv-oid" href="#3a">3a</a>'yı seç, tam etkileşimli yap + panele uygula" · "runway'i ayrı büyük bir kart yap" · "finansman bölümünü katla/aç yapılabilir yap" · "kredi taksitini satırda anapara+faiz olarak aç"</p>
+</section>
+
+<section class="dv-turn" id="t2">
+  <div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Liste tarzı — hesap kalemleri satır satır</span></div>
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="2a">
+      <div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Liste — Giriş/Çıkış bölümlü, satır bazlı hesap dökümü</div>
+      <div class="dv-card" style="width:700px;padding:24px 26px;color:#232733">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div><div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Nakit Akım · Liste</div><div style="font-size:12px;color:#a09a88;margin-top:2px">Temmuz 2026 · hesap kalemleri</div></div>
+          <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:10px;padding:3px"><span class="nk-tab">Günlük</span><span class="nk-tab">Haftalık</span><span class="nk-tab on">Aylık</span><span class="nk-tab">Yıllık</span></div>
+        </div>
+
+        <!-- Özet şerit -->
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <div style="flex:1;background:#f3f7f4;border:1px solid #e2ece5;border-radius:11px;padding:11px 14px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#4f7d64">Giriş</div><div style="font-family:'IBM Plex Mono';font-size:17px;font-weight:600;color:#3f7d64;margin-top:3px">€391.100</div></div>
+          <div style="flex:1;background:#faf5e9;border:1px solid #efe3c9;border-radius:11px;padding:11px 14px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a6f22">Çıkış</div><div style="font-family:'IBM Plex Mono';font-size:17px;font-weight:600;color:#8a6f22;margin-top:3px">€294.900</div></div>
+          <div style="flex:1;background:#1b2b45;border-radius:11px;padding:11px 14px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Net</div><div style="font-family:'IBM Plex Mono';font-size:17px;font-weight:700;color:#8fd0a8;margin-top:3px">+€96.200</div></div>
+        </div>
+
+        <!-- Giriş listesi -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:22px;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#4f7d64;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#6aa583"></span>Giriş</div>
+          <div style="font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#4f7d64">€391.100</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid #efe7d5"><div style="width:34px;height:34px;border-radius:9px;background:#eaf2ec;color:#4f7d64;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Oda Gelirleri</div><div style="font-size:11.5px;color:#a09a88">3 işlem · Konaklama & grup</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#3f7d64">+€255.200</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid #efe7d5"><div style="width:34px;height:34px;border-radius:9px;background:#eaf2ec;color:#4f7d64;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Yiyecek & İçecek</div><div style="font-size:11.5px;color:#a09a88">3 işlem · Restoran, bar, oda servisi</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#3f7d64">+€62.200</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid #efe7d5"><div style="width:34px;height:34px;border-radius:9px;background:#eaf2ec;color:#4f7d64;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Etkinlik & Toplantı</div><div style="font-size:11.5px;color:#a09a88">2 işlem · Toplantı, organizasyon</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#3f7d64">+€55.500</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px"><div style="width:34px;height:34px;border-radius:9px;background:#eaf2ec;color:#4f7d64;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Diğer Gelirler</div><div style="font-size:11.5px;color:#a09a88">2 işlem · Spa, otopark, transfer</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#3f7d64">+€18.200</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+
+        <!-- Çıkış listesi -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6f22;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#bd9a45"></span>Çıkış</div>
+          <div style="font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">€294.900</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid #efe7d5"><div style="width:34px;height:34px;border-radius:9px;background:#f6ecd6;color:#8a6f22;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Personel & Maaş</div><div style="font-size:11.5px;color:#a09a88">3 işlem · Maaş, SGK, mesai</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#8a6f22">−€131.100</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid #efe7d5"><div style="width:34px;height:34px;border-radius:9px;background:#f6ecd6;color:#8a6f22;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Tedarikçi Ödemeleri</div><div style="font-size:11.5px;color:#a09a88">3 işlem · Gıda, sarf, çamaşırhane</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#8a6f22">−€62.700</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid #efe7d5"><div style="width:34px;height:34px;border-radius:9px;background:#f6ecd6;color:#8a6f22;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Sabit Giderler</div><div style="font-size:11.5px;color:#a09a88">3 işlem · Kira, enerji, iletişim</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#8a6f22">−€56.800</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+        <div style="display:flex;align-items:center;gap:13px;padding:12px 4px"><div style="width:34px;height:34px;border-radius:9px;background:#f6ecd6;color:#8a6f22;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"/></svg></div><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500">Vergi & Finansman</div><div style="font-size:11.5px;color:#a09a88">2 işlem · KDV, kredi taksiti</div></div><div style="font-family:'IBM Plex Mono';font-size:14px;font-weight:600;color:#8a6f22">−€44.300</div><svg width="16" height="16" fill="none" stroke="#c9bfa8" stroke-width="2" viewBox="0 0 24 24" style="flex:none;margin-left:4px"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg></div>
+
+        <!-- Net -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:14px 20px;background:#1b2b45;border-radius:12px">
+          <span style="font-size:13px;color:#c9d3e2">Net Nakit Akım · Temmuz 2026</span>
+          <span style="font-family:'IBM Plex Mono';font-size:19px;font-weight:700;color:#8fd0a8">+€96.200</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Sırada: "<a class="dv-oid" href="#2a">2a</a>'yı seç, tam etkileşimli yap (sekmeler + tarih gezgini + satır tıklayınca kalemler açılsın)" · "<a class="dv-oid" href="#2a">2a</a> ama üstte <a class="dv-oid" href="#1a">1a</a> şelale grafiğiyle" · "satırlar daha kompakt"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Nakit Akım modülü — 3 yeni tasarım yönü (Temmuz 2026 · EUR)</span></div>
+  <div class="dv-opts">
+
+    <!-- ============ 1a AKIŞ / WATERFALL ============ -->
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Akış — şelale (waterfall) grafiği: para nereden gelip nereye gidiyor</div>
+      <div class="dv-card" style="width:720px;padding:24px 26px;color:#232733">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div><div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Nakit Akım · Akış</div><div style="font-size:12px;color:#a09a88;margin-top:2px">Temmuz 2026 · gelir kalemlerinden nete</div></div>
+          <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:10px;padding:3px"><span class="nk-tab">Günlük</span><span class="nk-tab">Haftalık</span><span class="nk-tab on">Aylık</span><span class="nk-tab">Yıllık</span></div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:16px;font-size:11px;color:#8a8574">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#6aa583"></span>Giriş</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#d8bd76"></span>Çıkış</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#1b2b45"></span>Net</span>
+        </div>
+        <!-- waterfall -->
+        <div style="display:flex;gap:10px;margin-top:18px;padding-bottom:8px;border-bottom:1.5px solid #e9e0cd">
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:0;height:130.5px;background:#6aa583;border-radius:3px 3px 0 0"></div><div style="position:absolute;left:0;right:0;bottom:132px;text-align:center;font:600 10px 'IBM Plex Mono';color:#4f7d64">+255</div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:130.5px;height:31.8px;background:#86b89b;border-radius:3px 3px 0 0"></div><div style="position:absolute;left:0;right:0;bottom:164px;text-align:center;font:600 10px 'IBM Plex Mono';color:#4f7d64">+62</div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:162.3px;height:28.4px;background:#86b89b;border-radius:3px 3px 0 0"></div><div style="position:absolute;left:0;right:0;bottom:193px;text-align:center;font:600 10px 'IBM Plex Mono';color:#4f7d64">+56</div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:190.7px;height:9.3px;background:#a8cdb8;border-radius:3px 3px 0 0"></div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:133px;height:67px;background:#d8bd76;border-radius:0 0 3px 3px"></div><div style="position:absolute;left:0;right:0;bottom:202px;text-align:center;font:600 10px 'IBM Plex Mono';color:#8a6f22">−131</div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:100.9px;height:32.1px;background:#e0c98a;border-radius:0 0 3px 3px"></div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:71.9px;height:29px;background:#e0c98a;border-radius:0 0 3px 3px"></div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:10%;right:10%;bottom:49.2px;height:22.7px;background:#e8ddb5;border-radius:0 0 3px 3px"></div></div>
+          <div style="flex:1;position:relative;height:200px"><div style="position:absolute;left:8%;right:8%;bottom:0;height:49.2px;background:#1b2b45;border-radius:3px 3px 0 0"></div><div style="position:absolute;left:0;right:0;bottom:51px;text-align:center;font:600 10px 'IBM Plex Mono';color:#1b2b45">96</div></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Oda</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Y&İ</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Etkinlik</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Diğer</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Personel</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Tedarik</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Sabit</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#a09a88">Vergi</div>
+          <div style="flex:1;text-align:center;font-size:9.5px;color:#1b2b45;font-weight:600">Net</div>
+        </div>
+        <div style="display:flex;gap:20px;margin-top:18px;padding-top:16px;border-top:1px solid #eee4d1">
+          <div><div style="font-size:11px;color:#8a8574">Giriş</div><div style="font-family:'IBM Plex Mono';font-size:16px;font-weight:600;color:#4f7d64;margin-top:2px">€391.100</div></div>
+          <div><div style="font-size:11px;color:#8a8574">Çıkış</div><div style="font-family:'IBM Plex Mono';font-size:16px;font-weight:600;color:#8a6f22;margin-top:2px">€294.900</div></div>
+          <div style="margin-left:auto;text-align:right"><div style="font-size:11px;color:#8a8574">Net Nakit Akım</div><div style="font-family:'IBM Plex Mono';font-size:20px;font-weight:700;color:#3f8f68;margin-top:2px">+€96.200</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 1b HERO NET + KATEGORİ PAYLARI ============ -->
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Özet — büyük Net + Giriş/Çıkış oran çubukları ve kategori payları</div>
+      <div class="dv-card" style="width:720px;padding:24px 26px;color:#232733">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div><div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Nakit Akım · Özet</div><div style="font-size:12px;color:#a09a88;margin-top:2px">Temmuz 2026</div></div>
+          <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:10px;padding:3px"><span class="nk-tab">Günlük</span><span class="nk-tab">Haftalık</span><span class="nk-tab on">Aylık</span><span class="nk-tab">Yıllık</span></div>
+        </div>
+        <!-- hero -->
+        <div style="display:flex;align-items:center;gap:24px;margin-top:18px;padding:20px 22px;background:#1b2b45;border-radius:14px;color:#c9d3e2">
+          <div><div style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Net Nakit Akım</div><div style="font-family:'IBM Plex Mono';font-size:34px;font-weight:700;color:#8fd0a8;line-height:1.05;margin-top:4px">+€96.200</div></div>
+          <div style="margin-left:auto;display:flex;gap:22px;text-align:right">
+            <div><div style="font-size:11px;color:#8496b3">Giriş</div><div style="font-family:'IBM Plex Mono';font-size:16px;font-weight:600;color:#e8ecf3;margin-top:2px">€391.100</div></div>
+            <div><div style="font-size:11px;color:#8496b3">Çıkış</div><div style="font-family:'IBM Plex Mono';font-size:16px;font-weight:600;color:#e8c979;margin-top:2px">€294.900</div></div>
+          </div>
+        </div>
+        <!-- bars -->
+        <div style="margin-top:20px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8574;margin-bottom:6px"><span>Giriş dağılımı</span><span style="font-family:'IBM Plex Mono';color:#4f7d64;font-weight:600">€391.100</span></div>
+          <div style="display:flex;height:30px;border-radius:8px;overflow:hidden;gap:2px">
+            <div style="width:65.3%;background:#6aa583"></div><div style="width:15.9%;background:#86b89b"></div><div style="width:14.2%;background:#a8cdb8"></div><div style="width:4.6%;background:#c8ded2"></div>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#5a5648">
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#6aa583"></span>Oda %65</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#86b89b"></span>Yiyecek&İçecek %16</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#a8cdb8"></span>Etkinlik %14</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#c8ded2"></span>Diğer %5</span>
+          </div>
+        </div>
+        <div style="margin-top:18px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#8a8574;margin-bottom:6px"><span>Çıkış dağılımı</span><span style="font-family:'IBM Plex Mono';color:#8a6f22;font-weight:600">€294.900</span></div>
+          <div style="width:75.4%;display:flex;height:30px;border-radius:8px;overflow:hidden;gap:2px">
+            <div style="width:44.5%;background:#bd9a45"></div><div style="width:21.3%;background:#d0b063"></div><div style="width:19.3%;background:#ddc98c"></div><div style="width:14.9%;background:#e8ddb5"></div>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#5a5648">
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#bd9a45"></span>Personel %45</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#d0b063"></span>Tedarikçi %21</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#ddc98c"></span>Sabit %19</span>
+            <span style="display:flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:2px;background:#e8ddb5"></span>Vergi %15</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 1c İKİ HALKA (DONUT) KART ============ -->
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>İki halka — Giriş ve Çıkış ayrı donut kartlar, altta net şeridi</div>
+      <div class="dv-card" style="width:720px;padding:24px 26px;color:#232733">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div><div style="font-family:'Spectral',serif;font-size:18px;font-weight:600">Nakit Akım · Dağılım</div><div style="font-size:12px;color:#a09a88;margin-top:2px">Temmuz 2026</div></div>
+          <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:10px;padding:3px"><span class="nk-tab">Günlük</span><span class="nk-tab">Haftalık</span><span class="nk-tab on">Aylık</span><span class="nk-tab">Yıllık</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px">
+          <!-- Giriş card -->
+          <div style="background:#f3f7f4;border:1px solid #e2ece5;border-radius:14px;padding:18px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#4f7d64;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#6aa583"></span>Giriş</div>
+            <div style="display:flex;align-items:center;gap:16px;margin-top:14px">
+              <div style="width:118px;height:118px;border-radius:50%;flex:none;background:conic-gradient(#6aa583 0 65.3%,#86b89b 0 81.2%,#a8cdb8 0 95.4%,#c8ded2 0 100%);display:flex;align-items:center;justify-content:center">
+                <div style="width:74px;height:74px;border-radius:50%;background:#f3f7f4;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font:600 15px 'IBM Plex Mono';color:#3f7d64">€391K</span><span style="font-size:9px;color:#8a8574">toplam</span></div>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#6aa583;flex:none"></span><span style="flex:1;color:#5a5648">Oda</span><span style="font-family:'IBM Plex Mono';color:#232733">255K</span></div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#86b89b;flex:none"></span><span style="flex:1;color:#5a5648">Yiyecek&İçecek</span><span style="font-family:'IBM Plex Mono';color:#232733">62K</span></div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#a8cdb8;flex:none"></span><span style="flex:1;color:#5a5648">Etkinlik</span><span style="font-family:'IBM Plex Mono';color:#232733">56K</span></div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#c8ded2;flex:none"></span><span style="flex:1;color:#5a5648">Diğer</span><span style="font-family:'IBM Plex Mono';color:#232733">18K</span></div>
+              </div>
+            </div>
+          </div>
+          <!-- Çıkış card -->
+          <div style="background:#faf5e9;border:1px solid #efe3c9;border-radius:14px;padding:18px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8a6f22;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#bd9a45"></span>Çıkış</div>
+            <div style="display:flex;align-items:center;gap:16px;margin-top:14px">
+              <div style="width:118px;height:118px;border-radius:50%;flex:none;background:conic-gradient(#bd9a45 0 44.5%,#d0b063 0 65.8%,#ddc98c 0 85.1%,#e8ddb5 0 100%);display:flex;align-items:center;justify-content:center">
+                <div style="width:74px;height:74px;border-radius:50%;background:#faf5e9;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font:600 15px 'IBM Plex Mono';color:#8a6f22">€295K</span><span style="font-size:9px;color:#8a8574">toplam</span></div>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0">
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#bd9a45;flex:none"></span><span style="flex:1;color:#5a5648">Personel</span><span style="font-family:'IBM Plex Mono';color:#232733">131K</span></div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#d0b063;flex:none"></span><span style="flex:1;color:#5a5648">Tedarikçi</span><span style="font-family:'IBM Plex Mono';color:#232733">63K</span></div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#ddc98c;flex:none"></span><span style="flex:1;color:#5a5648">Sabit Gider</span><span style="font-family:'IBM Plex Mono';color:#232733">57K</span></div>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px"><span style="width:8px;height:8px;border-radius:2px;background:#e8ddb5;flex:none"></span><span style="flex:1;color:#5a5648">Vergi</span><span style="font-family:'IBM Plex Mono';color:#232733">44K</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:14px 20px;background:#1b2b45;border-radius:12px">
+          <span style="font-size:13px;color:#c9d3e2">Net Nakit Akım · Temmuz 2026</span>
+          <span style="font-family:'IBM Plex Mono';font-size:19px;font-weight:700;color:#8fd0a8">+€96.200</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Sırada: "<a class="dv-oid" href="#1a">1a</a>'yı seç, panele uygula" · "<a class="dv-oid" href="#1b">1b</a> ama donut'larla" · "<a class="dv-oid" href="#1c">1c</a>'yi tam etkileşimli yap (sekmeler + tarih gezgini çalışsın)" · "üçünü birleştir"</p>
+</section>
+</x-dc>
+</body>
+</html>

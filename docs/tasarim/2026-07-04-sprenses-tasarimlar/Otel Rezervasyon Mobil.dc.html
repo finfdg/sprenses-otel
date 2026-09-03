@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box}body{margin:0;background:#dcd8cf;font-family:'IBM Plex Sans',system-ui,sans-serif}</style>
+</helmet>
+
+<div style="display:flex;justify-content:center;align-items:flex-start;padding:40px 20px">
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402,874">
+    <div style="background:#f4f0e7;min-height:100%;color:#232733;font-family:'IBM Plex Sans',sans-serif">
+
+      <div style="position:sticky;top:0;z-index:8;background:#1b2b45;color:#e8ecf3;padding:54px 18px 14px;display:flex;align-items:center;gap:14px">
+        <button style="width:34px;height:34px;display:flex;flex-direction:column;justify-content:center;gap:5px;background:none;border:none;cursor:pointer;padding:0"><span style="height:2px;width:22px;background:#e8ecf3;border-radius:2px"></span><span style="height:2px;width:22px;background:#e8ecf3;border-radius:2px"></span><span style="height:2px;width:15px;background:#e8ecf3;border-radius:2px"></span></button>
+        <div style="flex:1;font-family:'Spectral',serif;font-size:17px;font-weight:600;color:#f4efe4">Otel Rezervasyon</div>
+        <div style="display:flex;align-items:center;gap:6px;padding:7px 12px;background:#2c4269;color:#f4ecd4;border-radius:9px;font-size:12px;font-weight:600"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>XLS</div>
+      </div>
+
+      <div style="padding:16px 18px 6px;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-family:'Spectral',serif;font-size:20px">2026 Sezonu</div>
+        <button onClick="{{ onCompare }}" style="{{ compareBtnStyle }}"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 7.5 3l4.5 4.5M7.5 3v13.5m13.5 0L16.5 21 12 16.5m4.5 4.5V7.5"/></svg>{{ compareLabel }}</button>
+      </div>
+
+      <div style="padding:10px 18px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:12px 14px"><div style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#8a8574">Rezervasyon</div><div style="font-family:'IBM Plex Mono';font-size:19px;font-weight:600;color:#1b2b45;margin-top:5px">1.284</div></div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:12px 14px"><div style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#8a8574">Net Ciro</div><div style="font-family:'IBM Plex Mono';font-size:19px;font-weight:600;color:#1b2b45;margin-top:5px">€4,82M</div></div>
+        <div style="background:#1b2b45;border-radius:12px;padding:12px 14px;color:#c9d3e2"><div style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#8496b3">Doluluk</div><div style="font-family:'IBM Plex Mono';font-size:19px;font-weight:600;color:#e8c979;margin-top:5px">%78</div></div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:12px 14px"><div style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#8a8574">Oda-Gece</div><div style="font-family:'IBM Plex Mono';font-size:19px;font-weight:600;color:#1b2b45;margin-top:5px">18.640</div></div>
+      </div>
+
+      <div style="margin:8px 18px;background:#fbf7ee;border:1px solid #e9e0cd;border-radius:16px;padding:16px 16px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px"><div style="font-family:'Spectral',serif;font-size:15px;font-weight:600">Aylık Doluluk</div><div style="font-size:10.5px;color:#a09a88">aya dokun → günlük</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ monthList }}" as="m" hint-placeholder-count="12">
+            <div>
+              <button onClick="{{ m.onToggle }}" style="width:100%;display:flex;align-items:center;gap:10px;background:none;border:none;cursor:pointer;padding:0;font-family:inherit">
+                <div style="width:42px;display:flex;align-items:center;gap:5px;font-size:11.5px;color:#8a8574;font-weight:500"><span style="width:8px;color:#8a6f22;font-size:9px">{{ m.chevron }}</span>{{ m.nm }}</div>
+                <div style="flex:1;height:24px;background:#f0ebde;border-radius:7px;position:relative;overflow:hidden">
+                  <div style="{{ m.fill }}"></div>
+                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;padding:0 9px"><span style="font-size:10px;font-weight:600;font-family:'IBM Plex Mono';color:{{ m.pctColor }}">{{ m.pct }} · {{ m.eur }}</span></div>
+                </div>
+              </button>
+              <sc-if value="{{ m.compareOn }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:9px;margin:5px 0 3px 42px">
+                  <div style="flex:1;height:6px;background:#f0ebde;border-radius:4px;overflow:hidden"><div style="{{ m.prevFill }}"></div></div>
+                  <div style="font-family:'IBM Plex Mono';font-size:10px;color:#a09a88;white-space:nowrap">2025 {{ m.prevPct }}</div>
+                  <div style="{{ m.dpStyle }}">{{ m.dpLabel }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ m.expanded }}" hint-placeholder-val="{{ false }}">
+                <div style="margin:8px 0 10px 42px;padding:11px 12px;background:#fff;border:1px solid #ece4d2;border-radius:10px">
+                  <div style="font-size:11px;color:#a09a88;margin-bottom:8px">{{ m.fullLabel }} · Ort <span style="font-family:'IBM Plex Mono';color:#2c4269;font-weight:600">{{ m.avgLabel }}</span></div>
+                  <div style="display:flex;flex-direction:column;gap:4px">
+                    <sc-for list="{{ m.daily }}" as="d" hint-placeholder-count="30">
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <div style="width:46px;display:flex;gap:5px;font-family:'IBM Plex Mono';font-size:10px"><span style="color:#5a5648;font-weight:600">{{ d.lbl }}</span><span style="font-size:9px;color:{{ d.wdColor }}">{{ d.wd }}</span></div>
+                        <div style="flex:1;height:14px;background:#f0ebde;border-radius:4px;position:relative;overflow:hidden"><div style="{{ d.fill }}"></div></div>
+                        <div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:10px;font-weight:600;color:{{ d.pctColor }}">{{ d.pct }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="margin:8px 18px 24px;background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;padding:16px 16px">
+        <div style="display:flex;align-items:center;gap:8px;font-family:'Spectral',serif;font-size:14px;font-weight:600;margin-bottom:12px"><span style="width:9px;height:9px;border-radius:2px;background:#bd9a45"></span>Acente Dağılımı</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:88px;font-size:12px">TUI</div><div style="flex:1;height:8px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:100%;background:#bd9a45;border-radius:5px"></div></div><div style="width:32px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%32</div></div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:88px;font-size:12px">Coral Travel</div><div style="flex:1;height:8px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:65.6%;background:#bd9a45;border-radius:5px"></div></div><div style="width:32px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%21</div></div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:88px;font-size:12px">Anex Tour</div><div style="flex:1;height:8px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:43.75%;background:#bd9a45;border-radius:5px"></div></div><div style="width:32px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%14</div></div>
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:88px;font-size:12px">Web / Direkt</div><div style="flex:1;height:8px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:25%;background:#bd9a45;border-radius:5px"></div></div><div style="width:32px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%8</div></div>
+        </div>
+      </div>
+
+    </div>
+  </x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { expanded: null, compareMode: false };
+  m2025 = { '01': 44, '02': 49, '03': 57, '04': 62, '05': 74, '06': 81, '07': 86, '08': 90, '09': 78, '10': 66, '11': 54, '12': 60 };
+
+  months = [
+    { k: '01', nm: 'Oca', o: 52 }, { k: '02', nm: 'Şub', o: 58 }, { k: '03', nm: 'Mar', o: 64 },
+    { k: '04', nm: 'Nis', o: 71 }, { k: '05', nm: 'May', o: 83 }, { k: '06', nm: 'Haz', o: 88 },
+    { k: '07', nm: 'Tem', o: 92 }, { k: '08', nm: 'Ağu', o: 95 }, { k: '09', nm: 'Eyl', o: 86 },
+    { k: '10', nm: 'Eki', o: 74 }, { k: '11', nm: 'Kas', o: 61 }, { k: '12', nm: 'Ara', o: 66 },
+  ];
+  MFULL = { '01': 'Ocak', '02': 'Şubat', '03': 'Mart', '04': 'Nisan', '05': 'Mayıs', '06': 'Haziran', '07': 'Temmuz', '08': 'Ağustos', '09': 'Eylül', '10': 'Ekim', '11': 'Kasım', '12': 'Aralık' };
+  WD = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+
+  buildDays(k, o) {
+    const m = Number(k);
+    const n = new Date(2026, m, 0).getDate();
+    const arr = [];
+    for (let d = 1; d <= n; d++) {
+      const dow = (new Date(2026, m - 1, d).getDay() + 6) % 7;
+      const we = dow >= 5;
+      let occ = Math.round(o + (we ? 7 : 0) + Math.sin(d * 0.9) * 6);
+      occ = Math.max(38, Math.min(100, occ));
+      arr.push({ d, dow, we, occ });
+    }
+    return arr;
+  }
+
+  renderVals() {
+    const exp = this.state.expanded;
+    const monthList = this.months.map(m => {
+      const eur = Math.round(m.o * 5.2);
+      const expanded = exp === m.k;
+      const peak = m.o >= 90;
+      const prev = this.m2025[m.k];
+      const dpv = m.o - prev;
+      let daily = [], avgLabel = '', fullLabel = '';
+      if (expanded) {
+        const days = this.buildDays(m.k, m.o);
+        avgLabel = '%' + Math.round(days.reduce((s, x) => s + x.occ, 0) / days.length);
+        fullLabel = this.MFULL[m.k] + ' 2026';
+        daily = days.map(x => ({
+          lbl: String(x.d).padStart(2, '0'),
+          wd: this.WD[x.dow],
+          wdColor: x.we ? '#b5533a' : '#a09a88',
+          fill: 'position:absolute;left:0;top:0;bottom:0;width:' + x.occ + '%;background:' + (x.occ >= 100 ? '#b5533a' : '#2c4269') + ';border-radius:4px',
+          pct: '%' + x.occ,
+          pctColor: x.occ >= 100 ? '#b5533a' : '#2c4269',
+        }));
+      }
+      return {
+        key: m.k, nm: m.nm,
+        pct: '%' + m.o, eur: '€' + eur + 'K',
+        expanded, chevron: expanded ? '\u25BE' : '\u25B8',
+        fill: 'position:absolute;left:0;top:0;bottom:0;width:' + m.o + '%;background:' + (peak ? 'linear-gradient(90deg,#2c4269,#3a5a82)' : '#2c4269') + ';border-radius:7px',
+        pctColor: m.o >= 55 ? '#e8c979' : '#8a6f22',
+        onToggle: () => this.setState(s => ({ expanded: s.expanded === m.k ? null : m.k })),
+        daily, avgLabel, fullLabel,
+        compareOn: this.state.compareMode,
+        prevPct: '%' + prev,
+        prevFill: 'height:100%;width:' + prev + '%;background:#b0a06e;border-radius:4px',
+        dpLabel: (dpv >= 0 ? '\u2191 +' + dpv : '\u2193 ' + dpv) + 'pt',
+        dpStyle: 'font-family:\'IBM Plex Mono\';font-size:9.5px;font-weight:600;padding:2px 6px;border-radius:5px;' + (dpv >= 0 ? 'background:#e6f0e9;color:#3f8f68' : 'background:#f6e6e0;color:#b5533a'),
+      };
+    });
+    return {
+      monthList,
+      compareMode: this.state.compareMode,
+      onCompare: () => this.setState(s => ({ compareMode: !s.compareMode })),
+      compareLabel: this.state.compareMode ? '2026 \u2194 2025' : 'Kar\u015f\u0131la\u015ft\u0131r',
+      compareBtnStyle: 'display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:9px;font:600 12px \'IBM Plex Sans\';cursor:pointer;border:1px solid ' + (this.state.compareMode ? '#1b2b45;background:#1b2b45;color:#f4ecd4' : '#e9e0cd;background:#fffdf7;color:#5a5648'),
+    };
+  }
+}
+</script>
+</body>
+</html>

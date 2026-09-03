@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae5;font-family:'IBM Plex Sans',system-ui,sans-serif}
+</style>
+</helmet>
+
+<div style="min-height:100dvh;display:flex;justify-content:center;align-items:flex-start;padding:40px 20px">
+  <div style="width:740px;max-width:100%;background:#fffdf7;border:1px solid #e9e0cd;border-radius:18px;box-shadow:0 12px 40px -12px rgba(0,0,0,.28);padding:26px 28px;color:#232733">
+
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+      <div>
+        <div style="font-family:'Spectral',serif;font-size:19px;font-weight:600">Nakit Koruma · Ödeme Erteleme</div>
+        <div style="font-size:12.5px;color:#a09a88;margin-top:2px">Bakiyeyi negatife düşürmeden ödemeleri planla · Temmuz 2026</div>
+      </div>
+      <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:10px;padding:3px"><span style="padding:6px 12px;border-radius:8px;font:600 12px 'IBM Plex Sans';background:#1b2b45;color:#f4ecd4">Bu Ay</span></div>
+    </div>
+
+    <!-- RUNWAY DURUM -->
+    <div style="margin-top:18px;padding:18px 20px;background:#1b2b45;border-radius:14px;color:#c9d3e2">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+        <div><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Bankadaki Nakit</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#e8ecf3;margin-top:3px">{{ startFmt }}</div></div>
+        <div style="text-align:right;max-width:60%"><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Durum</div><div style="font-size:13.5px;font-weight:600;margin-top:3px;color:{{ statusColor }}">{{ statusText }}</div></div>
+      </div>
+      <div style="margin-top:12px">
+        <div style="position:relative;height:88px;touch-action:none" onPointerMove="{{ onChartMove }}" onPointerLeave="{{ onChartLeave }}" onPointerDown="{{ onChartMove }}">
+          <svg viewBox="0 0 620 120" preserveAspectRatio="none" style="width:100%;height:88px;display:block">
+            <line x1="0" y1="{{ zeroY }}" x2="620" y2="{{ zeroY }}" stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7"></line>
+            <polyline points="{{ pts }}" fill="none" stroke="{{ chartStroke }}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            <circle cx="{{ lowX }}" cy="{{ lowY }}" r="4.5" fill="#e8c979"></circle>
+          </svg>
+          <sc-if value="{{ hoverActive }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;top:0;bottom:0;left:{{ hoverLeft }};width:1px;background:rgba(232,236,243,.45);pointer-events:none"></div>
+            <div style="position:absolute;left:{{ hoverLeft }};top:{{ hoverTop }};width:9px;height:9px;border-radius:50%;background:#e8ecf3;border:2px solid #1b2b45;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 3px rgba(232,236,243,.18)"></div>
+            <div style="position:absolute;left:{{ hoverTipLeft }};top:{{ hoverTop }};transform:translate(-50%,calc(-100% - 12px));background:#0f1b30;border:1px solid #2c405f;border-radius:8px;padding:6px 9px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 18px -6px rgba(0,0,0,.6)">
+              <div style="font-family:'IBM Plex Mono';font-size:9.5px;color:#8496b3;letter-spacing:.4px">{{ hoverDayLabel }}</div>
+              <div style="font-family:'IBM Plex Mono';font-size:13px;font-weight:600;color:{{ hoverColor }};margin-top:1px">{{ hoverBalance }}</div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono';font-size:9.5px;color:#6d7c92;margin-top:2px"><span>1 Tem</span><span>8</span><span>15</span><span>22</span><span>31 Tem</span></div>
+      </div>
+      <div style="font-size:11.5px;color:#a8b6c9;margin-top:8px">En düşük bakiye: <span style="color:#e8c979;font-weight:600">{{ lowLabel }}</span></div>
+    </div>
+
+    <!-- BEKLENEN TAHSİLATLAR -->
+    <div style="margin-top:18px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#4f7d64;font-weight:700">Beklenen Tahsilatlar</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <sc-for list="{{ inflows }}" as="i" hint-placeholder-count="3">
+        <span style="display:inline-flex;align-items:center;gap:8px;background:#f3f7f4;border:1px solid #e2ece5;border-radius:9px;padding:7px 11px;font-size:12px"><span style="font-family:'IBM Plex Mono';color:#8a8574">{{ i.date }}</span><span style="color:#5a5648">{{ i.name }}</span><span style="font-family:'IBM Plex Mono';font-weight:600;color:#3f7d64">{{ i.amt }}</span></span>
+      </sc-for>
+    </div>
+
+    <!-- PLANLI ÖDEMELER -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;margin-bottom:6px">
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6f22;font-weight:700">Bu Ay Planlı Ödemeler</div>
+      <div style="font-size:11.5px;color:#a09a88">{{ deferredNote }}</div>
+    </div>
+    <sc-for list="{{ payments }}" as="p" hint-placeholder-count="5">
+      <div style="display:flex;align-items:center;gap:13px;padding:11px 4px;border-bottom:1px solid #efe7d5">
+        <span style="font-family:'IBM Plex Mono';font-size:11.5px;color:#8a8574;width:46px;flex:none">{{ p.date }}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13.5px;font-weight:500;color:{{ p.nameColor }}">{{ p.name }}</div>
+          <div style="font-size:10.5px;color:#b19a5a">{{ p.tag }}</div>
+        </div>
+        <span style="font-family:'IBM Plex Mono';font-size:13.5px;font-weight:600;color:{{ p.amtColor }};{{ p.amtDecoration }};width:78px;text-align:right;flex:none">{{ p.amt }}</span>
+        <input type="date" value="{{ p.dateVal }}" min="{{ p.minVal }}" max="2026-12-31" onChange="{{ p.onDate }}" style="{{ p.inputStyle }}" />
+        <button onClick="{{ p.onReset }}" title="Erteleme tarihini sıfırla" style="{{ p.resetStyle }}">↺</button>
+      </div>
+    </sc-for>
+
+    <!-- SONUÇ -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:14px 20px;background:#1b2b45;border-radius:12px">
+      <span style="font-size:12.5px;color:#c9d3e2">Ay Sonu Projeksiyon Bakiyesi</span>
+      <span style="font-family:'IBM Plex Mono';font-size:19px;font-weight:700;color:{{ endColor }}">{{ endFmt }}</span>
+    </div>
+    <div style="font-size:11.5px;color:#a09a88;margin-top:10px;line-height:1.5">Ertelenen ödemeler bu ayın nakit projeksiyonundan çıkarılır ve gelecek aya taşınır — borç ortadan kalkmaz, yalnızca zamanlaması değişir.</div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { dates: {}, hoverDay: null };
+
+  start = 96000;
+  inflows = [
+    { d: 5, a: 38000, n: 'Acente tahsilatı' },
+    { d: 18, a: 44000, n: 'Grup rezervasyon' },
+    { d: 28, a: 30000, n: 'Kurumsal tahsilat' },
+  ];
+  outs = [
+    { id: 'o1', d: 8, a: 52000, n: 'Tedarikçi · Gıda' },
+    { id: 'o2', d: 10, a: 64000, n: 'Maaş Ödemesi' },
+    { id: 'o3', d: 15, a: 19500, n: 'Kredi Taksiti' },
+    { id: 'o4', d: 22, a: 28000, n: 'Vergi (KDV)' },
+    { id: 'o5', d: 25, a: 21000, n: 'Düzenli Ödemeler' },
+  ];
+
+  fmt(n) { return '€' + new Intl.NumberFormat('tr-TR').format(Math.round(Math.abs(n))); }
+  signed(n) { return (n >= 0 ? '+' : '\u2212') + this.fmt(n); }
+
+  renderVals() {
+    const dates = this.state.dates;
+    const MS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    const origISO = (dd) => '2026-07-' + String(dd).padStart(2, '0');
+    const eff = {};
+    for (const o of this.outs) {
+      const iso = dates[o.id] || origISO(o.d);
+      const dt = new Date(iso + 'T00:00:00');
+      const inJuly = dt.getFullYear() === 2026 && dt.getMonth() === 6;
+      eff[o.id] = { iso, dt, inJuly, day: inJuly ? dt.getDate() : null, changed: iso !== origISO(o.d) };
+    }
+    // günlük bakiye projeksiyonu (etkin tarihlere göre)
+    const byDay = new Array(32).fill(0);
+    let bal = this.start;
+    for (let d = 1; d <= 31; d++) {
+      for (const i of this.inflows) if (i.d === d) bal += i.a;
+      for (const o of this.outs) { const e = eff[o.id]; if (e.inJuly && e.day === d) bal -= o.a; }
+      byDay[d] = bal;
+    }
+    // min / ilk negatif
+    let lowVal = Infinity, lowDay = 1, firstNeg = null;
+    for (let d = 1; d <= 31; d++) {
+      if (byDay[d] < lowVal) { lowVal = byDay[d]; lowDay = d; }
+      if (firstNeg === null && byDay[d] < 0) firstNeg = d;
+    }
+    const endBal = byDay[31];
+
+    const onChartMove = (ev) => {
+      const r = ev.currentTarget.getBoundingClientRect();
+      if (!r.width) return;
+      const ratio = (ev.clientX - r.left) / r.width;
+      let day = Math.round(ratio * 30) + 1;
+      day = Math.max(1, Math.min(31, day));
+      if (day !== this.state.hoverDay) this.setState({ hoverDay: day });
+    };
+    const onChartLeave = () => { if (this.state.hoverDay !== null) this.setState({ hoverDay: null }); };
+
+    // grafik ölçek
+    const hi = Math.max(this.start, ...byDay.slice(1));
+    const lo = Math.min(0, ...byDay.slice(1));
+    const pad = (hi - lo) * 0.14 || 1;
+    const top = 12, bottom = 108;
+    const mapY = (v) => bottom - (v - (lo - pad)) / ((hi + pad) - (lo - pad)) * (bottom - top);
+    const mapX = (d) => (d - 1) / 30 * 620;
+    let pts = '';
+    for (let d = 1; d <= 31; d++) pts += mapX(d).toFixed(1) + ',' + mapY(byDay[d]).toFixed(1) + ' ';
+
+    const negative = firstNeg !== null;
+    const payments = this.outs.map(o => {
+      const e = eff[o.id];
+      const out = !e.inJuly;
+      let tag = '';
+      if (out) tag = '\u2192 ' + e.dt.getDate() + ' ' + MS[e.dt.getMonth()] + (e.dt.getFullYear() !== 2026 ? ' ' + e.dt.getFullYear() : '') + ' tarihine ertelendi';
+      else if (e.changed) tag = '\u2192 ' + e.day + ' Temmuz\u2019a ertelendi';
+      return {
+        id: o.id,
+        date: o.d + ' Tem',
+        name: o.n,
+        amt: '\u2212' + this.fmt(o.a),
+        tag,
+        nameColor: out ? '#b0a894' : '#232733',
+        amtColor: out ? '#b0a894' : '#8a6f22',
+        amtDecoration: out ? 'text-decoration:line-through' : '',
+        dateVal: e.iso,
+        minVal: origISO(o.d),
+        inputStyle: 'flex:none;width:134px;padding:6px 9px;border-radius:8px;font:500 11.5px \'IBM Plex Sans\';cursor:pointer;border:1px solid '
+          + (e.changed ? '#c6b78e;background:#f8f0dc;color:#8a6f22' : '#e3d9c2;background:#fffdf7;color:#5a5648'),
+        onDate: (ev) => { const v = ev.target.value; if (v) this.setState(s => ({ dates: { ...s.dates, [o.id]: v } })); },
+        onReset: () => this.setState(s => { const nd = { ...s.dates }; delete nd[o.id]; return { dates: nd }; }),
+        resetStyle: 'flex:none;width:28px;height:28px;border-radius:8px;border:1px solid #e3d9c2;background:#fffdf7;color:#8a6f22;cursor:pointer;font-size:13px;line-height:1;'
+          + (e.changed ? '' : 'opacity:.3;pointer-events:none'),
+      };
+    });
+    const defCount = this.outs.filter(o => eff[o.id].changed).length;
+
+    const hd = this.state.hoverDay;
+    const hoverActive = hd !== null;
+    const hVal = hoverActive ? byDay[hd] : 0;
+    const hLeftPct = hoverActive ? mapX(hd) / 620 * 100 : 0;
+    const hTopPct = hoverActive ? mapY(hVal) / 120 * 100 : 0;
+
+    return {
+      onChartMove,
+      onChartLeave,
+      hoverActive,
+      hoverLeft: hLeftPct.toFixed(2) + '%',
+      hoverTop: hTopPct.toFixed(2) + '%',
+      hoverTipLeft: Math.max(14, Math.min(86, hLeftPct)).toFixed(2) + '%',
+      hoverDayLabel: hoverActive ? hd + ' Temmuz' : '',
+      hoverBalance: hoverActive ? this.signed(hVal) : '',
+      hoverColor: hVal >= 0 ? '#8fd0a8' : '#f0a58f',
+      startFmt: this.fmt(this.start),
+      statusText: negative
+        ? '\u26A0 ' + firstNeg + ' Temmuz\u2019da bakiye negatife d\u00fc\u015f\u00fcyor'
+        : '\u2713 Ay boyunca nakit pozitif kal\u0131yor',
+      statusColor: negative ? '#f0a58f' : '#8fd0a8',
+      chartStroke: negative ? '#e8a06a' : '#8fd0a8',
+      pts: pts.trim(),
+      zeroY: mapY(0).toFixed(1),
+      lowX: mapX(lowDay).toFixed(1),
+      lowY: mapY(lowVal).toFixed(1),
+      lowLabel: lowDay + ' Tem \u00b7 ' + this.signed(lowVal),
+      inflows: this.inflows.map(i => ({ date: i.d + ' Tem', name: i.n, amt: '+' + this.fmt(i.a) })),
+      payments,
+      deferredNote: defCount > 0 ? defCount + ' ödeme ertelendi' : 'ödemeleri erteleyerek koruyun',
+      endFmt: this.signed(endBal),
+      endColor: endBal >= 0 ? '#8fd0a8' : '#f0a58f',
+    };
+  }
+}
+</script>
+</body>
+</html>

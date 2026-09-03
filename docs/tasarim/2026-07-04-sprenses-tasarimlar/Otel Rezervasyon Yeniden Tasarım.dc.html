@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#eceae5;font-family:'IBM Plex Sans',system-ui,sans-serif}
+  .dv-turn{padding:44px 48px 40px}
+  .dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 26px}
+  .dv-tid{font:600 10px ui-monospace,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+  .dv-tname{font:600 13px 'IBM Plex Sans';color:#1a1a1a}
+  .dv-olabel{display:flex;align-items:baseline;gap:9px;font:500 12px 'IBM Plex Sans';color:rgba(0,0,0,.55);margin-bottom:12px}
+  .dv-oid{font:600 10.5px ui-monospace,monospace;padding:3px 7px;background:rgba(0,0,0,.08);border-radius:5px;text-decoration:none;color:#1a1a1a}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Otel Rezervasyon modülü — yeniden tasarım (2026)</span></div>
+  <div><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Analitik panel — aya tıkla, günlük barlar açılsın</div>
+  <div style="width:1200px;max-width:100%;background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;box-shadow:0 12px 40px -12px rgba(0,0,0,.28);padding:24px 26px;color:#232733">
+
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div><div style="font-family:'Spectral',serif;font-size:20px;font-weight:600">Otel Rezervasyon</div><div style="font-size:12px;color:#a09a88;margin-top:2px">XLS yükle → KPI ve dağılımlar · stay-night bazlı doluluk</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:9px;padding:3px"><span style="padding:6px 12px;border-radius:7px;font:600 12px 'IBM Plex Sans';background:#1b2b45;color:#f4ecd4">2026</span><span style="padding:6px 12px;border-radius:7px;font:500 12px 'IBM Plex Sans';color:#6d6446">2025</span></div>
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 13px;border:1px solid #e9e0cd;border-radius:9px;font-size:12.5px;color:#5a5648;background:#fffdf7"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"/></svg>Karşılaştır</div>
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#1b2b45;color:#f4ecd4;border-radius:9px;font-size:12.5px;font-weight:600"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>XLS Yükle</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:18px">
+      <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Rezervasyon</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#1b2b45;margin-top:6px">1.284</div><div style="font-size:11px;color:#a09a88;margin-top:5px">Definite 1.096 · Option 188</div></div>
+      <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Net Ciro</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#1b2b45;margin-top:6px">€4,82M</div><div style="font-size:11px;color:#a09a88;margin-top:5px">ADR €142</div></div>
+      <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Oda-Gece</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#1b2b45;margin-top:6px">18.640</div><div style="font-size:11px;color:#a09a88;margin-top:5px">Ort. 4,6 gece</div></div>
+      <div style="background:#1b2b45;border-radius:13px;padding:14px 16px;color:#c9d3e2"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8496b3">Doluluk</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#e8c979;margin-top:6px">%78</div><div style="font-size:11px;color:#9fb0cb;margin-top:5px">142 oda × 365 gün</div></div>
+      <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Pax</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#1b2b45;margin-top:6px">3.210</div><div style="font-size:11px;color:#a09a88;margin-top:5px">Yet 2.418 · Çoc 792</div></div>
+      <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:14px 16px"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Rez→Giriş</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#1b2b45;margin-top:6px">48 gün</div><div style="font-size:11px;color:#a09a88;margin-top:5px">Medyan 39 gün</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.55fr 1fr;gap:20px;margin-top:20px;align-items:start">
+      <div style="background:#fbf7ee;border:1px solid #e9e0cd;border-radius:14px;padding:18px 20px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px"><div style="font-family:'Spectral',serif;font-size:15px;font-weight:600">Aylık Doluluk Dağılımı</div><div style="font-size:11px;color:#a09a88">aya tıkla → günlük detay</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ monthList }}" as="m" hint-placeholder-count="12">
+            <div>
+              <button onClick="{{ m.onToggle }}" style="width:100%;display:flex;align-items:center;gap:12px;background:none;border:none;cursor:pointer;padding:0;font-family:inherit" style-hover="opacity:.9">
+                <div style="width:46px;display:flex;align-items:center;gap:5px;font-size:11.5px;color:#8a8574;font-weight:500"><span style="width:9px;color:#8a6f22;font-size:9px">{{ m.chevron }}</span>{{ m.nm }}</div>
+                <div style="flex:1;height:26px;background:#f0ebde;border-radius:7px;position:relative;overflow:hidden">
+                  <div style="{{ m.fill }}"></div>
+                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 10px">
+                    <span style="font-size:10.5px;font-family:'IBM Plex Mono';color:{{ m.rnColor }}">{{ m.rn }}</span>
+                    <span style="font-size:10.5px;font-weight:600;font-family:'IBM Plex Mono';color:{{ m.pctColor }}">{{ m.pct }} · {{ m.eur }}</span>
+                  </div>
+                </div>
+              </button>
+              <sc-if value="{{ m.expanded }}" hint-placeholder-val="{{ false }}">
+                <div style="margin:9px 0 12px 46px;padding:12px 14px;background:#fff;border:1px solid #ece4d2;border-radius:10px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px"><div style="font-size:12px;font-weight:600;color:#232733">{{ m.fullLabel }} · Günlük Doluluk</div><div style="font-size:11px;color:#a09a88">Ort <span style="font-family:'IBM Plex Mono';color:#2c4269;font-weight:600">{{ m.avgLabel }}</span> · Zirve <span style="font-family:'IBM Plex Mono';color:#3f8f68;font-weight:600">{{ m.peakLabel }}</span></div></div>
+                  <div style="display:flex;flex-direction:column;gap:5px">
+                    <sc-for list="{{ m.daily }}" as="d" hint-placeholder-count="30">
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <div style="width:54px;display:flex;gap:6px;font-family:'IBM Plex Mono';font-size:10.5px"><span style="color:#5a5648;font-weight:600">{{ d.lbl }}</span><span style="font-size:9.5px;color:{{ d.wdColor }}">{{ d.wd }}</span></div>
+                        <div style="flex:1;height:16px;background:#f0ebde;border-radius:5px;position:relative;overflow:hidden"><div style="{{ d.fill }}"></div></div>
+                        <div style="width:38px;text-align:right;font-family:'IBM Plex Mono';font-size:10.5px;font-weight:600;color:{{ d.pctColor }}">{{ d.pct }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:18px 20px">
+          <div style="display:flex;align-items:center;gap:8px;font-family:'Spectral',serif;font-size:14.5px;font-weight:600;margin-bottom:14px"><span style="width:9px;height:9px;border-radius:2px;background:#bd9a45"></span>Acente Dağılımı · ciro payı</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:96px;font-size:12px;color:#232733">TUI</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:100%;background:#bd9a45;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%32</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:96px;font-size:12px;color:#232733">Coral Travel</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:65.6%;background:#bd9a45;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%21</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:96px;font-size:12px;color:#232733">Anex Tour</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:43.75%;background:#bd9a45;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%14</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:96px;font-size:12px;color:#232733">Pegas Touristik</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:28.1%;background:#bd9a45;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%9</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:96px;font-size:12px;color:#232733">Web / Direkt</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:25%;background:#bd9a45;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%8</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:96px;font-size:12px;color:#232733">Diğer</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:50%;background:#d8c48a;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#8a6f22">%16</div></div>
+          </div>
+        </div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:18px 20px">
+          <div style="display:flex;align-items:center;gap:8px;font-family:'Spectral',serif;font-size:14.5px;font-weight:600;margin-bottom:14px"><span style="width:9px;height:9px;border-radius:2px;background:#2c4269"></span>Oda Tipi Doluluğu</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:70px;font-size:12px;color:#232733">Aile</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:88%;background:#2c4269;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#2c4269">%88</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:70px;font-size:12px;color:#232733">Standart</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:81%;background:#2c4269;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#2c4269">%81</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:70px;font-size:12px;color:#232733">Deluxe</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:76%;background:#2c4269;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#2c4269">%76</div></div>
+            <div style="display:flex;align-items:center;gap:10px"><div style="width:70px;font-size:12px;color:#232733">Suite</div><div style="flex:1;height:9px;background:#f0ebde;border-radius:5px;overflow:hidden"><div style="height:100%;width:64%;background:#2c4269;border-radius:5px"></div></div><div style="width:34px;text-align:right;font-family:'IBM Plex Mono';font-size:12px;font-weight:600;color:#2c4269">%64</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div></div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { expanded: null };
+
+  months = [
+    { k: '01', nm: 'Oca', o: 52 }, { k: '02', nm: 'Şub', o: 58 }, { k: '03', nm: 'Mar', o: 64 },
+    { k: '04', nm: 'Nis', o: 71 }, { k: '05', nm: 'May', o: 83 }, { k: '06', nm: 'Haz', o: 88 },
+    { k: '07', nm: 'Tem', o: 92 }, { k: '08', nm: 'Ağu', o: 95 }, { k: '09', nm: 'Eyl', o: 86 },
+    { k: '10', nm: 'Eki', o: 74 }, { k: '11', nm: 'Kas', o: 61 }, { k: '12', nm: 'Ara', o: 66 },
+  ];
+  MFULL = { '01': 'Ocak', '02': 'Şubat', '03': 'Mart', '04': 'Nisan', '05': 'Mayıs', '06': 'Haziran', '07': 'Temmuz', '08': 'Ağustos', '09': 'Eylül', '10': 'Ekim', '11': 'Kasım', '12': 'Aralık' };
+  WD = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+
+  buildDays(k, o) {
+    const m = Number(k);
+    const n = new Date(2026, m, 0).getDate();
+    const arr = [];
+    for (let d = 1; d <= n; d++) {
+      const dow = (new Date(2026, m - 1, d).getDay() + 6) % 7;
+      const we = dow >= 5;
+      let occ = Math.round(o + (we ? 7 : 0) + Math.sin(d * 0.9) * 6);
+      occ = Math.max(38, Math.min(100, occ));
+      arr.push({ d, dow, we, occ });
+    }
+    return arr;
+  }
+
+  renderVals() {
+    const exp = this.state.expanded;
+    const monthList = this.months.map(m => {
+      const rn = Math.round(m.o * 20.3);
+      const eur = Math.round(m.o * 5.2);
+      const expanded = exp === m.k;
+      const peak = m.o >= 90;
+      let daily = [], avgLabel = '', peakLabel = '', fullLabel = '';
+      if (expanded) {
+        const days = this.buildDays(m.k, m.o);
+        const avg = Math.round(days.reduce((s, x) => s + x.occ, 0) / days.length);
+        let pk = days[0];
+        for (const x of days) if (x.occ > pk.occ) pk = x;
+        avgLabel = '%' + avg;
+        peakLabel = String(pk.d).padStart(2, '0') + ' · %' + pk.occ;
+        fullLabel = this.MFULL[m.k] + ' 2026';
+        daily = days.map(x => ({
+          lbl: String(x.d).padStart(2, '0'),
+          wd: this.WD[x.dow],
+          wdColor: x.we ? '#b5533a' : '#a09a88',
+          fill: 'position:absolute;left:0;top:0;bottom:0;width:' + x.occ + '%;background:' + (x.occ >= 100 ? '#b5533a' : '#2c4269') + ';border-radius:5px',
+          pct: '%' + x.occ,
+          pctColor: x.occ >= 100 ? '#b5533a' : '#2c4269',
+        }));
+      }
+      return {
+        key: m.k, nm: m.nm,
+        rn: rn.toLocaleString('tr-TR') + ' gece',
+        pct: '%' + m.o, eur: '€' + eur + 'K',
+        expanded, chevron: expanded ? '\u25BE' : '\u25B8',
+        fill: 'position:absolute;left:0;top:0;bottom:0;width:' + m.o + '%;background:' + (peak ? 'linear-gradient(90deg,#2c4269,#3a5a82)' : '#2c4269') + ';border-radius:7px',
+        rnColor: m.o >= 25 ? '#dbe2ee' : '#5a5648',
+        pctColor: m.o >= 55 ? '#e8c979' : '#8a6f22',
+        onToggle: () => this.setState(s => ({ expanded: s.expanded === m.k ? null : m.k })),
+        daily, avgLabel, peakLabel, fullLabel,
+      };
+    });
+    return { monthList };
+  }
+}
+</script>
+</body>
+</html>

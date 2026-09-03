@@ -1179,7 +1179,7 @@ t_account **listede-kalır-toplam-dışı** + kolon-toplamı-değişmez + realiz
 
 ## Cariler Yeniden Tasarımı v2 — Analitik Sekmeler + Gecikmiş Sıralaması (2026-07-23)
 
-Kullanıcının GitHub'a yüklediği tasarım paketi ("Cariler modülü yeniden tasarımı.zip",
+Kullanıcının GitHub'a yüklediği tasarım paketi ("docs/tasarim/2026-07-23-cariler-yeniden-tasarim/",
 commit `11475ef`) uygulandı — tam anlatım `docs/modules/cariler.md` "v2" bölümü. Finans
 katmanını ilgilendiren backend değişiklikleri:
 

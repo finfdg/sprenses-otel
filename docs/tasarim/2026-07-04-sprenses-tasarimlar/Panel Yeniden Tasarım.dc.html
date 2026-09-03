@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f0e7;font-family:'IBM Plex Sans',system-ui,sans-serif}
+</style>
+</helmet>
+
+<div style="display:flex;height:100dvh;overflow:hidden;background:#f4f0e7;color:#232733">
+
+  <!-- Sidebar -->
+  <aside style="width:240px;flex:none;background:#1b2b45;color:#e8ecf3;display:flex;flex-direction:column">
+    <div style="padding:24px 22px 20px;display:flex;align-items:center;gap:11px;border-bottom:1px solid rgba(255,255,255,.08)">
+      <div style="width:34px;height:34px;border-radius:9px;background:#bd9a45;display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-weight:700;font-size:18px;color:#1b2b45">S</div>
+      <div><div style="font-family:'Spectral',serif;font-size:18px;font-weight:600;color:#e8ecf3;letter-spacing:.3px">Sprenses</div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8496b3">Otel Yönetimi</div></div>
+    </div>
+    <nav style="flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border-radius:9px;background:#2c4269;color:#e8ecf3;font-weight:500;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg>Panel
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>Yönetim Paneli
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/></svg>
+        <span style="flex:1;display:flex;align-items:center;justify-content:space-between">Mesajlaşma<span style="min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;padding:0 6px;font-size:11px;font-weight:700;color:#1b2b45;background:#bd9a45;border-radius:20px">3</span></span>
+      </div>
+      <div style="margin:14px 13px 7px;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#7286a6">Modüller</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Finans <span style="margin-left:auto;font-size:11px;color:#bd9a45;font-weight:600">6</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21"/></svg>Muhasebe
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z"/></svg>İnsan Kaynakları
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/></svg>Satış <span style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:#bd9a45"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>Stok
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>Kalite
+      </div>
+    </nav>
+    <div style="padding:16px 22px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#7286a6">Sprenses v1.0</div>
+  </aside>
+
+  <!-- Main -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <!-- Topbar -->
+    <header style="height:66px;flex:none;display:flex;align-items:center;gap:16px;padding:0 30px;background:#f4f0e7;border-bottom:1px solid #e7dfcd">
+      <div style="flex:1">
+        <div style="font-family:'Spectral',serif;font-size:19px;font-weight:600;color:#232733;line-height:1.1">Günaydın, Mert</div>
+        <div style="font-size:12px;color:#8a8574;margin-top:1px">Cumartesi, 4 Temmuz 2026 · Finans Müdürü</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#fffdf7;border:1px solid #e7dfcd;border-radius:10px;padding:9px 13px;width:230px;color:#a09a88;font-size:13px">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607Z"/></svg>
+        Ara…
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#5f7a4f;font-weight:500"><span style="width:8px;height:8px;border-radius:50%;background:#5a8f6e"></span>7 çevrimiçi</div>
+      <div style="position:relative;width:40px;height:40px;border-radius:10px;background:#fffdf7;border:1px solid #e7dfcd;display:flex;align-items:center;justify-content:center;color:#5a5648">
+        <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/></svg>
+        <span style="position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:#bd9a45;border:1.5px solid #fffdf7"></span>
+      </div>
+      <div style="width:40px;height:40px;border-radius:50%;background:#2c4269;color:#e8ecf3;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px">M</div>
+    </header>
+
+    <!-- Content -->
+    <div style="flex:1;overflow-y:auto;padding:24px 30px;display:flex;flex-direction:column;gap:20px">
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:13px 15px">
+          <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Bankalar</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#1b2b45;margin-top:5px;letter-spacing:-.5px">€2,41M</div>
+          <div style="display:flex;align-items:center;gap:5px;margin-top:6px;font-size:12px;color:#5a8f6e;font-weight:500"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.307a11.95 11.95 0 0 1 5.814-5.519l2.74-1.22"/></svg>+%4,2 <span style="color:#a09a88">bu ay</span></div>
+        </div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:13px 15px">
+          <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Doluluk</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#1b2b45;margin-top:5px;letter-spacing:-.5px">%78</div>
+          <div style="font-size:12px;color:#a09a88;margin-top:6px">124 / 159 oda dolu</div>
+        </div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:13px 15px">
+          <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Avanslar</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#1b2b45;margin-top:5px;letter-spacing:-.5px">€186K</div>
+          <div style="font-size:12px;color:#a09a88;margin-top:6px">€214K alındı · 3 bekleyen</div>
+        </div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:13px 15px">
+          <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Cariler</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#b5533a;margin-top:5px;letter-spacing:-.5px">€318K</div>
+          <div style="font-size:12px;color:#a09a88;margin-top:6px">12 borçlu cari</div>
+        </div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:13px 15px">
+          <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Çekler</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#1b2b45;margin-top:5px;letter-spacing:-.5px">€142K</div>
+          <div style="font-size:12px;color:#a09a88;margin-top:6px">3 bekleyen · 1 vadesi geçmiş</div>
+        </div>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:13px 15px">
+          <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#8a8574">Krediler</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:#1b2b45;margin-top:5px;letter-spacing:-.5px">€1,24M</div>
+          <div style="font-size:12px;color:#a09a88;margin-top:6px">4 ürün · kalan borç</div>
+        </div>
+      </div>
+
+      <!-- Nakit Akım — T Hesap Cetveli -->
+      <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;padding:22px 26px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-family:'Spectral',serif;font-size:17px;font-weight:600">Nakit Akım · T Hesap Cetveli</div>
+            <div style="font-size:12px;color:#a09a88;margin-top:2px">Hesap hareketleri · EUR · başlığa tıklayarak detayı açın</div>
+          </div>
+          <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:11px;padding:3px">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+              <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- Date navigator -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px">
+          <button onClick="{{ onPrev }}" style="width:34px;height:34px;border-radius:9px;border:1px solid #e3d9c2;background:#fffdf7;color:#5a5648;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="background:#f4ecd4">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+          </button>
+          <div style="min-width:230px;text-align:center">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:14.5px;font-weight:600;color:#1b2b45">{{ rangeLabel }}</div>
+            <div style="font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:#a09a88;margin-top:3px">{{ periodType }}</div>
+          </div>
+          <button onClick="{{ onNext }}" style="{{ nextStyle }}" style-hover="background:#f4ecd4">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+          </button>
+        </div>
+
+        <!-- T account -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;margin-top:16px;border-top:2px solid #1b2b45">
+          <!-- Left: Giriş / Borç -->
+          <div style="border-right:2px solid #1b2b45;padding:0 22px 4px 0">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;padding:12px 6px 10px;border-bottom:1px solid #efe7d5">
+              <span style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#2c4269;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#2c4269"></span>Giriş</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:#2c4269">{{ girisTotal }}</span>
+            </div>
+            <sc-for list="{{ giris }}" as="g" hint-placeholder-count="4">
+              <div style="border-bottom:1px solid #efe7d5">
+                <button onClick="{{ g.onToggle }}" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 6px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit;border-radius:8px" style-hover="background:#faf5e8">
+                  <span style="width:14px;color:#8a6f22;font-size:10px">{{ g.chevron }}</span>
+                  <span style="flex:1;font-size:13px;font-weight:600;color:#232733">{{ g.label }}</span>
+                  <span style="font-size:11px;color:#a09a88">{{ g.count }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#2c4269;min-width:104px;text-align:right">{{ g.total }}</span>
+                </button>
+                <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:2px 6px 12px 32px;display:flex;flex-direction:column;gap:8px">
+                    <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <span style="flex:1;font-size:12px;color:#6d6a5e">{{ it.name }}</span>
+                        <span style="font-size:11px;color:#b3ac9a">{{ it.date }}</span>
+                        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#4a4636;min-width:104px;text-align:right">{{ it.amount }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <!-- Right: Çıkış / Alacak -->
+          <div style="padding:0 0 4px 22px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;padding:12px 6px 10px;border-bottom:1px solid #efe7d5">
+              <span style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6f22;font-weight:700"><span style="width:9px;height:9px;border-radius:2px;background:#bd9a45"></span>Çıkış</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:#8a6f22">{{ cikisTotal }}</span>
+            </div>
+            <sc-for list="{{ cikis }}" as="g" hint-placeholder-count="4">
+              <div style="border-bottom:1px solid #efe7d5">
+                <button onClick="{{ g.onToggle }}" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 6px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit;border-radius:8px" style-hover="background:#faf5e8">
+                  <span style="width:14px;color:#8a6f22;font-size:10px">{{ g.chevron }}</span>
+                  <span style="flex:1;font-size:13px;font-weight:600;color:#232733">{{ g.label }}</span>
+                  <span style="font-size:11px;color:#a09a88">{{ g.count }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#8a6f22;min-width:104px;text-align:right">{{ g.total }}</span>
+                </button>
+                <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:2px 6px 12px 32px;display:flex;flex-direction:column;gap:8px">
+                    <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <span style="flex:1;font-size:12px;color:#6d6a5e">{{ it.name }}</span>
+                        <span style="font-size:11px;color:#b3ac9a">{{ it.date }}</span>
+                        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#4a4636;min-width:104px;text-align:right">{{ it.amount }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- Net footer -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:14px 20px;background:#1b2b45;border-radius:12px">
+          <span style="font-size:13px;color:#c9d3e2">Net Nakit Akım · {{ rangeLabel }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:{{ netColor }}">{{ net }}</span>
+        </div>
+      </div>
+
+      <!-- Nakit Koruma / Runway -->
+      <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;padding:22px 26px">
+        <div style="font-family:'Spectral',serif;font-size:17px;font-weight:600">Nakit Koruma · Ödeme Erteleme</div>
+        <div style="font-size:12px;color:#a09a88;margin-top:2px">Bakiyeyi negatife düşürmeden ödemeleri planlayın · Temmuz 2026</div>
+        <div style="margin-top:16px;padding:18px 20px;background:#1b2b45;border-radius:14px;color:#c9d3e2">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+            <div><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Bankadaki Nakit</div><div style="font-family:'IBM Plex Mono';font-size:22px;font-weight:600;color:#e8ecf3;margin-top:3px">{{ kStartFmt }}</div></div>
+            <div style="text-align:right;max-width:60%"><div style="font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Durum</div><div style="font-size:13.5px;font-weight:600;margin-top:3px;color:{{ kStatusColor }}">{{ kStatusText }}</div></div>
+          </div>
+          <div style="margin-top:12px">
+            <svg viewBox="0 0 620 120" preserveAspectRatio="none" style="width:100%;height:80px;display:block">
+              <line x1="0" y1="{{ kZeroY }}" x2="620" y2="{{ kZeroY }}" stroke="#e07a6a" stroke-width="1" stroke-dasharray="4 4" opacity="0.7"></line>
+              <polyline points="{{ kPts }}" fill="none" stroke="{{ kChartStroke }}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+              <circle cx="{{ kLowX }}" cy="{{ kLowY }}" r="4.5" fill="#e8c979"></circle>
+            </svg>
+            <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono';font-size:9.5px;color:#6d7c92;margin-top:2px"><span>1 Tem</span><span>8</span><span>15</span><span>22</span><span>31 Tem</span></div>
+          </div>
+          <div style="font-size:11.5px;color:#a8b6c9;margin-top:8px">En düşük bakiye: <span style="color:#e8c979;font-weight:600">{{ kLowLabel }}</span></div>
+        </div>
+        <div style="margin-top:16px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#4f7d64;font-weight:700">Beklenen Tahsilatlar</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <sc-for list="{{ kInflowsFmt }}" as="i" hint-placeholder-count="3">
+            <span style="display:inline-flex;align-items:center;gap:8px;background:#f3f7f4;border:1px solid #e2ece5;border-radius:9px;padding:7px 11px;font-size:12px"><span style="font-family:'IBM Plex Mono';color:#8a8574">{{ i.date }}</span><span style="color:#5a5648">{{ i.name }}</span><span style="font-family:'IBM Plex Mono';font-weight:600;color:#3f7d64">{{ i.amt }}</span></span>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;margin-bottom:6px">
+          <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6f22;font-weight:700">Bu Ay Planlı Ödemeler</div>
+          <div style="font-size:11.5px;color:#a09a88">{{ kDeferredNote }}</div>
+        </div>
+        <sc-for list="{{ kPayments }}" as="p" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:13px;padding:11px 4px;border-bottom:1px solid #efe7d5">
+            <span style="font-family:'IBM Plex Mono';font-size:11.5px;color:#8a8574;width:46px;flex:none">{{ p.date }}</span>
+            <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:500;color:{{ p.nameColor }}">{{ p.name }}</div><div style="font-size:10.5px;color:#b19a5a">{{ p.tag }}</div></div>
+            <span style="font-family:'IBM Plex Mono';font-size:13.5px;font-weight:600;color:{{ p.amtColor }};{{ p.amtDecoration }};width:78px;text-align:right;flex:none">{{ p.amt }}</span>
+            <input type="date" value="{{ p.dateVal }}" min="{{ p.minVal }}" max="2026-12-31" onChange="{{ p.onDate }}" style="{{ p.inputStyle }}" />
+            <button onClick="{{ p.onReset }}" title="Erteleme tarihini sıfırla" style="{{ p.resetStyle }}">↺</button>
+          </div>
+        </sc-for>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:14px 20px;background:#1b2b45;border-radius:12px">
+          <span style="font-size:12.5px;color:#c9d3e2">Ay Sonu Projeksiyon Bakiyesi</span>
+          <span style="font-family:'IBM Plex Mono';font-size:19px;font-weight:700;color:{{ kEndColor }}">{{ kEndFmt }}</span>
+        </div>
+      </div>
+
+      <!-- Son Hareketler + Onay modal -->
+      <div style="display:grid;grid-template-columns:1fr;gap:20px">
+        <sc-if value="{{ onayOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeOnay }}" style="position:fixed;inset:0;background:rgba(20,25,40,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:24px">
+        <div onClick="{{ stopProp }}" id="onay-kutusu" style="background:#fffdf7;border-radius:18px;width:460px;max-width:100%;max-height:86vh;padding:22px 22px;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.32)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><div style="display:flex;align-items:baseline;gap:10px"><span style="font-family:'Spectral',serif;font-size:17px;font-weight:600">Onay Kutusu</span><span style="font-size:11px;font-weight:600;color:#8a6f22;background:#f4ecd4;padding:3px 9px;border-radius:20px">6 bekliyor</span></div><button onClick="{{ closeOnay }}" style="width:32px;height:32px;border-radius:9px;border:1px solid #e3d9c2;background:#fffdf7;color:#5a5648;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg></button></div>
+          <div style="display:flex;flex-direction:column;gap:10px;flex:1">
+            <div style="display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #eee4d1"><div style="width:36px;height:36px;border-radius:9px;background:#f4ecd4;color:#8a6f22;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185z"/></svg></div><div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#232733">Satış Faturası #2024-1187</div><div style="font-size:11.5px;color:#a09a88">Deniz Y. · şimdi</div></div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#232733">₺84.200</div></div>
+            <div style="display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #eee4d1"><div style="width:36px;height:36px;border-radius:9px;background:#e6ebf2;color:#2c4269;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div><div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#232733">Avans Talebi</div><div style="font-size:11.5px;color:#a09a88">Elif K. · 18 dk</div></div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#232733">₺12.000</div></div>
+            <div style="display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #eee4d1"><div style="width:36px;height:36px;border-radius:9px;background:#ece7db;color:#6d6446;flex:none;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg></div><div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:500;color:#232733">Düzenli Ödeme · Elektrik</div><div style="font-size:11.5px;color:#a09a88">Sistem · 1 sa</div></div><div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#232733">₺6.480</div></div>
+            <div style="margin-top:auto;padding-top:12px"><div style="text-align:center;font-size:12.5px;font-weight:600;color:#2c4269;background:#eef1f7;border-radius:10px;padding:11px">Tüm onayları gör →</div></div>
+          </div>
+        </div>
+        </div>
+        </sc-if>
+        <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;padding:22px 24px">
+          <div style="font-family:'Spectral',serif;font-size:16px;font-weight:600;margin-bottom:14px">Son Hareketler</div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;gap:11px"><span style="width:7px;height:7px;border-radius:50%;background:#5a8f6e;margin-top:5px;flex:none"></span><div style="font-size:12.5px;color:#5a5648">Ayşe K. banka ekstresi yükledi · Garanti TL <span style="color:#a09a88">· 5 dk</span></div></div>
+            <div style="display:flex;gap:11px"><span style="width:7px;height:7px;border-radius:50%;background:#bd9a45;margin-top:5px;flex:none"></span><div style="font-size:12.5px;color:#5a5648">3 yeni rezervasyon · Deluxe, 4 gece <span style="color:#a09a88">· 22 dk</span></div></div>
+            <div style="display:flex;gap:11px"><span style="width:7px;height:7px;border-radius:50%;background:#2c4269;margin-top:5px;flex:none"></span><div style="font-size:12.5px;color:#5a5648">Kalite formu onaylandı · Kat Hizmetleri <span style="color:#a09a88">· 1 sa</span></div></div>
+            <div style="display:flex;gap:11px"><span style="width:7px;height:7px;border-radius:50%;background:#a08a5a;margin-top:5px;flex:none"></span><div style="font-size:12.5px;color:#5a5648">Kredi ödemesi vadesi yaklaşıyor · Yapı Kredi <span style="color:#a09a88">· 2 sa</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bekleyen Onay (uzun kart, en altta) -->
+      <div onClick="{{ toggleOnay }}" style="background:#1b2b45;border-radius:16px;padding:20px 26px;color:#c9d3e2;cursor:pointer;display:flex;align-items:center;gap:24px">
+        <div style="display:flex;align-items:center;gap:16px;flex:none">
+          <div style="width:48px;height:48px;border-radius:12px;background:#bd9a45;color:#1b2b45;display:flex;align-items:center;justify-content:center;flex:none"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></div>
+          <div>
+            <div style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Bekleyen Onay</div>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-top:3px"><span style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:600;color:#e8c979;line-height:1">6</span><span style="font-size:13px;color:#9fb0cb">işlem onayınızı bekliyor</span></div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:#dbe2ee;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);padding:6px 12px;border-radius:20px">3 Satış Faturası</span>
+          <span style="font-size:12px;color:#dbe2ee;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);padding:6px 12px;border-radius:20px">2 Avans Talebi</span>
+          <span style="font-size:12px;color:#dbe2ee;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);padding:6px 12px;border-radius:20px">1 Düzenli Ödeme</span>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#e8c979">İncele
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { period: 'aylik', open: {}, onayOpen: false, dates: {}, offsets: { gunluk: 0, haftalik: 0, aylik: 0, yillik: 0 } };
+
+  data = {
+    gunluk: {
+      date: 'Bugün',
+      giris: [
+        { label: 'Oda Gelirleri', items: [ { name: 'Check-in tahsilatı', amount: 8400 }, { name: 'Online rezervasyon', amount: 5200 } ] },
+        { label: 'Yiyecek & İçecek', items: [ { name: 'Restoran', amount: 1850 }, { name: 'Bar & Lobby', amount: 720 } ] },
+        { label: 'Diğer Gelirler', items: [ { name: 'Spa & Wellness', amount: 540 } ] },
+      ],
+      cikis: [
+        { label: 'Tedarikçi Ödemeleri', items: [ { name: 'Günlük gıda alımı', amount: 2100 }, { name: 'Sarf malzeme', amount: 640 } ] },
+        { label: 'Sabit Giderler', items: [ { name: 'Enerji tahakkuku', amount: 620 } ] },
+        { label: 'Diğer Ödemeler', items: [ { name: 'Personel nakit avans', amount: 300 } ] },
+      ],
+    },
+    haftalik: {
+      date: '24–30 Haz',
+      giris: [
+        { label: 'Oda Gelirleri', items: [ { name: 'Deluxe & Suite', amount: 32100 }, { name: 'Standart oda', amount: 21050 }, { name: 'Grup & Acente', amount: 10600 } ] },
+        { label: 'Yiyecek & İçecek', items: [ { name: 'Restoran', amount: 9550 }, { name: 'Bar & Lobby', amount: 3850 } ] },
+        { label: 'Etkinlik & Toplantı', items: [ { name: 'Toplantı salonu', amount: 5200 } ] },
+      ],
+      cikis: [
+        { label: 'Personel & Maaş', items: [ { name: 'Haftalık tahakkuk', amount: 24100 }, { name: 'SGK primleri', amount: 7100 } ] },
+        { label: 'Tedarikçi Ödemeleri', items: [ { name: 'Gıda tedarik', amount: 10600 }, { name: 'Sarf malzeme', amount: 3150 } ] },
+        { label: 'Sabit Giderler', items: [ { name: 'Kira payı', amount: 8500 }, { name: 'Enerji', amount: 4650 } ] },
+      ],
+    },
+    aylik: {
+      date: 'Haziran',
+      giris: [
+        { label: 'Oda Gelirleri', items: [ { name: 'Konaklama · Deluxe & Suite', amount: 128400 }, { name: 'Konaklama · Standart', amount: 84200 }, { name: 'Grup & Acente', amount: 42600 } ] },
+        { label: 'Yiyecek & İçecek', items: [ { name: 'Restoran', amount: 38200 }, { name: 'Bar & Lobby', amount: 15400 }, { name: 'Oda servisi', amount: 8600 } ] },
+        { label: 'Etkinlik & Toplantı', items: [ { name: 'Toplantı salonu', amount: 21000 }, { name: 'Düğün & Organizasyon', amount: 34500 } ] },
+        { label: 'Diğer Gelirler', items: [ { name: 'Spa & Wellness', amount: 12800 }, { name: 'Otopark & Transfer', amount: 5400 } ] },
+      ],
+      cikis: [
+        { label: 'Personel & Maaş', items: [ { name: 'Maaş ödemeleri', amount: 96500 }, { name: 'SGK primleri', amount: 28400 }, { name: 'Fazla mesai', amount: 6200 } ] },
+        { label: 'Tedarikçi Ödemeleri', items: [ { name: 'Gıda tedarik', amount: 42300 }, { name: 'Temizlik & Sarf', amount: 12600 }, { name: 'Çamaşırhane', amount: 7800 } ] },
+        { label: 'Sabit Giderler', items: [ { name: 'Kira', amount: 34000 }, { name: 'Elektrik & Doğalgaz', amount: 18600 }, { name: 'Su & İnternet', amount: 4200 } ] },
+        { label: 'Vergi & Finansman', items: [ { name: 'KDV & Vergi', amount: 24800 }, { name: 'Kredi taksiti', amount: 19500 } ] },
+      ],
+    },
+    yillik: {
+      date: '2026',
+      giris: [
+        { label: 'Oda Gelirleri', items: [ { name: 'Konaklama toplam', amount: 2860000 }, { name: 'Grup & Acente', amount: 540000 } ] },
+        { label: 'Yiyecek & İçecek', items: [ { name: 'F&B toplam', amount: 742000 } ] },
+        { label: 'Etkinlik & Toplantı', items: [ { name: 'Organizasyon', amount: 468000 } ] },
+        { label: 'Diğer Gelirler', items: [ { name: 'Spa & yan gelirler', amount: 214000 } ] },
+      ],
+      cikis: [
+        { label: 'Personel & Maaş', items: [ { name: 'Maaş & SGK toplam', amount: 1580000 } ] },
+        { label: 'Tedarikçi Ödemeleri', items: [ { name: 'Tedarik toplam', amount: 712000 } ] },
+        { label: 'Sabit Giderler', items: [ { name: 'Kira & enerji', amount: 684000 } ] },
+        { label: 'Vergi & Finansman', items: [ { name: 'Vergi & kredi', amount: 548000 } ] },
+      ],
+    },
+  };
+
+  fmt(n) { return '€' + new Intl.NumberFormat('tr-TR').format(Math.round(n)); }
+
+  // ── Nakit Koruma / Runway ──────────────────────────────
+  kStart = 96000;
+  kInflows = [ { d: 5, a: 38000, n: 'Acente tahsilatı' }, { d: 18, a: 44000, n: 'Grup rezervasyon' }, { d: 28, a: 30000, n: 'Kurumsal tahsilat' } ];
+  kOuts = [ { id: 'o1', d: 8, a: 52000, n: 'Tedarikçi · Gıda' }, { id: 'o2', d: 10, a: 64000, n: 'Maaş Ödemesi' }, { id: 'o3', d: 15, a: 19500, n: 'Kredi Taksiti' }, { id: 'o4', d: 22, a: 28000, n: 'Vergi (KDV)' }, { id: 'o5', d: 25, a: 21000, n: 'Düzenli Ödemeler' } ];
+  kSigned(n) { return (n >= 0 ? '+' : '\u2212') + this.fmt(Math.abs(n)); }
+
+  korumaVals() {
+    const dates = this.state.dates;
+    const MS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    const origISO = (dd) => '2026-07-' + String(dd).padStart(2, '0');
+    const eff = {};
+    for (const o of this.kOuts) {
+      const iso = dates[o.id] || origISO(o.d);
+      const dt = new Date(iso + 'T00:00:00');
+      const inJuly = dt.getFullYear() === 2026 && dt.getMonth() === 6;
+      eff[o.id] = { iso, dt, inJuly, day: inJuly ? dt.getDate() : null, changed: iso !== origISO(o.d) };
+    }
+    const byDay = new Array(32).fill(0);
+    let bal = this.kStart;
+    for (let d = 1; d <= 31; d++) {
+      for (const i of this.kInflows) if (i.d === d) bal += i.a;
+      for (const o of this.kOuts) { const e = eff[o.id]; if (e.inJuly && e.day === d) bal -= o.a; }
+      byDay[d] = bal;
+    }
+    let lowVal = Infinity, lowDay = 1, firstNeg = null;
+    for (let d = 1; d <= 31; d++) { if (byDay[d] < lowVal) { lowVal = byDay[d]; lowDay = d; } if (firstNeg === null && byDay[d] < 0) firstNeg = d; }
+    const hi = Math.max(this.kStart, ...byDay.slice(1));
+    const lo = Math.min(0, ...byDay.slice(1));
+    const pad = (hi - lo) * 0.14 || 1;
+    const top = 12, bottom = 108;
+    const mapY = (v) => bottom - (v - (lo - pad)) / ((hi + pad) - (lo - pad)) * (bottom - top);
+    const mapX = (d) => (d - 1) / 30 * 620;
+    let pts = '';
+    for (let d = 1; d <= 31; d++) pts += mapX(d).toFixed(1) + ',' + mapY(byDay[d]).toFixed(1) + ' ';
+    const negative = firstNeg !== null;
+    const kPayments = this.kOuts.map(o => {
+      const e = eff[o.id];
+      const out = !e.inJuly;
+      let tag = '';
+      if (out) tag = '\u2192 ' + e.dt.getDate() + ' ' + MS[e.dt.getMonth()] + (e.dt.getFullYear() !== 2026 ? ' ' + e.dt.getFullYear() : '') + ' tarihine ertelendi';
+      else if (e.changed) tag = '\u2192 ' + e.day + ' Temmuz\u2019a ertelendi';
+      return {
+        date: o.d + ' Tem', name: o.n, amt: '\u2212' + this.fmt(o.a), tag,
+        nameColor: out ? '#b0a894' : '#232733', amtColor: out ? '#b0a894' : '#8a6f22',
+        amtDecoration: out ? 'text-decoration:line-through' : '',
+        dateVal: e.iso, minVal: origISO(o.d),
+        inputStyle: 'flex:none;width:134px;padding:6px 9px;border-radius:8px;font:500 11.5px \'IBM Plex Sans\';cursor:pointer;border:1px solid ' + (e.changed ? '#c6b78e;background:#f8f0dc;color:#8a6f22' : '#e3d9c2;background:#fffdf7;color:#5a5648'),
+        onDate: (ev) => { const v = ev.target.value; if (v) this.setState(s => ({ dates: { ...s.dates, [o.id]: v } })); },
+        onReset: () => this.setState(s => { const nd = { ...s.dates }; delete nd[o.id]; return { dates: nd }; }),
+        resetStyle: 'flex:none;width:28px;height:28px;border-radius:8px;border:1px solid #e3d9c2;background:#fffdf7;color:#8a6f22;cursor:pointer;font-size:13px;line-height:1;' + (e.changed ? '' : 'opacity:.3;pointer-events:none'),
+      };
+    });
+    const defCount = this.kOuts.filter(o => eff[o.id].changed).length;
+    return {
+      kStartFmt: this.fmt(this.kStart),
+      kStatusText: negative ? '\u26A0 ' + firstNeg + ' Temmuz\u2019da bakiye negatife düşüyor' : '\u2713 Ay boyunca nakit pozitif kalıyor',
+      kStatusColor: negative ? '#f0a58f' : '#8fd0a8',
+      kChartStroke: negative ? '#e8a06a' : '#8fd0a8',
+      kPts: pts.trim(), kZeroY: mapY(0).toFixed(1),
+      kLowX: mapX(lowDay).toFixed(1), kLowY: mapY(lowVal).toFixed(1),
+      kLowLabel: lowDay + ' Tem \u00b7 ' + this.kSigned(lowVal),
+      kInflowsFmt: this.kInflows.map(i => ({ date: i.d + ' Tem', name: i.n, amt: '+' + this.fmt(i.a) })),
+      kPayments,
+      kDeferredNote: defCount > 0 ? defCount + ' ödeme ertelendi' : 'ödemeleri erteleyerek koruyun',
+      kEndFmt: this.kSigned(byDay[31]), kEndColor: byDay[31] >= 0 ? '#8fd0a8' : '#f0a58f',
+    };
+  }
+
+  scrollToOnay() {
+    const el = document.getElementById('onay-kutusu');
+    if (!el) return;
+    let sc = el.parentElement;
+    while (sc && sc.scrollHeight <= sc.clientHeight + 4) sc = sc.parentElement;
+    const r = el.getBoundingClientRect();
+    const sr = sc && sc.getBoundingClientRect ? sc.getBoundingClientRect() : { top: 0 };
+    const top = (sc ? sc.scrollTop : 0) + (r.top - (sr.top || 0)) - 16;
+    if (sc && sc.scrollTo) sc.scrollTo({ top, behavior: 'smooth' });
+    el.animate([{ boxShadow: '0 0 0 3px rgba(189,154,69,0.6)' }, { boxShadow: '0 0 0 3px rgba(189,154,69,0)' }], { duration: 1500 });
+  }
+
+  buildGroups(groups, side, date, factor) {
+    return groups.map((g, gi) => {
+      const key = side + gi;
+      const open = !!this.state.open[key];
+      const total = g.items.reduce((s, it) => s + Math.round(it.amount * factor), 0);
+      return {
+        label: g.label,
+        count: g.items.length + ' işlem',
+        total: this.fmt(total),
+        open,
+        chevron: open ? '\u25BE' : '\u25B8',
+        onToggle: () => this.setState(s => ({ open: { ...s.open, [key]: !s.open[key] } })),
+        items: g.items.map(it => ({ name: it.name, date, amount: this.fmt(Math.round(it.amount * factor)) })),
+      };
+    });
+  }
+
+  periodInfo(period, offset) {
+    const MF = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+    const MS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    const WD = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+    const base = new Date(2026, 6, 4);
+    const factor = Math.max(0.5, 1 + offset * 0.05 + 0.035 * Math.sin(offset * 1.7));
+    if (period === 'gunluk') {
+      const dt = new Date(base); dt.setDate(base.getDate() + offset);
+      return { range: WD[dt.getDay()] + ', ' + dt.getDate() + ' ' + MF[dt.getMonth()] + ' ' + dt.getFullYear(), itemDate: dt.getDate() + ' ' + MS[dt.getMonth()], factor };
+    }
+    if (period === 'haftalik') {
+      const ref = new Date(base); ref.setDate(base.getDate() + offset * 7);
+      const dow = (ref.getDay() + 6) % 7;
+      const mon = new Date(ref); mon.setDate(ref.getDate() - dow);
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      const s = mon.getDate() + ' ' + MS[mon.getMonth()];
+      const e = sun.getDate() + ' ' + MS[sun.getMonth()] + ' ' + sun.getFullYear();
+      return { range: s + ' – ' + e, itemDate: mon.getDate() + '–' + sun.getDate() + ' ' + MS[sun.getMonth()], factor };
+    }
+    if (period === 'aylik') {
+      const dt = new Date(2026, 6 + offset, 1);
+      return { range: MF[dt.getMonth()] + ' ' + dt.getFullYear(), itemDate: MS[dt.getMonth()] + ' ' + dt.getFullYear(), factor };
+    }
+    const y = 2026 + offset;
+    return { range: String(y), itemDate: String(y), factor };
+  }
+
+  renderVals() {
+    const period = this.state.period;
+    const offset = this.state.offsets[period];
+    const d = this.data[period];
+    const info = this.periodInfo(period, offset);
+    const f = info.factor;
+    const tabDefs = [ ['gunluk', 'Günlük'], ['haftalik', 'Haftalık'], ['aylik', 'Aylık'], ['yillik', 'Yıllık'] ];
+    const tabs = tabDefs.map(([id, label]) => {
+      const active = period === id;
+      return {
+        id, label, active,
+        onClick: () => this.setState({ period: id, open: {} }),
+        style: 'padding:7px 15px;border-radius:8px;font-size:12.5px;cursor:pointer;border:none;font-family:inherit;transition:all .15s;'
+          + (active ? 'background:#1b2b45;color:#f4ecd4;font-weight:600;' : 'background:transparent;color:#6d6446;font-weight:500;'),
+      };
+    });
+    const periodTypes = { gunluk: 'Günlük', haftalik: 'Haftalık', aylik: 'Aylık', yillik: 'Yıllık' };
+    const sumSide = (groups) => groups.reduce((s, g) => s + g.items.reduce((a, it) => a + Math.round(it.amount * f), 0), 0);
+    const girisTotal = sumSide(d.giris);
+    const cikisTotal = sumSide(d.cikis);
+    const net = girisTotal - cikisTotal;
+    const nextDisabled = offset >= 0;
+    const navBtnBase = 'width:34px;height:34px;border-radius:9px;border:1px solid #e3d9c2;background:#fffdf7;color:#5a5648;display:flex;align-items:center;justify-content:center;';
+    return {
+      tabs,
+      giris: this.buildGroups(d.giris, 'g', info.itemDate, f),
+      cikis: this.buildGroups(d.cikis, 'c', info.itemDate, f),
+      girisTotal: this.fmt(girisTotal),
+      cikisTotal: this.fmt(cikisTotal),
+      net: (net >= 0 ? '+' : '\u2212') + this.fmt(Math.abs(net)),
+      netColor: net >= 0 ? '#8fd0a8' : '#e79b8a',
+      rangeLabel: info.range,
+      periodType: periodTypes[period],
+      onPrev: () => this.setState(s => ({ open: {}, offsets: { ...s.offsets, [period]: s.offsets[period] - 1 } })),
+      onNext: () => { if (this.state.offsets[period] < 0) this.setState(s => ({ open: {}, offsets: { ...s.offsets, [period]: s.offsets[period] + 1 } })); },
+      nextStyle: navBtnBase + 'cursor:' + (nextDisabled ? 'not-allowed;opacity:.4' : 'pointer'),
+      onayOpen: this.state.onayOpen,
+      toggleOnay: () => this.setState(s => ({ onayOpen: !s.onayOpen })),
+      closeOnay: () => this.setState({ onayOpen: false }),
+      stopProp: (e) => e.stopPropagation(),
+      ...this.korumaVals(),
+    };
+  }
+}
+</script>
+</body>
+</html>

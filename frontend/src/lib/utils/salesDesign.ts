@@ -1,5 +1,5 @@
 // Acente Mahsup & Nakit Akım — basit tasarım (2026-07-19) paylaşılan saf yardımcıları.
-// Tasarım kaynağı: repo yedeğindeki "Acente Mahsup ve Nakit Akım.zip" (finfdg yüklemesi).
+// Tasarım kaynağı: repo yedeğindeki "docs/tasarim/2026-07-19-acente-mahsup-nakit-akim/" (finfdg yüklemesi).
 // Panel bileşenleri (Occupancy/AgencyDistribution/DailyMoves/SalesCashFlow) ortak kullanır.
 
 // ── Type / interface tanımları ───────────────────────────

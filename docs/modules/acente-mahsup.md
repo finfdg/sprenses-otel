@@ -23,7 +23,7 @@
 **Amaç:** Satışın tamamı tek sayfada.
 
 > **2026-07-19 BASİT TASARIM (kullanıcı kararı — finfdg GitHub yüklemesi):** Sayfa,
-> repo yedeğine yüklenen "Acente Mahsup ve Nakit Akım.zip" tasarımına göre yeniden
+> repo yedeğine yüklenen "docs/tasarim/2026-07-19-acente-mahsup-nakit-akim/" tasarımına göre yeniden
 > kuruldu. Eski 5 projeksiyon sekmesi (Genel Bakış / Rezervasyon & Ciro / Alınan
 > Avanslar / Satış Faturaları / eski Nakit Akım) ve senaryo barı (hedef + açılış nakit)
 > KALDIRILDI; içerikleri 4 yeni tasarım sekmesinde toplandı. Backend endpoint'leri
@@ -197,7 +197,7 @@ Motor: `agency_settlement_service.compute_agency_status()`.
 
 ## 6. Frontend UI Yapısı (2026-07-19 basit tasarım)
 
-- **Tasarım kaynağı:** repo yedeğindeki `Acente Mahsup ve Nakit Akım.zip` (finfdg,
+- **Tasarım kaynağı:** repo yedeğindeki `docs/tasarim/2026-07-19-acente-mahsup-nakit-akim/` (finfdg,
   commit `a52a789`) — 4 sekmeli dc.html; renkler tema token'larıyla birebir
   (`teal-700`=#1b2b45 lacivert, `teal-500`=#56719a bar dolgusu, `brass`=#bd9a45,
   çizgili ileri-doku `salesDesign.FUTURE_STRIPE`).

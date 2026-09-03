@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f0e7;font-family:'IBM Plex Sans',ui-sans-serif,system-ui,sans-serif;color:#232733;-webkit-font-smoothing:antialiased;}
+a{color:#1b2b45;} a:hover{color:#6d571b;}
+select:focus,button:focus{outline:2px solid #56719a;outline-offset:1px;}
+.chips-scroll::-webkit-scrollbar{display:none;}
+</style>
+</helmet>
+<div style="{{ wrapStyle }}">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px;">
+    <h1 style="margin:0;font:600 26px/1.2 'Spectral',Georgia,serif;color:#1b2b45;">Acente Mahsup &amp; Nakit Akım</h1>
+  </div>
+
+  <sc-if value="{{ isDoluluk }}" hint-placeholder-val="{{ true }}">
+  <div class="chips-scroll" style="{{ chipsGrid }}" onScroll="{{ chipsScroll }}">
+    <sc-for list="{{ chips }}" as="c" hint-placeholder-count="3">
+      <div style="{{ c.cardStyle }}">
+        <div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#746f5d;font-weight:600;">{{ c.label }}</div>
+        <div style="margin-top:4px;font:600 22px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;">{{ c.value }}</div>
+        <div style="margin-top:2px;font:500 11.5px 'IBM Plex Mono',ui-monospace,monospace;color:#a09a88;">{{ c.sub }}</div>
+      </div>
+    </sc-for>
+  </div>
+  <sc-if value="{{ isMobile }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;justify-content:center;gap:5px;margin:0 0 12px;">
+      <sc-for list="{{ chipDots }}" as="p" hint-placeholder-count="3"><span style="{{ p.style }}"></span></sc-for>
+    </div>
+  </sc-if>
+  </sc-if>
+
+  <div style="display:flex;gap:22px;margin:2px 2px 16px;border-bottom:1px solid #e9e0cd;">
+    <button type="button" onClick="{{ pickTabDoluluk }}" style="{{ tabDoluluk }}">Doluluk</button>
+    <button type="button" onClick="{{ pickTabAcente }}" style="{{ tabAcente }}">Acenteler</button>
+    <button type="button" onClick="{{ pickTabHareket }}" style="{{ tabHareket }}">Günlük Hareketler</button>
+    <button type="button" onClick="{{ pickTabNakit }}" style="{{ tabNakit }}">Nakit Akım</button>
+  </div>
+
+  <sc-if value="{{ isDoluluk }}" hint-placeholder-val="{{ true }}">
+  <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;box-shadow:0 1px 3px rgba(35,39,51,.05);padding:20px 22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;">
+      <h2 style="margin:0;font:600 17px 'Spectral',Georgia,serif;color:#232733;">{{ chartTitle }}</h2>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <sc-if value="{{ isDaily }}" hint-placeholder-val="{{ false }}">
+          <select value="{{ month }}" onChange="{{ onMonth }}" aria-label="Ay" style="padding:7px 10px;border:1px solid #d9cfb8;border-radius:9px;background:#fffdf7;font:500 12.5px 'IBM Plex Sans',sans-serif;color:#232733;">
+            <sc-for list="{{ monthOpts }}" as="o" hint-placeholder-count="1"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+          </select>
+        </sc-if>
+        <select value="{{ year }}" onChange="{{ onYear }}" aria-label="Yıl" style="padding:7px 10px;border:1px solid #d9cfb8;border-radius:9px;background:#fffdf7;font:500 12.5px 'IBM Plex Sans',sans-serif;color:#232733;">
+          <sc-for list="{{ yearOpts }}" as="o" hint-placeholder-count="1"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+        </select>
+        <div style="display:flex;gap:3px;background:#efe8d8;border-radius:10px;padding:3px;">
+          <button type="button" style="{{ segGun }}" onClick="{{ pickGun }}">Günlük</button>
+          <button type="button" style="{{ segAy }}" onClick="{{ pickAy }}">Aylık</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:16px;">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#4f4b40;"><span style="width:11px;height:11px;border-radius:3px;background:#1b2b45;"></span>Gerçekleşen</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#4f4b40;"><span style="{{ futureSwatch }}"></span>İleri rezervasyon</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#4f4b40;"><span style="width:9px;height:9px;border-radius:999px;background:#fffdf7;box-shadow:0 0 0 2px #dc2626;"></span>Bugün</span>
+    </div>
+
+    <sc-if value="{{ isMonthly }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <sc-for list="{{ months }}" as="m" hint-placeholder-count="12">
+          <div title="{{ m.title }}" onClick="{{ m.onClick }}" style="display:flex;align-items:center;gap:12px;padding:3px 6px;border-radius:10px;cursor:pointer;" style-hover="background:#f6f1e4">
+            <div style="width:34px;flex:none;font:600 12px 'IBM Plex Mono',ui-monospace,monospace;color:#4f4b40;">{{ m.label }}</div>
+            <div style="flex:1;min-width:0;position:relative;height:26px;border-radius:999px;background:#efe8d8;overflow:hidden;display:flex;">
+              <div style="{{ m.navyStyle }}"></div>
+              <div style="{{ m.stripeStyle }}"></div>
+              <div style="{{ m.inStyle }}">{{ m.inLabel }}</div>
+            </div>
+            <div style="{{ rightColStyle }}">
+              <div style="font:600 13px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;">{{ m.pct }}</div>
+              <div style="{{ subStyle }}">{{ m.sub }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin:12px 0 0;font-size:11.5px;color:#746f5d;">Bir ayın satırına tıklayarak günlük detayına inebilirsiniz.</p>
+    </sc-if>
+
+    <sc-if value="{{ isDailyRows }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <sc-for list="{{ daysRows }}" as="r" hint-placeholder-count="31">
+          <div title="{{ r.title }}" style="{{ r.rowStyle }}">
+            <div style="{{ r.labelStyle }}">{{ r.label }}</div>
+            <div style="flex:1;min-width:0;height:16px;background:#efe8d8;border-radius:999px;overflow:hidden;position:relative;">
+              <div style="{{ r.fillStyle }}"></div>
+              <span style="{{ r.ovStyle }}">{{ r.ov }}</span>
+            </div>
+            <div style="width:38px;flex:none;text-align:right;font:600 11px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;">{{ r.pct }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin:12px 0 0;font-size:11.5px;color:#746f5d;text-align:right;">{{ dailyCaption }}</p>
+    </sc-if>
+
+    <sc-if value="{{ isDailyCols }}" hint-placeholder-val="{{ false }}">
+      <div style="position:relative;">
+        <div style="position:absolute;left:0;right:0;top:0;height:170px;border-top:1px dashed #d9cfb8;border-bottom:1px solid #d9cfb8;"></div>
+        <div style="position:absolute;left:0;right:0;top:85px;border-top:1px dashed #e9e0cd;"></div>
+        <div style="position:relative;display:flex;align-items:flex-end;gap:3px;height:170px;">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="31">
+            <div style="flex:1 1 0%;min-width:0;height:100%;position:relative;display:flex;align-items:flex-end;">
+              <span style="{{ d.topStyle }}">{{ d.top }}</span>
+              <div title="{{ d.title }}" style="{{ d.barStyle }}"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:3px;margin-top:7px;">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="31">
+            <div style="flex:1 1 0%;min-width:0;text-align:center;overflow:hidden;"><span style="{{ d.labelStyle }}">{{ d.label }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <p style="margin:12px 0 0;font-size:11.5px;color:#746f5d;text-align:right;">{{ dailyCaption }}</p>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isAcente }}" hint-placeholder-val="{{ false }}">
+  <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;box-shadow:0 1px 3px rgba(35,39,51,.05);padding:20px 22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <h2 style="margin:0;font:600 17px 'Spectral',Georgia,serif;color:#232733;">Acente Dağılımı</h2>
+        <span style="font:400 12.5px 'IBM Plex Sans',sans-serif;color:#746f5d;">{{ agCount }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <select value="{{ year }}" onChange="{{ onYear }}" aria-label="Yıl" style="padding:7px 10px;border:1px solid #d9cfb8;border-radius:9px;background:#fffdf7;font:500 12.5px 'IBM Plex Sans',sans-serif;color:#232733;">
+          <sc-for list="{{ yearOpts }}" as="o" hint-placeholder-count="1"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+        </select>
+        <div style="display:flex;gap:3px;background:#efe8d8;border-radius:10px;padding:3px;">
+          <button type="button" onClick="{{ pickBireysel }}" style="{{ segBireysel }}">Bireysel</button>
+          <button type="button" onClick="{{ pickGruplu }}" style="{{ segGruplu }}">Gruplu</button>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ isBireysel }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <sc-for list="{{ agRows }}" as="a" hint-placeholder-count="12">
+          <div title="{{ a.title }}" style="display:flex;align-items:center;gap:12px;padding:3px 6px;border-radius:10px;">
+            <div style="{{ agNameStyle }}">{{ a.name }}</div>
+            <div style="flex:1;min-width:0;height:26px;border-radius:999px;background:#efe8d8;position:relative;overflow:hidden;">
+              <div style="{{ a.fill }}"></div>
+              <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 11.5px 'IBM Plex Mono',ui-monospace,monospace;color:#35322b;white-space:nowrap;">{{ a.val }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isGruplu }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <sc-for list="{{ agGroups }}" as="g" hint-placeholder-count="10">
+          <div>
+            <div title="{{ g.title }}" onClick="{{ g.onClick }}" style="{{ g.rowStyle }}">
+              <div style="{{ agNameStyle }}"><span style="{{ g.chev }}">▸</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ g.name }}</span></div>
+              <div style="{{ g.track }}">
+                <div style="{{ g.fill }}"></div>
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 11.5px 'IBM Plex Mono',ui-monospace,monospace;color:#35322b;white-space:nowrap;">{{ g.val }}</span>
+              </div>
+            </div>
+            <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:5px;padding:6px 0 4px;">
+                <sc-for list="{{ g.members }}" as="mm" hint-placeholder-count="2">
+                  <div title="{{ mm.title }}" style="display:flex;align-items:center;gap:12px;">
+                    <div style="{{ agMemberNameStyle }}">{{ mm.name }}</div>
+                    <div style="flex:1;min-width:0;height:16px;border-radius:999px;background:#efe8d8;position:relative;overflow:hidden;">
+                      <div style="{{ mm.fill }}"></div>
+                      <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#6b6657;white-space:nowrap;">{{ mm.val }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 0 2px;border-top:1px solid #e9e0cd;">
+      <div style="{{ agNameStyle }}"><span style="font-weight:600;">Toplam</span></div>
+      <div style="flex:1;"></div>
+      <div style="font:700 13px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;white-space:nowrap;">{{ agTotalAmt }}</div>
+    </div>
+    <p style="margin:12px 0 0;font-size:11.5px;color:#746f5d;">Bar, acentenin seçili yıl toplam cirosundaki payını gösterir. Gruplu görünümde bir grup satırına tıklayarak üye acenteleri açabilirsiniz.</p>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isHareket }}" hint-placeholder-val="{{ false }}">
+  <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;box-shadow:0 1px 3px rgba(35,39,51,.05);padding:20px 22px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;">
+      <h2 style="margin:0;font:600 17px 'Spectral',Georgia,serif;color:#232733;">Günlük Hareketler</h2>
+      <span style="font:500 11.5px 'IBM Plex Mono',ui-monospace,monospace;color:#a09a88;">{{ hRangeSub }}</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <sc-for list="{{ hDays }}" as="dy" hint-placeholder-count="8">
+        <div style="{{ dy.cardStyle }}">
+          <div onClick="{{ dy.onClick }}" style="cursor:pointer;padding:11px 14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">
+              <span style="font:600 12.5px 'IBM Plex Mono',ui-monospace,monospace;color:#232733;">{{ dy.label }}<span style="{{ dy.todayBadge }}">Bugün</span></span>
+              <span style="{{ dy.netStyle }}">{{ dy.net }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="border:1px solid #dfe6f1;background:#eef2f8;border-radius:10px;padding:7px 11px;">
+                <span style="display:block;font:500 10.5px 'IBM Plex Sans',sans-serif;color:#2c4269;">Gelen</span>
+                <span style="font:600 12px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;white-space:nowrap;">{{ dy.gelen }}</span>
+              </div>
+              <div style="{{ dy.iptalTile }}">
+                <span style="display:block;font:500 10.5px 'IBM Plex Sans',sans-serif;color:#b3261e;">İptal</span>
+                <span style="font:600 12px 'IBM Plex Mono',ui-monospace,monospace;color:#b3261e;white-space:nowrap;">{{ dy.iptal }}</span>
+              </div>
+            </div>
+          </div>
+          <sc-if value="{{ dy.open }}" hint-placeholder-val="{{ false }}">
+            <div style="border-top:1px solid #e9e0cd;padding:14px 14px 16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                <h3 style="margin:0;font:600 13.5px 'Spectral',Georgia,serif;color:#232733;">Aylık Doluluk Etkisi</h3>
+                <div style="display:flex;gap:14px;flex-wrap:wrap;">
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#4f4b40;"><span style="width:10px;height:10px;border-radius:3px;background:#1b2b45;"></span>Mevcut doluluk</span>
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#4f4b40;"><span style="width:10px;height:10px;border-radius:3px;background:#bd9a45;"></span>Gelen katkısı</span>
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#4f4b40;"><span style="width:10px;height:10px;border-radius:3px;background:#dc2626;"></span>İptal (kayıp)</span>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <sc-for list="{{ hEff }}" as="m" hint-placeholder-count="3">
+                  <div title="{{ m.title }}" style="display:flex;align-items:center;gap:12px;padding:2px 0;">
+                    <div style="width:46px;flex:none;font:600 12px 'IBM Plex Mono',ui-monospace,monospace;color:#4f4b40;">{{ m.label }}</div>
+                    <div style="flex:1;min-width:0;height:18px;border-radius:999px;background:#efe8d8;overflow:hidden;display:flex;">
+                      <div style="{{ m.baseS }}"></div>
+                      <div style="{{ m.gS }}"></div>
+                      <div style="{{ m.iS }}"></div>
+                    </div>
+                    <div style="{{ hEffRight }}">
+                      <div style="font:600 12.5px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;">{{ m.pct }}</div>
+                      <div style="font:500 10px 'IBM Plex Mono',ui-monospace,monospace;white-space:nowrap;"><span style="color:#6d571b;">{{ m.plus }}</span> <span style="color:#b3261e;">{{ m.minus }}</span></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top:14px;padding-top:11px;border-top:1px dashed #e9e0cd;">
+                <div style="font:600 11px 'IBM Plex Sans',sans-serif;letter-spacing:.05em;text-transform:uppercase;color:#746f5d;margin-bottom:5px;">Hareket listesi</div>
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                  <sc-for list="{{ hMoves }}" as="v" hint-placeholder-count="6">
+                    <div style="display:flex;align-items:center;gap:10px;padding:6px 2px;border-radius:10px;" style-hover="background:#f6f1e4">
+                      <span style="{{ v.badgeStyle }}">{{ v.badge }}</span>
+                      <div style="flex:1;min-width:0;">
+                        <div style="font:500 12.5px 'IBM Plex Sans',sans-serif;color:#232733;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ v.agency }}</div>
+                        <div style="font:500 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#a09a88;white-space:nowrap;">{{ v.sub }}</div>
+                      </div>
+                      <div style="{{ v.amtStyle }}">{{ v.amt }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin:14px 0 0;font-size:11.5px;color:#746f5d;">Bir gün kartına tıklayınca o günün aylık doluluk etkisi ve hareket detayı açılır. Lacivert çubuk mevcut doluluk; pirinç gelen katkısı, kırmızı iptal kaybıdır.</p>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isNakit }}" hint-placeholder-val="{{ false }}">
+  <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:16px;box-shadow:0 1px 3px rgba(35,39,51,.05);padding:20px 22px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
+      <h2 style="margin:0;font:600 17px 'Spectral',Georgia,serif;color:#232733;">{{ nkTitle }}</h2>
+      <select value="{{ year }}" onChange="{{ onYear }}" aria-label="Yıl" style="padding:7px 10px;border:1px solid #d9cfb8;border-radius:9px;background:#fffdf7;font:500 12.5px 'IBM Plex Sans',sans-serif;color:#232733;">
+        <sc-for list="{{ yearOpts }}" as="o" hint-placeholder-count="1"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+      </select>
+    </div>
+
+    <div style="{{ nkTilesGrid }}">
+      <sc-for list="{{ nkTiles }}" as="t" hint-placeholder-count="4">
+        <div style="border:1px solid #e9e0cd;border-radius:12px;padding:10px 14px;background:#fbf9f1;">
+          <div style="font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:#746f5d;white-space:nowrap;">{{ t.label }}</div>
+          <div style="{{ t.valStyle }}">{{ t.value }}</div>
+          <div style="font:500 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#a09a88;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ t.sub }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+      <h3 style="margin:0;font:600 14px 'Spectral',Georgia,serif;color:#232733;">Tahsilat Takvimi</h3>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#4f4b40;"><span style="width:10px;height:10px;border-radius:3px;background:#1b2b45;"></span>Tahsil edildi</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#4f4b40;"><span style="width:10px;height:10px;border-radius:3px;background:#dc2626;"></span>Vadesi geçti</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#4f4b40;"><span style="{{ futureSwatch }}"></span>Bekleyen (vadeli)</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <sc-for list="{{ nkRows }}" as="m" hint-placeholder-count="13">
+        <div title="{{ m.title }}" style="display:flex;align-items:center;gap:12px;padding:2px 6px;">
+          <div style="width:46px;flex:none;font:600 12px 'IBM Plex Mono',ui-monospace,monospace;color:#4f4b40;">{{ m.label }}</div>
+          <div style="flex:1;min-width:0;height:18px;border-radius:999px;background:#efe8d8;overflow:hidden;display:flex;">
+            <div style="{{ m.s1 }}"></div>
+            <div style="{{ m.s2 }}"></div>
+            <div style="{{ m.s3 }}"></div>
+          </div>
+          <div style="{{ nkRight }}">
+            <div style="font:600 12.5px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;">{{ m.amt }}</div>
+            <div style="{{ subStyle }}">{{ m.cum }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <p style="margin:10px 0 0;font-size:11.5px;color:#746f5d;">{{ nkEq }}</p>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #e9e0cd;">
+      <h3 style="margin:0 0 10px;font:600 14px 'Spectral',Georgia,serif;color:#232733;">Acente Avans &amp; Mahsup</h3>
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <sc-for list="{{ nkAdvRows }}" as="a" hint-placeholder-count="6">
+          <div title="{{ a.title }}" style="display:flex;align-items:center;gap:12px;padding:2px 6px;">
+            <div style="{{ agNameStyle }}">{{ a.name }}</div>
+            <div style="flex:1;min-width:0;height:16px;border-radius:999px;background:#efe8d8;position:relative;overflow:hidden;">
+              <div style="{{ a.fill }}"></div>
+              <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#35322b;white-space:nowrap;">{{ a.pctLabel }}</span>
+            </div>
+            <div style="{{ nkRight }}">
+              <div style="font:600 12px 'IBM Plex Mono',ui-monospace,monospace;color:#1b2b45;">{{ a.kalan }}</div>
+              <div style="{{ subStyle }}">{{ a.sub }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin:10px 0 0;font-size:11.5px;color:#746f5d;">Yeşil bar avansın faturalarla mahsup edilen kısmıdır; sağdaki tutar mahsup bekleyen kalan avanstır. Mahsup edilen kısım vadesinde tekrar tahsil edilmez.</p>
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid #e9e0cd;">
+      <h3 style="margin:0 0 10px;font:600 14px 'Spectral',Georgia,serif;color:#b3261e;">Vadesi Geçen Alacaklar</h3>
+      <sc-if value="{{ nkHasOverdue }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <sc-for list="{{ nkOverdueRows }}" as="o" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:12px;padding:5px 6px;border-radius:10px;" style-hover="background:#f6f1e4">
+              <div style="flex:1;min-width:0;">
+                <div style="font:500 12.5px 'IBM Plex Sans',sans-serif;color:#232733;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ o.name }}</div>
+                <div style="font:500 10.5px 'IBM Plex Mono',ui-monospace,monospace;color:#a09a88;white-space:nowrap;">{{ o.sub }}</div>
+              </div>
+              <span style="flex:none;font:600 10px 'IBM Plex Sans',sans-serif;padding:3px 9px;border-radius:999px;background:#fdecea;color:#b3261e;white-space:nowrap;">{{ o.late }}</span>
+              <div style="width:86px;flex:none;text-align:right;font:600 12.5px 'IBM Plex Mono',ui-monospace,monospace;color:#b3261e;">{{ o.amt }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px;padding:9px 6px 2px;border-top:1px solid #e9e0cd;">
+          <div style="flex:1;font:600 12.5px 'IBM Plex Sans',sans-serif;color:#232733;">Toplam</div>
+          <div style="font:700 13px 'IBM Plex Mono',ui-monospace,monospace;color:#b3261e;">{{ nkOverdueTotal }}</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ nkNoOverdue }}" hint-placeholder-val="{{ false }}">
+        <p style="margin:0;font-size:12px;color:#746f5d;">Seçili yılda vadesi geçmiş alacak bulunmuyor.</p>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <p style="margin:14px 4px 0;font-size:11px;color:#a09a88;">Örnek veridir — gerçek uygulamada doluluk tabanı <span style="font-family:'IBM Plex Mono',monospace;">/sales/reservations/summary</span> beslemesinden gelir.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;kapasite&quot;: {&quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 341, &quot;min&quot;: 50, &quot;max&quot;: 1000, &quot;unit&quot;: &quot;oda&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Veri&quot;}, &quot;baslangicGorunum&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;aylik&quot;, &quot;options&quot;: [&quot;aylik&quot;, &quot;gunluk&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Görünüm&quot;}, &quot;ileriCizgili&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Görünüm&quot;}}">
+class Component extends DCLogic {
+  state = { view: null, year: null, month: null, chipIdx: 0, tab: 'doluluk', hOff: 0 };
+  componentDidMount() {
+    this._onR = () => this.forceUpdate();
+    window.addEventListener('resize', this._onR);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._onR);
+  }
+  renderVals() {
+    const P = this.props;
+    const mobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const cap = Math.max(1, Math.round(P.kapasite ?? 341));
+    const striped = P.ileriCizgili ?? true;
+    const now = new Date();
+    const nowY = now.getFullYear(), nowM = now.getMonth() + 1, nowD = now.getDate();
+    const view = this.state.view ?? (P.baslangicGorunum ?? 'aylik');
+    const year = this.state.year ?? nowY;
+    const month = this.state.month ?? nowM;
+    const MS = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+    const MF = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+    const MB = [34,38,46,58,72,86,93,95,88,74,48,40];
+    const frac = (i) => { const x = Math.sin(i * 127.1 + 13.7) * 43758.5453; return x - Math.floor(x); };
+    const cmp = (y,m,d) => y!==nowY ? (y<nowY?-1:1) : m!==nowM ? (m<nowM?-1:1) : (d===nowD?0:(d<nowD?-1:1));
+    const dayPct = (y,m,d) => {
+      const dow = new Date(y, m-1, d).getDay();
+      let p = MB[m-1] + (y-nowY)*-1.5 + ((dow===5||dow===6)?4:(dow===0?2:0)) + (frac(y*372+m*31+d)-0.5)*11;
+      if (cmp(y,m,d) > 0) {
+        const ahead = Math.max(0, (y-nowY)*12 + (m-nowM));
+        p *= 1 - Math.min(0.22, ahead*0.035 + 0.02);
+      }
+      return Math.min(107, Math.max(6, p));
+    };
+    const trI = (x) => Math.round(x).toLocaleString('tr-TR');
+    const trC = (x) => new Intl.NumberFormat('tr-TR', {notation:'compact', maximumFractionDigits:1}).format(Math.round(x));
+    const futureBg = striped ? 'repeating-linear-gradient(45deg,#bd9a45,#bd9a45 7px,#d3b567 7px,#d3b567 14px)' : '#9fb0cb';
+    const dim = (y,m) => new Date(y, m, 0).getDate();
+    const monthData = (y,m) => {
+      const nD = dim(y,m); let past = 0, fut = 0; const days = [];
+      for (let d = 1; d <= nD; d++) {
+        const p = dayPct(y,m,d), r = Math.round(cap*p/100), rel = cmp(y,m,d);
+        if (rel > 0) fut += r; else past += r;
+        days.push({d, p, r, rel});
+      }
+      return {days, past, fut, capN: cap*nD, occ: past+fut};
+    };
+    const months = []; let ySum = 0, yCap = 0;
+    for (let m = 1; m <= 12; m++) {
+      const md = monthData(year, m);
+      ySum += md.occ; yCap += md.capN;
+      const navyW = md.past/md.capN*100, futW = md.fut/md.capN*100, pct = md.occ/md.capN*100;
+      months.push({
+        key: '' + m, label: MS[m-1],
+        navyStyle: {width: navyW.toFixed(1)+'%', background:'#1b2b45', height:'100%'},
+        stripeStyle: {width: futW.toFixed(1)+'%', background: futureBg, height:'100%'},
+        inLabel: trI(md.occ) + ' oda-gece',
+        inStyle: {position:'absolute', inset:'0', display: mobile?'none':'flex', alignItems:'center', padding:'0 12px', font:"500 11px 'IBM Plex Mono',ui-monospace,monospace", color: navyW>=20?'#fffdf7':'#4f4b40', pointerEvents:'none'},
+        pct: '%' + Math.round(pct),
+        sub: trC(md.occ) + '/' + trC(md.capN) + ' gece',
+        title: MF[m-1] + ' ' + year + ' — %' + Math.round(pct) + ' doluluk · günlük görünüm için tıklayın',
+        onClick: () => this.setState({view:'gunluk', month: m}),
+      });
+    }
+    const yearAvg = yCap ? ySum/yCap*100 : 0;
+    const dmd = monthData(year, month);
+    const days = dmd.days.map((o) => {
+      const today = o.rel === 0;
+      const h = Math.min(100, Math.max(2, o.p));
+      const empty = cap - o.r;
+      return {
+        key: '' + o.d,
+        barStyle: {width:'100%', height: h.toFixed(1)+'%', borderRadius:'3px 3px 0 0', background: o.rel>0 ? futureBg : '#1b2b45', boxShadow: today ? '0 0 0 2px #dc2626' : 'none'},
+        top: empty >= 0 ? trI(empty) : '+' + trI(-empty),
+        topStyle: {position:'absolute', left:'-6px', right:'-6px', bottom: 'calc(' + h.toFixed(1) + '% + 3px)', textAlign:'center', font:'600 8.5px \'IBM Plex Mono\',ui-monospace,monospace', color: empty >= 0 ? '#a09a88' : '#b3261e', whiteSpace:'nowrap', pointerEvents:'none'},
+        label: '' + o.d,
+        labelStyle: {font: (today?'700':'500') + ' ' + (mobile?'9px':'10px') + " 'IBM Plex Mono',ui-monospace,monospace", color: today?'#6d571b':'#a09a88', visibility: (mobile && o.d % 2 === 0 && !today) ? 'hidden' : 'visible'},
+        title: o.d + ' ' + MF[month-1] + ' ' + year + ' — %' + Math.round(o.p) + ' · ' + o.r + '/' + cap + ' oda',
+      };
+    });
+    const tPct = dayPct(nowY, nowM, nowD), tRooms = Math.round(cap*tPct/100);
+    const cm = monthData(nowY, nowM);
+    const cardStyle = {background:'#fffdf7', border:'1px solid #e9e0cd', borderRadius:'14px', padding: mobile?'12px 16px':'14px 18px', boxShadow:'0 1px 2px rgba(35,39,51,.04)', flex: mobile?'0 0 100%':'none', scrollSnapAlign:'start', boxSizing:'border-box', minWidth:0};
+    const chips = [
+      {key:'c1', label:'Bugün · ' + nowD + ' ' + MF[nowM-1], value:'%' + Math.round(tPct), sub: trI(tRooms) + ' / ' + trI(cap) + ' oda', cardStyle},
+      {key:'c2', label: MF[nowM-1] + ' ortalaması', value:'%' + Math.round(cm.occ/cm.capN*100), sub: trC(cm.occ) + ' oda-gece', cardStyle},
+      {key:'c3', label: year + ' ortalaması', value:'%' + Math.round(yearAvg), sub:'12 ay · ' + trC(yCap) + ' oda-gece kapasite', cardStyle},
+    ];
+    const WD = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+    const daysRows = dmd.days.map((o) => {
+      const today = o.rel === 0;
+      const dow = new Date(year, month-1, o.d).getDay();
+      const wknd = dow === 0 || dow === 6;
+      const empty = cap - o.r;
+      const ovBase = {position:'absolute', right:'8px', top:'50%', transform:'translateY(-50%)', font:'600 9.5px \'IBM Plex Mono\',ui-monospace,monospace', whiteSpace:'nowrap', pointerEvents:'none'};
+      return {
+        ov: empty >= 0 ? trI(empty) + ' boş' : trI(-empty) + ' fazla',
+        ovStyle: empty >= 0
+          ? Object.assign({}, ovBase, {color: o.p > 88 ? '#fffdf7' : '#4f4b40'})
+          : Object.assign({}, ovBase, {color: '#fffdf7', background: '#dc2626', borderRadius: '999px', padding: '1px 6px'}),
+        key: 'r' + o.d,
+        label: o.d + ' ' + WD[dow],
+        labelStyle: {width:'52px', flex:'none', font: (today?'700':'500') + " 10.5px 'IBM Plex Mono',ui-monospace,monospace", color: today?'#6d571b':(wknd?'#4f4b40':'#a09a88')},
+        rowStyle: {display:'flex', alignItems:'center', gap:'8px', padding:'2px 4px', borderRadius:'8px', background: today?'#f4ecd4':'transparent'},
+        fillStyle: {width: Math.max(2, o.p).toFixed(1)+'%', height:'100%', borderRadius:'999px', background: o.rel>0 ? futureBg : '#1b2b45'},
+        pct: '%' + Math.round(o.p),
+        title: o.d + ' ' + MF[month-1] + ' ' + year + ' — %' + Math.round(o.p) + ' · ' + o.r + '/' + cap + ' oda',
+      };
+    });
+    const tab = this.state.tab;
+    const AG = [['TUI', 22], ['ALLTOURS', 15], ['ODEON', 12], ['WEBRES', 10], ['FUN & SUN', 9], ['PEGAS', 8], ['DERTOUR', 6], ['W2M', 5], ['OTS', 4], ['Diğer', 9]];
+    const adr = 105 + (year - nowY) * 3;
+    const totalRev = yCap * (yearAvg / 100) * adr;
+    // Acente Dağılımı (ReservationsPanel deseni) — pay bazlı tek renk bar
+    const AGD = [['ALLTOURS D', 29.1], ['BYEBYE D', 22.4], ['CORAL RU', 11.0], ['NORDIC LEISURE TRAVEL', 7.4], ['CORAL PL', 6.7], ['PEGAS', 5.0], ['FUN & SUN', 4.3], ['W2M', 4.1], ['FIT HOLIDAYS', 1.7], ['LIBERO TOUR', 1.7], ['OTS OPEN TRAVEL', 1.2], ['WEBRES', 1.1], ['WEBRES EU', 0.9], ['MUNFERIT TL', 0.9], ['DERTOUR', 0.8], ['ODEON', 0.7]];
+    const AGRP = [['ALLTOURS', ['ALLTOURS D', 'BYEBYE D']], ['CORAL', ['CORAL RU', 'CORAL PL']], ['WEBRES', ['WEBRES', 'WEBRES EU']]];
+    const fmtEurC = (n) => n >= 1e6 ? (n / 1e6).toFixed(2).replace('.', ',') + ' M €' : n >= 1000 ? (n / 1000).toFixed(1).replace('.', ',') + ' K €' : Math.round(n) + ' €';
+    const agMode = this.state.agMode ?? 'bireysel';
+    const agOpen = this.state.agOpen;
+    const agItems = AGD.map((a, i) => {
+      const eur2 = totalRev * (a[1] / 100) * (1 + (frac(i * 13.7 + year * 3.1) - 0.5) * 0.08);
+      return {name: a[0], pct: a[1], eur: eur2, rez: Math.round(eur2 / 950)};
+    });
+    let agAmtSum = 0, agCntSum = 0;
+    agItems.forEach((a) => { agAmtSum += a.eur; agCntSum += a.rez; });
+    const mkFill = (pct, bg) => ({width: Math.max(pct, 1).toFixed(1) + '%', height: '100%', borderRadius: '999px', background: bg});
+    const agRows = agItems.map((a, i) => ({
+      key: 'ad' + i,
+      name: a.name,
+      fill: mkFill(a.pct, '#56719a'),
+      val: fmtEurC(a.eur) + ' (' + a.pct.toFixed(1).replace('.', ',') + '%)',
+      title: a.name + ' — ' + trI(a.rez) + ' rezervasyon · ' + trI(a.eur) + ' €',
+    }));
+    const grpNames = new Set(AGRP.flatMap((g) => g[1]));
+    const agGroupItems = AGRP.map((g) => {
+      const ms = agItems.filter((a) => g[1].includes(a.name));
+      return {name: g[0], members: ms, eur: ms.reduce((s, m) => s + m.eur, 0), pct: ms.reduce((s, m) => s + m.pct, 0), rez: ms.reduce((s, m) => s + m.rez, 0), isGroup: true};
+    }).concat(agItems.filter((a) => !grpNames.has(a.name)).map((a) => ({name: a.name, members: [], eur: a.eur, pct: a.pct, rez: a.rez, isGroup: false})))
+      .sort((a, b) => b.eur - a.eur);
+    const agGroups = agGroupItems.map((g, i) => {
+      const open = agOpen === g.name;
+      return {
+        key: 'gr' + i,
+        name: g.isGroup ? g.name + ' (' + g.members.length + ')' : g.name,
+        rowStyle: {display: 'flex', alignItems: 'center', gap: '12px', padding: '3px 6px', borderRadius: '10px', cursor: g.isGroup ? 'pointer' : 'default'},
+        chev: {display: g.isGroup ? 'inline-block' : 'none', flex: 'none', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none', color: '#a09a88', fontSize: '11px'},
+        track: {flex: '1', minWidth: '0', height: '26px', borderRadius: '999px', background: g.isGroup ? '#dfe6f1' : '#efe8d8', position: 'relative', overflow: 'hidden'},
+        fill: mkFill(g.pct, '#56719a'),
+        val: fmtEurC(g.eur) + ' (' + g.pct.toFixed(1).replace('.', ',') + '%)',
+        title: g.name + ' — ' + trI(g.rez) + ' rezervasyon' + (g.isGroup ? ' · ' + g.members.length + ' acente' : ''),
+        open,
+        onClick: g.isGroup ? (() => this.setState({agOpen: open ? null : g.name})) : undefined,
+        members: g.members.map((m, j) => ({
+          key: 'gm' + i + '-' + j,
+          name: m.name,
+          fill: mkFill(m.pct, '#9fb0cb'),
+          val: fmtEurC(m.eur) + ' (' + m.pct.toFixed(1).replace('.', ',') + '%)',
+          title: m.name + ' — ' + trI(m.rez) + ' rezervasyon',
+        })),
+      };
+    });
+    // ── Günlük Hareketler: gün kartları + tıklayınca detay ──
+    const hSel = this.state.hOff; // seçili gün ofseti (0=bugün) | null=kapalı
+    const fmtRange = (ci, co) => ci.getMonth() === co.getMonth()
+      ? ci.getDate() + '–' + co.getDate() + ' ' + MS[co.getMonth()]
+      : ci.getDate() + ' ' + MS[ci.getMonth()] + ' – ' + co.getDate() + ' ' + MS[co.getMonth()];
+    const genDay = (off) => {
+      const dt = new Date(nowY, nowM - 1, nowD + off);
+      const hy = dt.getFullYear(), hm = dt.getMonth() + 1, hd = dt.getDate();
+      const dk = hy * 372 + hm * 31 + hd;
+      const nG = 4 + Math.floor(frac(dk * 1.7) * 9);
+      const nI = Math.floor(frac(dk * 2.3) * 4);
+      const mk = (i, cancelled) => {
+        const s = dk * 3.1 + i * 7.7 + (cancelled ? 101 : 0);
+        const nights = 3 + Math.floor(frac(s * 1.7) * 7);
+        const rooms = 1 + Math.floor(frac(s * 2.1) * 3);
+        return {
+          agIdx: Math.floor(frac(s) * 10),
+          ci: new Date(hy, hm - 1, hd + 1 + Math.floor(frac(s * 1.3) * 70)),
+          co: new Date(hy, hm - 1, hd + 1 + Math.floor(frac(s * 1.3) * 70) + nights),
+          nights, rooms, cancelled,
+          eur: Math.round(nights * rooms * (95 + frac(s * 2.9) * 40)),
+        };
+      };
+      const raw = [];
+      for (let i = 0; i < nG; i++) raw.push(mk(i, false));
+      for (let i = 0; i < nI; i++) raw.push(mk(i, true));
+      return {dt, raw};
+    };
+    const GB = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+    const hDays = []; let totG = 0, totI = 0;
+    for (let off = 0; off >= -13; off--) {
+      const {dt, raw} = genDay(off);
+      let gc = 0, gE = 0, ic = 0, iE = 0;
+      raw.forEach((r) => { if (r.cancelled) { ic++; iE += r.eur; } else { gc++; gE += r.eur; } });
+      totG += gc; totI += ic;
+      const net = gE - iE, open = hSel === off;
+      hDays.push({
+        key: 'day' + off,
+        label: String(dt.getDate()).padStart(2, '0') + '.' + String(dt.getMonth() + 1).padStart(2, '0') + ' ' + GB[dt.getDay()],
+        todayBadge: {display: off === 0 ? 'inline-block' : 'none', marginLeft: '8px', font: "600 9.5px 'IBM Plex Sans',sans-serif", color: '#6d571b', background: '#f4ecd4', border: '1px solid #e8c979', borderRadius: '999px', padding: '2px 7px'},
+        net: (net >= 0 ? '+€' : '−€') + trI(Math.abs(net)),
+        netStyle: {font: "600 12.5px 'IBM Plex Mono',ui-monospace,monospace", color: net >= 0 ? '#1b2b45' : '#b3261e'},
+        gelen: gc + ' rez · €' + trC(gE),
+        iptal: ic > 0 ? ic + ' rez · €' + trC(iE) : 'iptal yok',
+        iptalTile: {border: '1px solid #f0c9c5', background: '#fdf4f3', borderRadius: '10px', padding: '7px 11px', opacity: ic > 0 ? 1 : 0.45},
+        open,
+        onClick: () => this.setState({hOff: open ? null : off}),
+        cardStyle: {border: '1px solid ' + (open ? '#bd9a45' : '#e9e0cd'), borderRadius: '12px', background: '#fffdf7', boxShadow: open ? '0 1px 5px rgba(35,39,51,.08)' : 'none'},
+      });
+    }
+    const raw = (hSel === null || hSel === undefined) ? [] : genDay(hSel).raw;
+    const effMap = new Map();
+    raw.forEach((r) => {
+      const d = new Date(r.ci);
+      while (d < r.co) {
+        const k = d.getFullYear() * 100 + (d.getMonth() + 1);
+        let e = effMap.get(k);
+        if (!e) { e = {y: d.getFullYear(), m: d.getMonth() + 1, g: 0, i: 0}; effMap.set(k, e); }
+        if (r.cancelled) e.i += r.rooms; else e.g += r.rooms;
+        d.setDate(d.getDate() + 1);
+      }
+    });
+    const hMoves = raw.map((r, x) => ({
+      key: 'mv' + x,
+      badge: r.cancelled ? 'İptal' : 'Gelen',
+      badgeStyle: {flex: 'none', font: "600 10px 'IBM Plex Sans',sans-serif", padding: '3px 9px', borderRadius: '999px', background: r.cancelled ? '#fdecea' : '#f4ecd4', color: r.cancelled ? '#b3261e' : '#6d571b'},
+      agency: AG[r.agIdx][0],
+      sub: fmtRange(r.ci, r.co) + ' · ' + r.nights + ' gece · ' + r.rooms + ' oda',
+      amt: (r.cancelled ? '−€' : '€') + trI(r.eur),
+      amtStyle: {flex: 'none', font: "600 12.5px 'IBM Plex Mono',ui-monospace,monospace", color: r.cancelled ? '#b3261e' : '#1b2b45'},
+    }));
+    const hEff = [...effMap.values()].sort((a, b) => (a.y * 100 + a.m) - (b.y * 100 + b.m)).map((e) => {
+      const md = monthData(e.y, e.m);
+      const basePct = md.occ / md.capN * 100;
+      const gW = e.g > 0 ? Math.max(e.g / md.capN * 100, 0.8) : 0;
+      const iW = e.i > 0 ? Math.max(e.i / md.capN * 100, 0.8) : 0;
+      return {
+        key: 'ef' + e.y + e.m,
+        label: MS[e.m - 1] + (e.y !== year ? ' ' + String(e.y).slice(2) : ''),
+        baseS: {width: Math.max(basePct - gW, 0).toFixed(2) + '%', height: '100%', background: '#1b2b45'},
+        gS: {width: gW.toFixed(2) + '%', height: '100%', background: '#bd9a45'},
+        iS: {width: iW.toFixed(2) + '%', height: '100%', background: '#dc2626'},
+        pct: '%' + Math.round(basePct),
+        plus: e.g > 0 ? '+' + trI(e.g) : '',
+        minus: (e.i > 0 ? '−' + trI(e.i) : '') + ' gece',
+        title: MF[e.m - 1] + ' ' + e.y + ' — mevcut %' + Math.round(basePct) + ' · gelen +' + trI(e.g) + ' oda-gece · iptal −' + trI(e.i),
+      };
+    });
+    // ── Satış Nakit Akımı (avans → fatura → mahsup → vadeli tahsilat) ──
+    const revM = [0]; for (let m = 1; m <= 12; m++) revM.push(monthData(year, m).occ * adr);
+    let nkPool = 0;
+    const nkAdvDefs = [['ALLTOURS D', 0.16], ['CORAL RU', 0.22], ['NORDIC LEISURE TRAVEL', 0.28], ['PEGAS', 0.18], ['W2M', 0.35], ['FUN & SUN', 0.14]];
+    const nkAdvRaw = nkAdvDefs.map((d, i) => {
+      const it = agItems.find((a) => a.name === d[0]);
+      const adv = (it ? it.eur : totalRev * 0.03) * d[1];
+      nkPool += adv;
+      return {name: d[0], adv, rawCons: adv * (0.4 + frac(i * 3.7 + year) * 0.55)};
+    });
+    const advTotal = nkPool;
+    const mahsupM = [0]; let poolLeft = advTotal;
+    for (let m = 1; m <= 12; m++) { const use = Math.min(poolLeft, revM[m] * 0.45); mahsupM.push(use); poolLeft -= use; }
+    const fifoTarget = advTotal - poolLeft;
+    const rawConsSum = nkAdvRaw.reduce((s, a) => s + a.rawCons, 0) || 1;
+    // Acente bazlı mahsup (cap'li) — KPI/denklem bu toplamdan türetilir ki iki görünüm tutarlı kalsın
+    const nkAdvCons = nkAdvRaw.map((a) => Math.min(a.adv, a.rawCons * (fifoTarget / rawConsSum)));
+    const fifoUsed = nkAdvCons.reduce((s, c) => s + c, 0);
+    poolLeft = advTotal - fifoUsed;
+    const nkAdvRows = nkAdvRaw.map((a, i) => {
+      const cons = nkAdvCons[i];
+      const kalan = a.adv - cons, pc = a.adv ? cons / a.adv * 100 : 0;
+      return {
+        key: 'nkav' + i, name: a.name,
+        fill: {width: Math.max(pc, 1).toFixed(1) + '%', height: '100%', borderRadius: '999px', background: '#10b981'},
+        pctLabel: '%' + Math.round(pc) + ' mahsup',
+        kalan: '€' + trC(kalan),
+        sub: 'alınan €' + trC(a.adv),
+        title: a.name + ' — alınan €' + trI(a.adv) + ' · mahsup €' + trI(cons) + ' · kalan €' + trI(kalan),
+      };
+    });
+    if (fifoTarget > 0 && fifoUsed < fifoTarget) { const sc = fifoUsed / fifoTarget; for (let m = 1; m <= 12; m++) mahsupM[m] *= sc; }
+    const SHIFTS = [[0, 0.15], [1, 0.55], [2, 0.30]];
+    const colM = new Array(15).fill(0); let nkDevreden = 0;
+    for (let m = 1; m <= 12; m++) {
+      const net = revM[m] - mahsupM[m];
+      SHIFTS.forEach((s) => { const t = m + s[0]; const a = net * s[1]; if (t <= 12) colM[t] += a; else nkDevreden += a; });
+    }
+    const isPastM = (t) => year < nowY || (year === nowY && t < nowM);
+    const redM = new Array(13).fill(0);
+    let nkOverdueRows = [], nkOverdueTotal = 0;
+    if (year === nowY && nowM > 1) {
+      const odDefs = [['BYEBYE D', 1], ['ODEON', 1], ['CORAL PL', 2], ['FIT HOLIDAYS', 2], ['LIBERO TOUR', 3]];
+      nkOverdueRows = odDefs.map((d, i) => {
+        const dueM = Math.max(1, nowM - d[1]);
+        const amt = Math.max(1500, colM[dueM] * (0.02 + frac(i * 7.3 + year) * 0.035));
+        const dueD = 1 + Math.floor(frac(i * 4.1) * 26);
+        const late = Math.max(3, (nowM - dueM) * 30 + nowD - dueD);
+        redM[dueM] += amt; nkOverdueTotal += amt;
+        return {
+          key: 'nkod' + i, name: d[0],
+          sub: 'Vade: ' + dueD + ' ' + MS[dueM - 1] + ' ' + year + ' · fatura ' + MS[Math.max(0, dueM - 2)],
+          late: late + ' gün gecikti',
+          amt: '€' + trC(amt),
+        };
+      });
+    }
+    let nkCum = 0, nkMax = 1;
+    for (let t = 1; t <= 12; t++) nkMax = Math.max(nkMax, colM[t]);
+    nkMax = Math.max(nkMax, nkDevreden);
+    const nkSeg = (v, bg) => ({width: (v / nkMax * 100).toFixed(2) + '%', height: '100%', background: bg});
+    const nkRows = [];
+    for (let t = 1; t <= 12; t++) {
+      const total = colM[t]; nkCum += total;
+      const red = Math.min(redM[t], total), past = isPastM(t) ? total - red : 0, pend = isPastM(t) ? 0 : total - red;
+      nkRows.push({
+        key: 'nk' + t, label: MS[t - 1],
+        s1: nkSeg(past, '#1b2b45'), s2: nkSeg(red, '#dc2626'), s3: nkSeg(pend, futureBg),
+        amt: '€' + trC(total), cum: 'küm. €' + trC(nkCum),
+        title: MS[t - 1] + ' — tahsilat €' + trI(total) + (red > 0 ? ' · vadesi geçen €' + trI(red) : '') + ' · kümülatif €' + trI(nkCum),
+      });
+    }
+    nkRows.push({
+      key: 'nkdev', label: 'Dev.',
+      s1: nkSeg(0, '#1b2b45'), s2: nkSeg(0, '#dc2626'), s3: nkSeg(nkDevreden, futureBg),
+      amt: '€' + trC(nkDevreden), cum: (year + 1) + "'e devreden",
+      title: (year + 1) + "'e devreden vadeli tahsilat — son ayların 30/60 gün vadeli kısmı",
+    });
+    const invoicedYtd = (() => { let s = 0; for (let m = 1; m <= 12; m++) if (isPastM(m)) s += revM[m]; return s; })();
+    const tileVal = {marginTop: '3px', font: "600 17px 'IBM Plex Mono',ui-monospace,monospace", color: '#1b2b45'};
+    const nkTiles = [
+      {key: 'nt1', label: 'Alınan Avans', value: '€' + trC(advTotal), sub: '6 acente · depozit', valStyle: tileVal},
+      {key: 'nt2', label: 'Kesilen Fatura', value: '€' + trC(invoicedYtd), sub: 'yıl projeksiyonu €' + trC(totalRev), valStyle: tileVal},
+      {key: 'nt3', label: 'Mahsuplaşma', value: '€' + trC(fifoUsed), sub: 'kalan avans €' + trC(poolLeft), valStyle: tileVal},
+      {key: 'nt4', label: 'Vadesi Geçen', value: nkOverdueTotal > 0 ? '€' + trC(nkOverdueTotal) : '—', sub: nkOverdueTotal > 0 ? nkOverdueRows.length + ' acente · takipte' : 'gecikme yok', valStyle: Object.assign({}, tileVal, {color: nkOverdueTotal > 0 ? '#b3261e' : '#1b2b45'})},
+    ];
+    const tabBase = {background: 'none', border: 'none', cursor: 'pointer', padding: '8px 2px 10px', font: "600 14px 'IBM Plex Sans',sans-serif", color: '#746f5d', borderBottom: '2px solid transparent', marginBottom: '-1px'};
+    const tabOn = Object.assign({}, tabBase, {color: '#1b2b45', borderBottom: '2px solid #1b2b45'});
+    const segBase = {border:'none', cursor:'pointer', padding:'7px 16px', borderRadius:'8px', font:"600 12.5px 'IBM Plex Sans',sans-serif", transition:'all .15s'};
+    const segOn = Object.assign({}, segBase, {background:'#1b2b45', color:'#fffdf7', boxShadow:'0 1px 2px rgba(27,43,69,.35)'});
+    const segOff = Object.assign({}, segBase, {background:'transparent', color:'#4f4b40'});
+    return {
+      wrapStyle: {maxWidth:'1060px', margin:'0 auto', padding: mobile ? '20px 14px 40px' : '34px 28px 52px'},
+      chipsGrid: mobile
+        ? {display:'flex', overflowX:'auto', scrollSnapType:'x mandatory', gap:'10px', marginBottom:'8px', scrollbarWidth:'none', WebkitOverflowScrolling:'touch'}
+        : {display:'grid', gridTemplateColumns:'repeat(3,minmax(0,1fr))', gap:'12px', marginBottom:'14px'},
+      isMobile: mobile,
+      isDoluluk: tab === 'doluluk',
+      isAcente: tab === 'acente',
+      isHareket: tab === 'hareket',
+      pickTabHareket: () => this.setState({tab: 'hareket'}),
+      tabHareket: tab === 'hareket' ? tabOn : tabBase,
+      hRangeSub: 'Son 14 gün · ' + totG + ' gelen · ' + totI + ' iptal',
+      hDays, hMoves, hEff,
+      isNakit: tab === 'nakit',
+      pickTabNakit: () => this.setState({tab: 'nakit'}),
+      tabNakit: tab === 'nakit' ? tabOn : tabBase,
+      nkTitle: year + ' Satış Nakit Akımı',
+      nkTiles, nkRows, nkAdvRows, nkOverdueRows,
+      nkTilesGrid: {display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : 'repeat(4,minmax(0,1fr))', gap: '10px', marginBottom: '18px'},
+      nkRight: {width: mobile ? '84px' : '120px', flex: 'none', textAlign: 'right'},
+      nkHasOverdue: nkOverdueRows.length > 0,
+      nkNoOverdue: nkOverdueRows.length === 0,
+      nkOverdueTotal: '€' + trC(nkOverdueTotal),
+      nkEq: 'Kesilen fatura €' + trC(invoicedYtd) + ' − avans mahsubu €' + trC(fifoUsed) + ' = net tahsil edilecek tutar, acente vadesine göre (peşin / 30 / 60 gün karması) tahsilat ayına yazılır. Kalan avanslar (€' + trC(poolLeft) + ') ileri ayların faturalarına mahsup edilecektir.',
+      hEffRight: {width: mobile ? '78px' : '110px', flex: 'none', textAlign: 'right'},
+      pickTabDoluluk: () => this.setState({tab: 'doluluk'}),
+      pickTabAcente: () => this.setState({tab: 'acente'}),
+      tabDoluluk: tab === 'doluluk' ? tabOn : tabBase,
+      tabAcente: tab === 'acente' ? tabOn : tabBase,
+      agCount: 'Tümü (' + AGD.length + ')',
+      agRows, agGroups,
+      isBireysel: agMode === 'bireysel',
+      isGruplu: agMode === 'gruplu',
+      pickBireysel: () => this.setState({agMode: 'bireysel'}),
+      pickGruplu: () => this.setState({agMode: 'gruplu'}),
+      segBireysel: agMode === 'bireysel' ? segOn : segOff,
+      segGruplu: agMode === 'gruplu' ? segOn : segOff,
+      agNameStyle: {width: mobile ? '96px' : '170px', flex: 'none', display: 'flex', alignItems: 'center', gap: '6px', font: "500 12.5px 'IBM Plex Sans',sans-serif", color: '#4f4b40', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'},
+      agMemberNameStyle: {width: mobile ? '96px' : '170px', flex: 'none', boxSizing: 'border-box', paddingLeft: '18px', font: "500 11.5px 'IBM Plex Sans',sans-serif", color: '#746f5d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'},
+      agTotalAmt: fmtEurC(agAmtSum) + ' · ' + trI(agCntSum) + ' rez.',
+      isDailyCols: view === 'gunluk' && !mobile,
+      isDailyRows: view === 'gunluk' && mobile,
+      daysRows,
+      chipsScroll: (e) => {
+        const el = e.target;
+        const i = Math.max(0, Math.min(chips.length-1, Math.round(el.scrollLeft / Math.max(1, el.clientWidth))));
+        if (i !== this.state.chipIdx) this.setState({chipIdx: i});
+      },
+      chipDots: chips.map((c, i) => ({key:'d'+i, style:{width: i===this.state.chipIdx?'16px':'6px', height:'6px', borderRadius:'999px', background: i===this.state.chipIdx?'#1b2b45':'#d9cfb8', transition:'all .2s'}})),
+      rightColStyle: {width: mobile ? '52px' : '110px', flex:'none', textAlign:'right'},
+      subStyle: {display: mobile ? 'none' : 'block', font:"500 10.5px 'IBM Plex Mono',ui-monospace,monospace", color:'#a09a88', whiteSpace:'nowrap'},
+      capChip: trI(cap) + ' oda',
+      chips,
+      isMonthly: view === 'aylik',
+      isDaily: view === 'gunluk',
+      chartTitle: view === 'aylik' ? year + ' Aylık Doluluk' : 'Günlük Doluluk — ' + MF[month-1] + ' ' + year,
+      months, days,
+      dailyCaption: 'Ay ortalaması %' + Math.round(dmd.occ/dmd.capN*100) + ' · ' + trI(dmd.occ) + ' oda-gece',
+      year, month,
+      yearOpts: [nowY-1, nowY, nowY+1].map((y) => ({key:''+y, v:y, label:''+y})),
+      monthOpts: MF.map((n,i) => ({key:''+(i+1), v:i+1, label:n})),
+      onYear: (e) => this.setState({year: +e.target.value}),
+      onMonth: (e) => this.setState({month: +e.target.value}),
+      pickAy: () => this.setState({view:'aylik'}),
+      pickGun: () => this.setState({view:'gunluk'}),
+      segAy: view === 'aylik' ? segOn : segOff,
+      segGun: view === 'gunluk' ? segOn : segOff,
+      futureSwatch: {width:'11px', height:'11px', borderRadius:'3px', background: futureBg},
+    };
+  }
+}
+</script>
+</body>
+</html>

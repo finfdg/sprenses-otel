@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#dcd8cf;font-family:'IBM Plex Sans',system-ui,sans-serif}
+</style>
+</helmet>
+
+<div style="display:flex;justify-content:center;align-items:flex-start;padding:40px 20px;min-height:100dvh">
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402,874">
+
+    <div style="background:#f4f0e7;min-height:100%;color:#232733;font-family:'IBM Plex Sans',sans-serif">
+
+      <!-- App header -->
+      <div style="position:sticky;top:0;z-index:8;background:#1b2b45;color:#e8ecf3;padding:54px 18px 14px;display:flex;align-items:center;gap:12px">
+        <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ onBack }}" style="width:34px;height:34px;border-radius:9px;border:none;background:rgba(255,255,255,.08);color:#e8ecf3;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+          </button>
+        </sc-if>
+        <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+          <div style="width:28px;height:28px;border-radius:8px;background:#bd9a45;display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-weight:700;font-size:15px;color:#1b2b45;flex:none">S</div>
+        </sc-if>
+        <div style="flex:1;min-width:0"><div style="font-family:'Spectral',serif;font-size:17px;font-weight:600;color:#f4efe4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ headerTitle }}</div></div>
+        <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px;text-align:right;flex:none"><div style="font-size:7.5px;letter-spacing:.4px;text-transform:uppercase;color:#8496b3">Kur</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#e8c979">1€=₺{{ eurRate }}</div></div>
+      </div>
+
+      <!-- ===== HOME ===== -->
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <!-- segmented -->
+        <div style="padding:14px 16px 4px"><div style="display:flex;gap:3px;background:#e6ddca;border-radius:11px;padding:3px">
+          <sc-for list="{{ views }}" as="v" hint-placeholder-count="3">
+            <button onClick="{{ v.onClick }}" style="{{ v.style }}">{{ v.label }}</button>
+          </sc-for>
+        </div></div>
+
+        <!-- VIEW: KREDİLER -->
+        <sc-if value="{{ showList }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <!-- hero -->
+          <div style="margin:10px 16px;padding:16px 17px;background:#1b2b45;border-radius:16px;color:#c9d3e2">
+            <div style="font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Toplam Borç · EUR</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:600;color:#e8c979;margin-top:3px;line-height:1">{{ kpiTotalEur }}</div>
+            <div style="font-size:11px;color:#9fb0cb;margin-top:3px">{{ kpiActiveCount }} aktif ürün · {{ eurRate }} kur</div>
+            <div style="display:flex;height:8px;border-radius:5px;overflow:hidden;margin-top:12px;background:rgba(255,255,255,.1)"><div style="width:{{ kpiTlPct }};background:#bd9a45"></div><div style="width:{{ kpiEurPct }};background:#5b7fa6"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:10.5px;margin-top:7px"><span style="color:#e8c979">TL {{ kpiTlEur }} · {{ kpiTlPct }}</span><span style="color:#9ec3e6">EUR {{ kpiEurEur }} · {{ kpiEurPct }}</span></div>
+          </div>
+          <!-- mini stats -->
+          <div style="margin:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:11px 13px"><div style="font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#8a8574">Bu Ay Ödenecek</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#232733;margin-top:4px">{{ kpiThisMonth }}</div></div>
+            <div style="background:#fbf1ea;border:1px solid #f0dccf;border-radius:12px;padding:11px 13px"><div style="font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#b5533a">Vadesi ≤30g</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#b5533a;margin-top:4px">{{ kpiSoon }}</div></div>
+          </div>
+
+          <div style="padding:16px 18px 6px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#8a8574;font-weight:700">Aktif Krediler · vadeye göre</div>
+          <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ creditList }}" as="c" hint-placeholder-count="9">
+              <button onClick="{{ c.onSelect }}" style="width:100%;text-align:left;display:flex;gap:11px;background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:13px 14px;cursor:pointer;font-family:inherit" style-hover="border-color:#d8cba6">
+                <div style="width:3px;align-self:stretch;border-radius:3px;background:{{ c.accent }};flex:none"></div>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <span style="font-size:14px;font-weight:600;color:#232733;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:{{ c.curColor }};flex:none">{{ c.remaining }}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px">
+                    <span style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:9.5px;font-weight:600;color:{{ c.typeColor }};background:{{ c.typeBg }};padding:2px 7px;border-radius:5px;white-space:nowrap">{{ c.typeLabel }}</span><span style="font-size:11px;color:#8a8574;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.bank }}</span></span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#a09a88;flex:none">≈{{ c.remainingEur }}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:9px;margin-top:9px">
+                    <span style="flex:1;height:5px;border-radius:4px;background:#eae1cd;overflow:hidden"><span style="display:block;height:100%;border-radius:4px;background:{{ c.accent }};width:{{ c.progress }}"></span></span>
+                    <span style="{{ c.dueStyle }}">{{ c.dueLabel }}</span>
+                  </div>
+                </div>
+              </button>
+            </sc-for>
+            <sc-if value="{{ hasClosed }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:8px 2px 2px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3ac9a;font-weight:700">Kapalı</div>
+              <sc-for list="{{ closedList }}" as="c" hint-placeholder-count="1">
+                <button onClick="{{ c.onSelect }}" style="width:100%;text-align:left;display:flex;gap:11px;background:#f5f1e6;border:1px solid #e9e0cd;border-radius:14px;padding:12px 14px;cursor:pointer;font-family:inherit">
+                  <div style="flex:1;min-width:0"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><span style="font-size:13px;font-weight:500;color:#a09a88;text-decoration:line-through">{{ c.name }}</span><span style="font-size:9.5px;font-weight:600;color:#8a8574;background:#eae1cd;padding:2px 7px;border-radius:5px">Kapalı</span></div><div style="font-size:11px;color:#a09a88;margin-top:4px">{{ c.bank }} · {{ c.closedLabel }}</div></div>
+                </button>
+              </sc-for>
+            </sc-if>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- VIEW: TAKVİM -->
+        <sc-if value="{{ showCalendar }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:12px 16px 8px">
+          <div style="font-size:12px;color:#a09a88;margin-bottom:10px">Tüm aktif kredi taksitleri · ay ay · TL/EUR ayrı</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ calMonths }}" as="m" hint-placeholder-count="6">
+              <div style="border:1px solid #e9e0cd;border-radius:13px;overflow:hidden;background:#fffdf7">
+                <button onClick="{{ m.onToggle }}" style="width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:{{ m.headBg }};border:none;cursor:pointer;font-family:inherit;text-align:left">
+                  <span style="width:10px;font-size:10px;color:#8a6f22">{{ m.chevron }}</span>
+                  <span style="font-size:13.5px;font-weight:600;color:#232733;flex:1">{{ m.label }}</span>
+                  <span style="{{ m.badgeStyle }}">{{ m.badge }}</span>
+                </button>
+                <sc-if value="{{ m.expanded }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:2px 14px 8px">
+                    <div style="font-size:10px;color:#a09a88;padding:6px 0 8px;border-top:1px solid #f0e9d8">Kalan: <span style="font-family:'IBM Plex Mono',monospace;color:#5a5648;font-weight:600">{{ m.remainLabel }}</span></div>
+                    <sc-for list="{{ m.rows }}" as="p" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid #f4eee0">
+                        <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8a8574;width:42px;flex:none">{{ p.date }}</span>
+                        <span style="width:7px;height:7px;border-radius:2px;background:{{ p.accent }};flex:none"></span>
+                        <span style="flex:1;min-width:0;font-size:12px;font-weight:500;color:#232733;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</span>
+                        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:{{ p.curColor }};flex:none">{{ p.amount }}</span>
+                        <span style="{{ p.statusStyle }}">{{ p.statusShort }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- VIEW: BANKALAR -->
+        <sc-if value="{{ showBank }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:12px 16px 8px;display:flex;flex-direction:column;gap:12px">
+          <sc-for list="{{ bankGroups }}" as="g" hint-placeholder-count="6">
+            <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:14px 15px">
+              <div style="display:flex;align-items:center;gap:9px;margin-bottom:13px">
+                <span style="width:28px;height:28px;border-radius:8px;background:#1b2b45;color:#e8c979;display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-weight:600;font-size:12px;flex:none">{{ g.initial }}</span>
+                <span style="flex:1;font-size:13.5px;font-weight:600;color:#232733">{{ g.bank }}</span>
+                <span style="text-align:right"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#232733;display:block">{{ g.totalEur }}</span><span style="font-size:9.5px;color:#a09a88">{{ g.count }} kredi</span></span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:11px">
+                <sc-for list="{{ g.credits }}" as="c" hint-placeholder-count="2">
+                  <div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px"><span style="font-size:12px;color:#3a3730;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:{{ c.curColor }};flex:none">{{ c.remaining }}</span></div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="flex:1;position:relative;height:{{ c.barH }};background:#eae1cd;border-radius:5px"><span style="position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:{{ c.barColor }};width:{{ c.elapsed }}"></span><span style="position:absolute;top:-2px;bottom:-2px;width:2px;border-radius:2px;background:#232733;left:{{ c.elapsed }}"></span></span>
+                      <span style="{{ c.dueStyle }}">{{ c.dueLabel }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <!-- ===== DETAIL ===== -->
+      <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:14px 16px 28px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-family:'Spectral',serif;font-size:19px;font-weight:600;color:#232733">{{ selName }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;margin-top:7px;flex-wrap:wrap">
+          <span style="font-size:10.5px;font-weight:600;color:{{ selTypeColor }};background:{{ selTypeBg }};padding:3px 9px;border-radius:6px">{{ selTypeLabel }}</span>
+          <span style="{{ selCurBadge }}">{{ selCurrency }}</span>
+          <span style="font-size:12px;color:#8a8574">{{ selBank }}</span>
+        </div>
+        <div style="font-size:11.5px;color:#a09a88;margin-top:6px">Kullandırım {{ selStart }} · Vade {{ selEnd }}</div>
+
+        <!-- KPI 2x2 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+          <div style="background:#1b2b45;border-radius:12px;padding:12px 13px;color:#c9d3e2"><div style="font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#8496b3">Kalan Anapara</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#e8c979;margin-top:4px">{{ selRemaining }}</div><div style="font-size:9.5px;color:#9fb0cb;margin-top:1px">≈{{ selRemainingEur }}</div></div>
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:12px 13px"><div style="font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#a89f88">Faiz</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#232733;margin-top:4px">{{ selRate }}</div><div style="font-size:9.5px;color:#a09a88;margin-top:1px">{{ selRateNote }}</div></div>
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:12px 13px"><div style="font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#a89f88">Aylık Taksit</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#232733;margin-top:4px">{{ selInstallment }}</div><div style="font-size:9.5px;color:#a09a88;margin-top:1px">{{ selInstallmentNote }}</div></div>
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:12px 13px"><div style="font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#a89f88">İlerleme</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#232733;margin-top:4px">{{ selProgressLabel }}</div><div style="font-size:9.5px;color:#a09a88;margin-top:1px">{{ selProgressNote }}</div></div>
+        </div>
+
+        <!-- timeline -->
+        <div style="margin-top:12px;background:#fbf7ee;border:1px solid #e9e0cd;border-radius:12px;padding:12px 14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:10px;color:#8a8574;margin-bottom:7px"><span>{{ selStart }}</span><span style="font-family:'IBM Plex Mono',monospace;color:{{ selTlColor }};font-weight:600">%{{ selElapsedPct }}</span><span>{{ selEnd }}</span></div>
+          <div style="position:relative;height:9px;background:#eae1cd;border-radius:6px;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:{{ selAccent }};width:{{ selElapsed }}"></div></div>
+        </div>
+
+        <!-- tabs -->
+        <div style="display:flex;gap:3px;background:#e6ddca;border-radius:10px;padding:3px;margin-top:14px">
+          <button onClick="{{ onTabPlan }}" style="{{ planTabStyle }}">Ödeme Planı</button>
+          <button onClick="{{ onTabInfo }}" style="{{ infoTabStyle }}">Bilgiler</button>
+        </div>
+
+        <!-- plan -->
+        <sc-if value="{{ showPlan }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ hasPlan }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ planMonths }}" as="m" hint-placeholder-count="4">
+            <div style="border:1px solid #e9e0cd;border-radius:12px;overflow:hidden;background:#fffdf7">
+              <button onClick="{{ m.onToggle }}" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 13px;background:{{ m.headBg }};border:none;cursor:pointer;font-family:inherit;text-align:left">
+                <span style="width:9px;font-size:9px;color:#8a6f22">{{ m.chevron }}</span>
+                <span style="font-size:12.5px;font-weight:600;color:#232733;flex:1">{{ m.label }}</span>
+                <span style="{{ m.badgeStyle }}">{{ m.badge }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#232733">{{ m.total }}</span>
+              </button>
+              <sc-if value="{{ m.expanded }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <sc-for list="{{ m.rows }}" as="p" hint-placeholder-count="1">
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;border-top:1px solid #f0e9d8">
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a8574">{{ p.date }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:#232733">{{ p.amount }}</span></div>
+                        <div style="font-size:9.5px;color:#a09a88;margin-top:2px">Anapara {{ p.principal }} · Faiz {{ p.interest }}</div>
+                      </div>
+                      <button onClick="{{ p.onToggle }}" style="{{ p.statusStyle }}">{{ p.statusLabel }}</button>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+        <sc-if value="{{ noPlan }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:12px;background:#fbf7ee;border:1px dashed #e0d6bf;border-radius:12px;padding:20px 16px;text-align:center;color:#a09a88;font-size:12.5px">{{ noPlanText }}</div>
+        </sc-if>
+        </sc-if>
+
+        <!-- info -->
+        <sc-if value="{{ showInfo }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:14px 15px">
+            <div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#8a6f22;font-weight:700;margin-bottom:8px">Maliyet & Oranlar</div>
+            <sc-for list="{{ infoCost }}" as="r" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0e9d8"><span style="font-size:12px;color:#5a5648">{{ r.k }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#232733">{{ r.v }}</span></div>
+            </sc-for>
+          </div>
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:12px;padding:14px 15px">
+            <div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#4a6a8c;font-weight:700;margin-bottom:8px">Koşullar & Teminat</div>
+            <sc-for list="{{ infoTerms }}" as="r" hint-placeholder-count="4">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #f0e9d8"><span style="font-size:12px;color:#5a5648;flex:none">{{ r.k }}</span><span style="font-size:12px;color:#232733;text-align:right">{{ r.v }}</span></div>
+            </sc-for>
+          </div>
+          <button style="display:flex;align-items:center;justify-content:center;gap:7px;padding:12px;border-radius:11px;border:1px solid #e3d9c2;background:#fffdf7;color:#5a5648;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Erken Kapama
+          </button>
+        </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+    </div>
+  </x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;eurTry&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:41,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Senaryo&quot;}}">
+class Component extends DCLogic {
+  state = { screen:'list', view:'krediler', selectedId:'z2', detailTab:'plan', planOpen:{}, calOpen:{} };
+
+  SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  FULL  = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  EURRATE = 41;
+  TODAY = new Date(2026,6,5);
+
+  TYPE = {
+    spot_kredi:{label:'Spot', color:'#1b3a5c', bg:'#e6edf5'},
+    taksitli_kredi:{label:'Taksitli', color:'#8a6f22', bg:'#f6ecd6'},
+    bch:{label:'BCH', color:'#3f7d64', bg:'#e8f1ec'},
+    leasing:{label:'Leasing', color:'#6a5aa0', bg:'#ece9f5'},
+    kmh:{label:'KMH', color:'#c67a2e', bg:'#f8ecdd'},
+    kredi_karti:{label:'Kart', color:'#4a6a8c', bg:'#e9eef4'},
+  };
+
+  credits = [
+    { id:'z1', type:'spot_kredi', name:'Halkbank Spot (balon)', bank:'Halkbank', currency:'TRY', total:11390000, remaining:11390000, rate:52, bsmv:5, commission:0.5, start:'2026-01-27', end:'2026-07-27', plan:'balloon', collateral:'İşletme kefaleti', notes:'Tek ödemeli balon — vade sonunda anapara + faiz.' },
+    { id:'z2', type:'taksitli_kredi', name:'Ziraat Yatırım Kredisi', bank:'Ziraat Bankası', currency:'TRY', total:36000000, remaining:24150000, rate:48, bsmv:5, commission:0.75, start:'2025-01-15', end:'2028-01-15', plan:'annuity', collateral:'Otel A blok ipoteği', notes:'Yenileme yatırımı — 36 ay eşit taksit.' },
+    { id:'z3', type:'bch', name:'İş Bankası BCH', bank:'İş Bankası', currency:'TRY', total:8000000, remaining:8000000, rate:54, bsmv:5, commission:0.25, start:'2026-03-01', end:'2026-09-01', plan:'revolving', collateral:'—', notes:'Borçlu cari hesap — sezon işletme sermayesi.' },
+    { id:'z4', type:'leasing', name:'VakıfBank Leasing · Mutfak', bank:'VakıfBank', currency:'TRY', total:9600000, remaining:6400000, rate:46, bsmv:0, commission:1.0, start:'2025-07-10', end:'2027-07-10', plan:'annuity', collateral:'Ekipman mülkiyeti kiralayanda', notes:'Endüstriyel mutfak ekipmanı finansal kiralama.' },
+    { id:'z5', type:'kmh', name:'Garanti KMH (rotatif)', bank:'Garanti BBVA', currency:'TRY', total:5000000, remaining:3200000, rate:58, bsmv:5, commission:0, start:'2025-11-01', end:null, plan:'revolving', collateral:'Bağlı hesap · TR .. 4021', notes:'Bağlı vadesiz hesap negatife düştükçe kullanım sayılır.' },
+    { id:'z6', type:'kredi_karti', name:'Yapı Kredi Kurumsal Kart', bank:'Yapı Kredi', currency:'TRY', total:2500000, remaining:1820000, rate:0, bsmv:0, commission:0, start:'2025-09-01', end:'2026-07-18', plan:'card', collateral:'—', notes:'Kurumsal harcama kartı · son ödeme 18 Tem.' },
+    { id:'z7', type:'taksitli_kredi', name:'Denizbank EUR Yatırım', bank:'Denizbank', currency:'EUR', total:900000, remaining:681250, rate:9.5, bsmv:0, commission:0.5, start:'2024-06-01', end:'2028-06-01', plan:'annuity', collateral:'Otel B blok ipoteği', notes:'Döviz geliriyle doğal hedge · 48 ay.' },
+    { id:'z8', type:'spot_kredi', name:'QNB EUR Spot', bank:'QNB', currency:'EUR', total:220000, remaining:220000, rate:8.75, bsmv:0, commission:0.4, start:'2026-03-15', end:'2026-09-15', plan:'balloon', collateral:'—', notes:'Kısa vadeli döviz köprü kredisi.' },
+    { id:'z9', type:'taksitli_kredi', name:'Akbank Taksitli', bank:'Akbank', currency:'TRY', total:20000000, remaining:15000000, rate:49, bsmv:5, commission:0.5, start:'2025-06-01', end:'2027-12-01', plan:'annuity', collateral:'Ticari araç rehni', notes:'Filo + tadilat · 30 ay.' },
+    { id:'z10', type:'spot_kredi', name:'Halkbank Spot 2', bank:'Halkbank', currency:'TRY', total:9000000, remaining:0, rate:50, bsmv:5, commission:0.5, start:'2026-01-20', end:'2026-07-27', plan:'balloon', status:'closed', closed:'2026-05-25', collateral:'İşletme kefaleti', notes:'25.05.2026 erken kapatıldı.' },
+  ];
+
+  fmtCur(n,cur){ const s=new Intl.NumberFormat('tr-TR').format(Math.round(n)); return (cur==='EUR'?'€':'₺')+s; }
+  eur(n,cur){ return cur==='EUR'?n:n/this.EURRATE; }
+  short(n){ const a=Math.abs(n); if(a>=1e6) return '€'+(n/1e6).toFixed(2).replace('.',',')+'M'; if(a>=1e3) return '€'+Math.round(n/1e3)+'K'; return '€'+Math.round(n); }
+  pd(iso){ const p=iso.split('-'); return new Date(+p[0],+p[1]-1,+p[2]); }
+  fmtD(d){ return d.getDate()+' '+this.SHORT[d.getMonth()]; }
+  monthsBetween(a,b){ return (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth()); }
+  addM(d,n){ const x=new Date(d.getTime()); x.setMonth(x.getMonth()+n); return x; }
+
+  schedule(c){
+    if(c.plan==='revolving'||c.plan==='card') return [];
+    const start=this.pd(c.start), end=this.pd(c.end);
+    if(c.plan==='balloon'){
+      const months=Math.max(1,this.monthsBetween(start,end));
+      const interest=c.total*(c.rate/100/12)*months;
+      return [{ no:1, due:end, amount:c.total+interest, principal:c.total, interest, paid:c.status==='closed'?false:end<this.TODAY }];
+    }
+    const n=Math.max(1,this.monthsBetween(start,end));
+    const r=c.rate/100/12;
+    const M=r>0 ? c.total*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1) : c.total/n;
+    const rows=[]; let bal=c.total;
+    for(let i=1;i<=n;i++){
+      const interest=bal*r; const principal=Math.min(bal,M-interest); bal-=principal;
+      const due=this.addM(start,i);
+      rows.push({ no:i, due, amount:principal+interest, principal, interest, paid:due<this.TODAY });
+    }
+    return rows;
+  }
+
+  monthKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+  monthLabel(d){ return this.FULL[d.getMonth()]+' '+d.getFullYear(); }
+
+  renderVals(){
+    const st=this.state;
+    this.EURRATE=this.props.eurTry ?? 41;
+    const active=this.credits.filter(c=>c.status!=='closed');
+    const closed=this.credits.filter(c=>c.status==='closed');
+
+    const meta={};
+    for(const c of this.credits){
+      const sch=this.schedule(c);
+      const unpaid=sch.filter(p=>!p.paid);
+      const next=unpaid[0]||null;
+      const paidCount=sch.filter(p=>p.paid).length;
+      let nextDue=next?next.due:(c.plan==='card'?this.pd(c.end):null);
+      const days=nextDue? Math.round((nextDue-this.TODAY)/864e5):null;
+      meta[c.id]={sch,next,paidCount,total:sch.length,nextDue,days};
+    }
+
+    let totalEur=0,tlEur=0,eurEur=0,thisMonth=0,soon=0,soonCount=0;
+    for(const c of active){
+      const e=this.eur(c.remaining,c.currency); totalEur+=e;
+      if(c.currency==='EUR') eurEur+=e; else tlEur+=e;
+      const m=meta[c.id];
+      if(m.next && m.next.due.getMonth()===6 && m.next.due.getFullYear()===2026) thisMonth+=this.eur(m.next.amount,c.currency);
+      if(m.days!=null && m.days>=0 && m.days<=30){ soon+=this.eur(m.next?m.next.amount:c.remaining,c.currency); soonCount++; }
+    }
+
+    const accentOf=c=> c.currency==='EUR'?'#5b7fa6':'#bd9a45';
+    const curColorOf=c=> c.currency==='EUR'?'#4a6a8c':'#8a6f22';
+    const dueStyleFor=(days)=>{
+      let col='#a09a88',bg='#f2efe6';
+      if(days==null) return 'font-size:9.5px;font-weight:600;white-space:nowrap;padding:2px 7px;border-radius:5px;color:#8a8574;background:#eef2f7';
+      if(days<0){col='#b5533a';bg='#fbf1ea';} else if(days<=30){col='#c67a2e';bg='#f8ecdd';} else if(days<=90){col='#8a6f22';bg='#f6ecd6';}
+      return 'font-size:9.5px;font-weight:600;white-space:nowrap;padding:2px 7px;border-radius:5px;color:'+col+';background:'+bg;
+    };
+    const dueLabelFor=(days)=>{ if(days==null) return 'rotatif'; if(days<0) return Math.abs(days)+'g gecikme'; if(days===0) return 'bugün'; return days+'g'; };
+
+    const mkRow=(c)=>{
+      const m=meta[c.id]; const prog=m.total?Math.round(m.paidCount/m.total*100):(c.plan==='revolving'?Math.round((1-c.remaining/c.total)*100):0);
+      return { name:c.name, bank:c.bank, accent:accentOf(c), curColor:curColorOf(c),
+        remaining:this.fmtCur(c.remaining,c.currency), remainingEur:this.short(this.eur(c.remaining,c.currency)),
+        typeLabel:this.TYPE[c.type].label, typeColor:this.TYPE[c.type].color, typeBg:this.TYPE[c.type].bg,
+        progress:Math.max(3,prog)+'%', dueLabel:dueLabelFor(m.days), dueStyle:dueStyleFor(m.days),
+        onSelect:()=>this.setState({selectedId:c.id, screen:'detail', detailTab:'plan'}) };
+    };
+    const creditList=active.slice().sort((a,b)=>{ const da=meta[a.id].days,db=meta[b.id].days; if(da==null) return 1; if(db==null) return -1; return da-db; }).map(mkRow);
+    const closedList=closed.map(c=>({ name:c.name, bank:c.bank, closedLabel:this.fmtD(this.pd(c.closed))+' kapatıldı', onSelect:()=>this.setState({selectedId:c.id,screen:'detail',detailTab:'plan'}) }));
+
+    // selected
+    const sel=this.credits.find(c=>c.id===st.selectedId)||active[0];
+    const sm=meta[sel.id];
+    const start=this.pd(sel.start), end=sel.end?this.pd(sel.end):null;
+    const totalSpan=end?Math.max(1,this.monthsBetween(start,end)):null;
+    const elapsedPct=end?Math.round(Math.max(0,Math.min(totalSpan,this.monthsBetween(start,this.TODAY)))/totalSpan*100):0;
+    const isAnnuity=sel.plan==='annuity';
+    const monthlyAmt=isAnnuity&&sm.sch.length?sm.sch[Math.min(sm.paidCount,sm.sch.length-1)].amount:null;
+
+    const grouped={};
+    for(const p of sm.sch){ const k=this.monthKey(p.due); (grouped[k]=grouped[k]||[]).push(p); }
+    const planMonths=Object.keys(grouped).sort().map(k=>{
+      const rows=grouped[k]; const d=rows[0].due;
+      const allPaid=rows.every(p=>p.paid); const anyOverdue=rows.some(p=>!p.paid&&p.due<this.TODAY);
+      const tot=rows.reduce((s,p)=>s+p.amount,0);
+      const open=st.planOpen[k]!=null?st.planOpen[k]:(!allPaid);
+      return { label:this.monthLabel(d), expanded:open, chevron:open?'▾':'▸', headBg:allPaid?'#f5f1e6':'#fffdf7',
+        badge:allPaid?'Ödendi':(anyOverdue?'Gecikmiş':rows.filter(p=>p.paid).length+'/'+rows.length),
+        badgeStyle:'font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:5px;'+(allPaid?'color:#3f7d64;background:#e8f1ec':(anyOverdue?'color:#b5533a;background:#fbf1ea':'color:#8a6f22;background:#f6ecd6')),
+        total:this.fmtCur(tot,sel.currency),
+        onToggle:()=>this.setState(s=>({planOpen:{...s.planOpen,[k]:!(s.planOpen[k]!=null?s.planOpen[k]:!allPaid)}})),
+        rows:rows.map(p=>{ const overdue=!p.paid&&p.due<this.TODAY;
+          return { date:this.fmtD(p.due), amount:this.fmtCur(p.amount,sel.currency), principal:this.fmtCur(p.principal,sel.currency), interest:this.fmtCur(p.interest,sel.currency),
+            statusLabel:p.paid?'Ödendi':(overdue?'Gecikmiş':'Bekliyor'),
+            statusStyle:'padding:5px 10px;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;border:none;font-family:inherit;flex:none;'+(p.paid?'color:#3f7d64;background:#e8f1ec':(overdue?'color:#b5533a;background:#fbf1ea':'color:#8a6f22;background:#f6ecd6')),
+            onToggle:()=>{ p.paid=!p.paid; this.forceUpdate(); } }; }) };
+    });
+    const noPlanText = sel.plan==='revolving' ? 'Rotatif ürün — sabit taksit planı yok. Kalan '+this.fmtCur(sel.remaining,sel.currency)+' kullanım.' : (sel.plan==='card' ? 'Kredi kartı — aylık ekstre. Güncel borç '+this.fmtCur(sel.remaining,sel.currency)+' · son ödeme '+this.fmtD(this.pd(sel.end))+'.' : 'Ödeme planı yok.');
+    const infoCost=[ {k:'Faiz oranı', v:sel.rate>0?('%'+sel.rate+' yıllık'):'—'}, {k:'BSMV', v:sel.bsmv?('%'+sel.bsmv):'—'}, {k:'Komisyon', v:sel.commission?('%'+sel.commission):'—'}, {k:'Toplam limit', v:this.fmtCur(sel.total,sel.currency)} ];
+    const infoTerms=[ {k:'Kullandırım', v:this.fmtD(start)+' '+start.getFullYear()}, {k:'Vade', v:end?this.fmtD(end)+' '+end.getFullYear():'Vadesiz'}, {k:'Teminat', v:sel.collateral}, {k:'Not', v:sel.notes} ];
+
+    // views
+    const viewDefs=[['krediler','Krediler'],['takvim','Takvim'],['banka','Bankalar']];
+    const vBase='flex:1;padding:8px 2px;border:none;border-radius:9px;cursor:pointer;font-family:inherit;font-size:12px;';
+    const views=viewDefs.map(([id,label])=>({label,onClick:()=>this.setState({view:id}),
+      style:vBase+(st.view===id?'background:#1b2b45;color:#f4ecd4;font-weight:600':'background:transparent;color:#6d6446;font-weight:500')}));
+
+    // calendar
+    const calMap={};
+    for(const c of active){ for(const p of meta[c.id].sch){ if(p.due>=new Date(2026,6,1)&&p.due<new Date(2027,7,1)){ const k=this.monthKey(p.due); (calMap[k]=calMap[k]||[]).push({c,p}); } } }
+    const calMonths=Object.keys(calMap).sort().map(k=>{
+      const items=calMap[k].slice().sort((a,b)=>a.p.due-b.p.due); const d=items[0].p.due;
+      let remTL=0,remEUR=0,paidCount=0;
+      for(const {c,p} of items){ if(p.paid) paidCount++; else { if(c.currency==='EUR') remEUR+=p.amount; else remTL+=p.amount; } }
+      const isThis=d.getMonth()===6&&d.getFullYear()===2026;
+      const open=st.calOpen[k]!=null?st.calOpen[k]:isThis;
+      const remParts=[]; if(remTL>0) remParts.push('₺'+new Intl.NumberFormat('tr-TR').format(Math.round(remTL))); if(remEUR>0) remParts.push('€'+new Intl.NumberFormat('tr-TR').format(Math.round(remEUR)));
+      const anyOver=items.some(x=>!x.p.paid&&x.p.due<this.TODAY);
+      return { label:this.monthLabel(d), expanded:open, chevron:open?'▾':'▸', headBg:isThis?'#fbf7ee':'#fffdf7',
+        badge:anyOver?'Gecikme':(paidCount+'/'+items.length),
+        badgeStyle:'font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:6px;'+(anyOver?'color:#b5533a;background:#fbf1ea':'color:#6d6446;background:#f0e9d8'),
+        remainLabel:remParts.length?remParts.join(' · '):'—',
+        onToggle:()=>this.setState(s=>({calOpen:{...s.calOpen,[k]:!(s.calOpen[k]!=null?s.calOpen[k]:isThis)}})),
+        rows:items.map(({c,p})=>{ const overdue=!p.paid&&p.due<this.TODAY;
+          return { date:this.fmtD(p.due), name:c.name, accent:accentOf(c), curColor:curColorOf(c), amount:this.fmtCur(p.amount,c.currency),
+            statusShort:p.paid?'✓':(overdue?'!':'·'),
+            statusStyle:'width:20px;text-align:center;font-size:11px;font-weight:700;flex:none;color:'+(p.paid?'#3f7d64':(overdue?'#b5533a':'#a09a88')) }; }) };
+    });
+
+    // banks
+    const bankMap={};
+    for(const c of active){ (bankMap[c.bank]=bankMap[c.bank]||[]).push(c); }
+    const bankGroups=Object.keys(bankMap).sort((a,b)=>bankMap[b].reduce((s,c)=>s+this.eur(c.remaining,c.currency),0)-bankMap[a].reduce((s,c)=>s+this.eur(c.remaining,c.currency),0)).map(bank=>{
+      const cs=bankMap[bank]; const tot=cs.reduce((s,c)=>s+this.eur(c.remaining,c.currency),0);
+      return { bank, initial:bank[0], count:cs.length, totalEur:this.short(tot),
+        credits:cs.slice().sort((a,b)=>(meta[a.id].days??9e9)-(meta[b.id].days??9e9)).map(c=>{
+          const days=meta[c.id].days; const isEur=c.currency==='EUR';
+          let col=isEur?'#5b7fa6':'#bd9a45', h='4px';
+          if(days!=null){ if(days<0){col='#b5533a';h='9px';} else if(days<=30){col=isEur?'#3a5a82':'#c67a2e';h='8px';} else if(days<=90){col=isEur?'#4a6a8c':'#bd9a45';h='6px';} }
+          const s2=this.pd(c.start), e2=c.end?this.pd(c.end):null;
+          const span=e2?Math.max(1,this.monthsBetween(s2,e2)):null;
+          const el=e2?Math.max(4,Math.min(100,Math.round(this.monthsBetween(s2,this.TODAY)/span*100))):60;
+          return { name:c.name, remaining:this.fmtCur(c.remaining,c.currency), curColor:curColorOf(c), barH:h, barColor:col, elapsed:el+'%', dueLabel:dueLabelFor(days), dueStyle:dueStyleFor(days) };
+        }) };
+    });
+
+    return {
+      eurRate:this.EURRATE, isHome:st.screen==='list', isDetail:st.screen==='detail',
+      onBack:()=>this.setState({screen:'list'}),
+      headerTitle: st.screen==='detail' ? 'Kredi Detayı' : 'Krediler',
+      kpiTotalEur:this.short(totalEur), kpiActiveCount:active.length,
+      kpiTlEur:this.short(tlEur), kpiTlPct:Math.round(tlEur/totalEur*100)+'%',
+      kpiEurEur:this.short(eurEur), kpiEurPct:Math.round(eurEur/totalEur*100)+'%',
+      kpiThisMonth:this.short(thisMonth), kpiSoon:this.short(soon),
+      views, showList:st.view==='krediler', showCalendar:st.view==='takvim', showBank:st.view==='banka',
+      creditList, closedList, hasClosed:closed.length>0,
+      selName:sel.name, selBank:sel.bank, selTypeLabel:this.TYPE[sel.type].label, selTypeColor:this.TYPE[sel.type].color, selTypeBg:this.TYPE[sel.type].bg,
+      selCurrency:sel.currency, selCurBadge:'font-size:9.5px;font-weight:600;padding:3px 8px;border-radius:6px;'+(sel.currency==='EUR'?'color:#4a6a8c;background:#e9eef4':'color:#8a6f22;background:#f6ecd6'),
+      selStart:this.fmtD(start)+' '+start.getFullYear(), selEnd:end?this.fmtD(end)+' '+end.getFullYear():'Vadesiz',
+      selRemaining:this.fmtCur(sel.remaining,sel.currency), selRemainingEur:this.short(this.eur(sel.remaining,sel.currency)),
+      selRate:sel.rate>0?('%'+sel.rate):'—', selRateNote:sel.rate>0?('yıllık'+(sel.currency==='EUR'?' · EUR':'')):'kart/rotatif',
+      selInstallment:monthlyAmt?this.fmtCur(monthlyAmt,sel.currency):(sel.plan==='balloon'?'Balon':'—'),
+      selInstallmentNote:isAnnuity?'eşit taksit':(sel.plan==='balloon'?'vade sonu':(sel.plan==='card'?'ekstre':'rotatif')),
+      selProgressLabel:sm.total?(sm.paidCount+'/'+sm.total):(sel.plan==='revolving'?'%'+Math.round((1-sel.remaining/sel.total)*100):'—'),
+      selProgressNote:sm.total?'ödendi':'kullanım',
+      selElapsed:elapsedPct+'%', selElapsedPct:elapsedPct, selAccent:accentOf(sel), selTlColor:curColorOf(sel),
+      onTabPlan:()=>this.setState({detailTab:'plan'}), onTabInfo:()=>this.setState({detailTab:'info'}),
+      planTabStyle:this.tabStyle(st.detailTab==='plan'), infoTabStyle:this.tabStyle(st.detailTab==='info'),
+      showPlan:st.detailTab==='plan', showInfo:st.detailTab==='info',
+      hasPlan:sm.sch.length>0, noPlan:sm.sch.length===0, noPlanText, planMonths, infoCost, infoTerms,
+      calMonths, bankGroups,
+    };
+  }
+
+  tabStyle(on){ return 'flex:1;padding:8px 2px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12.5px;'+(on?'background:#1b2b45;color:#f4ecd4;font-weight:600':'background:transparent;color:#6d6446;font-weight:500'); }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprenses · Tasarımlar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f0e7;font-family:'IBM Plex Sans',system-ui,sans-serif;color:#232733}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:920px;margin:0 auto;padding:56px 28px 72px}
+  .brand{display:flex;align-items:center;gap:13px;margin-bottom:34px}
+  .logo{width:44px;height:44px;border-radius:11px;background:#bd9a45;display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-weight:700;font-size:23px;color:#1b2b45}
+  h1{font-family:'Spectral',serif;font-size:26px;font-weight:600;margin:0}
+  .sub{font-size:13px;color:#8a8574;margin-top:2px}
+  .sec{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#8a6f22;font-weight:700;margin:34px 0 12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .card{background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:18px 19px;transition:box-shadow .15s,transform .15s;display:flex;flex-direction:column;gap:6px}
+  .card:hover{box-shadow:0 10px 28px -14px rgba(0,0,0,.32);transform:translateY(-2px)}
+  .card .t{font-family:'Spectral',serif;font-size:16px;font-weight:600}
+  .card .d{font-size:12.5px;color:#8a8574;line-height:1.45}
+  .tag{align-self:flex-start;margin-top:4px;font-size:10.5px;font-family:'IBM Plex Mono',monospace;color:#6d6446;background:#efe7d5;padding:3px 9px;border-radius:6px}
+  .foot{margin-top:40px;font-size:12px;color:#a09a88;line-height:1.6;border-top:1px solid #e7dfcd;padding-top:18px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo">S</div>
+      <div>
+        <h1>Sprenses · Otel Yönetimi</h1>
+        <div class="sub">Tasarım referansları — son hâl · Temmuz 2026</div>
+      </div>
+    </div>
+
+    <div class="sec">Masaüstü Modüller</div>
+    <div class="grid">
+      <a class="card" href="Panel Yeniden Tasarım.dc.html"><div class="t">Panel</div><div class="d">Genel yönetim paneli — KPI'lar, T hesap cetveli, nakit koruma, onay kutusu.</div><span class="tag">Panel Yeniden Tasarım</span></a>
+      <a class="card" href="Cariler Yeniden Tasarım.dc.html"><div class="t">Cariler</div><div class="d">Tedarikçi cari listesi + ekstre, notlar (ekle/düzenle/sil/tik) ve firma bilgileri.</div><span class="tag">Cariler Yeniden Tasarım</span></a>
+      <a class="card" href="Acente Mahsup & Nakit Akım.dc.html"><div class="t">Acente Mahsup & Nakit Akım</div><div class="d">Rezervasyon + avans + fatura + nakit akım birleşik modülü. Avans mahsubu, acente vadeli tahsilat, €11M ciro hedefi ve runway projeksiyonu.</div><span class="tag">Acente Mahsup & Nakit Akım</span></a>
+      <a class="card" href="Krediler Yeniden Tasarım.dc.html"><div class="t">Krediler</div><div class="d">Kredi portföyü (TL+EUR): master-detail + amortisman ödeme planı, taksit takvimi ay-akordiyonu, banka bazlı kredi zaman çizgileri. Balon + erken kapama.</div><span class="tag">Krediler Yeniden Tasarım</span></a>
+      <a class="card" href="Nakit Akım T-Hesap.dc.html"><div class="t">Nakit Akım · T-Hesap</div><div class="d">Etkileşimli T hesap cetveli — dönem sekmeleri + tarih gezgini, Bekleyen/Gerçekleşen segmenti, başlığa basınca kategori ↔ tarih görünümü, faaliyet/finansman neti.</div><span class="tag">Nakit Akım T-Hesap</span></a>
+      <a class="card" href="Nakit Akım Yeniden Tasarım.dc.html"><div class="t">Nakit Akım · Keşif</div><div class="d">Önceki tasarım keşif kanvası (şelale / liste / faaliyet-finansman yönleri).</div><span class="tag">Nakit Akım Yeniden Tasarım</span></a>
+      <a class="card" href="Nakit Koruma.dc.html"><div class="t">Nakit Koruma</div><div class="d">Ödeme erteleme + canlı runway projeksiyonu (grafik üzerinde gün/bakiye izi).</div><span class="tag">Nakit Koruma</span></a>
+      <a class="card" href="Otel Rezervasyon Yeniden Tasarım.dc.html"><div class="t">Otel Rezervasyon</div><div class="d">Rezervasyon yönetimi ekranı.</div><span class="tag">Otel Rezervasyon Yeniden Tasarım</span></a>
+    </div>
+
+    <div class="sec">Mobil</div>
+    <div class="grid">
+      <a class="card" href="Panel Mobil.dc.html"><div class="t">Panel · Mobil</div><div class="d">Mobil panel prototipi (iOS çerçevesi).</div><span class="tag">Panel Mobil</span></a>
+      <a class="card" href="Krediler Mobil.dc.html"><div class="t">Krediler · Mobil</div><div class="d">Mobil kredi portföyü — hero özet, kredi listesi + drill-in detay (ödeme planı), taksit takvimi, banka zaman çizgileri.</div><span class="tag">Krediler Mobil</span></a>
+      <a class="card" href="Nakit Akım Mobil.dc.html"><div class="t">Nakit Akım · Mobil</div><div class="d">Mobil T hesap — dönem/tarih gezgini, Bekleyen/Gerçekleşen segmenti, kategori ↔ tarih görünümü (iOS çerçevesi).</div><span class="tag">Nakit Akım Mobil</span></a>
+      <a class="card" href="Otel Rezervasyon Mobil.dc.html"><div class="t">Rezervasyon · Mobil</div><div class="d">Mobil rezervasyon prototipi (iOS çerçevesi).</div><span class="tag">Otel Rezervasyon Mobil</span></a>
+    </div>
+
+    <div class="foot">
+      <strong>Çalıştırma:</strong> <code>*.dc.html</code> dosyaları bir Design Component runtime'ı (<code>support.js</code>) kullanır. Klasörü basit bir sunucuyla servis edin (ör. <code>python3 -m http.server</code>) ve tarayıcıda açın. Mobil prototipler ayrıca <code>ios-frame.jsx</code>'e bağlıdır.
+    </div>
+  </div>
+</body>
+</html>

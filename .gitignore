@@ -88,3 +88,16 @@ backend/.qnb_refresh_token
 
 # Kullanıcı geçici dosyaları (banka test verileri vb. içerebilir — GitHub yedeğine sızmasın)
 scratchpad/
+
+# --- Veri dosyaları / dış belgeler (public repoya ASLA gitmemeli — 2026-09-02) ---
+# Stop hook `git add -A` yaptığından köke bırakılan her belge bir turda GitHub'a gider;
+# ilk savunma hattı bu blok. Bilinçli fixture gerekirse `!` ile tek tek aç.
+/incoming/
+/raporlar/
+*.zip
+*.xlsx
+*.xls
+*.docx
+*.doc
+*.pdf
+*.pptx

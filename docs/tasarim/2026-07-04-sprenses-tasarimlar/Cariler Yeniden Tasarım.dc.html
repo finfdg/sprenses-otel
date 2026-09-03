@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f4f0e7;font-family:'IBM Plex Sans',system-ui,sans-serif}
+  textarea{font-family:inherit}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d8cdb4;border-radius:8px}
+</style>
+</helmet>
+
+<div style="display:flex;height:100dvh;overflow:hidden;background:#f4f0e7;color:#232733">
+
+  <!-- Sidebar -->
+  <aside style="width:240px;flex:none;background:#1b2b45;color:#e8ecf3;display:flex;flex-direction:column">
+    <div style="padding:24px 22px 20px;display:flex;align-items:center;gap:11px;border-bottom:1px solid rgba(255,255,255,.08)">
+      <div style="width:34px;height:34px;border-radius:9px;background:#bd9a45;display:flex;align-items:center;justify-content:center;font-family:'Spectral',serif;font-weight:700;font-size:18px;color:#1b2b45">S</div>
+      <div><div style="font-family:'Spectral',serif;font-size:18px;font-weight:600;color:#e8ecf3;letter-spacing:.3px">Sprenses</div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#8496b3">Otel Yönetimi</div></div>
+    </div>
+    <nav style="flex:1;padding:16px 12px;display:flex;flex-direction:column;gap:2px;overflow-y:auto">
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 13px;border-radius:9px;color:#c3cde0;font-weight:500;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg>Panel
+      </div>
+      <div style="margin:14px 13px 7px;font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:#7286a6">Modüller</div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;background:#2c4269;color:#e8ecf3;font-size:13.5px;font-weight:500">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Finans <span style="margin-left:auto;font-size:11px;color:#e8c979;font-weight:600">6</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1px;margin:2px 0 4px 30px;padding-left:9px;border-left:1px solid rgba(255,255,255,.1)">
+        <div style="padding:6px 10px;border-radius:7px;font-size:12.5px;color:#9fb0cb">Nakit Akım</div>
+        <div style="padding:6px 10px;border-radius:7px;font-size:12.5px;color:#e8c979;background:rgba(189,154,69,.14);font-weight:600">Cariler</div>
+        <div style="padding:6px 10px;border-radius:7px;font-size:12.5px;color:#9fb0cb">Çekler & Senetler</div>
+        <div style="padding:6px 10px;border-radius:7px;font-size:12.5px;color:#9fb0cb">Krediler</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21"/></svg>Muhasebe
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z"/></svg>İnsan Kaynakları
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/></svg>Satış
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:9px;color:#c3cde0;font-size:13.5px">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>Stok
+      </div>
+    </nav>
+    <div style="padding:16px 22px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#7286a6">Sprenses v1.0</div>
+  </aside>
+
+  <!-- Main -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <header style="height:66px;flex:none;display:flex;align-items:center;gap:16px;padding:0 30px;background:#f4f0e7;border-bottom:1px solid #e7dfcd">
+      <div style="flex:1">
+        <div style="font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:#a89f88;margin-bottom:2px">Finans <span style="color:#c9bd9c">/</span> Cariler</div>
+        <div style="font-family:'Spectral',serif;font-size:19px;font-weight:600;color:#232733;line-height:1">Tedarikçi Cariler</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#fffdf7;border:1px solid #e7dfcd;border-radius:10px;padding:9px 13px;width:210px;color:#a09a88;font-size:13px">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607Z"/></svg>
+        Genel arama…
+      </div>
+      <div style="width:40px;height:40px;border-radius:50%;background:#2c4269;color:#e8ecf3;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px">M</div>
+    </header>
+
+    <!-- Master-detail -->
+    <div style="flex:1;display:flex;min-height:0">
+
+      <!-- LEFT: supplier list -->
+      <div style="width:378px;flex:none;display:flex;flex-direction:column;min-height:0;border-right:1px solid #e7dfcd;background:#f7f3ea">
+        <div style="padding:18px 20px 14px;flex:none">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a8574;font-weight:700">{{ listCount }} Tedarikçi</div>
+            <button style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#2c4269;background:none;border:none;cursor:pointer;font-family:inherit;padding:0" style-hover="color:#1b2b45">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>Yeni Cari
+            </button>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:11px">
+            <div><div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#a89f88">Toplam Borç</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#b5533a;margin-top:1px">{{ totalDebt }}</div></div>
+            <div style="border-left:1px solid #e3d9c2;padding-left:14px"><div style="font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#a89f88">Vadesi Geçmiş</div><div style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;color:#c67a2e;margin-top:1px">{{ totalOverdue }}</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;background:#fffdf7;border:1px solid #e3d9c2;border-radius:9px;padding:8px 11px;margin-top:14px">
+            <svg width="15" height="15" fill="none" stroke="#a09a88" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607Z"/></svg>
+            <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Tedarikçi ara…" style="border:none;outline:none;background:none;font-size:13px;color:#232733;width:100%;font-family:inherit" />
+          </div>
+          <div style="display:flex;gap:6px;margin-top:11px">
+            <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+              <button onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding:4px 12px 16px">
+          <sc-for list="{{ suppliers }}" as="s" hint-placeholder-count="7">
+            <button onClick="{{ s.onSelect }}" style="{{ s.rowStyle }}">
+              <div style="width:3px;align-self:stretch;border-radius:3px;background:{{ s.accent }};flex:none;margin:2px 0"></div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                  <span style="font-size:13.5px;font-weight:600;color:#232733;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.name }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:{{ s.balanceColor }};flex:none">{{ s.balance }}</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px">
+                  <span style="font-size:11px;color:#8a8574;background:#efe7d5;padding:2px 8px;border-radius:6px;white-space:nowrap">{{ s.category }}</span>
+                  <span style="{{ s.metaStyle }}">{{ s.metaText }}</span>
+                </div>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- RIGHT: detail -->
+      <div style="flex:1;overflow-y:auto;min-width:0;padding:22px 30px 32px">
+
+        <!-- Detail header -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-family:'Spectral',serif;font-size:23px;font-weight:600;color:#232733">{{ selName }}</span>
+              <span style="font-size:11px;color:#6d6446;background:#efe7d5;padding:3px 10px;border-radius:7px;font-weight:500">{{ selCategory }}</span>
+            </div>
+            <div style="font-size:12px;color:#a09a88;margin-top:7px">Cari kodu <span style="font-family:'IBM Plex Mono',monospace;color:#6d6446">{{ selCode }}</span></div>
+          </div>
+          <div style="display:flex;gap:9px;flex:none">
+            <button style="display:flex;align-items:center;gap:7px;padding:9px 15px;border-radius:9px;border:none;background:#bd9a45;color:#1b2b45;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit" style-hover="background:#a9862f">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"/></svg>Ödeme Kaydet
+            </button>
+            <button style="display:flex;align-items:center;gap:7px;padding:9px 15px;border-radius:9px;border:1px solid #e3d9c2;background:#fffdf7;color:#5a5648;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit" style-hover="background:#f4ecd4">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>Ekstre İndir
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px">
+          <div style="background:#1b2b45;border-radius:13px;padding:15px 17px;color:#c9d3e2">
+            <div style="font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#8496b3">Güncel Bakiye</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:600;color:{{ selBalHeadColor }};margin-top:5px">{{ selBalance }}</div>
+            <div style="font-size:11.5px;color:#9fb0cb;margin-top:4px">{{ selBalNote }}</div>
+          </div>
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:15px 17px">
+            <div style="font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#a89f88">Vadesi Geçmiş</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:600;color:{{ selOverdueColor }};margin-top:5px">{{ selOverdue }}</div>
+            <div style="font-size:11.5px;color:#a09a88;margin-top:4px">{{ selOverdueNote }}</div>
+          </div>
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:13px;padding:15px 17px">
+            <div style="font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#a89f88">Son Ödeme</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:600;color:#3f7d64;margin-top:5px">{{ selLastPay }}</div>
+            <div style="font-size:11.5px;color:#a09a88;margin-top:4px">{{ selLastPayDate }}</div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display:flex;gap:4px;margin-top:22px;border-bottom:1px solid #e7dfcd">
+          <button onClick="{{ onTabEkstre }}" style="{{ ekstreTabStyle }}">Hesap Hareketleri <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.7">{{ ekstreCount }}</span></button>
+          <button onClick="{{ onTabNotlar }}" style="{{ notlarTabStyle }}">Notlar <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.7">{{ notlarCount }}</span></button>
+          <button onClick="{{ onTabBilgi }}" style="{{ bilgiTabStyle }}">Firma Bilgileri</button>
+        </div>
+
+        <!-- EKSTRE -->
+        <sc-if value="{{ showEkstre }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-top:18px;background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:78px 1fr 92px 108px 108px 122px;gap:12px;padding:13px 18px 11px;border-bottom:2px solid #1b2b45;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#8a8574;font-weight:700">
+            <span>Tarih</span><span>Açıklama</span><span>Belge</span><span style="text-align:right">Borç</span><span style="text-align:right">Alacak</span><span style="text-align:right">Bakiye</span>
+          </div>
+          <sc-for list="{{ ekstre }}" as="e" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:78px 1fr 92px 108px 108px 122px;gap:12px;align-items:center;padding:{{ e.pad }};border-bottom:1px solid #efe7d5;background:{{ e.rowBg }}">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#8a8574">{{ e.date }}</span>
+              <span style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                <span style="font-size:13px;color:#3a3730;font-weight:{{ e.descWeight }}">{{ e.desc }}</span>
+                <sc-if value="{{ e.overdue }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#c67a2e;width:fit-content"><span style="width:5px;height:5px;border-radius:50%;background:#c67a2e"></span>Vadesi geçmiş</span></sc-if>
+              </span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#b3ac9a">{{ e.doc }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;text-align:right;color:#3f7d64">{{ e.borc }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;text-align:right;color:#b5533a">{{ e.alacak }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;text-align:right;font-weight:600;color:{{ e.balColor }}">{{ e.balance }}</span>
+            </div>
+          </sc-for>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#1b2b45">
+            <span style="font-size:12.5px;color:#c9d3e2">Güncel Bakiye · {{ selName }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:700;color:{{ selBalHeadColor }}">{{ selBalance }}</span>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- NOTLAR -->
+        <sc-if value="{{ showNotlar }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:18px;background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:18px 20px">
+          <div style="display:flex;gap:11px;align-items:flex-start">
+            <textarea value="{{ noteDraft }}" onChange="{{ onDraft }}" placeholder="Bu cari hakkında görüşme notu ekle… (örn. ödeme sözü, mutabakat, itiraz)" rows="2" style="flex:1;resize:vertical;min-height:44px;border:1px solid #e3d9c2;border-radius:10px;padding:10px 12px;font-size:13px;color:#232733;outline:none;background:#fffefa;line-height:1.5" style-focus="border-color:#bd9a45"></textarea>
+            <button onClick="{{ onAddNote }}" style="{{ addNoteStyle }}">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>Not Ekle
+            </button>
+          </div>
+
+          <sc-if value="{{ notesEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;padding:34px 20px;color:#b3ac9a">
+              <svg width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24" style="margin-bottom:8px"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></svg>
+              <div style="font-size:13px">Henüz not yok. Görüşme sonrası buraya ekleyin.</div>
+            </div>
+          </sc-if>
+
+          <div style="margin-top:14px;display:flex;flex-direction:column">
+            <sc-for list="{{ notes }}" as="n" hint-placeholder-count="0">
+              <div style="display:flex;gap:13px;padding:14px 2px;border-top:1px solid #efe7d5">
+                <button onClick="{{ n.onToggle }}" title="Yapıldı olarak işaretle" style="{{ n.checkStyle }}">
+                  <sc-if value="{{ n.done }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" fill="none" stroke="#fffdf7" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg></sc-if>
+                </button>
+                <div style="flex:1;min-width:0">
+                  <sc-if value="{{ n.editing }}" hint-placeholder-val="{{ false }}">
+                    <textarea value="{{ n.editText }}" onChange="{{ n.onEditChange }}" rows="2" style="width:100%;resize:vertical;border:1px solid #bd9a45;border-radius:9px;padding:9px 11px;font-size:13px;color:#232733;outline:none;background:#fffefa;line-height:1.5"></textarea>
+                    <div style="display:flex;gap:8px;margin-top:8px">
+                      <button onClick="{{ n.onSave }}" style="padding:6px 14px;border-radius:8px;border:none;background:#1b2b45;color:#f4ecd4;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Kaydet</button>
+                      <button onClick="{{ n.onCancel }}" style="padding:6px 14px;border-radius:8px;border:1px solid #e3d9c2;background:#fffdf7;color:#8a8574;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit">İptal</button>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ n.viewing }}" hint-placeholder-val="{{ true }}">
+                    <div style="{{ n.textStyle }}">{{ n.text }}</div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11px;color:#a89f88">
+                      <span style="font-weight:600;color:#6d6446">{{ n.author }}</span><span>·</span><span style="font-family:'IBM Plex Mono',monospace">{{ n.date }}</span>
+                      <sc-if value="{{ n.done }}" hint-placeholder-val="{{ false }}"><span style="color:#3f7d64;font-weight:600;display:flex;align-items:center;gap:3px">· Yapıldı</span></sc-if>
+                    </div>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ n.viewing }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:4px;flex:none;align-items:flex-start">
+                  <button onClick="{{ n.onEdit }}" title="Düzenle" style="width:30px;height:30px;border-radius:8px;border:1px solid #e3d9c2;background:#fffdf7;color:#8a8574;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="color:#2c4269;border-color:#c9d3e2">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+                  </button>
+                  <button onClick="{{ n.onDelete }}" title="Sil" style="width:30px;height:30px;border-radius:8px;border:1px solid #e3d9c2;background:#fffdf7;color:#8a8574;display:flex;align-items:center;justify-content:center;cursor:pointer" style-hover="color:#b5533a;border-color:#e6c4b8">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                  </button>
+                </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- FIRMA BİLGİLERİ -->
+        <sc-if value="{{ showBilgi }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:20px 22px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#2c4269;font-weight:700;margin-bottom:16px">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>İletişim Bilgileri
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;gap:12px">
+                <svg width="17" height="17" fill="none" stroke="#a89f88" stroke-width="1.6" viewBox="0 0 24 24" style="flex:none"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+                <div style="min-width:0"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#a89f88">Yetkili Kişi</div><div style="font-size:14px;color:#232733;font-weight:500;margin-top:2px">{{ selPerson }}</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <svg width="17" height="17" fill="none" stroke="#a89f88" stroke-width="1.6" viewBox="0 0 24 24" style="flex:none"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>
+                <div style="min-width:0"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#a89f88">Telefon</div><div style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#232733;margin-top:2px">{{ selPhone }}</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <svg width="17" height="17" fill="none" stroke="#a89f88" stroke-width="1.6" viewBox="0 0 24 24" style="flex:none"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>
+                <div style="min-width:0"><div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#a89f88">E-posta</div><div style="font-size:14px;color:#232733;margin-top:2px;overflow-wrap:anywhere">{{ selEmail }}</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:#fffdf7;border:1px solid #e9e0cd;border-radius:14px;padding:20px 22px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6f22;font-weight:700;margin-bottom:16px">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg>Banka & IBAN
+            </div>
+            <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#a89f88">Banka</div>
+            <div style="font-size:14px;color:#232733;font-weight:500;margin-top:2px">{{ selBank }}</div>
+            <div style="font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#a89f88;margin-top:15px">IBAN</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:5px">
+              <div style="flex:1;min-width:0;font-family:'IBM Plex Mono',monospace;font-size:15px;color:#3a3730;letter-spacing:.4px;word-spacing:2px">{{ selIban }}</div>
+              <button onClick="{{ onCopyIban }}" title="IBAN kopyala" style="flex:none;display:flex;align-items:center;gap:5px;padding:8px 12px;border-radius:9px;border:1px solid #e3d9c2;background:#fffdf7;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;color:#5a5648" style-hover="background:#f4ecd4">
+                <sc-if value="{{ ibanCopied }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" fill="none" stroke="#3f7d64" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg><span style="color:#3f7d64">Kopyalandı</span></sc-if>
+                <sc-if value="{{ ibanNotCopied }}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m11.25 5.5H16.5a1.125 1.125 0 01-1.125-1.125v-3.5m-3.75 0V7.5A1.125 1.125 0 0113.5 6.375h3.75a1.125 1.125 0 011.125 1.125v.375"/></svg>Kopyala</sc-if>
+              </button>
+            </div>
+          </div>
+
+        </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:840},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Görünüm&quot;},&quot;zebra&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Görünüm&quot;}}">
+class Component extends DCLogic {
+  state = {
+    selectedId: 's1',
+    query: '',
+    filter: 'all',
+    tab: 'ekstre',
+    copied: false,
+    draft: '',
+    editId: null,
+    editText: '',
+    notes: {
+      s1: [
+        { id: 's1a', text: 'Vadesi geçen 30.200€ için Ahmet Bey ile telefonda görüşüldü; 12 Temmuz\u2019a kadar iki taksitte ödeme sözü alındı.', author: 'Mert', date: '27 Haz · 11:20', done: false },
+        { id: 's1b', text: 'İade faturası #İ-118 mutabakatı yapıldı, tutar bir sonraki alımdan mahsup edilecek.', author: 'Mert', date: '21 Haz · 16:10', done: true },
+        { id: 's1c', text: 'Yeni sezon fiyat listesi geldi, kuru gıdada ortalama %8 zam var.', author: 'Elif', date: '20 Haz · 09:45', done: false },
+      ],
+      s2: [
+        { id: 's2a', text: 'Yeni hijyen ürün grubu için numune talep edildi, hafta içi gelecek.', author: 'Deniz', date: '25 Haz · 14:30', done: false },
+      ],
+      s5: [
+        { id: 's5a', text: 'Vadesi geçen 4.200€ hatırlatıldı, cuma günü havale yapılacak.', author: 'Mert', date: '30 Haz · 10:05', done: false },
+      ],
+    },
+  };
+
+  suppliersRaw = [
+    { id: 's1', name: 'Anadolu Gıda Toptan', cat: 'Gıda & İçecek', person: 'Ahmet Yılmaz', phone: '0212 555 41 20', email: 'muhasebe@anadolugida.com', bank: 'Garanti BBVA', iban: 'TR33 0006 2000 1234 0006 2971 45', tx: [
+      { date: '2026-05-28', desc: 'Açılış Devri', doc: '—', devir: 8500 },
+      { date: '2026-06-02', desc: 'Alım Faturası · Gıda', doc: 'A-4471', alacak: 14200 },
+      { date: '2026-06-09', desc: 'Havale Ödeme · Garanti', doc: 'HV-3391', borc: 8500 },
+      { date: '2026-06-14', desc: 'Alım Faturası · Kuru gıda', doc: 'A-4520', alacak: 18600, overdue: true },
+      { date: '2026-06-21', desc: 'İade Faturası', doc: 'İ-118', borc: 2100 },
+      { date: '2026-06-27', desc: 'Alım Faturası · Et & tavuk', doc: 'A-4588', alacak: 11600, overdue: true },
+    ] },
+    { id: 's2', name: 'Ege Temizlik & Hijyen', cat: 'Temizlik & Sarf', person: 'Selin Kaya', phone: '0232 444 18 60', email: 'info@egetemizlik.com', bank: 'Türkiye İş Bankası', iban: 'TR12 0006 4000 0011 2345 6789 01', tx: [
+      { date: '2026-05-30', desc: 'Açılış Devri', doc: '—', devir: 3200 },
+      { date: '2026-06-05', desc: 'Alım Faturası · Deterjan', doc: 'B-201', alacak: 6400 },
+      { date: '2026-06-12', desc: 'Havale Ödeme', doc: 'HV-3402', borc: 3200 },
+      { date: '2026-06-20', desc: 'Alım Faturası · Hijyen sarf', doc: 'B-233', alacak: 9400, overdue: true },
+      { date: '2026-06-25', desc: 'Havale Ödeme', doc: 'HV-3450', borc: 3200 },
+    ] },
+    { id: 's3', name: 'Marmara Enerji A.Ş.', cat: 'Enerji', person: 'Kurumsal Tahsilat', phone: '0850 222 00 34', email: 'fatura@marmaraenerji.com', bank: 'Yapı Kredi', iban: 'TR47 0006 7010 0000 0055 4433 22', tx: [
+      { date: '2026-05-31', desc: 'Açılış Devri', doc: '—', devir: 0 },
+      { date: '2026-06-01', desc: 'Elektrik Faturası', doc: 'E-6/26', alacak: 12400 },
+      { date: '2026-06-15', desc: 'Otomatik Ödeme', doc: 'OTO-6', borc: 12400 },
+      { date: '2026-06-30', desc: 'Doğalgaz Faturası', doc: 'G-6/26', alacak: 18600 },
+    ] },
+    { id: 's4', name: 'Beyaz Çamaşırhane Hizm.', cat: 'Çamaşırhane', person: 'Murat Demir', phone: '0216 333 27 15', email: 'operasyon@beyazcamasir.com', bank: 'Akbank', iban: 'TR88 0004 6000 8888 0001 2233 44', tx: [
+      { date: '2026-05-29', desc: 'Açılış Devri', doc: '—', devir: 1400 },
+      { date: '2026-06-07', desc: 'Hizmet Faturası', doc: 'C-88', alacak: 3900 },
+      { date: '2026-06-16', desc: 'Havale Ödeme', doc: 'HV-3410', borc: 1400 },
+      { date: '2026-06-23', desc: 'Hizmet Faturası', doc: 'C-95', alacak: 3900 },
+    ] },
+    { id: 's5', name: 'Deniz İçecek Dağıtım', cat: 'İçecek', person: 'Burak Şahin', phone: '0212 666 90 45', email: 'siparis@denizicecek.com', bank: 'Ziraat Bankası', iban: 'TR29 0001 0000 0099 8877 6655 44', tx: [
+      { date: '2026-06-04', desc: 'Alım Faturası · Meşrubat', doc: 'D-12', alacak: 5200 },
+      { date: '2026-06-11', desc: 'Havale Ödeme', doc: 'HV-3405', borc: 5200 },
+      { date: '2026-06-19', desc: 'Alım Faturası · Su & maden', doc: 'D-27', alacak: 5200 },
+      { date: '2026-06-26', desc: 'Alım Faturası · İçecek', doc: 'D-33', alacak: 4200, overdue: true },
+    ] },
+    { id: 's6', name: 'Teknik Servis & Bakım', cat: 'Teknik & Bakım', person: 'Hakan Öz', phone: '0216 777 12 08', email: 'servis@teknikbakim.com', bank: 'QNB', iban: 'TR64 0011 1000 0000 0033 2211 00', tx: [
+      { date: '2026-06-10', desc: 'Bakım Faturası · Klima', doc: 'T-5', alacak: 2600 },
+      { date: '2026-06-18', desc: 'Nakit Ödeme', doc: 'NK-77', borc: 2600 },
+      { date: '2026-06-24', desc: 'Arıza Onarım · Kazan', doc: 'T-9', alacak: 5200 },
+    ] },
+    { id: 's7', name: 'Yıldız Tekstil', cat: 'Tekstil', person: 'Ayşe Tan', phone: '0212 888 34 90', email: 'satis@yildiztekstil.com', bank: 'Denizbank', iban: 'TR55 0013 4000 0012 3456 7890 12', tx: [
+      { date: '2026-06-08', desc: 'Alım Faturası · Nevresim', doc: 'Y-3', alacak: 6800 },
+      { date: '2026-06-22', desc: 'Havale Ödeme', doc: 'HV-3448', borc: 6800 },
+    ] },
+  ];
+
+  MS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  fmt(n) { return '€' + new Intl.NumberFormat('tr-TR').format(Math.round(n)); }
+  fmtDate(iso) { const p = iso.split('-'); return parseInt(p[2], 10) + ' ' + this.MS[parseInt(p[1], 10) - 1]; }
+
+  compute(s) {
+    let bal = 0, overdue = 0, lastPay = null, lastDate = s.tx.length ? s.tx[s.tx.length - 1].date : null;
+    const rows = s.tx.map(t => {
+      if (t.devir != null) bal = t.devir;
+      else bal += (t.alacak || 0) - (t.borc || 0);
+      if (t.overdue) overdue += (t.alacak || 0);
+      if (t.borc) lastPay = t;
+      return { t, bal };
+    });
+    return { rows, balance: bal, overdue, lastPay, lastDate };
+  }
+
+  now() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return d.getDate() + ' ' + this.MS[d.getMonth()] + ' · ' + hh + ':' + mm;
+  }
+
+  renderVals() {
+    const st = this.state;
+    const density = this.props.density || 'comfortable';
+    const zebra = this.props.zebra != null ? this.props.zebra : true;
+    const pad = density === 'compact' ? '8px 18px' : '12px 18px';
+
+    // ── left list ──
+    const q = st.query.trim().toLocaleLowerCase('tr');
+    const computed = {};
+    for (const s of this.suppliersRaw) computed[s.id] = this.compute(s);
+
+    let totalDebt = 0, totalOverdue = 0;
+    for (const s of this.suppliersRaw) { totalDebt += computed[s.id].balance; totalOverdue += computed[s.id].overdue; }
+
+    const filterDefs = [['all', 'Tümü'], ['overdue', 'Vadesi Geçmiş'], ['balance', 'Bakiyeli']];
+    const filters = filterDefs.map(([id, label]) => {
+      const active = st.filter === id;
+      return { label, onClick: () => this.setState({ filter: id }),
+        style: 'padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s;border:1px solid '
+          + (active ? '#1b2b45;background:#1b2b45;color:#f4ecd4;font-weight:600' : '#e3d9c2;background:#fffdf7;color:#6d6446;font-weight:500') };
+    });
+
+    const suppliers = this.suppliersRaw.filter(s => {
+      if (q && !s.name.toLocaleLowerCase('tr').includes(q) && !s.cat.toLocaleLowerCase('tr').includes(q)) return false;
+      const c = computed[s.id];
+      if (st.filter === 'overdue') return c.overdue > 0;
+      if (st.filter === 'balance') return c.balance > 0;
+      return true;
+    }).map(s => {
+      const c = computed[s.id];
+      const active = s.id === st.selectedId;
+      const accent = c.overdue > 0 ? '#c67a2e' : (c.balance > 0 ? '#c9bd9c' : '#8fbfa0');
+      const meta = c.overdue > 0
+        ? { metaText: 'Vadesi geçmiş ' + this.fmt(c.overdue), metaStyle: 'font-size:11px;color:#c67a2e;font-weight:600;white-space:nowrap' }
+        : (c.balance === 0
+          ? { metaText: 'Güncel · borç yok', metaStyle: 'font-size:11px;color:#3f7d64;font-weight:500;white-space:nowrap' }
+          : { metaText: 'Son işlem ' + this.fmtDate(c.lastDate), metaStyle: 'font-size:11px;color:#a09a88;white-space:nowrap' });
+      return {
+        name: s.name, category: s.cat, accent,
+        balance: this.fmt(c.balance),
+        balanceColor: c.balance > 0 ? '#b5533a' : '#3f7d64',
+        metaText: meta.metaText, metaStyle: meta.metaStyle,
+        onSelect: () => this.setState({ selectedId: s.id, tab: 'ekstre', draft: '', editId: null, copied: false }),
+        rowStyle: 'width:100%;display:flex;gap:11px;text-align:left;padding:12px 12px;margin-bottom:3px;border-radius:11px;cursor:pointer;font-family:inherit;transition:background .12s;border:1px solid '
+          + (active ? '#dccfae;background:#fffdf7;box-shadow:0 2px 10px -6px rgba(0,0,0,.25)' : 'transparent;background:transparent'),
+      };
+    });
+
+    // ── selected detail ──
+    const sel = this.suppliersRaw.find(s => s.id === st.selectedId) || this.suppliersRaw[0];
+    const c = computed[sel.id];
+    const ekstre = c.rows.map((r, i) => {
+      const t = r.t;
+      const isDevir = t.devir != null;
+      let rowBg = 'transparent';
+      if (t.overdue) rowBg = '#fbf1ea';
+      else if (zebra && i % 2 === 1) rowBg = '#faf6ec';
+      return {
+        date: this.fmtDate(t.date), desc: t.desc, doc: t.doc,
+        descWeight: isDevir ? '600' : '500',
+        borc: t.borc ? this.fmt(t.borc) : '', alacak: t.alacak ? this.fmt(t.alacak) : '',
+        balance: this.fmt(r.bal), balColor: r.bal > 0 ? '#b5533a' : '#3f7d64',
+        overdue: !!t.overdue, rowBg, pad,
+      };
+    });
+
+    const noteList = st.notes[sel.id] || [];
+    const notes = noteList.map(n => {
+      const editing = st.editId === n.id;
+      return {
+        text: n.text, author: n.author, date: n.date, done: n.done,
+        editing, viewing: !editing, editText: editing ? st.editText : n.text,
+        textStyle: 'font-size:13px;line-height:1.55;color:' + (n.done ? '#a89f88' : '#3a3730') + (n.done ? ';text-decoration:line-through' : ''),
+        checkStyle: 'flex:none;width:22px;height:22px;margin-top:1px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;border:1.5px solid '
+          + (n.done ? '#3f7d64;background:#3f7d64' : '#c9bd9c;background:#fffdf7'),
+        onToggle: () => this.setState(s => ({ notes: { ...s.notes, [sel.id]: s.notes[sel.id].map(x => x.id === n.id ? { ...x, done: !x.done } : x) } })),
+        onEdit: () => this.setState({ editId: n.id, editText: n.text }),
+        onEditChange: (e) => { const v = e.target.value; this.setState({ editText: v }); },
+        onSave: () => this.setState(s => ({ editId: null, notes: { ...s.notes, [sel.id]: s.notes[sel.id].map(x => x.id === n.id ? { ...x, text: (s.editText || '').trim() || x.text } : x) } })),
+        onCancel: () => this.setState({ editId: null, editText: '' }),
+        onDelete: () => this.setState(s => ({ notes: { ...s.notes, [sel.id]: s.notes[sel.id].filter(x => x.id !== n.id) } })),
+      };
+    });
+
+    const addNote = () => {
+      const txt = (this.state.draft || '').trim();
+      if (!txt) return;
+      const id = 'n' + Date.now();
+      const note = { id, text: txt, author: 'Mert', date: this.now(), done: false };
+      this.setState(s => ({ draft: '', notes: { ...s.notes, [sel.id]: [note, ...(s.notes[sel.id] || [])] } }));
+    };
+    const draftReady = (st.draft || '').trim().length > 0;
+
+    const showEkstre = st.tab === 'ekstre';
+    const showNotlar = st.tab === 'notlar';
+    const showBilgi = st.tab === 'bilgi';
+    const tabBase = 'display:flex;align-items:center;gap:7px;padding:11px 16px;background:none;border:none;cursor:pointer;font-family:inherit;font-size:13.5px;margin-bottom:-1px;border-bottom:2px solid ';
+    const lastPayNote = c.lastPay ? this.fmtDate(c.lastPay.date) + ' · ' + c.lastPay.doc : 'kayıt yok';
+
+    return {
+      listCount: this.suppliersRaw.length,
+      totalDebt: this.fmt(totalDebt),
+      totalOverdue: this.fmt(totalOverdue),
+      query: st.query,
+      onQuery: (e) => { const v = e.target.value; this.setState({ query: v }); },
+      filters, suppliers,
+
+      selName: sel.name, selCategory: sel.cat, selPerson: sel.person, selPhone: sel.phone, selEmail: sel.email,
+      selCode: 'CH-' + sel.id.slice(1).padStart(3, '0'),
+      selBank: sel.bank, selIban: sel.iban,
+      ibanCopied: st.copied, ibanNotCopied: !st.copied,
+      onCopyIban: () => {
+        try { if (navigator.clipboard) navigator.clipboard.writeText(sel.iban.replace(/\s/g, '')); } catch (e) {}
+        this.setState({ copied: true });
+        clearTimeout(this._ct);
+        this._ct = setTimeout(() => this.setState({ copied: false }), 1600);
+      },
+      selBalance: this.fmt(c.balance),
+      selBalHeadColor: c.balance > 0 ? '#f0a58f' : '#8fd0a8',
+      selBalNote: c.balance > 0 ? 'ödenecek tutar' : 'hesap güncel',
+      selOverdue: this.fmt(c.overdue),
+      selOverdueColor: c.overdue > 0 ? '#c67a2e' : '#3f7d64',
+      selOverdueNote: c.overdue > 0 ? 'acil takip gerekli' : 'gecikme yok',
+      selLastPay: c.lastPay ? this.fmt(c.lastPay.borc) : '—',
+      selLastPayDate: lastPayNote,
+
+      ekstre,
+      onTabEkstre: () => this.setState({ tab: 'ekstre' }),
+      onTabNotlar: () => this.setState({ tab: 'notlar' }),
+      onTabBilgi: () => this.setState({ tab: 'bilgi' }),
+      ekstreCount: c.rows.length,
+      notlarCount: noteList.length,
+      ekstreTabStyle: tabBase + (showEkstre ? '#bd9a45;color:#232733;font-weight:600' : 'transparent;color:#a09a88;font-weight:500'),
+      notlarTabStyle: tabBase + (showNotlar ? '#bd9a45;color:#232733;font-weight:600' : 'transparent;color:#a09a88;font-weight:500'),
+      bilgiTabStyle: tabBase + (showBilgi ? '#bd9a45;color:#232733;font-weight:600' : 'transparent;color:#a09a88;font-weight:500'),
+      showEkstre, showNotlar, showBilgi,
+
+      notes, notesEmpty: noteList.length === 0,
+      noteDraft: st.draft,
+      onDraft: (e) => { const v = e.target.value; this.setState({ draft: v }); },
+      onAddNote: addNote,
+      addNoteStyle: 'flex:none;display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:10px;border:none;font-size:13px;font-weight:600;font-family:inherit;transition:all .15s;'
+        + (draftReady ? 'background:#1b2b45;color:#f4ecd4;cursor:pointer' : 'background:#e7dfcd;color:#b3ac9a;cursor:not-allowed'),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceae5;font-family:'IBM Plex Sans',system-ui,sans-serif}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d8cdb4;border-radius:8px}
+</style>
+</helmet>
+
+<div style="display:flex;justify-content:center;padding:40px 20px 60px">
+  <div style="width:840px;max-width:100%;background:#fffdf7;border:1px solid #e9e0cd;border-radius:18px;box-shadow:0 14px 44px -16px rgba(0,0,0,.28);padding:24px 26px;color:#232733">
+
+    <!-- HEADER -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:'Spectral',serif;font-size:19px;font-weight:600;line-height:1">Nakit Akım</div>
+        <div style="font-size:12px;color:#a09a88;margin-top:3px">Hesap hareketleri · EUR · grup başlığına tıklayarak detayı açın</div>
+      </div>
+      <div style="display:inline-flex;gap:2px;background:#f0e9d8;border-radius:11px;padding:3px">
+        <button onClick="{{ onDaily }}" style="{{ tabDaily }}">Günlük</button>
+        <button onClick="{{ onWeekly }}" style="{{ tabWeekly }}">Haftalık</button>
+        <button onClick="{{ onMonthly }}" style="{{ tabMonthly }}">Aylık</button>
+        <button onClick="{{ onYearly }}" style="{{ tabYearly }}">Yıllık</button>
+      </div>
+    </div>
+
+    <!-- DATE NAVIGATOR -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px">
+      <button onClick="{{ onPrev }}" aria-label="Önceki dönem" style="{{ prevStyle }}">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+      </button>
+      <div style="text-align:center;min-width:220px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:#232733">{{ periodLabel }}</div>
+        <div style="font-size:9.5px;letter-spacing:1.6px;color:#a09a88;margin-top:1px">{{ periodType }}</div>
+      </div>
+      <button onClick="{{ onNext }}" aria-label="Sonraki dönem" style="{{ nextStyle }}">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+      </button>
+    </div>
+
+    <!-- T-ACCOUNT BODY -->
+    <div style="border-top:2px solid #1b2b45;margin-top:16px;display:grid;grid-template-columns:1fr 1fr">
+
+      <!-- ===== GİRİŞ ===== -->
+      <div style="padding:10px 16px 8px 2px">
+        <button onClick="{{ onToggleDateIn }}" title="{{ dateInTitle }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 2px;border:none;background:none;cursor:pointer;font-family:inherit;text-align:left">
+          <span style="display:flex;align-items:center;gap:9px;font-size:17px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#3f6b52"><span style="width:14px;height:14px;border-radius:4px;background:#3f8f68"></span>Nakit Giriş<svg width="15" height="15" fill="none" stroke="{{ dateInIcon }}" stroke-width="1.8" viewBox="0 0 24 24" style="margin-left:1px;flex:none"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 8.25h16.5M3.75 18.75V7.5a1.5 1.5 0 011.5-1.5h13.5a1.5 1.5 0 011.5 1.5v11.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5z"/></svg></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:#3f8f68">{{ girisTotal }}</span>
+        </button>
+        <sc-if value="{{ showGirisToggle }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:3px;background:#f0e9d8;border-radius:10px;padding:3px;margin:4px 4px 9px">
+            <button onClick="{{ onGerIn }}" style="{{ segGerIn }}"><span style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#3f8f68">✓ Gerçekleşen</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:#3f8f68">{{ girisRealized }}</span></button>
+            <button onClick="{{ onBekIn }}" style="{{ segBekIn }}"><span style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#8a8574">Bekleyen</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:#232733">{{ girisPending }}</span></button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ girisEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:10px 8px;font-size:12px;color:#a09a88">{{ girisEmptyText }}</div>
+        </sc-if>
+        <sc-if value="{{ girisCatView }}" hint-placeholder-val="{{ true }}"><div>
+        <sc-for list="{{ girisGroups }}" as="g" hint-placeholder-count="4">
+          <div>
+            <button onClick="{{ g.onToggle }}" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 6px;border:none;border-top:1px solid #efe7d5;background:none;cursor:pointer;font-family:inherit;text-align:left" style-hover="background:#f7f3ea">
+              <span style="width:11px;font-size:10px;color:#a09a88;flex:none">{{ g.caret }}</span>
+              <span style="font-size:13px;font-weight:600;color:#232733;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ g.label }}</span>
+              <sc-if value="{{ g.isFinansman }}" hint-placeholder-val="{{ false }}"><span style="font-size:8.5px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:#4a6a8c;background:#e9eef4;border:1px solid #d7e0ec;border-radius:4px;padding:1px 5px;flex:none">Finansman</span></sc-if>
+              <span style="font-size:10.5px;color:#a09a88;flex:none">{{ g.countLabel }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#3f7d64;flex:none">{{ g.totalLabel }}</span>
+            </button>
+            <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+              <div style="padding-bottom:4px">
+                <sc-for list="{{ g.days }}" as="d" hint-placeholder-count="1">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 2px 24px;border-top:1px solid #f4eee0"><span style="font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#a09a88">{{ d.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#a09a88">{{ d.totalLabel }}</span></div>
+                  <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="1">
+                    <div style="display:flex;align-items:center;gap:8px;padding:3px 6px 3px 30px"><span style="font-size:12px;color:#5a5648;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.name }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#5a5648;flex:none">{{ it.amountLabel }}</span></div>
+                  </sc-for>
+                </sc-for>
+                <sc-if value="{{ g.hasMore }}" hint-placeholder-val="{{ false }}"><div style="padding:4px 6px 2px 24px;font-size:10.5px;color:#a09a88">{{ g.moreText }}</div></sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+        </div></sc-if>
+        <sc-if value="{{ girisDateView }}" hint-placeholder-val="{{ false }}"><div>
+          <sc-for list="{{ girisDateGroups }}" as="d" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 6px 5px;border-top:1px solid #efe7d5;background:#faf7ef"><span style="font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#8a6f22">{{ d.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#8a8574">{{ d.totalLabel }}</span></div>
+            <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 6px 7px 16px;border-top:1px solid #f4eee0"><div style="flex:1;min-width:0"><div style="font-size:12.5px;color:#3a3730;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.cat }}</div><div style="font-size:10px;color:#a09a88;margin-top:1px">{{ it.name }}</div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#5a5648;flex:none">{{ it.amountLabel }}</span></div>
+            </sc-for>
+          </sc-for>
+          <sc-if value="{{ girisDateMore }}" hint-placeholder-val="{{ false }}"><div style="padding:6px 6px 2px 16px;font-size:10.5px;color:#a09a88">{{ girisDateMoreText }}</div></sc-if>
+        </div></sc-if>
+      </div>
+
+      <!-- ===== ÇIKIŞ ===== -->
+      <div style="padding:10px 2px 8px 16px;border-left:2px solid #1b2b45">
+        <button onClick="{{ onToggleDateOut }}" title="{{ dateOutTitle }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 2px;border:none;background:none;cursor:pointer;font-family:inherit;text-align:left">
+          <span style="display:flex;align-items:center;gap:9px;font-size:17px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#8a6f22"><span style="width:14px;height:14px;border-radius:4px;background:#bd9a45"></span>Nakit Çıkış<svg width="15" height="15" fill="none" stroke="{{ dateOutIcon }}" stroke-width="1.8" viewBox="0 0 24 24" style="margin-left:1px;flex:none"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 8.25h16.5M3.75 18.75V7.5a1.5 1.5 0 011.5-1.5h13.5a1.5 1.5 0 011.5 1.5v11.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5z"/></svg></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;color:#8a6f22">{{ cikisTotal }}</span>
+        </button>
+        <sc-if value="{{ showCikisToggle }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;gap:3px;background:#f0e9d8;border-radius:10px;padding:3px;margin:4px 4px 9px">
+            <button onClick="{{ onGerOut }}" style="{{ segGerOut }}"><span style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#3f8f68">✓ Gerçekleşen</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:#3f8f68">{{ cikisRealized }}</span></button>
+            <button onClick="{{ onBekOut }}" style="{{ segBekOut }}"><span style="font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;color:#8a8574">Bekleyen</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:#232733">{{ cikisPending }}</span></button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ cikisEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:10px 8px;font-size:12px;color:#a09a88">{{ cikisEmptyText }}</div>
+        </sc-if>
+        <sc-if value="{{ cikisCatView }}" hint-placeholder-val="{{ true }}"><div>
+        <sc-for list="{{ cikisGroups }}" as="g" hint-placeholder-count="5">
+          <div>
+            <button onClick="{{ g.onToggle }}" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 6px;border:none;border-top:1px solid #efe7d5;background:none;cursor:pointer;font-family:inherit;text-align:left" style-hover="background:#f7f3ea">
+              <span style="width:11px;font-size:10px;color:#a09a88;flex:none">{{ g.caret }}</span>
+              <span style="font-size:13px;font-weight:600;color:#232733;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ g.label }}</span>
+              <sc-if value="{{ g.isFinansman }}" hint-placeholder-val="{{ false }}"><span style="font-size:8.5px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:#4a6a8c;background:#e9eef4;border:1px solid #d7e0ec;border-radius:4px;padding:1px 5px;flex:none">Finansman</span></sc-if>
+              <span style="font-size:10.5px;color:#a09a88;flex:none">{{ g.countLabel }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#8a6f22;flex:none">{{ g.totalLabel }}</span>
+            </button>
+            <sc-if value="{{ g.open }}" hint-placeholder-val="{{ false }}">
+              <div style="padding-bottom:4px">
+                <sc-for list="{{ g.days }}" as="d" hint-placeholder-count="1">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 2px 24px;border-top:1px solid #f4eee0"><span style="font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#a09a88">{{ d.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#a09a88">{{ d.totalLabel }}</span></div>
+                  <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="1">
+                    <div style="display:flex;align-items:center;gap:8px;padding:3px 6px 3px 30px"><span style="font-size:12px;color:#5a5648;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.name }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#5a5648;flex:none">{{ it.amountLabel }}</span></div>
+                  </sc-for>
+                </sc-for>
+                <sc-if value="{{ g.hasMore }}" hint-placeholder-val="{{ false }}"><div style="padding:4px 6px 2px 24px;font-size:10.5px;color:#a09a88">{{ g.moreText }}</div></sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+        </div></sc-if>
+        <sc-if value="{{ cikisDateView }}" hint-placeholder-val="{{ false }}"><div>
+          <sc-for list="{{ cikisDateGroups }}" as="d" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 6px 5px;border-top:1px solid #efe7d5;background:#faf7ef"><span style="font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#8a6f22">{{ d.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#8a8574">{{ d.totalLabel }}</span></div>
+            <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 6px 7px 16px;border-top:1px solid #f4eee0"><div style="flex:1;min-width:0"><div style="font-size:12.5px;color:#3a3730;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.cat }}</div><div style="font-size:10px;color:#a09a88;margin-top:1px">{{ it.name }}</div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:#5a5648;flex:none">{{ it.amountLabel }}</span></div>
+            </sc-for>
+          </sc-for>
+          <sc-if value="{{ cikisDateMore }}" hint-placeholder-val="{{ false }}"><div style="padding:6px 6px 2px 16px;font-size:10.5px;color:#a09a88">{{ cikisDateMoreText }}</div></sc-if>
+        </div></sc-if>
+      </div>
+    </div>
+
+    <!-- NET BAND -->
+    <div style="margin-top:14px;background:#1b2b45;border-radius:13px;padding:13px 18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <span style="font-size:13px;color:#c9d3e2">Net Nakit Akım · <span style="color:#8496b3">{{ periodLabel }}</span></span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;color:{{ netColor }}">{{ netSign }}{{ netAmount }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:9px;padding-top:9px;border-top:1px solid #2c3d58;font-size:11px">
+        <span style="display:flex;align-items:center;gap:6px;color:#9fb0cb"><span style="width:8px;height:8px;border-radius:2px;background:#6aa583"></span>Faaliyet neti <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:{{ faaliyetColor }}">{{ faaliyetNet }}</span></span>
+        <span style="display:flex;align-items:center;gap:6px;color:#9fb0cb"><span style="width:8px;height:8px;border-radius:2px;background:#5b7fa6"></span>Finansman neti <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:{{ finansmanColor }}">{{ finansmanNet }}</span></span>
+        <span style="margin-left:auto;color:#6d7c92;font-size:10px">gerçek finance_events · TCMB EUR kuru</span>
+      </div>
+    </div>
+
+    <!-- NAKİT KORUMA FOOTER -->
+    <div style="margin-top:12px;display:flex;align-items:center;gap:13px;background:#fbf7ee;border:1px solid #e9e0cd;border-radius:12px;padding:12px 16px">
+      <div style="width:34px;height:34px;border-radius:9px;background:#1b2b45;color:#e8c979;display:flex;align-items:center;justify-content:center;flex:none">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:600;color:#232733">Nakit Koruma · Ödeme Erteleme</div>
+        <div style="font-size:11.5px;color:#8a8574;margin-top:1px">En düşük bakiye <span style="font-family:'IBM Plex Mono',monospace;color:#8a6f22;font-weight:600">15 Tem · €2.18M</span> · ay sonuna kadar yeterli</div>
+      </div>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:#3f8f68;flex:none">Yeterli ✓</span>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:900,&quot;height&quot;:900},&quot;eurTry&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:41,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Senaryo&quot;}}">
+class Component extends DCLogic {
+  state = { period:'monthly', offsets:{daily:0,weekly:0,monthly:0,yearly:0}, open:{}, sideView:{in:'bekleyen',out:'bekleyen'}, dateView:{in:false,out:false} };
+
+  MONTHS = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  MONTHS_SHORT = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+  WEEKDAYS = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+  PERIOD_TYPE = { daily:'GÜNLÜK', weekly:'HAFTALIK', monthly:'AYLIK', yearly:'YILLIK' };
+  MAX_FUTURE = 12; MIN_PAST = -18;
+  OCC = [52,58,64,71,83,88,92,95,86,74,61,66];
+
+  get TODAY(){ return new Date(2026,6,6); }
+  get EURRATE(){ return this.props.eurTry ?? 41; }
+
+  toEur(n,cur){ return cur==='EUR' ? n : n/this.EURRATE; }
+  fmtEur(n){ return '€'+new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0}).format(Math.round(n)); }
+  fmtEurShort(n){ const a=Math.abs(n); if(a>=1e6) return '€'+(n/1e6).toFixed(2).replace('.',',')+'M'; return this.fmtEur(n); }
+  fmtNative(n,cur){ const s={TRY:'₺',EUR:'€',USD:'$',GBP:'£'}[cur]||(cur+' '); return s+new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0}).format(Math.round(n)); }
+
+  events(){
+    if(this._ev) return this._ev;
+    const ev=[]; const today=this.TODAY;
+    let s=987654321; const rnd=()=>{ s=(s*1664525+1013904223)&0x7fffffff; return s/0x7fffffff; };
+    const jit=(b,p)=>Math.round(b*(1+(rnd()*2-1)*(p==null?0.08:p)));
+    const push=(dir,label,section,name,m,d,native,cur,forceReal)=>{
+      const date='2026-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      const realized = forceReal!=null ? forceReal : (new Date(2026,m,d) < today);
+      ev.push({dir,label,section,name,date,native,cur,realized});
+    };
+    for(let m=0;m<12;m++){
+      const o=this.OCC[m];
+      // ---- GİRİŞ ----
+      const roomDays=[3,6,10,14,18,24], roomNames=['TUI grup ödemesi','Web rezervasyon','Coral Travel havale','Anex Tour','Pegas Touristik','Kapıda tahsilat'], rw=[0.30,0.12,0.22,0.16,0.14,0.06];
+      const roomTotal=o*2800;
+      roomDays.forEach((d,i)=>push('in','Konaklama Gelirleri','faaliyet',roomNames[i],m,d,jit(roomTotal*rw[i]),'EUR'));
+      push('in','Acente Tahsilatları','faaliyet','Acente cari kapama',m,9,jit(o*520),'EUR');
+      push('in','Acente Tahsilatları','faaliyet','TUI ara ödeme',m,21,jit(o*330),'EUR');
+      push('in','Alınan Avanslar','finansman',(m>=3&&m<=6)?'Ağustos grup avansı':'Kontenjan depozitosu',m,13,jit((m>=3&&m<=6)?42000:(m<3?12000:20000)),'EUR');
+      push('in','Alınan Kiralar','faaliyet','Lobi mağaza kirası',m,5,570000,'TRY');
+      // ---- ÇIKIŞ ----
+      push('out','Maaş','faaliyet','Aylık maaş ödemesi',m,15,jit(5371000,0.03),'TRY');
+      push('out','SGK','faaliyet','SGK primi',m,26,jit(820000,0.03),'TRY');
+      push('out','Cari Ödemeleri','faaliyet','Anadolu Gıda',m,7,jit(1150000),'TRY');
+      push('out','Cari Ödemeleri','faaliyet','Marmara Enerji',m,11,jit(19000),'EUR');
+      push('out','Cari Ödemeleri','faaliyet','Ege Temizlik',m,17,jit(430000),'TRY');
+      push('out','Cari Ödemeleri','faaliyet','Deniz İçecek',m,22,jit(11500),'EUR');
+      push('out','Cari Ödemeleri','faaliyet','Beyaz Çamaşır',m,27,jit(360000),'TRY');
+      push('out','Verilen Çekler','faaliyet','Anadolu Gıda çeki',m,10,jit(340000),'TRY');
+      push('out','Verilen Çekler','faaliyet','Yıldız Tekstil çeki',m,20,jit(275000),'TRY');
+      push('out','Kredi / Leasing Taksitleri','finansman','Ziraat yatırım taksiti',m,15,jit(410000,0.01),'TRY');
+      push('out','Kredi / Leasing Taksitleri','finansman','VakıfBank leasing',m,10,jit(210000,0.01),'TRY');
+      push('out','Kredi / Leasing Taksitleri','finansman','Denizbank EUR taksit',m,1,5300,'EUR');
+      push('out','KK Borç Ödemeleri','faaliyet','YK Kurumsal Kart ekstresi',m,18,jit(520000),'TRY');
+      // Tahmini kart rezervi — daima bekleyen (projeksiyon); vadesi geçmişse listeye girmez (aşağıda filtrelenir)
+      push('out','KK Borç Ödemeleri','faaliyet','YK Kurumsal Kart (Tahmini)',m,25,jit(380000),'TRY',false);
+      push('out','Vergiler','faaliyet','KDV beyanı',m,26,jit(760000),'TRY');
+      push('out','Vergiler','faaliyet','Muhtasar (Stopaj)',m,26,jit(265000),'TRY');
+      push('out','Düzenli Ödemeler','faaliyet','Elektrik',m,12,jit(o*6200),'TRY');
+      push('out','Düzenli Ödemeler','faaliyet','Doğalgaz',m,12,jit((m>=4&&m<=8)?150000:520000),'TRY');
+      push('out','Düzenli Ödemeler','faaliyet','İnternet & telefon',m,8,95000,'TRY');
+    }
+    this._ev=ev; return ev;
+  }
+
+  periodRange(period,offset){
+    const t=this.TODAY, y=t.getFullYear(), m=t.getMonth(), d=t.getDate();
+    if(period==='daily'){ const x=new Date(y,m,d+offset); return [x,x]; }
+    if(period==='weekly'){ const wd=(t.getDay()+6)%7; const mon=new Date(y,m,d-wd+offset*7); return [mon,new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6)]; }
+    if(period==='monthly'){ const tot=y*12+m+offset; const yy=Math.floor(tot/12), mm=tot%12; return [new Date(yy,mm,1),new Date(yy,mm+1,0)]; }
+    const yy=y+offset; return [new Date(yy,0,1),new Date(yy,11,31)];
+  }
+  periodLabel(period,start,end){
+    if(period==='daily') return this.WEEKDAYS[start.getDay()]+', '+start.getDate()+' '+this.MONTHS[start.getMonth()]+' '+start.getFullYear();
+    if(period==='weekly') return start.getDate()+' '+this.MONTHS_SHORT[start.getMonth()]+' – '+end.getDate()+' '+this.MONTHS_SHORT[end.getMonth()]+' '+end.getFullYear();
+    if(period==='monthly') return this.MONTHS[start.getMonth()]+' '+start.getFullYear();
+    return String(start.getFullYear());
+  }
+
+  buildSide(events,side){
+    const map=new Map();
+    for(const e of events){ if(e.dir!==side) continue;
+      let g=map.get(e.label);
+      if(!g){ g={label:e.label,section:e.section,items:[],totalEur:0,realizedEur:0,count:0,realizedCount:0}; map.set(e.label,g); }
+      const eur=this.toEur(e.native,e.cur);
+      g.items.push({name:e.name,date:e.date,eur,amountLabel:this.fmtNative(e.native,e.cur),realized:e.realized});
+      g.totalEur+=eur; g.count++;
+      if(e.realized){ g.realizedEur+=eur; g.realizedCount++; }
+    }
+    return [...map.values()];
+  }
+  dayBuckets(items){
+    const by=new Map(), out=[];
+    const sorted=items.slice().sort((a,b)=>a.date<b.date?-1:(a.date>b.date?1:0));
+    for(const it of sorted){ let c=by.get(it.date); if(!c){ const p=it.date.split('-').map(Number); c={date:it.date,label:p[2]+' '+this.MONTHS[p[1]-1],items:[],eur:0}; by.set(it.date,c); out.push(c);} c.items.push(it); c.eur+=it.eur; }
+    return out;
+  }
+
+  renderVals(){
+    const st=this.state, period=st.period, offset=st.offsets[period];
+    const [start,end]=this.periodRange(period,offset);
+    const today=this.TODAY;
+    const inWin=e=>{ const p=e.date.split('-').map(Number); const dt=new Date(p[0],p[1]-1,p[2]); return dt>=start&&dt<=end; };
+    // vadesi geçmiş ödenmemiş çıkış listeye girmez (Nakit Koruma'da takip edilir)
+    const overdue=e=>{ const p=e.date.split('-').map(Number); const dt=new Date(p[0],p[1]-1,p[2]); return e.dir==='out'&&!e.realized&&dt<today; };
+    const evs=this.events().filter(e=>inWin(e)&&!overdue(e));
+
+    const girisRaw=this.buildSide(evs,'in'), cikisRaw=this.buildSide(evs,'out');
+    const sum=(arr,f)=>arr.reduce((s,x)=>s+f(x),0);
+    const totalIn=sum(girisRaw,g=>g.totalEur), totalOut=sum(cikisRaw,g=>g.totalEur);
+    const realIn=sum(girisRaw,g=>g.realizedEur), realOut=sum(cikisRaw,g=>g.realizedEur);
+    const net=totalIn-totalOut;
+    const secNet=sec=> (sum(girisRaw.filter(g=>g.section===sec),g=>g.totalEur) - sum(cikisRaw.filter(g=>g.section===sec),g=>g.totalEur));
+    const faaliyet=secNet('faaliyet'), finansman=secNet('finansman');
+
+    const signed=n=>(n<0?'−':'+')+this.fmtEur(Math.abs(n));
+
+    // Bekleyen/Gerçekleşen — sütun içi segment seçimi; AYNI liste yerinde değişir (ayrı panel açılmaz)
+    const mkGroups=(raw,side,realized)=>raw.map(g=>{
+      const items=g.items.filter(it=>!!it.realized===realized);
+      const total=realized?g.realizedEur:(g.totalEur-g.realizedEur);
+      const count=realized?g.realizedCount:(g.count-g.realizedCount);
+      return {g,items,total,count};
+    }).filter(x=>x.count>0).sort((a,b)=>b.total-a.total).map(({g,items,total,count})=>{
+      const key=side+':'+(realized?'g':'b')+':'+g.label, open=!!st.open[key];
+      let days=this.dayBuckets(items); let hasMore=false, moreText='';
+      const shown=days.reduce((s,d)=>s+d.items.length,0);
+      if(days.length>8){ const extra=count-days.slice(0,8).reduce((s,d)=>s+d.items.length,0); days=days.slice(0,8); hasMore=true; moreText='+'+extra+' kalem daha (Nakit Akım sayfasında tümü)'; }
+      else if(count>shown){ hasMore=true; moreText='+'+(count-shown)+' kalem daha'; }
+      return {
+        label:g.label, isFinansman:g.section==='finansman',
+        countLabel:count+' işlem', totalLabel:this.fmtEur(total),
+        open, caret:open?'▾':'▸',
+        onToggle:()=>this.setState(s2=>({open:{...s2.open,[key]:!s2.open[key]}})),
+        days:days.map(d=>({label:d.label,totalLabel:this.fmtEur(d.eur),items:d.items.map(it=>({name:it.name,amountLabel:it.amountLabel}))})),
+        hasMore, moreText,
+      };
+    });
+    const inView=st.sideView.in, outView=st.sideView.out;
+    const girisGroups = mkGroups(girisRaw,'in',inView==='gerceklesen');
+    const cikisGroups = mkGroups(cikisRaw,'out',outView==='gerceklesen');
+    // Tarih görünümü — başlığa basınca tüm kalemler gün başlıkları altında kronolojik listelenir
+    const dateGroups=(raw,realized)=>{
+      const items=[];
+      for(const g of raw) for(const it of g.items) if(!!it.realized===realized) items.push({name:it.name,date:it.date,eur:it.eur,amountLabel:it.amountLabel,cat:g.label});
+      let days=this.dayBuckets(items); let hasMore=false, moreText='';
+      if(days.length>40){ hasMore=true; moreText='+'+(days.length-40)+' gün daha'; days=days.slice(0,40); }
+      return { days:days.map(d=>({label:d.label,totalLabel:this.fmtEur(d.eur),items:d.items.map(it=>({name:it.name,cat:it.cat,amountLabel:it.amountLabel}))})), hasMore, moreText };
+    };
+    const girisDV=dateGroups(girisRaw,inView==='gerceklesen'), cikisDV=dateGroups(cikisRaw,outView==='gerceklesen');
+
+    const tabBtn=(p)=>'padding:6px 14px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;'+(period===p?'background:#1b2b45;color:#f4ecd4;font-weight:600':'background:transparent;color:#6d6446;font-weight:500');
+    const navBtn=(disabled)=>'width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #e3d9c2;background:#fffdf7;font-family:inherit;'+(disabled?'color:#d3c9b2;cursor:default':'color:#5a5648;cursor:pointer');
+    const setP=p=>this.setState({period:p,open:{},sideView:{in:'bekleyen',out:'bekleyen'},dateView:{in:false,out:false}});
+    const nav=delta=>{ const cur=st.offsets[period]; if(delta>0&&cur>=this.MAX_FUTURE) return; if(delta<0&&cur<=this.MIN_PAST) return; this.setState(s2=>({offsets:{...s2.offsets,[period]:s2.offsets[period]+delta},open:{},sideView:{in:'bekleyen',out:'bekleyen'},dateView:{in:false,out:false}})); };
+    const segStyle=active=>'flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 11px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;'+(active?'background:#fffdf7;box-shadow:0 1px 3px rgba(0,0,0,.14)':'background:transparent');
+    const setView=(side,v)=>this.setState(s2=>({sideView:{...s2.sideView,[side]:v},open:{}}));
+    const toggleDate=side=>this.setState(s2=>({dateView:{...s2.dateView,[side]:!s2.dateView[side]},open:{}}));
+
+    return {
+      onDaily:()=>setP('daily'), onWeekly:()=>setP('weekly'), onMonthly:()=>setP('monthly'), onYearly:()=>setP('yearly'),
+      tabDaily:tabBtn('daily'), tabWeekly:tabBtn('weekly'), tabMonthly:tabBtn('monthly'), tabYearly:tabBtn('yearly'),
+      periodLabel:this.periodLabel(period,start,end), periodType:this.PERIOD_TYPE[period],
+      onPrev:()=>nav(-1), onNext:()=>nav(1),
+      prevStyle:navBtn(offset<=this.MIN_PAST), nextStyle:navBtn(offset>=this.MAX_FUTURE),
+
+      girisTotal:this.fmtEur(totalIn), cikisTotal:this.fmtEur(totalOut),
+      netSign:net>=0?'+':'−', netAmount:this.fmtEur(Math.abs(net)), netColor:net>=0?'#8fd0a8':'#f0a58f',
+      faaliyetNet:signed(faaliyet), faaliyetColor:faaliyet>=0?'#8fd0a8':'#f0a58f',
+      finansmanNet:signed(finansman), finansmanColor:finansman>=0?'#9ec3e6':'#f0a58f',
+
+      showGirisToggle:girisRaw.length>0, girisPending:this.fmtEur(totalIn-realIn), girisRealized:this.fmtEur(realIn),
+      onBekIn:()=>setView('in','bekleyen'), onGerIn:()=>setView('in','gerceklesen'),
+      segBekIn:segStyle(inView!=='gerceklesen'), segGerIn:segStyle(inView==='gerceklesen'),
+
+      showCikisToggle:cikisRaw.length>0, cikisPending:this.fmtEur(totalOut-realOut), cikisRealized:this.fmtEur(realOut),
+      onBekOut:()=>setView('out','bekleyen'), onGerOut:()=>setView('out','gerceklesen'),
+      segBekOut:segStyle(outView!=='gerceklesen'), segGerOut:segStyle(outView==='gerceklesen'),
+
+      girisGroups, cikisGroups,
+      girisEmpty:girisGroups.length===0, girisEmptyText: girisRaw.length===0?'Bu dönemde kayıt yok.':(inView==='gerceklesen'?'Gerçekleşen işlem yok.':'Bekleyen işlem yok.'),
+      cikisEmpty:cikisGroups.length===0, cikisEmptyText: cikisRaw.length===0?'Bu dönemde kayıt yok.':(outView==='gerceklesen'?'Gerçekleşen işlem yok.':'Bekleyen işlem yok.'),
+      onToggleDateIn:()=>toggleDate('in'), onToggleDateOut:()=>toggleDate('out'),
+      dateInIcon: st.dateView.in?'#3f8f68':'#cdbfa2', dateOutIcon: st.dateView.out?'#bd9a45':'#cdbfa2',
+      dateInTitle: st.dateView.in?'Kategoriye göre sırala':'Tarihe göre sırala', dateOutTitle: st.dateView.out?'Kategoriye göre sırala':'Tarihe göre sırala',
+      girisCatView:!st.dateView.in, girisDateView:st.dateView.in, cikisCatView:!st.dateView.out, cikisDateView:st.dateView.out,
+      girisDateGroups:girisDV.days, girisDateMore:girisDV.hasMore, girisDateMoreText:girisDV.moreText,
+      cikisDateGroups:cikisDV.days, cikisDateMore:cikisDV.hasMore, cikisDateMoreText:cikisDV.moreText,
+    };
+  }
+}
+</script>
+</body>
+</html>
