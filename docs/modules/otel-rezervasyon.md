@@ -79,7 +79,7 @@ dosya yüklemeden** hep güncel kalır.
   Panel'in "Beklenen ciro tahsilatı" projeksiyonu bu tablodan **okuma-anında** türetilir
   (`contract_projection_service`) → elle senkron beklenirse yeni rezervasyon/iptaller günlerce
   projeksiyona yansımıyordu. Topbar butonu elbette çalışmaya devam eder (anında tazeleme).
-- **Eşleme (`utils/sedna_client.py:fetch_reservations` + `Reservation` join `Agency`):**
+- **Eşleme (`integrations/sedna_client.py:fetch_reservations` + `Reservation` join `Agency`):**
   | Bizim alan | Sedna kaynağı |
   |---|---|
   | `rec_id` | `Reservation.RecId` (XLS ile **aynı ID uzayı** → mükerrer yapmaz) |

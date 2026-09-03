@@ -54,7 +54,7 @@
   if approval_resp:
       return approval_resp
   ```
-- Onaylanan talepler `approval_executor.py`'deki handler ile uygulanır — yeni modül için handler eklenmeli
+- Onaylanan talepler `app/approval/approval_executor.py`'deki handler ile uygulanır — yeni modül için handler eklenmeli
   - **Handler, router endpoint'inin davranışını BİREBİR yansıtmalı** (yalnız model alanları değil): payload anahtarları model kolonlarıyla aynı olmalı, zorunlu kolonlar set edilmeli, ve router'ın yan etkileri (finance_events upsert, eşleşme kaldırma, FIFO/sync, açıklama yeniden üretimi) handler'da da uygulanmalı. Handler yalnız onay onaylanınca çalıştığından sapmalar sessiz kalır.
     - **TERCİH EDİLEN ÇÖZÜM (D1-2, 2026-06-22) — ortak service:** Bu sapma sınıfını yapısal olarak engellemek için mutasyon mantığını bir **domain service**'e çıkar; hem router endpoint'i hem executor handler'ı AYNI fonksiyonu çağırsın. Referans: `app/services/credit_service.py` (`create_product`/`apply_product_update`/`delete_product`/`apply_payment_update`/`delete_payment`) — `finance.krediler` router'ı (`products.py`/`payments.py`) ve `_handle_finance_krediler` ikisi de buradan çağırır. Bu, eski elle-tekrar handler'daki D2-4 bug'larını kapattı: `payment.product_id` (yanlış kolon → AttributeError) + onayda BCH/KMH planı/finance_events üretilmemesi. **Onay payload'ı JSON'a serileşir (`json.dumps(..., default=str)`) → tarihler string olur; service tüketicisi `date.fromisoformat` ile coerce etmeli** (`credit_service._coerce_date`). Yeni handler'lar bu deseni izlemeli.
   - **Test katmanları (2026-06-17 genişletildi):** `tests/test_approval_system.py::TestExecutorImportIntegrity` üç AST testi — (a) `from app...import` çözümü, (b) `Model(kwarg=...)` alan geçerliliği, (c) **`check_approval` çağıran HER modülün handler'ı var** (`test_all_approval_callers_have_executor_handler`). **AMA** AST testleri payload-anahtar uyuşmazlığını, eksik-zorunlu-kolonu, çift-serileştirmeyi ve eksik yan-etkiyi YAKALAYAMAZ → yeni handler için **modül-bazlı uçtan-uca onay regresyon testi** de eklenmeli (örnekler: `test_create_room_type_via_approval_regression`, `test_check_status_via_approval_regression`). Bu hata sınıfı tarama denetiminde finance.checks/sales.room_types'ta bulundu (2026-06-17).
@@ -97,7 +97,7 @@
 - **(2026-07-12, Faz 2)** `finance_events` yazan yollar **after_commit sigortasıyla otomatik yayınlar** (`finance_event_service.py` başı — elle broadcast unutulması bayatlık üretmez; FE yazMAYAN mutasyonlar hâlâ elle broadcast + `tests/test_broadcast_guard.py` AST bekçisi). Yeni liste sayfaları canlı olacaksa **`useLiveRefetch`** composable'ı kullanılır (`lib/utils/liveRefetch.svelte.ts`). Sedna senkronu **arka planda koşar** ve adım adım **`sedna_sync_progress`** WS event'i yayınlar (Topbar canlı ilerleme + "Son: X sa önce" tazelik rozeti). Detay: `docs/modules/websocket.md`.
 
 ### Kod Kalitesi Kuralları
-- **Katman yönü — router router'dan import etmez:** Bir router modülü (`app/routers/...`) **başka bir router'dan saf iş-mantığı fonksiyonu import edemez** (coupling'i yanlış katmana taşır; uzak router'ın iç fonksiyonu değişince sessizce kırılır). Paylaşılan saf domain mantığı `app/services/` (HTTP'siz) veya `app/utils/`'e konur; hem router hem tüketici oradan alır. **Ayrım:** `utils/` = teknik yardımcı (font, dosya doğrulama, audit, response builder); `services/` = domain iş mantığı (Sedna import orchestration, KPI/maliyet hesabı). **services/ router import etmez** (tek yön: router → service → model). Paket-içi `_helpers` import'u (ör. `cariler/_helpers`) serbesttir — sorun yalnız PAKETLER-ARASI router→router'dır. (2026-06-22 mimari denetim D1-1/D1-5: `stock`/`reservation`/`sales` saf fonksiyonları `services/`'e taşındı — `stock_service`/`reservation_service`/`sales_invoice_service`; `_norm_tokens` → `utils/text_match.py`. **Tüm 4 paketler-arası router→router import'u kapatıldı.** Aynı-paket `sedna_sync→sales_invoices.run_sales_invoice_import` bilinçli istisna — finance/ paket-içi, "Sedna servis fonksiyonu" deseni.)
+- **Katman yönü (2026-09-02 yeniden yapılandırması ile fiziksel yapıya işlendi):** `routers → approval → services → (integrations | parsers | realtime | utils) → models`. Bir router modülü **başka bir router PAKETİNDEN** saf iş-mantığı fonksiyonu import edemez (paket-içi `_helpers` serbest). **`services/`, `utils/`, `approval/`, `integrations/`, `parsers/`, `realtime/` hiçbir yerde (fonksiyon-içi lazy import dahil) `app.routers` import etmez** — AST bekçisi `tests/test_layering.py` (tek izinli istisna: parmak-izi kaydı `services/audit_finance_invariants.py`, yolu donmuş). **Ayrım:** `utils/` = teknik yardımcı (audit, security, pagination, dosya doğrulama, PDF font, response builder); `services/` = domain iş mantığı (Sedna import orkestrasyonu, FIFO, eşleştirme, KPI/T-Hesap/runway çekirdekleri, CRUD servisleri — router + onay executor ORTAK); `approval/` = onay motoru; `integrations/` = dış sistem istemcileri (Sedna, banka API'leri, TCMB, SMTP); `parsers/` = saf ayrıştırıcılar; `realtime/` = WS/push/bildirim. `utils/`, `integrations/`, `parsers/` domain'e (`services`/`approval`) bağımlı olamaz. Eski `app.utils.<taşınan-modül>` yolları depoda kalamaz (aynı test). Router çekirdekleri servislere **verbatim** çıkarılır (tarih/yuvarlama ifadeleri değişmez; finansal parmak izi 41/41 aynı kalmalı) ve router eski adları re-export eder (testler/parmak izi o yoldan import eder). (Tarihçe: 2026-06-22 D1-1/D1-5 ile 4 paketler-arası router→router import'u kapatılmış; 2026-09-02'de utils'in 32 domain/entegrasyon/parser/realtime modülü kendi paketlerine taşındı, router çekirdekleri servislere çıkarıldı.)
 - **Response Builder:** `utils/response_builders.py` — kullanıcı/rol yanıtları ortak helper ile oluşturulur (N+1 sorgu yok)
 - **Form Validation:** Frontend'de `lib/utils/validation.ts` helper'ları kullanılır
 - **Modal:** Frontend'de `lib/components/ui/Modal.svelte` reusable bileşeni kullanılır
@@ -219,143 +219,29 @@ TEMPLATE:
 
 ## Proje Yapısı
 
+**Tam dizin ağacı + katman kuralları → [`docs/proje-yapisi.md`](docs/proje-yapisi.md)** (2026-09-02 yeniden
+yapılandırması; makine bekçileri `backend/tests/test_layering.py`, `test_paths.py`, `test_route_manifest.py`).
+Kısa özet:
+
 ```
-/home/ec2-user/otel/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI entrypoint + security middleware
-│   │   ├── config.py            # Pydantic Settings (.env'den, default yok)
-│   │   ├── database.py          # SQLAlchemy engine + timezone ayarı
-│   │   ├── models/              # User, Role, Module, RoleModulePermission,
-│   │   │                        # Conversation, Message, AuditLog, PushSubscription,
-│   │   │                        # Notification, ErrorLog, Vendor, VendorUpload,
-│   │   │                        # VendorTransaction, BankAccount, BankStatement,
-│   │   │                        # BankTransaction, Check, CheckUpload, CreditProduct,
-│   │   │                        # CreditPayment, CreditCardStatement, Advance,
-│   │   │                        # Department, Budget, BudgetCategory, FinanceEvent,
-│   │   │                        # ScheduledDefinition, ScheduledEntry, ExchangeRate,
-│   │   │                        # TransactionCategory,
-│   │   │                        # Reservation, ReservationUpload, RoomType
-│   │   ├── schemas/             # Pydantic şemaları (user, role, module, message,
-│   │   │                        # push, pagination, check, credit, budget, scheduled)
-│   │   ├── routers/             # auth, health, system_users, system_roles,
-│   │   │                        # system_modules, messages, audit, ws, push,
-│   │   │                        # notifications, files, error_logs, internal,
-│   │   │                        # finance/ (banks, checks, cariler/,
-│   │   │                        #   cash_flow/, krediler, cc_statements,
-│   │   │                        #   exchange_rates, transaction_tags, onay,
-│   │   │                        #   butce, departmanlar, advances,
-│   │   │                        #   banks_cc_match),
-│   │   │                        # accounting/__init__.py  — taxes, recurring,
-│   │   │                        #   rent_income, rent_expense, dividend altmodüllerini
-│   │   │                        #   `create_scheduled_router(module_code, ...)` fabrikasıyla üretir
-│   │   │                        # hr/__init__.py          — salary, withholding, sgk altmodülleri (aynı fabrika)
-│   │   │                        # sales/ (reservations, room_types, agency_groups,
-│   │   │                        #   acente_mahsup, agency_finance — TEK izin kodu: sales.acente_mahsup)
-│   │   │                        # approval/ (workflows, requests) — sistem onay akışı
-│   │   │                        # finance/bank_instructions — EFT/havale/döviz PDF üretim
-│   │   ├── middleware/
-│   │   │   ├── auth.py          # JWT auth + require_permission()
-│   │   │   └── rate_limit.py    # IP bazlı rate limiting
-│   │   ├── utils/
-│   │   │   ├── security.py      # Password + JWT helpers
-│   │   │   ├── response_builders.py # Ortak yanıt oluşturucular
-│   │   │   ├── audit.py         # Audit log helper
-│   │   │   ├── push.py          # Push bildirim helper
-│   │   │   ├── notification.py  # Bildirim oluşturma + gönderme
-│   │   │   ├── finance_event_service.py  # Merkezi finance_events servisi
-│   │   │   ├── finance_broadcast.py      # WS broadcast + debounce
-│   │   │   ├── entry_generator.py        # Planlı gider giriş üretici
-│   │   │   └── file_validation.py        # MIME + boyut doğrulaması
-│   │   ├── services/            # Domain servis katmanı (HTTP'siz saf iş mantığı)
-│   │   │   ├── stock_service.py           # Stok Sedna import + maliyet/KPI hesabı
-│   │   │   ├── reservation_service.py     # Rezervasyon Sedna import + EUR çevrim
-│   │   │   ├── sales_invoice_service.py   # Satış faturası FIFO motoru + 30sn TTL cache + avans bakiyeleri
-│   │   │   ├── credit_service.py          # Kredi ürün/ödeme CRUD + BCH/KMH plan (router + onay executor ORTAK)
-│   │   │   ├── vendor_service.py          # Cari vade/durum güncelleme + FE sync (router + onay executor ORTAK)
-│   │   │   ├── check_service.py           # Çek durum güncelleme + iptal kademesi (router + onay executor ORTAK)
-│   │   │   ├── scheduled_service.py       # Planlı gelir/gider tanım+giriş (8 modül; router fabrikası + executor ORTAK)
-│   │   │   ├── system_service.py          # Kullanıcı/rol/modül CRUD + cache + oturum (router + executor ORTAK)
-│   │   │   ├── advance_service.py          # Avans CRUD + finance_events
-│   │   │   ├── bank_account_service.py     # Banka hesabı CRUD
-│   │   │   ├── department_service.py       # Departman CRUD (guard'lı HARD delete)
-│   │   │   ├── budget_service.py           # Bütçe kategori + kompozit-anahtar upsert (çift-bütçe drift'i kapatıldı)
-│   │   │   ├── room_type_service.py        # Oda tipi CRUD (delete rezervasyon-guard)
-│   │   │   ├── cc_projection_service.py     # Kredi kartı ekstresi projeksiyonu (nakit akım; okuma-anında, cari ay=limit/ileri ay=0)
-│   │   │   ├── disk_cleanup_service.py       # Disk döküm + temizlik (UI butonu + günlük timer ORTAK; korunan kategoriler asla silinmez)
-│   │   │   ├── dividend_service.py           # Kâr payı dağıtımı üretim (Decimal) + net/stopaj FE roll-up (router + onay executor ORTAK)
-│   │   │   ├── hr_service.py               # Devam/vardiya/çizelge CRUD (typed↔ISO-string coercion)
-│   │   │   ├── agency_finance_service.py   # Acente Finansal Takip — ay × acente EUR raporu (340/120/PMS; akış = hareket-tarihi kuru, stok = bugünkü kur)
-│   │   │   └── agency_group_service.py     # Acente grubu CRUD + atama + payment_alignment doğrulaması (router + onay executor ORTAK)
-│   │   └── websocket/
-│   │       └── manager.py       # WebSocket bağlantı yönetimi
-│   ├── alembic/                 # DB migrations
-│   ├── tests/                   # pytest testleri (1220+ test (pytest), ~%66 satır kapsamı)
-│   │   ├── conftest.py          # Test fixture'ları (SAVEPOINT rollback)
-│   │   ├── test_health.py
-│   │   ├── test_auth.py
-│   │   ├── test_system.py, test_system_users.py, test_system_roles.py, test_system_modules.py
-│   │   ├── test_messages.py, test_messages_extended.py
-│   │   ├── test_finance.py, test_finance_performance.py
-│   │   ├── test_scheduled_base.py   # Muhasebe + İK (8 modül)
-│   │   ├── test_credits.py, test_checks.py, test_budget.py, test_onay.py
-│   │   ├── test_advances.py
-│   │   ├── test_approval_system.py  # Sistem onay akışı motoru (workflow/talep/executor)
-│   │   ├── test_security.py         # CSP başlığı + logo/SVG XSS sertleştirme
-│   │   ├── test_notifications.py    # Bildirim testleri
-│   │   ├── test_permissions.py      # İzin kontrolleri
-│   │   ├── test_ws_push_audit.py
-│   │   └── ci/                      # CI/test DB bootstrap (alembic upgrade head + reset_data.sql + 02_seed.sql + seed_admin.py)
-│   ├── venv/                    # Python sanal ortam
-│   ├── requirements.txt
-│   ├── pytest.ini
-│   └── .env                     # Ortam değişkenleri (GİT'E EKLENMEMELİ)
-├── frontend/
-│   ├── src/
-│   │   ├── routes/              # SvelteKit sayfalar
-│   │   │   ├── +page.svelte     # Login
-│   │   │   └── dashboard/
-│   │   │       ├── +page.svelte          # Panel
-│   │   │       ├── mesajlasma/           # Mesajlaşma
-│   │   │       ├── finans/               # Bankalar, Çekler, Cariler, Krediler,
-│   │   │       │                         # Nakit Akım, Avanslar, Döviz, Bütçe, Onay
-│   │   │       ├── muhasebe/             # Vergiler, Düzenli Ödemeler, Kiralar, Temettü
-│   │   │       ├── ik/                   # Maaş, Stopaj, SGK
-│   │   │       ├── satis/                # Acente Mahsup & Nakit Akım, Acente Finansal Takip
-│   │   │       └── sistem/               # Kullanıcılar, Roller, Modüller,
-│   │   │                                 # Audit Loglar, Hata Logları
-│   │   ├── lib/
-│   │   │   ├── api.ts                    # Fetch wrapper (401/403 handling)
-│   │   │   ├── stores/auth.ts            # Auth store + hasPermission()
-│   │   │   ├── stores/ui.svelte.ts       # UI state (sidebar açık/kapalı)
-│   │   │   ├── stores/notification.svelte.ts # Bildirim sesi
-│   │   │   ├── stores/websocket.svelte.ts    # WebSocket yönetimi
-│   │   │   ├── components/
-│   │   │   │   ├── Modal.svelte          # Reusable modal bileşeni
-│   │   │   │   ├── Sidebar.svelte        # Sol menü
-│   │   │   │   ├── Topbar.svelte         # Üst bar
-│   │   │   │   └── StatCard.svelte       # İstatistik kartı
-│   │   │   └── utils/
-│   │   │       ├── finance.ts            # formatCurrency, groupByMonth, getTodayKeys
-│   │   │       ├── finance.test.ts       # Finans yardımcı testleri (36 test)
-│   │   │       ├── paymentMethods.ts     # Ödeme yöntemi haritası + helper
-│   │   │       ├── paymentMethods.test.ts # Ödeme yöntemi testleri (16 test)
-│   │   │       ├── colorMap.ts           # Kategori renk haritası + getColor
-│   │   │       ├── colorMap.test.ts      # Renk haritası testleri (16 test)
-│   │   │       ├── push.ts              # Push bildirim yardımcıları
-│   │   │       ├── push.test.ts          # Push testleri (6 test)
-│   │   │       ├── validation.ts         # Form doğrulama yardımcıları
-│   │   │       └── validation.test.ts    # Doğrulama testleri (12 test)
-│   │   ├── api.test.ts              # API wrapper testleri (22 test)
-│   │   └── app.css              # Tailwind import
-│   ├── build/                   # Production build output
-│   ├── svelte.config.js         # adapter-node
-│   ├── vite.config.ts           # Tailwind + SvelteKit plugin
-│   └── vitest.config.ts         # Vitest test yapılandırması
-├── docs/
-│   └── modules/                 # Modül bazlı CLAUDE.md dosyaları
-│       └── nakit-akim.md        # Nakit Akım modülü dokümantasyonu
-└── CLAUDE.md
+backend/app/
+├── main.py · config.py · database.py · constants.py · paths.py   # paths.py = TEK yol kaynağı (__file__ derinliği yasak)
+├── routers/   core/ system/ approval/ finance/ accounting/ hr/ attendance/ sales/ messages/ ai/ common/ stock.py
+├── approval/  approval_check · approval_service · approval_executor   (onay motoru; router ↔ services arası)
+├── services/  domain iş mantığı — *_service.py + matching_service, finance_event_service, auto_tagger,
+│              vendor_fifo, sync_vendor_fifo, recurring_vendor_sync, entry_generator, kmh_calculator, occupancy, fx_rates
+├── integrations/  sedna_client · garanti_api · qnb_api · yapikredi_api · vakifbank_client · tcmb · mail · amadeus_client
+├── parsers/       bank_parser · bank_parse_helpers · cc_statement_parser · check_parser · reservation_parser · vendor_parser
+├── realtime/      finance_broadcast · sales_broadcast · notification · push
+├── utils/         YALNIZ teknik yardımcı: audit, security, pagination, file_validation, file_upload, pdf_fonts,
+│                  pdf_bank_instruction, md_docx, ai_export, db_log_handler, messaging_role_cache, finance_helpers,
+│                  response_builders, sql_search, text_match
+├── models/ · schemas/ · middleware/ · websocket/
+backend/  cron_*.py · denetim_finans_parmak_izi.py · seed_denetim.py (systemd/otomasyon giriş noktaları — yolları DONMUŞ)
+frontend/src/lib/
+├── components/  ui/ (primitive'ler) · layout/ · dashboard/ · scheduled/ · finance/{cash-flow,cariler}/ · sales/ · messaging/ · ai/
+├── stores/      auth · ui · toast · notification · websocket · cashflow/{cache,runway} · messaging/{store,messages,ui-handlers,ws-handlers,helpers}
+├── utils/ · types/ · constants/realtime.ts (backend constants.py ile birebir) · config/navigation.ts
 ```
 
 ## Servisler
@@ -610,7 +496,7 @@ Hızlı özet:
 - **Boş durum:** `EmptyState.svelte` — ikon + mesaj + CTA
 - **Mobil:** `<md` breakpoint'te tablo → kart görünümü
 - **Breadcrumb:** sadece iç sayfalarda (`Breadcrumb.svelte`)
-- **Toast:** sağ üst, 3 sn (`$lib/stores/toast.ts`)
+- **Toast:** sağ üst, 3 sn (`$lib/stores/toast.svelte.ts`)
 - **Durum rozeti:** `StatusBadge.svelte` — semantik sabit renk (yeşil=başarılı, kırmızı=hata, sarı=bekliyor, mavi=bilgi, gri=pasif)
 - **Klavye:** Esc → modal kapat · Enter → primary action
 - **Export:** başlık barında indirme ikon butonu → Excel/PDF menüsü

@@ -96,7 +96,7 @@ Ortak/rol posta kutusunun birden çok hesapta kullanılabilmesi için UNIQUE ind
 |---|---|
 | Giriş (login) | `username` ile — e-postayla kimlik doğrulama **yok** |
 | E-posta teyidi | Token `user_id`'ye bağlı; `auth.verify_email` kullanıcıyı **id ile** bulur |
-| Uygulama kontrolleri | `system_users.py`'deki iki "zaten kayıtlı" kontrolü kaldırıldı |
+| Uygulama kontrolleri | `system/users.py`'deki iki "zaten kayıtlı" kontrolü kaldırıldı |
 | **Kullanıcı adı** | Benzersizliği **AYNEN korunur** |
 
 Testler yeni davranışı sabitliyor: `test_create_user_shared_email_allowed`,

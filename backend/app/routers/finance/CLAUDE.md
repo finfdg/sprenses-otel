@@ -1013,7 +1013,7 @@ RBAC + kapalı-503).
 
 ## Yapı Kredi API — Banka Hesap Hareketleri (2026-07-09, doküman DOĞRULANDI)
 
-İlk sürüm harici (Chrome bulut aracı) commit'lerle geldi (`utils/yapikredi_api.py` +
+İlk sürüm harici (Chrome bulut aracı) commit'lerle geldi (`integrations/yapikredi_api.py` +
 `cron_fetch_bank_statements.py` + config `ykb_*`); şema portal dokümanıyla doğrulanıp 3 bug düzeltildi.
 
 **Mimari (VakıfBank'tan farklı, daha temiz):** `fetch_yapikredi_statement()` hareketleri `ParseResult`
@@ -1452,7 +1452,7 @@ nakit akışını PDF indirir: `GET /cash-flow/report/pdf?start_date&end_date`
   yardımcıları (`_notify_bank_upload`/`_get_banks_viewer_ids`/`_ensure_upload_dir`/`UPLOAD_DIR`) bu modüle
   taşındı. `banks.py` upload endpoint'leri 3 fonksiyonu buradan import eder; modül router'dan import etmez.
   Davranış birebir (test: `test_finance`/`test_bank_manual_transaction`/`test_banks_cc_match`).
-- **`utils/bank_parse_helpers.py` (yeni) — saf sayı/tarih ayrıştırma:** `bank_parser.py` 1044→857 satıra
+- **`parsers/bank_parse_helpers.py` (yeni) — saf sayı/tarih ayrıştırma:** `bank_parser.py` 1044→857 satıra
   indi. **NOT:** bank_parser banka-başına DEĞİL konu-başına organize (tek banka-özel fn `_parse_vakifbank_text`)
   → "per-bank parser" split uygulanamaz. Saf fonksiyonlar (`parse_turkish_number`/`parse_english_number`/
   `_detect_number_format`/`_smart_parse_number`/`parse_date_tr`/`_normalize_tr`/`_strip_currency_suffix`/
@@ -1626,7 +1626,7 @@ Test: `test_transaction_tags.py` (3 yeni). Detay: `docs/modules/transaction-tags
 
 **Belirti:** Yapı Kredi World Kart (\*7261) ekstresi (stmt 16, ₺493.421,94, son ödeme 30.06)
 banka ödemesi yapılmasına rağmen nakit akımda "Bekliyor" kalıyordu. Kök neden `_match_cc_to_bank`
-(`utils/matching_service.py`) üç noktada bu ödemeyi atlıyordu:
+(`services/matching_service.py`) üç noktada bu ödemeyi atlıyordu:
 1. **Kelime kapısı:** `_is_cc_payment_desc` açıklamada "kart öd/kredi kartı/kk borç…" arıyordu;
    ödemenin açıklaması **"Diğer Internet - Mobil INT 650837\*\*\*\*\*\*7261 3006"** — maskeli PAN var
    ama kart ifadesi yok → hareket kart kelimesi bulunmadığından hiç değerlendirilmiyordu.
@@ -1784,7 +1784,7 @@ limitsiz-0, `due_reserve_projections`, endpoint izin+items) + `finance.test.ts` 
 
 Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
 
-- **Banka eşleştirme servisleri tek modülde (`utils/matching_service.py`):** `_match_cc_to_bank`,
+- **Banka eşleştirme servisleri tek modülde (`services/matching_service.py`):** `_match_cc_to_bank`,
   `_match_checks_to_bank`, `_match_credits_to_bank` artık router'larda değil tek servis modülünde.
   **2026-07-11 eklendi:** `_match_advances_to_bank` — bekleyen avanslar banka GELİR işlemleriyle
   otomatik eşleşir (tutar+para birimi birebir; GECİKME acente adı açıklamada geçerse 60 güne,
@@ -1831,7 +1831,7 @@ Kod tabanı denetimi sonrası finans modülünde uygulanan değişiklikler:
 Eşleştirme denetimi (`docs/denetim/2026-07-11-nakit-akim-eslestirme-denetimi.md`) Revize Faz 0
 (R1–R7) uygulandı — kısa özet:
 
-- **Orkestratör TEK yol (R1):** `utils/matching_service.py` → `run_all_matchers` (4 matcher,
+- **Orkestratör TEK yol (R1):** `services/matching_service.py` → `run_all_matchers` (4 matcher,
   her adım SAVEPOINT'li) + `run_post_ingest_processing` (auto-tag → 4 matcher). Ekstre yüklemesi
   (`bank_statement_import`), VakıfBank API senkronu (`vakifbank.py`) ve yeni
   `POST /cash-flow/rematch` (use; onaydan muaf — kapsam listesi `docs/modules/onay-akisi.md`;
@@ -2259,7 +2259,7 @@ bakiyesi negatife düştüğünde "adat" üzerinden faiz birikir; banka bunu **�
 (üç ayda bir, çeyrek sonunda: 31 Mar / 30 Haz / 30 Eyl / 31 Ara) tahsil eder (kullanıcı
 kararı 2026-07-04; canlı QNB KMH faizi 30 Haz'da tek "Faiz Tahakkuku" olarak çekildi).
 
-**Algoritma** (`utils/kmh_calculator.py:calculate_kmh_status`):
+**Algoritma** (`services/kmh_calculator.py:calculate_kmh_status`):
 ```
 Adat        = SUM_over_each_day(|negatif_bakiye_o_gün|)   ← gün × |bakiye|
 Faiz        = Adat × yıllık_oran / 36000   ← Türk bankacılığı standardı (360 günlük ticari yıl)

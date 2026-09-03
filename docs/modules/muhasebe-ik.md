@@ -14,7 +14,7 @@
 Tüm alt modüller (muhasebe: vergi/düzenli ödeme/alınan kira/verilen kira/temettü + İK: maaş/stopaj/SGK) aynı CRUD pattern'ını kullandığı için:
 - **1 tanım tablosu** (`scheduled_definitions`) — `source_type` ile ayrışır
 - **1 giriş tablosu** (`scheduled_entries`) — `source_type` + `definition_id`
-- **1 ortak router fabrikası** (`scheduled_base.py`) — `create_scheduled_router()`
+- **1 ortak router fabrikası** (`common/scheduled_factory.py`) — `create_scheduled_router()`
 - **1 ortak UI bileşeni** (`ScheduledModule.svelte`) — props ile özelleşir
 
 Neden? Ayrı model + schema + router + page yerine tekrar kullanılabilir yapı.
@@ -124,7 +124,7 @@ su → **ASAT**) **tahmini** tutarlarla planlanır. Oysa gerçek fatura geldiği
 (320 satıcı) o ayki hareketine yazılır ve ödeme oradan yapılınca düşer. İki yer **divergedu**;
 ayrıca aynı borç hem `recurring` hem `vendor_payment` olarak nakit akımda **çift sayılıyordu**.
 
-**Çözüm — cari bağlantısı + tek-yönlü senkron (`utils/recurring_vendor_sync.py`):**
+**Çözüm — cari bağlantısı + tek-yönlü senkron (`services/recurring_vendor_sync.py`):**
 - `scheduled_definitions.vendor_id` ile bir düzenli ödeme bir cariye bağlanır (yalnız `recurring`;
   `enable_vendor_sync=True` fabrikada). Canlı: "2026 Elektrik"→CK (v707), "2026 Su"→ASAT (v697).
 - **Fatura gecikmesi (`billing_offset_months`) — tüketim ayı ≠ fatura tarihi:** Bazı abonelikler

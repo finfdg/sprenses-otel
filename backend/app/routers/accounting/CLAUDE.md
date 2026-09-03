@@ -21,7 +21,7 @@ taxes_router = create_scheduled_router(
 )
 ```
 
-- **Tüm CRUD + summary + giriş üretimi** `routers/scheduled_base.py` içinde tek yerde.
+- **Tüm CRUD + summary + giriş üretimi** `routers/common/scheduled_factory.py` içinde tek yerde.
   Bir düzeltme 5 muhasebe + 3 İK modülünü birden düzeltir.
 - **İzin + onay + audit + finance_event + broadcast** fabrikada gömülüdür — alt modülün
   ayrıca eklemesi gerekmez.
@@ -36,8 +36,8 @@ taxes_router = create_scheduled_router(
 
 ## Onay (Approval) Entegrasyonu
 
-- CRUD onay kontrolü `scheduled_base.py` içinde `check_approval()` ile yapılır.
-- Onaylanan talepler `utils/approval_executor.py` → `_make_scheduled_handler` fabrikasıyla
+- CRUD onay kontrolü `common/scheduled_factory.py` içinde `check_approval()` ile yapılır.
+- Onaylanan talepler `approval/approval_executor.py` → `_make_scheduled_handler` fabrikasıyla
   uygulanır; `_SCHEDULED_SOURCE_MAP` modül kodunu `(SourceType.*, direction)` ile eşler.
 - Yeni planlı modül eklerken: `_SCHEDULED_SOURCE_MAP`'e satır ekle — handler otomatik gelir.
 
@@ -47,7 +47,7 @@ Düzenli Ödemeler (`recurring`) fabrikada `enable_vendor_sync=True` ile üretil
 /recurring/sync-vendors` endpoint'i + `scheduled_definitions.vendor_id` cari bağlantısı aktif.
 Cari-bağlı kalemlerin (Elektrik→CK, Su→ASAT) **tahmini** tutarları, carinin **gerçek** aylık
 faturası + FIFO ödeme durumuyla senkronlanır; senkron ayda recurring finance_event silinir
-(cari `vendor_payment` temsil eder → çift sayım yok). Motor: `utils/recurring_vendor_sync.py`
+(cari `vendor_payment` temsil eder → çift sayım yok). Motor: `services/recurring_vendor_sync.py`
 (`sync_recurring_from_vendors` saf mantık; `run_recurring_vendor_sync` commit+audit sarmalı).
 Tetikleme: merkezi Sedna butonu (`sedna_sync.py:_STEPS` → `recurring_sync` adımı, cari adımından
 sonra) **veya** sayfadaki "Cari ile Senkronize" butonu. Detay: `docs/modules/muhasebe-ik.md`

@@ -168,7 +168,7 @@ yapıp hepsini "TRY" etiketliyordu → 250.000 EUR giriş "250.000 TL" görünü
 Svelte sohbet arayüzü  (frontend .../asistan)
         │  fetch(credentials: "include")   — HttpOnly cookie ile auth (mevcut kural)
         ▼
-FastAPI  POST /api/ai/sor   (routers/ai_assistant.py)
+FastAPI  POST /api/ai/sor   (routers/ai/assistant.py)
         │  require_permission("ai.asistan", "view")   — kapı 1
         │  Anthropic SDK (streaming) — claude-opus-4-8, adaptive thinking
         ▼

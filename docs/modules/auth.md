@@ -15,7 +15,7 @@
 | Middleware | `backend/app/middleware/rate_limit.py` — Login için 5/dk IP bazlı |
 | Util | `backend/app/utils/security.py` — `hash_password()`, `verify_password()`, `create_access_token()` |
 | Util | `backend/app/utils/audit.py` — login/logout/register loglama |
-| Schema | `backend/app/schemas/auth.py` |
+| Schema | `backend/app/schemas/user.py` |
 | Model | `backend/app/models/user.py` |
 | Frontend | `frontend/src/routes/+page.svelte` — login ekranı |
 | Store | `frontend/src/lib/stores/auth.svelte.ts` |

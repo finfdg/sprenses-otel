@@ -12,7 +12,7 @@
 |---|---|
 | Frontend | `frontend/src/routes/dashboard/+page.svelte` — karşılama paneli |
 | Bileşen | `frontend/src/lib/components/dashboard/CashFlowTAccount.svelte` — Nakit Akım T hesap cetveli (sekmeli dönem + tarih gezgini + açılır gruplar; mobilde daralt/genişlet özet kartı) |
-| Bileşen | `frontend/src/lib/components/NakitKoruma.svelte` — Nakit Koruma / runway projeksiyonu (ödeme erteleme what-if) |
+| Bileşen | `frontend/src/lib/components/dashboard/RunwayChart.svelte` — Nakit Koruma / runway projeksiyonu (ödeme erteleme what-if) |
 | Layout | `frontend/src/routes/dashboard/+layout.svelte` — sidebar + topbar + route guard |
 | Backend | `finance/cash-flow/t-account` (T hesap) + `finance/cash-flow/runway` (Nakit Koruma) dışında özel router **yok**; panel modül-bazlı `*/summary` endpoint'lerini okur |
 

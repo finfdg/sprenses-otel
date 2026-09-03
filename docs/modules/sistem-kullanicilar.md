@@ -43,7 +43,7 @@ CRUD (POST/PATCH/DELETE) endpoint'leri `check_approval(db, "system.users", entit
 
 ## Performans
 - **Batch response:** Liste endpoint'i `build_user_responses_batch()` kullanır — kullanıcı + rol + izin matrisi tek sorguda (N+1 yok)
-- **joinedload:** `Role` ilişkisi eager load edilir (`system_users.py`)
+- **joinedload:** `Role` ilişkisi eager load edilir (`system/users.py`)
 - **Pagination:** Varsayılan `page_size=50`, max `200`
 
 ## Audit Log

@@ -142,7 +142,7 @@
 ### Performans / Lazy Mount
 - **3 seviyeli `{#if}` lazy render** — yıl/ay/gün başlıkları haricinde içerik (CashFlowItem) yalnızca kullanıcı bir günü açtığında render edilir.
 - **Başlangıç açık günü:** Yalnızca bugüne (veya matchDate'e) en yakın gün otomatik açılır; geri kalan tüm günler kapalı kalır → 2000 item olsa bile initial paint hafif kalır.
-- **Day-content lazy mount (`use:lazyMount`):** Bir gün açıldıktan sonra içeriği yalnızca viewport'a 300px yaklaşınca mount edilir. Kullanıcı doğrudan tıklarsa anında render edilir (UX kuralı: kullanıcı eylemi → bekleme yok); ama scroll edilirken karşılaşılan gizli açık günler için placeholder gösterilir. `frontend/src/lib/utils/lazy-mount.svelte.ts`.
+- **Day-content lazy mount (`use:lazyMount`):** Bir gün açıldıktan sonra içeriği yalnızca viewport'a 300px yaklaşınca mount edilir. Kullanıcı doğrudan tıklarsa anında render edilir (UX kuralı: kullanıcı eylemi → bekleme yok); ama scroll edilirken karşılaşılan gizli açık günler için placeholder gösterilir. `frontend/src/lib/utils/lazy-mount.ts`.
 - **EUR bakiye lookup O(log n):** Aktivitesi olmayan günler için önceki bakiyeyi binary search ile bulur (`sortedBalanceDays` $derived). Eski sürüm her açık gün için `Object.keys().sort()` çağırıyordu — 200+ gün açıldığında O(n²·log n) → scroll donması.
 
 ### Gün İçi Kaynak Gruplaması — Çek / Cari / Kredi / KK (2026-07-02)
@@ -173,7 +173,7 @@
 - `MonthAccordion.svelte` — 3 seviyeli yıl/ay/gün akordiyonu + lazy mount
 - `CashFlowItem.svelte` — Tek satır (mobile/desktop varyant)
 - `CashFlowGroupCard.svelte` — Gün içi çek/cari grup kartı (katlanabilir)
-- `lazy-mount.svelte.ts` — `IntersectionObserver` tabanlı tek-seferlik Svelte action
+- `lazy-mount.ts` — `IntersectionObserver` tabanlı tek-seferlik Svelte action
 - `api.ts` — HTTP istekleri
 - `showToast` — Bildirim gösterimi
 
@@ -362,7 +362,7 @@ Gerekçe + Sedna kur tarihi semantiği (Sedna G = bizim G−1): `docs/modules/se
 Eşleştirme denetiminin (`docs/denetim/2026-07-11-nakit-akim-eslestirme-denetimi.md`)
 Revize Faz 0 paketi (R1–R7) uygulandı. Nakit Akım'a dokunan parçalar:
 
-- **Eşleştirme orkestratörü tek yol (R1):** `utils/matching_service.py`'ye
+- **Eşleştirme orkestratörü tek yol (R1):** `services/matching_service.py`'ye
   `run_all_matchers` (4 matcher: KK ekstre / çek / kredi / avans — her adım
   SAVEPOINT izolasyonlu, biri patlarsa diğerleri sürer) ve
   `run_post_ingest_processing` (önce otomatik etiketleme, sonra 4 matcher) eklendi.
@@ -373,7 +373,7 @@ Revize Faz 0 paketi (R1–R7) uygulandı. Nakit Akım'a dokunan parçalar:
   `POST /api/finance/cash-flow/rematch` (`finance.cash_flow` use; onaydan muaf —
   kapsam listesi `docs/modules/onay-akisi.md`; audit kaydı + BANKS/ADVANCES WS yayını).
   Sonuç sayaçları (`..._matched`) yanıt gövdesinde döner.
-- **Auto-tag → finance_events senkronu (R1 devamı):** `utils/auto_tagger.py` artık
+- **Auto-tag → finance_events senkronu (R1 devamı):** `services/auto_tagger.py` artık
   otomatik kategori / ödeme yöntemi / cari atamalarını `_sync_finance_events` ile
   `finance_event_svc.sync_tag`'e yansıtır — manuel etiketleme yoluyla tutarlı;
   `is_matched`'a dokunmaz (cari eşleştirmesi banka hareketini gizlemez kuralı korunur).
@@ -475,7 +475,7 @@ KK matcher'ında kilitli re-check, kredi N-1 grup uygulamasında taksit kilidi.
 ### Uygulayıcılar ORTAK (D1-2 deseni)
 
 `apply_check_bank_match` / `apply_credit_bank_match` / `apply_advance_bank_match` /
-`apply_vendor_bank_match` (`utils/matching_service.py`) — otomatik matcher + manuel endpoint +
+`apply_vendor_bank_match` (`services/matching_service.py`) — otomatik matcher + manuel endpoint +
 öneri-Onayla ÜÇÜ DE aynı fonksiyonu çağırır (`match_vendor_tx` uygulamayı
 `apply_vendor_bank_match`'e devretti). **Yeni eşleştirme yolu yazarken `apply_*` kullan — elle
 alan set etme** (sequence, sync_tag, `event_matches` izi ve yarış koruması tek yerde).
@@ -876,10 +876,10 @@ görünmesin.
 | Parça | Dosya |
 |---|---|
 | Başlık birleştirme | `cash_flow/t_account.py` `SOURCE_LABELS` — **aynı gün revize (kullanıcı):** salary → "Personel"; withholding/sgk/**dividend_stopaj** → **"Vergi/SGK"** (vergisel yükümlülük; banka "Vergi/SGK" kategorisiyle birleşir — ayrı "Temettü Stopajı" başlığı kalktı) |
-| Sedna bordro sorgusu | `utils/sedna_client.py::fetch_personnel_payroll` (335 aylık tahakkuk/ödeme) |
+| Sedna bordro sorgusu | `integrations/sedna_client.py::fetch_personnel_payroll` (335 aylık tahakkuk/ödeme) |
 | Maaş senkron servisi | `services/salary_sync_service.py` (yalnız ödenmemiş + ayı bitmiş dönem; tahakkuk < mevcut tahminin %40'ı → "bordro işlenmemiş", atla) |
 | Senkron adımı | `sedna_sync._STEPS` `salary_sync` (izin `hr.salary` use) + cron `_CRON_STEP_KEYS` |
-| Dedup eşleştirici | `utils/matching_service.py::_match_scheduled_to_bank` (7. matcher; kural tablosu docstring'de) |
+| Dedup eşleştirici | `services/matching_service.py::_match_scheduled_to_bank` (7. matcher; kural tablosu docstring'de) |
 | Ortak bağlama yolu | `services/scheduled_service.py::link_entry_to_bank` (`close_entry_via_bank` + yeni `attach_bank_to_paid_entry`) |
 | Öneri kalıcılık düzeltmesi | `run_all_matchers` artık `suggested>0` koşularını da commit eder (eskiden SAVEPOINT rollback önerileri siliyordu) |
 

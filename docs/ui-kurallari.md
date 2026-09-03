@@ -43,7 +43,7 @@ Tüm frontend sayfalar bu dokümandaki şablona ve bileşen API'lerine uyar. Yen
 ### Toast
 - Pozisyon: **sağ üst**
 - Süre: **3 saniye**
-- Store: `$lib/stores/toast.ts`
+- Store: `$lib/stores/toast.svelte.ts`
 - Çeşitler: `success` (yeşil) · `error` (kırmızı) · `info` (mavi) · `warning` (sarı)
 
 ### Loading

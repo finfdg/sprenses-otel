@@ -115,8 +115,6 @@ modülüne katkı kurallarını içerir.
   yerel veriyle cevaplanamaz. EUR çevrimi `sedna_import._currency_to_eur_factors` ile ORTAK.
   Salt-okunur → onay/broadcast kapsam dışı. Detay: `docs/modules/gunluk-hareketler.md`).
 - `room_types`, `agency_groups`: oda tipi ve acente gruplama CRUD.
-- `flights`: Travelpayouts/Aviasales — **frontend widget** embed kullanılır; backend
-  client (`utils/travelpayouts_client.py`) yedekte tutulur (detay: `docs/modules/ucak-rezervasyon.md`).
 
 ## Gerçek Zamanlılık — Broadcast
 
@@ -141,7 +139,6 @@ modülüne katkı kurallarını içerir.
 - Yükleme/toplu-silme gibi özel endpoint'ler onay akışından **hariç** tutulabilir.
 
 Detay: `docs/modules/otel-rezervasyon.md`, `docs/modules/oda-tipleri.md`,
-`docs/modules/ucak-rezervasyon.md`.
 
 ## Kontratlar (`contracts.py`, `sales.kontratlar`) — 2026-07-17
 
@@ -181,7 +178,7 @@ MUNFERIT/EXPEDIA=`checkin` elle girilmişti. Ayrıca `agency_groups` mutasyonlar
   POST/PATCH/DELETE/`/assign` → `check_approval("sales.acente_mahsup", ...)`; payload `_kind`
   (`agency_group` | `agency_assign`) taşır çünkü modül kodu oda tipleriyle ortak. Sıra: 404/409 doğrulama
   → onay → service → commit → audit → broadcast.
-- `utils/approval_executor.py`: `_make_acente_mahsup_handler` oda tipi factory handler'ını sarar;
+- `approval/approval_executor.py`: `_make_acente_mahsup_handler` oda tipi factory handler'ını sarar;
   `_kind` yoksa oda tipi (birebir eski davranış), varsa acente grubu/atama.
 - Frontend `satis/acente-mahsup/+page.svelte` Acente Ayarları modalı: "Ödeme günü" `Select`
   (Cuma / ay sonu / ayın N'i [+ gün alanı] / girişte) — `day_N` UI'da `alignMode`+`alignDay` olarak
@@ -199,7 +196,7 @@ fatura) hareketin **kendi tarihindeki** TCMB kuruyla çevirir (`_to_eur_on` + `u
 USD/GBP çapraz) — T-Hesap/runway/grafik `_event_eur` ile aynı sayı. STOK kalemleri (açık alacak
 kalanı, kalan 340 avans havuzu) **bugünkü** kurla (`_to_eur_today`; havuz native biriktirilir).
 Kur yoksa 0 + `source_counts.skipped_no_rate` (1:1 varsayımı yok). `CROSS_EUR_CURRENCIES` tanımı
-`utils/fx_rates.py`'ye taşındı (`cash_flow/_helpers` re-export eder — services/ router import edemez).
+`services/fx_rates.py`'ye taşındı (`cash_flow/_helpers` re-export eder — services/ router import edemez).
 
 ## Acente Bazında Kişi Başı Fiyat (`reservations/pricing.py`, 2026-09-02)
 

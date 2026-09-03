@@ -221,7 +221,7 @@ kapalıysa import 503 verir, gerisi çalışır). `SEDNA_PASSWORD` boşsa özell
 - **Mükerrer yok:** `tx_hash` Excel ile **aynı fonksiyondan** üretilir → Excel'den veya Sedna'dan
   gelen aynı işlem aynı hash'i alır. Üretimde 2236 hareketin 2077'si mevcut (Excel) ile eşleşip
   atlandı, 159'u yeni eklendi. Aynı upsert + payment_due + finance_events + **removal_candidates**.
-- **Backend:** `utils/sedna_client.py` (pymssql, salt-okunur, prefix güvenli/parametresiz →
+- **Backend:** `integrations/sedna_client.py` (pymssql, salt-okunur, prefix güvenli/parametresiz →
   `%`-tuzağı yok), `routers/finance/cariler/sedna_import.py` (`POST /sedna-import`, `GET
   /sedna-status`). Config: `config.py` `sedna_*` + `.env SEDNA_PASSWORD`. Onaydan muaf
   (operasyonel/içe-aktarma endpoint'i), audit'li, finance.cariler use.

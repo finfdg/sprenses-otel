@@ -19,7 +19,7 @@ tabloları BİLİNÇLİ ertelendi** — Faz 4 fiyat doğrulama motoru ile gelece
 
 - Backend: `models/contract.py` (10 model + merkezi sabitler), `schemas/contract.py`,
   `services/contract_service.py` (D1-2 ORTAK service), `routers/sales/contracts.py`,
-  `utils/approval_executor.py::_handle_sales_kontratlar`
+  `approval/approval_executor.py::_handle_sales_kontratlar`
 - Frontend: `lib/components/sales/KontratlarPanel.svelte` (sekme paneli)
 - Migration: `b7d2f4a8c1e6` (10 tablo + modül kaydı), `a1c4e7f9b2d5` (reservations.sedna_contrack_id + agency_code_overrides — Faz 0)
 - Test: `tests/test_contracts.py` (CRUD + kind + RBAC + 2 uçtan-uca onay regresyonu)
