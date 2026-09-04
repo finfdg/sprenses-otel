@@ -1,4 +1,6 @@
-"""Finansal değişmezler — kod değişikliğinin sessiz tutar kaymasına yol açıp açmadığını ölçer.
+"""(2026-09-02 yeniden yapılandırma: değişmezler artık router endpoint fonksiyonlarını değil, aynı gövdelerin
+verbatim taşındığı app/services fonksiyonlarını çağırır — services→routers katman ihlali kapandı; ölçülen sayılar aynı.)
+Finansal değişmezler — kod değişikliğinin sessiz tutar kaymasına yol açıp açmadığını ölçer.
 
 Bu modül `denetim_finans_parmak_izi.py` tarafından okunur. Her değişmez, kod dışında
 hiçbir şey değişmediğinde AYNI değeri üretmelidir; eski kod ile yeni kod arasında bir
@@ -57,10 +59,10 @@ def _inv_cari_net_borc_toplami(db, ref_date=None):
 def _inv_cari_ozet_kpi(db, ref_date=None):
     """Cariler sayfasının özet kartlarını besleyen GERÇEK endpoint fonksiyonu doğrudan çağrılır (get_vendors_summary(db=db, _=None) — Depends parametreleri elle geçilir). Toplam borç/alacak/bakiye, negatif bakiyeli cari sayısı ve toplamı, yasaklı sayısı, sıfır-olmayan cari sayısı, vadesi geçmiş toplam/fatura/cari sayısı tek ölçümde sabitlenir. negative_total_eur ÇIKARILIR (TCMB kur cronu iki ölçüm arasında koşarsa yanlış alarm üretir). Canlı referans: bakiye −22.791.402,67 · overdue_total 8.160.577,63.
 
-    Önem: kritik · Kaynak: app/routers/finance/cariler/vendors.py:42
+    Önem: kritik · Kaynak: app/services/vendor_service.py
     """
-    from app.routers.finance.cariler.vendors import get_vendors_summary
-    res = get_vendors_summary(db=db, _=None)
+    from app.services.vendor_service import vendors_summary
+    res = vendors_summary(db)
     res.pop("negative_total_eur", None)
     result = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in res.items()}
     return result
@@ -89,10 +91,10 @@ def _inv_cek_durum_para_birimi_toplami(db, ref_date=None):
 def _inv_cek_ozeti_endpoint(db, ref_date=None):
     """Çek özeti: toplam/bekleyen/vadesi geçen adet ve tutar + bekleyenin EUR karşılığı. GERÇEK KOD YOLU: `checks_summary()` endpoint fonksiyonu doğrudan çağrılır. EUR karşılığı, TL çekleri `max(ExchangeRate.date)` tarihli `forex_buying` kuruna bölüp EUR çekleri doğrudan ekleyen özel mantıktan geçer (FIN-001 sınıfı kur çevrim hatalarının görüneceği yer). DİKKAT: 'vadesi geçen' hesabı `date.today()` kullanır.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/checks.py:313
+    Önem: kritik · Kaynak: backend/app/services/check_service.py
     """
-    from app.routers.finance.checks import checks_summary
-    r = checks_summary(db=db, _=None)
+    from app.services.check_service import checks_summary
+    r = checks_summary(db)
     eur = r["pending_amount_eur"]
     result = {"toplam_adet": int(r["total_count"]),
               "toplam_tutar": round(float(r["total_amount"]), 2),
@@ -183,12 +185,12 @@ def _inv_fifo_kalan_toplam(db, ref_date=None):
 def _inv_fx_event_eur_cevrim(db, ref_date=None):
     """Finans kalemi → EUR çevrim çekirdeği `t_account._event_eur` 2026'daki TÜM döviz (TRY/TL dışı) finance_events satırı için tek tek çağrılır; para birimi bazında EUR toplamı + çevrilemeyen (kursuz) kalem sayısı ölçülür. USD çapraz kur formülünü (amount × USD alış / EUR alış) ve 'amount_try'a bakılmaz' kuralını (FIN-001 düzeltmesi) kilitler. Endpoint Depends + rate-limit istediğinden iç saf hesaplayıcı çağrılır.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/cash_flow/t_account.py:166
+    Önem: kritik · Kaynak: backend/app/services/t_account_service.py
     """
     from datetime import date
 
     from app.models.finance_event import FinanceEvent
-    from app.routers.finance.cash_flow.t_account import _event_eur
+    from app.services.t_account_service import _event_eur
     _cache = {}
     _events = (
         db.query(FinanceEvent)
@@ -261,10 +263,10 @@ def _inv_hakedis_ozet(db, ref_date=None):
 def _inv_kredi_aktif_kalan_anapara_tip(db, ref_date=None):
     """Aktif kredilerin tip bazlı adet/toplam/kalan anapara özeti + EUR karşılığı. GERÇEK KOD YOLU: `credit_summary()` endpoint fonksiyonu doğrudan çağrılır (`db=db, _=None` — `_` yalnızca izin Depends'i, gövdede kullanılmıyor, bu yüzden None geçilebiliyor). Kredi kalan anaparasının kullanıcıya gösterilen tek kaynağı budur; EUR alanı `max(ExchangeRate.date)` + `forex_buying` üzerinden hesaplanır.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/krediler/summary.py:23
+    Önem: kritik · Kaynak: backend/app/services/credit_service.py
     """
-    from app.routers.finance.krediler.summary import credit_summary
-    rows = credit_summary(db=db, _=None)
+    from app.services.credit_service import summary_by_type
+    rows = summary_by_type(db)
     result = {}
     for r in rows:
         eur = r.get("remaining_amount_eur")
@@ -300,9 +302,9 @@ def _inv_kredi_cek_finance_event_izdusumu(db, ref_date=None):
 def _inv_kredi_liste_yaniti_imzasi(db, ref_date=None):
     """Kredi listesi ekranının ÜRETTİĞİ yanıtın imzası (ürün adedi, kalan/tutar toplamı, taksit ve ödenen taksit adedi, sonraki ödeme toplamı). GERÇEK KOD YOLU: `list_products()` tüm sayfalar gezilerek çağrılır → `_batch_payment_stats()` (taksit istatistiği, N+1 engelli sorgu) ve `_build_product_response()` (yanıt kurucu) birlikte ölçülür. Kalan/tutar toplamı para birimlerini toplar — rapor değil, DEĞİŞMEZLİK SAĞLAMASI (checksum) amaçlıdır.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/krediler/products.py:44
+    Önem: kritik · Kaynak: backend/app/services/credit_service.py
     """
-    from app.routers.finance.krediler.products import list_products
+    from app.services.credit_service import list_products
     kalan = 0.0
     tutar = 0.0
     taksit = 0
@@ -311,8 +313,7 @@ def _inv_kredi_liste_yaniti_imzasi(db, ref_date=None):
     adet = 0
     sayfa = 1
     while True:
-        r = list_products(page=sayfa, page_size=200, type_filter=None, status_filter=None,
-                          search=None, db=db, _=None)
+        r = list_products(db, page=sayfa, page_size=200, type_filter=None, status_filter=None, search=None)
         for it in r["items"]:
             adet += 1
             kalan += float(it["remaining_amount"])
@@ -355,15 +356,14 @@ def _inv_kredi_odenmemis_taksit_toplami(db, ref_date=None):
 def _inv_odeme_plani_haftalik(db, ref_date=None):
     """Haftalık ödeme planı ucunun GERÇEK kod yolu (payment_schedule.get_payment_schedule) çağrılır: haftalık grup sayısı, toplam tutar, kalem sayısı, ilk/son vade. DİKKAT — denetim API-003: bu uç okuma sırasında sync_vendor_finance_events() + db.commit() ile finance_events YAZAR; ölçümde modül seviyesindeki bu fonksiyon geçici olarak boş bir lambda ile değiştirilip (try/finally ile geri konur) yazma tamamen etkisizleştirilir, salt hesap ölçülür. Not: bu router kopyası vendor_fifo'daki ikizinden FARKLI davranır (ödeme yasaklısı cariler HARİÇ TUTULMAZ + net borç fazlası son faturaya 'leftover' satırı olarak eklenir) → toplamı FIFO toplamından yüksektir. Canlı referans: 43.779.120,55 TL · 41 hafta · 887 kalem · 2026-02-27…2026-12-25.
 
-    Önem: kritik · Kaynak: app/routers/finance/cariler/payment_schedule.py:27
+    Önem: kritik · Kaynak: app/services/payment_schedule_service.py
     """
-    import app.routers.finance.cariler.payment_schedule as ps
-    _orig_sync = ps.sync_vendor_finance_events
-    ps.sync_vendor_finance_events = lambda _db: {"created": 0, "updated": 0, "removed": 0, "recurring_synced": 0}
-    try:
-        groups = ps.get_payment_schedule(from_date=None, to_date=None, db=db, _=None)
-    finally:
-        ps.sync_vendor_finance_events = _orig_sync
+    from app.services.payment_schedule_service import compute_payment_schedule
+    # sync_fn no-op: ölçüm finance_events'e YAZMAZ (eskiden router modül niteliği monkeypatch'leniyordu)
+    groups = compute_payment_schedule(
+        db, from_date=None, to_date=None,
+        sync_fn=lambda _db: {"created": 0, "updated": 0, "removed": 0, "recurring_synced": 0},
+    )
     result = {
         "toplam": round(sum(g["total_amount"] for g in groups), 2),
         "hafta_sayisi": len(groups),
@@ -419,9 +419,9 @@ def _inv_rez_eur_toplam_yil(db, ref_date=None):
 def _inv_runway_banka_nakdi_eur(db, ref_date=None):
     """Saf banka nakdi (EUR): her hesabın (date, id) sırasına göre son bakiyesi eksi bloke tutar, en son TCMB alış kurlarıyla EUR'a çevrilmiş toplam. Panel 'Bankalar' KPI'sı, Nakit Akım sayfa başlığı ve bakiye eğrisinin bugün noktası bu TEK sayıdan beslenir. runway_ozet içinde de yer alır ama ayrı ölçülür: sapma çıkarsa hatanın bakiye/kur tarafında mı yoksa kalem çevriminde mi olduğu tek bakışta ayrılır. Canlı taban: 213.325,00.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/cash_flow/runway.py:93
+    Önem: kritik · Kaynak: backend/app/services/runway_service.py
     """
-    from app.routers.finance.cash_flow.runway import _compute_start_eur
+    from app.services.runway_service import _compute_start_eur
     result = float(_compute_start_eur(db))
     return result
 
@@ -429,13 +429,11 @@ def _inv_runway_banka_nakdi_eur(db, ref_date=None):
 def _inv_runway_ozet(db, ref_date=None):
     """Nakit Koruma (runway) endpoint'inin ürettiği tüm para toplamları: başlangıç banka nakdi (start_eur), bu ay beklenen giriş/çıkış, vadesi geçen gider ve tahsilat, beklemeye alınanlar — her biri kalem sayısı + EUR toplamı olarak. Gerçek endpoint fonksiyonu (runway) çağrılır, sahte current_user yalnız rate-limiter anahtarı içindir. Canlı taban: start_eur 213.325,00 · outs 24 kalem/357.596,65 · overdue 174 kalem/332.012,45.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/cash_flow/runway.py:244
+    Önem: kritik · Kaynak: backend/app/services/runway_service.py
     """
-    import uuid
-    from types import SimpleNamespace
 
-    from app.routers.finance.cash_flow.runway import runway
-    _r = runway(db=db, current_user=SimpleNamespace(id="fp-" + uuid.uuid4().hex))
+    from app.services.runway_service import compute_runway
+    _r = compute_runway(db)
     result = {
         "month_start": _r["month_start"], "month_end": _r["month_end"],
         "start_eur": _r["start_eur"],
@@ -547,14 +545,11 @@ def _inv_si_ozet_endpoint(db, ref_date=None):
 def _inv_t_hesap_cari_ay_toplam(db, ref_date=None):
     """Panel T-Hesap Cetveli'nin cari ay (monthly, offset=0) kolon toplamları: giriş/çıkış EUR, net, gerçekleşen giriş/çıkış, faaliyet/finansman neti ve kur bulunamadığı için atlanan kalem sayısı. GERÇEK ENDPOINT FONKSİYONU çağrılır (t_account); FastAPI Depends varsayılanları yerine db ve sahte bir current_user (yalnız .id, rate-limiter anahtarı için) elle geçilir — her ölçümde benzersiz id verildiğinden 429 oluşmaz. Canlı taban: total_in 1.292.325,45 / total_out 1.367.422,01 / net -75.096,56.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/cash_flow/t_account.py:235
+    Önem: kritik · Kaynak: backend/app/services/t_account_service.py
     """
-    import uuid
-    from types import SimpleNamespace
 
-    from app.routers.finance.cash_flow.t_account import t_account
-    _r = t_account(period="monthly", offset=0, db=db,
-                   current_user=SimpleNamespace(id="fp-" + uuid.uuid4().hex))
+    from app.services.t_account_service import compute_t_account
+    _r = compute_t_account(db, "monthly", 0)
     result = {k: _r[k] for k in ("start_date", "end_date", "total_in_eur", "total_out_eur",
                                  "net_eur", "realized_in_eur", "realized_out_eur",
                                  "faaliyet_net_eur", "finansman_net_eur", "skipped_no_rate")}
@@ -564,14 +559,11 @@ def _inv_t_hesap_cari_ay_toplam(db, ref_date=None):
 def _inv_t_hesap_grup_kirilimi(db, ref_date=None):
     """Aynı T-Hesap çağrısının GRUP bazında kırılımı: her giriş/çıkış başlığı için (toplam EUR, gerçekleşen EUR, beklemedeki EUR, kalem sayısı). Kolon toplamı aynı kalırken bir kategorinin diğerine kayması (ör. Kredi/Leasing ile Cari, Personel ile Vergi/SGK arası etiket kayması veya bir grubun toplam-dışı sayılması) yalnız burada görünür — FIN-001 sınıfı sessiz kaymanın en hassas dedektörü.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/cash_flow/t_account.py:300
+    Önem: kritik · Kaynak: backend/app/services/t_account_service.py
     """
-    import uuid
-    from types import SimpleNamespace
 
-    from app.routers.finance.cash_flow.t_account import t_account
-    _r = t_account(period="monthly", offset=0, db=db,
-                   current_user=SimpleNamespace(id="fp-" + uuid.uuid4().hex))
+    from app.services.t_account_service import compute_t_account
+    _r = compute_t_account(db, "monthly", 0)
     _out = {}
     for _side in ("giris", "cikis"):
         for _g in _r[_side]:
@@ -673,16 +665,16 @@ def _inv_avans_modul_ozet(db, ref_date=None):
 def _inv_cari_detay_ornek(db, ref_date=None):
     """Cari detay ucunun (get_vendor_detay) gerçek fonksiyonu, DETERMİNİSTİK seçilen tek cari için çağrılır: net borcu en yüksek cari (eşitlikte en küçük vendor_id). Ölçülen: bakiye, NET vadesi geçmiş tutar/adet, işlem sayısı, ilk satırın kümülatif bakiyesi (SQL pencere fonksiyonu) ve fifo_remaining çipi. Toplamların gizlediği satır-seviyesi hataları (kümülatif bakiye sıralaması, fatura-başı FIFO kalanı) yakalar. Canlı referans: vendor_id 584 · bakiye −3.100.000,00 · overdue 317.000,00 (1 fatura).
 
-    Önem: yuksek · Kaynak: app/routers/finance/cariler/vendors.py:234
+    Önem: yuksek · Kaynak: app/services/vendor_service.py
     """
-    from app.routers.finance.cariler.vendors import get_vendor_detail
     from app.services.vendor_fifo import _get_vendor_net_debts
+    from app.services.vendor_service import vendor_detail
     debts = _get_vendor_net_debts(db)
     if not debts:
         result = {"vendor_id": None}
     else:
         vid = sorted(debts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-        res = get_vendor_detail(vendor_id=vid, page=1, page_size=5, sort_by=None, sort_dir="desc", db=db, _=None)
+        res = vendor_detail(db, vendor_id=vid, page=1, page_size=5, sort_by=None, sort_dir="desc")
         v = res["vendor"]
         items = res["transactions"]["items"]
         first = items[0] if items else {}
@@ -813,10 +805,10 @@ def _inv_kredi_anapara_tutarlilik_sapmasi(db, ref_date=None):
 def _inv_kredi_yaklasan_odemeler_365(db, ref_date=None):
     """Önümüzdeki 365 gün içinde vadesi gelen ödenmemiş kredi taksitlerinin para birimi bazlı adet/tutar/anapara toplamı. GERÇEK KOD YOLU: `upcoming_payments(days=365, include_paid=False, ...)` endpoint fonksiyonu doğrudan çağrılır (Depends parametrelerine db ve None geçilir). DİKKAT: fonksiyon içinde `date.today()` kullanılır → sonuç güne bağlıdır.
 
-    Önem: yuksek · Kaynak: backend/app/routers/finance/krediler/summary.py:95
+    Önem: yuksek · Kaynak: backend/app/services/credit_service.py
     """
-    from app.routers.finance.krediler.summary import upcoming_payments
-    rows = upcoming_payments(days=365, include_paid=False, db=db, _=None)
+    from app.services.credit_service import upcoming_payments
+    rows = upcoming_payments(db, days=365, include_paid=False)
     per = {}
     for r in rows:
         d = per.setdefault(str(r["currency"]), {"adet": 0, "tutar": 0.0, "anapara": 0.0})
@@ -831,14 +823,14 @@ def _inv_kredi_yaklasan_odemeler_365(db, ref_date=None):
 def _inv_mutabakat_acik_ve_kur_farki(db, ref_date=None):
     """Sedna mutabakatı: açık uyuşmazlıklar gerçek filtre yardımcısı `mutabakat._apply_item_filters` ile (endpoint'in gördüğü kümenin aynısı) çekilir, durum bazında adet + işaretli tutar toplanır; ayrıca `/fx-differences` endpoint'indeki `total_amount_try` toplamı ve kayıt adedi birebir taklit edilir (endpoint Depends istiyor). Uyuşmazlık sınıflandırmasının veya kur farkı (646/656) birikiminin sessizce kaymasını yakalar.
 
-    Önem: yuksek · Kaynak: backend/app/routers/accounting/mutabakat.py:67
+    Önem: yuksek · Kaynak: backend/app/services/sedna_recon_service.py
     """
     from sqlalchemy import func
 
     from app.models.event_match import FxDifference
     from app.models.sedna_recon import SednaBankRecon
-    from app.routers.accounting.mutabakat import _apply_item_filters
-    _q = _apply_item_filters(db.query(SednaBankRecon), None, None, None, False, None)
+    from app.services.sedna_recon_service import apply_item_filters
+    _q = apply_item_filters(db.query(SednaBankRecon), None, None, None, False, None)
     _open = _q.all()
     _by_status = {}
     for _r in _open:
@@ -855,9 +847,9 @@ def _inv_mutabakat_acik_ve_kur_farki(db, ref_date=None):
 def _inv_yaslananlar_ozeti(db, ref_date=None):
     """Yaşlananlar raporunun (compute_aging, endpoint + cron bildiriminin ORTAK çekirdeği) ürettiği sayılar: 7 günden eski hâlâ eşleşmemiş/gerçekleşmemiş tahminlerin kaynak türü bazında adedi + TL toplamı + en eski tarihi, ayrıca etiketsiz/eşleşmesiz banka hareketlerinin adedi ve mutlak TL toplamı. item_limit=1 verilir (liste değil, toplamlar ölçülür → hızlı). Canlı taban: 148 açık tahmin (çek/temettü/cari) + 316 eşleşmesiz banka hareketi / 74.751.914,82.
 
-    Önem: yuksek · Kaynak: backend/app/routers/finance/cash_flow/aging.py:44
+    Önem: yuksek · Kaynak: backend/app/services/aging_service.py
     """
-    from app.routers.finance.cash_flow.aging import compute_aging
+    from app.services.aging_service import compute_aging
     _a = compute_aging(db, days=7, item_limit=1)
     result = {
         "cutoff": _a["cutoff"],
@@ -873,18 +865,18 @@ def _inv_yaslananlar_ozeti(db, ref_date=None):
 def _inv_cari_analitik_toplamlari(db, ref_date=None):
     """Cariler v2 analitik sekmelerinin iki gerçek endpoint fonksiyonu (get_monthly_balances mode=fifo + get_yearly_turnover) çağrılır. Referans yıl/ay TAKVİMDEN DEĞİL veritabanından türetilir (max(vendor_transactions.date)) → gün/ay dönmesi ölçümü kaydırmaz. Ölçülen: aylık faturalanan/kapanan/kalan üçlüsü + satır sayısı, yıllık ciro + fatura adedi. Devir/açılış hariç tutma filtresinin ve ay-sonu kesiminin bozulmasını yakalar. Canlı referans (2026-07): invoiced 123.466.681,86 · closed 81.428.886,90 · remaining 42.037.794,96 (FIFO toplamıyla aynı olmalı) · yıllık ciro 208.068.337,38 / 2.625 fatura.
 
-    Önem: orta · Kaynak: app/routers/finance/cariler/analytics.py:43
+    Önem: orta · Kaynak: app/services/vendor_analytics_service.py
     """
     from sqlalchemy import func
 
     from app.models.vendor_transaction import VendorTransaction
-    from app.routers.finance.cariler.analytics import get_monthly_balances, get_yearly_turnover
+    from app.services.vendor_analytics_service import monthly_balances, yearly_turnover
     mx = db.query(func.max(VendorTransaction.date)).scalar()
     if mx is None:
         result = {"referans_ay": None}
     else:
-        mb = get_monthly_balances(year=mx.year, month=mx.month, mode="fifo", hide_zero=True, db=db, _=None)
-        yt = get_yearly_turnover(year=mx.year, db=db, _=None)
+        mb = monthly_balances(db, year=mx.year, month=mx.month, mode="fifo", hide_zero=True)
+        yt = yearly_turnover(db, year=mx.year)
         result = {
             "referans_ay": "%04d-%02d" % (mx.year, mx.month),
             "aylik_invoiced": mb["totals"]["invoiced"],
@@ -931,10 +923,10 @@ def _inv_fe_event_eur_tam_tarama(db, ref_date=None):
     Bu tarama tarih ve para birimi süzmez → FIN-001 sınıfı (TRY dalında amount vs
     amount_try önceliği) doğrudan buradan yakalanır.
 
-    Önem: kritik · Kaynak: backend/app/routers/finance/cash_flow/t_account.py:_event_eur
+    Önem: kritik · Kaynak: backend/app/services/t_account_service.py:_event_eur
     """
     from app.models.finance_event import FinanceEvent
-    from app.routers.finance.cash_flow.t_account import _event_eur
+    from app.services.t_account_service import _event_eur
     _cache = {}
     _rows = db.query(FinanceEvent).order_by(FinanceEvent.id).all()
     _by = {}

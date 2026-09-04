@@ -22,11 +22,8 @@ APP = paths.APP_DIR
 BACKEND = paths.BACKEND_DIR
 REPO = paths.REPO_ROOT
 
-# services→routers ihlali: finansal parmak-izi değişmez kaydı, router iç fonksiyonlarını ölçüm için
-# çağırır. Kapanışı: o hesapların servislere çıkarılması (yeniden yapılandırma Faz 3, fingerprint-kapılı).
-_ALLOWED_ROUTER_IMPORTERS = {
-    "services/audit_finance_invariants.py",
-}
+# İstisna listesi boş: son services→routers ihlali (audit_finance_invariants) 2026-09-02'de kapandı.
+_ALLOWED_ROUTER_IMPORTERS = set()  # 2026-09-02: audit_finance_invariants istisnası Faz 4b/4c ile kapandı
 
 # app/utils'ten taşınan modüller (2026-09-02) — eski yol hiçbir yerde kalmamalı
 _MOVED_FROM_UTILS = {
