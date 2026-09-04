@@ -302,30 +302,7 @@ def advance_summary(
     current_user: User = Depends(require_permission("finance.avanslar", "view")),
 ):
     """Özet: bekleyen ve alınan toplam tutarlar (para birimine göre)."""
-    rows = (
-        db.query(
-            Advance.currency,
-            Advance.status,
-            func.sum(Advance.amount).label("total_amount"),
-            func.count(Advance.id).label("count"),
-        )
-        .filter(Advance.status != "cancelled")
-        .group_by(Advance.currency, Advance.status)
-        .all()
-    )
-
-    result = {}
-    for currency, status, total_amount, count in rows:
-        if currency not in result:
-            result[currency] = {"pending": 0.0, "received": 0.0, "pending_count": 0, "received_count": 0}
-        if status == "pending":
-            result[currency]["pending"] = float(total_amount or 0)
-            result[currency]["pending_count"] = count
-        elif status == "received":
-            result[currency]["received"] = float(total_amount or 0)
-            result[currency]["received_count"] = count
-
-    return result
+    return advance_service.summary(db)
 
 
 # ─── SEDNA MUTABAKAT (340 Alınan Avanslar ile) ───────────

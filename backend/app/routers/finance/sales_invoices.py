@@ -26,8 +26,6 @@ from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.sales_invoice import (
     STATUS_OPEN,
-    STATUS_PAID,
-    STATUS_PARTIAL,
     SalesAdvance,
     SalesAdvanceTransaction,
     SalesCollection,
@@ -35,6 +33,7 @@ from app.models.sales_invoice import (
 )
 from app.models.user import User
 from app.realtime.finance_broadcast import broadcast_finance_update
+from app.services import sales_invoice_service
 from app.services.sales_invoice_service import (
     _EPS,
     _compute_cached,
@@ -405,38 +404,7 @@ def summary(
     _: User = Depends(require_permission("finance.sales_invoices", "view")),
 ):
     """Satış faturası özeti: toplam faturalanan/tahsil/açık + durum + münferit/acente kırılımı + avans."""
-    smap, _ = _compute_cached(db)
-    invoices = db.query(SalesInvoice).all()
-    agg = {
-        "total": {"invoiced": 0.0, "collected": 0.0, "count": 0},
-        "munferit": {"invoiced": 0.0, "collected": 0.0, "count": 0},
-        "agency": {"invoiced": 0.0, "collected": 0.0, "count": 0},
-    }
-    status_counts = {STATUS_PAID: 0, STATUS_PARTIAL: 0, STATUS_OPEN: 0}
-    for inv in invoices:
-        entry = smap.get(inv.id, {"collected_tl": 0.0, "status": STATUS_OPEN})
-        amt = _f(inv.amount)  # TL karşılığı (konsolide)
-        bucket = "munferit" if inv.is_munferit else "agency"
-        for key in ("total", bucket):
-            agg[key]["invoiced"] += amt
-            agg[key]["collected"] += entry.get("collected_tl", 0.0)
-            agg[key]["count"] += 1
-        status_counts[entry["status"]] += 1
-    for key in agg:
-        agg[key]["invoiced"] = round(agg[key]["invoiced"], 2)
-        agg[key]["collected"] = round(agg[key]["collected"], 2)
-        agg[key]["outstanding"] = round(agg[key]["invoiced"] - agg[key]["collected"], 2)
-
-    # net avans — 340 'Alınan Avanslar' + 120 net-alacak birleşik (para birimi bazında)
-    merged_adv, adv_by_cur = _merged_advances(db)
-    return {
-        **agg,
-        "status_counts": status_counts,
-        "advance": {  # kullanılmamış net avans (340 asıl defter + 120 net-alacak)
-            "by_currency": adv_by_cur,                        # {"TL": x, "EUR": y}
-            "agency_count": len(merged_adv),
-        },
-    }
+    return sales_invoice_service.summary(db)
 
 
 @router.get("/advances")

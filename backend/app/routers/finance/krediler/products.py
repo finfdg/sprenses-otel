@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.approval.approval_check import check_approval
 from app.constants import BroadcastModule
@@ -27,15 +27,13 @@ from app.schemas.credit import (
     CreditProductUpdate,
 )
 from app.services import credit_service
-from app.services.finance_event_service import finance_event_svc
-from app.utils.audit import log_action
-from app.utils.pagination import page_meta
-from app.utils.sql_search import like_pattern
-
-from ._helpers import (
+from app.services.credit_service import (  # (2026-09-02) helper'lar servise taşındı; _helpers.py yeniden dışa verir
     _batch_payment_stats,
     _build_product_response,
 )
+from app.services.finance_event_service import finance_event_svc
+from app.utils.audit import log_action
+from app.utils.sql_search import like_pattern
 
 router = APIRouter()
 
@@ -51,34 +49,7 @@ def list_products(
     _: User = Depends(require_permission("finance.krediler", "view")),
 ):
     """Kredi ürünlerini listele."""
-    query = db.query(CreditProduct)
-
-    if type_filter and type_filter in CREDIT_PRODUCT_TYPES:
-        query = query.filter(CreditProduct.type == type_filter)
-    if status_filter:
-        query = query.filter(CreditProduct.status == status_filter)
-    if search:
-        s = like_pattern(search, max_len=100)
-        query = query.filter(
-            (CreditProduct.name.ilike(s, escape="\\")) |
-            (CreditProduct.bank_name.ilike(s, escape="\\"))
-        )
-
-    total = query.count()
-    products = (
-        query
-        .options(joinedload(CreditProduct.creator))   # N+1 engeli
-        .order_by(CreditProduct.type, CreditProduct.name)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
-
-    # Ödeme istatistiklerini toplu hesapla (N+1 engeli)
-    product_ids = [p.id for p in products]
-    stats = _batch_payment_stats(db, product_ids)
-
-    return page_meta([_build_product_response(p, stats) for p in products], total, page, page_size)
+    return credit_service.list_products(db, page, page_size, type_filter, status_filter, search)
 
 
 def _fmt_money_tr(v, currency: Optional[str]) -> str:

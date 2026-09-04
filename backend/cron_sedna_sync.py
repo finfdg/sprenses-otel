@@ -95,7 +95,7 @@ def _maybe_notify_aging(db) -> None:
     if now.hour != 9:
         return
     try:
-        from app.routers.finance.cash_flow.aging import compute_aging
+        from app.services.aging_service import compute_aging
         from app.services.sedna_recon_service import _notify_viewers
 
         aging = compute_aging(db, days=7, item_limit=1)

@@ -15,7 +15,7 @@ from datetime import date as date_cls
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.approval.approval_check import check_approval
@@ -36,6 +36,9 @@ from app.schemas.sedna_recon import (
     ReconRunRequest,
 )
 from app.services import sedna_recon_service
+from app.services.sedna_recon_service import (
+    apply_item_filters,  # noqa: F401 — geriye uyumluluk: testler/parmak izi bu yoldan import eder
+)
 from app.utils.audit import log_action
 
 router = APIRouter(tags=["Sedna Mutabakat"])
@@ -64,27 +67,10 @@ _CURRENCY_SYMBOLS = {"TRY": "₺", "EUR": "€", "USD": "$", "GBP": "£"}
 _PDF_MAX_ROWS = 1500  # tek PDF'e basılacak azami satır (aşımı raporda açıkça belirtilir)
 
 
-def _apply_item_filters(query, status: Optional[str], account_id: Optional[int],
-                        entity_type: Optional[str], include_closed: bool, q: Optional[str]):
-    """Uyuşmazlık liste filtreleri — /items ve /items/pdf AYNI kümeyi görsün diye ortak."""
-    if not include_closed:
-        query = query.filter(SednaBankRecon.resolved_at.is_(None))
-    if status:
-        query = query.filter(SednaBankRecon.status == status)
-    if account_id:
-        query = query.filter(SednaBankRecon.bank_account_id == account_id)
-    if entity_type == "bank":
-        # Banka satırları entity_type taşımaz (NULL) — 'bank' takma değeri onları seçer
-        query = query.filter(SednaBankRecon.entity_type.is_(None))
-    elif entity_type:
-        query = query.filter(SednaBankRecon.entity_type == entity_type)
-    if q:
-        like = f"%{q.strip()}%"
-        query = query.filter(or_(
-            SednaBankRecon.description.ilike(like),
-            SednaBankRecon.sedna_description.ilike(like),
-        ))
-    return query
+# 2026-09-02 yeniden yapılandırma: gövde services/sedna_recon_service.apply_item_filters'a
+# BİREBİR taşındı; takma ad geriye uyumluluk için (audit_finance_invariants + eski import
+# yolları `mutabakat._apply_item_filters`'ı çözmeye devam eder).
+_apply_item_filters = apply_item_filters
 
 
 def _fmt_pdf_amount(value: float, currency: Optional[str]) -> str:

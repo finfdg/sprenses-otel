@@ -1,6 +1,13 @@
-"""Cari listesi, detay, banka işlemleri, özet ve vade/durum/iletişim güncelleme."""
+"""Cari listesi, detay, banka işlemleri, özet ve vade/durum/iletişim güncelleme.
 
-import math
+**Yeniden yapılandırma (2026-09-02):** `get_vendors_summary` ve `get_vendor_detail` gövdeleri
+BİREBİR `app/services/vendor_service.py`'ye (`vendors_summary` / `vendor_detail`) taşındı;
+bu iki endpoint ince sarmalayıcıdır (imza, izin kodu ve yanıt değişmedi). Taşınan adlar +
+`_helpers`'tan taşınan `_build_tx_response` / `_build_dept_cat_user_maps` geriye uyumluluk için
+modül düzeyinde yeniden dışa verilir (`services/audit_finance_invariants.py` endpoint
+fonksiyonlarını bu yoldan `(db=db, _=None)` ile çağırır).
+"""
+
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -15,24 +22,28 @@ from app.middleware.auth import require_permission
 from app.middleware.rate_limit import get_client_ip
 from app.models.bank_account import BankAccount
 from app.models.bank_transaction import BankTransaction
-from app.models.exchange_rate import ExchangeRate
 from app.models.user import User
 from app.models.vendor import STATUS_PAYMENT_BANNED, VENDOR_STATUS_CHOICES, Vendor
 from app.models.vendor_transaction import VendorTransaction
 from app.realtime.finance_broadcast import broadcast_finance_update
 from app.schemas.vendor import (
     VendorContactUpdate,
-    VendorDetailResponse,
     VendorPaymentDaysUpdate,
     VendorResponse,
     VendorStatusUpdate,
 )
 from app.services import vendor_service
-from app.services.vendor_fifo import calculate_fifo_amounts, calculate_overdue_by_vendor
+from app.services.vendor_fifo import calculate_overdue_by_vendor
+from app.services.vendor_service import (  # noqa: F401 — geriye uyumluluk: testler/parmak izi bu yoldan import eder (2026-09-02 çıkarımı)
+    _build_dept_cat_user_maps,
+    _build_tx_response,
+    vendor_detail,
+    vendors_summary,
+)
 from app.utils.audit import log_action
 from app.utils.pagination import page_meta
 
-from ._helpers import _build_dept_cat_user_maps, _build_tx_response, logger
+from ._helpers import logger
 
 router = APIRouter()
 
@@ -45,70 +56,7 @@ def get_vendors_summary(
     _: User = Depends(require_permission("finance.cariler", "view")),
 ):
     """Tüm carilerin toplam borç/alacak/bakiye özetini getir."""
-    totals = (
-        db.query(
-            func.coalesce(func.sum(VendorTransaction.borc), 0),
-            func.coalesce(func.sum(VendorTransaction.alacak), 0),
-        )
-        .first()
-    )
-    total_borc = float(totals[0])
-    total_alacak = float(totals[1])
-
-    vendor_count = db.query(func.count(Vendor.id)).scalar() or 0
-    banned_count = db.query(func.count(Vendor.id)).filter(Vendor.status == STATUS_PAYMENT_BANNED).scalar() or 0
-
-    balance_rows = (
-        db.query(
-            Vendor.id,
-            (func.coalesce(func.sum(VendorTransaction.borc), 0) - func.coalesce(func.sum(VendorTransaction.alacak), 0)).label("bakiye"),
-        )
-        .outerjoin(VendorTransaction, Vendor.id == VendorTransaction.vendor_id)
-        .group_by(Vendor.id)
-        .all()
-    )
-    negative_count = 0
-    negative_total = 0.0
-    nonzero_count = 0
-    for row in balance_rows:
-        b = float(row.bakiye)
-        if b < 0:
-            negative_count += 1
-            negative_total += b
-        if abs(b) > 0.004:
-            nonzero_count += 1
-
-    # Vadesi geçmiş — detay kartı / Ödeme Planı ile AYNI net FIFO kaynağı
-    overdue_map = calculate_overdue_by_vendor(db)
-    overdue_total = round(sum(amt for amt, _cnt in overdue_map.values()), 2)
-    overdue_invoice_count = sum(cnt for _amt, cnt in overdue_map.values())
-    overdue_vendor_count = len(overdue_map)
-
-    bakiye = total_borc - total_alacak
-    negative_total_eur = None
-    latest_date = db.query(func.max(ExchangeRate.date)).scalar()
-    if latest_date:
-        eur_obj = db.query(ExchangeRate).filter(
-            ExchangeRate.date == latest_date,
-            ExchangeRate.currency_code == "EUR",
-        ).first()
-        if eur_obj and eur_obj.forex_buying and float(eur_obj.forex_buying) > 0:
-            negative_total_eur = round(abs(float(negative_total)) / float(eur_obj.forex_buying), 2)
-
-    return {
-        "total_borc": total_borc,
-        "total_alacak": total_alacak,
-        "bakiye": bakiye,
-        "vendor_count": vendor_count,
-        "negative_count": negative_count,
-        "negative_total": negative_total,
-        "negative_total_eur": negative_total_eur,
-        "banned_count": banned_count,
-        "nonzero_count": nonzero_count,
-        "overdue_total": overdue_total,
-        "overdue_invoice_count": overdue_invoice_count,
-        "overdue_vendor_count": overdue_vendor_count,
-    }
+    return vendors_summary(db)
 
 
 # ─── Cari Listesi ────────────────────────────────────────
@@ -246,116 +194,7 @@ def get_vendor_detail(
     Varsayılan sıralama tarih DESC (en yeni üstte). `sort_by` whitelist'li kolon
     sıralaması sunar; `bakiye` sıralaması kronolojik kümülatif bakiye kolonuna göredir.
     """
-    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
-    if not vendor:
-        raise HTTPException(status_code=404, detail="Cari bulunamadı")
-
-    totals = (
-        db.query(
-            func.coalesce(func.sum(VendorTransaction.borc), 0),
-            func.coalesce(func.sum(VendorTransaction.alacak), 0),
-        )
-        .filter(VendorTransaction.vendor_id == vendor_id)
-        .first()
-    )
-    total_borc = float(totals[0])
-    total_alacak = float(totals[1])
-
-    running_balance = func.sum(VendorTransaction.borc - VendorTransaction.alacak).over(
-        order_by=[VendorTransaction.date.asc(), VendorTransaction.id.asc()]
-    ).label("running_balance")
-
-    total_count = (
-        db.query(func.count(VendorTransaction.id))
-        .filter(VendorTransaction.vendor_id == vendor_id)
-        .scalar()
-        or 0
-    )
-    # Kolon sıralaması (whitelist) — bakiye = pencere fonksiyonuyla hesaplanan kümülatif kolon
-    tx_sort_map = {
-        "date": VendorTransaction.date,
-        "evrak_no": VendorTransaction.evrak_no,
-        "transaction_type": VendorTransaction.transaction_type,
-        "borc": VendorTransaction.borc,
-        "alacak": VendorTransaction.alacak,
-        "bakiye": running_balance,
-    }
-    if sort_by and sort_by in tx_sort_map:
-        order_col = tx_sort_map[sort_by]
-        primary = desc(order_col) if sort_dir == "desc" else order_col
-        order_exprs = [primary, VendorTransaction.date.desc(), VendorTransaction.id.desc()]
-    else:
-        order_exprs = [VendorTransaction.date.desc(), VendorTransaction.id.desc()]
-
-    rows = (
-        db.query(VendorTransaction, running_balance)
-        .filter(VendorTransaction.vendor_id == vendor_id)
-        .order_by(*order_exprs)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
-    transactions = [row[0] for row in rows]
-
-    dept_map, cat_map, user_map = _build_dept_cat_user_maps(db, transactions)
-
-    # Fatura satırı durum çipleri (Kapandı / Gecikti / Vade) için FIFO kalanları —
-    # Ödeme Planı ile aynı kaynak. Tam ödenmiş faturalar haritada yer almaz (kalan=0).
-    fifo_map = calculate_fifo_amounts(db)
-
-    items = []
-    for tx, rb in rows:
-        item = _build_tx_response(tx, dept_map, cat_map, user_map)
-        item["bakiye"] = float(rb) if rb is not None else None
-        if float(tx.alacak) > 0:
-            item["fifo_remaining"] = round(float(fifo_map.get(tx.id, 0.0)), 2)
-        items.append(item)
-
-    # ── Özet kart metrikleri (tasarım: Vadesi Geçmiş / Son Ödeme) ──
-    # Vadesi geçmiş = NET ödenmemiş, vadesi dolmuş fatura payı (Ödeme Planı ile aynı FIFO
-    # kaynağından). Brüt fatura toplamı DEĞİL — ödemeler en eski faturalardan düşülür, kalan
-    # gecikmiş kısım net borçla sınırlıdır. (Eski brüt hesap net bakiyeden kat kat büyük
-    # çıkabiliyordu; ör. net −558K'ya karşı brüt 1.57M.)
-    overdue_map = calculate_overdue_by_vendor(db, vendor_ids=[vendor_id])
-    overdue, overdue_count = overdue_map.get(vendor_id, (0.0, 0))
-
-    # Son ödeme = en yeni borç (ödeme) kaydı.
-    last_pay = (
-        db.query(VendorTransaction)
-        .filter(
-            VendorTransaction.vendor_id == vendor_id,
-            VendorTransaction.borc > 0,
-        )
-        .order_by(VendorTransaction.date.desc(), VendorTransaction.id.desc())
-        .first()
-    )
-
-    return {
-        "vendor": VendorDetailResponse(
-            id=vendor.id,
-            hesap_kodu=vendor.hesap_kodu,
-            hesap_adi=vendor.hesap_adi,
-            payment_days=vendor.payment_days,
-            status=vendor.status,
-            total_borc=total_borc,
-            total_alacak=total_alacak,
-            bakiye=total_borc - total_alacak,
-            contact_person=vendor.contact_person,
-            phone=vendor.phone,
-            email=vendor.email,
-            overdue=overdue,
-            overdue_count=overdue_count,
-            last_payment_amount=float(last_pay.borc) if last_pay else None,
-            last_payment_date=last_pay.date if last_pay else None,
-        ).model_dump(),
-        "transactions": {
-            "items": items,
-            "total": total_count,
-            "page": page,
-            "page_size": page_size,
-            "pages": math.ceil(total_count / page_size) if total_count > 0 else 1,
-        },
-    }
+    return vendor_detail(db, vendor_id, page, page_size, sort_by, sort_dir)
 
 
 # ─── Cari Banka İşlemleri ────────────────────────────────

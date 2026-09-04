@@ -6,19 +6,36 @@ AYNI fonksiyonları çağırır → router↔executor sapması (sessiz bug) yap�
 Kapatılan sapmalar (2026-06-21 denetim D2-4): executor `product_id` (yanlış kolon — model
 `credit_product_id`) → AttributeError 500; onaylanan create/update'te BCH/KMH ödeme planı +
 finance_events ÜRETİLMİYORDU (router üretiyordu) → onaylı kredi sessizce plansız/nakit-akımsız oluşuyordu.
+
+Okuma yolları — BİREBİR çıkarım (2026-09-02, yeniden yapılandırma; katman yönü router → service → model):
+`_build_product_response` + `_batch_payment_stats` (`krediler/_helpers.py`), `list_products` gövdesi
+(`krediler/products.py::list_products`), `summary_by_type` (`krediler/summary.py::credit_summary` gövdesi)
+ve `upcoming_payments` (`krediler/summary.py::upcoming_payments` gövdesi) bu modüle satırı satırına,
+DEĞİŞTİRİLMEDEN taşındı — finansal parmak izi kapısı (eski-kod/yeni-kod 41 değişmez, sıfır fark):
+hiçbir varsayılan (`date.today()` dahil), yuvarlama, guard, sorgu sırası ya da lazy import değiştirilmedi.
+Geriye uyumluluk: `krediler/_helpers.py` iki helper'ı, `krediler/summary.py` `summary_by_type`'ı modül
+düzeyinde yeniden dışa verir; `credit_summary`/`upcoming_payments`/`list_products` router endpoint'leri
+aynı adla kalır ve buradaki fonksiyonu aynı argümanlarla çağıran ince sarmalayıcılardır
+(`services/audit_finance_invariants.py` parmak izi o router yolundan çağırmaya devam eder).
 """
 import json
-from datetime import date
+from datetime import date, timedelta
+from typing import Optional
 
+from sqlalchemy import case as sa_case
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.credit_product import (
     CREDIT_PRODUCT_TYPES,
+    CREDIT_TYPE_LABELS,
     CreditPayment,
     CreditProduct,
 )
+from app.schemas.credit import CreditProductResponse, CreditSummaryItem
 from app.services.finance_event_service import finance_event_svc
+from app.utils.pagination import page_meta
+from app.utils.sql_search import like_pattern
 
 # BCH/KMH yeniden hesap tetikleyen alanlar (update'te plan yenilenir)
 RECALC_FIELDS = {
@@ -362,3 +379,253 @@ def delete_payment(db: Session, payment: CreditPayment) -> None:
     """Ödemeyi sil + finance_event invalidate."""
     finance_event_svc.invalidate(db, "credit", payment.id)
     db.delete(payment)
+
+
+# ─── Okuma yolları — router endpoint'lerinden / _helpers'tan BİREBİR çıkarım (2026-09-02) ───
+
+
+def _build_product_response(p: CreditProduct, stats: dict) -> dict:
+    """Kredi ürünü yanıtı oluştur (stats: önceden hesaplanmış istatistikler)."""
+    details = None
+    if p.details:
+        try:
+            details = json.loads(p.details)
+        except (json.JSONDecodeError, TypeError):
+            details = None
+
+    s = stats.get(p.id, {})
+    return CreditProductResponse(
+        id=p.id,
+        type=p.type,
+        type_label=CREDIT_TYPE_LABELS.get(p.type, p.type),
+        name=p.name,
+        bank_name=p.bank_name,
+        company=p.company,
+        currency=p.currency,
+        total_amount=float(p.total_amount),
+        remaining_amount=float(p.remaining_amount),
+        interest_rate=float(p.interest_rate) if p.interest_rate is not None else None,
+        bsmv_rate=float(p.bsmv_rate) if p.bsmv_rate is not None else None,
+        commission_rate=float(p.commission_rate) if p.commission_rate is not None else None,
+        linked_account_id=p.linked_account_id,
+        start_date=p.start_date,
+        end_date=p.end_date,
+        status=p.status,
+        closed_date=p.closed_date,
+        details=details,
+        notes=p.notes,
+        created_by=p.created_by,
+        creator_name=p.creator.full_name if p.creator else None,
+        created_at=p.created_at,
+        updated_at=p.updated_at,
+        payment_count=s.get("payment_count", 0),
+        paid_count=s.get("paid_count", 0),
+        next_payment_date=s.get("next_date"),
+        next_payment_amount=s.get("next_amount"),
+    ).model_dump()
+
+
+def _batch_payment_stats(db: Session, product_ids: list) -> dict:
+    """Kredi ürünleri için ödeme istatistiklerini toplu hesapla (N+1 engeli)."""
+    if not product_ids:
+        return {}
+
+    # Toplam ve ödenen taksit sayıları — tek sorgu
+    rows = (
+        db.query(
+            CreditPayment.credit_product_id,
+            func.count(CreditPayment.id).label("total"),
+            func.sum(sa_case((CreditPayment.is_paid == True, 1), else_=0)).label("paid"),
+        )
+        .filter(CreditPayment.credit_product_id.in_(product_ids))
+        .group_by(CreditPayment.credit_product_id)
+        .all()
+    )
+    stats = {pid: {"payment_count": total, "paid_count": int(paid or 0)} for pid, total, paid in rows}
+
+    # Sonraki ödeme — ödenmemiş en yakın taksit per ürün
+    subq = (
+        db.query(
+            CreditPayment.credit_product_id,
+            func.min(CreditPayment.due_date).label("min_date"),
+        )
+        .filter(
+            CreditPayment.credit_product_id.in_(product_ids),
+            CreditPayment.is_paid == False,
+        )
+        .group_by(CreditPayment.credit_product_id)
+        .subquery()
+    )
+    next_rows = (
+        db.query(CreditPayment)
+        .join(subq, (CreditPayment.credit_product_id == subq.c.credit_product_id) & (CreditPayment.due_date == subq.c.min_date))
+        .all()
+    )
+    for np in next_rows:
+        if np.credit_product_id in stats:
+            stats[np.credit_product_id]["next_date"] = np.due_date
+            stats[np.credit_product_id]["next_amount"] = float(np.amount)
+        else:
+            stats[np.credit_product_id] = {
+                "payment_count": 0, "paid_count": 0,
+                "next_date": np.due_date, "next_amount": float(np.amount),
+            }
+
+    return stats
+
+
+def list_products(
+    db: Session,
+    page: int,
+    page_size: int,
+    type_filter: Optional[str],
+    status_filter: Optional[str],
+    search: Optional[str],
+) -> dict:
+    """Kredi ürünlerini listele — `products.py::list_products` endpoint gövdesi BİREBİR (2026-09-02)."""
+    query = db.query(CreditProduct)
+
+    if type_filter and type_filter in CREDIT_PRODUCT_TYPES:
+        query = query.filter(CreditProduct.type == type_filter)
+    if status_filter:
+        query = query.filter(CreditProduct.status == status_filter)
+    if search:
+        s = like_pattern(search, max_len=100)
+        query = query.filter(
+            (CreditProduct.name.ilike(s, escape="\\")) |
+            (CreditProduct.bank_name.ilike(s, escape="\\"))
+        )
+
+    total = query.count()
+    products = (
+        query
+        .options(joinedload(CreditProduct.creator))   # N+1 engeli
+        .order_by(CreditProduct.type, CreditProduct.name)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    # Ödeme istatistiklerini toplu hesapla (N+1 engeli)
+    product_ids = [p.id for p in products]
+    stats = _batch_payment_stats(db, product_ids)
+
+    return page_meta([_build_product_response(p, stats) for p in products], total, page, page_size)
+
+
+def summary_by_type(db: Session) -> list:
+    """Tip bazlı kredi özeti — EUR karşılığı dahil. `summary.py::credit_summary` gövdesi BİREBİR (2026-09-02)."""
+    from app.models.exchange_rate import ExchangeRate
+
+    rows = (
+        db.query(
+            CreditProduct.type,
+            func.count(CreditProduct.id),
+            func.coalesce(func.sum(CreditProduct.total_amount), 0),
+            func.coalesce(func.sum(CreditProduct.remaining_amount), 0),
+        )
+        .filter(CreditProduct.status == "active")
+        .group_by(CreditProduct.type)
+        .all()
+    )
+
+    # Tip + para birimi bazlı kalan tutarlar
+    currency_rows = (
+        db.query(
+            CreditProduct.type,
+            CreditProduct.currency,
+            func.coalesce(func.sum(CreditProduct.remaining_amount), 0),
+        )
+        .filter(CreditProduct.status == "active")
+        .group_by(CreditProduct.type, CreditProduct.currency)
+        .all()
+    )
+
+    # EUR kuru
+    eur_rate = None
+    latest_date = db.query(func.max(ExchangeRate.date)).scalar()
+    if latest_date:
+        eur_obj = db.query(ExchangeRate).filter(
+            ExchangeRate.date == latest_date,
+            ExchangeRate.currency_code == "EUR",
+        ).first()
+        if eur_obj and eur_obj.forex_buying and float(eur_obj.forex_buying) > 0:
+            eur_rate = float(eur_obj.forex_buying)
+
+    # Tip bazlı EUR karşılığı hesapla
+    type_eur: dict = {}
+    for ctype, currency, remaining in currency_rows:
+        rem = float(remaining)
+        if eur_rate:
+            eur_val = rem if currency == "EUR" else rem / eur_rate
+        else:
+            eur_val = None
+        if ctype not in type_eur:
+            type_eur[ctype] = 0.0 if eur_rate else None
+        if eur_val is not None and type_eur[ctype] is not None:
+            type_eur[ctype] += eur_val
+
+    result = []
+    for r in rows:
+        item = CreditSummaryItem(
+            type=r[0],
+            type_label=CREDIT_TYPE_LABELS.get(r[0], r[0]),
+            count=r[1],
+            total_amount=float(r[2]),
+            remaining_amount=float(r[3]),
+        ).model_dump()
+        eur_val = type_eur.get(r[0])
+        item["remaining_amount_eur"] = round(eur_val, 2) if eur_val is not None else None
+        result.append(item)
+
+    return result
+
+
+def upcoming_payments(db: Session, days: int, include_paid: bool) -> list:
+    """Yaklaşan ödemeler (aktif krediler) — `summary.py::upcoming_payments` gövdesi BİREBİR (2026-09-02).
+
+    `date.today()` ifadesi olduğu gibi korunur (parmak izi: sonuç güne bağlıdır — kasıtlı).
+    include_paid=True iken ödenmiş taksitler de döner ve aralık **bu ayın başından**
+    başlar (bu ayın tamamı görünür — taksit takvimi/akordiyon için). is_paid + paid_date
+    alanları her zaman döner. include_paid=False (varsayılan) eski davranış: sadece
+    ödenmemiş, bugünden itibaren.
+    """
+    today = date.today()
+    start = today.replace(day=1) if include_paid else today
+    end = today + timedelta(days=days)
+
+    q = (
+        db.query(CreditPayment, CreditProduct)
+        .join(CreditProduct, CreditPayment.credit_product_id == CreditProduct.id)
+        .filter(
+            CreditProduct.status == "active",  # kapalı kredilerin taksitleri gösterilmez
+            CreditPayment.due_date >= start,
+            CreditPayment.due_date <= end,
+        )
+    )
+    if not include_paid:
+        q = q.filter(CreditPayment.is_paid == False)
+
+    rows = q.order_by(CreditPayment.due_date).all()
+
+    return [
+        {
+            "payment_id": p.id,
+            "product_id": prod.id,
+            "product_name": prod.name,
+            "product_type": prod.type,
+            "type_label": CREDIT_TYPE_LABELS.get(prod.type, prod.type),
+            "bank_name": prod.bank_name,
+            "currency": prod.currency,
+            "installment_no": p.installment_no,
+            "due_date": p.due_date,
+            "amount": float(p.amount),
+            "is_paid": p.is_paid,
+            "paid_date": p.paid_date,
+            "principal": float(p.principal) if p.principal is not None else None,
+            "interest": float(p.interest) if p.interest is not None else None,
+            "bsmv": float(p.bsmv) if p.bsmv is not None else None,
+            "commission": float(p.commission) if p.commission is not None else None,
+        }
+        for p, prod in rows
+    ]

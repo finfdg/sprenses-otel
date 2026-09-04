@@ -4,6 +4,11 @@ D1-1/D1-5 (2026-06-22): Bu saf FIFO motoru + cache eskiden `routers/finance/sale
 içindeydi; `routers/yonetim.py` (_merged_advances) oradan import ediyordu (router→router).
 Artık burada; sales_invoices router'ı + yonetim buradan alır. İçe aktarma sonrası
 `_invalidate_compute_cache()` çağrılır (conftest test izolasyonunda da kullanır).
+
+`summary(db)` (2026-09-02, yeniden yapılandırma — BİREBİR/verbatim taşıma): `GET /sales-invoices/summary`
+endpoint'inin (routers/finance/sales_invoices.py) toplama gövdesi değiştirilmeden buraya alındı;
+endpoint ince sarmalayıcı olarak sonucu olduğu gibi döner. Finansal parmak-izi
+(`audit_finance_invariants._inv_si_ozet_endpoint`) bu hesabı ölçer — gövde oynatılamaz.
 """
 import threading
 import time
@@ -21,8 +26,6 @@ from app.models.sales_invoice import (
     SalesInvoice,
 )
 from app.utils.text_match import _norm_tokens
-
-
 
 _EPS = 0.01  # float kırıntı eşiği
 
@@ -203,3 +206,41 @@ def _merged_advances(db: Session):
     for x in merged:
         total_by_cur[x["currency"]] = round(total_by_cur.get(x["currency"], 0.0) + x["remaining"], 2)
     return merged, total_by_cur
+
+
+# ─── Özet (router GET /summary ince sarmalayıcı; 2026-09-02 verbatim taşıma) ───
+
+def summary(db: Session):
+    """Satış faturası özeti: toplam faturalanan/tahsil/açık + durum + münferit/acente kırılımı + avans."""
+    smap, _ = _compute_cached(db)
+    invoices = db.query(SalesInvoice).all()
+    agg = {
+        "total": {"invoiced": 0.0, "collected": 0.0, "count": 0},
+        "munferit": {"invoiced": 0.0, "collected": 0.0, "count": 0},
+        "agency": {"invoiced": 0.0, "collected": 0.0, "count": 0},
+    }
+    status_counts = {STATUS_PAID: 0, STATUS_PARTIAL: 0, STATUS_OPEN: 0}
+    for inv in invoices:
+        entry = smap.get(inv.id, {"collected_tl": 0.0, "status": STATUS_OPEN})
+        amt = _f(inv.amount)  # TL karşılığı (konsolide)
+        bucket = "munferit" if inv.is_munferit else "agency"
+        for key in ("total", bucket):
+            agg[key]["invoiced"] += amt
+            agg[key]["collected"] += entry.get("collected_tl", 0.0)
+            agg[key]["count"] += 1
+        status_counts[entry["status"]] += 1
+    for key in agg:
+        agg[key]["invoiced"] = round(agg[key]["invoiced"], 2)
+        agg[key]["collected"] = round(agg[key]["collected"], 2)
+        agg[key]["outstanding"] = round(agg[key]["invoiced"] - agg[key]["collected"], 2)
+
+    # net avans — 340 'Alınan Avanslar' + 120 net-alacak birleşik (para birimi bazında)
+    merged_adv, adv_by_cur = _merged_advances(db)
+    return {
+        **agg,
+        "status_counts": status_counts,
+        "advance": {  # kullanılmamış net avans (340 asıl defter + 120 net-alacak)
+            "by_currency": adv_by_cur,                        # {"TL": x, "EUR": y}
+            "agency_count": len(merged_adv),
+        },
+    }

@@ -27,6 +27,11 @@ yükselir ve HİÇBİR kayıt değiştirilmez (kısmi veriyle sahte uyuşmazlık
 
 Router (accounting/mutabakat.py) ve onay executor'ı AYNI fonksiyonları çağırır
 (CLAUDE.md D1-2 ortak-service deseni).
+
+Liste filtresi (2026-09-02, yeniden yapılandırma — BİREBİR/verbatim taşıma): `apply_item_filters`
+eskiden `routers/accounting/mutabakat.py:_apply_item_filters` idi; gövdesi değiştirilmeden buraya
+alındı. Router `_apply_item_filters = apply_item_filters` takma adıyla geriye-uyumlu yeniden dışa
+aktarır (audit_finance_invariants + eski import yolları aynı fonksiyonu çözer).
 """
 import logging
 import re
@@ -35,6 +40,7 @@ from itertools import combinations
 from typing import Callable, Dict, List, Optional, Tuple
 
 import pytz
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.constants import ReconStatus
@@ -1070,3 +1076,28 @@ def resolve_recon_item(db: Session, item_id: int, action: str,
         raise ValueError(f"Geçersiz aksiyon: {action}")
     db.flush()
     return item
+
+
+# ─── Uyuşmazlık liste filtreleri (router /items + /items/pdf ORTAK; 2026-09-02 verbatim taşıma) ───
+
+def apply_item_filters(query, status: Optional[str], account_id: Optional[int],
+                       entity_type: Optional[str], include_closed: bool, q: Optional[str]):
+    """Uyuşmazlık liste filtreleri — /items ve /items/pdf AYNI kümeyi görsün diye ortak."""
+    if not include_closed:
+        query = query.filter(SednaBankRecon.resolved_at.is_(None))
+    if status:
+        query = query.filter(SednaBankRecon.status == status)
+    if account_id:
+        query = query.filter(SednaBankRecon.bank_account_id == account_id)
+    if entity_type == "bank":
+        # Banka satırları entity_type taşımaz (NULL) — 'bank' takma değeri onları seçer
+        query = query.filter(SednaBankRecon.entity_type.is_(None))
+    elif entity_type:
+        query = query.filter(SednaBankRecon.entity_type == entity_type)
+    if q:
+        like = f"%{q.strip()}%"
+        query = query.filter(or_(
+            SednaBankRecon.description.ilike(like),
+            SednaBankRecon.sedna_description.ilike(like),
+        ))
+    return query
