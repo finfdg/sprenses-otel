@@ -12,7 +12,7 @@ yapıya işlemek — **API yolu, DB şeması, UI davranışı ve hiçbir finansa
 | pytest (2 050+ test) | kırmızı kümesi master taban çizgisiyle **birebir aynı** (15 önceden-var-olan + 2 worktree-ortam), yeni kırmızı **0** |
 | Rota manifesti (`tests/test_route_manifest.py`, 465 rota: yol+metot+endpoint+etiket) | değişmedi |
 | svelte-check / vitest | 0 hata / 363 (+yeni) yeşil |
-| Finansal parmak izi (`denetim_finans_parmak_izi.py`, 41 değişmez, canlı DB, A=master/B=branch/A2) | **41/41 birebir** (Faz 0–2b sonrası 2026-09-02 13:01; final ölçüm deploy öncesi) |
+| Finansal parmak izi (`denetim_finans_parmak_izi.py`, 41 değişmez, canlı DB, A=master/B=branch/A2) | **41/41 birebir** (2026-09-02 13:01 Faz 0–2b sonrası **ve** 2026-09-04 13:08 Faz 4c sonrası — her ikisi 41/41) |
 | Katman bekçisi (`tests/test_layering.py`, AST) | ihlal 0 (tek açık istisna: `audit_finance_invariants.py`) |
 
 ## Fazlar
@@ -29,8 +29,8 @@ yapıya işlemek — **API yolu, DB şeması, UI davranışı ve hiçbir finansa
 | 3c | `88a7896` | Frontend `stores/messaging/` (4 utils özellik modülü + store) ve `stores/cashflow/` (cache + runway) |
 | 3d | `e4279a5` | Frontend tek-kaynak sabitler (`TRANSFER_CATEGORIES`), `SOURCE_CASH_FLOW` ve `requiredModuleForPath` ölü kod |
 | 4a | `822d794` | Depo kökü hijyeni: **public'e sızan** `frontend/static/borcluluk_varlik_raporu_22052026.pdf` ve `incoming/*.xlsx` git'ten kaldırıldı; 3 kök zip → `docs/tasarim/`; `.gitignore` veri bloğu |
-| 4b | (bkz. git log) | Finans router çekirdekleri → `services/` (t_account, runway, bank_snapshot, eur_balances, aging, credit summary/list, checks summary, vendors summary/detail/analytics, payment_schedule, mutabakat/sales/advances summary) — verbatim, router re-export; `audit_finance_invariants.py` import'ları servislere çevrildi |
-| 5 | (bkz. git log) | Dokümantasyon: CLAUDE.md Proje Yapısı + Katman yönü, `docs/proje-yapisi.md`, `docs/README.md`, `README.md`, `docs/denetim/README.md`, kısa-biçim bayat yollar |
+| 4b | `d1ebeb2` · 4c `2cd42ca` | Finans router çekirdekleri → `services/` (t_account, runway, bank_snapshot, eur_balances, aging, credit summary/list, checks summary, vendors summary/detail/analytics, payment_schedule, mutabakat/sales/advances summary) — verbatim, router re-export; `audit_finance_invariants.py` import'ları servislere çevrildi |
+| 5 | `4940079` · 5b `8f21cc9` | Dokümantasyon: CLAUDE.md Proje Yapısı + Katman yönü, `docs/proje-yapisi.md`, `docs/README.md`, `README.md`, `docs/denetim/README.md`, kısa-biçim bayat yollar |
 
 ## Eski → yeni yol tablosu
 
