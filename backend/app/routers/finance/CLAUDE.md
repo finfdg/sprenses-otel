@@ -2655,47 +2655,69 @@ Mükerrer tespiti **bakiye bazlı** yapılır — en güvenilir yöntem:
 
 ---
 
-## Dosya Yapısı
+## Dosya Yapısı (2026-09-02 yeniden yapılandırması sonrası)
+
+Endpoint'ler `app/routers/finance/`'ta, **hesap çekirdekleri `app/services/`'te** (router → service → model;
+bekçi `tests/test_layering.py`). Router modülleri taşınan adları re-export eder → testler/parmak izi/cron eski
+yoldan import etmeye devam eder. Endpoint yolları/etiketleri `tests/test_route_manifest.py` ile dondurulmuştur.
 
 ```
 app/routers/finance/
-├── banks.py            # Banka hesapları CRUD + ekstre upload endpoint'leri + işlem listesi
-├── bank_statement_import.py # Ekstre yükleme/işleme domain mantığı (_save_and_parse/_process_statement/_post_upload_processing)
-├── bank_instructions.py # Banka talimatları (EFT/havale, döviz bozma PDF)
-├── checks.py           # Çek CRUD + upload + liste/özet/durum endpoint'leri
-├── check_import.py     # Çek Sedna içe-aktarma domain mantığı (run_check_import + dedup/infer/sweep)
-├── krediler/            # Kredi ürünleri paketi
-│   ├── __init__.py      # Alt router'ları birleştirir (prefix="/krediler") + `_match_credits_to_bank` ihracı (banks.py geriye uyumluluk)
-│   ├── products.py      # Kredi ürünleri CRUD (list, get, create, update, delete)
-│   ├── payments.py      # Ödeme planı CRUD + `_match_credits_to_bank` (banka-kredi otomatik eşleştirme)
-│   ├── kmh.py           # KMH durumu (adat, faiz, projeksiyon)
-│   ├── summary.py       # Tip bazlı özet + yaklaşan ödemeler
-│   └── _helpers.py      # Ortak yardımcı fonksiyonlar (`_build_product_response`, `_batch_payment_stats`, BCH/KMH plan üreticileri)
-├── cc_statements.py    # Kredi kartı ekstresi
-├── cariler/             # Cari hesaplar paketi
-│   ├── __init__.py      # Alt router'ları birleştirir
-│   ├── uploads.py       # Excel yükleme, yükleme geçmişi, silme
-│   ├── vendors.py       # Cari listesi, detay, vade günü güncelleme
-│   ├── payment_schedule.py  # Ödeme planı + Excel export
-│   ├── matching.py      # Çek eşleştirme, kaldırma, devir
-│   └── _helpers.py      # Ortak yardımcı fonksiyonlar (UPLOAD_DIR, response builder)
-├── advances.py         # Avanslar
-├── butce.py            # Bütçe yönetimi (kategori + bütçe kaydı CRUD + özet)
-├── onay.py             # Departman onay iş akışı (atama, onay, ret)
-├── departmanlar.py     # Departman CRUD
-├── cash_flow/           # Nakit akım paketi (finance_events üzerinden)
-│   ├── __init__.py      # Alt router'ları birleştirir
+├── __init__.py          # 18 alt router (cash_flow ÖNCE; krediler/kart ayrı prefix)
+├── advances.py          # Avanslar CRUD (+ /summary → advance_service.summary)
+├── bank_instructions.py # Banka talimatları PDF (EFT/havale/döviz)
+├── banks.py             # Banka hesapları CRUD + ekstre yükleme/liste/silme (domain: services/bank_statement_import_service)
+├── butce.py             # Bütçe kategori + kayıt CRUD + özet
+├── cc_statements.py     # Kredi kartı ekstresi (prefix /krediler/kart)
+├── checks.py            # Çek CRUD/yükleme/liste; /summary → check_service.checks_summary (Sedna import: services/check_import_service)
+├── departmanlar.py      # Departman CRUD
+├── exchange_rates.py    # Döviz kurları (GET)
+├── hakedis.py           # Hak ediş (receivable_service)
+├── onay.py              # Departman onay iş akışı (finance.onay)
+├── payment_instructions.py # Ödeme talimatı listeleri + Excel/PDF export
+├── sales_invoices.py    # Satış faturaları + Sedna import (run_sales_invoice_import); /summary → sales_invoice_service.summary
+├── sedna_sync.py        # Merkezi Sedna senkron orkestrasyonu (_STEPS, run_sync_all_steps)
+├── transaction_tags.py  # Etiketleme + kategori + FX çifti eşleme
+├── vakifbank.py         # VakıfBank API içe-aktarım
+├── cariler/             # Cari hesaplar (prefix /cariler)
+│   ├── _helpers.py      # UPLOAD_DIR (app.paths), logger; _build_tx_response/_build_dept_cat_user_maps re-export (vendor_service)
+│   ├── analytics.py     # Aylık bakiye / yıllık ciro → vendor_analytics_service
+│   ├── bank_accounts.py # Cari IBAN'ları
+│   ├── matching.py      # Çek eşleştirme / kaldırma / devir
+│   ├── notes.py         # Cari notları
+│   ├── payment_schedule.py # Ödeme planı → payment_schedule_service.compute_payment_schedule (+ Excel export)
+│   ├── sedna_import.py  # Sedna cari/IBAN içe-aktarım (run_cari_import, run_iban_import)
+│   ├── uploads.py       # Excel yükleme, geçmiş, toplu silme (_compute_removal_candidates)
+│   └── vendors.py       # Liste/özet/detay/vade → vendor_service.vendors_summary / vendor_detail
+├── cash_flow/           # Nakit akım (finance_events)
+│   ├── _helpers.py      # _fe_to_response, _get_vendor_net_debts; bank_snapshot/_get_eur_rate… re-export (bank_snapshot_service)
+│   ├── aging.py         # Yaşlanan eşleşmemişler + tahmin doğruluğu → aging_service.compute_aging
+│   ├── cc_projections.py# KK ekstre projeksiyonu (cc_projection_service)
+│   ├── chart.py         # Nakit akım grafiği (t_account_service çekirdekleriyle — TEK SAYI KURALI)
+│   ├── deferral.py · hold.py   # Öteleme / bekletme
+│   ├── eur_balances.py  # EUR bakiye → eur_balances_service.compute_eur_balances
 │   ├── listing.py       # Liste, özet, mobil dashboard
-│   ├── matching.py      # Eşleştirme (cari, kredi kartı, kredi)
-│   ├── eur_balances.py  # EUR bakiye özeti + compute_eur_balances(db) ortak çekirdek
-│   ├── report.py        # Nakit akım PDF raporu (ay/gün bazlı EUR tablosu)
-│   ├── runway.py        # Runway / nakit koruma projeksiyonu (ay-içi planlı hareketler EUR) + held dizisi
-│   ├── deferral.py      # Kalıcı öteleme (payment_deferrals) endpoint'i
-│   ├── hold.py          # Bekletme (cash_flow_holds) — kalemi akım-dışı park (hold-batch)
-│   ├── aging.py         # Yaşlanan eşleşmemişler + tahmin doğruluğu raporları (Faz 3 #21/#25)
-│   └── _helpers.py      # Ortak yardımcı fonksiyonlar
-├── exchange_rates.py   # Döviz kurları
-└── transaction_tags.py # Etiketleme + kategori yönetimi
+│   ├── matching.py      # Eşleştirme endpoint'leri (çekirdek: services/matching_service)
+│   ├── report.py        # PDF raporu
+│   ├── runway.py        # Nakit koruma → runway_service.compute_runway (+ _compute_start_eur, _event_eur re-export)
+│   └── t_account.py     # T-Hesap → t_account_service.compute_t_account (+ _event_eur/_rate_for… re-export, taccount_limiter)
+└── krediler/            # Krediler (prefix /krediler; summary → kmh → products → payments include sırası)
+    ├── _helpers.py      # _batch_payment_stats/_build_product_response re-export (credit_service)
+    ├── kmh.py           # KMH durumu (kmh_calculator)
+    ├── payments.py      # Ödeme planı CRUD (credit_service)
+    ├── products.py      # Kredi ürünleri CRUD + PDF export; list_products → credit_service.list_products
+    └── summary.py       # Tip bazlı özet / yaklaşan ödemeler → credit_service.summary_by_type / upcoming_payments
+
+app/services/ (finans)  — verbatim çıkarılan çekirdekler 2026-09-02: t_account_service, runway_service,
+  bank_snapshot_service, eur_balances_service, aging_service, payment_schedule_service, vendor_analytics_service,
+  bank_statement_import_service, check_import_service; genişletilenler: credit_service, check_service,
+  vendor_service, advance_service, sales_invoice_service, sedna_recon_service (apply_item_filters).
+  Eskiden utils'te olan domain modülleri: matching_service, finance_event_service, auto_tagger, vendor_fifo,
+  sync_vendor_fifo, recurring_vendor_sync, entry_generator, kmh_calculator, fx_rates (+ fx_service, deferral_service,
+  hold_service, period_lock_service, receivable_service, budget_service, bank_account_service, bank_release_service,
+  cc_projection_service).
+app/parsers/ (bank_parser, cc_statement_parser, check_parser, vendor_parser) · app/integrations/ (sedna_client,
+  garanti_api, qnb_api, yapikredi_api, vakifbank_client, tcmb) · app/realtime/finance_broadcast.
 ```
 
 ---
@@ -2746,7 +2768,7 @@ katmanı kontrat gerçekleriyle hizalandı:
 | `app/models/finance_event.py` | `finance_events` tablo modeli |
 | `backend/cron_fetch_exchange_rates.py` | Günlük TCMB kur güncelleme cronu |
 | `backend/cron_weekly_push.py` | Pazartesi haftalık push bildirimi cronu |
-| `backend/backfill_finance_events.py` | Mevcut verilerin tek seferlik aktarımı |
+| `backend/fix_stale_amount_try.py` · `backend/backfill_usd_amount_try.py` | amount_try onarım araçları (varsayılan kuru çalışma; `--apply` ile yazar) — 2026-09-02 kuru çalışmasında 23 bayat TRY + 4 USD-NULL kayıt AÇIK |
 
 ---
 
@@ -2863,7 +2885,7 @@ harcanmadan önce alınmış olmalı — makul iş kuralı varsayımı, kesin ve
 ## Test
 
 ```bash
-# Backend testleri (1220+ test)
+# Backend testleri (2050+ test)
 cd backend && source venv/bin/activate && python -m pytest tests/ -v
 
 # Finans modülü testleri
@@ -2874,7 +2896,7 @@ python cron_weekly_push.py --dry-run
 python cron_fetch_exchange_rates.py
 ```
 
-### Test Kapsamı (2026-04-12 güncel)
+### Test Kapsamı (2026-04-12; 2026-09-02 eklemeleri: test_layering, test_paths, test_route_manifest, test_constants)
 - `test_finance.py` — Nakit akım, banka, cariler, döviz genel testleri
 - `test_finance_performance.py` — Performans ve eş zamanlılık testleri
 - `test_credits.py` — Kredi ürün CRUD + ödeme planı + remaining_amount testi
