@@ -16,7 +16,7 @@ routers → approval → services → (integrations | parsers | realtime | utils
 |---|---|---|
 | `app/routers/<paket>/` | HTTP katmanı: endpoint, `Depends`, izin (`require_permission`), onay kapısı (`check_approval`), audit. | İş mantığı **taşımaz**; başka router PAKETİNDEN iş fonksiyonu import etmez (paket-içi `_helpers` serbest). Paket `__init__`'i alt-router önek/etiketlerini kablolar. |
 | `app/approval/` | Onay motoru: `approval_check` (kapı), `approval_service` (workflow eşleme + durum makinesi), `approval_executor` (onaylanan payload'ı domain servisiyle uygular). | Router import etmez. Handler'lar router endpoint'iyle **aynı servis fonksiyonunu** çağırır. |
-| `app/services/` | Domain iş mantığı (HTTP'siz): Sedna içe-aktarım, FIFO, eşleştirme, KPI/T-Hesap/runway/aging çekirdekleri, CRUD servisleri. | **Asla** `app.routers` import etmez (tek istisna `audit_finance_invariants.py`, bkz. aşağıda). `date.today()` varsayılanları ve yuvarlama kuralları finansal parmak izinin parçasıdır — verbatim korunur. |
+| `app/services/` | Domain iş mantığı (HTTP'siz): Sedna içe-aktarım, FIFO, eşleştirme, KPI/T-Hesap/runway/aging çekirdekleri, CRUD servisleri. | **Asla** `app.routers` import etmez (istisna listesi boş — 2026-09-04). `date.today()` varsayılanları ve yuvarlama kuralları finansal parmak izinin parçasıdır — verbatim korunur. |
 | `app/integrations/` | Dış sistem istemcileri: Sedna (SQL Server), banka API'leri (Garanti/QNB/YKB/Vakıf), TCMB, SMTP, Amadeus. | `app.services`/`app.routers` import etmez. Testler `fetch_*` fonksiyonlarını modül niteliği üzerinden monkeypatch'ler → servisler bu fonksiyonları **adla** import eder. |
 | `app/parsers/` | Saf ayrıştırıcılar: banka PDF/Excel, kredi kartı ekstresi, çek, rezervasyon, cari raporu. | DB/servis import'u yok. |
 | `app/realtime/` | WS yayını (`finance_broadcast`/`sales_broadcast`, debounce'lu), bildirim, web-push. | `websocket.manager` üzerinden yayınlar; router import etmez. |
@@ -24,10 +24,9 @@ routers → approval → services → (integrations | parsers | realtime | utils
 | `app/models/` · `app/schemas/` | SQLAlchemy modelleri (93 tablo; hepsi `models/__init__.py`'de kayıtlı → alembic autogenerate yüzeyi) · Pydantic şemaları. | `source_type` gibi DB'de saklanan sabitler **yalnız** `models/finance_event.py`'de tanımlıdır; `app/constants.py` re-export eder (`tests/test_constants.py`). |
 | `app/paths.py` | `APP_DIR / BACKEND_DIR / REPO_ROOT / UPLOADS_DIR / LOGS_DIR / TESSDATA_DIR / VENV_DIR / CRON_DENETIM_SCRIPT / QNB_REFRESH_TOKEN_FILE` | Yeni kodda `__file__` derinliğinden yol türetme **yasak** (dosya taşınınca sessizce kayar); `tests/test_paths.py` bunu yasaklar. |
 
-**Bilinçli istisna — `app/services/audit_finance_invariants.py`:** finansal parmak-izi kapısının değişmez
-kaydı; ölçüm için router endpoint fonksiyonlarını çağırır. Yolu ve adı **donmuştur** (`cron_denetim_auto.py`
-DEPLOY_BLOCKERS + `tests/test_denetim.py`). `tests/test_layering.py` bu dosyayı açık istisna listesinde tutar;
-router çekirdekleri servislere çıkarıldıkça bu dosyanın import'ları servis yollarına çevrilir.
+**`app/services/audit_finance_invariants.py`:** finansal parmak-izi kapısının değişmez kaydı; yolu ve adı **donmuştur**
+(`cron_denetim_auto.py` DEPLOY_BLOCKERS + `tests/test_denetim.py`). 2026-09-04'ten itibaren router endpoint'lerini değil,
+aynı gövdelerin verbatim taşındığı servis fonksiyonlarını ölçer → `tests/test_layering.py` istisna listesi boştur.
 
 ## Dizin ağacı (dizin düzeyi)
 

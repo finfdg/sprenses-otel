@@ -13,7 +13,7 @@ yapıya işlemek — **API yolu, DB şeması, UI davranışı ve hiçbir finansa
 | Rota manifesti (`tests/test_route_manifest.py`, 465 rota: yol+metot+endpoint+etiket) | değişmedi |
 | svelte-check / vitest | 0 hata / 363 (+yeni) yeşil |
 | Finansal parmak izi (`denetim_finans_parmak_izi.py`, 41 değişmez, canlı DB, A=master/B=branch/A2) | **41/41 birebir** (2026-09-02 13:01 Faz 0–2b sonrası **ve** 2026-09-04 13:08 Faz 4c sonrası — her ikisi 41/41) |
-| Katman bekçisi (`tests/test_layering.py`, AST) | ihlal 0 (tek açık istisna: `audit_finance_invariants.py`) |
+| Katman bekçisi (`tests/test_layering.py`, AST) | ihlal 0, istisna listesi BOŞ (`audit_finance_invariants.py` Faz 4c'de servisleri çağırır hâle geldi) |
 
 ## Fazlar
 
